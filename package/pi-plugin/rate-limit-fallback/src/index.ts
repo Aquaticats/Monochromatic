@@ -18,8 +18,6 @@ import type { ExtensionVirtualModel, } from '@earendil-works/pi-coding-agent';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   dispatchRequest,
-  PoolDispatchError,
-  type RoutingSession,
 } from './dispatch-request.ts';
 import {
   type MemberLimitsReader,
@@ -28,6 +26,10 @@ import {
   PROVIDER_ID,
 } from './model-pools.ts';
 import type { RoutingRegistry, } from './quota-endpoints.ts';
+import {
+  PoolDispatchError,
+  type RoutingSession,
+} from './routing-session.ts';
 import {
   type PoolVirtualModel,
   registerVirtualModels,
@@ -64,7 +66,15 @@ export {
 
  @internal
  */
-export { headerReset, UNREACHABLE_MEMBER_HOLD_MS, } from './rate-limit-evidence.ts';
+export { headerReset, } from './rate-limit-evidence.ts';
+
+/**
+ How long the pool holds a member whose request it could not deliver, exported so the suites use the
+ shipped value.
+
+ @internal
+ */
+export { UNREACHABLE_MEMBER_HOLD_MS, } from './rate-limit-evidence.ts';
 
 /**
  The lane reading of one NeuralWatt rate-limit response, exported because no shipped pool asks the

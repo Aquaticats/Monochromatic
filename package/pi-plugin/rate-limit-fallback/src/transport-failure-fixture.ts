@@ -12,6 +12,10 @@
  */
 export type TransportFailure = {
   /**
+   What a person saw happen, used as the case name in the suites.
+   */
+  readonly name: string;
+  /**
    Code the adapter's text carries, as undici or Node spells it.
    */
   readonly code: string;
@@ -51,7 +55,15 @@ function fetchFailed({
   readonly message: string;
   readonly code: string;
 }): TypeError {
-  return new TypeError('fetch failed', { cause: Object.assign(new Error(message,), { code, }), },);
+  return new TypeError(
+    'fetch failed',
+    {
+      cause: Object.assign(
+        new Error(message,),
+        { code, },
+      ),
+    },
+  );
 }
 
 /**
@@ -68,7 +80,15 @@ function fetchFailed({
  ```
  */
 function socketClosed(): TypeError {
-  return new TypeError('terminated', { cause: Object.assign(new Error('other side closed',), { code: 'UND_ERR_SOCKET', },), },);
+  return new TypeError(
+    'terminated',
+    {
+      cause: Object.assign(
+        new Error('other side closed',),
+        { code: 'UND_ERR_SOCKET', },
+      ),
+    },
+  );
 }
 
 /**
@@ -86,7 +106,7 @@ function resetAfterHeader(): Promise<Response> {
    Body that fails as soon as Pi reads it, which is what a reset connection does.
    */
   const body = new ReadableStream({
-    start(controller,) {
+    start(controller,): void {
       controller.error(socketClosed(),);
     },
   },);
@@ -100,67 +120,103 @@ function resetAfterHeader(): Promise<Response> {
 }
 
 /**
- Every transport failure the pool hands to the next member, named by what a person saw.
-
- The text of each entry is what `src/adapter-refusal.unit.test.ts` reads back from the two installed
- adapters, and `doc/captures.md` records the transport each one was captured from.
+ A host that never answered within the connect limit the transport applies.
  */
-export const TRANSPORT_FAILURES = {
-  'a connect timeout': {
-    code: 'UND_ERR_CONNECT_TIMEOUT',
-    text: 'Request timed out.: Connect Timeout Error (attempted address: stand-in.example:443, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)',
-    respond: async function connectTimeout(): Promise<Response> {
-      throw fetchFailed({
-        message: 'Connect Timeout Error (attempted address: stand-in.example:443, timeout: 10000ms)',
-        code: 'UND_ERR_CONNECT_TIMEOUT',
-      },);
-    },
+export const CONNECT_TIMEOUT: TransportFailure = {
+  name: 'a connect timeout',
+  code: 'UND_ERR_CONNECT_TIMEOUT',
+  text: 'Request timed out.: Connect Timeout Error (attempted address: stand-in.example:443, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)',
+  respond: function connectTimeout(): Promise<Response> {
+    return Promise.reject(fetchFailed({
+      message: 'Connect Timeout Error (attempted address: stand-in.example:443, timeout: 10000ms)',
+      code: 'UND_ERR_CONNECT_TIMEOUT',
+    },),);
   },
-  'a refused connection': {
-    code: 'ECONNREFUSED',
-    text: 'Connection error.: connect ECONNREFUSED 127.0.0.1:443',
-    respond: async function refused(): Promise<Response> {
-      throw fetchFailed({
-        message: 'connect ECONNREFUSED 127.0.0.1:443',
-        code: 'ECONNREFUSED',
-      },);
-    },
+};
+
+/**
+ A connection the host refused.
+ */
+export const REFUSED_CONNECTION: TransportFailure = {
+  name: 'a refused connection',
+  code: 'ECONNREFUSED',
+  text: 'Connection error.: connect ECONNREFUSED 127.0.0.1:443',
+  respond: function refused(): Promise<Response> {
+    return Promise.reject(fetchFailed({
+      message: 'connect ECONNREFUSED 127.0.0.1:443',
+      code: 'ECONNREFUSED',
+    },),);
   },
-  'a reset before any response header': {
-    code: 'ECONNRESET',
-    text: 'Connection error.: read ECONNRESET',
-    respond: async function resetBeforeHeader(): Promise<Response> {
-      throw fetchFailed({
-        message: 'read ECONNRESET',
-        code: 'ECONNRESET',
-      },);
-    },
+};
+
+/**
+ A connection the host reset before any response header arrived.
+ */
+export const RESET_BEFORE_HEADER: TransportFailure = {
+  name: 'a reset before any response header',
+  code: 'ECONNRESET',
+  text: 'Connection error.: read ECONNRESET',
+  respond: function resetBeforeHeader(): Promise<Response> {
+    return Promise.reject(fetchFailed({
+      message: 'read ECONNRESET',
+      code: 'ECONNRESET',
+    },),);
   },
-  'a reset after a successful response header': {
-    code: 'UND_ERR_SOCKET',
-    text: 'terminated: other side closed (UND_ERR_SOCKET)',
-    respond: resetAfterHeader,
+};
+
+/**
+ A connection the host reset after a successful response header, when the member had shown nothing.
+ */
+export const RESET_AFTER_HEADER: TransportFailure = {
+  name: 'a reset after a successful response header',
+  code: 'UND_ERR_SOCKET',
+  text: 'terminated: other side closed (UND_ERR_SOCKET)',
+  respond: resetAfterHeader,
+};
+
+/**
+ A name the resolver answered was not there.
+ */
+export const NAME_NOT_FOUND: TransportFailure = {
+  name: 'a name that does not resolve',
+  code: 'ENOTFOUND',
+  text: 'Connection error.: getaddrinfo ENOTFOUND no-such-host.invalid',
+  respond: function nameNotFound(): Promise<Response> {
+    return Promise.reject(fetchFailed({
+      message: 'getaddrinfo ENOTFOUND no-such-host.invalid',
+      code: 'ENOTFOUND',
+    },),);
   },
-  'a name that does not resolve': {
-    code: 'ENOTFOUND',
-    text: 'Connection error.: getaddrinfo ENOTFOUND no-such-host.invalid',
-    respond: async function nameNotFound(): Promise<Response> {
-      throw fetchFailed({
-        message: 'getaddrinfo ENOTFOUND no-such-host.invalid',
-        code: 'ENOTFOUND',
-      },);
-    },
+};
+
+/**
+ A name the resolver could not answer for at this moment.
+ */
+export const NAME_TEMPORARILY_UNRESOLVABLE: TransportFailure = {
+  name: 'a name the resolver cannot answer for now',
+  code: 'EAI_AGAIN',
+  text: 'Connection error.: getaddrinfo EAI_AGAIN no-such-host.invalid',
+  respond: function nameTemporarilyUnresolvable(): Promise<Response> {
+    return Promise.reject(fetchFailed({
+      message: 'getaddrinfo EAI_AGAIN no-such-host.invalid',
+      code: 'EAI_AGAIN',
+    },),);
   },
-  'a name the resolver cannot answer for now': {
-    code: 'EAI_AGAIN',
-    text: 'Connection error.: getaddrinfo EAI_AGAIN no-such-host.invalid',
-    respond: async function nameTemporarilyUnresolvable(): Promise<Response> {
-      throw fetchFailed({
-        message: 'getaddrinfo EAI_AGAIN no-such-host.invalid',
-        code: 'EAI_AGAIN',
-      },);
-    },
-  },
-} as const satisfies Record<string, TransportFailure>;
+};
+
+/**
+ Every transport failure the pool hands to the next member.
+
+ The text of each entry is what `src/adapter-transport-failure.unit.test.ts` reads back from the two
+ installed adapters, and `doc/captures.md` records the transport each one was captured from.
+ */
+export const TRANSPORT_FAILURES: readonly TransportFailure[] = [
+  CONNECT_TIMEOUT,
+  REFUSED_CONNECTION,
+  RESET_BEFORE_HEADER,
+  RESET_AFTER_HEADER,
+  NAME_NOT_FOUND,
+  NAME_TEMPORARILY_UNRESOLVABLE,
+];
 
 //endregion The failure each code arrives as

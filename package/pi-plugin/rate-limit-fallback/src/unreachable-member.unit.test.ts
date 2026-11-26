@@ -3,6 +3,7 @@
  @module
  */
 
+import { setImmediate, } from 'node:timers/promises';
 import {
   createAssistantMessageEventStream,
 } from '@earendil-works/pi-ai';
@@ -21,7 +22,12 @@ import {
   poolModel,
   TRANSCRIPT,
 } from './stand-in-pi-fixture.ts';
-import { TRANSPORT_FAILURES, } from './transport-failure-fixture.ts';
+import {
+  REFUSED_CONNECTION,
+  RESET_AFTER_HEADER,
+  type TransportFailure,
+  TRANSPORT_FAILURES,
+} from './transport-failure-fixture.ts';
 
 /** Writer head, the member every request starts at. */
 const [HEAD, SECOND, THIRD,] = WRITER_TARGETS;
@@ -42,7 +48,7 @@ const REFUSAL_NAMING_A_CODE = '400 Connection reset by an upstream proxy (ECONNR
 /**
  Transport failure the whole pool reports when every member is unreachable.
  */
-const EXHAUSTED_FAILURE = TRANSPORT_FAILURES['a refused connection'];
+const EXHAUSTED_FAILURE = REFUSED_CONNECTION;
 
 /**
  Drive one member that fails at the socket, as the installed Completions adapter reports it.
@@ -58,7 +64,7 @@ function unreachable({
   failure,
 }: {
   readonly call: MemberCall;
-  readonly failure: (typeof TRANSPORT_FAILURES)[keyof typeof TRANSPORT_FAILURES];
+  readonly failure: TransportFailure;
 },) {
   return streamCompletions(
     {
@@ -78,13 +84,16 @@ function unreachable({
 
 await describe({
   name: 'a member that cannot be reached',
+  // Every case here replaces a process-wide clock or the console, so the cases run one at a time
+  // rather than beside each other.
+  concurrency: 1,
   children: [
     //region Before any output
 
-    ...Object.entries(TRANSPORT_FAILURES,)
-      .map(function transportFailure([name, failure,],) {
+    ...TRANSPORT_FAILURES
+      .map(function transportFailure(failure,) {
         return it({
-          name: `moves on from ${name} before any output`,
+          name: `moves on from ${failure.name} before any output`,
           fn: async function unreachableMember() {
             const { provider, calls, options, } = await fixture({
               extension,
@@ -137,7 +146,7 @@ await describe({
             stream.push({ type: 'text_start', contentIndex: 0, partial, },);
             finish({ stream, message: assistant({
               model,
-              errorMessage: TRANSPORT_FAILURES['a reset after a successful response header'].text,
+              errorMessage: RESET_AFTER_HEADER.text,
             },), },);
             return stream;
           },
@@ -145,7 +154,7 @@ await describe({
         const model = poolModel({ provider, id: 'writer-pool', },);
         const { events, result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(events.map(event => event.type,),).toEqual(['start', 'text_start', 'error',],);
-        expect(result.errorMessage,).toBe(TRANSPORT_FAILURES['a reset after a successful response header'].text,);
+        expect(result.errorMessage,).toBe(RESET_AFTER_HEADER.text,);
         expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,),],);
       },
     },),
@@ -204,6 +213,8 @@ await describe({
         },);
         const model = poolModel({ provider, id: 'writer-pool', },);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
+        // The console sink emits on a later turn than the request resolves.
+        await setImmediate();
         /**
          Lines this case's move produced, apart from anything else the pool logged.
          */
