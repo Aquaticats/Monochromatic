@@ -69,7 +69,8 @@ mod no_self_invocation_tests;
 mod no_test_changes_the_process_directory_tests;
 
 /// The ban on a control reading a starter's marker to decide whether its body runs here:
-/// a control hands the starter its body, which runs in a child of the test binary.
+/// a control hands the starter its body,
+/// which runs in a child of the test binary.
 #[cfg(test)]
 #[path = "only_the_process_wide_starter_reads_its_marker_tests.rs"]
 mod only_the_process_wide_starter_reads_its_marker_tests;

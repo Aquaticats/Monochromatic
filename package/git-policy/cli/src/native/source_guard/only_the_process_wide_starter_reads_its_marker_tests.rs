@@ -2,12 +2,15 @@
 //! a test hands the starter its body,
 //! and the starter runs it in a child of the test binary.
 //! Why:
-//!  The marker belongs to the starter (`testing/process_wide_state_child_test_support.rs`, issue 6503):
+//!  The marker belongs to the starter
+//!  (`testing/process_wide_state_child_test_support.rs`,
+//!  issue 6503):
 //!  a control that reads it holds an answer it can read inverted,
 //!  and an inverted read runs the body in the process whose state it was written to stay out of.
 //!  The starter's own answer is not `pub(crate)` any more,
 //!  so no module outside its file can even ask it,
-//!  and this check covers the one route left: reading the variable itself.
+//!  and this check covers the one route left:
+//!  reading the variable itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

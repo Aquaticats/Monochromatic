@@ -59,7 +59,8 @@ const CHILD_VARIABLE: &str = "CLI_GIT_PROCESS_WIDE_STATE_CHILD";
 /// What:
 ///  Whether this process is a child this file started,
 ///  which is the only process a control may set state that belongs to the whole process in.
-///  `mod tests` is a child module and reaches it; nothing outside this file does,
+///  `mod tests` is a child module and reaches it;
+///  nothing outside this file does,
 ///  so no control can ask the question instead of handing the starter its body.
 /// Why:
 ///  The refusal and the control's own body ask this one question,
@@ -108,7 +109,10 @@ pub(crate) fn refuse_outside_the_child(state: &str) {
 ///  `name` its function name,
 ///  and `body` what the test does.
 /// Why:
-///  A runtime, the room a process gives blocking jobs, the bound on them and a hold every read of the process consults
+///  A runtime,
+///  the room a process gives blocking jobs,
+///  the bound on them,
+///  and a hold every read of the process consults
 ///  all belong to the whole process,
 ///  so a control that sets one where the run holds them fails or deadlocks the rest of that run (issue 6487).
 ///  The child is a process of its own,
