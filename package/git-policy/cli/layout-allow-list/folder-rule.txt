@@ -7,6 +7,8 @@
 #      A line that matches nothing is a finding, so a round that untangles a use deletes its line.
 glob src/native/landing/service_work.rs crate::service_work_handlers_replanning_and_acceptance
 glob src/native/lib.rs candidate
+glob src/native/lib.rs checkout_boot_units
+glob src/native/lib.rs checkout_underlay_entry
 glob src/native/lib.rs command
 glob src/native/lib.rs commit
 glob src/native/lib.rs config
@@ -45,11 +47,13 @@ glob src/native/lib.rs worktree_clone_move_refusal
 glob src/native/lib.rs worktree_clone_origin_cleanup
 glob src/native/lib.rs worktree_clone_prune_pointer
 glob src/native/lib.rs worktree_clone_record_settling
+glob src/native/lib.rs worktree_clone_removal_cancel
 glob src/native/lib.rs worktree_clone_removal_finish_pass
 glob src/native/lib.rs worktree_clone_removal_proof_and_plan
 glob src/native/lib.rs worktree_clone_slot_state
 glob src/native/lib.rs worktree_clone_snapshot_batch
 glob src/native/lib.rs worktree_clone_unmount
+glob src/native/lib.rs worktree_clone_watch_rebinding
 glob src/native/lib.rs worktree_copying
 glob src/native/lib.rs worktree_removal_deferred_origin_check
 glob src/native/service/service_server_land_group.rs crate::service_server_land_group_owed_pushes
@@ -64,7 +68,60 @@ group-file src/native/health external_hooks.rs
 group-file src/native/health hooks_path_values.rs
 group-file src/native/health lfs_shims.rs
 group-file src/native/health traditional_hook_warning.rs
+group-file src/native/invocation action.rs
+group-file src/native/invocation alias_value.rs
+group-file src/native/invocation announced_query.rs
+group-file src/native/invocation chain_starts_record.rs
+group-file src/native/invocation child_environment.rs
+group-file src/native/invocation effective_target.rs
+group-file src/native/invocation entry.rs
+group-file src/native/invocation entry_forward_action_planning.rs
+group-file src/native/invocation entry_push_stacking_and_lfs_upload.rs
+group-file src/native/invocation entry_repository_link_stop.rs
+group-file src/native/invocation entry_rules_text_change_warm.rs
+group-file src/native/invocation entry_run_forwarded_actions.rs
+group-file src/native/invocation entry_zfs_slot_commands.rs
+group-file src/native/invocation escape_hatch.rs
+group-file src/native/invocation exit_report_written.rs
+group-file src/native/invocation external_git_command.rs
+group-file src/native/invocation forwarded_command.rs
+group-file src/native/invocation forwarding.rs
+group-file src/native/invocation git_builtins.rs
+group-file src/native/invocation git_version.rs
+group-file src/native/invocation git_version_cache.rs
+group-file src/native/invocation global_arguments.rs
+group-file src/native/invocation global_arguments_pathspec_modes.rs
+group-file src/native/invocation guarded_forwarded_command.rs
+group-file src/native/invocation hooks_off.rs
+group-file src/native/invocation lfs_install_arguments.rs
+group-file src/native/invocation lfs_install_request.rs
+group-file src/native/invocation management.rs
+group-file src/native/invocation management_action_notes.rs
+group-file src/native/invocation management_arguments.rs
+group-file src/native/invocation management_direct_commands.rs
+group-file src/native/invocation management_selection.rs
+group-file src/native/invocation management_service_repository_selection.rs
+group-file src/native/invocation management_service_settle_earlier_batches.rs
+group-file src/native/invocation management_service_stop_units_of_removed_worktrees.rs
+group-file src/native/invocation panic_notice.rs
+group-file src/native/invocation real_git.rs
+group-file src/native/invocation real_git_candidate.rs
+group-file src/native/invocation real_git_record.rs
+group-file src/native/invocation real_git_resolution.rs
+group-file src/native/invocation repository_selection.rs
+group-file src/native/invocation start_marker.rs
+group-file src/native/invocation started_as_git.rs
+group-file src/native/invocation startup_gate.rs
+group-file src/native/invocation wrapped_command.rs
+group-file src/native/invocation wrapped_command_notices_snapshots_and_manual_push.rs
+group-file src/native/invocation wrapper_controls.rs
+group-file src/native/invocation wrapper_invocation.rs
+link src/native/checkout_boot_units/uses/testing not-a-source-folder
+link src/native/checkout_underlay_entry/uses/testing not-a-source-folder
+link src/native/worktree_clone_removal_cancel/uses/testing not-a-source-folder
 missing-link src/native -> src/native/candidate
+missing-link src/native -> src/native/checkout_boot_units
+missing-link src/native -> src/native/checkout_underlay_entry
 missing-link src/native -> src/native/command
 missing-link src/native -> src/native/commit
 missing-link src/native -> src/native/config
@@ -72,7 +129,6 @@ missing-link src/native -> src/native/conflict
 missing-link src/native -> src/native/dependent_version
 missing-link src/native -> src/native/foundation
 missing-link src/native -> src/native/index
-missing-link src/native -> src/native/invocation
 missing-link src/native -> src/native/kept_references
 missing-link src/native -> src/native/landing
 missing-link src/native -> src/native/lfs
@@ -102,11 +158,13 @@ missing-link src/native -> src/native/worktree_clone_move_refusal
 missing-link src/native -> src/native/worktree_clone_origin_cleanup
 missing-link src/native -> src/native/worktree_clone_prune_pointer
 missing-link src/native -> src/native/worktree_clone_record_settling
+missing-link src/native -> src/native/worktree_clone_removal_cancel
 missing-link src/native -> src/native/worktree_clone_removal_finish_pass
 missing-link src/native -> src/native/worktree_clone_removal_proof_and_plan
 missing-link src/native -> src/native/worktree_clone_slot_state
 missing-link src/native -> src/native/worktree_clone_snapshot_batch
 missing-link src/native -> src/native/worktree_clone_unmount
+missing-link src/native -> src/native/worktree_clone_watch_rebinding
 missing-link src/native -> src/native/worktree_copying
 missing-link src/native -> src/native/worktree_removal_deferred_origin_check
 missing-link src/native/account_companion -> src/native/foundation
@@ -115,7 +173,6 @@ missing-link src/native/account_companion -> src/native/start_probe
 missing-link src/native/candidate -> src/native/config
 missing-link src/native/candidate -> src/native/conflict
 missing-link src/native/candidate -> src/native/foundation
-missing-link src/native/candidate -> src/native/invocation
 missing-link src/native/candidate -> src/native/policy
 missing-link src/native/candidate -> src/native/push
 missing-link src/native/candidate -> src/native/repo_read
@@ -124,7 +181,6 @@ missing-link src/native/candidate -> src/native/transaction
 missing-link src/native/candidate -> src/native/worktree_copying
 missing-link src/native/command -> src/native/conflict
 missing-link src/native/command -> src/native/foundation
-missing-link src/native/command -> src/native/invocation
 missing-link src/native/command -> src/native/repo_read
 missing-link src/native/command -> src/native/subvolume
 missing-link src/native/command -> src/native/transaction
@@ -135,7 +191,6 @@ missing-link src/native/commit -> src/native/config
 missing-link src/native/commit -> src/native/conflict
 missing-link src/native/commit -> src/native/foundation
 missing-link src/native/commit -> src/native/index
-missing-link src/native/commit -> src/native/invocation
 missing-link src/native/commit -> src/native/landing
 missing-link src/native/commit -> src/native/markdown
 missing-link src/native/commit -> src/native/policy
@@ -148,14 +203,12 @@ missing-link src/native/commit -> src/native/transaction
 missing-link src/native/commit -> src/native/worktree
 missing-link src/native/config -> src/native/conflict
 missing-link src/native/config -> src/native/foundation
-missing-link src/native/config -> src/native/invocation
 missing-link src/native/config -> src/native/policy
 missing-link src/native/config -> src/native/transaction
 missing-link src/native/config -> src/native/worktree
 missing-link src/native/conflict -> src/native/command
 missing-link src/native/conflict -> src/native/config
 missing-link src/native/conflict -> src/native/foundation
-missing-link src/native/conflict -> src/native/invocation
 missing-link src/native/conflict -> src/native/repo_read
 missing-link src/native/conflict -> src/native/service
 missing-link src/native/conflict -> src/native/shadow
@@ -163,22 +216,27 @@ missing-link src/native/conflict -> src/native/subvolume
 missing-link src/native/conflict -> src/native/transaction
 missing-link src/native/conflict -> src/native/worktree
 missing-link src/native/dependent_version -> src/native/candidate
-missing-link src/native/dependent_version -> src/native/invocation
 missing-link src/native/dependent_version -> src/native/policy
 missing-link src/native/dependent_version -> src/native/repo_read
 missing-link src/native/dependent_version -> src/native/transaction
 missing-link src/native/dependent_version -> src/native/worktree
-missing-link src/native/foundation -> src/native/invocation
 missing-link src/native/foundation -> src/native/landing
 missing-link src/native/foundation -> src/native/lfs
 missing-link src/native/foundation -> src/native/policy
 missing-link src/native/foundation -> src/native/service
 missing-link src/native/foundation -> src/native/worktree
 missing-link src/native/health/doctor_zfs_route -> src/native/subvolume
+missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_binding_record
+missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_managed_lock
 missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_mount
 missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_mount_handler
 missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_mount_protocol
+missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_removal_proof_and_plan
+missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_slot_state
 missing-link src/native/health/doctor_zfs_route -> src/native/worktree_clone_unmount
+missing-link src/native/health/doctor_zfs_route -> src/native/worktree_removal_deferred_origin_check
+missing-link src/native/health/sanoid_coverage -> src/native/health/doctor_zfs_route
+missing-link src/native/health/sanoid_coverage -> src/native/worktree_clone_mount_handler
 missing-link src/native/index -> src/native/foundation
 missing-link src/native/index -> src/native/landing
 missing-link src/native/index -> src/native/repo_read
@@ -186,36 +244,15 @@ missing-link src/native/index -> src/native/service
 missing-link src/native/index -> src/native/subvolume
 missing-link src/native/index -> src/native/transaction
 missing-link src/native/index -> src/native/worktree
-missing-link src/native/invocation -> src/native/candidate
-missing-link src/native/invocation -> src/native/command
-missing-link src/native/invocation -> src/native/commit
-missing-link src/native/invocation -> src/native/config
-missing-link src/native/invocation -> src/native/conflict
-missing-link src/native/invocation -> src/native/foundation
-missing-link src/native/invocation -> src/native/kept_references
-missing-link src/native/invocation -> src/native/landing
-missing-link src/native/invocation -> src/native/lfs
-missing-link src/native/invocation -> src/native/lock
-missing-link src/native/invocation -> src/native/merge
-missing-link src/native/invocation -> src/native/policy
-missing-link src/native/invocation -> src/native/process
-missing-link src/native/invocation -> src/native/push
-missing-link src/native/invocation -> src/native/repo_read
-missing-link src/native/invocation -> src/native/repository_link_check
-missing-link src/native/invocation -> src/native/service
-missing-link src/native/invocation -> src/native/shadow
-missing-link src/native/invocation -> src/native/subvolume
-missing-link src/native/invocation -> src/native/transaction
-missing-link src/native/invocation -> src/native/worktree
-missing-link src/native/invocation -> src/native/worktree_clone_binding_record
-missing-link src/native/invocation -> src/native/worktree_clone_link_repair
-missing-link src/native/invocation -> src/native/worktree_clone_move_refusal
-missing-link src/native/invocation -> src/native/worktree_clone_prune_pointer
-missing-link src/native/invocation -> src/native/worktree_copying
-missing-link src/native/invocation -> src/native/zfs_mounted_dataset
+missing-link src/native/invocation/typed_network_command_relay -> src/native/command
+missing-link src/native/invocation/typed_network_command_relay -> src/native/foundation
+missing-link src/native/invocation/typed_network_command_relay -> src/native/lfs
+missing-link src/native/invocation/typed_network_command_relay -> src/native/lock
+missing-link src/native/invocation/typed_network_command_relay -> src/native/process
+missing-link src/native/invocation/typed_network_command_relay -> src/native/push
+missing-link src/native/invocation/typed_network_command_relay -> src/native/service
 missing-link src/native/kept_references -> src/native
 missing-link src/native/kept_references -> src/native/foundation
-missing-link src/native/kept_references -> src/native/invocation
 missing-link src/native/kept_references -> src/native/landing
 missing-link src/native/kept_references -> src/native/push
 missing-link src/native/kept_references -> src/native/transaction
@@ -227,7 +264,7 @@ missing-link src/native/landing -> src/native/config
 missing-link src/native/landing -> src/native/conflict
 missing-link src/native/landing -> src/native/foundation
 missing-link src/native/landing -> src/native/index
-missing-link src/native/landing -> src/native/invocation
+missing-link src/native/landing -> src/native/invocation/typed_network_command_relay
 missing-link src/native/landing -> src/native/kept_references
 missing-link src/native/landing -> src/native/lfs
 missing-link src/native/landing -> src/native/lock
@@ -248,7 +285,6 @@ missing-link src/native/lfs -> src/native/command
 missing-link src/native/lfs -> src/native/commit
 missing-link src/native/lfs -> src/native/config
 missing-link src/native/lfs -> src/native/foundation
-missing-link src/native/lfs -> src/native/invocation
 missing-link src/native/lfs -> src/native/lock
 missing-link src/native/lfs -> src/native/process
 missing-link src/native/lfs -> src/native/push
@@ -257,7 +293,6 @@ missing-link src/native/lfs -> src/native/service
 missing-link src/native/lock -> src/native/command
 missing-link src/native/lock -> src/native/conflict
 missing-link src/native/lock -> src/native/foundation
-missing-link src/native/lock -> src/native/invocation
 missing-link src/native/lock -> src/native/landing
 missing-link src/native/lock -> src/native/merge
 missing-link src/native/lock -> src/native/policy
@@ -281,7 +316,6 @@ missing-link src/native/markdown -> src/native/worktree
 missing-link src/native/merge -> src/native/command
 missing-link src/native/merge -> src/native/conflict
 missing-link src/native/merge -> src/native/foundation
-missing-link src/native/merge -> src/native/invocation
 missing-link src/native/merge -> src/native/landing
 missing-link src/native/merge -> src/native/lock
 missing-link src/native/merge -> src/native/policy
@@ -298,7 +332,6 @@ missing-link src/native/policy -> src/native/config
 missing-link src/native/policy -> src/native/conflict
 missing-link src/native/policy -> src/native/dependent_version
 missing-link src/native/policy -> src/native/foundation
-missing-link src/native/policy -> src/native/invocation
 missing-link src/native/policy -> src/native/lfs
 missing-link src/native/policy -> src/native/markdown
 missing-link src/native/policy -> src/native/process
@@ -312,7 +345,6 @@ missing-link src/native/policy -> src/native/worktree
 missing-link src/native/policy -> src/native/worktree_copying
 missing-link src/native/process -> src/native/commit
 missing-link src/native/process -> src/native/foundation
-missing-link src/native/process -> src/native/invocation
 missing-link src/native/process -> src/native/lock
 missing-link src/native/process -> src/native/push
 missing-link src/native/process -> src/native/service
@@ -321,7 +353,7 @@ missing-link src/native/push -> src/native/candidate
 missing-link src/native/push -> src/native/command
 missing-link src/native/push -> src/native/config
 missing-link src/native/push -> src/native/foundation
-missing-link src/native/push -> src/native/invocation
+missing-link src/native/push -> src/native/invocation/typed_network_command_relay
 missing-link src/native/push -> src/native/landing
 missing-link src/native/push -> src/native/lfs
 missing-link src/native/push -> src/native/lock
@@ -335,7 +367,6 @@ missing-link src/native/push -> src/native/worktree
 missing-link src/native/push -> src/native/worktree_copying
 missing-link src/native/repair -> src/native
 missing-link src/native/repair -> src/native/foundation
-missing-link src/native/repair -> src/native/invocation
 missing-link src/native/repair -> src/native/landing
 missing-link src/native/repair -> src/native/process
 missing-link src/native/repair -> src/native/push
@@ -350,7 +381,6 @@ missing-link src/native/repo_read -> src/native/commit
 missing-link src/native/repo_read -> src/native/conflict
 missing-link src/native/repo_read -> src/native/foundation
 missing-link src/native/repo_read -> src/native/index
-missing-link src/native/repo_read -> src/native/invocation
 missing-link src/native/repo_read -> src/native/landing
 missing-link src/native/repo_read -> src/native/process
 missing-link src/native/repo_read -> src/native/push
@@ -358,13 +388,11 @@ missing-link src/native/repo_read -> src/native/service
 missing-link src/native/repo_read -> src/native/transaction
 missing-link src/native/repo_read -> src/native/worktree
 missing-link src/native/repository_link_check -> src/native/foundation
-missing-link src/native/repository_link_check -> src/native/invocation
 missing-link src/native/repository_link_check -> src/native/landing
 missing-link src/native/repository_link_check -> src/native/subvolume
 missing-link src/native/service -> src/native
 missing-link src/native/service -> src/native/commit
 missing-link src/native/service -> src/native/foundation
-missing-link src/native/service -> src/native/invocation
 missing-link src/native/service -> src/native/landing
 missing-link src/native/service -> src/native/lfs
 missing-link src/native/service -> src/native/lock
@@ -380,7 +408,6 @@ missing-link src/native/shadow -> src/native/candidate
 missing-link src/native/shadow -> src/native/commit
 missing-link src/native/shadow -> src/native/config
 missing-link src/native/shadow -> src/native/foundation
-missing-link src/native/shadow -> src/native/invocation
 missing-link src/native/shadow -> src/native/landing
 missing-link src/native/shadow -> src/native/merge
 missing-link src/native/shadow -> src/native/policy
@@ -394,7 +421,6 @@ missing-link src/native/standards_review -> src/native/service
 missing-link src/native/standards_review -> src/native/transaction
 missing-link src/native/start_probe -> src/native/zfs_compatibility_gate
 missing-link src/native/subvolume -> src/native/foundation
-missing-link src/native/subvolume -> src/native/invocation
 missing-link src/native/subvolume -> src/native/lock
 missing-link src/native/subvolume -> src/native/policy
 missing-link src/native/subvolume -> src/native/process
@@ -403,7 +429,6 @@ missing-link src/native/subvolume -> src/native/worktree
 missing-link src/native/subvolume -> src/native/worktree_copying
 missing-link src/native/transaction -> src/native/commit
 missing-link src/native/transaction -> src/native/foundation
-missing-link src/native/transaction -> src/native/invocation
 missing-link src/native/transaction -> src/native/process
 missing-link src/native/transaction -> src/native/push
 missing-link src/native/transaction -> src/native/repo_read
@@ -415,7 +440,6 @@ missing-link src/native/worktree -> src/native/config
 missing-link src/native/worktree -> src/native/conflict
 missing-link src/native/worktree -> src/native/foundation
 missing-link src/native/worktree -> src/native/index
-missing-link src/native/worktree -> src/native/invocation
 missing-link src/native/worktree -> src/native/kept_references
 missing-link src/native/worktree -> src/native/landing
 missing-link src/native/worktree -> src/native/lfs
@@ -434,7 +458,6 @@ missing-link src/native/worktree_clone_add_route -> src/native/account_companion
 missing-link src/native/worktree_clone_add_route -> src/native/command
 missing-link src/native/worktree_clone_add_route -> src/native/foundation
 missing-link src/native/worktree_clone_add_route -> src/native/health/doctor_zfs_route
-missing-link src/native/worktree_clone_add_route -> src/native/invocation
 missing-link src/native/worktree_clone_add_route -> src/native/lock
 missing-link src/native/worktree_clone_add_route -> src/native/repair
 missing-link src/native/worktree_clone_add_route -> src/native/repo_read
@@ -445,11 +468,13 @@ missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_bi
 missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_link_repair
 missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_managed_lock
 missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_mount
+missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_mount_handler
 missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_mount_protocol
+missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_removal_cancel
+missing-link src/native/worktree_clone_add_route -> src/native/worktree_clone_removal_proof_and_plan
 missing-link src/native/worktree_clone_add_route -> src/native/worktree_copying
 missing-link src/native/worktree_clone_add_route -> src/native/zfs_compatibility_gate
 missing-link src/native/worktree_clone_add_route -> src/native/zfs_mounted_dataset
-missing-link src/native/worktree_clone_forced_removal -> src/native/foundation
 missing-link src/native/worktree_clone_link_repair -> src/native/zfs_compatibility_gate
 missing-link src/native/worktree_clone_mount_handler -> src/native/lock
 missing-link src/native/worktree_clone_record_settling -> src/native/subvolume
@@ -464,7 +489,7 @@ missing-link src/native/worktree_clone_removal_proof_and_plan -> src/native/work
 missing-link src/native/worktree_clone_removal_proof_and_plan -> src/native/worktree_clone_unmount
 missing-link src/native/worktree_clone_removal_proof_and_plan -> src/native/zfs_compatibility_gate
 missing-link src/native/worktree_copying -> src/native/foundation
-missing-link src/native/worktree_copying -> src/native/invocation
+missing-link src/native/worktree_copying -> src/native/invocation/typed_network_command_relay
 missing-link src/native/worktree_copying -> src/native/lock
 missing-link src/native/worktree_copying -> src/native/policy
 missing-link src/native/worktree_copying -> src/native/process
@@ -481,21 +506,63 @@ missing-link src/native/worktree_copying -> src/native/worktree_clone_slot_state
 missing-link src/native/worktree_copying -> src/native/zfs_compatibility_gate
 missing-link src/native/worktree_copying -> src/native/zfs_mounted_dataset
 names-group src/native src/native/health
+names-group src/native src/native/invocation
+names-group src/native/candidate src/native/invocation
+names-group src/native/command src/native/invocation
 names-group src/native/commit src/native/health
-names-group src/native/invocation src/native/health
+names-group src/native/commit src/native/invocation
+names-group src/native/config src/native/invocation
+names-group src/native/conflict src/native/invocation
+names-group src/native/dependent_version src/native/invocation
+names-group src/native/foundation src/native/invocation
+names-group src/native/invocation/typed_network_command_relay src/native/invocation
+names-group src/native/kept_references src/native/invocation
 names-group src/native/landing src/native/health
+names-group src/native/landing src/native/invocation
+names-group src/native/lfs src/native/invocation
+names-group src/native/lock src/native/invocation
+names-group src/native/merge src/native/invocation
+names-group src/native/policy src/native/invocation
+names-group src/native/process src/native/invocation
+names-group src/native/push src/native/invocation
 names-group src/native/repair src/native/health
+names-group src/native/repair src/native/invocation
 names-group src/native/repo_read src/native/health
+names-group src/native/repo_read src/native/invocation
+names-group src/native/repository_link_check src/native/invocation
 names-group src/native/service src/native/health
+names-group src/native/service src/native/invocation
+names-group src/native/shadow src/native/invocation
+names-group src/native/subvolume src/native/invocation
+names-group src/native/transaction src/native/invocation
 names-group src/native/worktree src/native/health
+names-group src/native/worktree src/native/invocation
+names-group src/native/worktree_clone_add_route src/native/invocation
 names-group src/native/worktree_clone_managed_lock src/native/health
+names-group src/native/worktree_clone_managed_lock src/native/invocation
+names-group src/native/worktree_clone_move_refusal src/native/invocation
 names-group src/native/worktree_clone_prune_pointer src/native/health
+names-group src/native/worktree_copying src/native/invocation
 summary-missing src/native/health src/native/subvolume
+summary-missing src/native/health src/native/worktree_clone_binding_record
+summary-missing src/native/health src/native/worktree_clone_managed_lock
 summary-missing src/native/health src/native/worktree_clone_mount
 summary-missing src/native/health src/native/worktree_clone_mount_handler
 summary-missing src/native/health src/native/worktree_clone_mount_protocol
+summary-missing src/native/health src/native/worktree_clone_removal_proof_and_plan
+summary-missing src/native/health src/native/worktree_clone_slot_state
 summary-missing src/native/health src/native/worktree_clone_unmount
+summary-missing src/native/health src/native/worktree_removal_deferred_origin_check
+summary-missing src/native/invocation src/native/command
+summary-missing src/native/invocation src/native/foundation
+summary-missing src/native/invocation src/native/lfs
+summary-missing src/native/invocation src/native/lock
+summary-missing src/native/invocation src/native/process
+summary-missing src/native/invocation src/native/push
+summary-missing src/native/invocation src/native/service
+unused-link src/native/worktree_clone_removal_cancel/uses/lock
 uses src/native -> src/native/candidate
+uses src/native -> src/native/checkout_boot_units
 uses src/native -> src/native/command
 uses src/native -> src/native/commit
 uses src/native -> src/native/config
@@ -534,10 +601,12 @@ uses src/native -> src/native/worktree_clone_move_refusal
 uses src/native -> src/native/worktree_clone_origin_cleanup
 uses src/native -> src/native/worktree_clone_prune_pointer
 uses src/native -> src/native/worktree_clone_record_settling
+uses src/native -> src/native/worktree_clone_removal_cancel
 uses src/native -> src/native/worktree_clone_removal_finish_pass
 uses src/native -> src/native/worktree_clone_removal_proof_and_plan
 uses src/native -> src/native/worktree_clone_slot_state
 uses src/native -> src/native/worktree_clone_unmount
+uses src/native -> src/native/worktree_clone_watch_rebinding
 uses src/native -> src/native/worktree_copying
 uses src/native -> src/native/worktree_removal_deferred_origin_check
 uses src/native/account_companion -> src/native/foundation
@@ -553,6 +622,7 @@ uses src/native/candidate -> src/native/repo_read
 uses src/native/candidate -> src/native/service
 uses src/native/candidate -> src/native/transaction
 uses src/native/candidate -> src/native/worktree_copying
+uses src/native/checkout_boot_units -> src/native/worktree_clone_mount_handler
 uses src/native/clone_holder_scan -> src/native/foundation
 uses src/native/clone_holder_scan -> src/native/mount_namespace_scan
 uses src/native/clone_holder_scan -> src/native/subvolume
@@ -621,10 +691,17 @@ uses src/native/health -> src/native/subvolume
 uses src/native/health -> src/native/transaction
 uses src/native/health -> src/native/worktree
 uses src/native/health/doctor_zfs_route -> src/native/subvolume
+uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_binding_record
+uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_managed_lock
 uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_mount
 uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_mount_handler
 uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_mount_protocol
+uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_removal_proof_and_plan
+uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_slot_state
 uses src/native/health/doctor_zfs_route -> src/native/worktree_clone_unmount
+uses src/native/health/doctor_zfs_route -> src/native/worktree_removal_deferred_origin_check
+uses src/native/health/sanoid_coverage -> src/native/health/doctor_zfs_route
+uses src/native/health/sanoid_coverage -> src/native/worktree_clone_mount_handler
 uses src/native/index -> src/native/foundation
 uses src/native/index -> src/native/landing
 uses src/native/index -> src/native/repo_read
@@ -639,6 +716,7 @@ uses src/native/invocation -> src/native/config
 uses src/native/invocation -> src/native/conflict
 uses src/native/invocation -> src/native/foundation
 uses src/native/invocation -> src/native/health
+uses src/native/invocation -> src/native/invocation/typed_network_command_relay
 uses src/native/invocation -> src/native/kept_references
 uses src/native/invocation -> src/native/landing
 uses src/native/invocation -> src/native/lfs
@@ -660,6 +738,14 @@ uses src/native/invocation -> src/native/worktree_clone_move_refusal
 uses src/native/invocation -> src/native/worktree_clone_prune_pointer
 uses src/native/invocation -> src/native/worktree_copying
 uses src/native/invocation -> src/native/zfs_mounted_dataset
+uses src/native/invocation/typed_network_command_relay -> src/native/command
+uses src/native/invocation/typed_network_command_relay -> src/native/foundation
+uses src/native/invocation/typed_network_command_relay -> src/native/invocation
+uses src/native/invocation/typed_network_command_relay -> src/native/lfs
+uses src/native/invocation/typed_network_command_relay -> src/native/lock
+uses src/native/invocation/typed_network_command_relay -> src/native/process
+uses src/native/invocation/typed_network_command_relay -> src/native/push
+uses src/native/invocation/typed_network_command_relay -> src/native/service
 uses src/native/kept_references -> src/native
 uses src/native/kept_references -> src/native/foundation
 uses src/native/kept_references -> src/native/invocation
@@ -676,6 +762,7 @@ uses src/native/landing -> src/native/foundation
 uses src/native/landing -> src/native/health
 uses src/native/landing -> src/native/index
 uses src/native/landing -> src/native/invocation
+uses src/native/landing -> src/native/invocation/typed_network_command_relay
 uses src/native/landing -> src/native/kept_references
 uses src/native/landing -> src/native/lfs
 uses src/native/landing -> src/native/lock
@@ -773,6 +860,7 @@ uses src/native/push -> src/native/command
 uses src/native/push -> src/native/config
 uses src/native/push -> src/native/foundation
 uses src/native/push -> src/native/invocation
+uses src/native/push -> src/native/invocation/typed_network_command_relay
 uses src/native/push -> src/native/landing
 uses src/native/push -> src/native/lfs
 uses src/native/push -> src/native/lock
@@ -903,7 +991,10 @@ uses src/native/worktree_clone_add_route -> src/native/worktree_clone_binding_re
 uses src/native/worktree_clone_add_route -> src/native/worktree_clone_link_repair
 uses src/native/worktree_clone_add_route -> src/native/worktree_clone_managed_lock
 uses src/native/worktree_clone_add_route -> src/native/worktree_clone_mount
+uses src/native/worktree_clone_add_route -> src/native/worktree_clone_mount_handler
 uses src/native/worktree_clone_add_route -> src/native/worktree_clone_mount_protocol
+uses src/native/worktree_clone_add_route -> src/native/worktree_clone_removal_cancel
+uses src/native/worktree_clone_add_route -> src/native/worktree_clone_removal_proof_and_plan
 uses src/native/worktree_clone_add_route -> src/native/worktree_copying
 uses src/native/worktree_clone_add_route -> src/native/zfs_mounted_dataset
 uses src/native/worktree_clone_binding_record -> src/native/foundation
@@ -914,7 +1005,9 @@ uses src/native/worktree_clone_binding_record -> src/native/worktree_clone_mount
 uses src/native/worktree_clone_forced_removal -> src/native/clone_holder_scan
 uses src/native/worktree_clone_forced_removal -> src/native/foundation
 uses src/native/worktree_clone_forced_removal -> src/native/process
+uses src/native/worktree_clone_forced_removal -> src/native/subvolume
 uses src/native/worktree_clone_forced_removal -> src/native/worktree_clone_mount_protocol
+uses src/native/worktree_clone_forced_removal -> src/native/worktree_clone_unmount
 uses src/native/worktree_clone_link_repair -> src/native/worktree
 uses src/native/worktree_clone_link_repair -> src/native/worktree_clone_binding_record
 uses src/native/worktree_clone_link_repair -> src/native/worktree_clone_prune_pointer
@@ -968,6 +1061,17 @@ uses src/native/worktree_clone_record_settling -> src/native/worktree_clone_orig
 uses src/native/worktree_clone_record_settling -> src/native/worktree_clone_removal_proof_and_plan
 uses src/native/worktree_clone_record_settling -> src/native/worktree_clone_slot_state
 uses src/native/worktree_clone_record_settling -> src/native/zfs_mounted_dataset
+uses src/native/worktree_clone_removal_cancel -> src/native/foundation
+uses src/native/worktree_clone_removal_cancel -> src/native/process
+uses src/native/worktree_clone_removal_cancel -> src/native/subvolume
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_binding_record
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_mount
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_mount_handler
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_mount_protocol
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_removal_proof_and_plan
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_slot_state
+uses src/native/worktree_clone_removal_cancel -> src/native/worktree_clone_unmount
+uses src/native/worktree_clone_removal_cancel -> src/native/zfs_mounted_dataset
 uses src/native/worktree_clone_removal_finish_pass -> src/native/foundation
 uses src/native/worktree_clone_removal_finish_pass -> src/native/lock
 uses src/native/worktree_clone_removal_finish_pass -> src/native/subvolume
@@ -997,8 +1101,11 @@ uses src/native/worktree_clone_unmount -> src/native/subvolume
 uses src/native/worktree_clone_unmount -> src/native/worktree_clone_mount
 uses src/native/worktree_clone_unmount -> src/native/worktree_clone_mount_protocol
 uses src/native/worktree_clone_unmount -> src/native/worktree_copying
+uses src/native/worktree_clone_watch_rebinding -> src/native/subvolume
+uses src/native/worktree_clone_watch_rebinding -> src/native/worktree
 uses src/native/worktree_copying -> src/native/foundation
 uses src/native/worktree_copying -> src/native/invocation
+uses src/native/worktree_copying -> src/native/invocation/typed_network_command_relay
 uses src/native/worktree_copying -> src/native/lock
 uses src/native/worktree_copying -> src/native/policy
 uses src/native/worktree_copying -> src/native/process
