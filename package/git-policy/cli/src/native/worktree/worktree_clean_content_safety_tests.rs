@@ -16,6 +16,7 @@ use crate::subvolume_test_support::{
     checkout_with_worktree,
 };
 use crate::test_support::{
+    age,
     git,
     remove,
 };
@@ -372,6 +373,21 @@ fn judge_with(
 /// a `chmod`,
 /// a swap to a link and a write each refuse,
 ///  and an unchanged file is accepted.
+///
+/// Why:
+///  the three refusals come from three different comparisons:
+/// the `chmod` from the mode the state read after it holds,
+/// the swap from the open that follows no link,
+/// and the write from the state read after it differing from the state read before it.
+/// That state holds the device,
+/// inode,
+/// size,
+/// mode and times,
+/// and the kernel stamps the times from the coarse clock,
+/// so a rewrite in place that keeps the size changes none of them while its two states meet one tick
+/// (issue 6483: measured at one millisecond here, where back-to-back rewrites shared a tick).
+///  The file is therefore aged into an earlier tick before the write,
+/// as every other control of this crate that needs a state a later write can differ from.
 #[test]
 fn the_hashed_bytes_are_the_bytes_of_the_one_file_that_was_judged() {
     let (parent, _root, worktree) = settled("content-stable", &|_root: &Path| {});
@@ -426,6 +442,17 @@ fn the_hashed_bytes_are_the_bytes_of_the_one_file_that_was_judged() {
     assert!(swapped.contains("README.md"), "{swapped}");
     std::fs::remove_file(&readme).expect("remove link");
     std::fs::write(&readme, b"readme\n").expect("restore");
+    // What:     `age` moves this one file's access and modification times two minutes into the past with
+    //           `utimensat`, so the state the check reads first is one an earlier clock tick stamped.
+    // Why:      the restore above stamped the file with the tick it ran in, and a rewrite in that same tick
+    //           leaves every field the comparison reads equal, so the write would be seen or missed by
+    //           timing; aged, it always lands in a later tick, and the comparison sees it every run.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // age(readme); // utimensat(readme, [now - 120_000, now - 120_000]), the crate's test-support helper
+    // ```
+    age(readme.as_path());
     // A write after the bytes were read and before the state is read again.
     let written: String = judge_with(
         &subject,
