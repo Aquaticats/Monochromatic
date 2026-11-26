@@ -70,6 +70,12 @@ so two controls of a threaded run cannot both have theirs,
 and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
 The setters refuse in any other process and name the starter,
 as the descriptor limit's setter does.
+The switch that keeps a control's durability syncs in the page cache is one of those facts:
+it belongs to the process,
+so a control that sets it runs its body in a child,
+and without that a control that proves a sync was refused fails by which test ran first
+(issue 6498,
+`foundation/private_storage_syncs_test_support.rs`).
 A child makes its own fixtures;
 nothing here counts this process's descriptors.
 A threaded run moves those counters on other tests' threads,

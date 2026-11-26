@@ -128,7 +128,7 @@ Rounds started before that decision run on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
 - Issues 6489, 6493 and 6495 (flex),
-  and 6496, 6497 and 6498 (Qwen, filed from what 6487 left threaded-red),
+  and 6496 and 6497 (Qwen, filed from what 6487 left threaded-red),
   one window each, `issue-<number>-<words>`.
 - Debt ledger item 19, window `fixed-length-lists-become-slices`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
@@ -150,8 +150,9 @@ Rounds started before that decision run on flex.
 - 6483 as `ae1a14676b`,
   6484 as `b50016e728`,
   6485 as `d124f60f82`,
-  6486 as `ff8b9427c2` and
-  6487 as `f9096f7531`.
+  6486 as `ff8b9427c2`,
+  6487 as `f9096f7531` and
+  6498 as `ed9766ffad`.
 - The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
 - The linter's `alpha.13` fixes as `88e77f3553`,
   the release commit `e58ba6f078`,
@@ -221,15 +222,15 @@ Of those filed tonight,
 6483,
 6484,
 6485,
-6486 and
-6487 are merged (`### Merged tonight`),
+6486,
+6487 and
+6498 are merged (`### Merged tonight`),
 and 6489,
 6493,
 6494,
 6495,
-6496,
-6497 and
-6498 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
+6496 and
+6497 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
