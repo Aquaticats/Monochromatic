@@ -921,7 +921,8 @@ fn pathspec_file_trees_match_the_incumbent() {
 /// whose standard input is the null device,
 /// and never in the run's own process,
 /// whose standard input is the terminal the run was started from
-/// (`testing/process_wide_state_child_test_support.rs`, issue 6510).
+/// (`testing/process_wide_state_child_test_support.rs`,
+/// issue 6510).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -967,7 +968,8 @@ fn interactive_selection_reports_a_failed_git_add() {
 /// in the run's own process its Git read the terminal the run was started from,
 /// printed `What now>` and never ended,
 /// and the run's watchdog aborted the module run with no `test result` line
-/// (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`, issue 6510).
+/// (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`,
+/// issue 6510).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

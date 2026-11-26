@@ -3,8 +3,10 @@
 //!  a control that starts it runs its body in a child of its own first.
 //! Why:
 //!  `git add --interactive` and `git add --patch` read the standard input of the process that starts them,
-//!  by design: the person's terminal answers the selection
-//!  (`commit/commit_index_selection.rs`, `prepare_interactive_selection`).
+//!  by design:
+//!  the person's terminal answers the selection
+//!  (`commit/commit_index_selection.rs`,
+//!  `prepare_interactive_selection`).
 //!  `cargo test` runs a crate's tests as threads of one process,
 //!  so that process's standard input is the terminal the run was started from:
 //!  measured on 2026-11-26,
@@ -33,7 +35,8 @@
 ///  (`controls_naming_a_call_tests.rs`).
 /// Why:
 ///  This guard and that one ask the same question about different calls,
-///  so the reading of a source, its code places and its controls is written once.
+///  so the reading of a source,
+///  its code places and its controls is written once.
 use super::controls_naming_a_call_tests::{
     Scan,
     controls,
@@ -41,19 +44,22 @@ use super::controls_naming_a_call_tests::{
     scan,
 };
 /// What:
-///  `real_roots` answers the crate roots of this tree, and `source_root` the folder they stand in.
+///  `real_roots` answers the crate roots of this tree,
+///  and `source_root` the folder they stand in.
 /// Why:
-///  The scan reads the crate's own sources, so it needs where they start.
+///  The scan reads the crate's own sources,
+///  so it needs where they start.
 use crate::source_scan_tests::{
     real_roots,
     source_root,
 };
 
 /// What:
-///  `INTERACTIVE_GIT_CALLS` is each entry point of this crate whose Git reads the standard input of the process that
-///  calls it,
+///  `INTERACTIVE_GIT_CALLS` is each entry point of this crate whose Git reads the standard input of the process
+///  that calls it,
 ///  with why that entry point's Git reads it.
-///  The siblings a reader might expect are the option words alone (`--interactive`, `--patch`),
+///  The siblings a reader might expect are the option words alone (`--interactive`,
+///  `--patch`),
 ///  which a control also names while it parses a command line and starts no Git,
 ///  and a list of the two programs by name,
 ///  which names no call a control makes.

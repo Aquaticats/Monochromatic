@@ -8,9 +8,11 @@
 //!  and two of them ask the same question about different calls:
 //!  one about the preparation's ledger
 //!  (`no_control_reads_the_preparation_steps_in_the_run_tests.rs`),
-//!  and one about the interactive selection, whose Git reads the process's standard input
+//!  and one about the interactive selection,
+//!  whose Git reads the process's standard input
 //!  (`no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs`).
-//!  Splitting a source into controls, telling its code from its comments and its text literals,
+//!  Splitting a source into controls,
+//!  telling its code from its comments and its text literals,
 //!  and answering those two questions is the same work in both,
 //!  so it is written once here
 //!  (`AGENTS.md`'s UTL).
@@ -22,7 +24,8 @@
 //! ```
 
 /// What:
-///  `is_code` answers, for each byte of a source,
+///  `is_code` answers,
+///  for each byte of a source,
 ///  whether that byte is code rather than part of a comment or a text literal.
 ///  Its sibling a reader might expect is a lexer per guard,
 ///  which would answer the same bytes differently in each and could drift.
@@ -33,20 +36,25 @@
 ///  so the file's own answer to which bytes are code decides.
 use super::source_code_places_tests::is_code;
 /// What:
-///  `CrateRoot` is one crate root of the tree, and `classified_sources` reads the tree's files
+///  `CrateRoot` is one crate root of the tree,
+///  and `classified_sources` reads the tree's files
 ///  with each one told apart as release code or test-only code.
-///  The sibling a reader might expect is a plain recursive walk, which cannot say which files a test run compiles.
+///  The sibling a reader might expect is a plain recursive walk,
+///  which cannot say which files a test run compiles.
 /// Why:
-///  Only a control is judged here, so the scan has to know which sources a test build holds.
+///  Only a control is judged here,
+///  so the scan has to know which sources a test build holds.
 use crate::source_scan_tests::{
     CrateRoot,
     classified_sources,
 };
 /// What:
 ///  `Path` is a borrowed filesystem path.
-///  The sibling a reader might expect is `PathBuf`, which owns the path it names.
+///  The sibling a reader might expect is `PathBuf`,
+///  which owns the path it names.
 /// Why:
-///  The root the scan reads is the caller's, and nothing here keeps a path of its own.
+///  The root the scan reads is the caller's,
+///  and nothing here keeps a path of its own.
 use std::path::Path;
 
 /// What:
@@ -96,7 +104,8 @@ pub(crate) struct Control {
     ///  so a reader knows which one to open.
     pub(crate) name: String,
     /// What:
-    ///  whether any line of the control names a call the caller listed, in code.
+    ///  whether any line of the control names a call the caller listed,
+    ///  in code.
     /// Why:
     ///  that is the question each guard is about.
     pub(crate) names_a_listed_call: bool,

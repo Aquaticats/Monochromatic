@@ -34,7 +34,8 @@
 ///  (`controls_naming_a_call_tests.rs`).
 /// Why:
 ///  This guard and that one ask the same question about different calls,
-///  so the reading of a source, its code places and its controls is written once.
+///  so the reading of a source,
+///  its code places and its controls is written once.
 use super::controls_naming_a_call_tests::{
     Scan,
     controls,
@@ -42,9 +43,11 @@ use super::controls_naming_a_call_tests::{
     scan,
 };
 /// What:
-///  `real_roots` answers the crate roots of this tree, and `source_root` the folder they stand in.
+///  `real_roots` answers the crate roots of this tree,
+///  and `source_root` the folder they stand in.
 /// Why:
-///  The scan reads the crate's own sources, so it needs where they start.
+///  The scan reads the crate's own sources,
+///  so it needs where they start.
 use crate::source_scan_tests::{
     real_roots,
     source_root,
