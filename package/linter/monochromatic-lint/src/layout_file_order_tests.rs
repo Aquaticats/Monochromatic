@@ -691,7 +691,11 @@ fn a_listed_file_use_that_holds_no_loop_is_reported() {
     // The use is made, and nothing uses `one.rs` back, so its two ends are in no loop.
     let found: Vec<String> = findings_with(&fixture.path, "file-uses src/a one.rs -> two.rs\n");
     assert_eq!(found.len(), 1, "{found:#?}");
-    assert!(found[0].contains("tolerates nothing any more"), "{}", found[0]);
+    assert!(
+        found[0].contains("tolerates nothing any more"),
+        "{}",
+        found[0]
+    );
 }
 
 /// A use added between two files of a tolerated loop is a finding,
@@ -702,8 +706,11 @@ fn a_new_use_inside_a_tolerated_file_loop_is_a_finding() {
         ("src/lib.rs", "mod a;\n"),
         (
             "src/a/mod.rs",
-            index_listing(&["alpha.rs", "beta.rs", "gamma.rs"], &["alpha", "beta", "gamma"])
-                .as_str(),
+            index_listing(
+                &["alpha.rs", "beta.rs", "gamma.rs"],
+                &["alpha", "beta", "gamma"],
+            )
+            .as_str(),
         ),
         ("src/a/alpha.rs", "use super::beta::X;\n"),
         ("src/a/beta.rs", "use super::gamma::Y;\n"),
@@ -713,8 +720,7 @@ fn a_new_use_inside_a_tolerated_file_loop_is_a_finding() {
     let open: Vec<String> = findings_with(&fixture.path, "");
     assert_eq!(open.len(), 1, "{open:#?}");
     // Two of the loop's three uses are recorded, so the third is a use added inside a tolerated loop.
-    let listed: &str =
-        "file-uses src/a alpha.rs -> beta.rs\nfile-uses src/a beta.rs -> gamma.rs\n";
+    let listed: &str = "file-uses src/a alpha.rs -> beta.rs\nfile-uses src/a beta.rs -> gamma.rs\n";
     let found: Vec<String> = findings_with(&fixture.path, listed);
     assert_eq!(found.len(), 1, "{found:#?}");
     assert!(

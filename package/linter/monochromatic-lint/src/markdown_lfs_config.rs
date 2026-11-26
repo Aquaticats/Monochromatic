@@ -15,12 +15,18 @@
 ///  which differs from Rust's `str::trim` (it includes U+FEFF,
 ///  excludes U+0085).
 use crate::{
-    markdown_lfs_endpoint::{LfsUrlRejection, lfs_object_base},
+    markdown_lfs_endpoint::{
+        LfsUrlRejection,
+        lfs_object_base,
+    },
     markdown_trim_space::trim_space,
 };
 /// Import native paths and I/O error classification.
 use std::{
-    io::{ErrorKind, Read},
+    io::{
+        ErrorKind,
+        Read,
+    },
     path::Path,
 };
 
@@ -135,7 +141,10 @@ pub struct LfsConfigError {
 /// Render the failure through the ordinary error interface.
 impl std::fmt::Display for LfsConfigError {
     /// Borrow the formatter only while writing the stored explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -193,7 +202,10 @@ pub(crate) fn read_optional_text(path: &Path) -> Result<Option<String>, LfsConfi
     };
     // One byte past the bound, so a file that grew after any earlier look is refused rather than swallowed.
     let mut bytes: Vec<u8> = Vec::<u8>::new();
-    if let Err(error) = file.take(MAX_REPOSITORY_TEXT_BYTES as u64 + 1).read_to_end(&mut bytes) {
+    if let Err(error) = file
+        .take(MAX_REPOSITORY_TEXT_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+    {
         return Err(LfsConfigError {
             message: format!("Cannot read {}: {error}.", path.display()),
         });

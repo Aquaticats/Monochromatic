@@ -48,7 +48,10 @@ use satteri_ast::mdast::{
 /// Import an ordered map (deterministic iteration) and a lock for the shared per-run cache.
 use std::{
     collections::BTreeMap,
-    io::{ErrorKind, Read},
+    io::{
+        ErrorKind,
+        Read,
+    },
     path::{
         Path,
         PathBuf,

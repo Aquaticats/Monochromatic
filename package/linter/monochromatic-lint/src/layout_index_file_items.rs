@@ -28,14 +28,26 @@
 ///  the test-build detector,
 ///  and the parsed source.
 use crate::{
-    layout_finding::{LayoutFinding, key_path, shown, unique_keys},
+    layout_finding::{
+        LayoutFinding,
+        key_path,
+        shown,
+        unique_keys,
+    },
     layout_source_facts::is_test_only,
     rust_source::RustSource,
 };
 /// Import the syntax tree types.
 use ra_ap_syntax::{
-    AstNode, NodeOrToken, SyntaxKind, SyntaxNode,
-    ast::{self, HasName, HasVisibility},
+    AstNode,
+    NodeOrToken,
+    SyntaxKind,
+    SyntaxNode,
+    ast::{
+        self,
+        HasName,
+        HasVisibility,
+    },
 };
 /// Import native paths.
 use std::path::Path;
@@ -71,7 +83,10 @@ pub enum IndexRole {
 /// ```ts
 /// function describe(kind: string, name: string | undefined): string;
 /// ```
-fn describe(kind: &str, name: Option<ast::Name>) -> String {
+fn describe(
+    kind: &str,
+    name: Option<ast::Name>,
+) -> String {
     return match name {
         Some(found) => format!("{kind} `{}`", found.text()),
         None => String::from(kind),
@@ -199,16 +214,22 @@ fn named(item: &ast::Item) -> String {
                 None => format!("extern-crate-{name}"),
             }
         }
-        ast::Item::ExternBlock(found) => match found.abi().and_then(|abi| return abi.string_token()) {
-            // The ABI's own string, such as `"C"`, not the `extern` keyword the node also holds.
-            Some(found) => format!("extern-block-{}", found.text()),
-            None => String::from("extern-block-unstated"),
-        },
+        ast::Item::ExternBlock(found) => {
+            match found.abi().and_then(|abi| return abi.string_token()) {
+                // The ABI's own string, such as `"C"`, not the `extern` keyword the node also holds.
+                Some(found) => format!("extern-block-{}", found.text()),
+                None => String::from("extern-block-unstated"),
+            }
+        }
         ast::Item::AsmExpr(_) => String::from("assembly-block"),
         ast::Item::MacroCall(found) => match found.path() {
             // The path, the `!` that makes it a call, and the arguments as written.
             Some(path) => match found.token_tree() {
-                Some(tree) => format!("macro-call-{}!{}", compact(path.syntax()), compact(tree.syntax())),
+                Some(tree) => format!(
+                    "macro-call-{}!{}",
+                    compact(path.syntax()),
+                    compact(tree.syntax())
+                ),
                 None => format!("macro-call-{}!", compact(path.syntax())),
             },
             None => String::from("macro-call-anonymous"),
@@ -260,7 +281,10 @@ fn is_main(found: &ast::Fn) -> bool {
 /// ```ts
 /// function isAllowed(item: Item, role: IndexRole): boolean;
 /// ```
-fn is_allowed(item: &ast::Item, role: IndexRole) -> bool {
+fn is_allowed(
+    item: &ast::Item,
+    role: IndexRole,
+) -> bool {
     return match item {
         ast::Item::Module(found) => found.item_list().is_none(),
         ast::Item::Use(found) => match role {
@@ -310,7 +334,11 @@ fn first_word_offset(item: &SyntaxNode) -> usize {
 /// ```ts
 /// function checkIndexItems(file: Path, role: IndexRole, base: Path): LayoutFinding[];
 /// ```
-pub fn check_index_items(file: &Path, role: IndexRole, base: &Path) -> Vec<LayoutFinding> {
+pub fn check_index_items(
+    file: &Path,
+    role: IndexRole,
+    base: &Path,
+) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     let Ok(text) = std::fs::read_to_string(file) else {
         return findings;

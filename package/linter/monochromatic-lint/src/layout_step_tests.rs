@@ -324,7 +324,10 @@ fn a_no_file_list_entry_does_not_hide_a_new_file() {
 }
 
 /// Configuration turning one layout rule on with a list beside the fixture's configuration file.
-fn allow_config(rule: &str, list: &str) -> String {
+fn allow_config(
+    rule: &str,
+    list: &str,
+) -> String {
     return format!(
         r#"[{{ "files": ["**/*.rs"], "rules": {{ "{rule}": {{ "severity": "error", "allow": "{list}" }} }} }}]"#
     );
@@ -357,7 +360,11 @@ fn one_line_tolerates_one_glob_finding() {
     let found: Vec<String> = summary(&output);
     assert_eq!(found.len(), 1, "{}", output.stdout);
     // The second glob of the module, on its own line, is the one the list does not name.
-    assert_eq!(found[0], "rust/folder-uses-links error src/lib.rs 3", "{}", output.stdout);
+    assert_eq!(
+        found[0], "rust/folder-uses-links error src/lib.rs 3",
+        "{}",
+        output.stdout
+    );
     assert!(
         output.stdout.contains("re-exports every item"),
         "{}",
@@ -395,7 +402,11 @@ fn one_line_tolerates_one_index_item() {
     let found: Vec<String> = summary(&output);
     assert_eq!(found.len(), 1, "{}", output.stdout);
     // The second block impls the same type, so it is the one the list does not name.
-    assert_eq!(found[0], "rust/file-order-in-folder error src/lib.rs 12", "{}", output.stdout);
+    assert_eq!(
+        found[0], "rust/file-order-in-folder error src/lib.rs 12",
+        "{}",
+        output.stdout
+    );
     assert!(
         output.stdout.contains("it holds an `impl` block"),
         "{}",
@@ -430,7 +441,11 @@ fn a_list_that_cannot_be_read_is_a_processing_failure() {
         "{}",
         output.stdout
     );
-    assert!(output.stdout.contains("allow list that cannot be read"), "{}", output.stdout);
+    assert!(
+        output.stdout.contains("allow list that cannot be read"),
+        "{}",
+        output.stdout
+    );
 }
 
 /// A list that is a folder rather than a file is refused,
@@ -446,7 +461,11 @@ fn a_list_that_is_not_a_regular_file_is_a_processing_failure() {
     );
     let output: RunOutput = run(&fixture.path, &[], "");
     assert_eq!(output.exit_code, 2, "{}", output.stdout);
-    assert!(output.stdout.contains("not a regular file"), "{}", output.stdout);
+    assert!(
+        output.stdout.contains("not a regular file"),
+        "{}",
+        output.stdout
+    );
 }
 
 /// A list over the cap is refused rather than read,
@@ -466,7 +485,11 @@ fn a_list_over_the_cap_is_refused() {
     );
     let output: RunOutput = run(&fixture.path, &[], "");
     assert_eq!(output.exit_code, 2, "{}", output.stdout);
-    assert!(output.stdout.contains("bytes this reader accepts"), "{}", output.stdout);
+    assert!(
+        output.stdout.contains("bytes this reader accepts"),
+        "{}",
+        output.stdout
+    );
 }
 
 /// `--debug` prints the key of every finding a list line could hold,
@@ -494,7 +517,10 @@ fn debug_prints_the_key_of_a_finding() {
 #[test]
 fn the_allow_path_is_relative_to_the_configuration() {
     let fixture = package_with(&[
-        ("nested/pkg/Cargo.toml", "[package]\nname = \"nested\"\nversion = \"0.0.0\"\n"),
+        (
+            "nested/pkg/Cargo.toml",
+            "[package]\nname = \"nested\"\nversion = \"0.0.0\"\n",
+        ),
         ("nested/pkg/src/lib.rs", "mod a;\nmod b;\n"),
         ("nested/pkg/src/a/mod.rs", "use crate::b::Thing;\n"),
         ("nested/pkg/src/b/mod.rs", "pub struct Thing;\n"),

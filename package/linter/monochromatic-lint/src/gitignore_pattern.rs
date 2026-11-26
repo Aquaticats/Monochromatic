@@ -207,7 +207,11 @@ fn next_closing_bracket(characters: &[char]) -> Vec<usize> {
 /// ```ts
 /// const closingBracket = (chars, open, next) => { let i = open + 1; if (chars[i] === '!' || chars[i] === '^') i += 1; if (chars[i] === ']') i += 1; const found = next[i]; return found === -1 ? undefined : found; };
 /// ```
-fn closing_bracket(characters: &[char], open: usize, closing: &[usize]) -> Option<usize> {
+fn closing_bracket(
+    characters: &[char],
+    open: usize,
+    closing: &[usize],
+) -> Option<usize> {
     let mut index: usize = open + 1;
     if matches!(characters.get(index), Some('!' | '^')) {
         index += 1;

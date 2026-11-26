@@ -167,6 +167,10 @@ fn a_repository_file_over_the_bound_is_refused() {
     file.set_len(super::MAX_REPOSITORY_TEXT_BYTES as u64 + 1)
         .expect("sparse file one byte over the bound");
     let error = read_optional_text(&path).expect_err("a file over the bound is refused");
-    assert!(error.message.contains(".gitattributes"), "{}", error.message);
+    assert!(
+        error.message.contains(".gitattributes"),
+        "{}",
+        error.message
+    );
     assert!(error.message.contains("over the"), "{}", error.message);
 }

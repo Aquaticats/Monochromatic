@@ -84,7 +84,10 @@ pub fn shown(
 /// ```ts
 /// // keyPath(p, base) = shown(p, base).replaceAll('\\', '/')
 /// ```
-pub fn key_path(path: &std::path::Path, base: &std::path::Path) -> String {
+pub fn key_path(
+    path: &std::path::Path,
+    base: &std::path::Path,
+) -> String {
     return shown(path, base).replace('\\', "/");
 }
 

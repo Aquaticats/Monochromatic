@@ -339,12 +339,14 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
     // What: at most one byte more than the cap, so the cap is enforced on what was read and not only on what was measured above.
     // Why: a file that grows between the measurement and the read must be refused, not read whole.
     let mut bytes: Vec<u8> = Vec::<u8>::new();
-    file.take(MAX_BYTES + 1).read_to_end(&mut bytes).map_err(|error| {
-        return format!(
-            "The allow-list file {} cannot be read: {error}.",
-            path.display()
-        );
-    })?;
+    file.take(MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            return format!(
+                "The allow-list file {} cannot be read: {error}.",
+                path.display()
+            );
+        })?;
     if bytes.len() as u64 > MAX_BYTES {
         return Err(format!(
             "The allow-list file {} is longer than the {MAX_BYTES} bytes this reader accepts.",
@@ -387,15 +389,19 @@ impl AllowEntry {
     /// The entry's kind in the words the list writes it.
     pub fn identity(&self) -> String {
         return match &self.kind {
-            AllowKind::FolderUse { from, to } => format!(
+            AllowKind::FolderUse {
+                from,
+                to,
+            } => format!(
                 "{FOLDER_USE_WORD} {} {ARROW} {}",
                 from.display(),
                 to.display()
             ),
-            AllowKind::FileUse { folder, from, to } => format!(
-                "{FILE_USE_WORD} {} {from} {ARROW} {to}",
-                folder.display()
-            ),
+            AllowKind::FileUse {
+                folder,
+                from,
+                to,
+            } => format!("{FILE_USE_WORD} {} {from} {ARROW} {to}", folder.display()),
             AllowKind::Key(key) => key.clone(),
         };
     }

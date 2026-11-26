@@ -9,7 +9,10 @@
 //! test('a path inside the base is relative', () => expect(shown('/p/src/a.rs', '/p')).toBe('src/a.rs'));
 //! ```
 
-use super::{key_path, shown};
+use super::{
+    key_path,
+    shown,
+};
 use std::path::Path;
 
 /// A path below the base is shown without the base.
