@@ -17,12 +17,18 @@
 //! ```
 
 /// Imports `toml_edit::{Item, TableLike}`.
-use toml_edit::{Item, TableLike};
+use toml_edit::{
+    Item,
+    TableLike,
+};
 
 /// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
 /// Imports `crate::site::{SiteKind, UseSite}`.
-use crate::site::{SiteKind, UseSite};
+use crate::site::{
+    SiteKind,
+    UseSite,
+};
 /// Imports `crate::types::Entry`.
 use crate::types::Entry;
 
@@ -35,7 +41,16 @@ const INHERITED_SITE_KEYS: [&str; 4] = ["default-features", "features", "optiona
 
 /// Keys a literal or path use site may carry;
 /// the catalog moves or keeps each.
-const LITERAL_SITE_KEYS: [&str; 8] = ["default-features", "features", "git", "optional", "package", "path", "rev", "version"];
+const LITERAL_SITE_KEYS: [&str; 8] = [
+    "default-features",
+    "features",
+    "git",
+    "optional",
+    "package",
+    "path",
+    "rev",
+    "version",
+];
 
 /// What:
 /// `pub fn dependency_tables(root: &dyn TableLike) -> Vec<Vec<String>>` lists every dependency table path
@@ -65,7 +80,11 @@ pub fn dependency_tables(root: &dyn TableLike) -> Vec<Vec<String>> {
         };
         for table in DEPENDENCY_TABLES {
             if body.get(table).and_then(Item::as_table_like).is_some() {
-                paths.push(vec!["target".to_string(), cfg.to_string(), table.to_string()]);
+                paths.push(vec![
+                    "target".to_string(),
+                    cfg.to_string(),
+                    table.to_string(),
+                ]);
             }
         }
     }
@@ -74,7 +93,10 @@ pub fn dependency_tables(root: &dyn TableLike) -> Vec<Vec<String>> {
 
 /// Resolves a key path to a table-like item,
 /// or `None` when any step is missing or not a table.
-pub fn table_at<'a>(root: &'a dyn TableLike, path: &[String]) -> Option<&'a dyn TableLike> {
+pub fn table_at<'a>(
+    root: &'a dyn TableLike,
+    path: &[String],
+) -> Option<&'a dyn TableLike> {
     let mut current: &'a dyn TableLike = root;
     for segment in path {
         current = current.get(segment)?.as_table_like()?;
@@ -91,7 +113,13 @@ fn no_literal() -> Entry {
 }
 
 /// Pushes one classification problem.
-fn report(issues: &mut Vec<SyncIssue>, file: &str, location: &str, problem: String, remedy: &str) {
+fn report(
+    issues: &mut Vec<SyncIssue>,
+    file: &str,
+    location: &str,
+    problem: String,
+    remedy: &str,
+) {
     issues.push(SyncIssue {
         file: file.to_string(),
         location: location.to_string(),
@@ -118,7 +146,13 @@ fn report(issues: &mut Vec<SyncIssue>, file: &str, location: &str, problem: Stri
 /// ```ts
 /// export function classifySite(args: { manifestPath: string; table: string[]; name: string; value: unknown; issues: SyncIssue[] }): UseSite[]
 /// ```
-pub fn classify_site(manifest_path: &str, table: &[String], name: &str, item: &Item, issues: &mut Vec<SyncIssue>) -> Option<UseSite> {
+pub fn classify_site(
+    manifest_path: &str,
+    table: &[String],
+    name: &str,
+    item: &Item,
+    issues: &mut Vec<SyncIssue>,
+) -> Option<UseSite> {
     let mut location_parts: Vec<&str> = table.iter().map(String::as_str).collect();
     location_parts.push(name);
     let location: String = location_parts.join(".");
@@ -192,12 +226,18 @@ pub fn classify_site(manifest_path: &str, table: &[String], name: &str, item: &I
             issues,
             manifest_path,
             &location,
-            format!("declares {}, which the Rust catalog does not support", unsupported.join(", ")),
+            format!(
+                "declares {}, which the Rust catalog does not support",
+                unsupported.join(", ")
+            ),
             "pin git dependencies with `rev`; registries other than crates.io and artifact dependencies need a decision record before the catalog can carry them",
         );
         return None;
     }
-    let rename: Option<String> = entries.get("package").and_then(Item::as_str).map(str::to_string);
+    let rename: Option<String> = entries
+        .get("package")
+        .and_then(Item::as_str)
+        .map(str::to_string);
     if let Some(path) = entries.get("path").and_then(Item::as_str) {
         return Some(UseSite {
             kind: SiteKind::Path,

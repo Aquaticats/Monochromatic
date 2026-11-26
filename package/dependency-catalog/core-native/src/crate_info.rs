@@ -17,14 +17,25 @@
 //! ```
 
 /// Imports `toml_edit::{DocumentMut, Item, TableLike}`.
-use toml_edit::{DocumentMut, Item, TableLike};
+use toml_edit::{
+    DocumentMut,
+    Item,
+    TableLike,
+};
 
 /// Imports `crate::error::{Error, SyncIssue}`.
-use crate::error::{Error, SyncIssue};
+use crate::error::{
+    Error,
+    SyncIssue,
+};
 /// Imports `crate::site::UseSite`.
 use crate::site::UseSite;
 /// Imports `crate::site_classify::{classify_site, dependency_tables, table_at}`.
-use crate::site_classify::{classify_site, dependency_tables, table_at};
+use crate::site_classify::{
+    classify_site,
+    dependency_tables,
+    table_at,
+};
 
 /// What:
 /// `pub struct ManifestFile { ... }` is one crate manifest as the caller read it from disk.
@@ -85,7 +96,10 @@ pub struct CrateInfo {
 impl CrateInfo {
     /// The named catalog this crate selects for a dependency,
     /// if any.
-    pub fn selection(&self, name: &str) -> Option<&str> {
+    pub fn selection(
+        &self,
+        name: &str,
+    ) -> Option<&str> {
         for (key, catalog_name) in &self.selections {
             if key == name {
                 return Some(catalog_name);
@@ -110,7 +124,10 @@ pub fn posix_dirname(path: &str) -> String {
 
 /// Reads one string field of the `[package]` table;
 /// empty when the table or the field is missing or not a string.
-fn package_text(package: Option<&dyn TableLike>, key: &str) -> String {
+fn package_text(
+    package: Option<&dyn TableLike>,
+    key: &str,
+) -> String {
     let found: Option<&str> = match package {
         Some(table) => table.get(key).and_then(Item::as_str),
         None => None,
@@ -120,7 +137,11 @@ fn package_text(package: Option<&dyn TableLike>, key: &str) -> String {
 
 /// Reads `[package.metadata.rust-catalog.catalogs]`,
 /// the crate's named-catalog selections.
-fn read_selections(manifest_path: &str, root: &dyn TableLike, issues: &mut Vec<SyncIssue>) -> Vec<(String, String)> {
+fn read_selections(
+    manifest_path: &str,
+    root: &dyn TableLike,
+    issues: &mut Vec<SyncIssue>,
+) -> Vec<(String, String)> {
     let mut path: Vec<String> = Vec::new();
     for part in SELECTION_PATH {
         path.push(part.to_string());
@@ -171,7 +192,10 @@ fn workspace_dependencies_is_hand_written(root: &dyn TableLike) -> bool {
 /// ```ts
 /// export function readCrateInfo(args: { manifest: ManifestFile; issues: SyncIssue[] }): CrateInfo // throws on invalid TOML
 /// ```
-pub fn read_crate_info(manifest: &ManifestFile, issues: &mut Vec<SyncIssue>) -> Result<CrateInfo, Error> {
+pub fn read_crate_info(
+    manifest: &ManifestFile,
+    issues: &mut Vec<SyncIssue>,
+) -> Result<CrateInfo, Error> {
     let parsed: Result<DocumentMut, toml_edit::TomlError> = manifest.source.parse::<DocumentMut>();
     let document: DocumentMut = match parsed {
         Ok(value) => value,

@@ -14,14 +14,20 @@
 //! ```
 
 /// Imports `toml_edit::{Item, TableLike}`.
-use toml_edit::{Item, TableLike};
+use toml_edit::{
+    Item,
+    TableLike,
+};
 
 /// Imports `crate::error::CatalogIssue`.
 use crate::error::CatalogIssue;
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::types::{Settings, TrustPolicy}`.
-use crate::types::{Settings, TrustPolicy};
+use crate::types::{
+    Settings,
+    TrustPolicy,
+};
 
 /// pnpm's documented default for `minimumReleaseAge`,
 /// in minutes.
@@ -33,7 +39,11 @@ const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
 /// Reads a list-of-strings setting;
 /// an empty list when absent or invalid.
-fn read_string_list(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Vec<String> {
+fn read_string_list(
+    key: &str,
+    item: Option<&Item>,
+    issues: &mut Vec<CatalogIssue>,
+) -> Vec<String> {
     let Some(present) = item else {
         return Vec::new();
     };
@@ -60,7 +70,12 @@ fn read_string_list(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssu
 
 /// Reads a boolean setting;
 /// `fallback` when absent or invalid.
-fn read_boolean(key: &str, item: Option<&Item>, fallback: bool, issues: &mut Vec<CatalogIssue>) -> bool {
+fn read_boolean(
+    key: &str,
+    item: Option<&Item>,
+    fallback: bool,
+    issues: &mut Vec<CatalogIssue>,
+) -> bool {
     let Some(present) = item else {
         return fallback;
     };
@@ -90,7 +105,11 @@ fn read_boolean(key: &str, item: Option<&Item>, fallback: bool, issues: &mut Vec
 /// ```ts
 /// function readMinutes(args: { key: string; value: unknown; issues: Issue[] }): number | typeof NO_MINUTES
 /// ```
-fn read_minutes(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Option<u64> {
+fn read_minutes(
+    key: &str,
+    item: Option<&Item>,
+    issues: &mut Vec<CatalogIssue>,
+) -> Option<u64> {
     let present: &Item = item?;
     let mut minutes: Option<u64> = None;
     if let Some(value) = present.as_integer() {
@@ -114,7 +133,10 @@ fn read_minutes(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssue>) 
 
 /// Reads the trust policy mode;
 /// `off` when absent (pnpm's default).
-fn read_trust_policy(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> TrustPolicy {
+fn read_trust_policy(
+    item: Option<&Item>,
+    issues: &mut Vec<CatalogIssue>,
+) -> TrustPolicy {
     let Some(present) = item else {
         return TrustPolicy::Off;
     };
@@ -129,7 +151,8 @@ fn read_trust_policy(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Tru
             issues.push(CatalogIssue {
                 location: "trustPolicy".to_string(),
                 problem: format!("{shown} is not a trust policy"),
-                remedy: "write `trustPolicy = \"no-downgrade\"` or `trustPolicy = \"off\"`".to_string(),
+                remedy: "write `trustPolicy = \"no-downgrade\"` or `trustPolicy = \"off\"`"
+                    .to_string(),
             });
             TrustPolicy::Off
         }
@@ -152,11 +175,23 @@ fn read_trust_policy(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Tru
 /// ```ts
 /// export function readSettings(args: { root: Record<string, unknown>; issues: Issue[] }): RustCatalogSettings
 /// ```
-pub fn read_settings(root: &dyn TableLike, issues: &mut Vec<CatalogIssue>) -> Settings {
-    let explicit_age: Option<u64> = read_minutes("minimumReleaseAge", root.get("minimumReleaseAge"), issues);
-    let ignore_after: Option<u64> = read_minutes("trustPolicyIgnoreAfter", root.get("trustPolicyIgnoreAfter"), issues);
+pub fn read_settings(
+    root: &dyn TableLike,
+    issues: &mut Vec<CatalogIssue>,
+) -> Settings {
+    let explicit_age: Option<u64> =
+        read_minutes("minimumReleaseAge", root.get("minimumReleaseAge"), issues);
+    let ignore_after: Option<u64> = read_minutes(
+        "trustPolicyIgnoreAfter",
+        root.get("trustPolicyIgnoreAfter"),
+        issues,
+    );
     let catalog_prune: bool = read_boolean("catalogPrune", root.get("catalogPrune"), false, issues);
-    let age_exclude: Vec<String> = read_string_list("minimumReleaseAgeExclude", root.get("minimumReleaseAgeExclude"), issues);
+    let age_exclude: Vec<String> = read_string_list(
+        "minimumReleaseAgeExclude",
+        root.get("minimumReleaseAgeExclude"),
+        issues,
+    );
     let age_exclude_prune: bool = read_boolean(
         "minimumReleaseAgeExcludePrune",
         root.get("minimumReleaseAgeExcludePrune"),
@@ -176,14 +211,16 @@ pub fn read_settings(root: &dyn TableLike, issues: &mut Vec<CatalogIssue>) -> Se
         issues,
     );
     let trust_policy: TrustPolicy = read_trust_policy(root.get("trustPolicy"), issues);
-    let trust_exclude: Vec<String> = read_string_list("trustPolicyExclude", root.get("trustPolicyExclude"), issues);
+    let trust_exclude: Vec<String> =
+        read_string_list("trustPolicyExclude", root.get("trustPolicyExclude"), issues);
     let trust_exclude_prune: bool = read_boolean(
         "trustPolicyExcludePrune",
         root.get("trustPolicyExcludePrune"),
         false,
         issues,
     );
-    let trust_lockfile: bool = read_boolean("trustLockfile", root.get("trustLockfile"), false, issues);
+    let trust_lockfile: bool =
+        read_boolean("trustLockfile", root.get("trustLockfile"), false, issues);
     return Settings {
         catalog_prune,
         minimum_release_age: explicit_age.unwrap_or(DEFAULT_MINIMUM_RELEASE_AGE),

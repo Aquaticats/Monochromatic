@@ -76,15 +76,39 @@ pub enum Change {
 /// Implements `fmt::Display` for `Change`.
 impl fmt::Display for Change {
     /// Prints one short human-readable line per change.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
-            Change::CatalogEntryAdded { name } => write!(formatter, "adopt {name} into [catalog]"),
-            Change::CatalogFloorRaised { name, requirement } => write!(formatter, "raise the [catalog] floor of {name} to {requirement}"),
-            Change::CatalogEntryPruned { path } => write!(formatter, "prune the unused entry {path}"),
-            Change::SiteInherited { location } => write!(formatter, "rewrite {location} to `workspace = true`"),
-            Change::PathVersionWritten { location, version } => write!(formatter, "write version \"{version}\" on {location}"),
-            Change::GeneratedTableWritten => write!(formatter, "write the generated [workspace.dependencies] table"),
-            Change::GeneratedTableRemoved => write!(formatter, "remove the generated [workspace.dependencies] table"),
+            Change::CatalogEntryAdded {
+                name,
+            } => write!(formatter, "adopt {name} into [catalog]"),
+            Change::CatalogFloorRaised {
+                name,
+                requirement,
+            } => write!(
+                formatter,
+                "raise the [catalog] floor of {name} to {requirement}"
+            ),
+            Change::CatalogEntryPruned {
+                path,
+            } => write!(formatter, "prune the unused entry {path}"),
+            Change::SiteInherited {
+                location,
+            } => write!(formatter, "rewrite {location} to `workspace = true`"),
+            Change::PathVersionWritten {
+                location,
+                version,
+            } => write!(formatter, "write version \"{version}\" on {location}"),
+            Change::GeneratedTableWritten => write!(
+                formatter,
+                "write the generated [workspace.dependencies] table"
+            ),
+            Change::GeneratedTableRemoved => write!(
+                formatter,
+                "remove the generated [workspace.dependencies] table"
+            ),
         };
     }
 }
