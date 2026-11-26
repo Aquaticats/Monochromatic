@@ -21,7 +21,7 @@
 //!  so every control here runs its body in a child of its own
 //!  (`testing/process_wide_state_child_test_support.rs`):
 //!  two controls of one threaded run wrote each other's unit state and reads of what was asked,
-//!  and nine of the thirteen failed that way (issue 6522).
+//!  and nine of the fourteen failed that way (issue 6522).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
