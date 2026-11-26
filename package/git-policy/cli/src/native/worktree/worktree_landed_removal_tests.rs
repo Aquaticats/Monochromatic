@@ -1514,7 +1514,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     //  service's call is where the worktree goes. The snapshot of the records it holds is taken before that record is
     //  written, which is what carries the failure recorded here.
     let Examined::Handed(record) = examined else { panic!("the account is clean, so its removal waits for the service: not a handed record") };
-    assert_eq!(crate::worktree_remove_hand_over::delete_subvolume_of(&record), Verdict::Done, "Git removes the worktree the record names");
+    assert_eq!(crate::worktree_remove_hand_over::delete_subvolume_of_with(&record, table.as_path()), Verdict::Done, "Git removes the worktree the record names");
     assert!(!admin.exists(), "the removal took the record's original with the Git directory");
     // What the next command does with the removal this one made.
     settle_removals(landed.common.as_path());
