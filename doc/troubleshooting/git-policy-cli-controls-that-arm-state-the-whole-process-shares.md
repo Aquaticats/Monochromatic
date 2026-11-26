@@ -174,6 +174,9 @@ run: set it in a child of the control's own,
 which `crate::process_wide_state_child_test_support::started_within_a_child_of_its_own` starts
 ```
 
+That starter is `run_the_body_in_a_child_of_its_own` since 2026-11-26 (issue 6503): it takes the body to run in the
+child, so the refusal now names a call that runs a body rather than one a control could read as a flag.
+
 With the `refuse_outside_the_child` call taken out of `a_control_holds_the_read`
 and the same control still running beside the others,
 the run passes (`1 passed; 0 failed`):
@@ -184,6 +187,50 @@ The refusal and the child's own answer also have permanent controls,
 in `package/git-policy/cli/src/native/testing/process_wide_state_child_test_support_tests.rs`:
 one is `#[should_panic]` on the refusal's own sentence,
 and the other is a body that runs in its child and asserts that the child saw its marker.
+
+## The child starter answered a flag a control could read inverted (issue 6503)
+
+`testing/process_wide_state_child_test_support.rs` answered
+`started_within_a_child_of_its_own(module, name) -> bool`,
+and each of its callers held that answer in an `if`.
+A caller that wrote `if !started_within_a_child_of_its_own(...)` returned at once in the child and ran the body in the
+parent,
+which is the process the body was written to keep its state out of.
+Nothing in the run said so:
+measured on 2026-11-26 on this host,
+with one control of `foundation/lazy_runtime_tests.rs` read inverted,
+`cargo test --locked --offline --lib --features test-only-switches foundation::lazy_runtime::tests:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 15 passed; 0 failed; 1 ignored` in both of two runs,
+and the same control alone with `--exact` answered `1 passed; 0 failed`,
+while its body built the runtime every other test of the run then shared.
+With every guard of that module inverted the run answered `FAILED. 14 passed; 1 failed; 1 ignored`,
+at `this control is the first need of a runtime in its own process`,
+which is where two bodies in one process meet.
+The bodies that set the room or the bound fail loudly instead:
+`foundation::blocking_jobs_within_the_budget::tests` with one guard inverted answered
+`FAILED. 10 passed; 1 failed`,
+at the refusal of the room a control gives the process.
+
+The starter takes the body now,
+as `run_the_body_where_no_thread_can_start` and `run_the_body_under_umask` have since issue 6494,
+so no caller holds an answer to invert,
+and `this_process_is_the_child` is private to the starter's file.
+`source_guard/only_the_process_wide_starter_reads_its_marker_tests.rs` refuses a source that names the marker variable
+outside that file,
+and its planted fixture shows the scan still finds a read.
+With a read of the marker planted in `foundation/lazy_runtime_tests.rs`,
+that guard's ban answered `FAILED. 2 passed; 1 failed` at `foundation/lazy_runtime_tests.rs:37`,
+and with the line gone again it answered `ok. 3 passed; 0 failed`.
+After the change,
+each module the round touched answered its own run with no failure except
+`worktree::worktree_trash_entries::tests`,
+whose `the_removals_take_places_of_the_processs_bound_on_blocking_jobs` answers
+`FAILED. 7 passed; 1 failed` on the tree before the change as well
+(issue 6477's shape, and that control guards no child either way),
+and the four changed controls run alone answered `1 passed; 0 failed` each.
+Issues 6494, 6503 and the three above are one shape:
+a process-wide fact belongs to a process of the control's own,
+and the control hands over the body that sets it.
 
 ## Not covered
 

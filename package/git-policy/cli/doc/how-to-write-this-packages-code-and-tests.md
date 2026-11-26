@@ -159,7 +159,8 @@ and nowhere else: `ChildTest` is the request (`started` hands back the running c
 and `testing/test_process_owner.rs` is the ownership it stands on.
 Six bodies built that command their own way until 2026-11-25,
 and most of their children were owned by nothing (debt ledger item 10).
-A child a control starts for its own body is handed that body, and the parent never calls it:
+A child a control starts for its own body is handed that body,
+and the parent never calls it:
 `run_the_body_in_a_child_of_its_own`,
 `run_the_body_where_no_thread_can_start` and `run_the_body_under_umask` take the test's `module_path!()`,
 its name and a closure,
