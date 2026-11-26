@@ -9,8 +9,8 @@
  with OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's `native_binary` test target inside it, runs the
  adoption and store controls there, runs the store's publication-fsync probe, and destroys the guest.
 
- Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|delegation|snapdir|destroy|all> [--name <guest>]
-          [--log-dir <dir>] [--keep-guest]
+ Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|sweep|delegation|snapdir|destroy|all>
+          [--name <guest>] [--log-dir <dir>] [--keep-guest]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  `delegation` answers the owner's question of 2026-11-22 by a run: under the
@@ -398,7 +398,7 @@ function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: st
 }
 
 /**
- Build the test target inside the guest and run the adoption control there.
+ Push this checkout into the guest and build the crate's test target and executable there.
 
  The snapshot is the same repository-shaped tree the container gate builds from
  (`bin/native-wrapper-snapshot.ts`), so the arm compiles against the path crates the wrapper links, the ZFS binding
@@ -406,9 +406,9 @@ function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: st
 
  @param chosen - the run's options
 
- @throws Error naming the step that refused, or the marker the pulled log lacks
+ @throws Error naming the step that refused
  */
-async function run(chosen: Options): Promise<void> {
+async function buildInGuest(chosen: Options): Promise<void> {
   const context = join(chosen.logDir, 'snapshot');
   rmSync(context, { recursive: true, force: true, });
   mkdirSync(context, { recursive: true, mode: 0o700, });
@@ -437,6 +437,17 @@ async function run(chosen: Options): Promise<void> {
   ].join('\n');
   guestStart({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
+}
+
+/**
+ Build the test target inside the guest and run the adoption control there.
+
+ @param chosen - the run's options
+
+ @throws Error naming the step that refused, or the marker the pulled log lacks
+ */
+async function run(chosen: Options): Promise<void> {
+  await buildInGuest(chosen);
   storeDataset({ chosen, });
   const arm = [
     'set -eu',
@@ -907,6 +918,13 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
   create: (chosen) => recipe({ chosen, step: 'create', }),
   prepare: (chosen) => recipe({ chosen, step: 'prepare', }),
   run,
+  // Plan step 8's sweep arms alone, for a round whose arm is one of them: the same push, build and store dataset the
+  // whole run makes, and none of the arms that follow the sweep.
+  sweep: async (chosen: Options): Promise<void> => {
+    await buildInGuest(chosen);
+    storeDataset({ chosen, });
+    sweepArms({ chosen, });
+  },
   delegation: (chosen) => delegation({ chosen, }),
   snapdir: (chosen) => snapdirMatrix({ chosen, }),
   destroy: (chosen) => recipe({ chosen, step: 'destroy', }),
