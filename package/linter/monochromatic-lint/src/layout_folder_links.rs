@@ -228,12 +228,21 @@ fn glob_reexports(
         );
         shapes.entry(shape).or_default().push(index);
     }
-    // What: the shapes in the order of the module node each one starts at.
+    // What: each shape paired with the module node it starts at, in that node's order.
     // Why: a finding belongs where the tree first reads the file that holds it,
     // and a file that two `mod` declarations reach is still read once.
-    let mut order: Vec<&(PathBuf, Vec<usize>)> = shapes.keys().collect::<Vec<_>>();
-    order.sort_by_key(|shape| shapes.get(*shape).and_then(|found| found.first().copied()));
-    for shape in order {
+    let mut order: Vec<(&(PathBuf, Vec<usize>), usize)> =
+        Vec::<(&(PathBuf, Vec<usize>), usize)>::new();
+    for (shape, nodes) in &shapes {
+        let first: usize = match nodes.first() {
+            Some(index) => *index,
+            None => usize::MAX,
+        };
+        order.push((shape, first));
+    }
+    order.sort_by_key(|pair| return pair.1);
+    for pair in order {
+        let shape: &(PathBuf, Vec<usize>) = pair.0;
         // What: every node of this shape, which is every context the file is read in.
         // Why: a glob can resolve in one context and not in another, so every one of them is asked.
         let nodes: &Vec<usize> = match shapes.get(shape) {
