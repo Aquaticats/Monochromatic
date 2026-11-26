@@ -501,21 +501,32 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
 }
 
 /// What:
-///  A report that says an index rewrite could not be started leaves no job that can rewrite that index later.
+///  A report whose first job could not be started names no index, leaves every index untouched,
+///  and says the refused step will not run.
 ///  With the preparation itself a job of the blocking pool (`prepare_the_run`),
 /// a process with no thread to start now fails at the preparation,
 ///  so the rewrites are never even queued:
-/// the control pins that no rewrite runs after the report either way,
-///  and its message keeps the uncertainty.
+/// no rewrite runs after the report, before or after the pool runs what it queued.
 /// Why:
-///  The pool queues a job before it asks for a thread (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
-/// `spawn_task`),
-///  so "no thread" means the job has not run *yet*:
-/// it stays queued and the pool's next thread runs it.
-/// A report may say an index stays as it was only when nothing that can write it is left queued,
-/// which is what `TheClaimOnAJobsWork` decides.
+///  A report that never reached an index must not say anything about one,
+/// and "the indexes stay as they were" must hold however the run ended.
+///  `BlockingJobError::NoThreadToStart` is the one end that promises the step will not run:
+/// the process's bound on blocking jobs takes one claim on the closure it queues, before that closure's first
+/// effect,
+///  and takes the same claim when it answers that no thread could start it,
+/// so the report that reads that answer may promise the indexes are as they were.
+///  The control lets the pool run what it queued before it asserts that no rewrite ran afterwards:
+///  the job it asks for after the queued one runs after it, because the pool's queue is one queue whose back is
+/// pushed to and whose front is popped,
+///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`, read by `sharded_blocking_queue_default` in
+/// `tokio-1.54.1/src/runtime/builder.rs`, is the only thing that would make it shards,
+///  which this crate never sets.
+///  The promise about a queued rewrite belongs to the control beside this one in
+/// `subvolume_index_refresh_of_every_worktree_tests.rs`,
+/// which runs one item and so reaches a queued rewrite;
+///  this whole-report face cannot, because its first job is the preparation.
 /// The control runs in a child whose process limit is one,
-/// because only a refused thread start puts a job in that queue.
+/// because only a refused thread start ends a run this way.
 #[test]
 fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it() {
     // The body refuses every thread of the process it runs in, so it belongs to the child alone (issue 6496),
@@ -529,7 +540,8 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
                 .expect("the process limit rises");
             crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime");
             let (parent, root) = checkout_with_linked("index-could-not-be-started");
-            // Every thread this process starts is refused now, so each rewrite is queued and none can start.
+            // Every thread this process starts is refused now, so the run's first job, the preparation, is queued and
+            //  cannot start, and no rewrite is ever asked for.
             crate::no_threads_child_test_support::refuse_threads_again()
                 .expect("the process limit falls");
             let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -552,35 +564,61 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
             let refused: MigrateError = refresh_all_indexes_with(&request, &mut |text: &str| {
                 lines.push(text.to_string());
             })
-            .expect_err("a thread is refused for every rewrite");
+            .expect_err("a thread is refused for the preparation, so the run fails");
             assert_eq!(
                 ran.load(Ordering::SeqCst),
                 0,
                 "no rewrite ran before a thread was free"
             );
+            // What:     the report's own words, and the lines it said about indexes.
+            // Why:      a run that ended before it reached an index has nothing to say about one, and must say the
+            //           refused step will not run rather than that its result is not known.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const said = refused.toString();
+            // assert(lines.length === 0);
+            // ```
             let said: String = refused.to_string();
-            // A thread may start again: the pool's first new thread runs what it queued before anything else.
+            assert!(
+                lines.is_empty(),
+                "the run ended before it reached an index, so it said nothing about one: {lines:#?}"
+            );
+            assert!(
+                said.contains("will not run"),
+                "the report must say the refused step will not run and changed nothing: {said}"
+            );
+            assert!(
+                !said.contains("given up on before it could start"),
+                "the report must not say an index was given up on, because the run ended before any rewrite was queued: {said}"
+            );
+            // What:     a thread may start again, and the pool's first new thread runs what it queued.
+            // Why:      the job awaited here is queued after the preparation's job and one queue is run front first,
+            //           so this job's own run proves the queued closure had its turn and can no longer write an index.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const afterTheQueue = await runOnRuntime(() => runBlockingJobWithinTheBudget(() => {}));
+            // ```
             crate::no_threads_child_test_support::let_threads_start_again()
                 .expect("the process limit rises again");
-            let drained = crate::lazy_runtime::run_on_runtime(async {
+            let after_the_queue: Result<
+                Result<(), crate::blocking_job::BlockingJobError>,
+                crate::lazy_runtime::RuntimeError,
+            > = crate::lazy_runtime::run_on_runtime(async {
                 return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
                     || (),
                 )
                 .await;
             });
             assert!(
-                matches!(drained, Ok(Ok(()))),
-                "the job that starts the pool's first thread ran: {drained:?}"
+                matches!(after_the_queue, Ok(Ok(()))),
+                "the job that starts the pool's first thread and runs behind the queued preparation ran: {after_the_queue:?}"
             );
             let ran_afterwards: usize = ran.load(Ordering::SeqCst);
-            let promised_unchanged: bool = said.contains("given up on before it could start");
-            assert!(
-                !promised_unchanged || ran_afterwards == 0,
-                "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
-            );
-            assert!(
-                promised_unchanged || said.contains("not known") || said.contains("will not run"),
-                "the report must say either that no rewrite could start or that the work it lost had not started: {said}"
+            assert_eq!(
+                ran_afterwards, 0,
+                "the pool ran what its refusal queued, and {ran_afterwards} rewrite(s) ran afterwards, so the indexes are not as they were: {said}"
             );
             remove(parent.as_path());
         },
