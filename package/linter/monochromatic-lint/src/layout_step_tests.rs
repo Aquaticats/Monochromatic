@@ -11,7 +11,7 @@
 //! test('the rules are off by default', () => expect(run(root, [])).toHaveNoFindings());
 //! ```
 
-use super::line_span;
+use super::LineSpans;
 use crate::{
     diagnostic::Span,
     layout_test_support::package_with,
@@ -180,6 +180,8 @@ fn files_behind_uses_links_are_linted_once() {
 ///  covers it without its line break,
 ///  and falls back to the file start for line zero,
 ///  a line the file does not have and a file that cannot be read.
+///  One file read answers every line it holds,
+///  which is what keeps a list full of dead lines from reading the list once per finding.
 #[test]
 fn layout_the_span_of_a_line_starts_at_that_line() {
     let text: &str = "first\nsecond line\r\nthird";
@@ -187,8 +189,9 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
     let file = fixture.path.join("lines.txt");
     let second_start: usize = text.find("second").expect("second line");
     let third_start: usize = text.find("third").expect("third line");
+    let mut spans: LineSpans = LineSpans::default();
     assert_eq!(
-        line_span(&file, 1),
+        spans.span(&file, 1),
         Span {
             offset: 0,
             length: "first".len(),
@@ -197,7 +200,7 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
         }
     );
     assert_eq!(
-        line_span(&file, 2),
+        spans.span(&file, 2),
         Span {
             offset: second_start,
             length: "second line".len(),
@@ -206,7 +209,7 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
         }
     );
     assert_eq!(
-        line_span(&file, 3),
+        spans.span(&file, 3),
         Span {
             offset: third_start,
             length: "third".len(),
@@ -214,9 +217,9 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
             column: 1
         }
     );
-    let at_start: Span = line_span(&file, 0);
-    assert_eq!(line_span(&file, 4), at_start);
-    assert_eq!(line_span(&fixture.path.join("missing.txt"), 2), at_start);
+    let at_start: Span = spans.span(&file, 0);
+    assert_eq!(spans.span(&file, 4), at_start);
+    assert_eq!(spans.span(&fixture.path.join("missing.txt"), 2), at_start);
 }
 
 /// A folder that sits in a plain loop of its own and in a loop of its entry is one state a list can satisfy:
@@ -389,6 +392,120 @@ fn one_line_tolerates_one_index_item() {
     assert_eq!(found[0], "rust/file-order-in-folder error src/lib.rs 12", "{}", output.stdout);
     assert!(
         output.stdout.contains("it holds an `impl` block"),
+        "{}",
+        output.stdout
+    );
+    assert!(
+        !output.stdout.contains("tolerates nothing any more"),
+        "{}",
+        output.stdout
+    );
+}
+
+/// A list that cannot be read ends the run as a processing failure naming it,
+///  because a rule checked without its list would report every finding the list tolerates.
+#[test]
+fn a_list_that_cannot_be_read_is_a_processing_failure() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a/mod.rs", "use crate::b::Thing;\n"),
+        ("src/b/mod.rs", "pub struct Thing;\n"),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/folder-uses-links", "folder.txt").as_str(),
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(output.exit_code, 2, "{}", output.stdout);
+    assert_eq!(
+        summary(&output),
+        ["core/processing-failure error folder.txt 1"],
+        "{}",
+        output.stdout
+    );
+    assert!(output.stdout.contains("allow list that cannot be read"), "{}", output.stdout);
+}
+
+/// A list that is a folder rather than a file is refused,
+///  so a path that names a directory cannot stand in for a list.
+#[test]
+fn a_list_that_is_not_a_regular_file_is_a_processing_failure() {
+    let fixture = package_with(&[("src/lib.rs", "")]);
+    std::fs::create_dir(fixture.path.join("folder.txt")).expect("a folder where the list belongs");
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/folder-uses-links", "folder.txt").as_str(),
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(output.exit_code, 2, "{}", output.stdout);
+    assert!(output.stdout.contains("not a regular file"), "{}", output.stdout);
+}
+
+/// A list over the cap is refused rather than read,
+///  so a mistyped path cannot read a disk image into memory.
+#[test]
+fn a_list_over_the_cap_is_refused() {
+    let fixture = package_with(&[("src/lib.rs", "")]);
+    let over: String = format!(
+        "# {}\n",
+        "x".repeat(crate::layout_allow_list::MAX_BYTES as usize + 1)
+    );
+    write(&fixture.path, "folder.txt", over.as_str());
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/folder-uses-links", "folder.txt").as_str(),
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(output.exit_code, 2, "{}", output.stdout);
+    assert!(output.stdout.contains("bytes this reader accepts"), "{}", output.stdout);
+}
+
+/// `--debug` prints the key of every finding a list line could hold,
+///  so a reader copies a key instead of guessing its shape.
+#[test]
+fn debug_prints_the_key_of_a_finding() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a/mod.rs", "use crate::b::Thing;\n"),
+        ("src/b/mod.rs", "pub struct Thing;\n"),
+    ]);
+    write(&fixture.path, CONFIG, LAYOUT_ON);
+    let output: RunOutput = run(&fixture.path, &["--debug"], "");
+    assert!(
+        output
+            .stderr
+            .contains("rust/folder-uses-links: allow-list key: missing-link src/a -> src/b"),
+        "{}",
+        output.stderr
+    );
+}
+
+/// The `allow` path is relative to the configuration file's own directory,
+///  not to the directory the run started in.
+#[test]
+fn the_allow_path_is_relative_to_the_configuration() {
+    let fixture = package_with(&[
+        ("nested/pkg/Cargo.toml", "[package]\nname = \"nested\"\nversion = \"0.0.0\"\n"),
+        ("nested/pkg/src/lib.rs", "mod a;\nmod b;\n"),
+        ("nested/pkg/src/a/mod.rs", "use crate::b::Thing;\n"),
+        ("nested/pkg/src/b/mod.rs", "pub struct Thing;\n"),
+    ]);
+    write(
+        &fixture.path,
+        "nested/monochromatic-lint.config.jsonc",
+        allow_config("rust/folder-uses-links", "lists/folder.txt").as_str(),
+    );
+    write(
+        &fixture.path,
+        "nested/lists/folder.txt",
+        "missing-link src/a -> src/b\n",
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    assert!(
+        !output.stdout.contains("has no link to it"),
         "{}",
         output.stdout
     );

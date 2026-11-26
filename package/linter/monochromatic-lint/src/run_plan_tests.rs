@@ -108,6 +108,11 @@ fn the_memoizing_lookup_agrees_with_discovery() {
             .expect("a nearest configuration");
     assert_eq!(planned.config.path, discovered.path);
     assert_eq!(planned.config.base, discovered.base);
+    // The second plan of the same file answers from the memo, and it answers the same thing.
+    let warm: FilePlan = lint(&mut store, "nested/deep/a.md");
+    assert!(std::sync::Arc::ptr_eq(&planned.config, &warm.config));
+    assert_eq!(warm.config.path, discovered.path);
+    assert_eq!(warm.config.base, discovered.base);
     // A nearest file that fails to parse stops both entries with the same message.
     write(root, &format!("bad/{CONFIG}"), "{}");
     let mut failing: ConfigStore = ConfigStore::new(root, None).expect("store");
