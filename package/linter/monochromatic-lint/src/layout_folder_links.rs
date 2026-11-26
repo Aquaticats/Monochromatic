@@ -27,10 +27,15 @@
 ///  the folder uses and loops,
 ///  the tree and the resolver.
 use crate::{
+    layout_allow_list::{
+        AllowKind, AllowList, dead_entry_findings, tolerated,
+    },
     layout_finding::{LayoutFinding, shown},
-    layout_folder_uses::{FolderUses, Proof, group_by_folder, use_loops},
-    layout_group_entries::find_groups,
-    layout_group_folders::{group_findings, group_loops, links_group},
+    layout_folder_uses::{
+        FolderUses, Proof, group_by_folder, loop_membership, record_use, use_loops,
+    },
+    layout_group_entries::{entry_of, find_groups},
+    layout_group_folders::{entry_uses, group_findings, group_loops, links_group},
     layout_link_entries::{USES_FOLDER, link_command, read_links},
     layout_module_tree::ModuleTree,
     layout_module_uses::{ModuleUse, folder_of},
@@ -63,6 +68,11 @@ fn missing_link(from: &Path, to: &Path, proof: &Proof, base: &Path) -> LayoutFin
             shown(from, base)
         ),
         help: Some(format!("Create the link: {}", link_command(from, to, base))),
+        key: format!(
+            "missing-link {} -> {}",
+            shown(from, base),
+            shown(to, base)
+        ),
     };
 }
 
@@ -116,6 +126,7 @@ fn check_one_folder(
             help: Some(String::from(
                 "Remove the link, or use the folder it points to.",
             )),
+            key: format!("unused-link {}", shown(&link.entry, base)),
         });
     }
     for (target, proof) in needed {
@@ -168,6 +179,11 @@ fn glob_reexports(tree: &ModuleTree, base: &Path) -> Vec<LayoutFinding> {
                 help: Some(String::from(
                     "Name the items (`pub use path::{A, B};`), or let callers use the defining folder's path.",
                 )),
+                key: format!(
+                    "glob {} {}",
+                    shown(&module.file, base),
+                    reference.raw.segments.join("::")
+                ),
             });
         }
     }
@@ -205,6 +221,7 @@ fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
                     shown(folder, base)
                 ),
                 help: None,
+                key: format!("below-uses {}", shown(folder, base)),
             });
         }
     }
@@ -212,19 +229,232 @@ fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
 }
 
 /// What:
+///  Which loop each folder is in,
+///  its own loop or the loop of the entry it belongs to.
+/// Why:
+///  An allow-list entry tolerates one use,
+///  and it stays alive only while the two folders it joins are in one loop together.
+///  A use between a folder of a group and a folder of another group loops through the entries,
+///  so both graphs are read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function loopOfEachFolder(folders: Path[], grouped: FolderUses, groups: Set<Path>): Map<Path, [number, number]>;
+/// ```
+fn loop_of_each_folder(
+    folders: &[PathBuf],
+    grouped: &FolderUses,
+    groups: &BTreeSet<PathBuf>,
+) -> BTreeMap<PathBuf, (u8, usize)> {
+    let (entry_nodes, entry_grouped): (Vec<PathBuf>, FolderUses) = entry_uses(groups, grouped);
+    let folder_loops: BTreeMap<PathBuf, usize> = loop_membership(folders, grouped);
+    let entry_loops: BTreeMap<PathBuf, usize> = loop_membership(&entry_nodes, &entry_grouped);
+    let mut loops: BTreeMap<PathBuf, (u8, usize)> = BTreeMap::<PathBuf, (u8, usize)>::new();
+    for folder in folders {
+        if let Some(number) = folder_loops.get(folder) {
+            loops.insert(folder.clone(), (0, *number));
+            continue;
+        }
+        let entry: PathBuf = entry_of(folder, groups);
+        if let Some(number) = entry_loops.get(&entry) {
+            loops.insert(folder.clone(), (1, *number));
+        }
+    }
+    return loops;
+}
+
+/// What:
+///  The uses that stay in the loop checks:
+///  every use except the ones the list tolerates.
+/// Why:
+///  A loop is reported only when one of its uses is not tolerated,
+///  so a loop that is fully recorded reports nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withoutTolerated(grouped: FolderUses, list: AllowList): FolderUses;
+/// ```
+fn without_tolerated(grouped: &FolderUses, list: &AllowList, base: &Path) -> FolderUses {
+    let mut kept: FolderUses = FolderUses::new();
+    for (from, targets) in grouped {
+        for (to, proof) in targets {
+            // The list holds the paths findings show, which are relative to the package folder.
+            let tolerated_use: bool = list.covers_use(
+                Path::new(shown(from, base).as_str()),
+                Path::new(shown(to, base).as_str()),
+            );
+            if tolerated_use {
+                continue;
+            }
+            record_use(&mut kept, from.clone(), to.clone(), proof.clone());
+        }
+    }
+    return kept;
+}
+
+/// What:
+///  The loops one of whose uses the list already tolerates.
+/// Why:
+///  A loop the list knows nothing about is reported by the loop check,
+///  so only a loop the list has started tolerating can hide a use added later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function toleratedLoops(grouped: FolderUses, loops: Map<Path, [number, number]>, list: AllowList, base: Path): Set<[number, number]>;
+/// ```
+fn tolerated_loops(
+    grouped: &FolderUses,
+    loops: &BTreeMap<PathBuf, (u8, usize)>,
+    list: &AllowList,
+    base: &Path,
+) -> BTreeSet<(u8, usize)> {
+    let mut tolerated: BTreeSet<(u8, usize)> = BTreeSet::<(u8, usize)>::new();
+    for (from, targets) in grouped {
+        for to in targets.keys() {
+            let listed: bool = list.covers_use(
+                Path::new(shown(from, base).as_str()),
+                Path::new(shown(to, base).as_str()),
+            );
+            if !listed {
+                continue;
+            }
+            let Some(loop_of_from) = loops.get(from) else {
+                continue;
+            };
+            if loops.get(to) == Some(loop_of_from) {
+                tolerated.insert(*loop_of_from);
+            }
+        }
+    }
+    return tolerated;
+}
+
+/// What:
+///  The findings for uses that join two folders already inside one tolerated loop,
+///  and that no loop finding reports.
+/// Why:
+///  A loop the list tolerates must only lose uses:
+///  a new use inside it adds a loop edge that no entry records,
+///  and no entry may be added for it,
+///  so the run says to remove the use or untangle the loop first.
+///  A use that a loop finding already lists is left to that finding,
+///  or one added edge would be reported once per old use of the loop it joins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function newLoopUses(grouped: FolderUses, loops: Map<Path, [number, number]>, list: AllowList, base: Path): LayoutFinding[];
+/// ```
+fn new_loop_uses(
+    grouped: &FolderUses,
+    loops: &BTreeMap<PathBuf, (u8, usize)>,
+    reported_loops: &BTreeMap<PathBuf, (u8, usize)>,
+    tolerated: &BTreeSet<(u8, usize)>,
+    list: &AllowList,
+    base: &Path,
+) -> Vec<LayoutFinding> {
+    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    for (from, targets) in grouped {
+        for (to, proof) in targets {
+            let tolerated_use: bool = list.covers_use(
+                Path::new(shown(from, base).as_str()),
+                Path::new(shown(to, base).as_str()),
+            );
+            if tolerated_use {
+                continue;
+            }
+            let Some(loop_of_from) = loops.get(from) else {
+                continue;
+            };
+            if loops.get(to) != Some(loop_of_from) {
+                continue;
+            }
+            if !tolerated.contains(loop_of_from) {
+                continue;
+            }
+            // A loop the loop check reports already lists this use.
+            if let Some(reported) = reported_loops.get(from)
+                && reported_loops.get(to) == Some(reported)
+            {
+                continue;
+            }
+            findings.push(LayoutFinding {
+                file: proof.file.clone(),
+                line: proof.line,
+                message: format!(
+                    "{} uses the folder {} (`{}`), and both sit inside one loop the allow list tolerates today; that loop holds this use, and no line of the list records it, so a tolerated loop may only lose uses.",
+                    shown(from, base),
+                    shown(to, base),
+                    proof.text
+                ),
+                help: Some(String::from(
+                    "Remove the use, or untangle that loop first: an allow-list entry records today's findings and a round never adds one.",
+                )),
+                key: String::new(),
+            });
+        }
+    }
+    return findings;
+}
+
+/// What:
+///  The list entries about one use that still hold:
+///  the use exists and its two ends are still in one loop together.
+/// Why:
+///  They are the entries that tolerated something,
+///  and every other use entry is dead and must be deleted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function liveUseEntries(grouped: FolderUses, loops: Map<Path, [number, number]>, list: AllowList): Set<number>;
+/// ```
+fn live_use_entries(
+    grouped: &FolderUses,
+    loops: &BTreeMap<PathBuf, (u8, usize)>,
+    list: &AllowList,
+    base: &Path,
+) -> BTreeSet<usize> {
+    let mut used: BTreeSet<usize> = BTreeSet::<usize>::new();
+    for (index, entry) in list.entries().iter().enumerate() {
+        let AllowKind::FolderUse { from, to } = &entry.kind else {
+            continue;
+        };
+        let absolute_from: PathBuf = base.join(from);
+        let absolute_to: PathBuf = base.join(to);
+        let Some(targets) = grouped.get(&absolute_from) else {
+            continue;
+        };
+        if !targets.contains_key(&absolute_to) {
+            continue;
+        }
+        let Some(loop_of_from) = loops.get(&absolute_from) else {
+            continue;
+        };
+        if loops.get(&absolute_to) != Some(loop_of_from) {
+            continue;
+        }
+        used.insert(index);
+    }
+    return used;
+}
+
+/// What:
 ///  Check the folder rule over a package.
 /// Why:
 ///  `base` is the package folder;
 ///  folders are the folders of the production module files in the tree.
+///  `allow` is the list the rule's `allow` option names,
+///  and the links are always checked against every use,
+///  because a `uses` folder shows who depends on whom however the list reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkFolderLinks(tree: ModuleTree, uses: ModuleUse[], base: Path): LayoutFinding[];
+/// function checkFolderLinks(tree: ModuleTree, uses: ModuleUse[], base: Path, allow?: AllowList): LayoutFinding[];
 /// ```
 pub fn check_folder_links(
     tree: &ModuleTree,
     uses: &[ModuleUse],
     base: &Path,
+    allow: Option<&AllowList>,
 ) -> Vec<LayoutFinding> {
     let mut folders: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
     for index in 0..tree.modules.len() {
@@ -253,18 +483,40 @@ pub fn check_folder_links(
             base,
         ));
     }
+    let reported: FolderUses = match allow {
+        Some(list) => without_tolerated(&grouped, list, base),
+        None => grouped.clone(),
+    };
     findings.extend(use_loops(
         folder_list.as_slice(),
-        &grouped,
+        &reported,
         base,
         "folders",
         None,
     ));
     findings.extend(group_findings(tree, &groups, &grouped, &sources, base));
-    findings.extend(group_loops(&groups, &grouped, base));
+    findings.extend(group_loops(&groups, &reported, base));
     findings.extend(glob_reexports(tree, base));
     findings.extend(folder_below_uses(folder_list.as_slice(), base));
-    return findings;
+    let Some(list) = allow else {
+        return findings;
+    };
+    let loops: BTreeMap<PathBuf, (u8, usize)> = loop_of_each_folder(&folder_list, &grouped, &groups);
+    let reported_loops: BTreeMap<PathBuf, (u8, usize)> =
+        loop_of_each_folder(&folder_list, &reported, &groups);
+    let tolerated_loops: BTreeSet<(u8, usize)> = tolerated_loops(&grouped, &loops, list, base);
+    findings.extend(new_loop_uses(
+        &grouped,
+        &loops,
+        &reported_loops,
+        &tolerated_loops,
+        list,
+        base,
+    ));
+    let (mut kept, mut used): (Vec<LayoutFinding>, BTreeSet<usize>) = tolerated(findings, list);
+    used.extend(live_use_entries(&grouped, &loops, list, base));
+    kept.extend(dead_entry_findings(list, &used, base));
+    return kept;
 }
 
 /// Controls of the folder rule stay outside release artifacts.
