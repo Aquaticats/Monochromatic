@@ -22143,6 +22143,34 @@ where nothing runs it again.
 `source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
 and reads with a call that can wait.
 
+Every file this wrapper reads from a Git directory is opened as a plain file (`foundation/plain_file.rs`) too:
+opening a pipe for reading waits for a writer that may never come,
+and a person or another program can put one at any name beside a checkout.
+That covers a Git directory's `commondir`
+(read by `foundation/common_directory_of_a_git_directory.rs`, which is the one reader of it),
+its `HEAD`,
+the `.git` pointer file a linked worktree or a partially filled clone holds,
+a fetched-heads list (`FETCH_HEAD`),
+a rebase or sequencer todo list,
+and a configuration file,
+each read to a bound the wrapper already sets:
+`SMALL_FILE_LIMIT` (1 MiB) for the small files and `CONFIG_TEXT_LIMIT` for a configuration file.
+A pipe at one of those names is a file this command cannot read rather than a wait:
+the Git directory is its own common directory,
+a head cannot answer so Git is asked,
+a pull or a merge runs through native Git,
+a todo list asks for no editor,
+and a configuration that cannot be read leaves its answer to Git.
+`source_guard`'s `raw_file_reads_tests` fails a release file outside `foundation/plain_file.rs` that reads a file
+with `std::fs::read` or `std::fs::read_to_string`,
+and the sites that stay are on a list of exact counts that may only shrink,
+each under the class whose reason keeps it:
+a fact the kernel or the operating system's own installation writes,
+a record the wrapper wrote into a folder of its own,
+a file Git wrote in a Git directory,
+a path the person's own project holds,
+or a file a control's stand-in process writes.
+
 Limits:
 machines cloned with one machine ID cannot be told apart,
 so their claims are judged as one machine's;
