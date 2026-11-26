@@ -731,16 +731,19 @@ fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent
 /// The word the fake manager answers for a unit something is starting.
 const ACTIVATING: &str = "activating";
 
-/// The file in the folder a watch names as its session bus: while it is there the fake manager answers `failed`.
+/// The file in the folder a watch names as its session bus:
+/// while it is there the fake manager answers `failed`.
 const THE_START_FAILED: &str = "the-start-failed";
 
-/// The file in that folder: while it is there the fake manager answers `inactive`.
+/// The file in that folder:
+/// while it is there the fake manager answers `inactive`.
 const THE_UNIT_IS_INACTIVE: &str = "the-unit-is-inactive";
 
 /// The file the fake manager leaves in its folder when the client asks it to start the unit.
 const ASKED_TO_START: &str = "asked-to-start";
 
-/// The session bus path of a fake manager no control of this file writes for, and which nothing listens at.
+/// The session bus path of a fake manager no control of this file writes for,
+/// and which nothing listens at.
 const NO_SESSION_BUS: &str = "/nowhere/bus";
 
 /// The fake manager's answer for a control that is answered the same way for the whole wait:
@@ -755,16 +758,20 @@ fn always_activating(
 }
 
 /// What:
-///  The fake manager's answer, read from the folder the watch hands it as its session bus:
+///  The fake manager's answer,
+/// read from the folder the watch hands it as its session bus:
 ///  `failed` while that folder holds `THE_START_FAILED`,
 ///  `inactive` while it holds `THE_UNIT_IS_INACTIVE`,
 ///  and `activating` otherwise.
 /// Why:
 ///  An answer belongs to one control.
-///  Two statics of this whole file once carried this word, and the two controls that set them slept while the other's
-///  value was wanted, so a threaded run failed one of them (issue 6484,
+///  Two statics of this whole file once carried this word,
+/// and the two controls that set them slept while the other's
+///  value was wanted,
+/// so a threaded run failed one of them (issue 6484,
 ///  `doc/troubleshooting/git-policy-cli-two-heartbeat-controls-share-one-manager-switch.md`).
-///  A fake manager of this file asks no session bus, so the path a watch names is free for the control's own word,
+///  A fake manager of this file asks no session bus,
+/// so the path a watch names is free for the control's own word,
 ///  and two controls never name one folder.
 fn saying_what_its_folder_holds(
     bus: &Path,
@@ -780,7 +787,8 @@ fn saying_what_its_folder_holds(
     return ManagerAnswer::State(String::from(word));
 }
 
-/// A start the fake manager takes, noted in its folder so the control waiting on it can say it was asked.
+/// A start the fake manager takes,
+/// noted in its folder so the control waiting on it can say it was asked.
 fn a_start_is_taken_and_noted(
     bus: &Path,
     _unit: &str,
@@ -790,7 +798,8 @@ fn a_start_is_taken_and_noted(
     return true;
 }
 
-/// A start the fake manager takes, which no control of this file reads back.
+/// A start the fake manager takes,
+/// which no control of this file reads back.
 fn a_start_is_taken(
     _bus: &Path,
     _unit: &str,
@@ -798,7 +807,8 @@ fn a_start_is_taken(
     return true;
 }
 
-/// A request to forget that the unit failed, which the fake manager takes:
+/// A request to forget that the unit failed,
+/// which the fake manager takes:
 /// a unit that failed too often refuses a start as repeated too quickly without it.
 fn a_failed_state_is_forgotten(
     _bus: &Path,
@@ -807,7 +817,8 @@ fn a_failed_state_is_forgotten(
     return true;
 }
 
-/// A request to restart the unit, which the fake manager takes.
+/// A request to restart the unit,
+/// which the fake manager takes.
 /// Its answer never says `active` here,
 /// so no control of this file reaches a restart by being wedged.
 fn a_restart_is_taken(
@@ -823,7 +834,9 @@ fn a_start_was_asked(folder: &Path) -> bool {
 }
 
 /// What:
-///  A watch on the fake manager `state`, which takes a start through `start`, asking every 50 ms,
+///  A watch on the fake manager `state`,
+/// which takes a start through `start`,
+/// asking every 50 ms,
 ///  with `bus` handed to every one of those calls.
 /// Why:
 ///  `start` is a value of its own because one control reads back the starts it was asked for and no other does,
@@ -862,7 +875,8 @@ fn watched(name: &str) -> ClientConfig {
     );
 }
 
-/// A watch on the fake manager of one control, which reads the word it says and notes its starts in `folder`.
+/// A watch on the fake manager of one control,
+/// which reads the word it says and notes its starts in `folder`.
 fn watched_saying_what_its_folder_holds(
     name: &str,
     folder: &Path,

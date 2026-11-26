@@ -69,9 +69,11 @@ fn statics_in(text: &str) -> Vec<usize> {
 
 /// What:
 ///  `fn findings_in(root, roots) -> Result<Vec<String>, String>` are the `file:line` findings of the sources under
-///  `root`, or one text saying why the scan cannot answer.
+///  `root`,
+/// or one text saying why the scan cannot answer.
 /// Why:
-///  A scan whose listing held no such file would answer no findings, which reads as a pass,
+///  A scan whose listing held no such file would answer no findings,
+/// which reads as a pass,
 ///  so a file the listing does not reach is an error here.
 ///
 /// In TS you'd write (pseudocode):
