@@ -53,7 +53,7 @@ use std::path::Path;
 
 /// Variables native Git must not inherit,
 /// so every object it writes lands in the shadow store.
-pub const NATIVE_UNSET_VARIABLES: [&str; 4] = [
+pub const NATIVE_UNSET_VARIABLES: &[&str] = &[
     "GIT_DIR",
     "GIT_WORK_TREE",
     "GIT_COMMON_DIR",

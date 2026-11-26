@@ -76,7 +76,7 @@ pub struct ServiceHandoff {
 }
 
 /// The kinds of work a landed commit leaves for the service.
-pub const HANDED_OVER: [WorkKind; 1] = [WorkKind::Maintenance];
+pub const HANDED_OVER: &[WorkKind] = &[WorkKind::Maintenance];
 
 /// What:
 ///  The value of an environment variable,

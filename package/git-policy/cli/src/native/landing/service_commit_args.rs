@@ -95,10 +95,10 @@ pub enum FixupKind {
 }
 
 /// Short option letters that take no value and change nothing the service must do.
-const FLAG_LETTERS: [char; 7] = ['q', 'n', 'o', 'a', 's', 'i', 'p'];
+const FLAG_LETTERS: &[char] = &['q', 'n', 'o', 'a', 's', 'i', 'p'];
 
 /// Long options that take no value and change nothing the service must do.
-const FLAG_WORDS: [&str; 16] = [
+const FLAG_WORDS: &[&str] = &[
     "--quiet",
     "--no-verify",
     "--only",
@@ -119,7 +119,7 @@ const FLAG_WORDS: [&str; 16] = [
 
 /// Long options that take one value,
 /// with the field they fill.
-const VALUE_WORDS: [&str; 9] = [
+const VALUE_WORDS: &[&str] = &[
     "--message",
     "--file",
     "--author",
@@ -183,7 +183,7 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
                 parsed.allow_empty_message = true;
             } else {
                 let mut matched: bool = false;
-                for name in VALUE_WORDS {
+                for &name in VALUE_WORDS {
                     let Some(Some(value)) = long_value(token, name, arguments, &mut index) else {
                         continue;
                     };
@@ -321,7 +321,7 @@ pub fn cleanup_message(messages: &[String]) -> Option<String> {
 /// Long options that name where the message comes from,
 /// or edit it,
 /// or add to it.
-const MESSAGE_VALUE_LONG: [&str; 5] = [
+const MESSAGE_VALUE_LONG: &[&str] = &[
     "--message",
     "--file",
     "--template",
@@ -330,12 +330,12 @@ const MESSAGE_VALUE_LONG: [&str; 5] = [
 ];
 
 /// Long options without a value that open the editor or add a sign-off.
-const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-signoff"];
+const MESSAGE_FLAG_LONG: &[&str] = &["--edit", "--no-edit", "--signoff", "--no-signoff"];
 
 /// Long options that take the author,
 /// or the parents,
 /// or the whole commit from another commit.
-const BORROWING_LONG: [&str; 5] = [
+const BORROWING_LONG: &[&str] = &[
     "--reedit-message",
     "--reuse-message",
     "--squash",
@@ -414,23 +414,23 @@ pub fn with_fixed_message(
             };
             let all: Vec<&str> = MESSAGE_VALUE_LONG
                 .iter()
-                .chain(&MESSAGE_FLAG_LONG)
-                .chain(&BORROWING_LONG)
+                .chain(MESSAGE_FLAG_LONG)
+                .chain(BORROWING_LONG)
                 .copied()
                 .collect();
-            if is_one_of(rest, &BORROWING_LONG)
+            if is_one_of(rest, BORROWING_LONG)
                 || (!is_one_of(rest, all.as_slice())
                     && abbreviates_a_known_option(all.as_slice(), rest))
             {
                 return None;
             }
-            if is_one_of(rest, &MESSAGE_VALUE_LONG) {
+            if is_one_of(rest, MESSAGE_VALUE_LONG) {
                 if !attached {
                     index += 1;
                 }
                 continue;
             }
-            if is_one_of(rest, &MESSAGE_FLAG_LONG) {
+            if is_one_of(rest, MESSAGE_FLAG_LONG) {
                 continue;
             }
             kept.push(token.clone());

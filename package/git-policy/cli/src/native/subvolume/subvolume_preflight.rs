@@ -101,7 +101,7 @@ pub fn required_free_bytes(entries: u64) -> u64 {
 ///  (measured with Git 2.56 under `strace`),
 ///  so a process killed between those writes leaves a bisect whose mark is a file written before the kill,
 ///  and a list that knew only the log moved a checkout with that bisect still unfinished.
-pub const IN_PROGRESS_NAMES: [&str; 13] = [
+pub const IN_PROGRESS_NAMES: &[&str] = &[
     "index.lock",
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
@@ -515,7 +515,7 @@ fn git_state_refusals(
     }
     directories.sort();
     for directory in &directories {
-        for name in IN_PROGRESS_NAMES {
+        for &name in IN_PROGRESS_NAMES {
             let own_lock: bool =
                 name == "index.lock" && is_ours(directory.join(name).as_path(), token.as_str());
             if directory.join(name).exists() && !own_lock {

@@ -34,7 +34,7 @@ const ANCESTOR_DATASET: &str = "zpcachyos/ROOT/cos/home";
 /// The six permissions choice 3C says the add's own steps use,
 /// written from the design's "Scoped delegation" so a table that moves one of
 /// them is read against the record rather than against itself.
-const THE_ADDS_GROUP: [(GrantPlace, &str); 6] = [
+const THE_ADDS_GROUP: &[(GrantPlace, &str)] = &[
     (GrantPlace::Checkout, "snapshot"),
     (GrantPlace::CheckoutDescendants, "clone"),
     (GrantPlace::Container, "create"),
@@ -46,7 +46,7 @@ const THE_ADDS_GROUP: [(GrantPlace, &str); 6] = [
 /// The three permissions choice 3C says only a removal uses,
 /// which the add warns about and never refuses for while no step of its own
 /// issues a `destroy`.
-const A_REMOVALS_GROUP: [(GrantPlace, &str); 3] = [
+const A_REMOVALS_GROUP: &[(GrantPlace, &str)] = &[
     (GrantPlace::ContainerDescendants, "destroy"),
     (GrantPlace::CheckoutDescendants, "mount"),
     (GrantPlace::CheckoutDescendants, "destroy"),
@@ -95,13 +95,11 @@ fn the_decided_delegation_passes() {
 #[test]
 fn the_split_is_the_records_six_and_three() {
     assert_eq!(
-        THE_ADDS_OWN_STEPS.as_slice(),
-        THE_ADDS_GROUP.as_slice(),
+        THE_ADDS_OWN_STEPS, THE_ADDS_GROUP,
         "the add's own steps are the six the design's \"Scoped delegation\" gives the unprivileged lifecycle"
     );
     assert_eq!(
-        A_REMOVALS_STEPS.as_slice(),
-        A_REMOVALS_GROUP.as_slice(),
+        A_REMOVALS_STEPS, A_REMOVALS_GROUP,
         "a removal's steps are the three the add never runs, and both `destroy` grants stay here while the add's own failure path issues none"
     );
 }
@@ -110,7 +108,7 @@ fn the_split_is_the_records_six_and_three() {
 /// and never warns.
 #[test]
 fn every_permission_the_add_uses_refuses_when_it_is_missing() {
-    for (place, permission) in THE_ADDS_GROUP {
+    for &(place, permission) in THE_ADDS_GROUP {
         let (dataset, inheritance): (&str, Inheritance) = place_of(place);
         let refusal: String =
             refuse_unless_the_decided_ones(&without(permission, dataset, inheritance))
@@ -139,7 +137,7 @@ fn every_permission_the_add_uses_refuses_when_it_is_missing() {
 /// both `destroy` grants and the checkout-origin `mount` among them.
 #[test]
 fn every_permission_only_a_removal_uses_warns_and_the_add_goes_on() {
-    for (place, permission) in A_REMOVALS_GROUP {
+    for &(place, permission) in A_REMOVALS_GROUP {
         let (dataset, inheritance): (&str, Inheritance) = place_of(place);
         let facts: DelegationFacts = without(permission, dataset, inheritance);
         let warnings: Vec<String> =
@@ -180,7 +178,7 @@ fn every_permission_only_a_removal_uses_warns_and_the_add_goes_on() {
 #[test]
 fn the_whole_removal_group_missing_prints_one_line_with_every_command() {
     let mut facts: DelegationFacts = healthy_delegation();
-    for (place, permission) in A_REMOVALS_GROUP {
+    for &(place, permission) in A_REMOVALS_GROUP {
         let (dataset, inheritance): (&str, Inheritance) = place_of(place);
         facts.grants.retain(|allowed| {
             return !(allowed.permission == permission
@@ -196,7 +194,7 @@ fn the_whole_removal_group_missing_prints_one_line_with_every_command() {
         "one line for the whole group: {warnings:?}"
     );
     let line: &str = warnings[0].as_str();
-    for (place, permission) in A_REMOVALS_GROUP {
+    for &(place, permission) in A_REMOVALS_GROUP {
         let (dataset, _inheritance): (&str, Inheritance) = place_of(place);
         assert!(
             line.contains(&format!("zfs allow -d -u {ACCOUNT} {permission} {dataset}")),

@@ -83,8 +83,8 @@ pub(crate) fn recorded_starts(log: &Path) -> Vec<String> {
 ///  `check_symref` returns 1 where it dies;
 /// `diff.c` sets `exit_with_status`,
 /// no renames and an early quit for `--quiet`.
-const RESULT_CHANGING_COMMANDS: [&str; 4] =
-    ["rev-parse", "symbolic-ref", "diff-index", "diff-files"];
+const RESULT_CHANGING_COMMANDS: &[&str] =
+    &["rev-parse", "symbolic-ref", "diff-index", "diff-files"];
 
 /// What:
 ///  The recorded starts that carry `--quiet` or `-q` as a whole argument,

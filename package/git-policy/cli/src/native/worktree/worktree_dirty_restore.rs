@@ -181,7 +181,7 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// const IGNORED_WORDS = ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z']
 /// ```
-const IGNORED_WORDS: [&str; 7] = [
+const IGNORED_WORDS: &[&str] = &[
     "ls-files",
     "--others",
     "--ignored",
@@ -480,7 +480,7 @@ fn listed_ignored(
     target: &Target,
     stage: &Path,
 ) -> Result<Vec<Vec<u8>>, String> {
-    let (listed, names) = ask(context, target, stage, IGNORED_WORDS.as_slice())?;
+    let (listed, names) = ask(context, target, stage, IGNORED_WORDS)?;
     if listed != Some(0) {
         return Err(String::from(
             "Git could not list the ignored files of the snapshot",

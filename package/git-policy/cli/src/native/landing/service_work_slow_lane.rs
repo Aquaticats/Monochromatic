@@ -417,7 +417,7 @@ async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(
         lease,
         Renewal::Timed,
         &mut nothing_to_plan,
-        &SLOW_KINDS,
+        SLOW_KINDS,
         housekeeping,
     )
     .await;

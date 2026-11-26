@@ -119,7 +119,7 @@ pub const TRASH_PARENT: &str = ".claude/cli-git-trash";
 pub const MAIN_SNAPSHOT_NOTE: &str = "monochromatic-git-policy-cli: made the worktree as a snapshot of the main checkout; nested worktrees, caches, run records and the stage containers of other commands were left out.\n";
 
 /// The mode bits that say an index entry is a directory (a tree) or a gitlink.
-const DIRECTORY_MODES: [u32; 2] = [0o040_000, 0o160_000];
+const DIRECTORY_MODES: &[u32] = &[0o040_000, 0o160_000];
 
 /// The mode bits that carry the type of an index entry.
 const TYPE_MASK: u32 = 0o170_000;

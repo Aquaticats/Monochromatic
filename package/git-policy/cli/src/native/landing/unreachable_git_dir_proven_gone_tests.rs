@@ -344,7 +344,7 @@ fn a_deleted_repository_ends_its_plans() {
             crate::service_work::CLAIM_LEASE,
             Renewal::Timed,
             &retrying_for(git_dir.as_path(), worktree.as_path()),
-            &SERVICE_KINDS,
+            SERVICE_KINDS,
         ));
     assert!(
         !drained
@@ -389,7 +389,7 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
             crate::service_work::CLAIM_LEASE,
             Renewal::Timed,
             &retrying_for(git_dir.as_path(), root.join("drive/repository").as_path()),
-            &SERVICE_KINDS,
+            SERVICE_KINDS,
         ));
     assert!(
         !drained
@@ -715,7 +715,7 @@ fn a_repository_renamed_back_before_the_change_lands_keeps_its_plans() {
             crate::service_work::CLAIM_LEASE,
             Renewal::Timed,
             &retrying,
-            &SERVICE_KINDS,
+            SERVICE_KINDS,
         ));
     assert!(
         matches!(&drained.changes[0], RetryChange::Forget { .. }),

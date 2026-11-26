@@ -23,10 +23,10 @@ use super::{
 /// Every arm and step has a name a reader can parse back.
 #[test]
 fn every_name_parses_back() {
-    for arm in ProbeArm::ALL {
+    for &arm in ProbeArm::ALL {
         assert!(!arm.name().is_empty());
     }
-    for step in ProbeStep::ALL {
+    for &step in ProbeStep::ALL {
         assert_eq!(ProbeStep::from_name(step.name()), Some(step));
     }
     assert_eq!(ProbeStep::from_name("no-such-step"), None);
@@ -38,7 +38,7 @@ fn every_name_parses_back() {
 fn the_worker_order_holds_every_step_but_the_holders() {
     let worker: Vec<ProbeStep> = ProbeStep::WORKER_ORDER.to_vec();
     let holder: Vec<ProbeStep> = ProbeStep::HOLDER_ORDER.to_vec();
-    for step in ProbeStep::ALL {
+    for &step in ProbeStep::ALL {
         let in_worker: bool = worker.contains(&step);
         let in_holder: bool = holder.contains(&step);
         assert!(
@@ -54,7 +54,7 @@ fn the_worker_order_holds_every_step_but_the_holders() {
 /// the unmount and the scans.
 #[test]
 fn only_the_move_unmount_and_scans_refuse_a_removal() {
-    for step in ProbeStep::ALL {
+    for &step in ProbeStep::ALL {
         let refuses: bool = step.refuses_removal_of_a_mounted_clone();
         let expected: bool = matches!(
             step,
@@ -72,7 +72,7 @@ fn only_the_move_unmount_and_scans_refuse_a_removal() {
 /// and the step's arm is the one its name sits under.
 #[test]
 fn every_arm_owns_a_step() {
-    for arm in ProbeArm::ALL {
+    for &arm in ProbeArm::ALL {
         let owned: Vec<ProbeStep> = ProbeStep::ALL
             .iter()
             .copied()

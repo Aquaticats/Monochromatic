@@ -350,7 +350,7 @@ fn service_messages_round_trip() {
             ],
         },
     ];
-    messages.extend(FailureCode::ALL.map(|code| {
+    messages.extend(FailureCode::ALL.iter().copied().map(|code| {
         return ServiceMessage::Failed {
             id: String::from("x"),
             code,

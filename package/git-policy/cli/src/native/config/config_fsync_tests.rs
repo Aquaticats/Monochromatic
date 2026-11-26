@@ -27,7 +27,7 @@ use std::path::{
 /// `none` in and out of the last place,
 ///  prefixes,
 /// and words Git ignores.
-const VALUES: [&str; 22] = [
+const VALUES: &[&str] = &[
     "",
     "none",
     "all",

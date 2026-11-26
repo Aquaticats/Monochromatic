@@ -357,7 +357,7 @@ fn commit_a(
 }
 
 /// The phases the record counts as disjoint stretches of the command.
-const DISJOINT: [&str; 10] = [
+const DISJOINT: &[&str] = &[
     "routeMs",
     "prepareMs",
     "buildMs",

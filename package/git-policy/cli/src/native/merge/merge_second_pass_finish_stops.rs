@@ -51,7 +51,7 @@ pub enum Operation {
 }
 
 /// The options shared by merge and pull that change nothing the finish needs to know.
-pub const HARMLESS_MERGE_OPTIONS: [&str; 21] = [
+pub const HARMLESS_MERGE_OPTIONS: &[&str] = &[
     "-v",
     "--verbose",
     "--no-verbose",
@@ -78,7 +78,7 @@ pub const HARMLESS_MERGE_OPTIONS: [&str; 21] = [
 /// The options of pull that only fetch,
 /// or choose merge or rebase,
 /// which the state files decide.
-pub const HARMLESS_PULL_OPTIONS: [&str; 17] = [
+pub const HARMLESS_PULL_OPTIONS: &[&str] = &[
     "--rebase",
     "-r",
     "--no-rebase",
@@ -99,7 +99,7 @@ pub const HARMLESS_PULL_OPTIONS: [&str; 17] = [
 ];
 
 /// The options of a cherry-pick or revert that change nothing the finish needs to know.
-pub const HARMLESS_PICK_OPTIONS: [&str; 13] = [
+pub const HARMLESS_PICK_OPTIONS: &[&str] = &[
     "-x",
     "--ff",
     "--allow-empty",
@@ -116,7 +116,7 @@ pub const HARMLESS_PICK_OPTIONS: [&str; 13] = [
 ];
 
 /// The options that take the next token as their value and change nothing the finish needs to know.
-pub const VALUE_OPTIONS: [&str; 4] = ["-s", "--strategy", "-X", "--strategy-option"];
+pub const VALUE_OPTIONS: &[&str] = &["-s", "--strategy", "-X", "--strategy-option"];
 
 /// What:
 ///  Read the arguments after the subcommand of a merge or pull,

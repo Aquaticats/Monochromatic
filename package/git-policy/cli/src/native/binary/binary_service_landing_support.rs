@@ -51,7 +51,7 @@ const PINNED_DATE: &str = "2026-02-03T04:05:06+0000";
 /// The state files a merge,
 /// a cherry-pick or a revert leaves in the Git directory,
 /// which a conclusion removes.
-const STATE_FILES: [&str; 9] = [
+const STATE_FILES: &[&str] = &[
     "MERGE_HEAD",
     "MERGE_MSG",
     "MERGE_MODE",

@@ -159,7 +159,7 @@ pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
 /// not the bus's own words.
 /// `ServiceUnknown` is what a bus says when no unit and no program owns the name;
 /// `NameHasNoOwner` is what it says when the name was owned and has gone.
-pub const NO_MANAGER_ON_THE_BUS: [&str; 2] = [
+pub const NO_MANAGER_ON_THE_BUS: &[&str] = &[
     "org.freedesktop.DBus.Error.ServiceUnknown",
     "org.freedesktop.DBus.Error.NameHasNoOwner",
 ];

@@ -34,7 +34,7 @@ pub const INVENTORY_HEADER: &str =
 ///  The design fixes the order,
 ///  so a record whose keys arrive in another order or twice is damage,
 ///  and one constant gives the writer and the reader that order.
-pub const BINDING_KEYS_IN_ORDER: [&str; 24] = [
+pub const BINDING_KEYS_IN_ORDER: &[&str] = &[
     "claim",
     "nonce",
     "request",
@@ -67,7 +67,7 @@ pub const BINDING_KEYS_IN_ORDER: [&str; 24] = [
 /// Why:
 ///  The design's A2 write records these before any mutation beyond the claim,
 ///  so a record missing one of them was not written by the add's own order.
-pub const KEYS_EVERY_PHASE_HOLDS: [&str; 12] = [
+pub const KEYS_EVERY_PHASE_HOLDS: &[&str] = &[
     "claim",
     "nonce",
     "request",
@@ -83,7 +83,7 @@ pub const KEYS_EVERY_PHASE_HOLDS: [&str; 12] = [
 ];
 
 /// The keys a record holds from one phase on, besides [`KEYS_EVERY_PHASE_HOLDS`].
-pub const KEYS_FROM_EACH_PHASE: [(&str, &[&str]); 6] = [
+pub const KEYS_FROM_EACH_PHASE: &[(&str, &[&str])] = &[
     ("originSnapshot", &["originSnapshot"]),
     ("originDataset", &["originDataset", "originDatasetGuid"]),
     ("slot", &["slotIdentity"]),

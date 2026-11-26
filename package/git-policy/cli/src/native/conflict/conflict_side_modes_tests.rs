@@ -20,7 +20,7 @@ use std::ffi::OsString;
 /// and nothing else is.
 #[test]
 fn every_mode_option_is_found_in_the_prefix() {
-    for option in MODE_OPTIONS {
+    for &option in MODE_OPTIONS {
         let prefix: Vec<OsString> = vec![
             OsString::from("-C"),
             OsString::from("."),

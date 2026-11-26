@@ -454,7 +454,7 @@ const SAMPLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 /// ```ts
 /// const inFlight = ['pending', 'recovering', 'claimed'] as const;
 /// ```
-pub const A_RECORD_IN_FLIGHT_FOLDERS: [&str; 3] = [PENDING, RECOVERING, CLAIMED];
+pub const A_RECORD_IN_FLIGHT_FOLDERS: &[&str] = &[PENDING, RECOVERING, CLAIMED];
 
 /// What:
 ///  A step a control runs before each folder of one sample is read,

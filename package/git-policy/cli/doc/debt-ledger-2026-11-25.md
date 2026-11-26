@@ -870,6 +870,56 @@ slice and leaves meaningful lengths, plus a `source_guard` control that refuses 
 with a numeric length; the package guide states the rule since this item.
 Size: up to 277 constants, most of them one-line changes.
 
+Landed 2026-11-26,
+on `refactor/git-policy-cli-fixed-length-lists-become-slices`:
+`14053c4fd5` (run 1:
+276 declarations in 226 files),
+`b37ed74e76` (run 2:
+23 declarations in 21 files and 2 parameters),
+`af3461a08f` (the guard reads a list whose `[` starts on the line below),
+and `a68915d6f3` (the borrows Clippy named),
+after merges of `main`.
+The ledger's search answers 7 lines today:
+4 are the guard's own planted fixtures,
+and the 3 declarations that stay are `REWRITTEN` and `UNTOUCHED`,
+the nine words of one subvolume index record,
+and `WAIT_LIMITS`,
+the window,
+poll and cap one wait destructures.
+Run 1's sweep matched only a declaration whose type and initializer shared a line
+and whose element type held no bracket of its own,
+so 23 declarations and 2 parameters were still arrays
+(the guard named 19 of them;
+four more are a list of a name,
+two of a byte tag and one of a watched signal,
+whose element type names no text):
+`[&[&str]; N]` lists of subcommand words,
+`[(&str, &[u8], bool); N]` case rows,
+and a `= [` on the line below.
+`source_guard/lists_are_slices_tests.rs` refuses a new one:
+a `const` whose element type names a text reference and whose length is a number is a finding in any layout.
+It was shown failing on a planted `const PLANTED_NAMES: [&str; 2] = ["first", "second"];`
+at `foundation/kept_names_in_the_git_directories.rs:65`,
+and green again once the plant was removed.
+Seven fixed-length arrays stay,
+each with a length that is the meaning and none holding text:
+the two index records,
+`WAIT_LIMITS`,
+`PENDING`'s one slot per relayed signal,
+a torn UTF-8 lead byte,
+the four-byte index magic word and the shell's escaped quote.
+Not done:
+the 297 local `let NAME: [&str; N] = [...]` lists
+(`rg ':\s*\[[^]]*(str|String|OsStr|OsString)[^]]*; [0-9]+\]' src` answers 302 lines,
+297 of them `let`,
+almost all in test files),
+because this item measured constants and the guard refuses constants,
+so converting a local is a decision nobody has made.
+No container gate and no independent review ran.
+Status:
+incomplete,
+unapproved and not final.
+
 ## Already in flight, do not duplicate
 
 `fix/git-policy-cli-lfs-upload-tests-signal-their-own-test-binary`: item 6, unmerged.

@@ -276,7 +276,7 @@ fn is_ascii_whitespace(byte: &u8) -> bool {
 
 /// The standard definition of the Git LFS filter,
 /// which converts a file by its content alone.
-const LFS_FILTER: [(&str, &str); 4] = [
+const LFS_FILTER: &[(&str, &str)] = &[
     ("filter.lfs.clean", "git-lfs clean -- %f"),
     ("filter.lfs.smudge", "git-lfs smudge -- %f"),
     ("filter.lfs.process", "git-lfs filter-process"),

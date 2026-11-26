@@ -397,7 +397,7 @@ fn the_two_claim_lists_partition_the_kinds_the_service_runs() {
         claimed.push(kind.name());
     }
     let mut service: Vec<&str> = Vec::new();
-    for kind in &SERVICE_KINDS {
+    for kind in SERVICE_KINDS {
         service.push(kind.name());
     }
     claimed.sort_unstable();
@@ -1162,7 +1162,7 @@ fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
             A_LEASE_A_CONTROL_WAITS_OUT,
             Renewal::Timed,
             &Retrying::none(),
-            &SERVICE_KINDS,
+            SERVICE_KINDS,
         ),
     );
     let waited: Duration = drained

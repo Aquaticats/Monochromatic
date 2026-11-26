@@ -33,11 +33,11 @@ const SLOT_GLUE: &str = "invocation/entry_zfs_slot_commands.rs";
 
 /// The functions every forwarded command reaches,
 /// in the order the caller runs them.
-const FORWARDED_FUNCTIONS: [&str; 3] = ["move_refusal_of", "before_a_prune", "before_a_repair"];
+const FORWARDED_FUNCTIONS: &[&str] = &["move_refusal_of", "before_a_prune", "before_a_repair"];
 
 /// The code that reads a command's own words:
 /// the worktree subcommand and the tokens after it.
-const WORD_READS: [&str; 3] = [
+const WORD_READS: &[&str] = &[
     "worktree_subcommand(",
     "command.word()",
     "command.arguments.get(",
@@ -47,7 +47,7 @@ const WORD_READS: [&str; 3] = [
 /// as the failure names it:
 /// the code,
 /// and what every forwarded command pays when the step stands before the words are read.
-const LATER_STEPS: [(&str, &str); 7] = [
+const LATER_STEPS: &[(&str, &str)] = &[
     (
         "std::env::current_dir",
         "a read of the process's working directory",
@@ -161,7 +161,7 @@ fn order_of(
             "`{name}` reads nothing, so this check no longer covers what it was written for"
         ));
     };
-    let Some((word_line, word)) = first_line_holding(body, &WORD_READS) else {
+    let Some((word_line, word)) = first_line_holding(body, WORD_READS) else {
         return Err(format!(
             "`{name}` runs {} (`{}`) at line {step_line} without reading the command's words at all",
             LATER_STEPS[step].1, LATER_STEPS[step].0
@@ -226,7 +226,7 @@ fn every_forwarded_slot_command_reads_its_words_before_it_reads_anything_else() 
             path.display()
         )
     });
-    let failures: Vec<String> = backward_steps_in(text.as_str(), &FORWARDED_FUNCTIONS);
+    let failures: Vec<String> = backward_steps_in(text.as_str(), FORWARDED_FUNCTIONS);
     assert!(
         failures.is_empty(),
         "the slot glue runs for every forwarded command, so a read before the command's words is paid by a `git \

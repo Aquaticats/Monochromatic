@@ -33,7 +33,7 @@ use monochromatic_jsonc_edit::{
 /// The files the block selects,
 ///  relative to the linter's working directory,
 ///  the top level.
-pub const MARKDOWN_FILE_PATTERNS: [&str; 2] = ["**/*.md", "**/*.mdx"];
+pub const MARKDOWN_FILE_PATTERNS: &[&str] = &["**/*.md", "**/*.mdx"];
 
 /// What:
 ///  A JSON string value holding `text`.

@@ -151,7 +151,7 @@ fn tree_fixture(name: &str) -> TreeFixture {
 /// Why:
 ///  A declined reader asks Git,
 ///  so a control of what the landing asks has to stand where the refusal happens.
-const DECLINED_STORES: [(&str, &[&str], bool); 2] = [
+const DECLINED_STORES: &[(&str, &[&str], bool)] = &[
     ("reftable", &["init", "--ref-format=reftable"], false),
     ("files beside a replace ref", &["init"], true),
 ];
@@ -507,7 +507,7 @@ fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content() {
 fn a_blob_removed_from_under_an_embedded_tree_is_removed_content_where_the_reader_declines() {
     for store in DECLINED_STORES {
         let (label, _format, _replace) = store;
-        let fixed = declined_tree_fixture("pruned-tree-blob-declined", store);
+        let fixed = declined_tree_fixture("pruned-tree-blob-declined", *store);
         let common: PathBuf = fixed.root.join(".git");
         assert!(
             !batch_content_missing(
@@ -566,7 +566,7 @@ fn a_blob_removed_from_under_an_embedded_tree_is_removed_content_where_the_reade
 fn a_gone_commit_git_built_is_removed_content_where_the_reader_declines() {
     for store in DECLINED_STORES {
         let (label, _format, _replace) = store;
-        let fixed = declined_tree_fixture("pruned-built-commit-declined", store);
+        let fixed = declined_tree_fixture("pruned-built-commit-declined", *store);
         let common: PathBuf = fixed.root.join(".git");
         let objects: PathBuf = common.join("objects");
         let text = |arguments: &[&str]| -> String {
@@ -650,7 +650,7 @@ fn a_gone_commit_git_built_is_removed_content_where_the_reader_declines() {
 fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content_where_the_reader_declines() {
     for store in DECLINED_STORES {
         let (label, _format, _replace) = store;
-        let fixed = declined_tree_fixture("pruned-tree-gitlink-declined", store);
+        let fixed = declined_tree_fixture("pruned-tree-gitlink-declined", *store);
         let common: PathBuf = fixed.root.join(".git");
         let added = git_output(
             fixed.root.as_path(),

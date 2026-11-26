@@ -561,7 +561,7 @@ const DEPENDENCY: &str = "serde";
 /// ```ts
 /// const INCREMENTAL_SETTINGS = ['0', '1'];
 /// ```
-const INCREMENTAL_SETTINGS: [&str; 2] = ["0", "1"];
+const INCREMENTAL_SETTINGS: &[&str] = &["0", "1"];
 
 /// What:
 ///  Every entry of a build directory whose file name starts with `prefix`.
@@ -797,8 +797,8 @@ fn item_for(
 #[test]
 fn the_filling_puts_the_lock_back_as_checked_out() {
     // The two states a checked-out lock can be in.
-    const LOCK_STATES: [&str; 2] = ["stale", "absent"];
-    for state in LOCK_STATES {
+    const LOCK_STATES: &[&str] = &["stale", "absent"];
+    for &state in LOCK_STATES {
         let root: PathBuf = fixture(format!("prewarm-lock-{state}").as_str());
         let entry: PrewarmEntry = built_workspace(root.as_path());
         let lock: PathBuf = entry.root.join(LOCK_FILE);
@@ -906,8 +906,8 @@ fn recorded(record: &Path) -> Vec<String> {
 #[test]
 fn a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it() {
     // The two states the checked-out worktree can be in when the person starts.
-    const LOCK_STATES: [&str; 2] = ["stale", "absent"];
-    for state in LOCK_STATES {
+    const LOCK_STATES: &[&str] = &["stale", "absent"];
+    for &state in LOCK_STATES {
         let root: PathBuf = fixture(format!("prewarm-person-lock-{state}").as_str());
         let entry: PrewarmEntry = entry_of(root.as_path());
         std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
@@ -1069,8 +1069,8 @@ fn cargo_that_succeeds(root: &Path) -> PathBuf {
 #[test]
 fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed() {
     // What a stranger leaves at each of the two names.
-    const STRANGERS: [&str; 2] = ["staging", "marker"];
-    for stranger in STRANGERS {
+    const STRANGERS: &[&str] = &["staging", "marker"];
+    for &stranger in STRANGERS {
         let root: PathBuf = fixture(format!("prewarm-stranger-{stranger}").as_str());
         let entry: PrewarmEntry = entry_of(root.as_path());
         std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");

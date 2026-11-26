@@ -93,7 +93,7 @@ use super::delegation_reply::{
 /// ```ts
 /// const REQUIRED = [{ place: 'checkout', permission: 'snapshot' }, ...];
 /// ```
-pub const REQUIRED_GRANTS: [RequiredGrant; 9] = [
+pub const REQUIRED_GRANTS: &[RequiredGrant] = &[
     RequiredGrant {
         place: GrantPlace::Checkout,
         permission: "snapshot",
@@ -153,7 +153,7 @@ pub const REQUIRED_GRANTS: [RequiredGrant; 9] = [
 /// ```ts
 /// const FORBIDDEN = ['mountpoint', 'canmount', 'setuid', 'devices', 'rename', 'promote', 'receive', 'receive:append', 'allow'];
 /// ```
-pub const FORBIDDEN_PERMISSIONS: [&str; 9] = [
+pub const FORBIDDEN_PERMISSIONS: &[&str] = &[
     "mountpoint",
     "canmount",
     "setuid",
@@ -395,7 +395,7 @@ struct Narrowing<'a> {
 /// descendant grant.
 fn narrowings<'a>(facts: &'a DelegationFacts) -> Vec<Narrowing<'a>> {
     let mut found: Vec<Narrowing<'a>> = Vec::new();
-    for required in &REQUIRED_GRANTS {
+    for required in REQUIRED_GRANTS {
         if let Satisfaction::Broad(wide) = satisfaction(required, facts) {
             found.push(Narrowing {
                 required,

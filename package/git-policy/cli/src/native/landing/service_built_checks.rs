@@ -109,7 +109,7 @@ fn format_of(hex: &str) -> ObjectFormat {
 
 /// The environment variables that change which history,
 /// which replacements or which object store Git reads.
-const HISTORY_VARIABLES: [&str; 6] = [
+const HISTORY_VARIABLES: &[&str] = &[
     "GIT_SHALLOW_FILE",
     "GIT_GRAFT_FILE",
     "GIT_REPLACE_REF_BASE",

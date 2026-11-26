@@ -57,7 +57,7 @@ use std::path::{
 pub const THREADS_FOLDER: &str = "task";
 
 /// The link whose target is a thread's mount-namespace identity.
-pub const MOUNT_NAMESPACE_LINK: [&str; 2] = ["ns", "mnt"];
+pub const MOUNT_NAMESPACE_LINK: &[&str] = &["ns", "mnt"];
 
 /// The link to a thread's own root directory.
 pub const ROOT_LINK: &str = "root";
