@@ -77,3 +77,17 @@ From 2026-11-26T07:10-05:00 the round launcher takes `virtual`
 (`--provider=rate-limit-fallback --model=writer`) by default,
 and `WRITER_POOL=qwen`,
 `opencode-go` or `neuralwatt-flex` pins one member.
+
+## The virtual writer is not capped at its smallest member (owner, 2026-11-26)
+
+At about 17:30 -05:00 the owner read that five rounds ran at once because Qwen's room is 5 and answered:
+"Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself."
+Two things had held the count at five:
+the coordinator's round starters waited for fewer than five virtual-writer drivers,
+and the driver counts a virtual-writer run as a slot in every member pool (`VIRTUAL_POOLS`),
+so the smallest member bounds them all and each run also holds opencode-go's and flex's room it is not using.
+The coordinator's starters now take the virtual writer while every member has room and then pin opencode-go, then flex
+(`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/schedule-every-queued-round.ts`), up to the owner's 64 at once behind the memory test,
+and the driver is changed to count a virtual-writer run once against its members' combined room
+(round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`),
+since a member over its own room refuses and the router moves the request on.
