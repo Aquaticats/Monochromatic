@@ -20,7 +20,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `JsValue, object_get, parse_module_exports` from `crate::js_literal`.
 /// Why:
@@ -30,7 +33,11 @@ use crate::error::{BrowserslistError, Outcome};
 /// ```ts
 /// import { JsValue, objectGet, parseModuleExports } from './js_literal';
 /// ```
-use crate::js_literal::{JsValue, object_get, parse_module_exports};
+use crate::js_literal::{
+    JsValue,
+    object_get,
+    parse_module_exports,
+};
 /// What:
 ///  Import `HashMap` from `std::collections::HashMap`.
 /// Why:
@@ -102,7 +109,11 @@ impl Agent {
     /// then minus empty ones (`data.released`).
     pub fn released(&self) -> Vec<&str> {
         let cut = self.slots.len().saturating_sub(UNRELEASED_SLOTS);
-        return self.slots[..cut].iter().flatten().map(String::as_str).collect();
+        return self.slots[..cut]
+            .iter()
+            .flatten()
+            .map(String::as_str)
+            .collect();
     }
 }
 
@@ -135,11 +146,16 @@ pub struct AgentTable {
 impl AgentTable {
     /// Build a table from agents (used by tests that need a synthetic revision).
     pub fn new(agents: Vec<Agent>) -> Self {
-        return Self { agents };
+        return Self {
+            agents,
+        };
     }
 
     /// Find a browser by its lowercase key.
-    pub fn get(&self, name: &str) -> Option<&Agent> {
+    pub fn get(
+        &self,
+        name: &str,
+    ) -> Option<&Agent> {
         for agent in &self.agents {
             if agent.name == name {
                 return Some(agent);
@@ -149,16 +165,24 @@ impl AgentTable {
     }
 
     /// Find a browser or fail with browserslist's own `Unknown browser` message.
-    pub fn require(&self, written: &str) -> Outcome<&Agent> {
+    pub fn require(
+        &self,
+        written: &str,
+    ) -> Outcome<&Agent> {
         let Some(agent) = self.get(&written.to_ascii_lowercase()) else {
-            return Err(BrowserslistError::Browserslist { message: format!("Unknown browser {written}") });
+            return Err(BrowserslistError::Browserslist {
+                message: format!("Unknown browser {written}"),
+            });
         };
         return Ok(agent);
     }
 }
 
 /// Read an object whose values are all strings into a code-to-text map.
-fn string_table(file: &str, value: &JsValue) -> Outcome<HashMap<String, String>> {
+fn string_table(
+    file: &str,
+    value: &JsValue,
+) -> Outcome<HashMap<String, String>> {
     let JsValue::Object(entries) = value else {
         return Err(BrowserslistError::Data {
             file: file.to_string(),
@@ -181,7 +205,11 @@ fn string_table(file: &str, value: &JsValue) -> Outcome<HashMap<String, String>>
 }
 
 /// Decode one browser's `C` array through the version table.
-fn decode_slots(code: &str, browser: &JsValue, versions: &HashMap<String, String>) -> Outcome<Vec<Option<String>>> {
+fn decode_slots(
+    code: &str,
+    browser: &JsValue,
+    versions: &HashMap<String, String>,
+) -> Outcome<Vec<Option<String>>> {
     let Some(JsValue::Array(items)) = object_get(browser, "C") else {
         return Err(BrowserslistError::Data {
             file: AGENTS_FILE.to_string(),
@@ -206,7 +234,9 @@ fn decode_slots(code: &str, browser: &JsValue, versions: &HashMap<String, String
             return Err(BrowserslistError::Data {
                 file: AGENTS_FILE.to_string(),
                 offset: None,
-                message: format!("browser {code} uses version code {version_code} missing from browserVersions.js"),
+                message: format!(
+                    "browser {code} uses version code {version_code} missing from browserVersions.js"
+                ),
             });
         };
         slots.push(Some(version.clone()));
@@ -223,9 +253,19 @@ fn decode_slots(code: &str, browser: &JsValue, versions: &HashMap<String, String
 /// ```ts
 /// function parseAgents(agentsJs: string, browsersJs: string, versionsJs: string): AgentTable;
 /// ```
-pub fn parse_agents(agents_js: &str, browsers_js: &str, versions_js: &str) -> Outcome<AgentTable> {
-    let browsers = string_table(BROWSERS_FILE, &parse_module_exports(BROWSERS_FILE, browsers_js)?)?;
-    let versions = string_table(VERSIONS_FILE, &parse_module_exports(VERSIONS_FILE, versions_js)?)?;
+pub fn parse_agents(
+    agents_js: &str,
+    browsers_js: &str,
+    versions_js: &str,
+) -> Outcome<AgentTable> {
+    let browsers = string_table(
+        BROWSERS_FILE,
+        &parse_module_exports(BROWSERS_FILE, browsers_js)?,
+    )?;
+    let versions = string_table(
+        VERSIONS_FILE,
+        &parse_module_exports(VERSIONS_FILE, versions_js)?,
+    )?;
     let agents_value = parse_module_exports(AGENTS_FILE, agents_js)?;
     let JsValue::Object(entries) = &agents_value else {
         return Err(BrowserslistError::Data {
@@ -244,9 +284,14 @@ pub fn parse_agents(agents_js: &str, browsers_js: &str, versions_js: &str) -> Ou
             });
         };
         let slots = decode_slots(code, browser, &versions)?;
-        agents.push(Agent { name: name.clone(), slots });
+        agents.push(Agent {
+            name: name.clone(),
+            slots,
+        });
     }
-    return Ok(AgentTable { agents });
+    return Ok(AgentTable {
+        agents,
+    });
 }
 
 /// What:

@@ -100,7 +100,11 @@ pub enum BrowserslistError {
 /// ```ts
 /// function dataError(file: string, offset: number, message: string): BrowserslistError;
 /// ```
-pub fn data_error(file: &str, offset: usize, message: &str) -> BrowserslistError {
+pub fn data_error(
+    file: &str,
+    offset: usize,
+    message: &str,
+) -> BrowserslistError {
     return BrowserslistError::Data {
         file: file.to_string(),
         offset: Some(offset),
@@ -119,7 +123,9 @@ pub fn data_error(file: &str, offset: usize, message: &str) -> BrowserslistError
 /// function notImplemented(subject: string): BrowserslistError;
 /// ```
 pub fn not_implemented(subject: &str) -> BrowserslistError {
-    return BrowserslistError::NotImplemented { subject: subject.to_string() };
+    return BrowserslistError::NotImplemented {
+        subject: subject.to_string(),
+    };
 }
 
 /// What:
@@ -143,30 +149,55 @@ impl fmt::Display for BrowserslistError {
     /// ```ts
     /// get message(): string
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
-            Self::NotImplemented { subject } => {
+            Self::NotImplemented {
+                subject,
+            } => {
                 return write!(formatter, "not implemented: {subject}");
             }
-            Self::Browserslist { message } => {
+            Self::Browserslist {
+                message,
+            } => {
                 return write!(formatter, "{message}");
             }
-            Self::Data { file, offset: Some(offset), message } => {
+            Self::Data {
+                file,
+                offset: Some(offset),
+                message,
+            } => {
                 return write!(formatter, "{file}: {message} (byte offset {offset})");
             }
-            Self::Data { file, offset: None, message } => {
+            Self::Data {
+                file,
+                offset: None,
+                message,
+            } => {
                 return write!(formatter, "{file}: {message}");
             }
-            Self::Integrity { subject, expected, actual } => {
+            Self::Integrity {
+                subject,
+                expected,
+                actual,
+            } => {
                 return write!(
                     formatter,
                     "{subject}: downloaded bytes hash to {actual}, but the lock pins {expected}"
                 );
             }
-            Self::Network { url, message } => {
+            Self::Network {
+                url,
+                message,
+            } => {
                 return write!(formatter, "request to {url} failed: {message}");
             }
-            Self::Io { path, message } => {
+            Self::Io {
+                path,
+                message,
+            } => {
                 return write!(formatter, "{path}: {message}");
             }
         }
