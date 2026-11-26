@@ -70,7 +70,10 @@ use std::io::Write;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 /// `use std::time::{SystemTime, UNIX_EPOCH};` imports `SystemTime`,
 /// `UNIX_EPOCH` from the standard library so this file can name them unqualified.
@@ -82,7 +85,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// import { SystemTime, UNIX_EPOCH } from 'std/time';
 /// ```
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// What:
 /// `use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};` imports `CatalogDocument`,
@@ -97,8 +103,31 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// ```ts
 /// import { CatalogDocument, parse_catalog } from 'monochromatic_dependency_catalog';
 /// ```
-use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
+use monochromatic_dependency_catalog::{
+    CatalogDocument,
+    parse_catalog,
+};
 
+/// What:
+/// `use crate::adapt::millis_of;` imports `millis_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `millis_of` is used by `now_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { millis_of } from 'crate/adapt';
+/// ```
+use crate::adapt::millis_of;
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 /// What:
 /// `use crate::cargo_run::RealCargo;` imports `RealCargo` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -131,7 +160,10 @@ use crate::catalog_warning::warn_about_manifest;
 /// ```ts
 /// import { CATALOG_MARKER, MANIFEST_NAME } from 'crate/constants';
 /// ```
-use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
+use crate::constants::{
+    CATALOG_MARKER,
+    MANIFEST_NAME,
+};
 /// What:
 /// `use crate::git_base::{explicit_base_from_environment, git_lock_reader_at, resolve_trust_base};` imports `base_from_environment`,
 /// `git_base_lock_reader` from another module of this crate so this file can name them unqualified.
@@ -143,7 +175,11 @@ use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
 /// ```ts
 /// import { base_from_environment, git_base_lock_reader } from 'crate/git_base';
 /// ```
-use crate::git_base::{explicit_base_from_environment, git_lock_reader_at, resolve_trust_base};
+use crate::git_base::{
+    explicit_base_from_environment,
+    git_lock_reader_at,
+    resolve_trust_base,
+};
 /// What:
 /// `use crate::http::UreqFetcher;` imports `UreqFetcher` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -163,7 +199,10 @@ use crate::http::UreqFetcher;
 /// ```ts
 /// import { is_continuous_integration } from 'crate/install';
 /// ```
-use crate::install::{LockBaseReader, is_continuous_integration};
+use crate::install::{
+    LockBaseReader,
+    is_continuous_integration,
+};
 /// What:
 /// `use crate::install_step::{StepOutcome, StepRequest, run_install_step};` imports `StepOutcome`,
 /// `StepRequest`,
@@ -177,7 +216,11 @@ use crate::install::{LockBaseReader, is_continuous_integration};
 /// ```ts
 /// import { StepOutcome, StepRequest, run_install_step } from 'crate/install_step';
 /// ```
-use crate::install_step::{StepOutcome, StepRequest, run_install_step};
+use crate::install_step::{
+    StepOutcome,
+    StepRequest,
+    run_install_step,
+};
 /// What:
 /// `use crate::options::{asserts_lock, change_dir, manifest_path};` imports `asserts_lock`,
 /// `change_dir`,
@@ -192,7 +235,11 @@ use crate::install_step::{StepOutcome, StepRequest, run_install_step};
 /// ```ts
 /// import { asserts_lock, change_dir, manifest_path } from 'crate/options';
 /// ```
-use crate::options::{asserts_lock, change_dir, manifest_path};
+use crate::options::{
+    asserts_lock,
+    change_dir,
+    manifest_path,
+};
 /// What:
 /// `use crate::real_binary::find_real_cargo;` imports `find_real_cargo` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -236,27 +283,10 @@ use crate::toolchain::cargo_toolchain;
 /// ```ts
 /// import { find_cargo_root, find_catalog_root } from 'crate/workspace';
 /// ```
-use crate::workspace::{find_cargo_root, find_catalog_root};
-/// What:
-/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `text_of` is used by `prepare`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { text_of } from 'crate/adapt';
-/// ```
-use crate::adapt::text_of;
-/// What:
-/// `use crate::adapt::millis_of;` imports `millis_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `millis_of` is used by `now_millis`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { millis_of } from 'crate/adapt';
-/// ```
-use crate::adapt::millis_of;
+use crate::workspace::{
+    find_cargo_root,
+    find_catalog_root,
+};
 
 /// What:
 /// `pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf` is where cargo will look for its manifest:
@@ -271,7 +301,10 @@ use crate::adapt::millis_of;
 /// ```ts
 /// export function startDir(args: string[], cwd: string): string
 /// ```
-pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf {
+pub fn start_dir(
+    arguments: &[OsString],
+    current: &Path,
+) -> PathBuf {
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
     //
@@ -357,7 +390,10 @@ pub fn now_millis() -> i64 {
     // ```ts
     // // TS has one type for this: number
     // ```
-    return SystemTime::now().duration_since(UNIX_EPOCH).map(millis_of).unwrap_or(0);
+    return SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(millis_of)
+        .unwrap_or(0);
 }
 
 /// What the steps around a cargo command need,
@@ -518,7 +554,10 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     if let Some(cargo_root) = find_cargo_root(&start)
         && let Ok(relative) = cargo_root.strip_prefix(&catalog_root)
         && !relative.as_os_str().is_empty()
-        && crate::git_base::is_git_ignored(&catalog_root, &relative.to_string_lossy().replace('\\', "/"))
+        && crate::git_base::is_git_ignored(
+            &catalog_root,
+            &relative.to_string_lossy().replace('\\', "/"),
+        )
     {
         return Ok(None);
     }
@@ -540,7 +579,11 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // Macro `format!`: builds or prints text (or a list) from a template.
     let (toolchain, warning) = match cargo_toolchain(&catalog_root, &explicit) {
         Ok(found) => found,
-        Err(message) => return Err(format!("cargo-shadow: toolchain.lock.json is not readable: {message}")),
+        Err(message) => {
+            return Err(format!(
+                "cargo-shadow: toolchain.lock.json is not readable: {message}"
+            ));
+        }
     };
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
@@ -561,7 +604,8 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `document: CatalogDocument`.
-    let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(text_of)?;
+    let document: CatalogDocument =
+        parse_catalog(&catalog_text, CATALOG_MARKER).map_err(text_of)?;
     // Borrow `&std`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `in_ci: bool`.
@@ -591,7 +635,8 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // ```ts
     // function f(registry: Registry) { ... }  // an interface type
     // ```
-    let (trust_base, lock_base): (String, Option<OwnedLockBaseFactory>) = trust_base_setup(&catalog_root, &document, in_ci);
+    let (trust_base, lock_base): (String, Option<OwnedLockBaseFactory>) =
+        trust_base_setup(&catalog_root, &document, in_ci);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     return Ok(Some(Prepared {
@@ -605,7 +650,11 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
         // ```ts
         // // TS has one type for this: T[] / Set / Map / number
         // ```
-        runner: RealCargo { program, toolchain, bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) },
+        runner: RealCargo {
+            program,
+            toolchain,
+            bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS),
+        },
         // Borrow `&catalog_root`: lends the value without copying or giving it away.
         // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
         // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
@@ -614,7 +663,11 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
         // ```ts
         // const list: string[] = [];   // or new Set() / new Map()
         // ```
-        registry: CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new())),
+        registry: CratesIo::with_defaults(
+            &catalog_root,
+            Box::new(UreqFetcher::new()),
+            Box::new(UreqFetcher::new()),
+        ),
         catalog_root,
         crate_dir,
         document,
@@ -657,15 +710,26 @@ pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>;
 /// ```
 #[cfg_attr(
     dylint_lib = "monochromatic_lint_closure",
-    expect(avoidable_closure, reason = "the returned maker keeps the resolved base and the repository root after this function returns")
+    expect(
+        avoidable_closure,
+        reason = "the returned maker keeps the resolved base and the repository root after this function returns"
+    )
 )]
-pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: bool) -> (String, Option<OwnedLockBaseFactory>) {
+pub fn trust_base_setup(
+    catalog_root: &Path,
+    document: &CatalogDocument,
+    in_ci: bool,
+) -> (String, Option<OwnedLockBaseFactory>) {
     if !document.settings.trust_lockfile {
         // `None`: the present or the absent value of an `Option`.
         // Constructor `String::new()`: an empty owned collection or a boxed value.
         return (String::new(), None);
     }
-    let base = resolve_trust_base(catalog_root, in_ci, explicit_base_from_environment().as_deref());
+    let base = resolve_trust_base(
+        catalog_root,
+        in_ci,
+        explicit_base_from_environment().as_deref(),
+    );
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&base.commit`: lends the value without copying or giving it away.
     // Typed binding: `key: String`.
@@ -688,7 +752,10 @@ pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: 
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(commit) => {
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: comparing lockfiles with {} ({commit})", base.spelling);
+                eprintln!(
+                    "cargo-shadow: comparing lockfiles with {} ({commit})",
+                    base.spelling
+                );
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 // Borrow `&root`: lends the value without copying or giving it away.
                 Ok(git_lock_reader_at(&root, commit))
@@ -806,7 +873,10 @@ pub fn preflight_of(outcome: StepOutcome) -> Option<Preflight> {
         StepOutcome::Failed(message) => return Some(Preflight::Failed(message)),
         // `Some`: the present or the absent value of an `Option`.
         StepOutcome::Refused(message) => return Some(Preflight::Refused(message)),
-        StepOutcome::Updated { crate_dir, added } => {
+        StepOutcome::Updated {
+            crate_dir,
+            added,
+        } => {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!(
                 "cargo-shadow: {crate_dir}/Cargo.lock did not satisfy its manifests and was updated offline ({} newly locked registry versions passed the policy)",
@@ -825,7 +895,10 @@ pub fn preflight_of(outcome: StepOutcome) -> Option<Preflight> {
 /// the one named by `--manifest-path`,
 /// else the nearest
 /// `Cargo.toml` above the start directory.
-pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
+pub fn warn_after_cargo(
+    arguments: &[OsString],
+    sink: &mut dyn Write,
+) {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `current: PathBuf`.
     let current: PathBuf = match std::env::current_dir() {

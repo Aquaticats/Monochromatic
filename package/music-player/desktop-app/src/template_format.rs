@@ -88,20 +88,33 @@ pub fn number_text(value: f64) -> String {
 /// ```ts
 /// function layout(digits: string, n: number): string { ... }
 /// ```
-fn layout_digits(digits: &str, point_position: i32) -> String {
+fn layout_digits(
+    digits: &str,
+    point_position: i32,
+) -> String {
     let count = i32::try_from(digits.len()).unwrap_or(i32::MAX);
     if count <= point_position && (..=MAX_PLAIN_POINT).contains(&point_position) {
-        return format!("{digits}{}", "0".repeat(usize::try_from(point_position - count).unwrap_or(0)));
+        return format!(
+            "{digits}{}",
+            "0".repeat(usize::try_from(point_position - count).unwrap_or(0))
+        );
     }
     if (1..=MAX_PLAIN_POINT).contains(&point_position) {
         let split = usize::try_from(point_position).unwrap_or(0);
         return format!("{}.{}", &digits[..split], &digits[split..]);
     }
     if (MIN_PLAIN_POINT + 1..=0).contains(&point_position) {
-        return format!("0.{}{digits}", "0".repeat(usize::try_from(-point_position).unwrap_or(0)));
+        return format!(
+            "0.{}{digits}",
+            "0".repeat(usize::try_from(-point_position).unwrap_or(0))
+        );
     }
     let exponent = point_position - 1;
-    let mantissa = if count == 1 { digits.to_string() } else { format!("{}.{}", &digits[..1], &digits[1..]) };
+    let mantissa = if count == 1 {
+        digits.to_string()
+    } else {
+        format!("{}.{}", &digits[..1], &digits[1..])
+    };
     let exponent_sign = if exponent < 0 { "-" } else { "+" };
     return format!("{mantissa}e{exponent_sign}{}", exponent.abs());
 }
@@ -222,7 +235,10 @@ fn radix_prefix(text: &str) -> Option<(u32, &str)> {
 /// ```ts
 /// const n = parseInt(digits, radix);
 /// ```
-fn radix_value(digits: &str, radix: u32) -> Option<f64> {
+fn radix_value(
+    digits: &str,
+    radix: u32,
+) -> Option<f64> {
     if digits.is_empty() {
         return None;
     }
@@ -259,7 +275,11 @@ fn decimal_value(text: &str) -> Option<f64> {
         return None;
     }
     if text.ends_with("Infinity") {
-        return Some(if text.starts_with('-') { f64::NEG_INFINITY } else { f64::INFINITY });
+        return Some(if text.starts_with('-') {
+            f64::NEG_INFINITY
+        } else {
+            f64::INFINITY
+        });
     }
     return text.parse::<f64>().ok();
 }
@@ -417,11 +437,18 @@ pub fn unknown_format_letter(format: &str) -> Option<char> {
 /// ```ts
 /// function formatSeconds({ seconds, format }: { seconds: number; format: string }): string { ... }
 /// ```
-pub fn format_seconds(seconds: f64, format: &str) -> String {
+pub fn format_seconds(
+    seconds: f64,
+    format: &str,
+) -> String {
     let whole = seconds.floor().max(0.0);
     let hours = (whole / 3600.0).floor();
     // Minutes carry the hours when the format has no hour letter, so 4000 seconds reads 66:40 under m:ss.
-    let minutes = if format.contains('h') { ((whole % 3600.0) / 60.0).floor() } else { (whole / 60.0).floor() };
+    let minutes = if format.contains('h') {
+        ((whole % 3600.0) / 60.0).floor()
+    } else {
+        (whole / 60.0).floor()
+    };
     let secs = whole % 60.0;
     let clock = [('h', hours), ('m', minutes), ('s', secs)];
     let letters: Vec<char> = format.chars().collect();
@@ -487,7 +514,10 @@ fn pad_to_two(text: &str) -> String {
 /// ```ts
 /// const kept = [...text].slice(0, Math.floor(count)).join("");
 /// ```
-pub fn keep_code_points(text: &str, count: f64) -> String {
+pub fn keep_code_points(
+    text: &str,
+    count: f64,
+) -> String {
     let total = text.chars().count();
     let whole = count.floor();
     if whole >= total as f64 {

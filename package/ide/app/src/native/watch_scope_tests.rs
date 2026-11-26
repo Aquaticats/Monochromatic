@@ -10,10 +10,17 @@ use super::navigation_tests::row;
 /// Shipped window setup shared with the watch tests.
 use super::watch_tests::open;
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Real headless timers drive the same refresh timers as the shipped event loop;
 /// `ComponentHandle` provides `hide` on the generated window and `Model` the tree's row count.
-use slint::{ComponentHandle, Model, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    Model,
+    platform::update_timers_and_animations,
+};
 /// What:
 ///  `fs` reads `/proc` and writes fixtures;
 ///  `Duration`/`Instant` are a time span and a monotonic time.
@@ -27,7 +34,10 @@ use slint::{ComponentHandle, Model, platform::update_timers_and_animations};
 /// ```
 use std::{
     fs,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Expanded folders in the fixture;

@@ -23,10 +23,16 @@ use std::os::fd::OwnedFd;
 use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// Imports `std::sync::mpsc::{self, Receiver}` for this file.
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{
+    self,
+    Receiver,
+};
 
 /// Imports `std::thread` for this file.
 use std::thread;
@@ -35,7 +41,10 @@ use std::thread;
 use std::time::Duration;
 
 /// Imports `rustix::fs::{OFlags, fcntl_setfl}` for this file.
-use rustix::fs::{OFlags, fcntl_setfl};
+use rustix::fs::{
+    OFlags,
+    fcntl_setfl,
+};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
@@ -66,7 +75,10 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /// ```ts
 /// function collect(stream: Readable, cancel: AbortSignal): Promise<Buffer>
 /// ```
-pub(crate) fn collect(stream: OwnedFd, cancel: Arc<AtomicBool>) -> Receiver<io::Result<Vec<u8>>> {
+pub(crate) fn collect(
+    stream: OwnedFd,
+    cancel: Arc<AtomicBool>,
+) -> Receiver<io::Result<Vec<u8>>> {
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let outcome: io::Result<Vec<u8>> = read_all(&stream, &cancel);
@@ -87,7 +99,10 @@ pub(crate) fn collect(stream: OwnedFd, cancel: Arc<AtomicBool>) -> Receiver<io::
 /// ```ts
 /// function readAll(stream: Readable, cancel: AbortSignal): Buffer
 /// ```
-fn read_all(stream: &OwnedFd, cancel: &AtomicBool) -> io::Result<Vec<u8>> {
+fn read_all(
+    stream: &OwnedFd,
+    cancel: &AtomicBool,
+) -> io::Result<Vec<u8>> {
     fcntl_setfl(stream, OFlags::NONBLOCK).map_err(io::Error::from)?;
     let mut bytes: Vec<u8> = Vec::new();
     let mut chunk: Vec<u8> = vec![0; CHUNK_BYTES];
@@ -98,7 +113,10 @@ fn read_all(stream: &OwnedFd, cancel: &AtomicBool) -> io::Result<Vec<u8>> {
             Err(Errno::INTR) => {}
             Err(Errno::AGAIN) => {
                 if cancel.load(Ordering::Relaxed) {
-                    return Err(io::Error::new(io::ErrorKind::Interrupted, "the read was cancelled"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::Interrupted,
+                        "the read was cancelled",
+                    ));
                 }
                 thread::sleep(RETRY_INTERVAL);
             }
@@ -118,7 +136,11 @@ fn read_all(stream: &OwnedFd, cancel: &AtomicBool) -> io::Result<Vec<u8>> {
 /// ```ts
 /// function feed(stream: Writable, bytes: Buffer, cancel: AbortSignal): Promise<void>
 /// ```
-pub(crate) fn feed(stream: OwnedFd, bytes: Vec<u8>, cancel: Arc<AtomicBool>) -> Receiver<io::Result<()>> {
+pub(crate) fn feed(
+    stream: OwnedFd,
+    bytes: Vec<u8>,
+    cancel: Arc<AtomicBool>,
+) -> Receiver<io::Result<()>> {
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let outcome: io::Result<()> = write_all(&stream, &bytes, &cancel);
@@ -138,7 +160,11 @@ pub(crate) fn feed(stream: OwnedFd, bytes: Vec<u8>, cancel: Arc<AtomicBool>) -> 
 /// ```ts
 /// function writeAll(stream: Writable, bytes: Buffer, cancel: AbortSignal): void
 /// ```
-fn write_all(stream: &OwnedFd, bytes: &[u8], cancel: &AtomicBool) -> io::Result<()> {
+fn write_all(
+    stream: &OwnedFd,
+    bytes: &[u8],
+    cancel: &AtomicBool,
+) -> io::Result<()> {
     fcntl_setfl(stream, OFlags::NONBLOCK).map_err(io::Error::from)?;
     let mut written: usize = 0;
     while written < bytes.len() {
@@ -147,7 +173,10 @@ fn write_all(stream: &OwnedFd, bytes: &[u8], cancel: &AtomicBool) -> io::Result<
             Err(Errno::INTR) => {}
             Err(Errno::AGAIN) => {
                 if cancel.load(Ordering::Relaxed) {
-                    return Err(io::Error::new(io::ErrorKind::Interrupted, "the write was cancelled"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::Interrupted,
+                        "the write was cancelled",
+                    ));
                 }
                 thread::sleep(RETRY_INTERVAL);
             }

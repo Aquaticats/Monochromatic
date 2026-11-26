@@ -65,7 +65,10 @@ use std::path::Path;
 /// ```ts
 /// import { LOCKFILE_NAME, SKIPPED_DIRECTORIES } from 'crate/constants';
 /// ```
-use crate::constants::{LOCKFILE_NAME, SKIPPED_DIRECTORIES};
+use crate::constants::{
+    LOCKFILE_NAME,
+    SKIPPED_DIRECTORIES,
+};
 
 /// How many directory levels under `package/` hold crate roots:
 /// `package/<category>/<name>` and
@@ -137,7 +140,12 @@ impl LockSnapshot {
 }
 
 /// Collects the repo-relative directories exactly `depth` levels below `base` that hold a lockfile.
-fn collect_at_depth(root: &Path, relative: &str, depth: usize, found: &mut Vec<String>) -> io::Result<()> {
+fn collect_at_depth(
+    root: &Path,
+    relative: &str,
+    depth: usize,
+    found: &mut Vec<String>,
+) -> io::Result<()> {
     if depth == 0 {
         if root.join(relative).join(LOCKFILE_NAME).is_file() {
             // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
@@ -278,7 +286,10 @@ pub fn locked_crate_dirs(root: &Path) -> io::Result<Vec<String>> {
 
 /// Reads every listed crate's lockfile,
 /// in order.
-pub fn read_locks(root: &Path, crate_dirs: &[String]) -> io::Result<Vec<LockSnapshot>> {
+pub fn read_locks(
+    root: &Path,
+    crate_dirs: &[String],
+) -> io::Result<Vec<LockSnapshot>> {
     // `let mut`: a binding that may change.
     // Typed binding: `snapshots: Vec<LockSnapshot>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -295,7 +306,10 @@ pub fn read_locks(root: &Path, crate_dirs: &[String]) -> io::Result<Vec<LockSnap
         // ```ts
         // structuredClone(value)  // or [...list] / {...object}
         // ```
-        snapshots.push(LockSnapshot { crate_dir: crate_dir.clone(), source });
+        snapshots.push(LockSnapshot {
+            crate_dir: crate_dir.clone(),
+            source,
+        });
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(snapshots);
@@ -303,11 +317,17 @@ pub fn read_locks(root: &Path, crate_dirs: &[String]) -> io::Result<Vec<LockSnap
 
 /// Writes the snapshots back,
 /// so a refused or dry-run install leaves every lockfile as it was.
-pub fn restore_locks(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
+pub fn restore_locks(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+) -> io::Result<()> {
     for snapshot in snapshots {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&snapshot.crate_dir`: lends the value without copying or giving it away.
-        fs::write(root.join(&snapshot.crate_dir).join(LOCKFILE_NAME), &snapshot.source)?;
+        fs::write(
+            root.join(&snapshot.crate_dir).join(LOCKFILE_NAME),
+            &snapshot.source,
+        )?;
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());

@@ -7,9 +7,16 @@
 use super::readback::read_texture;
 /// The handle the window state holds,
 /// and the state behind it.
-use super::{GpuTile, Inner, StackTexture};
+use super::{
+    GpuTile,
+    Inner,
+    StackTexture,
+};
 /// The pixels of a read.
-use slint::{Rgba8Pixel, SharedPixelBuffer};
+use slint::{
+    Rgba8Pixel,
+    SharedPixelBuffer,
+};
 
 /// Counts,
 /// sizes,
@@ -136,7 +143,10 @@ impl GpuTile {
 impl Inner {
     /// The textures of a stack read back from the GPU and stacked into one buffer of their common width,
     /// or nothing when there is no texture or the textures differ in width.
-    fn read_textures(&self, textures: &[StackTexture]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
+    fn read_textures(
+        &self,
+        textures: &[StackTexture],
+    ) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
         let (device, queue) = self.device.as_ref()?;
         let first = textures.first()?;
         let width = first.target.width;

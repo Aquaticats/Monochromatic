@@ -33,8 +33,16 @@ use super::*;
 fn pending_commit(state: &ScreenState) -> Option<(Option<String>, Option<String>, TemplateKind)> {
     let editor = state.editor.as_ref()?;
     return Some((
-        applied_text(editor, TemplateKind::TrackRows, state.track_rows_template.as_deref()),
-        applied_text(editor, TemplateKind::PlayingTrack, state.playing_template.as_deref()),
+        applied_text(
+            editor,
+            TemplateKind::TrackRows,
+            state.track_rows_template.as_deref(),
+        ),
+        applied_text(
+            editor,
+            TemplateKind::PlayingTrack,
+            state.playing_template.as_deref(),
+        ),
         editor.kind(),
     ));
 }
@@ -61,10 +69,14 @@ pub(super) fn commit_templates() {
     // A template the user never changed is stored as None and applied as its default text, which is the same template.
     let changed = {
         let state = read_screen();
-        effective_text(TemplateKind::TrackRows, state.track_rows_template.as_deref())
-            != effective_text(TemplateKind::TrackRows, track_rows.as_deref())
-            || effective_text(TemplateKind::PlayingTrack, state.playing_template.as_deref())
-                != effective_text(TemplateKind::PlayingTrack, playing.as_deref())
+        effective_text(
+            TemplateKind::TrackRows,
+            state.track_rows_template.as_deref(),
+        ) != effective_text(TemplateKind::TrackRows, track_rows.as_deref())
+            || effective_text(
+                TemplateKind::PlayingTrack,
+                state.playing_template.as_deref(),
+            ) != effective_text(TemplateKind::PlayingTrack, playing.as_deref())
     };
     if changed {
         tracing::info!("saving the applied template texts");
@@ -96,7 +108,11 @@ fn remember_drafts_that_do_not_apply() {
         state.editor.as_ref().map(drafts_not_applying)
     };
     if let Some(drafts) = kept {
-        tracing::debug!(track_rows = drafts.0.is_some(), playing = drafts.1.is_some(), "drafts that do not apply are kept");
+        tracing::debug!(
+            track_rows = drafts.0.is_some(),
+            playing = drafts.1.is_some(),
+            "drafts that do not apply are kept"
+        );
         KEPT_DRAFTS.set(drafts);
     }
 }
@@ -112,9 +128,16 @@ fn remember_drafts_that_do_not_apply() {
 /// ```ts
 /// const draftNotApplying = (editor: Editor, kind: TemplateKind): string | null => { ... };
 /// ```
-fn draft_not_applying(editor: &TemplateEditorState, kind: TemplateKind) -> Option<String> {
+fn draft_not_applying(
+    editor: &TemplateEditorState,
+    kind: TemplateKind,
+) -> Option<String> {
     let opened = editor.open(kind);
-    return if opened.is_valid() { None } else { Some(opened.text().to_string()) };
+    return if opened.is_valid() {
+        None
+    } else {
+        Some(opened.text().to_string())
+    };
 }
 
 /// What:
@@ -128,7 +151,10 @@ fn draft_not_applying(editor: &TemplateEditorState, kind: TemplateKind) -> Optio
 /// const draftsNotApplying = (editor: Editor): [string | null, string | null] => [draftNotApplying(editor, "trackRows"), draftNotApplying(editor, "playing")];
 /// ```
 fn drafts_not_applying(editor: &TemplateEditorState) -> (Option<String>, Option<String>) {
-    return (draft_not_applying(editor, TemplateKind::TrackRows), draft_not_applying(editor, TemplateKind::PlayingTrack));
+    return (
+        draft_not_applying(editor, TemplateKind::TrackRows),
+        draft_not_applying(editor, TemplateKind::PlayingTrack),
+    );
 }
 
 /// What:
@@ -138,7 +164,10 @@ fn drafts_not_applying(editor: &TemplateEditorState) -> (Option<String>, Option<
 /// Why:
 /// saved None and saved default text are the same template,
 /// so comparing them must not report a change.
-fn effective_text(kind: TemplateKind, saved: Option<&str>) -> String {
+fn effective_text(
+    kind: TemplateKind,
+    saved: Option<&str>,
+) -> String {
     return match saved {
         Some(text) => text.to_string(),
         None => kind.default_template().to_string(),
@@ -155,11 +184,19 @@ fn effective_text(kind: TemplateKind, saved: Option<&str>) -> String {
 /// and a template that reads as its default is
 /// stored as no text,
 /// so it keeps following the default.
-fn applied_text(editor: &TemplateEditorState, kind: TemplateKind, previous: Option<&str>) -> Option<String> {
+fn applied_text(
+    editor: &TemplateEditorState,
+    kind: TemplateKind,
+    previous: Option<&str>,
+) -> Option<String> {
     let opened = editor.open(kind);
     if opened.is_valid() {
         let text = opened.text();
-        return if text == kind.default_template() { None } else { Some(text.to_string()) };
+        return if text == kind.default_template() {
+            None
+        } else {
+            Some(text.to_string())
+        };
     }
     return previous.map(str::to_string);
 }
@@ -222,7 +259,9 @@ pub(crate) fn project_pages(window: &AppWindow) {
     crate::ui_text_size::project_sizes(window);
     let auto_play_on_select = read_screen().auto_play_on_select;
     window.set_auto_play_on_select(auto_play_on_select);
-    window.set_auto_play_on_select_text(auto_play_on_select_supporting_text(auto_play_on_select).into());
+    window.set_auto_play_on_select_text(
+        auto_play_on_select_supporting_text(auto_play_on_select).into(),
+    );
     let selected = match read_screen().editor.as_ref() {
         Some(editor) => index_of_kind(editor.kind()),
         None => 0,

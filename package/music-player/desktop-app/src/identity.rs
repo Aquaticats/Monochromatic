@@ -182,8 +182,9 @@ pub(crate) fn config_dir() -> Option<PathBuf> {
     // ```ts
     // const dirs = projectDirs(CONFIG_QUALIFIER, CONFIG_ORGANIZATION, CONFIG_APPLICATION);
     // ```
-    let dirs = directories::ProjectDirs::from(CONFIG_QUALIFIER, CONFIG_ORGANIZATION, CONFIG_APPLICATION)?;
-    return Some(dirs.config_dir().to_path_buf())
+    let dirs =
+        directories::ProjectDirs::from(CONFIG_QUALIFIER, CONFIG_ORGANIZATION, CONFIG_APPLICATION)?;
+    return Some(dirs.config_dir().to_path_buf());
 }
 
 /// What:

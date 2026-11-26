@@ -12,7 +12,11 @@ use std::collections::HashMap;
 ///  imports pane geometry constants.
 /// Why:
 ///  rectangles and lane dimensions share the pane grid.
-use crate::constants::{PANE_GAP, PANE_HEIGHT, PANE_WIDTH};
+use crate::constants::{
+    PANE_GAP,
+    PANE_HEIGHT,
+    PANE_WIDTH,
+};
 /// What:
 ///  imports stable pane identity.
 /// Why:
@@ -23,7 +27,10 @@ use crate::types::PaneId;
 ///  imports parent placement type and row-coordinate helper.
 /// Why:
 ///  lane geometry is computed from placement snapshots.
-use super::super::{PanePlacement, scroll};
+use super::super::{
+    PanePlacement,
+    scroll,
+};
 
 /// What:
 ///  lane rectangle in strip-overlay coordinates.
@@ -46,7 +53,7 @@ pub(super) struct LaneRect {
 /// Why:
 ///  every parent with children owns one lane.
 pub(super) fn direct_child_groups(
-    placements: &[PanePlacement],
+    placements: &[PanePlacement]
 ) -> HashMap<PaneId, Vec<PanePlacement>> {
     let mut groups: HashMap<PaneId, Vec<PanePlacement>> = HashMap::new();
     for placement in placements {
@@ -54,19 +61,22 @@ pub(super) fn direct_child_groups(
             groups.entry(parent).or_default().push(*placement);
         }
     }
-    return groups
+    return groups;
 }
 
 /// What:
 ///  base-coordinate bottom edge for a parent-plus-direct-children lane.
 /// Why:
 ///  the lane rectangle includes the parent pane and the deepest direct child pane.
-pub(super) fn lane_base_bottom(parent: PanePlacement, children: &[PanePlacement]) -> f64 {
+pub(super) fn lane_base_bottom(
+    parent: PanePlacement,
+    children: &[PanePlacement],
+) -> f64 {
     let mut bottom = scroll::row_y(parent.row) + f64::from(PANE_HEIGHT);
     for child in children {
         bottom = bottom.max(scroll::row_y(child.row) + f64::from(PANE_HEIGHT));
     }
-    return bottom
+    return bottom;
 }
 
 /// What:
@@ -74,7 +84,10 @@ pub(super) fn lane_base_bottom(parent: PanePlacement, children: &[PanePlacement]
 ///  or `candidate` when there is no bound yet.
 /// Why:
 ///  the rail floor is the lowest top edge that every containing lane allows.
-pub(super) fn raised_bound(current: Option<f64>, candidate: f64) -> f64 {
+pub(super) fn raised_bound(
+    current: Option<f64>,
+    candidate: f64,
+) -> f64 {
     match current {
         Some(bound) => return bound.max(candidate),
         None => return candidate,
@@ -86,7 +99,10 @@ pub(super) fn raised_bound(current: Option<f64>, candidate: f64) -> f64 {
 ///  or `candidate` when there is no bound yet.
 /// Why:
 ///  the rail ceiling is the highest bottom edge that every containing lane allows.
-pub(super) fn lowered_bound(current: Option<f64>, candidate: f64) -> f64 {
+pub(super) fn lowered_bound(
+    current: Option<f64>,
+    candidate: f64,
+) -> f64 {
     match current {
         Some(bound) => return bound.min(candidate),
         None => return candidate,
@@ -98,5 +114,5 @@ pub(super) fn lowered_bound(current: Option<f64>, candidate: f64) -> f64 {
 /// Why:
 ///  debug lane boxes must include pane columns and the gaps between them.
 pub(super) fn lane_width(column_span: usize) -> f64 {
-    return f64::from(column_span as i32 * PANE_WIDTH + (column_span - 1) as i32 * PANE_GAP)
+    return f64::from(column_span as i32 * PANE_WIDTH + (column_span - 1) as i32 * PANE_GAP);
 }

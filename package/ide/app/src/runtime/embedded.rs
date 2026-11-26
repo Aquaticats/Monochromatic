@@ -11,7 +11,10 @@
 /// The digest the build script recorded for every file.
 use crate::content_digest::fnv1a;
 /// Damage and absence are errors with a message and a remedy.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Compares two paths during the halving search of the embedded table.
 use std::cmp::Ordering;
 
@@ -113,7 +116,10 @@ impl EmbeddedRuntime {
     /// ```ts
     /// find(path: string): EmbeddedFile | undefined { return this.files.find(file => file.path === path); }
     /// ```
-    pub fn find(&self, path: &str) -> Option<&'static EmbeddedFile> {
+    pub fn find(
+        &self,
+        path: &str,
+    ) -> Option<&'static EmbeddedFile> {
         // What: `let files: &'static [EmbeddedFile] = self.files;` copies the borrowed list out of `self`.
         // Why: Indexing the copy yields references that live for the whole program, not only as long
         //      as this call's borrow of `self`.
@@ -159,7 +165,10 @@ impl EmbeddedRuntime {
     /// ```ts
     /// verified(path: string): Uint8Array | undefined // throws when the bytes are damaged
     /// ```
-    pub fn verified(&self, path: &str) -> Result<Option<&'static [u8]>> {
+    pub fn verified(
+        &self,
+        path: &str,
+    ) -> Result<Option<&'static [u8]>> {
         // What: `let Some(file) = ... else { ... }` unpacks the found file or runs the `else` block,
         //       which must leave the function.
         // Why: A file the table does not hold is not an error here; callers decide whether it must exist.
@@ -210,7 +219,10 @@ impl EmbeddedRuntime {
     /// ```ts
     /// required(path: string): Uint8Array // throws when absent or damaged
     /// ```
-    pub fn required(&self, path: &str) -> Result<&'static [u8]> {
+    pub fn required(
+        &self,
+        path: &str,
+    ) -> Result<&'static [u8]> {
         // The trailing `?` hands a damage error to the caller unchanged.
         let Some(bytes) = self.verified(path)? else {
             tracing::error!(path, "embedded language file is missing");

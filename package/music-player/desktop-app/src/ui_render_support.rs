@@ -94,7 +94,10 @@ use i_slint_backend_testing::ElementHandle;
 /// ```ts
 /// import { MinimalSoftwareWindow, RepaintBufferType } from "slint/platform/software_renderer";
 /// ```
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
+use slint::platform::software_renderer::{
+    MinimalSoftwareWindow,
+    RepaintBufferType,
+};
 /// What:
 /// `use slint::platform::{Platform, WindowAdapter, WindowEvent};` imports the platform trait (an interface that says how to
 /// create windows),
@@ -108,7 +111,11 @@ use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferTyp
 /// ```ts
 /// import { type Platform, type WindowAdapter, WindowEvent } from "slint/platform";
 /// ```
-use slint::platform::{Platform, WindowAdapter, WindowEvent};
+use slint::platform::{
+    Platform,
+    WindowAdapter,
+    WindowEvent,
+};
 /// What:
 /// `use slint::{ComponentHandle, PlatformError, Rgb8Pixel};` imports a trait that gives windows `.window()` and `.global()`
 /// (a trait method is callable only when its trait is imported),
@@ -123,7 +130,11 @@ use slint::platform::{Platform, WindowAdapter, WindowEvent};
 /// ```ts
 /// import { ComponentHandle, PlatformError, Rgb8Pixel } from "slint";
 /// ```
-use slint::{ComponentHandle, PlatformError, Rgb8Pixel};
+use slint::{
+    ComponentHandle,
+    PlatformError,
+    Rgb8Pixel,
+};
 
 /// What:
 /// `use crate::AppWindow;` imports the window type that Slint generated from the `.slint` markup.
@@ -158,7 +169,10 @@ use crate::ui_host::Host;
 /// ```ts
 /// import { project, updateState } from "./ui_screen";
 /// ```
-use crate::ui_screen::{project, update_state};
+use crate::ui_screen::{
+    project,
+    update_state,
+};
 /// What:
 /// `use crate::ui_screen_view::ScreenState;` imports the record that holds everything the window shows.
 /// Why:
@@ -181,7 +195,11 @@ use crate::ui_screen_view::ScreenState;
 /// ```ts
 /// import { RecordingHost, loadLibrary, settle } from "./ui_test_support";
 /// ```
-use crate::ui_test_support::{RecordingHost, load_library, settle};
+use crate::ui_test_support::{
+    RecordingHost,
+    load_library,
+    settle,
+};
 
 /// What:
 /// `PASS_STEP` is how far the test clock moves before each draw pass:
@@ -336,7 +354,10 @@ pub(crate) fn install_software_platform() -> Rc<MinimalSoftwareWindow> {
     // ```ts
     // setPlatform(new SoftwarePlatform(window)); // throws if a platform is already installed
     // ```
-    slint::platform::set_platform(Box::new(SoftwarePlatform { window: window.clone() })).expect("no platform is installed yet on this thread");
+    slint::platform::set_platform(Box::new(SoftwarePlatform {
+        window: window.clone(),
+    }))
+    .expect("no platform is installed yet on this thread");
     // What:     `return window;` hands the original `Rc` to the caller; ownership moves out of the function.
     // Why:      The caller draws frames from the same window.
     //
@@ -368,7 +389,11 @@ pub(crate) fn install_software_platform() -> Rc<MinimalSoftwareWindow> {
 /// ```ts
 /// export function drawFrame(window: MinimalSoftwareWindow, width: number, height: number): Frame { ... }
 /// ```
-pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: usize) -> Frame {
+pub(crate) fn draw_frame(
+    window: &MinimalSoftwareWindow,
+    width: usize,
+    height: usize,
+) -> Frame {
     // What:     `let mut pixels = vec![Rgb8Pixel::default(); width * height];` makes the pixel buffer. `vec![value; count]` is a macro (the
     //           `!` marks code that expands at compile time) that builds a `Vec` of `count` copies of `value`; `Rgb8Pixel::default()` is
     //           the all-zero pixel. `mut` makes the variable changeable, because the renderer writes into it.
@@ -436,7 +461,11 @@ pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: u
     // ```ts
     // return { width, height, pixels };
     // ```
-    return Frame { width, height, pixels };
+    return Frame {
+        width,
+        height,
+        pixels,
+    };
 }
 
 /// What:
@@ -525,7 +554,11 @@ impl Frame {
     /// ```ts
     /// at(x: number, y: number): [number, number, number] { ... }
     /// ```
-    pub(crate) fn at(&self, x: usize, y: usize) -> [u8; 3] {
+    pub(crate) fn at(
+        &self,
+        x: usize,
+        y: usize,
+    ) -> [u8; 3] {
         // What:     `let pixel = self.pixels[y * self.width + x];` reads one pixel by its flat index. Square brackets index a `Vec`;
         //           the pixel is copied out because `Rgb8Pixel` is a small `Copy` type. An index past the end stops the program.
         // Why:      Rows are stored one after another, so row `y` starts at `y * width`.
@@ -565,7 +598,10 @@ impl Frame {
     /// ```ts
     /// differingBox(other: Frame): [number, number, number, number] | null { ... }
     /// ```
-    pub(crate) fn differing_box(&self, other: &Self) -> Option<(usize, usize, usize, usize)> {
+    pub(crate) fn differing_box(
+        &self,
+        other: &Self,
+    ) -> Option<(usize, usize, usize, usize)> {
         // What:     `let mut found: Option<(usize, usize, usize, usize)> = None;` starts with no box. `None` is the absent case of `Option`;
         //           `mut` lets the variable change.
         // Why:      The first differing pixel creates the box and later ones grow it.
@@ -615,7 +651,9 @@ impl Frame {
                     // ```
                     found = Some(match found {
                         None => (x, y, x + 1, y + 1),
-                        Some((left, top, right, bottom)) => (left.min(x), top.min(y), right.max(x + 1), bottom.max(y + 1)),
+                        Some((left, top, right, bottom)) => {
+                            (left.min(x), top.min(y), right.max(x + 1), bottom.max(y + 1))
+                        }
                     });
                 }
             }
@@ -725,7 +763,10 @@ impl Rendered {
     /// ```ts
     /// static create(width: number, height: number): Rendered { ... }
     /// ```
-    pub(crate) fn new(width: usize, height: usize) -> Self {
+    pub(crate) fn new(
+        width: usize,
+        height: usize,
+    ) -> Self {
         // What:     `let window = install_software_platform();` installs the platform and keeps its window.
         // Why:      The window must exist before `AppWindow::new()` asks the platform for one.
         //
@@ -777,7 +818,10 @@ impl Rendered {
         // ```ts
         // app.window().setSize({ width: Math.min(width, 2 ** 32 - 1), height: Math.min(height, 2 ** 32 - 1) });
         // ```
-        app.window().set_size(slint::PhysicalSize::new(u32::try_from(width).unwrap_or(1), u32::try_from(height).unwrap_or(1)));
+        app.window().set_size(slint::PhysicalSize::new(
+            u32::try_from(width).unwrap_or(1),
+            u32::try_from(height).unwrap_or(1),
+        ));
         // What:     `app.global::<crate::Theme>().set_scheme_override(1);` reaches a global singleton declared in the markup. `::<T>`
         //           (written after the method name) names a type argument; `1` selects the light scheme.
         // Why:      Pixel colours depend on the scheme, and the tests assume the light one.
@@ -865,7 +909,8 @@ impl Rendered {
         // ```ts
         // app.window().dispatchEvent({ kind: "windowActiveChanged", active: true });
         // ```
-        app.window().dispatch_event(WindowEvent::WindowActiveChanged(true));
+        app.window()
+            .dispatch_event(WindowEvent::WindowActiveChanged(true));
         // What:     `project(&app);` writes the screen state to the window's properties; `&app` lends the window.
         // Why:      The window shows the empty state before the library is loaded.
         //
@@ -898,7 +943,12 @@ impl Rendered {
         // ```ts
         // return { app, window, width, height };
         // ```
-        return Self { app, window, width, height };
+        return Self {
+            app,
+            window,
+            width,
+            height,
+        };
     }
 
     /// What:
@@ -943,7 +993,10 @@ impl Rendered {
     /// ```ts
     /// wait(milliseconds: number): void { for (let left = milliseconds; left > 0; left -= FRAME_STEP_MS) { clock += min(left, FRAME_STEP_MS); updateTimersAndAnimations(); } }
     /// ```
-    pub(crate) fn wait(&self, milliseconds: u64) {
+    pub(crate) fn wait(
+        &self,
+        milliseconds: u64,
+    ) {
         // What:     `let mut remaining = milliseconds;` counts the time still to pass; `mut` lets the loop lower it.
         // Why:      The loop moves the clock one frame at a time.
         //
@@ -997,7 +1050,10 @@ impl Rendered {
     /// ```ts
     /// setDark(dark: boolean): void { this.app.global("Theme").setSchemeOverride(dark ? 2 : 1); settle(); }
     /// ```
-    pub(crate) fn set_dark(&self, dark: bool) {
+    pub(crate) fn set_dark(
+        &self,
+        dark: bool,
+    ) {
         // What:     `self.app.global::<crate::Theme>().set_scheme_override(if dark { 2 } else { 1 });` passes the value of an `if`
         //           expression. In Rust `if` produces a value, like TypeScript's `cond ? a : b`; both branches must have the same
         //           type, and neither ends in `;`.
@@ -1007,7 +1063,9 @@ impl Rendered {
         // ```ts
         // this.app.global("Theme").setSchemeOverride(dark ? 2 : 1);
         // ```
-        self.app.global::<crate::Theme>().set_scheme_override(if dark { 2 } else { 1 });
+        self.app
+            .global::<crate::Theme>()
+            .set_scheme_override(if dark { 2 } else { 1 });
         // What:     `settle();` runs Slint's pending handlers and timers.
         // Why:      The scheme change must take effect before the next read.
         //
@@ -1262,7 +1320,13 @@ impl RoundedBox {
     /// ```ts
     /// static create(x: number, y: number, width: number, height: number, radius: number): RoundedBox { ... }
     /// ```
-    pub(crate) fn new(x: f32, y: f32, width: f32, height: f32, radius: f32) -> Self {
+    pub(crate) fn new(
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        radius: f32,
+    ) -> Self {
         // What:     `return Self { x, y, width, height, radii: [radius; 4] };` builds the record. Bare names (`x`, `y`, `width`, `height`)
         //           are shorthand for `x: x` and so on. `[radius; 4]` is the repeat form of an array literal: four copies of `radius`.
         // Why:      Every corner gets the same radius.
@@ -1272,7 +1336,13 @@ impl RoundedBox {
         // ```ts
         // return { x, y, width, height, radii: [radius, radius, radius, radius] };
         // ```
-        return Self { x, y, width, height, radii: [radius; 4] };
+        return Self {
+            x,
+            y,
+            width,
+            height,
+            radii: [radius; 4],
+        };
     }
 
     /// What:
@@ -1291,7 +1361,10 @@ impl RoundedBox {
     /// ```ts
     /// grown(amount: number): RoundedBox { /* offset each edge by amount; each radius by amount, never below 0 */ }
     /// ```
-    pub(crate) fn grown(&self, amount: f32) -> Self {
+    pub(crate) fn grown(
+        &self,
+        amount: f32,
+    ) -> Self {
         // What:     `let grow = |radius: f32| return if radius > 0.0 || amount > 0.0 { (radius + amount).max(0.0) } else { 0.0 };` defines a
         //           closure (an anonymous function) named `grow`. `|radius: f32|` is its parameter list with a type. The body is an `if`
         //           expression used as the returned value: a corner that is rounded, or any growth, gives `radius + amount` raised to zero
@@ -1304,7 +1377,13 @@ impl RoundedBox {
         // ```ts
         // const grow = (radius: number) => (radius > 0 || amount > 0 ? Math.max(radius + amount, 0) : 0);
         // ```
-        let grow = |radius: f32| return if radius > 0.0 || amount > 0.0 { (radius + amount).max(0.0) } else { 0.0 };
+        let grow = |radius: f32| {
+            return if radius > 0.0 || amount > 0.0 {
+                (radius + amount).max(0.0)
+            } else {
+                0.0
+            };
+        };
         // What:     `return Self { x: self.x - amount, ..., radii: self.radii.map(grow) };` builds the grown box. Each edge moves out by
         //           `amount`, and the width and height gain `2.0 * amount`. `self.radii.map(grow)` applies the closure to each of the four
         //           radii of the array and answers a new array of the same length; `.map` on an array is eager, unlike on an iterator.
@@ -1337,7 +1416,11 @@ impl RoundedBox {
     /// ```ts
     /// distance(px: number, py: number): number { /* signed distance to a rounded rectangle */ }
     /// ```
-    pub(crate) fn distance(&self, px: f32, py: f32) -> f32 {
+    pub(crate) fn distance(
+        &self,
+        px: f32,
+        py: f32,
+    ) -> f32 {
         // What:     `let center_x = self.x + self.width / 2.0;` computes the horizontal middle of the box. `/ 2.0` is float division.
         // Why:      The signed-distance formula works from the centre.
         //
@@ -1432,7 +1515,12 @@ impl RoundedBox {
     /// ```ts
     /// nearACurve(px: number, py: number, margin: number): boolean { /* inside a corner square and the radius is not zero */ }
     /// ```
-    pub(crate) fn near_a_curve(&self, px: f32, py: f32, margin: f32) -> bool {
+    pub(crate) fn near_a_curve(
+        &self,
+        px: f32,
+        py: f32,
+        margin: f32,
+    ) -> bool {
         // What:     `let center_x = self.x + self.width / 2.0;` computes the horizontal middle of the box.
         // Why:      The corner is chosen by the side of the centre the point lies on.
         //

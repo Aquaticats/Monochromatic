@@ -34,12 +34,20 @@ use crate::number::JsoncNumberIdentity;
 #[test]
 fn equal_values() {
     for (left, right) in [
-        ("1", "1.0"), ("1e0", "1"), ("100", "1e2"),
-        ("0.00100", "1e-3"), ("0.1e+1", "1"), ("1e-00000", "1"),
+        ("1", "1.0"),
+        ("1e0", "1"),
+        ("100", "1e2"),
+        ("0.00100", "1e-3"),
+        ("0.1e+1", "1"),
+        ("1e-00000", "1"),
         ("-0e+123456789012345678901", "0.000"),
         ("1e999999999999999999999999", "10e999999999999999999999998"),
-        ("1e-999999999999999999999999", "10e-1000000000000000000000000"),
-        ("1.2000e+2", "120"), ("1E+0000000000000000000", "1"),
+        (
+            "1e-999999999999999999999999",
+            "10e-1000000000000000000000000",
+        ),
+        ("1.2000e+2", "120"),
+        ("1E+0000000000000000000", "1"),
     ] {
         let left_value = JsoncNumberIdentity::from_token(left).expect("valid left number");
         let right_value = JsoncNumberIdentity::from_token(right).expect("valid right number");
@@ -68,8 +76,8 @@ fn unequal_values() {
 #[test]
 fn invalid_tokens() {
     for source in [
-        "", "+1", "00", "-01", ".1", "0.", "1.e2", "0e+", "0e-", "-", "1e", "1e+-2",
-        "1.2.3", "1 ", "1\n", "1\0", "1١", "0١", "0e١", "1.é", "1eé",
+        "", "+1", "00", "-01", ".1", "0.", "1.e2", "0e+", "0e-", "-", "1e", "1e+-2", "1.2.3", "1 ",
+        "1\n", "1\0", "1١", "0١", "0e١", "1.é", "1eé",
     ] {
         assert!(JsoncNumberIdentity::from_token(source).is_err(), "{source}");
     }
@@ -81,22 +89,30 @@ fn long_exponent_arithmetic() {
     let nines = "9".repeat(256);
     let next = format!("1{}", "0".repeat(256));
     let right = JsoncNumberIdentity::from_token(&format!("1e{next}")).expect("valid huge power");
-    let left = JsoncNumberIdentity::from_token(&format!("10e{nines}")).expect("valid compensated power");
+    let left =
+        JsoncNumberIdentity::from_token(&format!("10e{nines}")).expect("valid compensated power");
     assert_eq!(left, right, "positive full-width carry");
 
-    let negative = JsoncNumberIdentity::from_token(&format!("0.1e-{nines}")).expect("valid negative power");
-    let negative_expected = JsoncNumberIdentity::from_token(&format!("1e-{next}")).expect("valid negative carry");
+    let negative =
+        JsoncNumberIdentity::from_token(&format!("0.1e-{nines}")).expect("valid negative power");
+    let negative_expected =
+        JsoncNumberIdentity::from_token(&format!("1e-{next}")).expect("valid negative carry");
     assert_eq!(negative, negative_expected, "negative full-width carry");
 
-    let borrow = JsoncNumberIdentity::from_token(&format!("0.1e{next}")).expect("valid positive borrow");
-    let borrow_expected = JsoncNumberIdentity::from_token(&format!("1e{nines}")).expect("valid borrow result");
+    let borrow =
+        JsoncNumberIdentity::from_token(&format!("0.1e{next}")).expect("valid positive borrow");
+    let borrow_expected =
+        JsoncNumberIdentity::from_token(&format!("1e{nines}")).expect("valid borrow result");
     assert_eq!(borrow, borrow_expected, "positive full-width borrow");
 
-    let fraction_adjustment = JsoncNumberIdentity::from_token("0.000000000001e20").expect("valid multi-digit adjustment");
+    let fraction_adjustment =
+        JsoncNumberIdentity::from_token("0.000000000001e20").expect("valid multi-digit adjustment");
     let fraction_expected = JsoncNumberIdentity::from_token("1e8").expect("valid decimal power");
     assert_eq!(fraction_adjustment, fraction_expected);
-    let trailing_adjustment = JsoncNumberIdentity::from_token("1000000000000").expect("valid long integer");
-    let trailing_expected = JsoncNumberIdentity::from_token("1e12").expect("valid trailing adjustment");
+    let trailing_adjustment =
+        JsoncNumberIdentity::from_token("1000000000000").expect("valid long integer");
+    let trailing_expected =
+        JsoncNumberIdentity::from_token("1e12").expect("valid trailing adjustment");
     assert_eq!(trailing_adjustment, trailing_expected);
 }
 
@@ -141,7 +157,10 @@ fn rational(source: &str) -> (i128, i128) {
         - i32::try_from(frac_part.len()).expect("bounded fractional length");
     if power >= 0 {
         // The bounded fixture's power fits an integer, unlike unrestricted JSON.
-        return (numerator * 10_i128.pow(u32::try_from(power).expect("nonnegative power")), 1);
+        return (
+            numerator * 10_i128.pow(u32::try_from(power).expect("nonnegative power")),
+            1,
+        );
     }
     // Return an exact rational without rounding the fraction.
     return (numerator, 10_i128.pow(power.unsigned_abs()));
@@ -188,8 +207,10 @@ fn generated_against_rational_oracle() {
             let (left_num, left_den) = rational(left);
             let (right_num, right_den) = rational(right);
             let oracle_equal = left_num * right_den == right_num * left_den;
-            let left_value = JsoncNumberIdentity::from_token(left).expect("generated left number valid");
-            let right_value = JsoncNumberIdentity::from_token(right).expect("generated right number valid");
+            let left_value =
+                JsoncNumberIdentity::from_token(left).expect("generated left number valid");
+            let right_value =
+                JsoncNumberIdentity::from_token(right).expect("generated right number valid");
             let actual_equal = left_value == right_value;
             assert_eq!(actual_equal, oracle_equal, "{left} vs {right}");
             j += 23;

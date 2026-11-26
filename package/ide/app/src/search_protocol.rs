@@ -1,11 +1,22 @@
 //! Decode ripgrep records without replacing native path bytes or silently discarding malformed matches.
 
 /// Search results retain typed navigation metadata and bounded previews.
-use crate::search::{MAX_PREVIEW_GRAPHEMES, SearchHit, SearchKind};
+use crate::search::{
+    MAX_PREVIEW_GRAPHEMES,
+    SearchHit,
+    SearchKind,
+};
 /// Parsing failures identify the ripgrep protocol surface and affected project.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Ripgrep represents non-UTF-8 bytes with the standard padded base64 alphabet.
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD,
+};
 /// Display previews use existing Helix grapheme boundaries rather than cutting combining sequences.
 use helix_core::unicode::segmentation::UnicodeSegmentation;
 /// Deserialize only needed fields while retaining envelope types for explicit metadata handling.
@@ -15,7 +26,11 @@ use serde::Deserialize;
 use std::{
     ffi::OsString,
     os::unix::ffi::OsStringExt,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Ripgrep emits exactly one of text or base64 bytes for each path or line field.
@@ -112,7 +127,10 @@ struct Match {
 
 /// Validate a native result lexically;
 ///  actual file activation separately resolves symlink containment.
-fn path(root: &Path, bytes: Vec<u8>) -> Result<PathBuf> {
+fn path(
+    root: &Path,
+    bytes: Vec<u8>,
+) -> Result<PathBuf> {
     if bytes.is_empty() || bytes.contains(&0) {
         bail!(
             "Ripgrep returned an empty or NUL-containing path for project {}",
@@ -156,7 +174,10 @@ fn path(root: &Path, bytes: Vec<u8>) -> Result<PathBuf> {
 }
 
 /// Decode a NUL-delimited filename payload after the stream reader has removed its delimiter.
-pub fn filename(root: &Path, record: &[u8]) -> Result<PathBuf> {
+pub fn filename(
+    root: &Path,
+    record: &[u8],
+) -> Result<PathBuf> {
     // Copy the bounded record into its owned native path rather than borrowing the reusable input buffer.
     return path(root, record.to_vec());
 }
@@ -164,7 +185,10 @@ pub fn filename(root: &Path, record: &[u8]) -> Result<PathBuf> {
 /// Decode one JSON record;
 ///  expected metadata has no content result,
 ///  while unknown or malformed events are errors.
-pub fn content(root: &Path, record: &[u8]) -> Result<Option<SearchHit>> {
+pub fn content(
+    root: &Path,
+    record: &[u8],
+) -> Result<Option<SearchHit>> {
     let event: Event =
         serde_json::from_slice(record).context("Cannot decode ripgrep JSON record")?;
     let matched = match event {

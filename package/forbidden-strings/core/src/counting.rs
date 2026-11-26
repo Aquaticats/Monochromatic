@@ -154,7 +154,10 @@ pub use nfa::CountingNfa;
 /// ```ts
 /// // Same step as the Rust statement below, written with ordinary TS objects/functions.
 /// ```
-pub use product::{ProductProgram, build_product};
+pub use product::{
+    ProductProgram,
+    build_product,
+};
 
 /// What:
 ///     Re-exports the prefilter,
@@ -169,5 +172,9 @@ pub use product::{ProductProgram, build_product};
 /// // Same step as the Rust statement below, written with ordinary TS objects/functions.
 /// ```
 pub(crate) use prefilter::{
-    Prefilter, leading_seeds, leading_seeds_min, seeds_from_node, seeds_from_node_min,
+    Prefilter,
+    leading_seeds,
+    leading_seeds_min,
+    seeds_from_node,
+    seeds_from_node_min,
 };

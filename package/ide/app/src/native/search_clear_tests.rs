@@ -9,13 +9,26 @@ use super::find_tests::type_text;
 /// Bounded waits and tree-row lookup shared with the navigation tests.
 use super::navigation_tests::row;
 /// The source-empty reader and the double-Shift opener of the search tests.
-use super::search_tests::{open, reader};
+use super::search_tests::{
+    open,
+    reader,
+};
 /// Pointer helpers that dispatch real window events and then lay the window out again.
-use super::sidebar_tests::{click, resize, settle};
+use super::sidebar_tests::{
+    click,
+    resize,
+    settle,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Window ownership and the model interface that counts result rows.
-use slint::{ComponentHandle, Model};
+use slint::{
+    ComponentHandle,
+    Model,
+};
 /// Fixture files are written into a disposable project directory.
 use std::fs;
 

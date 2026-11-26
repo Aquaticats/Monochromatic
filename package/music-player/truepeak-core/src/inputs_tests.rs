@@ -8,10 +8,14 @@ fn crc8_bitwise(bytes: &[u8]) -> u8 {
     return bytes.iter().fold(0u8, |mut crc, &byte| {
         crc ^= byte;
         for _ in 0..8 {
-            crc = if crc & 0x80 != 0 { (crc << 1) ^ 0x07 } else { crc << 1 };
+            crc = if crc & 0x80 != 0 {
+                (crc << 1) ^ 0x07
+            } else {
+                crc << 1
+            };
         }
-        return crc
-    })
+        return crc;
+    });
 }
 
 // A minimal fixed-blocking FLAC stream (same shape as the bones tests build).
@@ -32,7 +36,7 @@ fn synthetic_flac(payload_sizes: &[usize]) -> Vec<u8> {
         buf.push(crc8_bitwise(&header));
         buf.extend(std::iter::repeat_n(0x00, *payload));
     }
-    return buf
+    return buf;
 }
 
 // FLAC bytes yield lossless provenance with bones; the hot frame's slot leads the seeds.
@@ -78,8 +82,10 @@ fn broken_flac_keeps_lossless_without_bones() {
 // A missing file degrades to the uninformed provenance.
 #[test]
 fn missing_file_stays_uninformed() {
-    let (provenance, bones) =
-        probe_inputs_from_file(Path::new("/nonexistent/no-such-track.flac"), &default_policy());
+    let (provenance, bones) = probe_inputs_from_file(
+        Path::new("/nonexistent/no-such-track.flac"),
+        &default_policy(),
+    );
     assert_eq!(provenance, TrackProvenance::unknown());
     assert!(bones.is_none());
 }

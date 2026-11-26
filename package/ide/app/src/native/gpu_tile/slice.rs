@@ -19,12 +19,21 @@
 /// The device,
 /// the textures,
 /// and the outcome the window applies.
-use super::{Inner, Outcome, Placement, StackTexture, Target};
+use super::{
+    Inner,
+    Outcome,
+    Placement,
+    StackTexture,
+    Target,
+};
 /// The markup's record of one texture of the picture.
 use crate::native::ui::MinimapSlice;
 /// How the chunks are grouped into textures,
 /// and the device's limit as the shaped text records it.
-use ide_app::minimap::{texture_rows, texture_runs};
+use ide_app::minimap::{
+    texture_rows,
+    texture_runs,
+};
 /// The scene of a chunk and the size of its region.
 use ide_app::tile_scene::TileScene;
 /// The image import.
@@ -69,7 +78,12 @@ impl Inner {
     /// ```ts
     /// function scratch(device: GPUDevice, width: number, height: number): GPUTexture;
     /// ```
-    fn scratch(&mut self, device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+    fn scratch(
+        &mut self,
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+    ) -> wgpu::Texture {
         for kept in &self.scratch {
             if kept.width == width && kept.height == height {
                 return kept.texture.clone();
@@ -111,7 +125,11 @@ impl Inner {
     /// ```ts
     /// function stackFits(width: number, heights: number[]): boolean;
     /// ```
-    fn stack_fits(&self, width: u32, heights: &[u32]) -> bool {
+    fn stack_fits(
+        &self,
+        width: u32,
+        heights: &[u32],
+    ) -> bool {
         let mut fits = self.minimap.len() == heights.len();
         for (kept, height) in self.minimap.iter().zip(heights) {
             fits &= kept.target.width == width && kept.target.height == *height;
@@ -201,7 +219,10 @@ impl Inner {
     /// ```ts
     /// function shape(chunks: TileScene[], limit: number): Shape | Misfit;
     /// ```
-    fn shape(chunks: &[TileScene], limit: u32) -> Result<Shape, Misfit> {
+    fn shape(
+        chunks: &[TileScene],
+        limit: u32,
+    ) -> Result<Shape, Misfit> {
         let width = match chunks.first() {
             Some(first) => first.width,
             None => 0,
@@ -239,7 +260,11 @@ impl Inner {
         for run in &runs {
             sizes.push(heights[run.clone()].iter().sum::<u32>());
         }
-        return Ok(Shape { width, runs, sizes });
+        return Ok(Shape {
+            width,
+            runs,
+            sizes,
+        });
     }
 
     /// What:
@@ -252,7 +277,11 @@ impl Inner {
     /// ```ts
     /// function placement(shape: Shape, top: number): Placement;
     /// ```
-    fn placement(&self, shape: &Shape, top: u32) -> Placement {
+    fn placement(
+        &self,
+        shape: &Shape,
+        top: u32,
+    ) -> Placement {
         let mut slices = Vec::with_capacity(self.minimap.len());
         let mut start = 0;
         for held in &self.minimap {
@@ -290,7 +319,11 @@ impl Inner {
     /// ```ts
     /// function prepareMinimap(chunks: TileScene[], top: number): Outcome;
     /// ```
-    pub(super) fn prepare_minimap(&mut self, chunks: &[TileScene], top: u32) -> Outcome {
+    pub(super) fn prepare_minimap(
+        &mut self,
+        chunks: &[TileScene],
+        top: u32,
+    ) -> Outcome {
         let mut outcome = Outcome::default();
         let Some((device, _)) = self.device.clone() else {
             return outcome;
@@ -325,7 +358,12 @@ impl Inner {
     /// ```ts
     /// function drawStack(chunks: TileScene[], top: number, outcome: Outcome): void;
     /// ```
-    pub(super) fn draw_stack(&mut self, chunks: &[TileScene], top: u32, outcome: &mut Outcome) {
+    pub(super) fn draw_stack(
+        &mut self,
+        chunks: &[TileScene],
+        top: u32,
+        outcome: &mut Outcome,
+    ) {
         let Some((device, queue)) = self.device.clone() else {
             return;
         };
@@ -381,7 +419,11 @@ impl Inner {
                     wgpu::TexelCopyTextureInfo {
                         texture: &texture,
                         mip_level: 0,
-                        origin: wgpu::Origin3d { x: 0, y: row, z: 0 },
+                        origin: wgpu::Origin3d {
+                            x: 0,
+                            y: row,
+                            z: 0,
+                        },
                         aspect: wgpu::TextureAspect::All,
                     },
                     wgpu::Extent3d {

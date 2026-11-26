@@ -31,17 +31,37 @@ use music_player::search_results::SearchResult;
 /// Imports the answer type that arrives from the service.
 use music_player::search_service::SearchAnswer;
 /// Imports the model trait and the model types of the window.
-use slint::{Model, ModelRc, VecModel};
+use slint::{
+    Model,
+    ModelRc,
+    VecModel,
+};
 
 /// Imports the model builder and the state accessors of the screen.
-use crate::ui_screen::{model_of, read_screen, write_screen};
+use crate::ui_screen::{
+    model_of,
+    read_screen,
+    write_screen,
+};
 /// Imports the row height,
 /// the anchor calculation and the result key.
-use crate::ui_search_anchor::{SEARCH_ROW_HEIGHT_PX, anchored_offset, result_key};
+use crate::ui_search_anchor::{
+    SEARCH_ROW_HEIGHT_PX,
+    anchored_offset,
+    result_key,
+};
 /// Imports the row and view types and the view builder.
-use crate::ui_search_model::{SearchRowView, SearchView, search_view_of};
+use crate::ui_search_model::{
+    SearchRowView,
+    SearchView,
+    search_view_of,
+};
 /// Imports the window and the generated search row types.
-use crate::{AppWindow, SearchRow, SearchSegment};
+use crate::{
+    AppWindow,
+    SearchRow,
+    SearchSegment,
+};
 
 /// What:
 ///      `pub struct SearchUi`.
@@ -116,7 +136,10 @@ fn search_row(row: &SearchRowView) -> SearchRow {
 /// Why:
 /// an untouched row keeps its widgets,
 /// so the list does not flicker or jump on a refresh.
-fn sync_rows(old_rows: &[SearchRowView], new_rows: &[SearchRowView]) {
+fn sync_rows(
+    old_rows: &[SearchRowView],
+    new_rows: &[SearchRowView],
+) {
     let Some(model) = ROWS.with(std::cell::RefCell::clone).into_inner() else {
         tracing::warn!("the Search rows model was not installed");
         return;
@@ -139,9 +162,17 @@ fn sync_rows(old_rows: &[SearchRowView], new_rows: &[SearchRowView]) {
 /// `show_view` writes the status block and the rows of a view and remembers them.
 /// Why:
 /// both the immediate empty-query state and service answers end here.
-pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, anchor: bool) {
+pub(crate) fn show_view(
+    window: &AppWindow,
+    view: SearchView,
+    query: &str,
+    anchor: bool,
+) {
     let old_rows: Vec<SearchRowView> = read_screen().search_ui.rows.clone();
-    let old_keys: Vec<String> = { let state = read_screen(); state.search_ui.results.iter().map(result_key).collect() };
+    let old_keys: Vec<String> = {
+        let state = read_screen();
+        state.search_ui.results.iter().map(result_key).collect()
+    };
     let new_keys: Vec<String> = view.results.iter().map(result_key).collect();
     let offset_px: f32 = -window.get_search_scroll_y();
     sync_rows(&old_rows, &view.rows);
@@ -185,15 +216,28 @@ pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, ancho
 /// see the module description.
 /// An answer to an older query is dropped,
 /// so a slow ranking never overwrites a newer one.
-pub(crate) fn apply_answer(window: &AppWindow, answer: SearchAnswer) {
-    let (sequence, current_index, playing) = { let state = read_screen(); (state.search_ui.sequence, state.current_index, state.playing) };
+pub(crate) fn apply_answer(
+    window: &AppWindow,
+    answer: SearchAnswer,
+) {
+    let (sequence, current_index, playing) = {
+        let state = read_screen();
+        (state.search_ui.sequence, state.current_index, state.playing)
+    };
     if answer.sequence != sequence {
-        tracing::debug!(answer = answer.sequence, newest = sequence, "dropped an answer to an older query");
+        tracing::debug!(
+            answer = answer.sequence,
+            newest = sequence,
+            "dropped an answer to an older query"
+        );
         return;
     }
     let apply_started: std::time::Instant = std::time::Instant::now();
     let view: SearchView = search_view_of(&answer.state, current_index, playing, answer.complete);
-    let same_query: bool = { let state = read_screen(); state.search_ui.shown_query.as_deref() == Some(answer.query.as_str()) };
+    let same_query: bool = {
+        let state = read_screen();
+        state.search_ui.shown_query.as_deref() == Some(answer.query.as_str())
+    };
     let in_place: bool = answer.refresh && same_query;
     tracing::debug!(
         sequence = answer.sequence,
@@ -205,5 +249,9 @@ pub(crate) fn apply_answer(window: &AppWindow, answer: SearchAnswer) {
         "applying a search answer"
     );
     show_view(window, view, &answer.query, in_place);
-    tracing::debug!(sequence = answer.sequence, apply_ms = apply_started.elapsed().as_millis(), "applied a search answer");
+    tracing::debug!(
+        sequence = answer.sequence,
+        apply_ms = apply_started.elapsed().as_millis(),
+        "applied a search answer"
+    );
 }

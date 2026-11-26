@@ -66,7 +66,10 @@ use i_slint_backend_winit::winit::window::WindowAttributes;
 /// ```ts
 /// import { BackendSelector, WGPUConfiguration } from 'slint';
 /// ```
-use slint::{BackendSelector, wgpu_30::WGPUConfiguration};
+use slint::{
+    BackendSelector,
+    wgpu_30::WGPUConfiguration,
+};
 
 /// What:
 ///  The app id.

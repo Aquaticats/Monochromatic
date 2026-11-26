@@ -22,7 +22,10 @@
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command as ProcessCommand;
 
 // What:     `const GIT: &str = "/usr/bin/git"` names the system Git.
@@ -197,7 +200,10 @@ impl Fixture {
                 env!("CARGO_BIN_EXE_forbidden-strings"),
             ),
         );
-        write_executable(&stub_bin.join("git"), "#!/bin/sh\nexec /usr/bin/git \"$@\"\n");
+        write_executable(
+            &stub_bin.join("git"),
+            "#!/bin/sh\nexec /usr/bin/git \"$@\"\n",
+        );
         fs::write(
             runner_temp.join("forbidden-strings.rules.txt"),
             FIXTURE_RULES,
@@ -215,7 +221,7 @@ impl Fixture {
             shas: Vec::new(),
         };
         fixture.git(&["init", "--initial-branch=main"]);
-        return fixture
+        return fixture;
     }
 
     // What:     `fn git(&self, args)` runs one system Git command inside the
@@ -223,7 +229,10 @@ impl Fixture {
     // Why:      Fixture history must behave like the CI checkout: a plain
     //           repository with the workflow's commits, no policy wrapper
     //           hooks, and fixed identity so commit hashes stay stable.
-    fn git(&self, args: &[&str]) -> String {
+    fn git(
+        &self,
+        args: &[&str],
+    ) -> String {
         let mut command = ProcessCommand::new(GIT);
         command.current_dir(&self.repo);
         command.args([
@@ -243,14 +252,20 @@ impl Fixture {
                 String::from_utf8_lossy(&output.stderr),
             );
         }
-        return String::from_utf8_lossy(&output.stdout).trim_end().to_string()
+        return String::from_utf8_lossy(&output.stdout)
+            .trim_end()
+            .to_string();
     }
 
     // What:     `fn put(&self, relative, content)` writes one repository file.
     // Why:      Tests describe history as file contents per commit; creating
     //           parent directories here lets cases add nested paths without
     //           extra setup.
-    fn put(&self, relative: &str, content: &str) {
+    fn put(
+        &self,
+        relative: &str,
+        content: &str,
+    ) {
         let path = self.repo.join(relative);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("create file parent dirs");
@@ -265,14 +280,20 @@ impl Fixture {
     //           lacks the marker, because those runs scanned only their own
     //           push range; the fixture must be able to present both kinds of
     //           history.
-    fn write_workflow_revision(&self, marked: bool) {
+    fn write_workflow_revision(
+        &self,
+        marked: bool,
+    ) {
         if marked {
             let workflow_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../../.github/workflows/forbidden-strings.yml");
             let workflow = fs::read_to_string(&workflow_path).expect("read real workflow file");
             self.put(".github/workflows/forbidden-strings.yml", &workflow);
         } else {
-            self.put(".github/workflows/forbidden-strings.yml", MARKER_FREE_WORKFLOW);
+            self.put(
+                ".github/workflows/forbidden-strings.yml",
+                MARKER_FREE_WORKFLOW,
+            );
         }
     }
 
@@ -280,18 +301,24 @@ impl Fixture {
     //           and records the commit under `label`.
     // Why:      Cases reference history positions by label when planting run
     //           rows and choosing the checked-out head.
-    fn commit(&mut self, label: &str) -> String {
+    fn commit(
+        &mut self,
+        label: &str,
+    ) -> String {
         self.git(&["add", "--all"]);
         self.git(&["commit", "--message", label]);
         let sha = self.git(&["rev-parse", "HEAD"]);
         self.shas.push((label.to_string(), sha.clone()));
-        return sha
+        return sha;
     }
 
     // What:     `fn sha(&self, label)` resolves a recorded commit label.
     // Why:      Run rows and the scan environment need real commit ids; a
     //      missing label is a test authoring error and must fail loudly.
-    fn sha(&self, label: &str) -> String {
+    fn sha(
+        &self,
+        label: &str,
+    ) -> String {
         for (recorded_label, sha) in &self.shas {
             if recorded_label == label {
                 return sha.clone();
@@ -305,7 +332,10 @@ impl Fixture {
     // Why:      The candidate baseline comes from listed runs; planting the
     //           rows here lets each case model exactly which runs GitHub
     //           would report for its history.
-    fn write_runs(&self, rows: &[RunRow]) {
+    fn write_runs(
+        &self,
+        rows: &[RunRow],
+    ) {
         let mut text = String::new();
         for row in rows {
             text.push_str(row.conclusion);
@@ -365,7 +395,7 @@ impl Fixture {
             status: output.status.code().unwrap_or(-1),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-        }
+        };
     }
 }
 
@@ -374,7 +404,10 @@ impl Fixture {
 // Why:      The extracted body invokes `gh`, `git`, and `forbidden-strings`
 //           by name, so the fixture must present them on `PATH` as
 //           executables.
-fn write_executable(path: &Path, body: &str) {
+fn write_executable(
+    path: &Path,
+    body: &str,
+) {
     fs::write(path, body).expect("write stub script");
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod stub script");
 }
@@ -497,7 +530,9 @@ fn surviving_push_scan_covers_changes_the_canceled_run_never_validated() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains(&format!("{}..{}", fixture.sha("A"), fixture.sha("C"))),
+        result
+            .stdout
+            .contains(&format!("{}..{}", fixture.sha("A"), fixture.sha("C"))),
         "the scan range must start at the last validated commit A\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -645,7 +680,8 @@ fn run_from_before_the_scope_marker_is_not_a_validated_baseline() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains("scanning the current tree") && !result.stdout.contains("changed file(s)"),
+        result.stdout.contains("scanning the current tree")
+            && !result.stdout.contains("changed file(s)"),
         "an unsuitable baseline must fall back to the whole tree, not to a delta scan\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -681,7 +717,8 @@ fn missing_run_history_falls_back_to_a_full_tree_scan() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains("scanning the current tree") && !result.stdout.contains("changed file(s)"),
+        result.stdout.contains("scanning the current tree")
+            && !result.stdout.contains("changed file(s)"),
         "with no baseline at all the run must scan the whole tree\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -725,7 +762,8 @@ fn non_ancestor_run_head_is_not_a_validated_baseline() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains("scanning the current tree") && !result.stdout.contains("changed file(s)"),
+        result.stdout.contains("scanning the current tree")
+            && !result.stdout.contains("changed file(s)"),
         "a baseline outside the checked-out ancestry must fall back to the whole tree\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,

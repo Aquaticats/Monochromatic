@@ -28,14 +28,26 @@ fn run(inputs: &[(u64, ShiftInput)]) -> Vec<u64> {
 
 /// What:
 /// `down` is a first press of Shift.
-const DOWN: ShiftInput = ShiftInput::ShiftDown { repeat: false };
+const DOWN: ShiftInput = ShiftInput::ShiftDown {
+    repeat: false,
+};
 /// What:
 /// `repeat` is an auto-repeat of a held Shift.
-const REPEAT: ShiftInput = ShiftInput::ShiftDown { repeat: true };
+const REPEAT: ShiftInput = ShiftInput::ShiftDown {
+    repeat: true,
+};
 
 #[test]
 fn two_fast_taps_complete_a_double_tap() {
-    assert_eq!(run(&[(0, DOWN), (60, ShiftInput::ShiftUp), (120, DOWN), (180, ShiftInput::ShiftUp)]), vec![180]);
+    assert_eq!(
+        run(&[
+            (0, DOWN),
+            (60, ShiftInput::ShiftUp),
+            (120, DOWN),
+            (180, ShiftInput::ShiftUp)
+        ]),
+        vec![180]
+    );
 }
 
 #[test]
@@ -49,18 +61,28 @@ fn two_taps_inside_the_window_edge_complete_and_just_past_it_do_not() {
         ]),
         vec![DOUBLE_SHIFT_WINDOW_MS]
     );
-    assert!(run(&[
-        (0, DOWN),
-        (50, ShiftInput::ShiftUp),
-        (DOUBLE_SHIFT_WINDOW_MS - 100, DOWN),
-        (DOUBLE_SHIFT_WINDOW_MS + 1, ShiftInput::ShiftUp),
-    ])
-    .is_empty());
+    assert!(
+        run(&[
+            (0, DOWN),
+            (50, ShiftInput::ShiftUp),
+            (DOUBLE_SHIFT_WINDOW_MS - 100, DOWN),
+            (DOUBLE_SHIFT_WINDOW_MS + 1, ShiftInput::ShiftUp),
+        ])
+        .is_empty()
+    );
 }
 
 #[test]
 fn two_slow_taps_do_not_complete_a_double_tap() {
-    assert!(run(&[(0, DOWN), (60, ShiftInput::ShiftUp), (900, DOWN), (960, ShiftInput::ShiftUp)]).is_empty());
+    assert!(
+        run(&[
+            (0, DOWN),
+            (60, ShiftInput::ShiftUp),
+            (900, DOWN),
+            (960, ShiftInput::ShiftUp)
+        ])
+        .is_empty()
+    );
 }
 
 #[test]
@@ -116,19 +138,39 @@ fn a_chord_between_two_clean_taps_cancels_them() {
 
 #[test]
 fn a_held_shift_with_repeats_is_one_press_and_never_a_double_tap() {
-    let inputs = [(0, DOWN), (30, REPEAT), (60, REPEAT), (90, REPEAT), (120, ShiftInput::ShiftUp)];
+    let inputs = [
+        (0, DOWN),
+        (30, REPEAT),
+        (60, REPEAT),
+        (90, REPEAT),
+        (120, ShiftInput::ShiftUp),
+    ];
     assert!(run(&inputs).is_empty());
 }
 
 #[test]
 fn repeats_inside_a_tap_do_not_add_a_tap() {
-    let inputs = [(0, DOWN), (20, REPEAT), (40, ShiftInput::ShiftUp), (80, DOWN), (100, REPEAT), (120, ShiftInput::ShiftUp)];
+    let inputs = [
+        (0, DOWN),
+        (20, REPEAT),
+        (40, ShiftInput::ShiftUp),
+        (80, DOWN),
+        (100, REPEAT),
+        (120, ShiftInput::ShiftUp),
+    ];
     assert_eq!(run(&inputs), vec![120]);
 }
 
 #[test]
 fn a_release_without_a_press_changes_nothing() {
-    assert!(run(&[(0, ShiftInput::ShiftUp), (50, DOWN), (90, ShiftInput::ShiftUp)]).is_empty());
+    assert!(
+        run(&[
+            (0, ShiftInput::ShiftUp),
+            (50, DOWN),
+            (90, ShiftInput::ShiftUp)
+        ])
+        .is_empty()
+    );
 }
 
 #[test]
@@ -147,5 +189,13 @@ fn a_third_quick_tap_after_a_completed_double_tap_starts_over() {
 #[test]
 fn the_right_shift_key_counts_the_same_as_the_left_one_through_the_same_inputs() {
     // The window maps both Shift keys to the same inputs, so alternating keys is the same sequence.
-    assert_eq!(run(&[(0, DOWN), (30, ShiftInput::ShiftUp), (60, DOWN), (90, ShiftInput::ShiftUp)]), vec![90]);
+    assert_eq!(
+        run(&[
+            (0, DOWN),
+            (30, ShiftInput::ShiftUp),
+            (60, DOWN),
+            (90, ShiftInput::ShiftUp)
+        ]),
+        vec![90]
+    );
 }

@@ -4,7 +4,13 @@
 /// Shared invalidation state,
 ///  the changes sent to the language servers,
 ///  and the poison-tolerant lock.
-use super::shared::{ServerChange, ServerChangeKind, Shared, SourceChange, lock};
+use super::shared::{
+    ServerChange,
+    ServerChangeKind,
+    Shared,
+    SourceChange,
+    lock,
+};
 /// What:
 ///  notify's event types:
 ///  `Event` holds a kind plus affected paths;
@@ -19,8 +25,15 @@ use super::shared::{ServerChange, ServerChangeKind, Shared, SourceChange, lock};
 /// import { Event, EventKind, AccessKind, AccessMode, ModifyKind } from 'notify';
 /// ```
 use notify::{
-    Event, EventKind,
-    event::{AccessKind, AccessMode, CreateKind, ModifyKind, RenameMode},
+    Event,
+    EventKind,
+    event::{
+        AccessKind,
+        AccessMode,
+        CreateKind,
+        ModifyKind,
+        RenameMode,
+    },
 };
 /// What:
 ///  `Mutex` guards the shared state;
@@ -35,7 +48,11 @@ use notify::{
 /// ```
 use std::{
     path::Path,
-    sync::{Mutex, mpsc::SyncSender, mpsc::TrySendError},
+    sync::{
+        Mutex,
+        mpsc::SyncSender,
+        mpsc::TrySendError,
+    },
 };
 
 /// What one event means for the window.
@@ -155,7 +172,11 @@ fn may_add_folder(kind: &EventKind) -> bool {
 ///  and note
 /// what it does to the folder structure;
 ///  true when the watch thread must look at that structure.
-fn record_for_servers(guard: &mut Shared, kind: &EventKind, path: &Path) -> bool {
+fn record_for_servers(
+    guard: &mut Shared,
+    kind: &EventKind,
+    path: &Path,
+) -> bool {
     // What: `let Some(feed) = ... else` binds the queue into the language worker, or returns when there is none.
     // Why: Nothing is watched or sent for the servers while none registered file watchers.
     //
@@ -215,7 +236,10 @@ fn record_for_servers(guard: &mut Shared, kind: &EventKind, path: &Path) -> bool
 }
 
 /// True when the optional path ends in the file name `name`.
-fn named(candidate: Option<&Path>, name: &str) -> bool {
+fn named(
+    candidate: Option<&Path>,
+    name: &str,
+) -> bool {
     if let Some(found) = candidate.and_then(Path::file_name) {
         return found == name;
     }
@@ -264,7 +288,11 @@ pub(super) fn wake(sender: &SyncSender<()>) {
 ///  log it,
 ///  mark its paths' watches stale,
 ///  and request a full reread.
-fn record_error(shared: &Mutex<Shared>, sender: &SyncSender<()>, error: &notify::Error) {
+fn record_error(
+    shared: &Mutex<Shared>,
+    sender: &SyncSender<()>,
+    error: &notify::Error,
+) {
     tracing::warn!(%error, paths = ?error.paths, "file-change notification error; rereading everything shown");
     let mut guard = lock(shared);
     guard.pending.everything = true;

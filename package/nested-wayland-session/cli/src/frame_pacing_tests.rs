@@ -10,7 +10,10 @@ use super::*;
 fn presenting_parent_needs_no_fallback() {
     assert!(!parent_stalled(false, Duration::ZERO));
     assert!(!parent_stalled(false, FRAME_INTERVAL));
-    assert!(!parent_stalled(false, STALL_THRESHOLD - Duration::from_nanos(1)));
+    assert!(!parent_stalled(
+        false,
+        STALL_THRESHOLD - Duration::from_nanos(1)
+    ));
 }
 
 /// A locked or hidden parent stops presenting;
@@ -79,7 +82,11 @@ fn frame_interval_matches_the_advertised_refresh() {
 fn headless_sends_callbacks_on_every_tick_from_the_start() {
     assert!(callbacks_due(BackendKind::Headless, false, Duration::ZERO));
     assert!(callbacks_due(BackendKind::Headless, false, FRAME_INTERVAL));
-    assert!(callbacks_due(BackendKind::Headless, false, Duration::from_secs(3600)));
+    assert!(callbacks_due(
+        BackendKind::Headless,
+        false,
+        Duration::from_secs(3600)
+    ));
     let start = Instant::now();
     let mut pacing = FramePacing::for_backend(BackendKind::Headless, start);
     assert!(pacing.fallback_due(false, start));
@@ -91,7 +98,11 @@ fn headless_sends_callbacks_on_every_tick_from_the_start() {
 #[test]
 fn headless_leaves_the_cadence_to_the_recorder_while_recording() {
     assert!(!callbacks_due(BackendKind::Headless, true, Duration::ZERO));
-    assert!(!callbacks_due(BackendKind::Headless, true, Duration::from_secs(3600)));
+    assert!(!callbacks_due(
+        BackendKind::Headless,
+        true,
+        Duration::from_secs(3600)
+    ));
     let start = Instant::now();
     let mut pacing = FramePacing::for_backend(BackendKind::Headless, start);
     assert!(!pacing.fallback_due(true, start + STALL_THRESHOLD));

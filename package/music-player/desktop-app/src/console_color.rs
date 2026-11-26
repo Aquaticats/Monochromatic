@@ -111,7 +111,10 @@ pub fn has_virtual_terminal(mode: u32) -> bool {
 /// ```ts
 /// const logColorsWanted = (stderr, noColor) => stderr === "virtualTerminal" && !noColor;
 /// ```
-pub fn log_colors_wanted(stderr: ConsoleColorSupport, no_color: Option<&str>) -> bool {
+pub fn log_colors_wanted(
+    stderr: ConsoleColorSupport,
+    no_color: Option<&str>,
+) -> bool {
     let no_color_set = match no_color {
         Some(value) => !value.is_empty(),
         None => false,

@@ -17,11 +17,18 @@
 //!  or `/dev` stays visible.
 
 /// How the project is mounted inside.
-use super::project::{project_binds, read_only_binds};
+use super::project::{
+    project_binds,
+    read_only_binds,
+};
 /// The settings overrides a confined server gets live beside the recipe.
 pub use super::settings::confined_settings;
 /// The seam's input and output types.
-use crate::language::launch::{LaunchRequest, ServerLaunch, scratch_name};
+use crate::language::launch::{
+    LaunchRequest,
+    ServerLaunch,
+    scratch_name,
+};
 /// What:
 ///  `BTreeMap` is a key-value table kept sorted by key (sibling:
 ///  `HashMap`,
@@ -38,7 +45,10 @@ use crate::language::launch::{LaunchRequest, ServerLaunch, scratch_name};
 /// ```
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Servers that watch the client's process id and exit inside a process-id namespace,

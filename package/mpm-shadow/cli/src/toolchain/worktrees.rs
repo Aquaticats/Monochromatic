@@ -15,12 +15,19 @@
 //! ```
 
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest, Runner};
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+    Runner,
+};
 
 /// One worktree `git worktree list --porcelain` reports.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -43,8 +50,20 @@ pub struct ListedWorktree {
 /// ```ts
 /// export function listedWorktrees(runner: Runner, root: string): { directory: string; prunable: boolean }[]  // throws
 /// ```
-pub fn listed_worktrees(runner: &dyn Runner, root: &Path) -> Result<Vec<ListedWorktree>, ToolchainError> {
-    let request: RunRequest = RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]);
+pub fn listed_worktrees(
+    runner: &dyn Runner,
+    root: &Path,
+) -> Result<Vec<ListedWorktree>, ToolchainError> {
+    let request: RunRequest = RunRequest::new(
+        "git",
+        &[
+            "-C",
+            &root.to_string_lossy(),
+            "worktree",
+            "list",
+            "--porcelain",
+        ],
+    );
     let outcome: RunOutcome = runner.run(&request);
     if !outcome.succeeded() {
         return Err(ToolchainError::failure(format!(
@@ -64,7 +83,10 @@ pub fn listed_worktrees(runner: &dyn Runner, root: &Path) -> Result<Vec<ListedWo
             }
         }
         if let Some(directory) = path {
-            listed.push(ListedWorktree { directory: PathBuf::from(directory), prunable });
+            listed.push(ListedWorktree {
+                directory: PathBuf::from(directory),
+                prunable,
+            });
         }
     }
     return Ok(listed);
@@ -74,7 +96,10 @@ pub fn listed_worktrees(runner: &dyn Runner, root: &Path) -> Result<Vec<ListedWo
 /// A worktree whose directory is gone is skipped only when git marks it `prunable`;
 /// otherwise (an unmounted disk,
 /// say) the command refuses.
-pub fn worktree_lock_files(runner: &dyn Runner, root: &Path) -> Result<Vec<PathBuf>, ToolchainError> {
+pub fn worktree_lock_files(
+    runner: &dyn Runner,
+    root: &Path,
+) -> Result<Vec<PathBuf>, ToolchainError> {
     let listed: Vec<ListedWorktree> = listed_worktrees(runner, root)?;
     let mut files: Vec<PathBuf> = Vec::new();
     for worktree in listed {

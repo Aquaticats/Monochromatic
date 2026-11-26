@@ -2,7 +2,10 @@
 //!  and merged definitions keep their other settings.
 
 /// The registry under test and its unconfined setup.
-use super::super::{LanguageSetup, Languages};
+use super::super::{
+    LanguageSetup,
+    Languages,
+};
 /// What:
 ///  `json_value!` builds a JSON value from literal syntax.
 /// Why:

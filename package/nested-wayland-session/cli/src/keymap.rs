@@ -185,7 +185,7 @@ fn letter_code(letter: char) -> Option<u32> {
 /// namedKey("f10");   // => 68
 /// ```
 pub fn named_key(name: &str) -> Option<u32> {
-    return crate::key_name::resolve(name)
+    return crate::key_name::resolve(name);
 }
 
 /// What:

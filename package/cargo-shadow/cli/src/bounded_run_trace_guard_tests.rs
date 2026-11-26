@@ -13,15 +13,36 @@
 /// The production sources of the bounded run that write trace events.
 const SOURCES: [(&str, &str); 10] = [
     ("bounded_run.rs", include_str!("bounded_run.rs")),
-    ("bounded_run_containment.rs", include_str!("bounded_run_containment.rs")),
-    ("bounded_run_record_writes.rs", include_str!("bounded_run_record_writes.rs")),
-    ("bounded_run_route_cache.rs", include_str!("bounded_run_route_cache.rs")),
+    (
+        "bounded_run_containment.rs",
+        include_str!("bounded_run_containment.rs"),
+    ),
+    (
+        "bounded_run_record_writes.rs",
+        include_str!("bounded_run_record_writes.rs"),
+    ),
+    (
+        "bounded_run_route_cache.rs",
+        include_str!("bounded_run_route_cache.rs"),
+    ),
     ("control_group.rs", include_str!("control_group.rs")),
     ("journal.rs", include_str!("journal.rs")),
-    ("journal_directory_readers.rs", include_str!("journal_directory_readers.rs")),
-    ("journal_done_marker.rs", include_str!("journal_done_marker.rs")),
-    ("journal_kept_notices.rs", include_str!("journal_kept_notices.rs")),
-    ("journal_transaction.rs", include_str!("journal_transaction.rs")),
+    (
+        "journal_directory_readers.rs",
+        include_str!("journal_directory_readers.rs"),
+    ),
+    (
+        "journal_done_marker.rs",
+        include_str!("journal_done_marker.rs"),
+    ),
+    (
+        "journal_kept_notices.rs",
+        include_str!("journal_kept_notices.rs"),
+    ),
+    (
+        "journal_transaction.rs",
+        include_str!("journal_transaction.rs"),
+    ),
 ];
 
 /// How many code lines before a computed trace text may carry the `#[cfg(test)]` that keeps it out of a production build:
@@ -30,7 +51,14 @@ const ATTRIBUTE_REACH: usize = 3;
 
 /// The calls that read a file or compute a text,
 /// which a plain trace event must not contain.
-const COMPUTING_CALLS: [&str; 6] = ["read_to_string", "file_name(", "weaker_notice(", "metadata(", "format!(", ".collect"];
+const COMPUTING_CALLS: [&str; 6] = [
+    "read_to_string",
+    "file_name(",
+    "weaker_notice(",
+    "metadata(",
+    "format!(",
+    ".collect",
+];
 
 /// The code lines of a source that are not comments.
 fn code_lines(source: &str) -> Vec<(usize, &str)> {
@@ -55,11 +83,17 @@ fn a_plain_trace_event_computes_nothing() {
             }
             checked += 1;
             for call in COMPUTING_CALLS {
-                assert!(!line.contains(call), "{name}:{number} passes `{call}` to a trace event that a production build would evaluate: {line}");
+                assert!(
+                    !line.contains(call),
+                    "{name}:{number} passes `{call}` to a trace event that a production build would evaluate: {line}"
+                );
             }
         }
     }
-    assert!(checked > 0, "no plain trace event was found, so this guard checked nothing");
+    assert!(
+        checked > 0,
+        "no plain trace event was found, so this guard checked nothing"
+    );
 }
 
 /// An event that computes its text exists in a test build only.
@@ -79,8 +113,14 @@ fn a_computed_trace_text_exists_in_a_test_build_only() {
                     guarded = true;
                 }
             }
-            assert!(guarded, "{name}:{number} writes a computed trace text without `#[cfg(test)]` on one of the code lines before it, so a production build would compute it: {line}");
+            assert!(
+                guarded,
+                "{name}:{number} writes a computed trace text without `#[cfg(test)]` on one of the code lines before it, so a production build would compute it: {line}"
+            );
         }
     }
-    assert!(checked > 0, "no computed trace text was found, so this guard checked nothing");
+    assert!(
+        checked > 0,
+        "no computed trace text was found, so this guard checked nothing"
+    );
 }

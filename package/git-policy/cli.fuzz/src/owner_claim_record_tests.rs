@@ -10,13 +10,20 @@
 //! ```
 
 /// Import the generators and invariants under control.
-use super::{check_claim_text, check_generated_claim_text, generated_claim_text};
-/// The decoder and the record it returns.
-use git_policy_cli::single_owner_claim::{ClaimRecord, decode};
-/// The folder names a claim file's first line is spelled with.
-use git_policy_cli::wrapper_names_old_and_new::DATA_FOLDER;
+use super::{
+    check_claim_text,
+    check_generated_claim_text,
+    generated_claim_text,
+};
 /// The generated inputs the owner-record and index-lock controls already share.
 use crate::owners::tests::inputs;
+/// The decoder and the record it returns.
+use git_policy_cli::single_owner_claim::{
+    ClaimRecord,
+    decode,
+};
+/// The folder names a claim file's first line is spelled with.
+use git_policy_cli::wrapper_names_old_and_new::DATA_FOLDER;
 
 /// The first line of a claim file written under one folder name.
 fn header_of(folder: &str) -> String {
@@ -39,7 +46,9 @@ fn claim_texts_reach_every_outcome() {
         let (text, expected) = generated_claim_text(data.as_slice());
         match expected {
             Some(ClaimRecord::Released) => released += 1,
-            Some(ClaimRecord::Owned { .. }) => owned += 1,
+            Some(ClaimRecord::Owned {
+                ..
+            }) => owned += 1,
             None => refused += 1,
         }
         if text.starts_with(&header_of(DATA_FOLDER.earlier)) && decode(text.as_str()).is_some() {
@@ -67,15 +76,27 @@ fn known_claim_spellings_hold_the_invariants() {
         })
     );
     let cases: Vec<(String, Option<ClaimRecord>)> = vec![
-        (format!("{current}\nreleased\n"), Some(ClaimRecord::Released)),
-        (format!("{earlier}\nreleased\n"), Some(ClaimRecord::Released)),
-        (format!("{current}\nreleased\npid=42\n"), Some(ClaimRecord::Released)),
+        (
+            format!("{current}\nreleased\n"),
+            Some(ClaimRecord::Released),
+        ),
+        (
+            format!("{earlier}\nreleased\n"),
+            Some(ClaimRecord::Released),
+        ),
+        (
+            format!("{current}\nreleased\npid=42\n"),
+            Some(ClaimRecord::Released),
+        ),
         (owned.clone(), decode(owned.as_str())),
-        (format!("{current}\npid=007\nbirth=t\nnamespace=-\n"), Some(ClaimRecord::Owned {
-            pid: 7,
-            birth: String::from("t"),
-            namespace: None,
-        })),
+        (
+            format!("{current}\npid=007\nbirth=t\nnamespace=-\n"),
+            Some(ClaimRecord::Owned {
+                pid: 7,
+                birth: String::from("t"),
+                namespace: None,
+            }),
+        ),
         (format!("{current}\npid=0\nbirth=t\nnamespace=-\n"), None),
         (format!("{current}\npid=-1\nbirth=t\nnamespace=-\n"), None),
         (format!("{current}\npid=42\nbirth=\nnamespace=-\n"), None),
@@ -86,7 +107,10 @@ fn known_claim_spellings_hold_the_invariants() {
         (format!("{}\nreleased\n", current.to_uppercase()), None),
         (String::from("owner-claim v1\nreleased\n"), None),
         (String::new(), None),
-        (format!("{current}\npid=9223372036854775808\nbirth=t\nnamespace=-\n"), None),
+        (
+            format!("{current}\npid=9223372036854775808\nbirth=t\nnamespace=-\n"),
+            None,
+        ),
     ];
     for (text, expected) in cases {
         assert_eq!(decode(text.as_str()), expected, "{text:?}");
@@ -102,15 +126,21 @@ fn known_claim_spellings_hold_the_invariants() {
 #[test]
 fn a_generated_namespace_of_the_marker_is_no_namespace() {
     let found: [u8; 55] = [
-        0x6f, 0x63, 0x68, 0x6f, 0x6f, 0x6e, 0x72, 0x6f, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xee,
-        0xef, 0xef, 0xef, 0xef, 0x70, 0x69, 0x64, 0x3d, 0x39, 0x32, 0x32, 0x33, 0x33, 0x37, 0x32, 0x30, 0x70, 0x69,
-        0x64, 0x3d, 0x39, 0x30, 0x30, 0x39, 0x31, 0x37, 0x39, 0x32, 0x35, 0x34, 0x37, 0x34, 0x30, 0x39, 0x39, 0x31,
-        0x0a,
+        0x6f, 0x63, 0x68, 0x6f, 0x6f, 0x6e, 0x72, 0x6f, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef,
+        0xef, 0xef, 0xee, 0xef, 0xef, 0xef, 0xef, 0x70, 0x69, 0x64, 0x3d, 0x39, 0x32, 0x32, 0x33,
+        0x33, 0x37, 0x32, 0x30, 0x70, 0x69, 0x64, 0x3d, 0x39, 0x30, 0x30, 0x39, 0x31, 0x37, 0x39,
+        0x32, 0x35, 0x34, 0x37, 0x34, 0x30, 0x39, 0x39, 0x31, 0x0a,
     ];
     check_generated_claim_text(found.as_slice());
     let (text, expected) = generated_claim_text(found.as_slice());
     assert_eq!(decode(text.as_str()), expected, "{text:?}");
-    let Some(ClaimRecord::Owned { namespace, .. }) = expected else { panic!("{expected:?}") };
+    let Some(ClaimRecord::Owned {
+        namespace,
+        ..
+    }) = expected
+    else {
+        panic!("{expected:?}")
+    };
     assert_eq!(namespace, None, "{text:?}");
     assert!(text.ends_with("namespace=-\ngarbage\n"), "{text:?}");
 }
@@ -120,7 +150,13 @@ fn a_generated_namespace_of_the_marker_is_no_namespace() {
 fn generated_namespaces_are_never_the_released_marker() {
     for data in inputs() {
         let (_, expected) = generated_claim_text(data.as_slice());
-        let Some(ClaimRecord::Owned { namespace, .. }) = expected else { continue };
+        let Some(ClaimRecord::Owned {
+            namespace,
+            ..
+        }) = expected
+        else {
+            continue;
+        };
         assert_ne!(namespace.as_deref(), Some("-"));
     }
 }
@@ -148,8 +184,15 @@ fn restated_claims_give_their_record_back() {
         }
     }
     let carried: String = format!("{current}\npid=42\nbirth=t\r\nnamespace=-\n");
-    let found: ClaimRecord = decode(carried.as_str()).expect("a claim whose birth ends in a carriage return");
-    let ClaimRecord::Owned { birth, .. } = &found else { panic!("{found:?}") };
+    let found: ClaimRecord =
+        decode(carried.as_str()).expect("a claim whose birth ends in a carriage return");
+    let ClaimRecord::Owned {
+        birth,
+        ..
+    } = &found
+    else {
+        panic!("{found:?}")
+    };
     assert!(!birth.ends_with('\r'), "{birth:?}");
     check_claim_text(carried.as_str());
 }

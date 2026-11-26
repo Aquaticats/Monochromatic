@@ -41,11 +41,21 @@ mod grammar;
 /// ```ts
 /// export { checkManifest, checkManifestBytes, checkManifestPath } from './check';
 /// ```
-pub use check::{check_manifest, check_manifest_bytes, check_manifest_path};
+pub use check::{
+    check_manifest,
+    check_manifest_bytes,
+    check_manifest_path,
+};
 /// Re-exports the finding types.
-pub use finding::{Finding, FindingKind};
+pub use finding::{
+    Finding,
+    FindingKind,
+};
 /// Re-exports the grammar test and its section kind.
-pub use grammar::{is_allowed_specifier, SectionKind};
+pub use grammar::{
+    SectionKind,
+    is_allowed_specifier,
+};
 
 /// What:
 /// `#[cfg(test)]` compiles the next item only when running tests;

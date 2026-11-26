@@ -36,7 +36,10 @@
 /// ```ts
 /// // Paths are plain strings in TypeScript; there is no Path or PathBuf to import.
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use crate::playback::is_audio_file;` imports the audio-extension test from `src/playback.rs`.
@@ -165,7 +168,10 @@ pub(crate) trait Disk {
     /// ```ts
     /// kind(path: string): EntryKind;
     /// ```
-    fn kind(&self, path: &Path) -> EntryKind;
+    fn kind(
+        &self,
+        path: &Path,
+    ) -> EntryKind;
     /// What:
     /// `fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>;` is a signature that answers a growable list of
     /// pairs.
@@ -187,7 +193,10 @@ pub(crate) trait Disk {
     /// ```ts
     /// entries(folder: string): [string, EntryKind][];
     /// ```
-    fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>;
+    fn entries(
+        &self,
+        folder: &Path,
+    ) -> Vec<(PathBuf, EntryKind)>;
     /// What:
     /// `fn walk(&self, folder: &Path) -> Vec<PathBuf>;` is a signature that answers an owned list of paths.
     /// Why:
@@ -199,7 +208,10 @@ pub(crate) trait Disk {
     /// ```ts
     /// walk(folder: string): string[];
     /// ```
-    fn walk(&self, folder: &Path) -> Vec<PathBuf>;
+    fn walk(
+        &self,
+        folder: &Path,
+    ) -> Vec<PathBuf>;
 }
 
 /// What:
@@ -238,7 +250,10 @@ pub(crate) struct RealDisk;
 /// ```ts
 /// const kindOf = (path: string, type: FileType): EntryKind => type.isDir() ? "Folder" : isAudio(path) && ... ? "Track" : "Other";
 /// ```
-fn kind_of(path: &Path, file_type: std::fs::FileType) -> EntryKind {
+fn kind_of(
+    path: &Path,
+    file_type: std::fs::FileType,
+) -> EntryKind {
     // What:     `if file_type.is_dir() { return EntryKind::Folder; }` checks the type and leaves early. `EntryKind::Folder`
     //           names one case of the enum; `::` joins the enum's name and the case.
     // Why:      A directory is a folder whatever its name looks like.
@@ -295,7 +310,10 @@ impl Disk for RealDisk {
     /// ```ts
     /// kind(path: string): EntryKind { try { return kindOf(path, lstatSync(path)); } catch (e) { return "Missing"; } }
     /// ```
-    fn kind(&self, path: &Path) -> EntryKind {
+    fn kind(
+        &self,
+        path: &Path,
+    ) -> EntryKind {
         // What:     `return match std::fs::symlink_metadata(path) { ... };` asks the file system for the path's metadata and
         //           takes the answer apart. `symlink_metadata` answers a `Result`: `Ok(metadata)` on success and `Err(error)`
         //           on failure, Rust's stand-in for a call that may throw. `match` has one arm per case. The `;` after the
@@ -374,7 +392,10 @@ impl Disk for RealDisk {
     /// ```ts
     /// entries(folder: string): [string, EntryKind][] { return readdirSync(folder).map(...).filter(...); }
     /// ```
-    fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)> {
+    fn entries(
+        &self,
+        folder: &Path,
+    ) -> Vec<(PathBuf, EntryKind)> {
         // What:     `let listing = match std::fs::read_dir(folder) { Ok(listing) => listing, Err(error) => { ...; return Vec::new(); } };`
         //           opens the folder for reading. `read_dir` answers a `Result`; the success arm hands the listing out (it
         //           becomes the value of the `match` and so of `listing`), and the failure arm logs and leaves the method
@@ -442,7 +463,10 @@ impl Disk for RealDisk {
     /// ```ts
     /// walk(folder: string): string[] { return scanStreaming(folder, Infinity, () => {}); }
     /// ```
-    fn walk(&self, folder: &Path) -> Vec<PathBuf> {
+    fn walk(
+        &self,
+        folder: &Path,
+    ) -> Vec<PathBuf> {
         // What:     `return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut
         //           crate::scan_stream::ignore_batch);` runs the same walk the first scan uses. `usize::MAX` is a
         //           batch size so large that no batch is ever reported, and `ignore_batch` is the named function
@@ -454,6 +478,10 @@ impl Disk for RealDisk {
         // ```ts
         // return scanStreaming(folder, Number.MAX_SAFE_INTEGER, () => {});
         // ```
-        return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut crate::scan_stream::ignore_batch);
+        return crate::scan_stream::scan_streaming(
+            folder,
+            usize::MAX,
+            &mut crate::scan_stream::ignore_batch,
+        );
     }
 }

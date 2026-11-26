@@ -20,7 +20,10 @@ fn number_text_matches_javascript_string() {
     assert_eq!(number_text(1e21), "1e+21");
     assert_eq!(number_text(1e-7), "1e-7");
     assert_eq!(number_text(1.5e-7), "1.5e-7");
-    assert_eq!(number_text(123_456_789_012_345_680_000.0), "123456789012345680000");
+    assert_eq!(
+        number_text(123_456_789_012_345_680_000.0),
+        "123456789012345680000"
+    );
     assert_eq!(number_text(5e-324), "5e-324");
     assert_eq!(number_text(1e20), "100000000000000000000");
     assert_eq!(number_text(0.000_001), "0.000001");
@@ -51,7 +54,11 @@ fn unknown_format_letter_finds_letters_outside_apostrophes() {
     assert_eq!(unknown_format_letter("m \u{e9}"), Some('\u{e9}'));
     assert_eq!(unknown_format_letter("m / s, 1.5"), None);
     assert_eq!(unknown_format_letter(""), None);
-    assert_eq!(unknown_format_letter("m'unclosed"), None, "an unclosed apostrophe keeps the rest as text, as format_seconds does");
+    assert_eq!(
+        unknown_format_letter("m'unclosed"),
+        None,
+        "an unclosed apostrophe keeps the rest as text, as format_seconds does"
+    );
 }
 
 // What: `fn number_text_prints_special_values(...)` checks NaN, both infinities, and zero.
@@ -146,8 +153,14 @@ fn as_number_trims_javascript_white_space_only() {
 // ```
 #[test]
 fn as_number_reads_exactly_within_128_bits() {
-    assert_eq!(as_number("0xFFFFFFFFFFFFFFFF"), Some(18_446_744_073_709_551_615.0));
-    assert_eq!(number_text(as_number("0xFFFFFFFFFFFFFFFF").unwrap_or(0.0)), "18446744073709552000");
+    assert_eq!(
+        as_number("0xFFFFFFFFFFFFFFFF"),
+        Some(18_446_744_073_709_551_615.0)
+    );
+    assert_eq!(
+        number_text(as_number("0xFFFFFFFFFFFFFFFF").unwrap_or(0.0)),
+        "18446744073709552000"
+    );
 }
 
 // What: `fn format_seconds_follows_the_format_letters(...)` checks the duration formats from the reference.
@@ -181,7 +194,10 @@ fn format_seconds_follows_the_format_letters() {
 fn format_seconds_keeps_apostrophe_text_and_bare_letters() {
     assert_eq!(format_seconds(275.0, "m min"), "4 4in");
     assert_eq!(format_seconds(275.0, "m' min'"), "4 min");
-    assert_eq!(format_seconds(4000.0, "h' hours' and m' minutes'"), "1 hours and 6 minutes");
+    assert_eq!(
+        format_seconds(4000.0, "h' hours' and m' minutes'"),
+        "1 hours and 6 minutes"
+    );
     assert_eq!(format_seconds(4000.0, "'h'm:ss"), "h6:40");
 }
 

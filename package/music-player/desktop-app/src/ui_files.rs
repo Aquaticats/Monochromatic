@@ -13,7 +13,10 @@
 /// Imports the formatting traits that render `FileActionError` as text.
 use std::fmt;
 /// Imports the path types that name the files acted on.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `FileActionError` is the failure of one file action,
@@ -61,12 +64,22 @@ pub enum FileActionError {
 impl fmt::Display for FileActionError {
     /// What:
     /// `fmt` writes the failure in plain words for the feedback message.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             Self::NoParent(path) => write!(formatter, "{} has no folder to open", path.display()),
-            Self::Spawn(detail) => write!(formatter, "The file manager could not be started: {detail}"),
-            Self::Clipboard(detail) => write!(formatter, "The clipboard could not be written: {detail}"),
-            Self::Trash(detail) => write!(formatter, "The file could not be moved to the trash: {detail}"),
+            Self::Spawn(detail) => {
+                write!(formatter, "The file manager could not be started: {detail}")
+            }
+            Self::Clipboard(detail) => {
+                write!(formatter, "The clipboard could not be written: {detail}")
+            }
+            Self::Trash(detail) => write!(
+                formatter,
+                "The file could not be moved to the trash: {detail}"
+            ),
             Self::Restore(sentence) => formatter.write_str(sentence),
         };
     }
@@ -105,7 +118,8 @@ pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
 /// `show_in_file_manager` on Windows opens Explorer with the file selected (`explorer /select,`).
 #[cfg(windows)]
 pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
-    let selection: std::ffi::OsString = std::ffi::OsString::from(format!("/select,{}", path.display()));
+    let selection: std::ffi::OsString =
+        std::ffi::OsString::from(format!("/select,{}", path.display()));
     return spawn("explorer", &[selection.as_os_str()]);
 }
 
@@ -113,7 +127,9 @@ pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
 /// `show_in_file_manager` on other platforms reports that the action is unavailable.
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn show_in_file_manager(_path: &Path) -> Result<(), FileActionError> {
-    return Err(FileActionError::Spawn("no file manager is known for this platform".to_string()));
+    return Err(FileActionError::Spawn(
+        "no file manager is known for this platform".to_string(),
+    ));
 }
 
 /// What:
@@ -121,7 +137,10 @@ pub fn show_in_file_manager(_path: &Path) -> Result<(), FileActionError> {
 /// Why:
 /// a file manager stays open after the player continues,
 /// so the player must not block on it.
-fn spawn(program: &str, arguments: &[&std::ffi::OsStr]) -> Result<(), FileActionError> {
+fn spawn(
+    program: &str,
+    arguments: &[&std::ffi::OsStr],
+) -> Result<(), FileActionError> {
     let mut command = std::process::Command::new(program);
     command.args(arguments);
     return match command.spawn() {
@@ -219,7 +238,10 @@ pub fn comparable_path(path: &Path) -> Option<PathBuf> {
 /// ```ts
 /// const sameOriginalPath = (a: string, b: string) => a === b || comparablePath(a) === comparablePath(b);
 /// ```
-pub fn same_original_path(original: &Path, wanted: &Path) -> bool {
+pub fn same_original_path(
+    original: &Path,
+    wanted: &Path,
+) -> bool {
     if original == wanted {
         return true;
     }
@@ -233,7 +255,8 @@ pub fn same_original_path(original: &Path, wanted: &Path) -> bool {
 const JUST_TRASHED: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Paths moved to the trash by this player and when.
-static TRASHED: std::sync::Mutex<Vec<(PathBuf, std::time::Instant)>> = std::sync::Mutex::new(Vec::new());
+static TRASHED: std::sync::Mutex<Vec<(PathBuf, std::time::Instant)>> =
+    std::sync::Mutex::new(Vec::new());
 
 /// What:
 /// `still_remembered` is true while a trashed path was trashed less than `JUST_TRASHED` ago.
@@ -276,7 +299,14 @@ pub fn was_just_trashed(path: &Path) -> bool {
 pub fn can_restore_from_trash() -> bool {
     return cfg!(any(
         windows,
-        all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))
+        all(
+            unix,
+            not(any(
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "android"
+            ))
+        )
     ));
 }
 
@@ -287,7 +317,10 @@ pub fn can_restore_from_trash() -> bool {
 /// so nothing is copied or re-created.
 #[cfg(any(
     windows,
-    all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))
+    all(
+        unix,
+        not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+    )
 ))]
 pub fn restore_from_trash(path: &Path) -> Result<(), FileActionError> {
     let name: String = match path.file_name() {
@@ -298,7 +331,9 @@ pub fn restore_from_trash(path: &Path) -> Result<(), FileActionError> {
         Ok(items) => items,
         Err(error) => {
             tracing::warn!(path = %path.display(), %error, "the trash could not be listed for Undo");
-            return Err(FileActionError::Restore(format!("{name} could not be put back: the trash could not be read.")));
+            return Err(FileActionError::Restore(format!(
+                "{name} could not be put back: the trash could not be read."
+            )));
         }
     };
     let mut newest: Option<trash::TrashItem> = None;
@@ -313,13 +348,17 @@ pub fn restore_from_trash(path: &Path) -> Result<(), FileActionError> {
     }
     let Some(chosen) = newest else {
         tracing::warn!(path = %path.display(), "no item in the trash came from this path");
-        return Err(FileActionError::Restore(format!("{name} is not in the trash any more, so it could not be put back.")));
+        return Err(FileActionError::Restore(format!(
+            "{name} is not in the trash any more, so it could not be put back."
+        )));
     };
     return match trash::os_limited::restore_all([chosen]) {
         Ok(()) => Ok(()),
         Err(error) => {
             tracing::warn!(path = %path.display(), %error, "the trash could not restore the file");
-            Err(FileActionError::Restore(format!("{name} could not be put back from the trash.")))
+            Err(FileActionError::Restore(format!(
+                "{name} could not be put back from the trash."
+            )))
         }
     };
 }
@@ -331,10 +370,15 @@ pub fn restore_from_trash(path: &Path) -> Result<(), FileActionError> {
 /// so this branch is a guard only.
 #[cfg(not(any(
     windows,
-    all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))
+    all(
+        unix,
+        not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+    )
 )))]
 pub fn restore_from_trash(_path: &Path) -> Result<(), FileActionError> {
-    return Err(FileActionError::Restore("the trash cannot be restored on this platform".to_string()));
+    return Err(FileActionError::Restore(
+        "the trash cannot be restored on this platform".to_string(),
+    ));
 }
 
 /// Unit tests of `ui_files`,

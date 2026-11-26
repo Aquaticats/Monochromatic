@@ -27,7 +27,10 @@
 //! reach a subscriber.
 
 /// Imports the engine's compiled-ruleset type and its compile-time error.
-use forbidden_regex::{CompileError, RegexSet};
+use forbidden_regex::{
+    CompileError,
+    RegexSet,
+};
 
 /// Registers the redacted load-error type.
 mod error;
@@ -44,7 +47,11 @@ mod sections;
 pub use error::LoadError;
 
 /// Re-exports the format decision and BOM strip a caller needs to join several rule sources.
-pub(crate) use format::{source_format, strip_source_bom, SourceFormat};
+pub(crate) use format::{
+    SourceFormat,
+    source_format,
+    strip_source_bom,
+};
 
 /// Re-exports the literal-to-verbose-dialect escaper for the scanner's fuzz targets.
 ///
@@ -112,7 +119,10 @@ fn runtime_input_of(rule: sections::ParsedRule) -> RuntimeRuleInput {
     } else {
         RuntimeRuleKind::RestrictedRegex(rule.pattern)
     };
-    return RuntimeRuleInput { name: rule.name, kind };
+    return RuntimeRuleInput {
+        name: rule.name,
+        kind,
+    };
 }
 
 /// The name and the pattern of one parsed rule,
@@ -123,18 +133,15 @@ fn name_and_pattern_of(rule: sections::ParsedRule) -> (Option<String>, String) {
 
 /// The redacted error for a precompiled set that failed to decode or validate.
 fn precompiled_failure(reason: CompileError) -> LoadError {
-    return LoadError::Precompiled { reason };
+    return LoadError::Precompiled {
+        reason,
+    };
 }
 
 /// Parses runtime source while preserving bare-literal distinction.
-pub(crate) fn parse_runtime_rules(
-    text: &str,
-) -> Result<Vec<RuntimeRuleInput>, LoadError> {
+pub(crate) fn parse_runtime_rules(text: &str) -> Result<Vec<RuntimeRuleInput>, LoadError> {
     let rules = format::parse_rules(text)?;
-    return Ok(rules
-        .into_iter()
-        .map(runtime_input_of)
-        .collect())
+    return Ok(rules.into_iter().map(runtime_input_of).collect());
 }
 
 /// Compiles a rule source into a combined `RegexSet` plus its per-rule names.
@@ -163,7 +170,10 @@ pub fn compile_rules(text: &str) -> Result<CompiledRules, LoadError> {
     // discarded; the combined set is built once below.
     for (index, pattern) in patterns.iter().enumerate() {
         if let Err(reason) = RegexSet::new(std::slice::from_ref(pattern)) {
-            return Err(LoadError::Compile { index, reason });
+            return Err(LoadError::Compile {
+                index,
+                reason,
+            });
         }
     }
     // Every rule compiled individually, so assembly cannot fail on a rule; any
@@ -171,9 +181,17 @@ pub fn compile_rules(text: &str) -> Result<CompiledRules, LoadError> {
     // sentinel index and the engine's static reason (still no rule text).
     let set = match RegexSet::new(&patterns) {
         Ok(set) => set,
-        Err(reason) => return Err(LoadError::Compile { index: patterns.len(), reason }),
+        Err(reason) => {
+            return Err(LoadError::Compile {
+                index: patterns.len(),
+                reason,
+            });
+        }
     };
-    return Ok(CompiledRules { set, names });
+    return Ok(CompiledRules {
+        set,
+        names,
+    });
 }
 
 /// Compiles a rule source (autodetected format) into a combined `RegexSet`.

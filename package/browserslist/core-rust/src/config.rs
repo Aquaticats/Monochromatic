@@ -21,7 +21,10 @@
 /// ```ts
 /// import { Outcome, notImplemented } from './error';
 /// ```
-use crate::error::{Outcome, not_implemented};
+use crate::error::{
+    Outcome,
+    not_implemented,
+};
 
 /// What:
 ///  One query line with its 1-based line number in the config text.
@@ -103,7 +106,10 @@ pub fn parse_config(text: &str) -> Outcome<Vec<ConfigLine>> {
                 "config sections in the browserslist config ({trimmed:?} on line {number})"
             )));
         }
-        lines.push(ConfigLine { number, text: trimmed.to_string() });
+        lines.push(ConfigLine {
+            number,
+            text: trimmed.to_string(),
+        });
     }
     return Ok(lines);
 }

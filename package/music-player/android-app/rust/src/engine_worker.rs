@@ -133,7 +133,10 @@ use std::sync::atomic::Ordering;
 /// ```ts
 /// // the read side of a cross-thread message queue, with EMPTY / DISCONNECTED states
 /// ```
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{
+    Receiver,
+    TryRecvError,
+};
 
 /// What:
 ///      `use std::sync::Arc;`.
@@ -226,7 +229,11 @@ use std::time::Duration;
 /// import { AudioCallbackResult, AudioDirection, AudioFormat, AudioPerformanceMode, AudioStream, AudioStreamBuilder } from "ndk-audio";
 /// ```
 use ndk::audio::{
-    AudioCallbackResult, AudioDirection, AudioFormat, AudioPerformanceMode, AudioStream,
+    AudioCallbackResult,
+    AudioDirection,
+    AudioFormat,
+    AudioPerformanceMode,
+    AudioStream,
     AudioStreamBuilder,
 };
 
@@ -254,7 +261,11 @@ use ndk::audio::{
 /// ```ts
 /// // no equivalent: importing interfaces just to unlock .split()/.pushSlice()/.popSlice()
 /// ```
-use ringbuf::traits::{Consumer, Producer, Split};
+use ringbuf::traits::{
+    Consumer,
+    Producer,
+    Split,
+};
 
 /// What:
 ///      `use ringbuf::{HeapCons, HeapProd, HeapRb};`.
@@ -276,7 +287,11 @@ use ringbuf::traits::{Consumer, Producer, Split};
 /// ```ts
 /// // a fixed-size lock-free Float32Array queue split into a writer and a reader
 /// ```
-use ringbuf::{HeapCons, HeapProd, HeapRb};
+use ringbuf::{
+    HeapCons,
+    HeapProd,
+    HeapRb,
+};
 
 /// What:
 ///      `use symphonia::core::formats::probe::Hint;`.
@@ -318,7 +333,10 @@ use symphonia::core::formats::probe::Hint;
 /// import * as decode from "./decode";
 /// import type { Source } from "./decode";
 /// ```
-use crate::decode::{self, Source};
+use crate::decode::{
+    self,
+    Source,
+};
 
 /// What:
 ///      `use crate::engine::{Command, Control, MILLIS_PER_SEC};`.
@@ -340,7 +358,11 @@ use crate::decode::{self, Source};
 /// ```ts
 /// import { Command, Control, MILLIS_PER_SEC } from "./engine";
 /// ```
-use crate::engine::{Command, Control, MILLIS_PER_SEC};
+use crate::engine::{
+    Command,
+    Control,
+    MILLIS_PER_SEC,
+};
 
 /// What:
 ///      `use crate::error::PlayerError;`.
@@ -621,7 +643,7 @@ impl WorkerState {
             pending: Vec::new(),
             pending_pos: 0,
             loads_handled: 0,
-        }
+        };
     }
 }
 
@@ -654,7 +676,10 @@ impl WorkerState {
 /// ```ts
 /// function workerRun(rx: Receiver<Command>, control: Control): void { ... }
 /// ```
-pub(crate) fn worker_run(rx: Receiver<Command>, control: Arc<Control>) {
+pub(crate) fn worker_run(
+    rx: Receiver<Command>,
+    control: Arc<Control>,
+) {
     // What:     `let mut state = WorkerState::new();`. Declare a LOCAL variable `state`
     //           and call the `WorkerState::new()` associated function to fill it. `mut`
     //           marks it MUTABLE (Rust variables are read-only by default); we need it
@@ -830,7 +855,12 @@ pub(crate) fn worker_run(rx: Receiver<Command>, control: Arc<Control>) {
 /// ```ts
 /// function handleLoad(state: WorkerState, control: Control, file: File, play: boolean): void { ... }
 /// ```
-fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::File, play: bool) {
+fn handle_load(
+    state: &mut WorkerState,
+    control: &Arc<Control>,
+    file: std::fs::File,
+    play: bool,
+) {
     // What:     `state.loads_handled += 1;`. Count this load before any early return below.
     // Why:      A failure names its load by this number, and Kotlin counts queued loads the same way.
     //
@@ -973,7 +1003,9 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
     // ```ts
     // Atomics.store(control.channels, 0, spec.channels);
     // ```
-    control.channels.store(spec.channels as u32, Ordering::Release);
+    control
+        .channels
+        .store(spec.channels as u32, Ordering::Release);
     // What:     `control.start_frame.store(0, Ordering::Release);`. Atomically write `0`
     //           into the `start_frame` telemetry (the frame the current stream begins at),
     //           with `Release` ordering.
@@ -1007,9 +1039,10 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
     // ```ts
     // Atomics.store(control.durationMs, 0, Math.trunc(spec.durationSecs * MILLIS_PER_SEC));
     // ```
-    control
-        .duration_ms
-        .store((spec.duration_secs * MILLIS_PER_SEC) as u64, Ordering::Release);
+    control.duration_ms.store(
+        (spec.duration_secs * MILLIS_PER_SEC) as u64,
+        Ordering::Release,
+    );
     // What:     `control.decode_done.store(false, Ordering::Release);`. Atomically write
     //           `false` into the `decode_done` flag (an atomic bool) with `Release` ordering.
     // Why:      The new track has not finished decoding; clear any leftover "done" flag.
@@ -1109,7 +1142,10 @@ fn handle_load(state: &mut WorkerState, control: &Arc<Control>, file: std::fs::F
 /// ```ts
 /// function failLoad(state: WorkerState, control: Control): void { ... }
 /// ```
-fn fail_load(state: &WorkerState, control: &Arc<Control>) {
+fn fail_load(
+    state: &WorkerState,
+    control: &Arc<Control>,
+) {
     control.playing.store(false, Ordering::Release);
     control.ended.store(false, Ordering::Release);
     control.decode_done.store(false, Ordering::Release);
@@ -1118,7 +1154,9 @@ fn fail_load(state: &WorkerState, control: &Arc<Control>) {
     control.start_frame.store(0, Ordering::Release);
     control.frames_played.store(0, Ordering::Release);
     control.duration_ms.store(0, Ordering::Release);
-    control.failed_load.store(state.loads_handled, Ordering::Release);
+    control
+        .failed_load
+        .store(state.loads_handled, Ordering::Release);
 }
 
 /// What:
@@ -1137,7 +1175,11 @@ fn fail_load(state: &WorkerState, control: &Arc<Control>) {
 /// ```ts
 /// function handleSeek(state: WorkerState, control: Control, positionSec: number): void { ... }
 /// ```
-fn handle_seek(state: &mut WorkerState, control: &Arc<Control>, position_sec: f64) {
+fn handle_seek(
+    state: &mut WorkerState,
+    control: &Arc<Control>,
+    position_sec: f64,
+) {
     // What:     `let (rate, channels) = match state.source.as_mut() { ... };`. The left
     //           side `(rate, channels)` is TUPLE DESTRUCTURING: the `match` yields a
     //           `(u32, u16)` pair and binds each element to a name. `state.source.as_mut()`
@@ -1265,7 +1307,11 @@ fn handle_seek(state: &mut WorkerState, control: &Arc<Control>, position_sec: f6
     // ```ts
     // const clamped = positionSec > 0 ? positionSec : 0;
     // ```
-    let clamped = if position_sec > 0.0 { position_sec } else { 0.0 };
+    let clamped = if position_sec > 0.0 {
+        position_sec
+    } else {
+        0.0
+    };
     // What:     `control.start_frame.store((clamped * rate as f64).round() as u64, Ordering::Release);`.
     //           Convert the seek position (seconds) into a frame index: `rate as f64` CASTS
     //           the `u32` rate to `f64` so the multiply is in floating point; `.round()`
@@ -1552,7 +1598,13 @@ fn reconfigure_output(
                 // ```ts
                 // return audioCallback(cons, data, frames, callbackControl, callbackChannels);
                 // ```
-                return audio_callback(&mut cons, data, frames, &callback_control, callback_channels)
+                return audio_callback(
+                    &mut cons,
+                    data,
+                    frames,
+                    &callback_control,
+                    callback_channels,
+                );
             },
         ))
         // What:     `.open_stream()`. Finalize the builder and actually OPEN the configured
@@ -1604,7 +1656,7 @@ fn reconfigure_output(
     // ```ts
     // return; // success
     // ```
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -1629,7 +1681,10 @@ fn reconfigure_output(
 /// ```ts
 /// function pump(state: WorkerState, control: Control): boolean { ... }
 /// ```
-fn pump(state: &mut WorkerState, control: &Control) -> bool {
+fn pump(
+    state: &mut WorkerState,
+    control: &Control,
+) -> bool {
     // What:     `let mut did_work = false;`. A MUTABLE local boolean, initially `false`.
     //           `mut` because we OR new progress into it below.
     // Why:      Accumulate whether any samples were pushed during this pump.
@@ -1920,7 +1975,7 @@ fn pump(state: &mut WorkerState, control: &Control) -> bool {
     // ```ts
     // return didWork;
     // ```
-    return did_work
+    return did_work;
 }
 
 /// What:
@@ -2181,7 +2236,7 @@ fn audio_callback(
     // ```ts
     // return "continue";
     // ```
-    return AudioCallbackResult::Continue
+    return AudioCallbackResult::Continue;
 }
 
 /// What:
@@ -2218,5 +2273,5 @@ fn audio_error<E: std::fmt::Debug>(error: E) -> PlayerError {
     // ```ts
     // return new PlayerError({ kind: "audio", message: String(error) });
     // ```
-    return PlayerError::Audio(format!("{error:?}"))
+    return PlayerError::Audio(format!("{error:?}"));
 }

@@ -18,17 +18,38 @@
 
 use std::fs;
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 use std::rc::Rc;
 use std::time::Duration;
 
 use crate::acknowledge::acknowledge;
 use crate::contain_counterexample_tests::wait_for_file;
-use crate::control_group::{Identity, RouteSettings, current_identity, detect_route, launcher_state, pid_namespace_id, process_start};
+use crate::control_group::{
+    Identity,
+    RouteSettings,
+    current_identity,
+    detect_route,
+    launcher_state,
+    pid_namespace_id,
+    process_start,
+};
 use crate::crates::LockSnapshot;
-use crate::failpoints::{Point, arm};
-use crate::journal::{before_publish_for_test, recover};
+use crate::failpoints::{
+    Point,
+    arm,
+};
+use crate::journal::{
+    before_publish_for_test,
+    recover,
+};
 use crate::journal_recover::survivor_note;
 use crate::journal_support::plant;
 use crate::test_scratch::scratch;
@@ -47,25 +68,38 @@ const FIXTURE_MODE: &str = "CARGO_SHADOW_ROUND_TWELVE_FIXTURE_MODE";
 
 /// A snapshot of the lockfile of the case.
 fn snapshot(source: &str) -> LockSnapshot {
-    return LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: source.to_string() };
+    return LockSnapshot {
+        crate_dir: CRATE_DIR.to_string(),
+        source: source.to_string(),
+    };
 }
 
 /// A disposable repository whose crate root holds the output of a killed run.
 fn repository() -> tempfile::TempDir {
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
-    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
+    fs::write(
+        root.path().join(CRATE_DIR).join("Cargo.lock"),
+        LEFT_BY_THE_KILLED_RUN,
+    )
+    .expect("lock");
     return root;
 }
 
 /// A judge that refuses the live lockfile,
 /// so that a recovery which goes ahead restores the snapshot.
-fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
+fn refusing(
+    _before: &[LockSnapshot],
+    _live: &[LockSnapshot],
+) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
 
 /// Plants a journal whose `groups` file holds `records`.
-fn journal_with_records(root: &Path, records: &str) -> PathBuf {
+fn journal_with_records(
+    root: &Path,
+    records: &str,
+) -> PathBuf {
     let journal: PathBuf = plant(root, &[snapshot("original")], &[]);
     fs::write(journal.join("groups"), records).expect("write the records");
     return journal;
@@ -112,7 +146,16 @@ impl Drop for LiveGroup {
 
 /// Starts a live process group.
 fn live_group() -> LiveGroup {
-    return LiveGroup(Command::new("sleep").arg("600").process_group(0).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live group"));
+    return LiveGroup(
+        Command::new("sleep")
+            .arg("600")
+            .process_group(0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("a live group"),
+    );
 }
 
 /// This machine's boot id with one digit changed,
@@ -121,7 +164,10 @@ fn another_boot() -> Identity {
     let now: Identity = current_identity().expect("this machine has an identity");
     let mut boot: Vec<u8> = now.boot.into_bytes();
     boot[0] = if boot[0] == b'0' { b'1' } else { b'0' };
-    return Identity { boot: String::from_utf8(boot).expect("ascii"), machine: now.machine };
+    return Identity {
+        boot: String::from_utf8(boot).expect("ascii"),
+        machine: now.machine,
+    };
 }
 
 /// Acceptance row V6 (11a,
@@ -142,13 +188,26 @@ fn a_wait_that_fails_is_not_a_reap() {
     arm(Point::ReapError);
     let started = std::time::Instant::now();
 
-    let refused = detect_route(&settings).expect_err("a manager that does not answer is a missing capability");
+    let refused = detect_route(&settings)
+        .expect_err("a manager that does not answer is a missing capability");
     let elapsed: Duration = started.elapsed();
 
-    assert!(!crate::failpoints::fires(Point::ReapError), "the wait fault was never reached");
-    assert!(refused.to_string().contains("could not be reaped"), "a failed wait was counted as a reap: {refused}");
-    assert!(elapsed >= bound, "the discovery returned after {elapsed:?}, before its deadline of {bound:?}");
-    assert!(elapsed < bound + Duration::from_millis(700), "the discovery returned after {elapsed:?}: a fresh budget was spent after a failed wait, past its deadline of {bound:?}");
+    assert!(
+        !crate::failpoints::fires(Point::ReapError),
+        "the wait fault was never reached"
+    );
+    assert!(
+        refused.to_string().contains("could not be reaped"),
+        "a failed wait was counted as a reap: {refused}"
+    );
+    assert!(
+        elapsed >= bound,
+        "the discovery returned after {elapsed:?}, before its deadline of {bound:?}"
+    );
+    assert!(
+        elapsed < bound + Duration::from_millis(700),
+        "the discovery returned after {elapsed:?}: a fresh budget was spent after a failed wait, past its deadline of {bound:?}"
+    );
 }
 
 /// Acceptance rows V2,
@@ -167,13 +226,41 @@ fn a_view_header_that_is_not_mount_and_inode_gives_no_identity() {
     let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
     let whole: String = recorded.lines().next().expect("a view line").to_string();
     let other: Identity = another_boot();
-    for header in ["view nonsense", "view ", "view 1:", "view :2", "view 1:2:3", "view 1: 2", "view -1:2", "view 1:2 x", "viewed 1:2", ""] {
-        fs::write(journal.join("view"), format!("{header}\nboot {}\nmachine {}\n", other.boot, other.machine)).expect("write");
+    for header in [
+        "view nonsense",
+        "view ",
+        "view 1:",
+        "view :2",
+        "view 1:2:3",
+        "view 1: 2",
+        "view -1:2",
+        "view 1:2 x",
+        "viewed 1:2",
+        "",
+    ] {
+        fs::write(
+            journal.join("view"),
+            format!("{header}\nboot {}\nmachine {}\n", other.boot, other.machine),
+        )
+        .expect("write");
         let note: Option<String> = survivor_note(&journal);
-        assert!(note.is_some_and(|text| { return text.contains("still running"); }), "{header:?}: a malformed header gave an identity and cleared a live group");
+        assert!(
+            note.is_some_and(|text| {
+                return text.contains("still running");
+            }),
+            "{header:?}: a malformed header gave an identity and cleared a live group"
+        );
     }
-    fs::write(journal.join("view"), format!("{whole}\nboot {}\nmachine {}\n", other.boot, other.machine)).expect("write");
-    assert_eq!(survivor_note(&journal), None, "the control: a whole header with another boot did not clear the group");
+    fs::write(
+        journal.join("view"),
+        format!("{whole}\nboot {}\nmachine {}\n", other.boot, other.machine),
+    )
+    .expect("write");
+    assert_eq!(
+        survivor_note(&journal),
+        None,
+        "the control: a whole header with another boot did not clear the group"
+    );
 }
 
 /// The helper process of the procfs namespace test:
@@ -193,34 +280,71 @@ fn procfs_namespace_fixture() {
     };
     let root: PathBuf = PathBuf::from(root_text);
     let mode: String = std::env::var(FIXTURE_MODE).expect("a mode");
-    let mut launcher: Child = Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts");
+    let mut launcher: Child = Command::new("sleep")
+        .arg("600")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("starts");
     let pid: i32 = i32::try_from(launcher.id()).expect("a process id");
     let namespace: u64 = pid_namespace_id().expect("the namespace");
-    let recorded_start: Result<u64, String> = process_start(pid).map_err(|error| { return error.to_string(); });
+    let recorded_start: Result<u64, String> = process_start(pid).map_err(|error| {
+        return error.to_string();
+    });
     // What a numeric lookup would find: the stat file that this procfs has for the same number, and the name it shows.
     let collision: String = fs::read_to_string(format!("/proc/{pid}/stat")).map_or_else(
-        |error| { return format!("unreadable ({error})"); },
-        |text| { return text.split_once('(').and_then(|(_, rest)| { return rest.rsplit_once(')'); }).map_or("not understood".to_string(), |(name, _)| { return name.to_string(); }); },
+        |error| {
+            return format!("unreadable ({error})");
+        },
+        |text| {
+            return text
+                .split_once('(')
+                .and_then(|(_, rest)| {
+                    return rest.rsplit_once(')');
+                })
+                .map_or("not understood".to_string(), |(name, _)| {
+                    return name.to_string();
+                });
+        },
     );
     let start_error: String = recorded_start.as_ref().err().cloned().unwrap_or_default();
     // An arbitrary start time stands for a launcher recorded earlier; in a consistent procfs a live process has another start time
     // only if it is another process, and in an inconsistent one nothing can be said.
-    let arbitrary: u64 = recorded_start.as_ref().map_or(1, |start| { return start + 1; });
+    let arbitrary: u64 = recorded_start.as_ref().map_or(1, |start| {
+        return start + 1;
+    });
     let against_other_start: String = format!("{:?}", launcher_state(pid, arbitrary, namespace));
-    let against_own_start: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
+    let against_own_start: String = recorded_start.as_ref().map_or_else(
+        |_| {
+            return "no start".to_string();
+        },
+        |start| {
+            return format!("{:?}", launcher_state(pid, *start, namespace));
+        },
+    );
     // The test oracle for "this process is running" (certification group 1) is fail-closed: through the procfs of another namespace it
     // cannot tell and says so, and through a procfs of its own it tells running from ended.
     let running: String = format!("{:?}", crate::control_group::process_is_running(pid));
     // The thread oracle refuses an environment whose procfs numbers threads as another namespace does, instead of reading a live
     // thread as absent (certification, second pass).
-    let thread_oracle: String = match std::panic::catch_unwind(|| { return crate::contain_counterexample_tests::thread_is_alive(pid); }) {
+    let thread_oracle: String = match std::panic::catch_unwind(|| {
+        return crate::contain_counterexample_tests::thread_is_alive(pid);
+    }) {
         Ok(alive) => format!("answers {alive}"),
         Err(_) => "refuses".to_string(),
     };
     let _ = launcher.kill();
     let _ = launcher.wait();
     let running_after: String = format!("{:?}", crate::control_group::process_is_running(pid));
-    let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
+    let after_end: String = recorded_start.as_ref().map_or_else(
+        |_| {
+            return "no start".to_string();
+        },
+        |start| {
+            return format!("{:?}", launcher_state(pid, *start, namespace));
+        },
+    );
     fs::write(
         root.join("fixture-result"),
         format!(
@@ -247,7 +371,10 @@ fn run_procfs_fixture(mode: &str) -> String {
         .env(FIXTURE_MODE, mode)
         .status()
         .expect("unshare must be installed and allowed to make a user and process id namespace for this test");
-    assert!(status.success(), "{mode}: the helper process failed: {status:?}");
+    assert!(
+        status.success(),
+        "{mode}: the helper process failed: {status:?}"
+    );
     return fs::read_to_string(root.path().join("fixture-result")).expect("the helper's result");
 }
 
@@ -266,17 +393,46 @@ fn run_procfs_fixture(mode: &str) -> String {
 #[test]
 fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
     let own: String = run_procfs_fixture("own");
-    assert!(own.contains("recorded ok") && own.contains("other start Unknown(") && own.contains("own start Alive") && own.contains("after end Gone"), "the control did not move: {own}");
-    assert!(own.contains("running Ok(true)") && own.contains("running after Ok(false)"), "the fail-closed process oracle did not tell running from ended in a procfs of its own: {own}");
+    assert!(
+        own.contains("recorded ok")
+            && own.contains("other start Unknown(")
+            && own.contains("own start Alive")
+            && own.contains("after end Gone"),
+        "the control did not move: {own}"
+    );
+    assert!(
+        own.contains("running Ok(true)") && own.contains("running after Ok(false)"),
+        "the fail-closed process oracle did not tell running from ended in a procfs of its own: {own}"
+    );
     let ancestor: String = run_procfs_fixture("ancestor");
-    assert!(ancestor.contains("running Err(") && ancestor.contains("thread oracle refuses"), "an oracle did not fail closed through the procfs of another namespace: {ancestor}");
-    assert!(own.contains("thread oracle answers true"), "the thread oracle did not answer in a procfs of its own: {own}");
-    assert!(ancestor.contains("recorded err"), "a start time was read through a procfs of another namespace: {ancestor}");
+    assert!(
+        ancestor.contains("running Err(") && ancestor.contains("thread oracle refuses"),
+        "an oracle did not fail closed through the procfs of another namespace: {ancestor}"
+    );
+    assert!(
+        own.contains("thread oracle answers true"),
+        "the thread oracle did not answer in a procfs of its own: {own}"
+    );
+    assert!(
+        ancestor.contains("recorded err"),
+        "a start time was read through a procfs of another namespace: {ancestor}"
+    );
     // The prerequisite (12b 3.2): the ancestor's procfs has a readable entry under the launcher's number that is another process, so a
     // lookup without the numbering guard would have read it; and the refusal is the numbering mismatch, not some other failure.
-    assert!(ancestor.contains("collision name ") && !ancestor.contains("collision name unreadable") && !ancestor.contains("collision name sleep\n"), "no readable other process under the launcher's number: {ancestor}");
-    assert!(ancestor.contains("start error ") && ancestor.contains("another process id namespace"), "the refusal is not the numbering mismatch: {ancestor}");
-    assert!(ancestor.contains("other start Unknown(") && !ancestor.contains("Gone"), "a launcher was read as gone through a procfs of another namespace: {ancestor}");
+    assert!(
+        ancestor.contains("collision name ")
+            && !ancestor.contains("collision name unreadable")
+            && !ancestor.contains("collision name sleep\n"),
+        "no readable other process under the launcher's number: {ancestor}"
+    );
+    assert!(
+        ancestor.contains("start error ") && ancestor.contains("another process id namespace"),
+        "the refusal is not the numbering mismatch: {ancestor}"
+    );
+    assert!(
+        ancestor.contains("other start Unknown(") && !ancestor.contains("Gone"),
+        "a launcher was read as gone through a procfs of another namespace: {ancestor}"
+    );
 }
 
 /// Acceptance row "Weaker path" (11b 2.6,
@@ -299,8 +455,17 @@ fn an_acknowledgement_whose_file_cannot_be_synced_is_not_published() {
     let cleared: Option<String> = survivor_note(&journal);
 
     assert!(reached, "the file sync fault was never reached");
-    assert!(failed.is_err_and(|text| { return text.contains("could not be written") && text.contains("nothing was acknowledged"); }), "a failed file sync was reported as an acknowledgement");
-    assert!(!published, "a name was published although its file could not be synced");
+    assert!(
+        failed.is_err_and(|text| {
+            return text.contains("could not be written")
+                && text.contains("nothing was acknowledged");
+        }),
+        "a failed file sync was reported as an acknowledgement"
+    );
+    assert!(
+        !published,
+        "a name was published although its file could not be synced"
+    );
     assert!(blocked.is_some(), "an unsynced acknowledgement counted");
     assert_eq!(cleared, None);
 }
@@ -317,7 +482,10 @@ fn publisher_held_before_its_rename_fixture() {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
-    let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
+    let journal: PathBuf = crate::journal_support::journal_dirs(&root)
+        .into_iter()
+        .next()
+        .expect("a journal");
     let ready: PathBuf = root.join("ready");
     before_publish_for_test(Some(Rc::new(move || {
         fs::write(&ready, "held").expect("announce the held publisher");
@@ -338,30 +506,74 @@ fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
     let root = repository();
     let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
     let mut publisher: Child = Command::new(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "round_twelve_tests::publisher_held_before_its_rename_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "round_twelve_tests::publisher_held_before_its_rename_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_ROOT, root.path())
         .spawn()
         .expect("the publisher helper");
     wait_for_file(&root.path().join("ready"));
-    publisher.kill().expect("kill the publisher between the temporary file and the rename");
+    publisher
+        .kill()
+        .expect("kill the publisher between the temporary file and the rename");
     let _ = publisher.wait();
 
-    let temporaries: Vec<PathBuf> = fs::read_dir(&journal).expect("lists").flatten().map(|entry| { return entry.path(); }).filter(|path| { return path.file_name().is_some_and(|name| { let text = name.to_string_lossy(); return text.starts_with(".acknowledged.") && text.ends_with(".tmp"); }); }).collect();
+    let temporaries: Vec<PathBuf> = fs::read_dir(&journal)
+        .expect("lists")
+        .flatten()
+        .map(|entry| {
+            return entry.path();
+        })
+        .filter(|path| {
+            return path.file_name().is_some_and(|name| {
+                let text = name.to_string_lossy();
+                return text.starts_with(".acknowledged.") && text.ends_with(".tmp");
+            });
+        })
+        .collect();
     let published: bool = journal.join("acknowledged").exists();
     let note: Option<String> = survivor_note(&journal);
     let messages: Vec<String> = recover(root.path(), &refusing);
     let kept: String = live_lock(root.path());
 
-    assert!(!published, "the rename happened although the publisher was held before it");
-    assert_eq!(temporaries.len(), 1, "the real publisher did not leave its finished temporary file: {temporaries:?}");
-    assert!(fs::read_to_string(&temporaries[0]).is_ok_and(|text| { return text.starts_with("acknowledged v1\n") && text.ends_with('\n'); }), "the temporary file is not a whole acknowledgement");
-    assert!(note.is_some(), "a temporary file was read as an acknowledgement");
-    assert_eq!(kept, LEFT_BY_THE_KILLED_RUN, "the journal was settled without a published acknowledgement: {messages:?}");
+    assert!(
+        !published,
+        "the rename happened although the publisher was held before it"
+    );
+    assert_eq!(
+        temporaries.len(),
+        1,
+        "the real publisher did not leave its finished temporary file: {temporaries:?}"
+    );
+    assert!(
+        fs::read_to_string(&temporaries[0]).is_ok_and(|text| {
+            return text.starts_with("acknowledged v1\n") && text.ends_with('\n');
+        }),
+        "the temporary file is not a whole acknowledgement"
+    );
+    assert!(
+        note.is_some(),
+        "a temporary file was read as an acknowledgement"
+    );
+    assert_eq!(
+        kept, LEFT_BY_THE_KILLED_RUN,
+        "the journal was settled without a published acknowledgement: {messages:?}"
+    );
     acknowledge(&journal).expect("acknowledges again");
     let again: Vec<String> = recover(root.path(), &refusing);
-    assert_eq!(live_lock(root.path()), "original", "the second acknowledgement did not settle the journal: {again:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        "original",
+        "the second acknowledgement did not settle the journal: {again:?}"
+    );
     // Settling is the completed journal, not only the restored text (12b 3.3).
-    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the recovery after the second acknowledgement left a journal behind: {again:?}");
+    assert!(
+        crate::journal_support::journal_dirs(root.path()).is_empty(),
+        "the recovery after the second acknowledgement left a journal behind: {again:?}"
+    );
 }
 
 /// Third certification pass (A1,
@@ -374,11 +586,25 @@ fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
 #[test]
 fn a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_coincide() {
     use crate::control_group::nspid_shows_own_namespace;
-    assert!(nspid_shows_own_namespace("Name:\tx\nNSpid:\t4242\nPid:\t4242\n").is_ok(), "the own namespace's single entry was refused");
-    assert!(nspid_shows_own_namespace("Name:\tx\nPid:\t4242\n").is_ok(), "a kernel without the line was refused");
+    assert!(
+        nspid_shows_own_namespace("Name:\tx\nNSpid:\t4242\nPid:\t4242\n").is_ok(),
+        "the own namespace's single entry was refused"
+    );
+    assert!(
+        nspid_shows_own_namespace("Name:\tx\nPid:\t4242\n").is_ok(),
+        "a kernel without the line was refused"
+    );
     let coinciding = nspid_shows_own_namespace("Name:\tx\nNSpid:\t4242\t4242\nPid:\t4242\n");
-    assert!(coinciding.is_err_and(|reason| { return reason.contains("ancestor"); }), "an ancestor procfs with coinciding numbers was accepted");
-    assert!(nspid_shows_own_namespace("NSpid:\t9001\t77\t1\n").is_err(), "a deeper nesting was accepted");
+    assert!(
+        coinciding.is_err_and(|reason| {
+            return reason.contains("ancestor");
+        }),
+        "an ancestor procfs with coinciding numbers was accepted"
+    );
+    assert!(
+        nspid_shows_own_namespace("NSpid:\t9001\t77\t1\n").is_err(),
+        "a deeper nesting was accepted"
+    );
 }
 
 /// Fourth certification pass:
@@ -388,8 +614,16 @@ fn a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_co
 #[test]
 fn a_stat_read_that_fails_with_enoent_or_esrch_names_an_absent_process() {
     use crate::control_group::names_an_absent_process;
-    assert!(names_an_absent_process(&std::io::Error::from_raw_os_error(rustix::io::Errno::NOENT.raw_os_error())));
-    assert!(names_an_absent_process(&std::io::Error::from_raw_os_error(rustix::io::Errno::SRCH.raw_os_error())));
-    assert!(!names_an_absent_process(&std::io::Error::from_raw_os_error(rustix::io::Errno::ACCESS.raw_os_error())));
-    assert!(!names_an_absent_process(&std::io::Error::other("anything else")));
+    assert!(names_an_absent_process(&std::io::Error::from_raw_os_error(
+        rustix::io::Errno::NOENT.raw_os_error()
+    )));
+    assert!(names_an_absent_process(&std::io::Error::from_raw_os_error(
+        rustix::io::Errno::SRCH.raw_os_error()
+    )));
+    assert!(!names_an_absent_process(
+        &std::io::Error::from_raw_os_error(rustix::io::Errno::ACCESS.raw_os_error())
+    ));
+    assert!(!names_an_absent_process(&std::io::Error::other(
+        "anything else"
+    )));
 }

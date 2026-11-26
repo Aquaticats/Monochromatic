@@ -24,7 +24,11 @@ pub fn text_span(wrap: Option<f32>) -> f32 {
 /// ```ts
 /// function textX(x: number, width: number, span: number): number;
 /// ```
-pub fn text_x(x: f32, width: f32, span: f32) -> f32 {
+pub fn text_x(
+    x: f32,
+    width: f32,
+    span: f32,
+) -> f32 {
     if width <= 0.0 || span <= 0.0 {
         return 0.0;
     }

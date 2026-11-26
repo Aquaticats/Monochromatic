@@ -31,13 +31,19 @@ use std::cmp::Ordering;
 use std::fs;
 
 /// Imports the owned and borrowed path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `installed_versions` from `crate::installed`.
 use crate::installed::installed_versions;
 /// Imports `RegistryEntry`,
 /// `list_own_entries` from `crate::registry`.
-use crate::registry::{RegistryEntry, list_own_entries};
+use crate::registry::{
+    RegistryEntry,
+    list_own_entries,
+};
 /// Imports `repository_versions_installed` from `crate::toolchain::cargo_installs`.
 use crate::toolchain::cargo_installs::repository_versions_installed;
 /// Imports `compare_versions` from `crate::version`.
@@ -99,7 +105,10 @@ fn newest_versions(entries: &[RegistryEntry]) -> BTreeMap<String, String> {
 /// ```ts
 /// export function findStale(entries: RegistryEntry[], installed: Map<string, string>): RegistryEntry[]
 /// ```
-pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, String>) -> Vec<RegistryEntry> {
+pub fn find_stale(
+    entries: Vec<RegistryEntry>,
+    installed: &BTreeMap<String, String>,
+) -> Vec<RegistryEntry> {
     let newest: BTreeMap<String, String> = newest_versions(&entries);
     let mut stale: Vec<RegistryEntry> = Vec::new();
     for entry in entries {
@@ -147,7 +156,10 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
 /// ```ts
 /// export function installedEverywhere(cargoHome: string, toolchainRoots: string[]): Map<string, string>
 /// ```
-pub fn installed_everywhere(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> BTreeMap<String, String> {
+pub fn installed_everywhere(
+    cargo_home: &Path,
+    toolchain_roots: &[PathBuf],
+) -> BTreeMap<String, String> {
     let mut merged: BTreeMap<String, String> = installed_versions(cargo_home);
     for root in toolchain_roots {
         for (crate_name, version) in repository_versions_installed(root) {
@@ -177,7 +189,10 @@ pub fn installed_everywhere(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> B
 /// ```ts
 /// export function pruneStaleOwnCrates(cargoHome: string): string[]
 /// ```
-pub fn prune_stale_own_crates(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> Vec<PathBuf> {
+pub fn prune_stale_own_crates(
+    cargo_home: &Path,
+    toolchain_roots: &[PathBuf],
+) -> Vec<PathBuf> {
     let report: PruneReport = prune_stale_own_crates_reporting(cargo_home, toolchain_roots);
     for (path, reason) in &report.failed {
         eprintln!("mpm-shadow: could not delete {}: {reason}", path.display());
@@ -248,7 +263,10 @@ fn size_of(path: &Path) -> u64 {
 /// ```ts
 /// export function pruneStaleOwnCratesReporting(cargoHome: string, toolchainRoots: string[]): PruneReport
 /// ```
-pub fn prune_stale_own_crates_reporting(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> PruneReport {
+pub fn prune_stale_own_crates_reporting(
+    cargo_home: &Path,
+    toolchain_roots: &[PathBuf],
+) -> PruneReport {
     let installed: BTreeMap<String, String> = installed_everywhere(cargo_home, toolchain_roots);
     let stale: Vec<RegistryEntry> = find_stale(list_own_entries(cargo_home), &installed);
     let mut report: PruneReport = PruneReport::default();

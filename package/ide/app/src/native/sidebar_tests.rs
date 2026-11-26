@@ -11,13 +11,28 @@ use super::gpu_snapshot::install_gpu_platform;
 /// The shipped window and source state,
 ///  with the bindings that repaint source when its width changes.
 use super::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, render,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    render,
     ui::TreeEntry,
 };
 /// Window events reach the same items as seat input delivered by a windowing backend.
 use slint::{
-    ComponentHandle, LogicalPosition, LogicalSize, ModelRc, SharedString, VecModel,
-    platform::{PointerEventButton, WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalPosition,
+    LogicalSize,
+    ModelRc,
+    SharedString,
+    VecModel,
+    platform::{
+        PointerEventButton,
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// What:
 ///  `Rc` is a shared pointer for one thread (sibling `Arc` works across threads);
@@ -32,7 +47,10 @@ use slint::{
 /// type Shared<T> = { current: T };
 /// ```
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     rc::Rc,
 };
 
@@ -197,7 +215,11 @@ fn entries(count: usize) -> ModelRc<TreeEntry> {
 /// ```ts
 /// function resize(window: AppWindow, width: number, height: number): void;
 /// ```
-pub(super) fn resize(window: &AppWindow, width: f32, height: f32) {
+pub(super) fn resize(
+    window: &AppWindow,
+    width: f32,
+    height: f32,
+) {
     // What: `WindowEvent::Resized { size }` is one variant of an event union, built with a named field.
     // Why: Dispatching the event is how a windowing backend reports a new window size.
     //
@@ -231,7 +253,12 @@ pub(super) fn settle(window: &AppWindow) {
 }
 
 /// Press one pointer button at a window position.
-pub(super) fn press(window: &AppWindow, x: f32, y: f32, button: PointerEventButton) {
+pub(super) fn press(
+    window: &AppWindow,
+    x: f32,
+    y: f32,
+    button: PointerEventButton,
+) {
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position: LogicalPosition::new(x, y),
         button,
@@ -240,14 +267,23 @@ pub(super) fn press(window: &AppWindow, x: f32, y: f32, button: PointerEventButt
 
 /// Move the pointer to a window position;
 ///  a held button turns this into a drag.
-pub(super) fn motion(window: &AppWindow, x: f32, y: f32) {
+pub(super) fn motion(
+    window: &AppWindow,
+    x: f32,
+    y: f32,
+) {
     window.window().dispatch_event(WindowEvent::PointerMoved {
         position: LogicalPosition::new(x, y),
     });
 }
 
 /// Release one pointer button at a window position.
-pub(super) fn release(window: &AppWindow, x: f32, y: f32, button: PointerEventButton) {
+pub(super) fn release(
+    window: &AppWindow,
+    x: f32,
+    y: f32,
+    button: PointerEventButton,
+) {
     window
         .window()
         .dispatch_event(WindowEvent::PointerReleased {
@@ -258,14 +294,21 @@ pub(super) fn release(window: &AppWindow, x: f32, y: f32, button: PointerEventBu
 
 /// Press and release the left button at one position,
 ///  then let the window settle.
-pub(super) fn click(window: &AppWindow, x: f32, y: f32) {
+pub(super) fn click(
+    window: &AppWindow,
+    x: f32,
+    y: f32,
+) {
     press(window, x, y, PointerEventButton::Left);
     release(window, x, y, PointerEventButton::Left);
     settle(window);
 }
 
 /// Drag the divider's line with the left button until the sidebar is `target` wide.
-pub(super) fn drag_to(window: &AppWindow, target: f32) {
+pub(super) fn drag_to(
+    window: &AppWindow,
+    target: f32,
+) {
     // The middle of the 1px line, which is the pixel column right after the sidebar.
     let line = window.get_sidebar_width() + DIVIDER / 2.0;
     let end = line + target - window.get_sidebar_width();
@@ -481,7 +524,10 @@ fn divider_ignores_plain_clicks_and_other_buttons_and_keeps_keyboard_focus() {
 /// ```ts
 /// function shortDrag(window: AppWindow, start: number): void;
 /// ```
-fn short_drag(window: &AppWindow, start: f32) {
+fn short_drag(
+    window: &AppWindow,
+    start: f32,
+) {
     press(window, start, DRAG_Y, PointerEventButton::Left);
     motion(window, start + 10.0, DRAG_Y);
     release(window, start + 10.0, DRAG_Y, PointerEventButton::Left);

@@ -58,7 +58,10 @@ use std::thread;
 /// ```ts
 /// // opaque host-runtime handles
 /// ```
-use jni::objects::{JClass, JString};
+use jni::objects::{
+    JClass,
+    JString,
+};
 
 /// What:
 ///      `use jni::sys::{jfloat, jint, jlong};`.
@@ -74,7 +77,11 @@ use jni::objects::{JClass, JString};
 /// ```ts
 /// type jlong = number; type jint = number; type jfloat = number;
 /// ```
-use jni::sys::{jfloat, jint, jlong};
+use jni::sys::{
+    jfloat,
+    jint,
+    jlong,
+};
 
 /// What:
 ///      `use jni::EnvUnowned;`.
@@ -92,7 +99,10 @@ use jni::EnvUnowned;
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it,
 /// as every entry point of this crate does.
-use crate::jni_call::{ReadJavaString, run_with_env};
+use crate::jni_call::{
+    ReadJavaString,
+    run_with_env,
+};
 
 /// What:
 ///      `use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};`.
@@ -106,7 +116,11 @@ use crate::jni_call::{ReadJavaString, run_with_env};
 /// ```ts
 /// // an unbounded queue with sync push and async pull
 /// ```
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{
+    self,
+    UnboundedReceiver,
+    UnboundedSender,
+};
 
 /// What:
 ///      `use tokio::sync::oneshot;`.
@@ -142,7 +156,13 @@ use tokio::sync::oneshot;
 /// import { CEILING, CacheIdentity, Decision, DecisionCache, DecisionKind, defaultPolicy, stackId } from "truepeak-core";
 /// ```
 use truepeak_core::{
-    CEILING, CacheIdentity, Decision, DecisionCache, DecisionKind, default_policy, stack_id,
+    CEILING,
+    CacheIdentity,
+    Decision,
+    DecisionCache,
+    DecisionKind,
+    default_policy,
+    stack_id,
 };
 
 /// What:
@@ -156,7 +176,10 @@ use truepeak_core::{
 /// ```ts
 /// import * as decode from "./decode"; import * as truepeak from "./truepeak";
 /// ```
-use crate::{decode, truepeak};
+use crate::{
+    decode,
+    truepeak,
+};
 
 /// What:
 ///      `const DECODER_STACK_DESCRIPTION: &str = "...";`.
@@ -196,7 +219,7 @@ fn decoder_stack_id() -> u64 {
     // ```ts
     // return stackId(DECODER_STACK_DESCRIPTION);
     // ```
-    return stack_id(DECODER_STACK_DESCRIPTION)
+    return stack_id(DECODER_STACK_DESCRIPTION);
 }
 
 /// What:
@@ -446,7 +469,9 @@ impl TruePeakService {
         // startWorker(() => runtime.blockOn(run(dbPath, readRx, writeRx)));
         // ```
         thread::spawn(move || {
-            let built = tokio::runtime::Builder::new_current_thread().enable_all().build();
+            let built = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build();
             // Log a failed build before `expect` panics, as the former `inspect_err` did.
             if let Err(error) = &built {
                 tracing::error!(error = %error, "could not build cache runtime");
@@ -461,7 +486,10 @@ impl TruePeakService {
         // ```ts
         // return { readTx, writeTx };
         // ```
-        return TruePeakService { read_tx, write_tx }
+        return TruePeakService {
+            read_tx,
+            write_tx,
+        };
     }
 
     /// What:
@@ -476,7 +504,10 @@ impl TruePeakService {
     /// ```ts
     /// get(fingerprint: bigint): Decision | null { ... }
     /// ```
-    pub(crate) fn get(&self, fingerprint: u64) -> Option<Decision> {
+    pub(crate) fn get(
+        &self,
+        fingerprint: u64,
+    ) -> Option<Decision> {
         // What:     Make the reply pair; send `Read`.
         // Why:      The actor answers on `reply_tx`.
         //
@@ -492,7 +523,14 @@ impl TruePeakService {
         // ```ts
         // if (!readTx.send({ fingerprint, reply: replyTx })) return null;
         // ```
-        if self.read_tx.send(Read { fingerprint, reply: reply_tx }).is_err() {
+        if self
+            .read_tx
+            .send(Read {
+                fingerprint,
+                reply: reply_tx,
+            })
+            .is_err()
+        {
             return None;
         }
         // What:     Block for the answer; flatten send/recv failure into `None`. Tail -> return.
@@ -502,7 +540,7 @@ impl TruePeakService {
         // ```ts
         // return (await replyRx) ?? null;
         // ```
-        return reply_rx.blocking_recv().ok().flatten()
+        return reply_rx.blocking_recv().ok().flatten();
     }
 
     /// What:
@@ -517,7 +555,11 @@ impl TruePeakService {
     /// ```ts
     /// put(fingerprint: bigint, decision: Decision): void { ... }
     /// ```
-    pub(crate) fn put(&self, fingerprint: u64, decision: Decision) {
+    pub(crate) fn put(
+        &self,
+        fingerprint: u64,
+        decision: Decision,
+    ) {
         // What:     Send the write; ignore a closed actor.
         // Why:      A dropped cache thread just means nothing is persisted.
         //
@@ -525,7 +567,11 @@ impl TruePeakService {
         // ```ts
         // writeTx.send({ fingerprint, decision });
         // ```
-        let _ = self.write_tx.send(Mutation::Write(Write { fingerprint, decision, applied: None }));
+        let _ = self.write_tx.send(Mutation::Write(Write {
+            fingerprint,
+            decision,
+            applied: None,
+        }));
     }
 
     /// What:
@@ -539,9 +585,17 @@ impl TruePeakService {
     /// ```ts
     /// async putAndWait(fingerprint, decision): Promise<void> { ... }
     /// ```
-    pub(crate) fn put_and_wait(&self, fingerprint: u64, decision: Decision) {
+    pub(crate) fn put_and_wait(
+        &self,
+        fingerprint: u64,
+        decision: Decision,
+    ) {
         let (applied_tx, applied_rx) = oneshot::channel();
-        let write = Write { fingerprint, decision, applied: Some(applied_tx) };
+        let write = Write {
+            fingerprint,
+            decision,
+            applied: Some(applied_tx),
+        };
         if self.write_tx.send(Mutation::Write(write)).is_err() {
             return;
         }
@@ -558,13 +612,19 @@ impl TruePeakService {
     /// ```ts
     /// forget(fingerprint): boolean { ... }
     /// ```
-    pub(crate) fn forget(&self, fingerprint: u64) -> bool {
+    pub(crate) fn forget(
+        &self,
+        fingerprint: u64,
+    ) -> bool {
         let (reply_tx, reply_rx) = oneshot::channel();
-        let request = Forget { fingerprint, reply: reply_tx };
+        let request = Forget {
+            fingerprint,
+            reply: reply_tx,
+        };
         if self.write_tx.send(Mutation::Forget(request)).is_err() {
             return false;
         }
-        return reply_rx.blocking_recv().unwrap_or(false)
+        return reply_rx.blocking_recv().unwrap_or(false);
     }
 }
 
@@ -583,7 +643,11 @@ impl TruePeakService {
 /// ```ts
 /// async function run(dbPath, readRx, writeRx) { ... }
 /// ```
-async fn run(db_path: String, mut read_rx: UnboundedReceiver<Read>, mut write_rx: UnboundedReceiver<Mutation>) {
+async fn run(
+    db_path: String,
+    mut read_rx: UnboundedReceiver<Read>,
+    mut write_rx: UnboundedReceiver<Mutation>,
+) {
     // What:     `let cache = open_cache(&db_path).await;`. The open cache, or `None` (degraded).
     // Why:      A degraded actor still answers every request (misses and drops).
     //
@@ -658,7 +722,7 @@ async fn open_cache(db_path: &str) -> Option<DecisionCache> {
         Ok(cache) => return Some(cache),
         Err(error) => {
             tracing::warn!(error = %error, "cache open failed; running degraded");
-            return None
+            return None;
         }
     }
 }
@@ -676,7 +740,11 @@ async fn open_cache(db_path: &str) -> Option<DecisionCache> {
 /// ```ts
 /// async function get(cache, identity, fingerprint) { ... }
 /// ```
-async fn get(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint: u64) -> Option<Decision> {
+async fn get(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+    fingerprint: u64,
+) -> Option<Decision> {
     // What:     `let decision_cache = cache?;`. Degraded run has no cache. The unwrapped
     //           reference gets its own name so it never shadows the `Option` parameter.
     // Why:      Answer a miss without a database.
@@ -694,7 +762,11 @@ async fn get(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint
     // ```ts
     // try { return await cache.get(fingerprint, identity); } catch { return null; }
     // ```
-    return decision_cache.get(fingerprint, identity).await.ok().flatten()
+    return decision_cache
+        .get(fingerprint, identity)
+        .await
+        .ok()
+        .flatten();
 }
 
 /// What:
@@ -710,11 +782,18 @@ async fn get(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint
 /// ```ts
 /// async function put(cache, identity, request) { ... }
 /// ```
-async fn put(cache: Option<&DecisionCache>, identity: CacheIdentity, request: Write) {
+async fn put(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+    request: Write,
+) {
     // A degraded run has no cache to write to; the ack below still fires so a waiter is released.
     if let Some(decision_cache) = cache {
         // One bad write must not stall the actor, so the error is logged and dropped.
-        if let Err(error) = decision_cache.put(request.fingerprint, identity, &request.decision).await {
+        if let Err(error) = decision_cache
+            .put(request.fingerprint, identity, &request.decision)
+            .await
+        {
             tracing::warn!(error = %error, "cache put failed; write dropped");
         }
     }
@@ -726,7 +805,11 @@ async fn put(cache: Option<&DecisionCache>, identity: CacheIdentity, request: Wr
 /// Remove one track's row;
 /// a degraded run has nothing stored,
 /// so nothing is removed.
-async fn forget(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint: u64) -> bool {
+async fn forget(
+    cache: Option<&DecisionCache>,
+    identity: CacheIdentity,
+    fingerprint: u64,
+) -> bool {
     let Some(decision_cache) = cache else {
         return false;
     };
@@ -734,7 +817,7 @@ async fn forget(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerpr
         Ok(removed) => return removed,
         Err(error) => {
             tracing::warn!(error = %error, "cache remove failed; decision kept");
-            return false
+            return false;
         }
     }
 }
@@ -777,7 +860,7 @@ pub(crate) fn service_ref<'a>(handle: jlong) -> Option<&'a TruePeakService> {
     // ```ts
     // return handleTable.get(handle);
     // ```
-    return Some(unsafe { &*(handle as *const TruePeakService) })
+    return Some(unsafe { &*(handle as *const TruePeakService) });
 }
 
 /// What:
@@ -800,7 +883,12 @@ pub(crate) fn service_ref<'a>(handle: jlong) -> Option<&'a TruePeakService> {
 /// ```ts
 /// function resolveAndCache(service, fd, fingerprint, full): number { ... }
 /// ```
-fn resolve_and_cache(service: &TruePeakService, fd: jint, fingerprint: u64, full: bool) -> f32 {
+fn resolve_and_cache(
+    service: &TruePeakService,
+    fd: jint,
+    fingerprint: u64,
+    full: bool,
+) -> f32 {
     // What:     `if let Some(decision) = service.get(fingerprint) { ... }`. Cache hit.
     // Why:      Warming skips an already-EXACT track; foreground reuses any decision.
     //
@@ -818,7 +906,12 @@ fn resolve_and_cache(service: &TruePeakService, fd: jint, fingerprint: u64, full
         // ```ts
         // if (!full || isExact(decision.kind)) return decision.gain;
         // ```
-        if !full || matches!(decision.kind, DecisionKind::ShortFullScan | DecisionKind::FullScanExact) {
+        if !full
+            || matches!(
+                decision.kind,
+                DecisionKind::ShortFullScan | DecisionKind::FullScanExact
+            )
+        {
             return decision.gain;
         }
     }
@@ -888,7 +981,7 @@ fn resolve_and_cache(service: &TruePeakService, fd: jint, fingerprint: u64, full
     // ```ts
     // return decision.gain;
     // ```
-    return decision.gain
+    return decision.gain;
 }
 
 /// What:
@@ -910,7 +1003,9 @@ fn resolve_and_cache(service: &TruePeakService, fd: jint, fingerprint: u64, full
 /// export function nativeTruePeakServiceCreate(env, _class, dbPath: JString): jlong { ... }
 /// ```
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTruePeakServiceCreate<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTruePeakServiceCreate<
+    'local,
+>(
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     db_path: JString<'local>,
@@ -926,7 +1021,13 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // let path; try { path = env.getString(dbPath); } catch { return 0; }
     // ```
-    let Some(path) = run_with_env(&mut env, "nativeTruePeakServiceCreate db path", ReadJavaString { text: &db_path }) else {
+    let Some(path) = run_with_env(
+        &mut env,
+        "nativeTruePeakServiceCreate db path",
+        ReadJavaString {
+            text: &db_path,
+        },
+    ) else {
         tracing::warn!("could not read db path string; no service created");
         return 0;
     };
@@ -942,7 +1043,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     let handle = Box::into_raw(Box::new(TruePeakService::open(path))) as jlong;
     // The service is live; log the handle Kotlin will hold.
     tracing::info!(handle, "truepeak service created");
-    return handle
+    return handle;
 }
 
 /// What:
@@ -960,7 +1061,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
 /// export function nativeTruePeakServiceRelease(_env, _class, handle: jlong): void { ... }
 /// ```
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTruePeakServiceRelease<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTruePeakServiceRelease<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1032,7 +1135,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeRes
     // ```ts
     // return resolveAndCache(service, fd, fingerprint, false);
     // ```
-    return resolve_and_cache(service, fd, fingerprint as u64, false)
+    return resolve_and_cache(service, fd, fingerprint as u64, false);
 }
 
 /// What:
@@ -1076,5 +1179,5 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeWar
     // ```ts
     // return resolveAndCache(service, fd, fingerprint, true);
     // ```
-    return resolve_and_cache(service, fd, fingerprint as u64, true)
+    return resolve_and_cache(service, fd, fingerprint as u64, true);
 }

@@ -60,7 +60,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 /// `use std::time::UNIX_EPOCH;` imports `UNIX_EPOCH` from the standard library so this file can name it unqualified.
 /// Why:
@@ -90,7 +93,10 @@ use serde_json::Value;
 pub const STAMP_DIR: &str = ".cache/cargo-shadow/stamps";
 
 /// The stamp file of a crate root.
-pub fn stamp_file(catalog_root: &Path, crate_dir: &str) -> PathBuf {
+pub fn stamp_file(
+    catalog_root: &Path,
+    crate_dir: &str,
+) -> PathBuf {
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
     //
@@ -100,7 +106,9 @@ pub fn stamp_file(catalog_root: &Path, crate_dir: &str) -> PathBuf {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    return catalog_root.join(STAMP_DIR).join(format!("{}.json", crate_dir.replace('/', "__")));
+    return catalog_root
+        .join(STAMP_DIR)
+        .join(format!("{}.json", crate_dir.replace('/', "__")));
 }
 
 /// A file's modification time in nanoseconds since 1970 and its length,
@@ -132,7 +140,12 @@ fn fingerprint(path: &Path) -> Option<(String, String)> {
     // ```ts
     // const name: Type = value;
     // ```
-    let nanos: u128 = metadata.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_nanos();
+    let nanos: u128 = metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
     // Why:      Absence is a value the caller must check; there is no `null`.
     //
@@ -168,7 +181,10 @@ fn fingerprint(path: &Path) -> Option<(String, String)> {
 /// ```ts
 /// export function isFresh(stamp: string, lock: string): boolean
 /// ```
-pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
+pub fn is_fresh(
+    stamp: &Path,
+    lock: &Path,
+) -> bool {
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
     //
@@ -274,7 +290,10 @@ pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.and_then(`: transforms or selects items with a closure.
         // Typed binding: `nanos: &str`.
-        let nanos: &str = entry.get("mtimeNanos").and_then(Value::as_str).unwrap_or("");
+        let nanos: &str = entry
+            .get("mtimeNanos")
+            .and_then(Value::as_str)
+            .unwrap_or("");
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // Borrow `&str`: lends the value without copying or giving it away.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -287,7 +306,8 @@ pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
         // `match`: picks the arm whose pattern fits the value.
         match fingerprint(Path::new(path)) {
             // `Some`: the present or the absent value of an `Option`.
-            Some((current_nanos, current_length)) if current_nanos == nanos && current_length == length => {}
+            Some((current_nanos, current_length))
+                if current_nanos == nanos && current_length == length => {}
             _ => return false,
         }
     }
@@ -296,7 +316,11 @@ pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
 
 /// Writes the stamp for the lockfile and the manifests;
 /// a failure to write only costs the next call a check.
-pub fn record(stamp: &Path, lock: &Path, manifests: &[PathBuf]) {
+pub fn record(
+    stamp: &Path,
+    lock: &Path,
+    manifests: &[PathBuf],
+) {
     // `let mut`: a binding that may change.
     // Typed binding: `entries: Vec<Value>`.
     // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
@@ -327,7 +351,10 @@ pub fn record(stamp: &Path, lock: &Path, manifests: &[PathBuf]) {
         // Typed binding: `entry: serde_json::Map<String, Value>`.
         let mut entry: serde_json::Map<String, Value> = serde_json::Map::new();
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        entry.insert("path".to_string(), Value::String(path.display().to_string()));
+        entry.insert(
+            "path".to_string(),
+            Value::String(path.display().to_string()),
+        );
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         entry.insert("mtimeNanos".to_string(), Value::String(nanos));
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
@@ -394,7 +421,11 @@ pub fn manifests_from_metadata(metadata_json: &str) -> Vec<PathBuf> {
     // Borrow `&empty`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    for package in parsed.get("packages").and_then(Value::as_array).unwrap_or(&empty) {
+    for package in parsed
+        .get("packages")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+    {
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.map(`: transforms or selects items with a closure.

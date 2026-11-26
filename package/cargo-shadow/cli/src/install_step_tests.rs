@@ -4,13 +4,23 @@
 //! the CI behavior.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 use std::fs;
 use std::path::Path;
 
-use crate::cargo_run::{CargoOutcome, CargoRunner};
+use crate::cargo_run::{
+    CargoOutcome,
+    CargoRunner,
+};
 use crate::http::RegistryError;
-use crate::install_step::{StepOutcome, StepRequest, run_install_step};
+use crate::install_step::{
+    StepOutcome,
+    StepRequest,
+    run_install_step,
+};
 use crate::policy::VersionRecord;
 use crate::registry::Registry;
 use crate::test_scratch::scratch;
@@ -31,22 +41,49 @@ struct FakeCargo {
 }
 
 impl CargoRunner for FakeCargo {
-    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+    fn run(
+        &self,
+        cwd: &Path,
+        args: &[String],
+    ) -> Result<CargoOutcome, String> {
         self.commands.borrow_mut().push(args.join(" "));
         let lock: std::path::PathBuf = cwd.join("Cargo.lock");
-        if args[0] == "update" && args.iter().any(|argument| { return argument == "--locked"; }) {
-            let satisfied: bool = fs::read_to_string(&lock).unwrap_or_default().starts_with("# satisfied");
-            return Ok(CargoOutcome { ok: satisfied, output: "needs update".to_string(), stdout: String::new() });
+        if args[0] == "update"
+            && args.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
+            let satisfied: bool = fs::read_to_string(&lock)
+                .unwrap_or_default()
+                .starts_with("# satisfied");
+            return Ok(CargoOutcome {
+                ok: satisfied,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         if args[0] == "update" {
-            fs::write(&lock, &self.after).map_err(|error| { return error.to_string(); })?;
+            fs::write(&lock, &self.after).map_err(|error| {
+                return error.to_string();
+            })?;
         }
         if args[0] == "metadata" {
             let manifest: String = cwd.join("Cargo.toml").display().to_string();
-            let body: String = format!("{{\"workspace_root\":\"{}\",\"packages\":[{{\"source\":null,\"manifest_path\":\"{manifest}\"}}]}}", cwd.display());
-            return Ok(CargoOutcome { ok: true, output: body.clone(), stdout: body });
+            let body: String = format!(
+                "{{\"workspace_root\":\"{}\",\"packages\":[{{\"source\":null,\"manifest_path\":\"{manifest}\"}}]}}",
+                cwd.display()
+            );
+            return Ok(CargoOutcome {
+                ok: true,
+                output: body.clone(),
+                stdout: body,
+            });
         }
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     }
 }
 
@@ -55,16 +92,29 @@ struct FakeRegistry {
 }
 
 impl Registry for FakeRegistry {
-    fn pubtimes(&self, _name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+    fn pubtimes(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError> {
         return Ok(BTreeMap::new());
     }
-    fn yanked(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn yanked(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         return Ok(BTreeSet::new());
     }
-    fn history(&self, name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+    fn history(
+        &self,
+        name: &str,
+        _versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError> {
         return Ok(self.histories.get(name).cloned().unwrap_or_default());
     }
-    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn owners(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         return Ok(BTreeSet::new());
     }
 }
@@ -72,22 +122,40 @@ impl Registry for FakeRegistry {
 /// A catalog repository with one crate whose lock text is given.
 fn repository(lock: &str) -> tempfile::TempDir {
     let root = scratch();
-    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    fs::write(
+        root.path().join("rust-catalog.toml"),
+        "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n",
+    )
+    .expect("catalog");
     fs::create_dir_all(root.path().join(CRATE_DIR).join("src")).expect("crate dir");
-    fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "[package]\nname = \"y\"\nversion = \"0.1.0\"\n\n[workspace]\n").expect("manifest");
+    fs::write(
+        root.path().join(CRATE_DIR).join("Cargo.toml"),
+        "[package]\nname = \"y\"\nversion = \"0.1.0\"\n\n[workspace]\n",
+    )
+    .expect("manifest");
     fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), lock).expect("lock");
     return root;
 }
 
 fn cargo(after: &str) -> FakeCargo {
-    return FakeCargo { commands: RefCell::new(Vec::new()), after: after.to_string() };
+    return FakeCargo {
+        commands: RefCell::new(Vec::new()),
+        after: after.to_string(),
+    };
 }
 
 fn registry() -> FakeRegistry {
-    return FakeRegistry { histories: BTreeMap::new() };
+    return FakeRegistry {
+        histories: BTreeMap::new(),
+    };
 }
 
-fn step(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry) -> StepOutcome {
+fn step(
+    start: &Path,
+    frozen: bool,
+    runner: &FakeCargo,
+    registry: &FakeRegistry,
+) -> StepOutcome {
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
     // Why:      Absence is a value the caller must check; there is no `null`.
     //
@@ -104,7 +172,16 @@ fn step(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry)
     // ```ts
     // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
     // ```
-    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: None, trust_base: "HEAD" });
+    return run_install_step(&StepRequest {
+        start_dir: start,
+        frozen,
+        offline: true,
+        now: 0,
+        runner,
+        registry,
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 }
 
 #[test]
@@ -120,7 +197,11 @@ fn an_up_to_date_workspace_is_checked_once_and_then_costs_no_cargo_at_all() {
     assert_eq!(first, StepOutcome::Passed);
     assert_eq!(second, StepOutcome::FastPath);
     assert!(commands_after_first > 0);
-    assert_eq!(runner.commands.borrow().len(), commands_after_first, "the second call started cargo");
+    assert_eq!(
+        runner.commands.borrow().len(),
+        commands_after_first,
+        "the second call started cargo"
+    );
 }
 
 #[test]
@@ -128,8 +209,15 @@ fn editing_a_manifest_after_a_pass_makes_the_next_call_check_again() {
     let root = repository(SATISFIED);
     let runner: FakeCargo = cargo(SATISFIED);
     let start = root.path().join(CRATE_DIR);
-    assert_eq!(step(&start, false, &runner, &registry()), StepOutcome::Passed);
-    fs::write(start.join("Cargo.toml"), "[package]\nname = \"y\"\nversion = \"0.2.0\"\n\n[workspace]\n# edited\n").expect("edit");
+    assert_eq!(
+        step(&start, false, &runner, &registry()),
+        StepOutcome::Passed
+    );
+    fs::write(
+        start.join("Cargo.toml"),
+        "[package]\nname = \"y\"\nversion = \"0.2.0\"\n\n[workspace]\n# edited\n",
+    )
+    .expect("edit");
     let before: usize = runner.commands.borrow().len();
 
     let outcome = step(&start, false, &runner, &registry());
@@ -143,12 +231,18 @@ fn changing_the_lockfile_after_a_pass_makes_the_next_call_check_again() {
     let root = repository(SATISFIED);
     let runner: FakeCargo = cargo(SATISFIED);
     let start = root.path().join(CRATE_DIR);
-    assert_eq!(step(&start, false, &runner, &registry()), StepOutcome::Passed);
+    assert_eq!(
+        step(&start, false, &runner, &registry()),
+        StepOutcome::Passed
+    );
     fs::write(start.join("Cargo.lock"), STALE).expect("make stale");
 
     let outcome = step(&start, false, &runner, &registry());
 
-    assert!(matches!(outcome, StepOutcome::Updated { .. }), "{outcome:?}");
+    assert!(
+        matches!(outcome, StepOutcome::Updated { .. }),
+        "{outcome:?}"
+    );
 }
 
 #[test]
@@ -159,9 +253,21 @@ fn a_stale_lockfile_is_updated_outside_ci_and_the_fixed_lock_then_takes_the_fast
 
     let outcome = step(&start, false, &runner, &registry());
 
-    assert_eq!(outcome, StepOutcome::Updated { crate_dir: CRATE_DIR.to_string(), added: Vec::new() });
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED);
-    assert_eq!(step(&start, false, &runner, &registry()), StepOutcome::FastPath);
+    assert_eq!(
+        outcome,
+        StepOutcome::Updated {
+            crate_dir: CRATE_DIR.to_string(),
+            added: Vec::new()
+        }
+    );
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        SATISFIED
+    );
+    assert_eq!(
+        step(&start, false, &runner, &registry()),
+        StepOutcome::FastPath
+    );
 }
 
 #[test]
@@ -176,14 +282,21 @@ fn a_frozen_step_fails_naming_the_stale_lock_and_writes_nothing() {
         StepOutcome::Failed(message) => assert!(message.contains(CRATE_DIR), "{message}"),
         other => panic!("expected a failure, got {other:?}"),
     }
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), STALE);
-    assert!(runner.commands.borrow().iter().all(|command| { return command.contains("--locked"); }));
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        STALE
+    );
+    assert!(runner.commands.borrow().iter().all(|command| {
+        return command.contains("--locked");
+    }));
 }
 
 #[test]
 fn a_refused_new_version_fails_the_step_and_restores_the_lock() {
     let root = repository(STALE);
-    let after: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let after: String = format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     let runner: FakeCargo = cargo(&after);
     let history: Vec<VersionRecord> = vec![
         VersionRecord {
@@ -201,7 +314,9 @@ fn a_refused_new_version_fails_the_step_and_restores_the_lock() {
             repository: String::new(),
         },
     ];
-    let fake: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    let fake: FakeRegistry = FakeRegistry {
+        histories: BTreeMap::from([("dep".to_string(), history)]),
+    };
     let start = root.path().join(CRATE_DIR);
 
     let outcome = step(&start, false, &runner, &fake);
@@ -219,19 +334,32 @@ fn a_refused_new_version_fails_the_step_and_restores_the_lock() {
         StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
         other => panic!("expected a refusal, got {other:?}"),
     }
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), STALE);
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        STALE
+    );
 }
 
 #[test]
 fn outside_a_catalog_repository_and_without_a_lockfile_the_step_does_nothing() {
     let outside = scratch();
-    fs::write(outside.path().join("Cargo.toml"), "[package]\nname = \"z\"\nversion = \"0.1.0\"\n\n[workspace]\n").expect("manifest");
+    fs::write(
+        outside.path().join("Cargo.toml"),
+        "[package]\nname = \"z\"\nversion = \"0.1.0\"\n\n[workspace]\n",
+    )
+    .expect("manifest");
     let runner: FakeCargo = cargo(SATISFIED);
-    assert!(matches!(step(outside.path(), false, &runner, &registry()), StepOutcome::Skipped(_)));
+    assert!(matches!(
+        step(outside.path(), false, &runner, &registry()),
+        StepOutcome::Skipped(_)
+    ));
 
     let root = repository(SATISFIED);
     fs::remove_file(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("remove the lock");
-    assert!(matches!(step(&root.path().join(CRATE_DIR), false, &runner, &registry()), StepOutcome::Skipped(_)));
+    assert!(matches!(
+        step(&root.path().join(CRATE_DIR), false, &runner, &registry()),
+        StepOutcome::Skipped(_)
+    ));
     assert!(runner.commands.borrow().is_empty());
 }
 
@@ -298,7 +426,9 @@ fn downgrading_registry() -> FakeRegistry {
         },
     ];
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    return FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    return FakeRegistry {
+        histories: BTreeMap::from([("dep".to_string(), history)]),
+    };
 }
 
 /// Review finding (the freshness stamp bypasses the policy checks):
@@ -311,7 +441,9 @@ fn downgrading_registry() -> FakeRegistry {
 fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_a_stricter_one() {
     // Typed binding: `lock: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let lock: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let lock: String = format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     // Borrow `&lock`: lends the value without copying or giving it away.
     let root = repository(&lock);
     // Borrow `&lock`: lends the value without copying or giving it away.
@@ -326,12 +458,23 @@ fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_
     // ```ts
     // value ?? fallback
     // ```
-    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"off\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("lenient catalog");
+    fs::write(
+        root.path().join("rust-catalog.toml"),
+        "trustPolicy = \"off\"\nminimumReleaseAge = 0\n\n[catalog]\n",
+    )
+    .expect("lenient catalog");
     // Borrow `&start`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Passed);
+    assert_eq!(
+        step(&start, true, &runner, &downgrading_registry()),
+        StepOutcome::Passed
+    );
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("strict catalog");
+    fs::write(
+        root.path().join("rust-catalog.toml"),
+        "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n",
+    )
+    .expect("strict catalog");
 
     // Borrow `&start`: lends the value without copying or giving it away.
     let outcome = step(&start, true, &runner, &downgrading_registry());
@@ -355,10 +498,19 @@ fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_
 /// it holds the refused `dep@1.0.1`.
 fn refused_lock() -> String {
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    return format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
 }
 
-fn step_with_base(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry, base_text: &str, trust_base: &str) -> StepOutcome {
+fn step_with_base(
+    start: &Path,
+    frozen: bool,
+    runner: &FakeCargo,
+    registry: &FakeRegistry,
+    base_text: &str,
+    trust_base: &str,
+) -> StepOutcome {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Typed binding: `text: String`.
     let text: String = base_text.to_string();
@@ -383,11 +535,22 @@ fn step_with_base(start: &Path, frozen: bool, runner: &FakeCargo, registry: &Fak
         // ```
         // `.clone()`: an independent owned copy.
         // Constructor `Box::new(`: an empty owned collection or a boxed value.
-        return Ok(Box::new(move |_dir: &str| -> String { return held.clone(); }));
+        return Ok(Box::new(move |_dir: &str| -> String {
+            return held.clone();
+        }));
     };
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
-    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: Some(&factory), trust_base });
+    return run_install_step(&StepRequest {
+        start_dir: start,
+        frozen,
+        offline: true,
+        now: 0,
+        runner,
+        registry,
+        lock_base: Some(&factory),
+        trust_base,
+    });
 }
 
 /// Review finding (the stamp bypasses the base-revision check):
@@ -405,9 +568,23 @@ fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
     let start = root.path().join(CRATE_DIR);
 
     // Borrow `&start`: lends the value without copying or giving it away.
-    let against_the_old_base = step_with_base(&start, true, &runner, &downgrading_registry(), &refused_lock(), "base-one");
+    let against_the_old_base = step_with_base(
+        &start,
+        true,
+        &runner,
+        &downgrading_registry(),
+        &refused_lock(),
+        "base-one",
+    );
     // Borrow `&start`: lends the value without copying or giving it away.
-    let against_a_base_without_it = step_with_base(&start, true, &runner, &downgrading_registry(), "", "base-two");
+    let against_a_base_without_it = step_with_base(
+        &start,
+        true,
+        &runner,
+        &downgrading_registry(),
+        "",
+        "base-two",
+    );
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(against_the_old_base, StepOutcome::Passed);
@@ -435,7 +612,17 @@ fn the_same_base_and_settings_take_the_fast_path() {
     let start = root.path().join(CRATE_DIR);
     // Borrow `&start`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(step_with_base(&start, true, &runner, &downgrading_registry(), &refused_lock(), "base-one"), StepOutcome::Passed);
+    assert_eq!(
+        step_with_base(
+            &start,
+            true,
+            &runner,
+            &downgrading_registry(),
+            &refused_lock(),
+            "base-one"
+        ),
+        StepOutcome::Passed
+    );
     // Typed binding: `before: usize`.
     // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
     // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
@@ -457,7 +644,9 @@ fn the_same_base_and_settings_take_the_fast_path() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `Some`: the present or the absent value of an `Option`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        lock_base: Some(&|| { return Err("git must not be started on the fast path".to_string()); }),
+        lock_base: Some(&|| {
+            return Err("git must not be started on the fast path".to_string());
+        }),
         trust_base: "base-one",
     });
 
@@ -484,9 +673,23 @@ fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base()
     let start = root.path().join(CRATE_DIR);
 
     // Borrow `&start`: lends the value without copying or giving it away.
-    let trusted = step_with_base(&start, false, &runner, &downgrading_registry(), &refused_lock(), "base-one");
+    let trusted = step_with_base(
+        &start,
+        false,
+        &runner,
+        &downgrading_registry(),
+        &refused_lock(),
+        "base-one",
+    );
     // Borrow `&start`: lends the value without copying or giving it away.
-    let new_since_the_base = step_with_base(&start, false, &runner, &downgrading_registry(), "", "base-two");
+    let new_since_the_base = step_with_base(
+        &start,
+        false,
+        &runner,
+        &downgrading_registry(),
+        "",
+        "base-two",
+    );
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(trusted, StepOutcome::Passed);
@@ -509,7 +712,11 @@ fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() 
     // Borrow `&refused_lock`: lends the value without copying or giving it away.
     let root = repository(&refused_lock());
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    fs::write(
+        root.path().join("rust-catalog.toml"),
+        "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n",
+    )
+    .expect("catalog");
     // Borrow `&refused_lock`: lends the value without copying or giving it away.
     // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&refused_lock());
@@ -529,7 +736,10 @@ fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() 
     fs::write(start.join("Cargo.lock"), STALE).expect("make stale");
     // Borrow `&start`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Failed(_)));
+    assert!(matches!(
+        step(&start, true, &runner, &downgrading_registry()),
+        StepOutcome::Failed(_)
+    ));
 }
 
 /// Review finding (2c 1):
@@ -547,7 +757,9 @@ fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unre
     }
     // Typed binding: `young: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let young: String = format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     // `.clone()`: an independent owned copy.
@@ -570,11 +782,19 @@ fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unre
         // ```ts
         // for (const item of list) { ... }  // or list.map(...)
         // ```
-        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+        if arguments[0] == "update"
+            && arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         if arguments[0] == "update" {
             // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
@@ -595,32 +815,59 @@ fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unre
             // ```ts
             // try { ... } catch (error) { throw new MyError(String(error)); }
             // ```
-            fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| { return error.to_string(); })?;
+            fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| {
+                return error.to_string();
+            })?;
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // Borrow `&directory`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(|error| { return error.to_string(); })?;
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(
+                |error| {
+                    return error.to_string();
+                },
+            )?;
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "failed after writing".to_string(),
+                stdout: String::new(),
+            });
         }
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `String::new()`: an empty owned collection or a boxed value.
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     };
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
     // Borrow `&start`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::set_permissions(&start, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
+    fs::set_permissions(&start, fs::Permissions::from_mode(0o755))
+        .expect("make the directory writable again");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the unrestored lockfile: {outcome:?}");
+    assert!(
+        matches!(outcome, StepOutcome::Refused(_)),
+        "the command would build the unrestored lockfile: {outcome:?}"
+    );
 }
 
 /// Review finding (2c 1,
@@ -630,17 +877,27 @@ fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unre
 fn a_cargo_that_wrote_a_lockfile_and_failed_has_its_output_rolled_back() {
     // Typed binding: `young: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let young: String = format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         // Closure `|argument|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+        if arguments[0] == "update"
+            && arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         if arguments[0] == "update" {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -648,26 +905,48 @@ fn a_cargo_that_wrote_a_lockfile_and_failed_has_its_output_rolled_back() {
             // Borrow `&young`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| {
+                return error.to_string();
+            })?;
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "failed after writing".to_string(),
+                stdout: String::new(),
+            });
         }
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `String::new()`: an empty owned collection or a boxed value.
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     };
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Failed(_)), "{outcome:?}");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), STALE);
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        STALE
+    );
 }
 
 /// Review finding (2c 2,
@@ -682,7 +961,11 @@ fn a_package_from_an_unsupported_registry_stops_the_command() {
     // Borrow `&other`: lends the value without copying or giving it away.
     let root = repository(&other);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    fs::write(
+        root.path().join("rust-catalog.toml"),
+        "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n",
+    )
+    .expect("catalog");
     // Borrow `&other`: lends the value without copying or giving it away.
     // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&other);
@@ -696,7 +979,10 @@ fn a_package_from_an_unsupported_registry_stops_the_command() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(local, StepOutcome::Refused(_)), "local: {local:?}");
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(frozen, StepOutcome::Refused(_)), "frozen: {frozen:?}");
+    assert!(
+        matches!(frozen, StepOutcome::Refused(_)),
+        "frozen: {frozen:?}"
+    );
 }
 
 /// Whether the process may ignore directory permissions,
@@ -712,7 +998,11 @@ fn ignores_permissions() -> bool {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return fs::metadata("/proc/self").map(|metadata| { return metadata.uid() == 0; }).unwrap_or(true);
+    return fs::metadata("/proc/self")
+        .map(|metadata| {
+            return metadata.uid() == 0;
+        })
+        .unwrap_or(true);
 }
 
 /// Review finding (3c P1-1):
@@ -730,7 +1020,9 @@ fn a_policy_refusal_whose_rollback_cannot_complete_stops_the_command() {
     }
     // Typed binding: `young: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let young: String = format!(
+        "# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     // `.clone()`: an independent owned copy.
@@ -738,75 +1030,135 @@ fn a_policy_refusal_whose_rollback_cannot_complete_stops_the_command() {
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         // Closure `|argument|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+        if arguments[0] == "update"
+            && arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         // Closure `|argument|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--precise"; }) {
+        if arguments[0] == "update"
+            && !arguments.iter().any(|argument| {
+                return argument == "--precise";
+            })
+        {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // Borrow `&young`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| {
+                return error.to_string();
+            })?;
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // Borrow `&directory`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(|error| { return error.to_string(); })?;
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(
+                |error| {
+                    return error.to_string();
+                },
+            )?;
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: true,
+                output: String::new(),
+                stdout: String::new(),
+            });
         }
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `String::new()`: an empty owned collection or a boxed value.
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     };
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
     // Borrow `&start`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::set_permissions(&start, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
+    fs::set_permissions(&start, fs::Permissions::from_mode(0o755))
+        .expect("make the directory writable again");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
+    assert!(
+        matches!(outcome, StepOutcome::Refused(_)),
+        "the command would build the refused lockfile: {outcome:?}"
+    );
 }
 
 /// A cargo that writes a lockfile with a refused release and succeeds,
 /// then answers every other call without changing anything.
-fn cargo_that_writes_a_refused_release() -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
+fn cargo_that_writes_a_refused_release() -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String>
+{
     // Typed binding: `young: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let young: String = format!(
+        "# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     return move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         // Closure `|argument|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+        if arguments[0] == "update"
+            && arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         // Closure `|argument|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--precise"; }) {
+        if arguments[0] == "update"
+            && !arguments.iter().any(|argument| {
+                return argument == "--precise";
+            })
+        {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // Borrow `&young`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| {
+                return error.to_string();
+            })?;
         }
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `String::new()`: an empty owned collection or a boxed value.
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     };
 }
 
@@ -826,16 +1178,34 @@ fn a_refusal_survives_a_journal_that_cannot_be_finished() {
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     // Certification, second pass (A3, A4): the fault was reached, and the refusal carries both the policy diagnostic and the failure of
     // the output barrier; an earlier error that hid the mandatory failure, or a finish that was skipped, would show only one.
-    assert!(!crate::failpoints::fires(crate::failpoints::Point::FinishDurability), "the output barrier of the finish was never reached");
+    assert!(
+        !crate::failpoints::fires(crate::failpoints::Point::FinishDurability),
+        "the output barrier of the finish was never reached"
+    );
     let StepOutcome::Refused(message) = &outcome else {
         panic!("the refusal was replaced: {outcome:?}");
     };
-    assert!(message.contains("could not be forced to disk (injected durability failure)"), "the failure of the output barrier is hidden behind the refusal: {message}");
-    assert!(message.contains("dep@1.0.1 has trust level"), "the policy diagnostic is missing: {message}");
+    assert!(
+        message.contains("could not be forced to disk (injected durability failure)"),
+        "the failure of the output barrier is hidden behind the refusal: {message}"
+    );
+    assert!(
+        message.contains("dep@1.0.1 has trust level"),
+        "the policy diagnostic is missing: {message}"
+    );
 }
 
 /// Review finding (4c,
@@ -872,7 +1242,13 @@ fn an_accepted_run_whose_journal_cannot_be_removed_afterwards_still_passes() {
 
     let outcome = step(&start, false, &runner, &registry());
 
-    assert_eq!(outcome, StepOutcome::Updated { crate_dir: CRATE_DIR.to_string(), added: Vec::new() });
+    assert_eq!(
+        outcome,
+        StepOutcome::Updated {
+            crate_dir: CRATE_DIR.to_string(),
+            added: Vec::new()
+        }
+    );
 }
 
 /// Round 6 (5c N1):
@@ -884,10 +1260,22 @@ fn a_refusal_with_a_failed_durability_barrier_keeps_the_refusal_and_names_the_ba
     let runner = cargo_that_writes_a_refused_release();
     crate::failpoints::arm(crate::failpoints::Point::FinishDurability);
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1") && message.contains("disk"), "{message}"),
+        StepOutcome::Refused(message) => assert!(
+            message.contains("dep@1.0.1") && message.contains("disk"),
+            "{message}"
+        ),
         other => panic!("the refusal was replaced: {other:?}"),
     }
 }
@@ -896,30 +1284,61 @@ fn a_refusal_with_a_failed_durability_barrier_keeps_the_refusal_and_names_the_ba
 fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions() {
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
-    let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let young: String = format!(
+        "# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     let inner = cargo_that_writes_a_refused_release();
     // The runner notes that cargo wrote the refused lockfile (certification group 3): the refusal below must follow from that write.
     let wrote = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let seen_by_runner = std::sync::Arc::clone(&wrote);
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         let answer = inner(cwd, arguments);
-        if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--locked" || argument == "--precise"; }) {
+        if arguments[0] == "update"
+            && !arguments.iter().any(|argument| {
+                return argument == "--locked" || argument == "--precise";
+            })
+        {
             seen_by_runner.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         return answer;
     };
     crate::failpoints::arm(crate::failpoints::Point::Restore);
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
-    assert!(wrote.load(std::sync::atomic::Ordering::Relaxed), "cargo never wrote the refused lockfile, so the test shows nothing");
-    assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore: an earlier refusal left the fault armed");
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
+    assert!(
+        wrote.load(std::sync::atomic::Ordering::Relaxed),
+        "cargo never wrote the refused lockfile, so the test shows nothing"
+    );
+    assert!(
+        !crate::failpoints::fires(crate::failpoints::Point::Restore),
+        "the rollback never reached the restore: an earlier refusal left the fault armed"
+    );
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        young,
+        "the unrestored lockfile is not the one cargo wrote"
+    );
     match outcome {
         StepOutcome::Refused(message) => {
-            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            assert!(
+                message.contains("could not be put back"),
+                "the refusal is not the rollback failure: {message}"
+            );
             // Sixth pass, group 5: the refusal of the policy travels with the rollback failure.
-            assert!(message.contains("The policy refused it"), "the policy refusal was dropped: {message}");
+            assert!(
+                message.contains("The policy refused it"),
+                "the policy refusal was dropped: {message}"
+            );
         }
         other => panic!("the command would build the refused lockfile: {other:?}"),
     }
@@ -943,11 +1362,25 @@ impl CargoRunner for CargoThatLeavesWriters {
     /// ```ts
     /// run(cwd: string, args: string[]): CargoOutcome
     /// ```
-    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
-        if args[0] == "update" && !args.iter().any(|argument| { return argument == "--locked"; }) {
-            fs::write(cwd.join("Cargo.lock"), &self.after).map_err(|error| { return error.to_string(); })?;
+    fn run(
+        &self,
+        cwd: &Path,
+        args: &[String],
+    ) -> Result<CargoOutcome, String> {
+        if args[0] == "update"
+            && !args.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
+            fs::write(cwd.join("Cargo.lock"), &self.after).map_err(|error| {
+                return error.to_string();
+            })?;
             crate::bounded_run::mark_scope_lost_for_test();
-            return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: true,
+                output: String::new(),
+                stdout: String::new(),
+            });
         }
         return cargo(&self.after).run(cwd, args);
     }
@@ -962,20 +1395,41 @@ impl CargoRunner for CargoThatLeavesWriters {
 fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal() {
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
-    let runner = CargoThatLeavesWriters { after: SATISFIED.to_string() };
+    let runner = CargoThatLeavesWriters {
+        after: SATISFIED.to_string(),
+    };
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
+        StepOutcome::Refused(message) => assert!(
+            message.contains("may still") && message.contains("journal"),
+            "{message}"
+        ),
         other => panic!("a run with writers that may remain read as {other:?}"),
     }
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile was rolled back under a writer that may still write it");
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        SATISFIED,
+        "the lockfile was rolled back under a writer that may still write it"
+    );
     let journals = crate::journal_support::journal_dirs(root.path());
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
     // Kept unfinished (fifth certification pass): a journal that was marked done would be read by the next recovery as a completed
     // transaction although writers may remain.
-    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done under writers that may remain: {journals:?}");
+    assert!(
+        !journals[0].to_string_lossy().ends_with(".done"),
+        "the journal was marked done under writers that may remain: {journals:?}"
+    );
 }
 
 /// Round 7 (6c R1):
@@ -983,19 +1437,38 @@ fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_
 /// the command stops,
 /// because an operational error alone lets the shim run the command again with `--locked`.
 #[test]
-fn an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics() {
+fn an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics()
+ {
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let runner = |_cwd: &Path, _arguments: &[String]| -> Result<CargoOutcome, String> {
-        return Ok(CargoOutcome { ok: false, output: "cargo broke".to_string(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: false,
+            output: "cargo broke".to_string(),
+            stdout: String::new(),
+        });
     };
     crate::failpoints::arm(crate::failpoints::Point::FinishDurability);
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("disk") && message.contains("cargo broke"), "{message}"),
-        other => panic!("an operational error hid a failed barrier and the shim would fall back: {other:?}"),
+        StepOutcome::Refused(message) => assert!(
+            message.contains("disk") && message.contains("cargo broke"),
+            "{message}"
+        ),
+        other => panic!(
+            "an operational error hid a failed barrier and the shim would fall back: {other:?}"
+        ),
     }
 }
 
@@ -1015,21 +1488,47 @@ fn an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_k
 /// ordinary failure that would.
 /// Each fault must have been consumed.
 #[test]
-fn an_operational_error_with_each_failed_completion_stage_stops_the_command_and_keeps_both_diagnostics() {
-    for fault in [crate::failpoints::Point::FinishCompletion, crate::failpoints::Point::CompletionRename, crate::failpoints::Point::CompletionSync] {
+fn an_operational_error_with_each_failed_completion_stage_stops_the_command_and_keeps_both_diagnostics()
+ {
+    for fault in [
+        crate::failpoints::Point::FinishCompletion,
+        crate::failpoints::Point::CompletionRename,
+        crate::failpoints::Point::CompletionSync,
+    ] {
         let root = repository(STALE);
         let start = root.path().join(CRATE_DIR);
         let runner = |_cwd: &Path, _arguments: &[String]| -> Result<CargoOutcome, String> {
-            return Ok(CargoOutcome { ok: false, output: "cargo broke".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "cargo broke".to_string(),
+                stdout: String::new(),
+            });
         };
         crate::failpoints::arm(fault);
 
-        let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+        let outcome = run_install_step(&StepRequest {
+            start_dir: &start,
+            frozen: false,
+            offline: true,
+            now: 0,
+            runner: &runner,
+            registry: &registry(),
+            lock_base: None,
+            trust_base: "HEAD",
+        });
 
-        assert!(!crate::failpoints::fires(fault), "{fault:?}: the completion fault was never reached, so the operational error stood alone");
+        assert!(
+            !crate::failpoints::fires(fault),
+            "{fault:?}: the completion fault was never reached, so the operational error stood alone"
+        );
         match outcome {
-            StepOutcome::Refused(message) => assert!(message.contains("cargo broke") && message.contains("completion"), "{fault:?}: {message}"),
-            other => panic!("{fault:?}: an operational error hid a failed completion and the shim would fall back: {other:?}"),
+            StepOutcome::Refused(message) => assert!(
+                message.contains("cargo broke") && message.contains("completion"),
+                "{fault:?}: {message}"
+            ),
+            other => panic!(
+                "{fault:?}: an operational error hid a failed completion and the shim would fall back: {other:?}"
+            ),
         }
     }
 }
@@ -1061,9 +1560,20 @@ fn the_cleanup_failure_happens_after_the_completion_marker_was_published() {
 
     let outcome = step(&start, false, &runner, &registry());
 
-    assert_eq!(outcome, StepOutcome::Updated { crate_dir: CRATE_DIR.to_string(), added: Vec::new() });
+    assert_eq!(
+        outcome,
+        StepOutcome::Updated {
+            crate_dir: CRATE_DIR.to_string(),
+            added: Vec::new()
+        }
+    );
     let journals = crate::journal_support::journal_dirs(root.path());
-    assert!(journals.iter().any(|journal| { return journal.to_string_lossy().ends_with(".done"); }), "no completion marker at the point of the cleanup failure: {journals:?}");
+    assert!(
+        journals.iter().any(|journal| {
+            return journal.to_string_lossy().ends_with(".done");
+        }),
+        "no completion marker at the point of the cleanup failure: {journals:?}"
+    );
 }
 
 /// Acceptance row A3,
@@ -1111,10 +1621,22 @@ fn a_refusal_survives_a_failed_completion_marker_and_names_it() {
     let runner = cargo_that_writes_a_refused_release();
     crate::failpoints::arm(crate::failpoints::Point::CompletionRename);
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1") && message.contains("completion"), "{message}"),
+        StepOutcome::Refused(message) => assert!(
+            message.contains("dep@1.0.1") && message.contains("completion"),
+            "{message}"
+        ),
         other => panic!("the refusal was replaced: {other:?}"),
     }
 }
@@ -1133,11 +1655,26 @@ fn a_refusal_survives_a_failed_completion_directory_sync_and_names_it() {
     let runner = cargo_that_writes_a_refused_release();
     crate::failpoints::arm(crate::failpoints::Point::CompletionSync);
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
-    assert!(!crate::failpoints::fires(crate::failpoints::Point::CompletionSync), "the completion directory sync was never reached");
+    assert!(
+        !crate::failpoints::fires(crate::failpoints::Point::CompletionSync),
+        "the completion directory sync was never reached"
+    );
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1") && message.contains("completion"), "the refusal or the barrier is missing: {message}"),
+        StepOutcome::Refused(message) => assert!(
+            message.contains("dep@1.0.1") && message.contains("completion"),
+            "the refusal or the barrier is missing: {message}"
+        ),
         other => panic!("the refusal was replaced: {other:?}"),
     }
 }
@@ -1148,36 +1685,81 @@ fn a_refusal_survives_a_failed_completion_directory_sync_and_names_it() {
 /// without depending on permissions.
 #[test]
 fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_falling_back() {
-    let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let young: String = format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n"
+    );
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let unlocked_update_ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let seen_by_runner = std::sync::Arc::clone(&unlocked_update_ran);
     let written = young.clone();
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
-        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
-            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        if arguments[0] == "update"
+            && arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         if arguments[0] == "update" {
-            fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| { return error.to_string(); })?;
+            fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| {
+                return error.to_string();
+            })?;
             seen_by_runner.store(true, std::sync::atomic::Ordering::Relaxed);
-            return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "failed after writing".to_string(),
+                stdout: String::new(),
+            });
         }
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     };
     crate::failpoints::arm(crate::failpoints::Point::Restore);
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     // Both faults were reached: cargo failed after it wrote the lockfile, and the restore fault was consumed by the rollback.
-    assert!(unlocked_update_ran.load(std::sync::atomic::Ordering::Relaxed), "cargo never wrote the lockfile, so the test shows nothing");
-    assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore");
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
+    assert!(
+        unlocked_update_ran.load(std::sync::atomic::Ordering::Relaxed),
+        "cargo never wrote the lockfile, so the test shows nothing"
+    );
+    assert!(
+        !crate::failpoints::fires(crate::failpoints::Point::Restore),
+        "the rollback never reached the restore"
+    );
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        young,
+        "the unrestored lockfile is not the one cargo wrote"
+    );
     match outcome {
         StepOutcome::Refused(message) => {
-            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            assert!(
+                message.contains("could not be put back"),
+                "the refusal is not the rollback failure: {message}"
+            );
             // Sixth pass, group 5: what cargo itself reported before the rollback failed is not dropped.
-            assert!(message.contains("failed after writing"), "the original failure of cargo was dropped: {message}");
+            assert!(
+                message.contains("failed after writing"),
+                "the original failure of cargo was dropped: {message}"
+            );
         }
         other => panic!("the command would fall back onto the unrestored lockfile: {other:?}"),
     }
@@ -1193,12 +1775,14 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
 /// the journal is kept,
 /// and nothing runs after it (the user's command is not started).
 #[test]
-fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it() {
+fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it()
+ {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let ready = root.path().join("writer-ready");
-    let calls: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let calls: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&calls);
     let script: String = format!(
         "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
@@ -1206,47 +1790,101 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     );
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         seen.lock().expect("the call log").push(arguments.join(" "));
-        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
-            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        if arguments[0] == "update"
+            && arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
+            return Ok(CargoOutcome {
+                ok: false,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         if arguments[0] == "update" {
             crate::failpoints::arm(crate::failpoints::Point::ContainmentStopStuck);
-            let bound = crate::bounded_run::Bound { limit: std::time::Duration::from_secs(30), what: "cargo".to_string(), rerun: "cargo".to_string() };
+            let bound = crate::bounded_run::Bound {
+                limit: std::time::Duration::from_secs(30),
+                what: "cargo".to_string(),
+                rerun: "cargo".to_string(),
+            };
             let mut command = std::process::Command::new("sh");
             command.current_dir(cwd).args(["-c", &script]);
             return match crate::bounded_run::output_within(&mut command, None, &bound) {
-                Ok(_) => Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() }),
+                Ok(_) => Ok(CargoOutcome {
+                    ok: true,
+                    output: String::new(),
+                    stdout: String::new(),
+                }),
                 Err(error) => Err(error.to_string()),
             };
         }
-        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        return Ok(CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        });
     };
 
-    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
 
     let journals = crate::journal_support::journal_dirs(root.path());
-    let scope_path = journals.first().map(|journal| { return crate::cgroup_test_support::scope_directory_of(&journal.join("groups").display().to_string()); });
+    let scope_path = journals.first().map(|journal| {
+        return crate::cgroup_test_support::scope_directory_of(
+            &journal.join("groups").display().to_string(),
+        );
+    });
     if let Some(scope) = &scope_path {
         let _ = fs::write(scope.join("cgroup.kill"), "1");
     }
     // Sixth certification pass: the armed fault was consumed by the stop of this run, the writer was ready before the payload ended, and
     // the payload ran in the very scope the journal recorded (not merely a scope that was planned).
-    assert!(!crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck), "the stop fault was never reached, so the refusal has another cause");
-    assert!(root.path().join("writer-ready.seen").exists(), "the payload ended without having seen the writer ready");
+    assert!(
+        !crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck),
+        "the stop fault was never reached, so the refusal has another cause"
+    );
+    assert!(
+        root.path().join("writer-ready.seen").exists(),
+        "the payload ended without having seen the writer ready"
+    );
     crate::cgroup_test_support::assert_ran_in_recorded_scope(
         &journals[0].join("groups").display().to_string(),
         &fs::read_to_string(root.path().join("writer-ready.group")).expect("the payload's group"),
         &crate::cgroup_test_support::wrapper_group(),
     );
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
+        StepOutcome::Refused(message) => assert!(
+            message.contains("may still") && message.contains("journal"),
+            "{message}"
+        ),
         other => panic!("a run that could not show quiescence read as {other:?}"),
     }
-    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile cargo wrote was rolled back or replaced");
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        SATISFIED,
+        "the lockfile cargo wrote was rolled back or replaced"
+    );
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
-    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the run could not show quiescence: {journals:?}");
+    assert!(
+        !journals[0].to_string_lossy().ends_with(".done"),
+        "the journal was marked done although the run could not show quiescence: {journals:?}"
+    );
     let log: Vec<String> = calls.lock().expect("the call log").clone();
-    assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
+    assert!(
+        log.last().is_some_and(|last| {
+            return last.starts_with("update") && !last.contains("--locked");
+        }),
+        "something ran after the run that could not be stopped: {log:?}"
+    );
 }
 
 /// Acceptance row V5 (certification,
@@ -1264,12 +1902,28 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
 /// a removal that fails after the marker only warns and the command runs its cargo.
 #[test]
 fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_cleanup_does_not() {
-    use crate::failpoints::{Point, arm, fires};
+    use crate::failpoints::{
+        Point,
+        arm,
+        fires,
+    };
     // (fault, the command must stop)
-    for (fault, stops) in [(Point::RecoverDurability, true), (Point::CompletionRename, true), (Point::CompletionSync, true), (Point::FinishCleanup, false)] {
+    for (fault, stops) in [
+        (Point::RecoverDurability, true),
+        (Point::CompletionRename, true),
+        (Point::CompletionSync, true),
+        (Point::FinishCleanup, false),
+    ] {
         let root = repository(STALE);
         let start = root.path().join(CRATE_DIR);
-        let _journal = crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: STALE.to_string() }], &[]);
+        let _journal = crate::journal_support::plant(
+            root.path(),
+            &[crate::crates::LockSnapshot {
+                crate_dir: CRATE_DIR.to_string(),
+                source: STALE.to_string(),
+            }],
+            &[],
+        );
         let runner: FakeCargo = cargo(SATISFIED);
         arm(fault);
 
@@ -1278,13 +1932,28 @@ fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_clea
         assert!(!fires(fault), "{fault:?}: the fault was never reached");
         if stops {
             match &outcome {
-                StepOutcome::Refused(message) => assert!(message.contains("recovery of an earlier run could not finish its journal"), "{fault:?}: {message}"),
-                other => panic!("{fault:?}: a recovery that could not finish its journal read as {other:?}"),
+                StepOutcome::Refused(message) => assert!(
+                    message.contains("recovery of an earlier run could not finish its journal"),
+                    "{fault:?}: {message}"
+                ),
+                other => panic!(
+                    "{fault:?}: a recovery that could not finish its journal read as {other:?}"
+                ),
             }
-            assert!(runner.commands.borrow().is_empty(), "{fault:?}: the command went on to cargo after a mandatory failure: {:?}", runner.commands.borrow());
+            assert!(
+                runner.commands.borrow().is_empty(),
+                "{fault:?}: the command went on to cargo after a mandatory failure: {:?}",
+                runner.commands.borrow()
+            );
         } else {
-            assert!(!runner.commands.borrow().is_empty(), "{fault:?}: a cleanup-only failure stopped the command");
-            assert!(!matches!(&outcome, StepOutcome::Refused(message) if message.contains("recovery of an earlier run")), "{fault:?}: {outcome:?}");
+            assert!(
+                !runner.commands.borrow().is_empty(),
+                "{fault:?}: a cleanup-only failure stopped the command"
+            );
+            assert!(
+                !matches!(&outcome, StepOutcome::Refused(message) if message.contains("recovery of an earlier run")),
+                "{fault:?}: {outcome:?}"
+            );
         }
     }
 }
@@ -1302,19 +1971,31 @@ fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_clea
 /// and the inventory is taken by the test from the directories before and after each run.
 #[test]
 fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_file() {
-    use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
+    use crate::journal::{
+        KEPT_FILES_WARNING_COUNT,
+        QUARANTINE_DIR,
+    };
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let central = root.path().join(QUARANTINE_DIR);
     fs::create_dir_all(&central).expect("the central folder");
     for index in 0..KEPT_FILES_WARNING_COUNT {
-        fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+        fs::write(
+            central.join(format!("Cargo.lock.displaced.{index}")),
+            "kept",
+        )
+        .expect("a central kept file");
     }
-    fs::write(start.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
+    fs::write(start.join("Cargo.lock.refused"), "refused text")
+        .expect("a kept copy beside the lockfile");
     fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
     // The kept files of the case: the central folder and the beside-target names, as the test lists them.
     let inventory = || -> Vec<(std::path::PathBuf, u64)> {
-        let beside = |name: &str| -> bool { return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp")); };
+        let beside = |name: &str| -> bool {
+            return name.starts_with("Cargo.lock.displaced")
+                || name.starts_with("Cargo.lock.refused")
+                || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
+        };
         let mut found: Vec<(std::path::PathBuf, u64)> = Vec::new();
         for directory in [&central, &start] {
             for entry in fs::read_dir(directory).expect("lists").flatten() {
@@ -1336,15 +2017,43 @@ fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_f
 
         let outcome = step(&start, false, &runner, &registry());
 
-        assert!(matches!(outcome, StepOutcome::Updated { .. }), "run {run}: {outcome:?}");
-        let emitted: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).collect();
-        assert_eq!(emitted.len(), 1, "run {run}: the warning was not emitted exactly once: {emitted:?}");
-        let bytes: u64 = before.iter().map(|(_, size)| { return *size; }).sum();
-        assert!(emitted[0].contains(&format!("{} files, {bytes} bytes in all", before.len())) && emitted[0].contains(&central.display().to_string()), "run {run}: {}", emitted[0]);
+        assert!(
+            matches!(outcome, StepOutcome::Updated { .. }),
+            "run {run}: {outcome:?}"
+        );
+        let emitted: Vec<String> = crate::bounded_run::take_trace_for_test()
+            .into_iter()
+            .filter(|event| {
+                return event.starts_with("kept notice ");
+            })
+            .collect();
+        assert_eq!(
+            emitted.len(),
+            1,
+            "run {run}: the warning was not emitted exactly once: {emitted:?}"
+        );
+        let bytes: u64 = before
+            .iter()
+            .map(|(_, size)| {
+                return *size;
+            })
+            .sum();
+        assert!(
+            emitted[0].contains(&format!("{} files, {bytes} bytes in all", before.len()))
+                && emitted[0].contains(&central.display().to_string()),
+            "run {run}: {}",
+            emitted[0]
+        );
         // The completed run deleted none of the files that were kept before it.
         let after = inventory();
         for (path, _size) in &before {
-            assert!(after.iter().any(|(kept, _)| { return kept == path; }), "run {run}: the completed run deleted the kept file {}", path.display());
+            assert!(
+                after.iter().any(|(kept, _)| {
+                    return kept == path;
+                }),
+                "run {run}: the completed run deleted the kept file {}",
+                path.display()
+            );
         }
     }
 }
@@ -1360,19 +2069,40 @@ fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_f
 /// command finds it and its barrier fails again.
 #[test]
 fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_removal_does_not() {
-    use crate::failpoints::{Point, arm, fires};
+    use crate::failpoints::{
+        Point,
+        arm,
+        fires,
+    };
     // (fault on the second command, the command must stop)
     for (fault, stops) in [(Point::CompletionSync, true), (Point::FinishCleanup, false)] {
         let root = repository(STALE);
         let start = root.path().join(CRATE_DIR);
-        let journal = crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: STALE.to_string() }], &[]);
+        let journal = crate::journal_support::plant(
+            root.path(),
+            &[crate::crates::LockSnapshot {
+                crate_dir: CRATE_DIR.to_string(),
+                source: STALE.to_string(),
+            }],
+            &[],
+        );
         // First command: its recovery renames the journal to `.done` and its marker sync fails, so the command stops and the journal stays `.done`.
         arm(Point::CompletionSync);
         let first_runner: FakeCargo = cargo(SATISFIED);
         let first = step(&start, false, &first_runner, &registry());
-        assert!(matches!(first, StepOutcome::Refused(_)), "{fault:?}: the first command should have stopped: {first:?}");
+        assert!(
+            matches!(first, StepOutcome::Refused(_)),
+            "{fault:?}: the first command should have stopped: {first:?}"
+        );
         assert!(!fires(Point::CompletionSync));
-        assert!(crate::journal_support::journal_dirs(root.path()).iter().all(|dir| { return dir.to_string_lossy().ends_with(".done"); }), "{fault:?}: the journal is not marked done: {journal:?}");
+        assert!(
+            crate::journal_support::journal_dirs(root.path())
+                .iter()
+                .all(|dir| {
+                    return dir.to_string_lossy().ends_with(".done");
+                }),
+            "{fault:?}: the journal is not marked done: {journal:?}"
+        );
 
         // Second command: the `.done` journal is found and its barrier (or removal) fails.
         arm(fault);
@@ -1382,13 +2112,29 @@ fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_
         assert!(!fires(fault), "{fault:?}: the fault was never reached");
         if stops {
             match &outcome {
-                StepOutcome::Refused(message) => assert!(message.contains("recovery of an earlier run could not finish its journal"), "{fault:?}: {message}"),
-                other => panic!("{fault:?}: a failed completion barrier of a done journal read as {other:?}"),
+                StepOutcome::Refused(message) => assert!(
+                    message.contains("recovery of an earlier run could not finish its journal"),
+                    "{fault:?}: {message}"
+                ),
+                other => panic!(
+                    "{fault:?}: a failed completion barrier of a done journal read as {other:?}"
+                ),
             }
-            assert!(runner.commands.borrow().is_empty(), "{fault:?}: the command went on to cargo: {:?}", runner.commands.borrow());
-            assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1, "{fault:?}: the journal was not kept");
+            assert!(
+                runner.commands.borrow().is_empty(),
+                "{fault:?}: the command went on to cargo: {:?}",
+                runner.commands.borrow()
+            );
+            assert_eq!(
+                crate::journal_support::journal_dirs(root.path()).len(),
+                1,
+                "{fault:?}: the journal was not kept"
+            );
         } else {
-            assert!(!runner.commands.borrow().is_empty(), "{fault:?}: a failed removal stopped the command");
+            assert!(
+                !runner.commands.borrow().is_empty(),
+                "{fault:?}: a failed removal stopped the command"
+            );
         }
     }
 }
@@ -1403,25 +2149,50 @@ fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_
 /// the count is the files kept in the central folder plus the two kept beside the lockfile.
 #[test]
 fn a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it() {
-    use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
+    use crate::journal::{
+        KEPT_FILES_WARNING_COUNT,
+        QUARANTINE_DIR,
+    };
     let beside: usize = 2;
-    for kept in [KEPT_FILES_WARNING_COUNT - 1, KEPT_FILES_WARNING_COUNT, KEPT_FILES_WARNING_COUNT + 1] {
+    for kept in [
+        KEPT_FILES_WARNING_COUNT - 1,
+        KEPT_FILES_WARNING_COUNT,
+        KEPT_FILES_WARNING_COUNT + 1,
+    ] {
         let root = repository(STALE);
         let start = root.path().join(CRATE_DIR);
         let central = root.path().join(QUARANTINE_DIR);
         fs::create_dir_all(&central).expect("the central folder");
         for index in 0..(kept - beside) {
-            fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+            fs::write(
+                central.join(format!("Cargo.lock.displaced.{index}")),
+                "kept",
+            )
+            .expect("a central kept file");
         }
-        fs::write(start.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
-        fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
+        fs::write(start.join("Cargo.lock.refused"), "refused text")
+            .expect("a kept copy beside the lockfile");
+        fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded")
+            .expect("a stranded temporary");
         let _ = crate::bounded_run::take_trace_for_test();
         let runner: FakeCargo = cargo(SATISFIED);
 
         let outcome = step(&start, false, &runner, &registry());
 
-        assert!(matches!(outcome, StepOutcome::Updated { .. }), "{kept} kept files: {outcome:?}");
-        let emitted: usize = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).count();
-        assert_eq!(emitted, usize::from(kept > KEPT_FILES_WARNING_COUNT), "{kept} kept files (count {KEPT_FILES_WARNING_COUNT}): the warning was {emitted} times");
+        assert!(
+            matches!(outcome, StepOutcome::Updated { .. }),
+            "{kept} kept files: {outcome:?}"
+        );
+        let emitted: usize = crate::bounded_run::take_trace_for_test()
+            .into_iter()
+            .filter(|event| {
+                return event.starts_with("kept notice ");
+            })
+            .count();
+        assert_eq!(
+            emitted,
+            usize::from(kept > KEPT_FILES_WARNING_COUNT),
+            "{kept} kept files (count {KEPT_FILES_WARNING_COUNT}): the warning was {emitted} times"
+        );
     }
 }

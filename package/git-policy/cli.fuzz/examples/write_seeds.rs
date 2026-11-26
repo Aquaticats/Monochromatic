@@ -20,7 +20,10 @@ use git_policy_cli_fuzz::seeds::SEEDS;
 /// Writing the files beside this package.
 use std::fs;
 /// The package's own directory, whatever the working directory is.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The two hex digits one byte takes.
 const HEX_DIGITS_PER_BYTE: usize = 2;
@@ -37,9 +40,8 @@ fn main() {
         let bytes: Vec<u8> = seed.bytes();
         // The file those bytes belong in.
         let path: PathBuf = directory.join(seed.name);
-        fs::write(path.as_path(), bytes.as_slice()).unwrap_or_else(|error| {
-            panic!("the seed {path:?} could not be written: {error}")
-        });
+        fs::write(path.as_path(), bytes.as_slice())
+            .unwrap_or_else(|error| panic!("the seed {path:?} could not be written: {error}"));
         // The answers as a reader wants them, one pair of digits per byte.
         let mode: String = format!("{:0width$x}", seed.mode(), width = digits);
         // The arguments as a reader wants them, with a byte no text holds shown as the character it is.
@@ -48,6 +50,10 @@ fn main() {
             .iter()
             .map(|argument| format!("{:?}", String::from_utf8_lossy(argument)))
             .collect();
-        println!("{}: mode 0x{mode}, arguments [{}]", seed.name, arguments.join(", "));
+        println!(
+            "{}: mode 0x{mode}, arguments [{}]",
+            seed.name,
+            arguments.join(", ")
+        );
     }
 }

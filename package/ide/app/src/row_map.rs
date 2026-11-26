@@ -132,7 +132,10 @@ impl RowMap {
     /// ```ts
     /// static from(lines: number, raised: [number, number][]): RowMap;
     /// ```
-    pub fn new(lines: usize, raised: &[(usize, f32)]) -> Self {
+    pub fn new(
+        lines: usize,
+        raised: &[(usize, f32)],
+    ) -> Self {
         // `Vec::new()` creates the empty lists the loop fills.
         let mut blocks = Vec::new();
         let mut before = Vec::new();
@@ -164,7 +167,10 @@ impl RowMap {
     /// ```ts
     /// withRows(rows: LineRows): RowMap;
     /// ```
-    pub fn with_rows(mut self, rows: &LineRows) -> Self {
+    pub fn with_rows(
+        mut self,
+        rows: &LineRows,
+    ) -> Self {
         if rows.lines() == self.lines {
             self.rows = rows.clone();
         }
@@ -181,7 +187,10 @@ impl RowMap {
     /// ```ts
     /// withMeasured(measured: [line: number, rows: number][]): RowMap;
     /// ```
-    pub fn with_measured(&self, measured: &[(usize, usize)]) -> Self {
+    pub fn with_measured(
+        &self,
+        measured: &[(usize, usize)],
+    ) -> Self {
         let mut next = self.clone();
         next.rows.apply(measured.iter().copied());
         return next;
@@ -194,13 +203,19 @@ impl RowMap {
 
     /// Visual rows of `line`;
     ///  a line the text does not have counts as one.
-    pub fn rows_of(&self, line: usize) -> usize {
+    pub fn rows_of(
+        &self,
+        line: usize,
+    ) -> usize {
         return self.rows.rows(line);
     }
 
     /// Height of `line`'s code rows together:
     ///  one code row for each visual row.
-    pub fn code_height(&self, line: usize) -> f32 {
+    pub fn code_height(
+        &self,
+        line: usize,
+    ) -> f32 {
         return self.rows_of(line) as f32 * CODE_ROW;
     }
 
@@ -218,7 +233,10 @@ impl RowMap {
     /// ```ts
     /// const index = blocks.findIndex(([owner]) => owner >= line);
     /// ```
-    fn index_of(&self, line: usize) -> usize {
+    fn index_of(
+        &self,
+        line: usize,
+    ) -> usize {
         // A halving search finds the first block whose owning line is not above `line`.
         let mut low = 0;
         let mut high = self.blocks.len();
@@ -234,7 +252,10 @@ impl RowMap {
     }
 
     /// Summed height of every block above `line`'s own block.
-    fn raised_before(&self, line: usize) -> f32 {
+    fn raised_before(
+        &self,
+        line: usize,
+    ) -> f32 {
         let index = self.index_of(line);
         if index < self.before.len() {
             return self.before[index];
@@ -259,7 +280,10 @@ impl RowMap {
 
     /// Height of the block above `line`'s code row;
     ///  zero for a line without one.
-    pub fn block_height(&self, line: usize) -> f32 {
+    pub fn block_height(
+        &self,
+        line: usize,
+    ) -> f32 {
         let index = self.index_of(line);
         // `get` lends the entry at `index`, or nothing past the end.
         if let Some((owner, height)) = self.blocks.get(index)
@@ -274,20 +298,29 @@ impl RowMap {
     ///  which is the top of everything the line owns.
     ///  `line` may equal the line count;
     /// the answer is then the height of the whole text.
-    pub fn block_top(&self, line: usize) -> f32 {
+    pub fn block_top(
+        &self,
+        line: usize,
+    ) -> f32 {
         let bounded = line.min(self.lines);
         let rows = bounded + self.rows.extra_before(bounded);
         return rows as f32 * CODE_ROW + self.raised_before(bounded);
     }
 
     /// Top of `line`'s code row.
-    pub fn code_top(&self, line: usize) -> f32 {
+    pub fn code_top(
+        &self,
+        line: usize,
+    ) -> f32 {
         return self.block_top(line) + self.block_height(line);
     }
 
     /// Bottom of `line`'s last visual row,
     ///  where the next line's block or code row starts.
-    pub fn code_bottom(&self, line: usize) -> f32 {
+    pub fn code_bottom(
+        &self,
+        line: usize,
+    ) -> f32 {
         return self.code_top(line) + self.code_height(line);
     }
 
@@ -309,7 +342,11 @@ impl RowMap {
     /// ```ts
     /// visualRowAt(line: number, y: number): number;
     /// ```
-    pub fn visual_row_at(&self, line: usize, y: f32) -> usize {
+    pub fn visual_row_at(
+        &self,
+        line: usize,
+        y: f32,
+    ) -> usize {
         let within = (y - self.code_top(line)).max(0.0);
         return ((within / CODE_ROW) as usize).min(self.rows_of(line) - 1);
     }
@@ -327,7 +364,10 @@ impl RowMap {
     /// ```ts
     /// locate(y: number): Place;
     /// ```
-    pub fn locate(&self, y: f32) -> Place {
+    pub fn locate(
+        &self,
+        y: f32,
+    ) -> Place {
         let last = self.lines - 1;
         if y >= self.height() {
             return Place {
@@ -362,7 +402,10 @@ impl RowMap {
 
     /// The line owning vertical position `y`,
     ///  whichever of its parts the point is in.
-    pub fn line_at(&self, y: f32) -> usize {
+    pub fn line_at(
+        &self,
+        y: f32,
+    ) -> usize {
         return self.locate(y).line;
     }
 
@@ -379,7 +422,11 @@ impl RowMap {
     /// ```ts
     /// extent(line: number, row: number): number;
     /// ```
-    fn extent(&self, line: usize, row: usize) -> f32 {
+    fn extent(
+        &self,
+        line: usize,
+        row: usize,
+    ) -> f32 {
         if line >= self.lines {
             return CODE_ROW;
         }
@@ -407,7 +454,12 @@ impl RowMap {
     /// ```ts
     /// page(offset: number, height: number, forward: boolean): [rows: number, pixels: number];
     /// ```
-    pub fn page(&self, offset: f32, height: f32, forward: bool) -> (usize, f32) {
+    pub fn page(
+        &self,
+        offset: f32,
+        height: f32,
+        forward: bool,
+    ) -> (usize, f32) {
         let mut line = self.line_at(offset);
         let mut row = self.visual_row_at(line, offset);
         let mut count: usize = 0;

@@ -2,9 +2,9 @@
 
 /// Reuse the protocol's numeric parsing and command representation.
 use super::{
+    Command,
     parse_f64,
     protocol_options::split,
-    Command,
 };
 
 /// Largest wheel travel one command accepts,
@@ -49,12 +49,23 @@ pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, S
         return Err("wheel notch amounts must be finite".to_string());
     }
     if horizontal.abs() > MAX_NOTCHES || vertical.abs() > MAX_NOTCHES {
-        return Err(format!("wheel notch amounts must be within {MAX_NOTCHES} notches"));
+        return Err(format!(
+            "wheel notch amounts must be within {MAX_NOTCHES} notches"
+        ));
     }
     let rest = split(tokens, "wheel", &["mods"])?;
     if !rest.positional.is_empty() {
-        return Err("wheel expects X Y HORIZONTAL_NOTCHES VERTICAL_NOTCHES and an optional mods=CHORD".to_string());
+        return Err(
+            "wheel expects X Y HORIZONTAL_NOTCHES VERTICAL_NOTCHES and an optional mods=CHORD"
+                .to_string(),
+        );
     }
     let modifiers = rest.modifiers()?;
-    return Ok(Command::Wheel { x, y, horizontal, vertical, modifiers });
+    return Ok(Command::Wheel {
+        x,
+        y,
+        horizontal,
+        vertical,
+        modifiers,
+    });
 }

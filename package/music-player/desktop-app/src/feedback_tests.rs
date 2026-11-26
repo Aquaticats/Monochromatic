@@ -218,22 +218,36 @@ fn next_expiry_null_when_empty() {
 #[test]
 fn next_expiry_is_earliest_entry() {
     let base = FeedbackQueue::EMPTY.show(error_message("e"), START_MS);
-    let queue = show_timed(&base, undo_message("u"), START_MS + HALF_SECOND_MS, ONE_SECOND_MS);
-    assert_eq!(queue.next_expiry_ms(), Some(START_MS + HALF_SECOND_MS + ONE_SECOND_MS));
+    let queue = show_timed(
+        &base,
+        undo_message("u"),
+        START_MS + HALF_SECOND_MS,
+        ONE_SECOND_MS,
+    );
+    assert_eq!(
+        queue.next_expiry_ms(),
+        Some(START_MS + HALF_SECOND_MS + ONE_SECOND_MS)
+    );
 }
 
 // What:     `#[test] fn error_default_duration_is_four_seconds()` checks the default error duration.
 // Why:      The accepted study used the Short duration, which is 4000 ms.
 #[test]
 fn error_default_duration_is_four_seconds() {
-    assert_eq!(FeedbackKind::Error.default_duration_ms(), FEEDBACK_ERROR_DURATION_MS);
+    assert_eq!(
+        FeedbackKind::Error.default_duration_ms(),
+        FEEDBACK_ERROR_DURATION_MS
+    );
 }
 
 // What:     `#[test] fn undo_default_duration_is_four_seconds()` checks the default Undo duration.
 // Why:      The study showed the Undo message with the same Short duration as the error message.
 #[test]
 fn undo_default_duration_is_four_seconds() {
-    assert_eq!(FeedbackKind::Undo.default_duration_ms(), FEEDBACK_UNDO_DURATION_MS);
+    assert_eq!(
+        FeedbackKind::Undo.default_duration_ms(),
+        FEEDBACK_UNDO_DURATION_MS
+    );
 }
 
 // What:     `#[test] fn blank_id_rejected()` checks that a message id cannot be blank.
@@ -251,7 +265,10 @@ fn blank_id_rejected() {
 fn blank_text_rejected() {
     let error = FeedbackMessage::new("e", "", FeedbackKind::Error, None)
         .expect_err("a blank text must be rejected");
-    assert_eq!(error.to_string(), "Feedback message text must not be blank.");
+    assert_eq!(
+        error.to_string(),
+        "Feedback message text must not be blank."
+    );
 }
 
 // What:     `#[test] fn blank_action_label_rejected()` checks that a present action label cannot be blank.
@@ -275,7 +292,10 @@ fn zero_duration_rejected() {
         .expect_err("a zero duration must be rejected");
     assert_eq!(
         error.to_string(),
-        format!("Feedback duration must be between 1 and {} ms, was 0.", FEEDBACK_MAX_DURATION_MS)
+        format!(
+            "Feedback duration must be between 1 and {} ms, was 0.",
+            FEEDBACK_MAX_DURATION_MS
+        )
     );
 }
 

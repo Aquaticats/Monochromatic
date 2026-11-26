@@ -5,11 +5,24 @@
 /// Production source font assets and typography interfaces.
 use ide_app::{
     code_colors::CodeColors,
-    document::{Document, ReadingPosition},
-    font_asset::{CODE_ITALIC, CODE_ROMAN},
-    shaped_text::{ShapedView, TextShaper, Viewport},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    font_asset::{
+        CODE_ITALIC,
+        CODE_ROMAN,
+    },
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+        Viewport,
+    },
     source_typography::SourceTypography,
-    tile_scene::{Item, tile_items},
+    tile_scene::{
+        Item,
+        tile_items,
+    },
 };
 /// Actual font runs expose selected font identity and normalized variation coordinates.
 use parley::PositionedLayoutItem;
@@ -122,7 +135,10 @@ fn variable_weight_reaches_the_gpu_as_variation_coordinates() {
 
 /// The variation coordinates of every glyph run the tile draws,
 /// in drawing order.
-fn drawn_coords(view: &ShapedView, colors: CodeColors) -> Vec<Vec<i16>> {
+fn drawn_coords(
+    view: &ShapedView,
+    colors: CodeColors,
+) -> Vec<Vec<i16>> {
     let mut found = Vec::new();
     for item in tile_items(view, colors, 0.0).expect("items") {
         if let Item::Glyphs(run) = item {

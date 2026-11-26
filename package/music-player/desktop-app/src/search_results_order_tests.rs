@@ -23,7 +23,10 @@ fn library_of<S: AsRef<str>>(paths: &[S]) -> Vec<Track> {
 
 // What:     `fn search(query: &str, paths: &[&str]) -> SearchState` test helper: searches an available library.
 // Why:      Most cases list a few literal paths inline, and this keeps each case to one line.
-fn search(query: &str, paths: &[&str]) -> SearchState {
+fn search(
+    query: &str,
+    paths: &[&str],
+) -> SearchState {
     return search_library(query, &library_of(paths), true);
 }
 
@@ -31,7 +34,10 @@ fn search(query: &str, paths: &[&str]) -> SearchState {
 // Why:      Ordering cases read the result list directly, and any other state fails the test loudly.
 fn items_of(state: &SearchState) -> &[SearchResult] {
     return match state {
-        SearchState::Results { items, .. } => items.as_slice(),
+        SearchState::Results {
+            items,
+            ..
+        } => items.as_slice(),
         other => panic!("expected a results state, got {other:?}"),
     };
 }
@@ -46,7 +52,10 @@ fn names_of(items: &[SearchResult]) -> Vec<&str> {
 // Why:      The limit cases check the flag next to the list length, and any other state fails the test loudly.
 fn truncated_of(state: &SearchState) -> bool {
     return match state {
-        SearchState::Results { truncated, .. } => *truncated,
+        SearchState::Results {
+            truncated,
+            ..
+        } => *truncated,
         other => panic!("expected a results state, got {other:?}"),
     };
 }

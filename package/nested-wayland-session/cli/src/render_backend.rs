@@ -24,12 +24,21 @@ use std::cell::Cell;
 /// winit sizes,
 /// and the Smithay size types.
 use smithay::{
-    backend::{renderer::gles::GlesRenderer, winit::WinitGraphicsBackend},
+    backend::{
+        renderer::gles::GlesRenderer,
+        winit::WinitGraphicsBackend,
+    },
     reexports::winit::{
-        dpi::{LogicalSize, PhysicalSize},
+        dpi::{
+            LogicalSize,
+            PhysicalSize,
+        },
         window::Window,
     },
-    utils::{Physical, Size},
+    utils::{
+        Physical,
+        Size,
+    },
 };
 /// Log each headless size change.
 use tracing::debug;
@@ -38,7 +47,10 @@ use tracing::debug;
 use crate::backend_select::BackendKind;
 /// What the session reports about its device,
 /// and the variables the hosted child needs to match it.
-use crate::gpu_choice::{ChildGpuEnvironment, GpuReport};
+use crate::gpu_choice::{
+    ChildGpuEnvironment,
+    GpuReport,
+};
 
 /// The surfaceless renderer and the framebuffer size the screen currently has.
 ///
@@ -78,7 +90,12 @@ impl HeadlessBackend {
         gpu: GpuReport,
         child_gpu: ChildGpuEnvironment,
     ) -> Self {
-        return Self { renderer, size: Cell::new(size), gpu, child_gpu }
+        return Self {
+            renderer,
+            size: Cell::new(size),
+            gpu,
+            child_gpu,
+        };
     }
 }
 
@@ -146,7 +163,7 @@ impl HostWindow<'_> {
         return match self {
             Self::Winit(window) => window.scale_factor(),
             Self::Headless(_) => 1.0,
-        }
+        };
     }
 
     /// Ask for a new window size in the parent's logical pixels.
@@ -159,7 +176,10 @@ impl HostWindow<'_> {
     /// Why:
     ///       Same contract as winit's call,
     /// so `screen::apply` reads the result back through `window_size()`.
-    pub fn request_inner_size(&self, size: LogicalSize<u32>) -> Option<PhysicalSize<u32>> {
+    pub fn request_inner_size(
+        &self,
+        size: LogicalSize<u32>,
+    ) -> Option<PhysicalSize<u32>> {
         return match self {
             Self::Winit(window) => window.request_inner_size(size),
             Self::Headless(cell) => {
@@ -169,7 +189,7 @@ impl HostWindow<'_> {
                 debug!(width, height, "headless framebuffer size set");
                 Some(PhysicalSize::new(width, height))
             }
-        }
+        };
     }
 
     /// Ask for another frame.
@@ -200,7 +220,7 @@ impl RenderBackend {
         return match self {
             Self::Winit(_) => BackendKind::NestedWinit,
             Self::Headless(_) => BackendKind::Headless,
-        }
+        };
     }
 
     /// The GLES renderer,
@@ -216,7 +236,7 @@ impl RenderBackend {
         return match self {
             Self::Winit(winit) => winit.renderer(),
             Self::Headless(headless) => &mut headless.renderer,
-        }
+        };
     }
 
     /// The parent window view.
@@ -229,7 +249,7 @@ impl RenderBackend {
         return match self {
             Self::Winit(winit) => HostWindow::Winit(winit.window()),
             Self::Headless(headless) => HostWindow::Headless(&headless.size),
-        }
+        };
     }
 
     /// The device a headless session renders on,
@@ -244,7 +264,7 @@ impl RenderBackend {
         return match self {
             Self::Winit(_) => None,
             Self::Headless(headless) => Some(&headless.gpu),
-        }
+        };
     }
 
     /// The variables the hosted child needs to render on the compositor's device.
@@ -259,7 +279,7 @@ impl RenderBackend {
         return match self {
             Self::Winit(_) => None,
             Self::Headless(headless) => Some(headless.child_gpu),
-        }
+        };
     }
 
     /// The framebuffer size in physical pixels.
@@ -272,7 +292,7 @@ impl RenderBackend {
         return match self {
             Self::Winit(winit) => winit.window_size(),
             Self::Headless(headless) => headless.size.get(),
-        }
+        };
     }
 
     /// The winit backend,
@@ -287,6 +307,6 @@ impl RenderBackend {
         return match self {
             Self::Winit(winit) => Some(&mut **winit),
             Self::Headless(_) => None,
-        }
+        };
     }
 }

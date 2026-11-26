@@ -72,7 +72,12 @@ use crate::error::PlayerError;
 /// import { AudioSpec, Decision, TruePeakError, TruePeakSource, defaultPolicy, resolveDecision, resolveFullScan } from "truepeak-core";
 /// ```
 use truepeak_core::{
-    AudioSpec, Decision, TruePeakError, TruePeakSource, default_policy, resolve_decision,
+    AudioSpec,
+    Decision,
+    TruePeakError,
+    TruePeakSource,
+    default_policy,
+    resolve_decision,
     resolve_full_scan,
 };
 
@@ -105,7 +110,9 @@ pub use truepeak_core::true_peak_interleaved;
 /// const decodeFailed = (error: PlayerError) => ({ kind: "decode", message: String(error) });
 /// ```
 fn decode_failed(error: PlayerError) -> TruePeakError {
-    return TruePeakError::Decode { message: error.to_string() }
+    return TruePeakError::Decode {
+        message: error.to_string(),
+    };
 }
 
 /// What:
@@ -121,7 +128,9 @@ fn decode_failed(error: PlayerError) -> TruePeakError {
 /// const seekFailed = (error: PlayerError) => ({ kind: "seek", message: String(error) });
 /// ```
 fn seek_failed(error: PlayerError) -> TruePeakError {
-    return TruePeakError::Seek { message: error.to_string() }
+    return TruePeakError::Seek {
+        message: error.to_string(),
+    };
 }
 
 /// What:
@@ -200,7 +209,7 @@ impl TruePeakSource for AndroidSource {
             rate: spec.rate,
             channels: spec.channels,
             duration_secs: spec.duration_secs,
-        }
+        };
     }
 
     /// What:
@@ -226,9 +235,7 @@ impl TruePeakSource for AndroidSource {
         // ```ts
         // return mapErr(this.inner.nextChunk(), (e) => ({ kind: "decode", message: String(e) }));
         // ```
-        return self.inner
-            .next_chunk()
-            .map_err(decode_failed)
+        return self.inner.next_chunk().map_err(decode_failed);
     }
 
     /// What:
@@ -255,7 +262,10 @@ impl TruePeakSource for AndroidSource {
     /// ```ts
     /// seekToFrame(frame) { try { this.inner.seek(frame / this.inner.spec().rate); } catch (e) { throw seekError(e); } }
     /// ```
-    fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError> {
+    fn seek_to_frame(
+        &mut self,
+        frame: u64,
+    ) -> Result<(), TruePeakError> {
         // What:     `let rate = self.inner.spec().rate;`. Samples per second per channel.
         // Why:      Convert the frame index to a time offset.
         //
@@ -280,9 +290,7 @@ impl TruePeakSource for AndroidSource {
         // ```ts
         // return mapErr(this.inner.seek(seconds), (e) => ({ kind: "seek", message: String(e) }));
         // ```
-        return self.inner
-            .seek(seconds)
-            .map_err(seek_failed)
+        return self.inner.seek(seconds).map_err(seek_failed);
     }
 }
 
@@ -313,7 +321,9 @@ pub fn resolve_current(source: Box<dyn Source>) -> Result<Decision, TruePeakErro
     // ```ts
     // const adapter = new AndroidSource(source);
     // ```
-    let mut adapter = AndroidSource { inner: source };
+    let mut adapter = AndroidSource {
+        inner: source,
+    };
     // What:     `resolve_decision(&default_policy(), &mut adapter)`. Drive the source through
     //           the probe-or-full policy. Tail -> return.
     // Why:      The one shared foreground measurement.
@@ -322,7 +332,7 @@ pub fn resolve_current(source: Box<dyn Source>) -> Result<Decision, TruePeakErro
     // ```ts
     // return resolveDecision(defaultPolicy(), adapter);
     // ```
-    return resolve_decision(&default_policy(), &mut adapter)
+    return resolve_decision(&default_policy(), &mut adapter);
 }
 
 /// What:
@@ -351,7 +361,9 @@ pub fn resolve_full(source: Box<dyn Source>) -> Result<Decision, TruePeakError> 
     // ```ts
     // const adapter = new AndroidSource(source);
     // ```
-    let mut adapter = AndroidSource { inner: source };
+    let mut adapter = AndroidSource {
+        inner: source,
+    };
     // What:     `resolve_full_scan(&default_policy(), &mut adapter)`. Always exact. Tail ->
     //           return.
     // Why:      The shared warming-upgrade measurement.
@@ -360,5 +372,5 @@ pub fn resolve_full(source: Box<dyn Source>) -> Result<Decision, TruePeakError> 
     // ```ts
     // return resolveFullScan(defaultPolicy(), adapter);
     // ```
-    return resolve_full_scan(&default_policy(), &mut adapter)
+    return resolve_full_scan(&default_policy(), &mut adapter);
 }

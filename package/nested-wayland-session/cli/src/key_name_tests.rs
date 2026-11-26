@@ -1,16 +1,31 @@
 //! Unit tests for the key-name lookup.
 
-use super::{normalize, resolve, KEY_CODE_MAX};
+use super::{
+    KEY_CODE_MAX,
+    normalize,
+    resolve,
+};
 
 /// Every function key from F1 to F24 resolves to the kernel's code for it.
 #[test]
 fn function_keys_f1_to_f24_resolve() {
     let expected = [
-        59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194,
+        59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88, 183, 184, 185, 186, 187, 188, 189, 190,
+        191, 192, 193, 194,
     ];
     for (index, code) in expected.iter().enumerate() {
-        assert_eq!(resolve(&format!("f{}", index + 1)), Some(*code), "F{}", index + 1);
-        assert_eq!(resolve(&format!("F{}", index + 1)), Some(*code), "F{} upper", index + 1);
+        assert_eq!(
+            resolve(&format!("f{}", index + 1)),
+            Some(*code),
+            "F{}",
+            index + 1
+        );
+        assert_eq!(
+            resolve(&format!("F{}", index + 1)),
+            Some(*code),
+            "F{} upper",
+            index + 1
+        );
     }
     assert_eq!(resolve("f25"), None);
     assert_eq!(resolve("f0"), None);
@@ -19,7 +34,15 @@ fn function_keys_f1_to_f24_resolve() {
 /// Names in X11 keysym spelling and kernel spelling reach the same physical key.
 #[test]
 fn spellings_of_one_key_agree() {
-    for spelling in ["pageup", "PageUp", "Page_Up", "page-up", "PGUP", "prior", "KEY_PAGEUP"] {
+    for spelling in [
+        "pageup",
+        "PageUp",
+        "Page_Up",
+        "page-up",
+        "PGUP",
+        "prior",
+        "KEY_PAGEUP",
+    ] {
         assert_eq!(resolve(spelling), Some(104), "{spelling}");
     }
     assert_eq!(resolve("Scroll_Lock"), Some(70));

@@ -4,11 +4,19 @@
 
 /// The adapter descriptions and the variables the choice reads.
 use super::adapter::{
-    AdapterSummary, NAME_VARIABLE, POWER_VARIABLE, PowerOrder, Variables, is_hardware,
+    AdapterSummary,
+    NAME_VARIABLE,
+    POWER_VARIABLE,
+    PowerOrder,
+    Variables,
+    is_hardware,
     parse_power_order,
 };
 /// The failures the choice reports.
-use super::error::{GpuDeviceError, SelectionReport};
+use super::error::{
+    GpuDeviceError,
+    SelectionReport,
+};
 /// The `wgpu` crate as Slint re-exports it.
 use slint::wgpu_30::wgpu;
 
@@ -49,7 +57,11 @@ impl AdapterOrder {
     /// ```ts
     /// function why(position: number, loaderIndex: number): string;
     /// ```
-    pub fn why(&self, position: usize, loader_index: usize) -> String {
+    pub fn why(
+        &self,
+        position: usize,
+        loader_index: usize,
+    ) -> String {
         let mut parts: Vec<String> = Vec::new();
         if let Some(name) = &self.variables.adapter_name {
             parts.push(format!(
@@ -185,10 +197,14 @@ pub fn choose_adapters(
     if candidates.is_empty() {
         let report = SelectionReport::new(adapters, &[], variables.clone());
         if variables.adapter_name.is_none() {
-            return Err(GpuDeviceError::NoHardwareAdapter { report });
+            return Err(GpuDeviceError::NoHardwareAdapter {
+                report,
+            });
         }
         if refused_kinds.is_empty() {
-            return Err(GpuDeviceError::AdapterNameUnmatched { report });
+            return Err(GpuDeviceError::AdapterNameUnmatched {
+                report,
+            });
         }
         return Err(GpuDeviceError::AdapterNameMatchesOnlyRefusedKinds {
             report,

@@ -21,7 +21,11 @@ use crate::corpus::Track;
 ///  window,
 ///  and policy math the score is built from.
 use truepeak_core::{
-    Policy, WindowPlacement, default_policy, peak_dbtp, probe_estimated_peak,
+    Policy,
+    WindowPlacement,
+    default_policy,
+    peak_dbtp,
+    probe_estimated_peak,
 };
 
 /// One policy under test:
@@ -86,8 +90,11 @@ pub struct Violator {
 ///  this is the truth the probe gain is
 /// scored against;
 ///  using `truepeak_core::peak_dbtp` keeps it identical to production.
-fn exact_gain_db(full_peak: f64, ceiling_dbtp: f64) -> f64 {
-    return (ceiling_dbtp - peak_dbtp(full_peak)).min(0.0)
+fn exact_gain_db(
+    full_peak: f64,
+    ceiling_dbtp: f64,
+) -> f64 {
+    return (ceiling_dbtp - peak_dbtp(full_peak)).min(0.0);
 }
 
 /// Compute the probe gain in dB from a sampled peak and the margin,
@@ -99,9 +106,13 @@ fn exact_gain_db(full_peak: f64, ceiling_dbtp: f64) -> f64 {
 ///  Why:
 ///  the
 /// shared `probe_estimated_peak` is the production inflation step.
-fn probe_gain_db(sampled_max: f64, margin_db: f64, ceiling_dbtp: f64) -> f64 {
+fn probe_gain_db(
+    sampled_max: f64,
+    margin_db: f64,
+    ceiling_dbtp: f64,
+) -> f64 {
     let estimated = probe_estimated_peak(sampled_max, margin_db);
-    return (ceiling_dbtp - peak_dbtp(estimated)).min(0.0)
+    return (ceiling_dbtp - peak_dbtp(estimated)).min(0.0);
 }
 
 /// The per-window sampled peaks (linear) of one long track's placed probe windows.
@@ -119,7 +130,10 @@ fn probe_gain_db(sampled_max: f64, margin_db: f64, ceiling_dbtp: f64) -> f64 {
 /// across these windows,
 ///  so the whole vector is returned,
 ///  not just its max.
-pub fn sampled_windows(track: &Track, candidate: Candidate) -> Vec<f64> {
+pub fn sampled_windows(
+    track: &Track,
+    candidate: Candidate,
+) -> Vec<f64> {
     let placement = WindowPlacement::plan(
         track.decoded_frames,
         candidate.window_count,
@@ -142,9 +156,9 @@ pub fn sampled_windows(track: &Track, candidate: Candidate) -> Vec<f64> {
                 .unwrap_or(&[])
                 .iter()
                 .fold(0.0_f32, |peak, &bin| return peak.max(bin));
-            return f64::from(window_peak)
+            return f64::from(window_peak);
         })
-        .collect()
+        .collect();
 }
 
 /// The largest sampled window peak (linear) of one long track.
@@ -154,10 +168,13 @@ pub fn sampled_windows(track: &Track, candidate: Candidate) -> Vec<f64> {
 ///  Why:
 ///  the probe gain is decided from the loudest
 /// window the probe saw.
-fn sampled_max_peak(track: &Track, candidate: &Candidate) -> f64 {
+fn sampled_max_peak(
+    track: &Track,
+    candidate: &Candidate,
+) -> f64 {
     return sampled_windows(track, *candidate)
         .iter()
-        .fold(0.0_f64, |peak, &window| return peak.max(window))
+        .fold(0.0_f64, |peak, &window| return peak.max(window));
 }
 
 /// Score one candidate over every track in the corpus.
@@ -169,7 +186,10 @@ fn sampled_max_peak(track: &Track, candidate: &Candidate) -> f64 {
 ///  Why:
 ///  this is the single evaluation the search
 /// and the final report both call.
-pub fn evaluate(tracks: &[Track], candidate: Candidate) -> Report {
+pub fn evaluate(
+    tracks: &[Track],
+    candidate: Candidate,
+) -> Report {
     let policy: Policy = default_policy();
     let threshold = candidate.window_count as f64 * candidate.window_seconds;
 
@@ -224,7 +244,7 @@ pub fn evaluate(tracks: &[Track], candidate: Candidate) -> Report {
         decoded_secs,
         worst_too_loud_db: worst_too_loud,
         worst_too_quiet_db: worst_too_quiet,
-    }
+    };
 }
 
 /// What:

@@ -22,13 +22,24 @@
 //! ```
 
 /// Imports what this module uses from `super::agree`.
-use super::agree::{compare, project, refusal};
+use super::agree::{
+    compare,
+    project,
+    refusal,
+};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::load`.
-use super::load::{Loaded, load};
+use super::load::{
+    Loaded,
+    load,
+};
 /// Imports what this module uses from `super::lock`.
-use super::lock::{Lock, parse_lock, render_lock};
+use super::lock::{
+    Lock,
+    parse_lock,
+    render_lock,
+};
 /// Imports `publish_lock` from `super::publish`.
 use super::publish::publish_lock;
 /// Imports `Scope` from `super::scope`.
@@ -68,7 +79,10 @@ pub enum LockMode {
 /// ```ts
 /// export function runLock(scope: Scope, mode: LockMode): string
 /// ```
-pub fn run_lock(scope: &Scope, mode: LockMode) -> Result<String, ToolchainError> {
+pub fn run_lock(
+    scope: &Scope,
+    mode: LockMode,
+) -> Result<String, ToolchainError> {
     let loaded: Loaded = load(scope)?;
     let Some(parsed) = &loaded.lock else {
         return Err(ToolchainError::drift(format!(
@@ -93,7 +107,10 @@ pub fn run_lock(scope: &Scope, mode: LockMode) -> Result<String, ToolchainError>
     let projected: Lock = project(&loaded.plan, &parsed.lock)?;
     let text: String = render_lock(&projected);
     if loaded.lock_text.as_deref() == Some(text.as_str()) {
-        return Ok(format!("toolchain lock already current: {}", scope.lock_file.display()));
+        return Ok(format!(
+            "toolchain lock already current: {}",
+            scope.lock_file.display()
+        ));
     }
     // The text must itself be a lock mpm-shadow accepts: decode what is about to be published.
     parse_lock(&text, "the new toolchain.lock.json")?;

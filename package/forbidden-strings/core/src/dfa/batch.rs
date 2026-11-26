@@ -41,7 +41,10 @@
 /// ```ts
 /// import { Dfa, accept_bit } from "crate/dfa/table";
 /// ```
-use crate::dfa::table::{Dfa, accept_bit};
+use crate::dfa::table::{
+    Dfa,
+    accept_bit,
+};
 
 /// Lines advanced together by the interleaved kernel at the default width.
 ///
@@ -76,7 +79,7 @@ pub const LANES: usize = 8;
 /// }
 /// ```
 fn end_bit() -> u8 {
-    return accept_bit(false, true)
+    return accept_bit(false, true);
 }
 
 /// One chunk's per-lane cursors,
@@ -170,7 +173,7 @@ impl<const N: usize> Lanes<N> {
             state: [start; N],
             done: [false; N],
             hit: [false; N],
-        }
+        };
     }
 }
 
@@ -203,7 +206,11 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch_scalar(&self, lines: &[&[u8]], out: &mut [bool]) {
+    pub fn is_match_batch_scalar(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         for (line, slot) in lines.iter().zip(out.iter_mut()) {
             *slot = self.is_match(line);
         }
@@ -227,14 +234,19 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn step_accept<const N: usize>(&self, lanes: &mut Lanes<N>, lane: usize, byte: u8) -> usize {
+    fn step_accept<const N: usize>(
+        &self,
+        lanes: &mut Lanes<N>,
+        lane: usize,
+        byte: u8,
+    ) -> usize {
         let class = self.class_map[byte as usize] as usize;
         let mask = accept_bit(self.class_word[class], self.class_newline[class]);
         if self.accept[lanes.state[lane]] & mask != 0 {
             lanes.hit[lane] = true;
             lanes.done[lane] = true;
         }
-        return class
+        return class;
     }
 
     /// Applies the end-of-input acceptance test to every unfinished lane.
@@ -253,7 +265,10 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn finish_chunk<const N: usize>(&self, lanes: &mut Lanes<N>) {
+    fn finish_chunk<const N: usize>(
+        &self,
+        lanes: &mut Lanes<N>,
+    ) {
         let end = end_bit();
         for lane in 0..N {
             if !lanes.done[lane] && self.accept[lanes.state[lane]] & end != 0 {
@@ -282,7 +297,11 @@ impl Dfa {
     /// }
     /// ```
     #[inline(always)]
-    fn interleaved_width<const N: usize>(&self, lines: &[&[u8]], out: &mut [bool]) {
+    fn interleaved_width<const N: usize>(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         let nc = self.nclasses as usize;
         let dead = self.dead as usize;
         let start = self.start as usize;
@@ -345,7 +364,11 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch_interleaved(&self, lines: &[&[u8]], out: &mut [bool]) {
+    pub fn is_match_batch_interleaved(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         self.interleaved_width::<LANES>(lines, out);
     }
 
@@ -364,7 +387,11 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch_interleaved_w<const N: usize>(&self, lines: &[&[u8]], out: &mut [bool]) {
+    pub fn is_match_batch_interleaved_w<const N: usize>(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         self.interleaved_width::<N>(lines, out);
     }
 
@@ -394,7 +421,12 @@ impl Dfa {
     /// }
     /// ```
     #[inline(always)]
-    fn tight_chunk<const N: usize>(&self, chunk: &[&[u8]], len: usize, out: &mut [bool]) {
+    fn tight_chunk<const N: usize>(
+        &self,
+        chunk: &[&[u8]],
+        len: usize,
+        out: &mut [bool],
+    ) {
         let nc = self.nclasses as usize;
         let mut state = [self.start as usize; N];
         let mut hit = [false; N];
@@ -441,7 +473,11 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch_tight_w<const N: usize>(&self, lines: &[&[u8]], out: &mut [bool]) {
+    pub fn is_match_batch_tight_w<const N: usize>(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         let len = match lines.first() {
             Some(line) => line.len(),
             None => 0,
@@ -456,7 +492,6 @@ impl Dfa {
             out[base + offset] = self.is_match(line);
         }
     }
-
 }
 
 /// What:

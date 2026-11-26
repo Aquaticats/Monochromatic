@@ -6,13 +6,28 @@
 /// The window the records belong to,
 ///  its state,
 ///  and the wheel turns the hook hands on.
-use super::{AppWindow, State, wheel};
+use super::{
+    AppWindow,
+    State,
+    wheel,
+};
 /// The winit window events and the hook that sees them before the toolkit does.
-use i_slint_backend_winit::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
+use i_slint_backend_winit::{
+    EventResult,
+    WinitWindowAccessor,
+    winit::event::WindowEvent,
+};
 /// The toolkit's window and rendering stages.
-use slint::{ComponentHandle, RenderingState, Window};
+use slint::{
+    ComponentHandle,
+    RenderingState,
+    Window,
+};
 /// Shared state.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Log a size event or a redraw request of the windowing system,
@@ -25,7 +40,10 @@ use std::{cell::RefCell, rc::Rc};
 /// ```ts
 /// function logWindowEvent(window: Window, event: WindowEvent): EventResult;
 /// ```
-fn log_window_event(toolkit_window: &Window, event: &WindowEvent) -> EventResult {
+fn log_window_event(
+    toolkit_window: &Window,
+    event: &WindowEvent,
+) -> EventResult {
     match event {
         WindowEvent::Resized(size) => {
             tracing::debug!(
@@ -92,7 +110,10 @@ pub(super) fn log_rendering_stage(state: &RenderingState) {
 /// ```ts
 /// function bind(window: AppWindow): void;
 /// ```
-pub(super) fn bind(window: &AppWindow, state: &Rc<RefCell<State>>) {
+pub(super) fn bind(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let weak = Rc::downgrade(state);
     // A window takes one event hook, so the wheel turns the window learns the end of an ease from come through it too.
     window

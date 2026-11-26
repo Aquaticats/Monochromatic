@@ -7,20 +7,38 @@
 
 /// Rendered frames and single pixels,
 ///  shared with the sidebar paint tests.
-use super::sidebar_paint_tests::{frame, pixel};
+use super::sidebar_paint_tests::{
+    frame,
+    pixel,
+};
 /// The shared window fixture with a visible tree,
 ///  and pointer movement.
-use super::sidebar_tests::{fixture, motion, settle};
+use super::sidebar_tests::{
+    fixture,
+    motion,
+    settle,
+};
 /// The scheme switch the desktop-settings watcher makes,
 ///  and color bytes.
-use super::theme_tests::{rgba, switch};
+use super::theme_tests::{
+    rgba,
+    switch,
+};
 /// Generated window and row types from the shipped markup.
 use super::{
     AppWindow,
-    ui::{ReferenceEntry, SearchEntry, TreeEntry},
+    ui::{
+        ReferenceEntry,
+        SearchEntry,
+        TreeEntry,
+    },
 };
 /// The rule under test and the WCAG 2 arithmetic it is built on.
-use ide_app::selection_ink::{contrast, legible_ink, luminance};
+use ide_app::selection_ink::{
+    contrast,
+    legible_ink,
+    luminance,
+};
 /// What:
 ///  `ColorScheme` is the toolkit's scheme enum (`Unknown`,
 ///  `Dark`,
@@ -41,7 +59,13 @@ use slint::private_unstable_api::re_exports::ColorScheme;
 /// Window ownership,
 ///  toolkit models,
 ///  and pixel types.
-use slint::{ComponentHandle, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    VecModel,
+};
 /// What:
 ///  `Rc` is a shared pointer for one thread (sibling `Arc` works across threads).
 /// Why:
@@ -90,7 +114,10 @@ fn bytes(found: Rgba8Pixel) -> [u8; 4] {
 /// ```ts
 /// function extremes(frame: Frame, bounds: [number, number, number, number]): [Color, Color];
 /// ```
-fn extremes(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4]) -> ([u8; 4], [u8; 4]) {
+fn extremes(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    bounds: [usize; 4],
+) -> ([u8; 4], [u8; 4]) {
     let mut lightest = bytes(pixel(frame, bounds[0], bounds[2]));
     let mut darkest = lightest;
     for y in bounds[2]..bounds[3] {
@@ -154,7 +181,11 @@ struct Part {
 /// ```ts
 /// function measure(window: AppWindow, scheme: string, part: Part): number;
 /// ```
-fn measure(window: &AppWindow, scheme: &str, part: &Part) -> f32 {
+fn measure(
+    window: &AppWindow,
+    scheme: &str,
+    part: &Part,
+) -> f32 {
     let shown = frame(window);
     let ink = legible_ink(
         rgba(window.get_selection_fill().color()),
@@ -210,7 +241,12 @@ fn measure(window: &AppWindow, scheme: &str, part: &Part) -> f32 {
 /// ```ts
 /// function tinted(window: AppWindow, scheme: string, state: string, plain: number): void;
 /// ```
-fn tinted(window: &AppWindow, scheme: &str, state: &str, plain: f32) {
+fn tinted(
+    window: &AppWindow,
+    scheme: &str,
+    state: &str,
+    plain: f32,
+) {
     for part in &TREE {
         let shown = measure(window, &format!("{scheme}, tree row {state},"), part);
         assert!(

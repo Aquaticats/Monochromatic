@@ -34,7 +34,10 @@ use super::sync::SyncReport;
 /// ```ts
 /// export function retireAfterInstall(ctx: Context, report: SyncReport): void
 /// ```
-pub fn retire_after_install(ctx: &Context, report: &mut SyncReport) {
+pub fn retire_after_install(
+    ctx: &Context,
+    report: &mut SyncReport,
+) {
     let retired = retire_old_copies(ctx, &report.failed);
     report.old_copies = retired.lines;
     report.warnings.extend(retired.warnings);

@@ -26,7 +26,10 @@
 use std::collections::HashMap;
 
 /// Imports the text arena and the title normalization that fill it.
-use crate::search_index_text::{TextArena, normalize_title_into};
+use crate::search_index_text::{
+    TextArena,
+    normalize_title_into,
+};
 /// Imports the characters that separate words in a name.
 use crate::search_matcher::WORD_SEPARATORS;
 /// Imports the title that a track shows.
@@ -100,7 +103,11 @@ pub(crate) struct PreparedBatch {
 /// so a track belongs in the bucket of each first character
 ///  and first character pair found at a word start.
 /// A separator never starts a bucket key.
-fn word_start_keys(norm: &str, firsts: &mut Vec<char>, pairs: &mut Vec<(char, char)>) {
+fn word_start_keys(
+    norm: &str,
+    firsts: &mut Vec<char>,
+    pairs: &mut Vec<(char, char)>,
+) {
     firsts.clear();
     pairs.clear();
     let mut previous: Option<char> = None;
@@ -177,7 +184,10 @@ fn key_of<K: Copy, V>(entry: &(K, V)) -> K {
 /// ```ts
 /// const bySightedName = (left: FolderSighting, right: FolderSighting): number => compare(left.name, right.name);
 /// ```
-fn by_sighted_name(left: &FolderSighting, right: &FolderSighting) -> std::cmp::Ordering {
+fn by_sighted_name(
+    left: &FolderSighting,
+    right: &FolderSighting,
+) -> std::cmp::Ordering {
     return left.name.cmp(&right.name);
 }
 
@@ -238,7 +248,10 @@ pub(crate) fn prepare_batch<S: AsRef<str>>(display_paths: &[S]) -> PreparedBatch
     by_pair.sort_by_key(key_of);
     let mut sightings: Vec<FolderSighting> = Vec::with_capacity(folders.len());
     for (name, nested_or_prefixed) in folders {
-        sightings.push(FolderSighting { name, nested_or_prefixed });
+        sightings.push(FolderSighting {
+            name,
+            nested_or_prefixed,
+        });
     }
     sightings.sort_by(by_sighted_name);
     return PreparedBatch {

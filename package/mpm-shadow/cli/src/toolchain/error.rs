@@ -72,19 +72,28 @@ impl ToolchainError {
     /// const config = (message: string) => new ToolchainError('config', message);
     /// ```
     pub fn config(message: impl Into<String>) -> ToolchainError {
-        return ToolchainError { kind: ErrorKind::Config, message: message.into() };
+        return ToolchainError {
+            kind: ErrorKind::Config,
+            message: message.into(),
+        };
     }
 
     /// Builds a `Drift` error (plan and lock disagree,
     /// or installed tools drifted).
     pub fn drift(message: impl Into<String>) -> ToolchainError {
-        return ToolchainError { kind: ErrorKind::Drift, message: message.into() };
+        return ToolchainError {
+            kind: ErrorKind::Drift,
+            message: message.into(),
+        };
     }
 
     /// Builds a `Failure` error (an install,
     /// download or lookup failed).
     pub fn failure(message: impl Into<String>) -> ToolchainError {
-        return ToolchainError { kind: ErrorKind::Failure, message: message.into() };
+        return ToolchainError {
+            kind: ErrorKind::Failure,
+            message: message.into(),
+        };
     }
 
     /// What:
@@ -120,7 +129,10 @@ impl fmt::Display for ToolchainError {
     /// ```ts
     /// toString(): string { return this.message; }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.message);
     }
 }

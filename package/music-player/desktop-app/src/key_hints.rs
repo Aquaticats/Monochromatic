@@ -15,9 +15,16 @@
 //! so they are tested without a window.
 
 /// Imports the keyboard platform and the shortcut action that a badge describes.
-use crate::keymap::{KeyboardPlatform, ShortcutAction};
+use crate::keymap::{
+    KeyboardPlatform,
+    ShortcutAction,
+};
 /// Imports the held modifiers and the binding lookups that give each badge its key text.
-use crate::keymap_bindings::{HeldModifiers, binding_for, key_label};
+use crate::keymap_bindings::{
+    HeldModifiers,
+    binding_for,
+    key_label,
+};
 
 /// What:
 ///      `HINT_HOLD_MS` is how long the modifiers must stay held before the badges appear.
@@ -69,14 +76,22 @@ impl KeyHints {
     /// ```ts
     /// function onModifiers(hints: KeyHints, held: HeldModifiers, nowMs: number): KeyHints;
     /// ```
-    pub fn on_modifiers(self, held: HeldModifiers, now_ms: u64) -> Self {
+    pub fn on_modifiers(
+        self,
+        held: HeldModifiers,
+        now_ms: u64,
+    ) -> Self {
         if held == self.held {
             return self;
         }
         if held.is_empty() {
             return Self::default();
         }
-        return Self { held, since_ms: now_ms, shown: self.shown };
+        return Self {
+            held,
+            since_ms: now_ms,
+            shown: self.shown,
+        };
     }
 
     /// What:
@@ -89,11 +104,18 @@ impl KeyHints {
     /// ```ts
     /// function onTick(hints: KeyHints, nowMs: number): KeyHints;
     /// ```
-    pub fn on_tick(self, now_ms: u64) -> Self {
-        if self.shown || self.held.is_empty() || now_ms.saturating_sub(self.since_ms) < HINT_HOLD_MS {
+    pub fn on_tick(
+        self,
+        now_ms: u64,
+    ) -> Self {
+        if self.shown || self.held.is_empty() || now_ms.saturating_sub(self.since_ms) < HINT_HOLD_MS
+        {
             return self;
         }
-        return Self { shown: true, ..self };
+        return Self {
+            shown: true,
+            ..self
+        };
     }
 
     /// What:
@@ -106,7 +128,10 @@ impl KeyHints {
     /// ```ts
     /// function waitMs(hints: KeyHints, nowMs: number): number | null;
     /// ```
-    pub fn wait_ms(self, now_ms: u64) -> Option<u64> {
+    pub fn wait_ms(
+        self,
+        now_ms: u64,
+    ) -> Option<u64> {
         if self.shown || self.held.is_empty() {
             return None;
         }
@@ -124,7 +149,11 @@ impl KeyHints {
     /// function visible(hints: KeyHints): HeldModifiers | null;
     /// ```
     pub fn visible(self) -> Option<HeldModifiers> {
-        return if self.shown && !self.held.is_empty() { Some(self.held) } else { None };
+        return if self.shown && !self.held.is_empty() {
+            Some(self.held)
+        } else {
+            None
+        };
     }
 }
 
@@ -264,7 +293,11 @@ impl HintTarget {
 ///   return "";
 /// }
 /// ```
-pub fn badge_text(target: HintTarget, platform: KeyboardPlatform, visible: Option<HeldModifiers>) -> String {
+pub fn badge_text(
+    target: HintTarget,
+    platform: KeyboardPlatform,
+    visible: Option<HeldModifiers>,
+) -> String {
     let Some(held) = visible else {
         return String::new();
     };

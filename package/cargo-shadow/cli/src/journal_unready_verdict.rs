@@ -18,28 +18,38 @@ use std::fs;
 use std::io;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path};
-
-
+use std::path::Path;
 
 /// Imports `crate::constants::LOCKFILE_NAME` for this file.
 use crate::constants::LOCKFILE_NAME;
 
 /// Imports the control group records and queries for this file.
-use crate::control_group::{LauncherState, launcher_state};
+use crate::control_group::{
+    LauncherState,
+    launcher_state,
+};
 
 /// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
-use crate::crates::{LockSnapshot, read_locks};
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
 
 /// Imports the journal file names and the durability barrier for this file.
-use crate::journal::{ACKNOWLEDGED_FILE, GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, VIEW_FILE};
+use crate::journal::{
+    ACKNOWLEDGED_FILE,
+    GROUPS_FILE,
+    INDEX_FILE,
+    MANIFEST_INDEX_FILE,
+    OWNER_FILE,
+    VIEW_FILE,
+};
 
 /// Imports `crate::journal_manifests::read_manifest_index` for this file.
 use crate::journal_manifests::read_manifest_index;
 
 /// Imports `crate::journal_recover::read_journal` for this file.
 use crate::journal_recover::read_journal;
-
 
 /// What:
 /// `fn is_digit_run(stem: &str) -> bool` says whether text is a non-empty run of decimal digits.
@@ -89,7 +99,18 @@ pub(crate) fn is_snapshot(name: &str) -> bool {
 /// An unknown file may be the only copy of something,
 /// so the journal is kept.
 pub(crate) fn is_unknown_file(name: &str) -> bool {
-    return ![OWNER_FILE, GROUPS_FILE, VIEW_FILE, ACKNOWLEDGED_FILE, INDEX_FILE, MANIFEST_INDEX_FILE].contains(&name) && !is_lock(name) && !is_snapshot(name) && !name.ends_with(".tmp");
+    return ![
+        OWNER_FILE,
+        GROUPS_FILE,
+        VIEW_FILE,
+        ACKNOWLEDGED_FILE,
+        INDEX_FILE,
+        MANIFEST_INDEX_FILE,
+    ]
+    .contains(&name)
+        && !is_lock(name)
+        && !is_snapshot(name)
+        && !name.ends_with(".tmp");
 }
 
 /// What:
@@ -125,7 +146,10 @@ pub(crate) fn launcher_verdict_of(noted: (i32, u64, u64)) -> (i32, LauncherState
 /// `fn note_uncertain(uncertain: &mut Option<String>, message: String)` keeps the first reason a verdict is uncertain.
 /// Why:
 /// A function replaces the closure that captured the `uncertain` variable.
-pub(crate) fn note_uncertain(uncertain: &mut Option<String>, message: String) {
+pub(crate) fn note_uncertain(
+    uncertain: &mut Option<String>,
+    message: String,
+) {
     if uncertain.is_none() {
         *uncertain = Some(message);
     }
@@ -145,8 +169,12 @@ pub(crate) fn note_uncertain(uncertain: &mut Option<String>, message: String) {
 /// ```ts
 /// function unreadyVerdict(root: string, directory: string): string[]  // throws the reason to keep it
 /// ```
-pub(crate) fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String> {
-    let listing: fs::ReadDir = fs::read_dir(directory).explained(format_args!("it could not be listed"))?;
+pub(crate) fn unready_verdict(
+    root: &Path,
+    directory: &Path,
+) -> Result<Vec<String>, String> {
+    let listing: fs::ReadDir =
+        fs::read_dir(directory).explained(format_args!("it could not be listed"))?;
     let mut names: Vec<String> = Vec::new();
     for entry in listing.flatten() {
         names.push(entry.file_name().to_string_lossy().to_string());
@@ -159,7 +187,9 @@ pub(crate) fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<Strin
         }
     }
     if let Some(unknown) = unknown_name {
-        return Err(format!("it holds {unknown}, which this version does not know"));
+        return Err(format!(
+            "it holds {unknown}, which this version does not know"
+        ));
     }
     let mut locks: usize = 0;
     let mut snapshots: usize = 0;
@@ -184,14 +214,23 @@ pub(crate) fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<Strin
                 return Err("it holds lockfile snapshots that its index does not list".to_string());
             }
             let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
-            let live = read_locks(root, &dirs).explained(format_args!("a live lockfile could not be read"))?;
+            let live = read_locks(root, &dirs)
+                .explained(format_args!("a live lockfile could not be read"))?;
             for (old, now) in before.iter().zip(live.iter()) {
                 if old.source != now.source {
-                    return Err("it holds the only copy of a lockfile that differs from the live one".to_string());
+                    return Err(
+                        "it holds the only copy of a lockfile that differs from the live one"
+                            .to_string(),
+                    );
                 }
             }
             for crate_dir in &dirs {
-                live_files.push(root.join(crate_dir).join(LOCKFILE_NAME).to_string_lossy().to_string());
+                live_files.push(
+                    root.join(crate_dir)
+                        .join(LOCKFILE_NAME)
+                        .to_string_lossy()
+                        .to_string(),
+                );
             }
         }
     }
@@ -203,15 +242,30 @@ pub(crate) fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<Strin
         }
     }
     if has_manifest_index {
-        let manifests = read_manifest_index(directory).explained(format_args!("its manifest index is damaged"))?;
+        let manifests = read_manifest_index(directory)
+            .explained(format_args!("its manifest index is damaged"))?;
         if snapshots != manifests.len() {
-            return Err("it holds manifest snapshots that its manifest index does not list".to_string());
+            return Err(
+                "it holds manifest snapshots that its manifest index does not list".to_string(),
+            );
         }
         for manifest in &manifests {
             match fs::read_to_string(&manifest.path) {
-                Ok(live) if live == manifest.before => live_files.push(manifest.path.to_string_lossy().to_string()),
-                Ok(_) => return Err(format!("it holds the only copy of {}, which differs from the live file", manifest.path.display())),
-                Err(error) => return Err(format!("{} could not be read ({error})", manifest.path.display())),
+                Ok(live) if live == manifest.before => {
+                    live_files.push(manifest.path.to_string_lossy().to_string())
+                }
+                Ok(_) => {
+                    return Err(format!(
+                        "it holds the only copy of {}, which differs from the live file",
+                        manifest.path.display()
+                    ));
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "{} could not be read ({error})",
+                        manifest.path.display()
+                    ));
+                }
             }
         }
     } else if snapshots > 0 {

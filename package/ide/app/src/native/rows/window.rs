@@ -10,7 +10,11 @@ use crate::native::AppWindow;
 /// `Model` gives a list its `row_count` and row access,
 ///  `ModelRc` hands a model to the window,
 ///  and `VecModel` is the toolkit's growable list model.
-use slint::{Model, ModelRc, VecModel};
+use slint::{
+    Model,
+    ModelRc,
+    VecModel,
+};
 /// `Rc` shares the persistent model between the state and the window.
 use std::rc::Rc;
 
@@ -29,7 +33,10 @@ use std::rc::Rc;
 /// ```ts
 /// function update<T>(model: ArrayModel<T>, wanted: T[]): void;
 /// ```
-fn update<T: Copy + PartialEq + 'static>(model: &VecModel<T>, wanted: &[T]) {
+fn update<T: Copy + PartialEq + 'static>(
+    model: &VecModel<T>,
+    wanted: &[T],
+) {
     for (index, row) in wanted.iter().enumerate() {
         if index >= model.row_count() {
             model.push(*row);
@@ -54,7 +61,10 @@ fn update<T: Copy + PartialEq + 'static>(model: &VecModel<T>, wanted: &[T]) {
 /// ```ts
 /// function present(window: AppWindow, placement: Placement): void;
 /// ```
-pub(in crate::native) fn present(window: &AppWindow, placement: Placement) {
+pub(in crate::native) fn present(
+    window: &AppWindow,
+    placement: Placement,
+) {
     window.set_content_extent(placement.extent);
     update(&placement.top_model, &placement.tops);
     update(&placement.number_model, &placement.numbers);

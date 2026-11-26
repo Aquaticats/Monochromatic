@@ -36,7 +36,10 @@ pub mod stderr_tail;
 /// ```ts
 /// import { EnvFilter, MakeWriter } from 'tracing-subscriber';
 /// ```
-use tracing_subscriber::{EnvFilter, fmt::MakeWriter};
+use tracing_subscriber::{
+    EnvFilter,
+    fmt::MakeWriter,
+};
 
 /// What:
 ///  `LevelFilter` is a level threshold:
@@ -118,7 +121,10 @@ fn helix_directive(requested: Option<&str>) -> String {
 ///   return ['warn', helixDirective(requested), defaults, requested].filter(Boolean).join(',');
 /// }
 /// ```
-pub fn directives(defaults: &str, requested: Option<&str>) -> String {
+pub fn directives(
+    defaults: &str,
+    requested: Option<&str>,
+) -> String {
     // An override is kept only when it has text after `str::trim` removes surrounding spaces.
     let mut wanted: Option<&str> = None;
     if let Some(text) = requested.map(str::trim)
@@ -184,7 +190,11 @@ pub fn filter(defaults: &str) -> EnvFilter {
 /// ```ts
 /// function install(filter: EnvFilter, writer: MakeWriter, ansi?: boolean): void
 /// ```
-pub fn install<W>(filter: EnvFilter, writer: W, ansi: Option<bool>) -> anyhow::Result<()>
+pub fn install<W>(
+    filter: EnvFilter,
+    writer: W,
+    ansi: Option<bool>,
+) -> anyhow::Result<()>
 where
     W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
 {

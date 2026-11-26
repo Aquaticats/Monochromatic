@@ -6,7 +6,10 @@ use crate::git_ignore::IgnoreAnswer;
 /// Directory metadata retains native filenames and the order of the listing it was given.
 use crate::workspace::DirectoryEntry;
 /// Invalid tree operations report affected paths instead of silently changing unrelated rows.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// What:
 ///  Maps own cached snapshots;
 ///  sets own expansion state;
@@ -21,8 +24,14 @@ use anyhow::{Result, bail};
 /// const expanded = new Set<string>();
 /// ```
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -147,13 +156,19 @@ impl FileTree {
     }
 
     /// Distinguish an empty loaded directory from one whose initial read has never succeeded.
-    pub fn has_listing(&self, directory: &Path) -> bool {
+    pub fn has_listing(
+        &self,
+        directory: &Path,
+    ) -> bool {
         return self.directories.contains_key(directory);
     }
 
     /// Borrow a known entry from its parent's snapshot,
     ///  including collapsed descendants.
-    fn entry(&self, path: &Path) -> Option<&DirectoryEntry> {
+    fn entry(
+        &self,
+        path: &Path,
+    ) -> Option<&DirectoryEntry> {
         // What: ? returns None when the optional parent or snapshot is absent.
         // Why: An unknown row is distinct from a known non-directory row.
         //
@@ -182,7 +197,10 @@ impl FileTree {
 
     /// Toggle a known directory;
     ///  files and symbolic links cannot become expandable tree nodes.
-    pub fn toggle(&mut self, path: &Path) -> Result<bool> {
+    pub fn toggle(
+        &mut self,
+        path: &Path,
+    ) -> Result<bool> {
         // What: let-else extracts Some(entry) or exits through a descriptive error.
         // Why: Stale UI row identifiers cannot accidentally create new expansion state.
         //

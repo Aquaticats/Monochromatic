@@ -23,12 +23,22 @@
 use std::cell::Cell;
 
 /// Imports the double-Shift detector and its input.
-use music_player::double_shift::{DoubleShift, ShiftInput};
+use music_player::double_shift::{
+    DoubleShift,
+    ShiftInput,
+};
 /// Imports the focus zone,
 /// route,
 /// platform,
 /// action and request types and the classifier.
-use music_player::keymap::{FocusZone, KeyRoute, KeyboardPlatform, ShortcutAction, ShortcutRequest, shortcut_action};
+use music_player::keymap::{
+    FocusZone,
+    KeyRoute,
+    KeyboardPlatform,
+    ShortcutAction,
+    ShortcutRequest,
+    shortcut_action,
+};
 /// Imports the held modifiers that each request carries.
 use music_player::keymap_bindings::HeldModifiers;
 /// Imports the component handle that reaches the window's state.
@@ -41,7 +51,10 @@ use crate::ui_screen::read_screen;
 /// Imports the route that tells which page is open.
 use crate::ui_screen_view::Route;
 /// Imports the window and the focus type that keys act on.
-use crate::{AppWindow, Focus};
+use crate::{
+    AppWindow,
+    Focus,
+};
 
 thread_local! {
     /// What:
@@ -172,11 +185,27 @@ pub fn key_route(route: Route) -> KeyRoute {
 /// The swap is not verified here:
 /// this
 /// machine runs neither macOS nor Windows.
-pub fn held_modifiers(ctrl: bool, meta: bool, alt: bool, shift: bool, apple: bool) -> HeldModifiers {
+pub fn held_modifiers(
+    ctrl: bool,
+    meta: bool,
+    alt: bool,
+    shift: bool,
+    apple: bool,
+) -> HeldModifiers {
     return if apple {
-        HeldModifiers { ctrl: meta, meta: ctrl, alt, shift }
+        HeldModifiers {
+            ctrl: meta,
+            meta: ctrl,
+            alt,
+            shift,
+        }
     } else {
-        HeldModifiers { ctrl, meta, alt, shift }
+        HeldModifiers {
+            ctrl,
+            meta,
+            alt,
+            shift,
+        }
     };
 }
 
@@ -231,7 +260,18 @@ fn is_shift_key(text: &str) -> bool {
 /// a modifier alone is never a shortcut;
 /// it only feeds the key hint badges and the double tap of Shift.
 fn is_modifier_key(text: &str) -> bool {
-    return matches!(text, "\u{10}" | "\u{11}" | "\u{12}" | "\u{13}" | "\u{14}" | "\u{15}" | "\u{16}" | "\u{17}" | "\u{18}");
+    return matches!(
+        text,
+        "\u{10}"
+            | "\u{11}"
+            | "\u{12}"
+            | "\u{13}"
+            | "\u{14}"
+            | "\u{15}"
+            | "\u{16}"
+            | "\u{17}"
+            | "\u{18}"
+    );
 }
 
 /// What:
@@ -246,7 +286,11 @@ fn is_modifier_key(text: &str) -> bool {
 /// ```ts
 /// const requestFor = (input: KeyInput, context: KeyContext, platform: Platform): ShortcutRequest => ({ ... });
 /// ```
-pub fn request_for(input: &KeyInput, context: &KeyContext, platform: KeyboardPlatform) -> ShortcutRequest {
+pub fn request_for(
+    input: &KeyInput,
+    context: &KeyContext,
+    platform: KeyboardPlatform,
+) -> ShortcutRequest {
     return ShortcutRequest {
         platform,
         key: input.key.clone(),
@@ -270,7 +314,10 @@ pub fn request_for(input: &KeyInput, context: &KeyContext, platform: KeyboardPla
 /// the page and the picker flag live in the state,
 /// and the zone lives in the window's `Focus` global.
 pub(crate) fn context_of(window: &AppWindow) -> KeyContext {
-    let (route, picker_open) = { let state = read_screen(); (state.route, state.picker_open) };
+    let (route, picker_open) = {
+        let state = read_screen();
+        (state.route, state.picker_open)
+    };
     return KeyContext {
         route,
         zone: FocusZone::from_int(window.global::<Focus>().get_zone()),
@@ -284,8 +331,14 @@ pub(crate) fn context_of(window: &AppWindow) -> KeyContext {
 /// Why:
 /// dispatching and the tests classify through the same call,
 /// so a key means one thing wherever it is read.
-pub(crate) fn classify(window: &AppWindow, input: &KeyInput) -> (ShortcutAction, KeyContext) {
-    let context = KeyContext { popup_open: input.in_popup, ..context_of(window) };
+pub(crate) fn classify(
+    window: &AppWindow,
+    input: &KeyInput,
+) -> (ShortcutAction, KeyContext) {
+    let context = KeyContext {
+        popup_open: input.in_popup,
+        ..context_of(window)
+    };
     let action = shortcut_action(&request_for(input, &context, platform()));
     tracing::debug!(
         key = %input.key,
@@ -304,7 +357,11 @@ pub(crate) fn classify(window: &AppWindow, input: &KeyInput) -> (ShortcutAction,
 /// Why:
 /// a used key stops the window from delivering it to the focused field,
 /// and an unused key continues to it.
-pub(crate) fn dispatch(window: &AppWindow, host: &dyn Host, input: &KeyInput) -> bool {
+pub(crate) fn dispatch(
+    window: &AppWindow,
+    host: &dyn Host,
+    input: &KeyInput,
+) -> bool {
     let (action, context) = classify(window, input);
     let used = crate::ui_keys_actions::run(window, host, action, &context);
     if used {
@@ -323,7 +380,10 @@ pub(crate) fn dispatch(window: &AppWindow, host: &dyn Host, input: &KeyInput) ->
 /// on Settings,
 /// its editor page and Search the detector
 /// still runs (so its state stays honest) but the tap does nothing.
-fn track_double_shift(window: &AppWindow, input: ShiftInput) {
+fn track_double_shift(
+    window: &AppWindow,
+    input: ShiftInput,
+) {
     let now = crate::ui_hints::now_ms();
     let before = DOUBLE_SHIFT.get();
     let (after, completed) = before.step(input, now);
@@ -351,12 +411,27 @@ fn track_double_shift(window: &AppWindow, input: ShiftInput) {
 /// sends every other key through the classifier.
 /// A key press also turns the focus ring on,
 /// because the keyboard is in use.
-pub(crate) fn on_key_pressed(window: &AppWindow, host: &dyn Host, key: &RawKey) -> bool {
-    let held = held_modifiers(key.ctrl, key.meta, key.alt, key.shift, cfg!(target_os = "macos"));
+pub(crate) fn on_key_pressed(
+    window: &AppWindow,
+    host: &dyn Host,
+    key: &RawKey,
+) -> bool {
+    let held = held_modifiers(
+        key.ctrl,
+        key.meta,
+        key.alt,
+        key.shift,
+        cfg!(target_os = "macos"),
+    );
     crate::ui_hints::modifiers_changed(window, held);
     if is_modifier_key(&key.text) {
         if is_shift_key(&key.text) {
-            track_double_shift(window, ShiftInput::ShiftDown { repeat: key.repeat });
+            track_double_shift(
+                window,
+                ShiftInput::ShiftDown {
+                    repeat: key.repeat,
+                },
+            );
         } else {
             track_double_shift(window, ShiftInput::OtherKey);
         }
@@ -380,8 +455,17 @@ pub(crate) fn on_key_pressed(window: &AppWindow, host: &dyn Host, key: &RawKey) 
 /// `on_key_released` handles one key release from the window's key scope.
 /// Why:
 /// a release updates the held modifiers (so the badges narrow or hide) and ends a Shift tap for the double tap.
-pub(crate) fn on_key_released(window: &AppWindow, key: &RawKey) {
-    let held = held_modifiers(key.ctrl, key.meta, key.alt, key.shift, cfg!(target_os = "macos"));
+pub(crate) fn on_key_released(
+    window: &AppWindow,
+    key: &RawKey,
+) {
+    let held = held_modifiers(
+        key.ctrl,
+        key.meta,
+        key.alt,
+        key.shift,
+        cfg!(target_os = "macos"),
+    );
     crate::ui_hints::modifiers_changed(window, held);
     if is_shift_key(&key.text) {
         track_double_shift(window, ShiftInput::ShiftUp);

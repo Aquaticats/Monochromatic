@@ -32,9 +32,15 @@
 #[cfg(any(test, debug_assertions))]
 use super::render;
 /// The parent's window and state.
-use super::{AppWindow, State};
+use super::{
+    AppWindow,
+    State,
+};
 /// The visible subset and the text of one problem.
-use ide_app::annotation::{Visible, describe};
+use ide_app::annotation::{
+    Visible,
+    describe,
+};
 /// Annotation inks and the positioned frame the raster paints.
 use ide_app::annotation_layout::AnnotationColors;
 /// The stamp naming the displayed text.
@@ -42,7 +48,10 @@ use ide_app::language::identity::DocumentStamp;
 /// Snapshot records,
 ///  taken only by `set_annotations` (tests and debug builds).
 #[cfg(any(test, debug_assertions))]
-use ide_app::language::{diagnostics::DiagnosticsSnapshot, hints::HintsSnapshot};
+use ide_app::language::{
+    diagnostics::DiagnosticsSnapshot,
+    hints::HintsSnapshot,
+};
 /// Window property access.
 use slint::SharedString;
 /// What:
@@ -67,7 +76,10 @@ use std::sync::Arc;
 /// type Shared<T> = { current: T };
 /// ```
 #[cfg(any(test, debug_assertions))]
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  At most this many problems are named in the accessible description;
@@ -185,7 +197,10 @@ pub(super) fn colors(window: &AppWindow) -> AnnotationColors {
 
 /// The index of the first block that stands at or below line `first`,
 ///  found by binary search over blocks sorted by line.
-fn first_block_from(blocks: &[Arc<ide_app::virtual_row::Block>], first: usize) -> usize {
+fn first_block_from(
+    blocks: &[Arc<ide_app::virtual_row::Block>],
+    first: usize,
+) -> usize {
     let mut low = 0;
     let mut high = blocks.len();
     while low < high {
@@ -215,7 +230,10 @@ fn first_block_from(blocks: &[Arc<ide_app::virtual_row::Block>], first: usize) -
 /// ```ts
 /// function visible(current: State, bounds: TileBounds): Visible;
 /// ```
-pub(super) fn visible(current: &State, bounds: super::tile::TileBounds) -> Arc<Visible> {
+pub(super) fn visible(
+    current: &State,
+    bounds: super::tile::TileBounds,
+) -> Arc<Visible> {
     let last = bounds.first.saturating_add(bounds.count);
     // A binary search finds the first block at or below the first materialized line.
     let from = first_block_from(&current.blocks, bounds.first);
@@ -233,7 +251,10 @@ pub(super) fn visible(current: &State, bounds: super::tile::TileBounds) -> Arc<V
         bounds.first,
         last,
     );
-    return Arc::new(Visible { blocks, marks });
+    return Arc::new(Visible {
+        blocks,
+        marks,
+    });
 }
 
 /// What:
@@ -270,7 +291,10 @@ pub(super) fn problems(current: &State) -> String {
 
 /// Hand the caret's problems to the window;
 ///  an unchanged text leaves the toolkit property alone.
-pub(super) fn present_problems(window: &AppWindow, text: String) {
+pub(super) fn present_problems(
+    window: &AppWindow,
+    text: String,
+) {
     let shared = SharedString::from(text);
     if window.get_caret_problems() != shared {
         window.set_caret_problems(shared);

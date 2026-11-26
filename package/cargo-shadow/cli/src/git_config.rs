@@ -71,7 +71,11 @@ pub struct ParsedConfig {
 /// export const variableName = (section: string, subsection: string | undefined, key: string): string =>
 ///   [section.toLowerCase(), ...(subsection === undefined ? [] : [subsection]), key.toLowerCase()].join('.');
 /// ```
-pub fn variable_name(section: &str, subsection: Option<&str>, key: &str) -> String {
+pub fn variable_name(
+    section: &str,
+    subsection: Option<&str>,
+    key: &str,
+) -> String {
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
     //
@@ -117,7 +121,12 @@ impl ParsedConfig {
     /// ```ts
     /// values(section: string, subsection: string | undefined, key: string): (string | undefined)[]
     /// ```
-    pub fn values(&self, section: &str, subsection: Option<&str>, key: &str) -> Vec<Option<&str>> {
+    pub fn values(
+        &self,
+        section: &str,
+        subsection: Option<&str>,
+        key: &str,
+    ) -> Vec<Option<&str>> {
         // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
         // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
         //
@@ -180,9 +189,18 @@ impl ParsedConfig {
     /// ```ts
     /// last(section: string, subsection: string | undefined, key: string): string | undefined
     /// ```
-    pub fn last(&self, section: &str, subsection: Option<&str>, key: &str) -> Option<&str> {
+    pub fn last(
+        &self,
+        section: &str,
+        subsection: Option<&str>,
+        key: &str,
+    ) -> Option<&str> {
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        return self.values(section, subsection, key).last().copied().flatten();
+        return self
+            .values(section, subsection, key)
+            .last()
+            .copied()
+            .flatten();
     }
 
     /// What:
@@ -194,7 +212,10 @@ impl ParsedConfig {
     /// ```ts
     /// extendWith(later: ParsedConfig): void
     /// ```
-    pub fn extend_with(&mut self, later: ParsedConfig) {
+    pub fn extend_with(
+        &mut self,
+        later: ParsedConfig,
+    ) {
         self.entries.extend(later.entries);
         self.has_include = self.has_include || later.has_include;
     }
@@ -272,14 +293,19 @@ pub fn parse_bool(value: Option<&str>) -> Result<bool, String> {
     // Typed binding: `number: &str`.
     let number: &str = digits.strip_suffix(['k', 'm', 'g']).unwrap_or(digits);
     // Closure `|character|`: an anonymous function, like a TS arrow function.
-    if !number.is_empty() && number.as_bytes().iter().all(u8::is_ascii_digit) && !(number.len() > 1 && number.starts_with('0')) {
+    if !number.is_empty()
+        && number.as_bytes().iter().all(u8::is_ascii_digit)
+        && !(number.len() > 1 && number.starts_with('0'))
+    {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Closure `|character|`: an anonymous function, like a TS arrow function.
         return Ok(!number.trim_start_matches('0').is_empty());
     }
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(format!("{text:?} is not a boolean spelling this reader knows"));
+    return Err(format!(
+        "{text:?} is not a boolean spelling this reader knows"
+    ));
 }
 
 /// How the lexer sees the text:
@@ -362,7 +388,11 @@ fn is_key_character(character: char) -> bool {
 /// ```ts
 /// function readExtendedBase(lexer: Lexer, name: string[], first: string): void  // throws on an incomplete header
 /// ```
-fn read_extended_base(lexer: &mut Lexer, name: &mut String, first: char) -> Result<(), String> {
+fn read_extended_base(
+    lexer: &mut Lexer,
+    name: &mut String,
+    first: char,
+) -> Result<(), String> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
@@ -420,7 +450,10 @@ fn read_extended_base(lexer: &mut Lexer, name: &mut String, first: char) -> Resu
     if lexer.next() != ']' {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err("a section header has something between the quoted subsection and its closing bracket".to_string());
+        return Err(
+            "a section header has something between the quoted subsection and its closing bracket"
+                .to_string(),
+        );
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());
@@ -477,7 +510,9 @@ fn read_base(lexer: &mut Lexer) -> Result<String, String> {
         if !is_key_character(character) && character != '.' {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("a section header holds {character:?}, which a section name cannot"));
+            return Err(format!(
+                "a section header holds {character:?}, which a section name cannot"
+            ));
         }
         name.push(character.to_ascii_lowercase());
     }
@@ -554,7 +589,11 @@ fn read_value(lexer: &mut Lexer) -> Result<String, String> {
                 '\\' | '"' => character,
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
                 // Macro `format!`: builds or prints text (or a list) from a template.
-                other => return Err(format!("an unknown escape \\{other} in a configuration value")),
+                other => {
+                    return Err(format!(
+                        "an unknown escape \\{other} in a configuration value"
+                    ));
+                }
             };
             value.push(escaped);
             continue;
@@ -581,7 +620,11 @@ fn read_value(lexer: &mut Lexer) -> Result<String, String> {
 /// ```ts
 /// function readVariable(lexer: Lexer, stem: string, first: string): ConfigEntry  // throws on a syntax error
 /// ```
-fn read_variable(lexer: &mut Lexer, stem: &str, first: char) -> Result<ConfigEntry, String> {
+fn read_variable(
+    lexer: &mut Lexer,
+    stem: &str,
+    first: char,
+) -> Result<ConfigEntry, String> {
     // `let mut`: a binding that may change.
     // Typed binding: `name: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
@@ -601,17 +644,25 @@ fn read_variable(lexer: &mut Lexer, stem: &str, first: char) -> Result<ConfigEnt
     if character == '\n' {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `None`: the present or the absent value of an `Option`.
-        return Ok(ConfigEntry { name, value: None });
+        return Ok(ConfigEntry {
+            name,
+            value: None,
+        });
     }
     if character != '=' {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{name} is followed by {character:?} where a value or a newline is expected"));
+        return Err(format!(
+            "{name} is followed by {character:?} where a value or a newline is expected"
+        ));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    return Ok(ConfigEntry { name, value: Some(read_value(lexer)?) });
+    return Ok(ConfigEntry {
+        name,
+        value: Some(read_value(lexer)?),
+    });
 }
 
 /// What:
@@ -631,7 +682,11 @@ pub fn parse_config(text: &str) -> Result<ParsedConfig, String> {
     // `.collect()`: runs the iterator and gathers the items into the bound collection type.
     // `let mut`: a binding that may change.
     // Typed binding: `lexer: Lexer`.
-    let mut lexer: Lexer = Lexer { characters: without_mark.chars().collect(), position: 0, at_end: false };
+    let mut lexer: Lexer = Lexer {
+        characters: without_mark.chars().collect(),
+        position: 0,
+        at_end: false,
+    };
     let mut parsed: ParsedConfig = ParsedConfig::default();
     // `None`: the present or the absent value of an `Option`.
     // `let mut`: a binding that may change.
@@ -676,7 +731,9 @@ pub fn parse_config(text: &str) -> Result<ParsedConfig, String> {
         if !character.is_ascii_alphabetic() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("a configuration line starts with {character:?}, which starts neither a section nor a key"));
+            return Err(format!(
+                "a configuration line starts with {character:?}, which starts neither a section nor a key"
+            ));
         }
         // `Some`: the present or the absent value of an `Option`.
         // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
@@ -694,7 +751,9 @@ pub fn parse_config(text: &str) -> Result<ParsedConfig, String> {
         };
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&mut lexer`: lends the value without copying or giving it away.
-        parsed.entries.push(read_variable(&mut lexer, current, character)?);
+        parsed
+            .entries
+            .push(read_variable(&mut lexer, current, character)?);
     }
     // Borrow `&parsed.entries`: lends the value without copying or giving it away.
     for entry in &parsed.entries {

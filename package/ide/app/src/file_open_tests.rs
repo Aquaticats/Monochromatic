@@ -3,7 +3,10 @@
 /// The controller owns both its desired target and its reader's admission state.
 use super::FileOpener;
 /// Test-only transport construction uses real disconnected standard-library channels.
-use crate::{reload_worker::ReloadWorker, workspace::Workspace};
+use crate::{
+    reload_worker::ReloadWorker,
+    workspace::Workspace,
+};
 
 /// Caller-side pending state is released together with the failed worker slot.
 #[test]

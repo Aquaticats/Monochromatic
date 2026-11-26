@@ -1,7 +1,14 @@
 //! Atomic artifact publication tests over disposable directories.
 
-use super::{publish_artifact, read_artifact, ArtifactReadError};
-use crate::runtime_cache::path::{cache_location, source_digest};
+use super::{
+    ArtifactReadError,
+    publish_artifact,
+    read_artifact,
+};
+use crate::runtime_cache::path::{
+    cache_location,
+    source_digest,
+};
 use std::path::PathBuf;
 
 /// Creates fresh process-scoped test directory.
@@ -12,7 +19,7 @@ fn test_directory(label: &str) -> PathBuf {
     ));
     let _ = std::fs::remove_dir_all(&path);
     std::fs::create_dir_all(&path).expect("create test directory");
-    return path
+    return path;
 }
 
 /// Missing artifact receives distinct read category.
@@ -32,7 +39,10 @@ fn oversized_artifact_is_unreadable() {
     let directory = test_directory("oversized");
     let artifact = directory.join("artifact.bin");
     std::fs::write(&artifact, b"12345").expect("write fixture");
-    assert_eq!(read_artifact(&artifact, 4), Err(ArtifactReadError::Unreadable));
+    assert_eq!(
+        read_artifact(&artifact, 4),
+        Err(ArtifactReadError::Unreadable)
+    );
     let _ = std::fs::remove_dir_all(directory);
 }
 
@@ -44,10 +54,16 @@ fn publication_replaces_complete_artifact() {
     let location = cache_location(&root, digest);
 
     publish_artifact(&location, b"first").expect("first publication");
-    assert_eq!(read_artifact(&location.artifact_path, 1024).expect("read"), b"first");
+    assert_eq!(
+        read_artifact(&location.artifact_path, 1024).expect("read"),
+        b"first"
+    );
 
     publish_artifact(&location, b"second").expect("replacement");
-    assert_eq!(read_artifact(&location.artifact_path, 1024).expect("read"), b"second");
+    assert_eq!(
+        read_artifact(&location.artifact_path, 1024).expect("read"),
+        b"second"
+    );
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -63,7 +79,10 @@ fn publication_enforces_private_modes() {
     publish_artifact(&location, b"private").expect("publication");
 
     for directory in &location.protected_directories {
-        let mode = std::fs::metadata(directory).expect("directory metadata").permissions().mode();
+        let mode = std::fs::metadata(directory)
+            .expect("directory metadata")
+            .permissions()
+            .mode();
         assert_eq!(mode & 0o777, 0o700);
     }
     let file_mode = std::fs::metadata(&location.artifact_path)

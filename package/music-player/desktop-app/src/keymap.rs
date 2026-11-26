@@ -18,11 +18,18 @@
 //!  so `shortcut_action` never sees one.
 
 /// Imports the binding scopes and lookups that map a request to a row of the table.
-use crate::keymap_bindings::{Scope, binding_matching, popup_binding_matching};
+use crate::keymap_bindings::{
+    Scope,
+    binding_matching,
+    popup_binding_matching,
+};
 
 /// Re-exports the keyboard maps and their error,
 /// which callers still reach through `keymap`.
-pub use crate::keymap_platform::{KeyboardPlatform, KeymapError};
+pub use crate::keymap_platform::{
+    KeyboardPlatform,
+    KeymapError,
+};
 
 /// What:
 ///      `pub enum ShortcutOwner` names who owns the keys of a focus zone.
@@ -162,8 +169,12 @@ impl FocusZone {
     pub fn owner(self) -> ShortcutOwner {
         return match self {
             Self::TextField => ShortcutOwner::Editor,
-            Self::ModeGroup | Self::DeckButton | Self::Button | Self::SettingsList => ShortcutOwner::Control,
-            Self::Surface | Self::FolderList | Self::TrackList | Self::Seek => ShortcutOwner::Player,
+            Self::ModeGroup | Self::DeckButton | Self::Button | Self::SettingsList => {
+                ShortcutOwner::Control
+            }
+            Self::Surface | Self::FolderList | Self::TrackList | Self::Seek => {
+                ShortcutOwner::Player
+            }
         };
     }
 
@@ -629,7 +640,10 @@ fn owner_action(request: &ShortcutRequest) -> ShortcutAction {
 /// ```ts
 /// const scopeAllows = (scope: Scope, r: ShortcutRequest): boolean => ...;
 /// ```
-pub(crate) fn scope_allows(scope: Scope, request: &ShortcutRequest) -> bool {
+pub(crate) fn scope_allows(
+    scope: Scope,
+    request: &ShortcutRequest,
+) -> bool {
     let on_player = request.route == KeyRoute::Player;
     return match scope {
         Scope::Anywhere => true,
@@ -639,21 +653,34 @@ pub(crate) fn scope_allows(scope: Scope, request: &ShortcutRequest) -> bool {
             on_player
                 && matches!(
                     request.zone,
-                    FocusZone::Surface | FocusZone::FolderList | FocusZone::TrackList | FocusZone::Seek
+                    FocusZone::Surface
+                        | FocusZone::FolderList
+                        | FocusZone::TrackList
+                        | FocusZone::Seek
                 )
         }
-        Scope::ListZone => on_player && matches!(request.zone, FocusZone::FolderList | FocusZone::TrackList),
+        Scope::ListZone => {
+            on_player && matches!(request.zone, FocusZone::FolderList | FocusZone::TrackList)
+        }
         Scope::FolderList => on_player && request.zone == FocusZone::FolderList,
         Scope::TrackList => on_player && request.zone == FocusZone::TrackList,
         Scope::Popup => on_player && request.in_popup,
         Scope::PickerOverlay => on_player && request.picker_overlay,
         Scope::SearchPage => request.route == KeyRoute::Search,
-        Scope::SearchField => request.route == KeyRoute::Search && request.zone == FocusZone::TextField,
-        Scope::SettingsIdle => request.route == KeyRoute::Settings && request.zone != FocusZone::TextField,
-        Scope::SettingsField => request.route == KeyRoute::Settings && request.zone == FocusZone::TextField,
+        Scope::SearchField => {
+            request.route == KeyRoute::Search && request.zone == FocusZone::TextField
+        }
+        Scope::SettingsIdle => {
+            request.route == KeyRoute::Settings && request.zone != FocusZone::TextField
+        }
+        Scope::SettingsField => {
+            request.route == KeyRoute::Settings && request.zone == FocusZone::TextField
+        }
         Scope::EditorPage => request.route == KeyRoute::EditorPage,
         Scope::LicensesPage => request.route == KeyRoute::Licenses,
-        Scope::EditorOrSettings => matches!(request.route, KeyRoute::Settings | KeyRoute::EditorPage),
+        Scope::EditorOrSettings => {
+            matches!(request.route, KeyRoute::Settings | KeyRoute::EditorPage)
+        }
     };
 }
 

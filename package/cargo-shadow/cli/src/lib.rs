@@ -18,7 +18,9 @@
 // alive by reading `/proc/<pid>`, which other Unix systems lack, so an active run there would look dead and be recovered
 // from under its own feet.
 #[cfg(not(target_os = "linux"))]
-compile_error!("cargo-shadow supports Linux only (its journal reads /proc); other systems are a later change");
+compile_error!(
+    "cargo-shadow supports Linux only (its journal reads /proc); other systems are a later change"
+);
 
 /// The command-line grammar of the binary when it is started under its own name.
 pub mod cli;
@@ -290,11 +292,11 @@ pub mod update;
 /// The work values of the update (split out of the update module).
 pub mod update_recorded_work;
 
+/// The option tests and the raised-floor warning wording that `update` asks about.
+pub(crate) mod update_argument_and_warning_text;
 /// The full update's resolution of each crate root,
 /// split out of `update.rs`.
 pub mod update_resolve;
-/// The option tests and the raised-floor warning wording that `update` asks about.
-pub(crate) mod update_argument_and_warning_text;
 
 /// The verification of the lockfiles an update leaves,
 /// split out of `update.rs`.
@@ -438,12 +440,12 @@ mod git_sha1_tests;
 #[cfg(test)]
 mod journal_recover_tests;
 
+/// Round 8 tests of acceptance rows that no other test file of the round holds.
+#[cfg(test)]
+mod acceptance_rows_tests;
 /// The round 6 tests of what a bounded run contains.
 #[cfg(test)]
 mod bounded_contain_tests;
-/// Round 7 tests built from the sixth review's counterexamples to the containment of a bounded run.
-#[cfg(test)]
-mod contain_counterexample_tests;
 /// The probes of rounds 7 and 8 as tests:
 /// what a delegated scope does on this host.
 #[cfg(test)]
@@ -452,60 +454,60 @@ mod cgroup_probe_tests;
 /// finding the host's route and starting a launcher in a scope.
 #[cfg(test)]
 mod cgroup_test_support;
-/// Round 7 tests of how a workspace finds the journals whose runs may have left a writer.
+/// Round 7 tests built from the sixth review's counterexamples to the containment of a bounded run.
 #[cfg(test)]
-mod survivor_discovery_tests;
+mod contain_counterexample_tests;
+/// Rounds 7 and 8 tests of what a journal records about containment and what a recovery and an admission do with it.
+#[cfg(test)]
+mod containment_record_tests;
+/// Round 7 tests of the three phases of finishing a transaction and how an update joins them with its own outcome.
+#[cfg(test)]
+mod finish_phase_tests;
+/// Round 8 tests of the failures on the containment path after a program started,
+/// and of the bounds on the waits.
+#[cfg(test)]
+mod quiescence_failure_tests;
+/// Round 11 tests:
+/// the launcher record that lets a killed wrapper be recognized.
+#[cfg(test)]
+mod round_eleven_tests;
+/// Round 14 and 15 tests:
+/// the start time of a launcher read from another time namespace.
+#[cfg(test)]
+mod round_fourteen_tests;
 /// Round 9 tests:
 /// the pending launcher,
 /// the bounds on discovery and the internal locks.
 #[cfg(test)]
 mod round_nine_tests;
+/// Round 17 tests:
+/// the fixes asked for by the second certification pass.
+#[cfg(test)]
+mod round_seventeen_tests;
+/// Round 16 tests:
+/// the fixes asked for by the first certification pass.
+#[cfg(test)]
+mod round_sixteen_tests;
 /// Round 10 tests:
 /// the unsettled scope,
 /// the strict boot identity and the discovery's shared deadline.
 #[cfg(test)]
 mod round_ten_tests;
-/// Round 11 tests:
-/// the launcher record that lets a killed wrapper be recognized.
+/// Round 13 tests:
+/// what a changed process number in procfs does and does not show.
 #[cfg(test)]
-mod round_eleven_tests;
+mod round_thirteen_tests;
 /// Round 12 tests:
 /// the launcher check against the procfs of another process id namespace,
 /// and the boot id read from the checked object.
 #[cfg(test)]
 mod round_twelve_tests;
-/// Round 13 tests:
-/// what a changed process number in procfs does and does not show.
-#[cfg(test)]
-mod round_thirteen_tests;
-/// Round 14 and 15 tests:
-/// the start time of a launcher read from another time namespace.
-#[cfg(test)]
-mod round_fourteen_tests;
-/// Round 16 tests:
-/// the fixes asked for by the first certification pass.
-#[cfg(test)]
-mod round_sixteen_tests;
-/// Round 17 tests:
-/// the fixes asked for by the second certification pass.
-#[cfg(test)]
-mod round_seventeen_tests;
 /// Round 8 tests of acceptance rows no other test file of the round holds.
 #[cfg(test)]
 mod round_twentyone_tests;
-/// Round 8 tests of acceptance rows that no other test file of the round holds.
+/// Round 7 tests of how a workspace finds the journals whose runs may have left a writer.
 #[cfg(test)]
-mod acceptance_rows_tests;
-/// Round 8 tests of the failures on the containment path after a program started,
-/// and of the bounds on the waits.
-#[cfg(test)]
-mod quiescence_failure_tests;
-/// Round 7 tests of the three phases of finishing a transaction and how an update joins them with its own outcome.
-#[cfg(test)]
-mod finish_phase_tests;
-/// Rounds 7 and 8 tests of what a journal records about containment and what a recovery and an admission do with it.
-#[cfg(test)]
-mod containment_record_tests;
+mod survivor_discovery_tests;
 
 /// Helpers the journal tests share.
 #[cfg(test)]

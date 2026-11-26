@@ -2,25 +2,44 @@
 
 /// Standard encoding constructs byte-valued wire fixtures;
 ///  assertions compare the original bytes.
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD,
+};
 /// Production result types and decoders are exercised without a native window.
 /// `json_value!` builds the wire fixtures like `json!`,
 ///  with the one lint allowance the `unwrap` ban needs.
 use ide_app::{
     json_value,
-    search::{MAX_PREVIEW_GRAPHEMES, SearchKind},
-    search_protocol::{content, filename},
+    search::{
+        MAX_PREVIEW_GRAPHEMES,
+        SearchKind,
+    },
+    search_protocol::{
+        content,
+        filename,
+    },
     search_query::PathQuery,
 };
 /// Typed JSON fixture construction escapes quotes,
 ///  separators,
 ///  and newlines at the protocol boundary.
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 /// Native filename bytes remain distinct from their lossy display representation.
-use std::{os::unix::ffi::OsStrExt, path::Path};
+use std::{
+    os::unix::ffi::OsStrExt,
+    path::Path,
+};
 
 /// Serialize a real match envelope rather than concatenating unescaped JSON strings.
-fn record(path: Value, lines: Value, line: usize) -> Vec<u8> {
+fn record(
+    path: Value,
+    lines: Value,
+    line: usize,
+) -> Vec<u8> {
     return serde_json::to_vec(&json_value!({"type":"match", "data":{"path":path,"lines":lines,"line_number":line,"submatches":[]}}))
         .expect("serialize match fixture");
 }

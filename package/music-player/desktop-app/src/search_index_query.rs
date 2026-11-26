@@ -26,20 +26,38 @@ use std::thread;
 use crate::pagination::root_level_folder_label;
 /// Imports the index type and the bit,
 /// slot and marker constants that tell folders from tracks.
-use crate::search_index::{FOLDER_BIT, ROOT_FOLDER_SLOT, SearchIndex, UNFILED};
+use crate::search_index::{
+    FOLDER_BIT,
+    ROOT_FOLDER_SLOT,
+    SearchIndex,
+    UNFILED,
+};
 /// Imports the function that finds the folder part of a name.
 use crate::search_index_batch::folder_of;
 /// Imports the ranked candidate type,
 /// the cheap tier test and the best-first selection.
-use crate::search_index_rank::{Ranked, fast_tier, select_best};
+use crate::search_index_rank::{
+    Ranked,
+    fast_tier,
+    select_best,
+};
 /// Imports the single-character shortcut answer.
 use crate::search_index_top::single_character_tracks;
 /// Imports the matcher helpers that split a query and find its highlights.
 use crate::search_matcher::{
-    SearchHighlight, WORD_SEPARATORS, highlight_ranges_for_terms, search_terms, trim_kotlin_whitespace,
+    SearchHighlight,
+    WORD_SEPARATORS,
+    highlight_ranges_for_terms,
+    search_terms,
+    trim_kotlin_whitespace,
 };
 /// Imports the result types that a search returns.
-use crate::search_results::{SEARCH_RESULT_LIMIT, SearchResult, SearchResultKind, SearchState};
+use crate::search_results::{
+    SEARCH_RESULT_LIMIT,
+    SearchResult,
+    SearchResultKind,
+    SearchState,
+};
 /// Imports the title that a result shows.
 use crate::track_entries::track_title_for;
 
@@ -105,7 +123,10 @@ impl SearchIndex {
     /// every term must match,
     /// so any term's bucket holds every match;
     /// the shortest is the cheapest to test.
-    fn candidate_members(&self, terms: &[String]) -> Option<&[u32]> {
+    fn candidate_members(
+        &self,
+        terms: &[String],
+    ) -> Option<&[u32]> {
         let mut best: Option<&[u32]> = None;
         for term in terms {
             let chunk: Vec<char> = bucket_chunk(term);
@@ -136,7 +157,12 @@ impl SearchIndex {
     /// because that scan
     /// is the largest part of a keystroke and the members are independent;
     /// the answer is the same in either case.
-    fn track_matches(&self, terms: &[String], joined: &str, parallel_from: usize) -> (Vec<Ranked>, usize) {
+    fn track_matches(
+        &self,
+        terms: &[String],
+        joined: &str,
+        parallel_from: usize,
+    ) -> (Vec<Ranked>, usize) {
         if let [only] = terms {
             let mut characters = only.chars();
             if let (Some(character), None) = (characters.next(), characters.next())
@@ -146,7 +172,9 @@ impl SearchIndex {
             }
         }
         let ranked: Vec<Ranked> = match self.candidate_members(terms) {
-            Some(members) if members.len() >= parallel_from => self.tier_in_parallel(members, terms, joined),
+            Some(members) if members.len() >= parallel_from => {
+                self.tier_in_parallel(members, terms, joined)
+            }
             Some(members) => self.tier_members(members, terms, joined),
             None => {
                 let mut every: Vec<Ranked> = Vec::new();
@@ -165,7 +193,13 @@ impl SearchIndex {
     /// Why:
     /// the one place that turns a match into a ranked entry,
     /// shared by every scan shape.
-    fn tier_one(&self, position: usize, terms: &[String], joined: &str, into: &mut Vec<Ranked>) {
+    fn tier_one(
+        &self,
+        position: usize,
+        terms: &[String],
+        joined: &str,
+        into: &mut Vec<Ranked>,
+    ) {
         if let Some(tier) = fast_tier(self.norm(position), terms, joined) {
             into.push(Ranked {
                 tier,
@@ -180,7 +214,12 @@ impl SearchIndex {
     /// Why:
     /// the sequential scan,
     /// and the work each thread of the parallel scan does.
-    fn tier_members(&self, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
+    fn tier_members(
+        &self,
+        members: &[u32],
+        terms: &[String],
+        joined: &str,
+    ) -> Vec<Ranked> {
         let mut ranked: Vec<Ranked> = Vec::new();
         for member in members {
             self.tier_one(*member as usize, terms, joined, &mut ranked);
@@ -193,9 +232,18 @@ impl SearchIndex {
     /// Why:
     /// the joined vector equals the sequential one entry for entry,
     /// so the ranking and the counts are unchanged.
-    fn tier_in_parallel(&self, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
+    fn tier_in_parallel(
+        &self,
+        members: &[u32],
+        terms: &[String],
+        joined: &str,
+    ) -> Vec<Ranked> {
         let slice_len: usize = members.len().div_ceil(SCAN_THREADS);
-        tracing::debug!(members = members.len(), slice_len, "tiering a large bucket on several threads");
+        tracing::debug!(
+            members = members.len(),
+            slice_len,
+            "tiering a large bucket on several threads"
+        );
         #[cfg_attr(
             dylint_lib = "monochromatic_lint_closure",
             expect(
@@ -225,7 +273,11 @@ impl SearchIndex {
     /// folders are few,
     /// so each query tests all of them,
     /// and a folder never enters the cached track answers.
-    fn folder_matches(&self, terms: &[String], joined: &str) -> Vec<Ranked> {
+    fn folder_matches(
+        &self,
+        terms: &[String],
+        joined: &str,
+    ) -> Vec<Ranked> {
         let mut ranked: Vec<Ranked> = Vec::new();
         for slot in self.listed_folders() {
             let Some(record) = self.folder(slot) else {
@@ -258,7 +310,11 @@ impl SearchIndex {
     /// parent context and highlights are computed for the five hundred rows that are shown,
     /// not for
     /// every match.
-    fn result_for(&self, ranked: Ranked, terms: &[String]) -> SearchResult {
+    fn result_for(
+        &self,
+        ranked: Ranked,
+        terms: &[String],
+    ) -> SearchResult {
         let tier: i32 = i32::from(ranked.tier);
         if ranked.id & FOLDER_BIT != 0 {
             let slot: u32 = ranked.id & !FOLDER_BIT;
@@ -315,7 +371,10 @@ impl SearchIndex {
     /// const state = index.search("cam"); // { kind: "results", items, truncated }
     /// ```
     #[must_use]
-    pub fn search(&self, query: &str) -> SearchState {
+    pub fn search(
+        &self,
+        query: &str,
+    ) -> SearchState {
         return self.search_with(query, PARALLEL_SCAN_FROM);
     }
 
@@ -328,7 +387,11 @@ impl SearchIndex {
     /// to prove both
     /// give one answer.
     #[must_use]
-    pub(crate) fn search_with(&self, query: &str, parallel_from: usize) -> SearchState {
+    pub(crate) fn search_with(
+        &self,
+        query: &str,
+        parallel_from: usize,
+    ) -> SearchState {
         let terms: Vec<String> = search_terms(query);
         if terms.is_empty() {
             return SearchState::EmptyQuery;
@@ -359,7 +422,10 @@ impl SearchIndex {
     /// `warm` brings the cached answer of one first character up to date.
     /// Why:
     /// a background pass calls it so the first keystroke of a letter reads a cache entry.
-    pub fn warm(&self, character: char) {
+    pub fn warm(
+        &self,
+        character: char,
+    ) {
         if !WORD_SEPARATORS.contains(&character) {
             let _answer = single_character_tracks(self, character);
         }

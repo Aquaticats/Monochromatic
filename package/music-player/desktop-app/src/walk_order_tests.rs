@@ -4,13 +4,20 @@
 //           where the walk would put it, and every folder's run must be exactly the files under it.
 
 use super::*;
-use crate::refresh_test_support::{Rng, TempTree, pick_stem};
+use crate::refresh_test_support::{
+    Rng,
+    TempTree,
+    pick_stem,
+};
 
 /// The name parts:
 /// they collide on case,
 /// digits and leading zeros,
 /// so natural order differs from byte order.
-const STEMS: [&str; 16] = ["a", "A", "b", "B", "a2", "a10", "a02", "Track 2", "Track 10", "é", "ß", "日本", "1", "01", "z", "Z z"];
+const STEMS: [&str; 16] = [
+    "a", "A", "b", "B", "a2", "a10", "a02", "Track 2", "Track 10", "é", "ß", "日本", "1", "01",
+    "z", "Z z",
+];
 
 /// What:
 /// `random_name` is a relative file name of up to three folder levels,
@@ -18,7 +25,10 @@ const STEMS: [&str; 16] = ["a", "A", "b", "B", "a2", "a10", "a02", "Track 2", "T
 /// Why:
 /// the walk's order has to hold for any shape,
 /// including a file and a folder with similar names.
-fn random_name(rng: &mut Rng, suffix: &str) -> String {
+fn random_name(
+    rng: &mut Rng,
+    suffix: &str,
+) -> String {
     let depth: usize = rng.below(4);
     let mut relative: String = String::new();
     for _ in 0..depth {
@@ -41,20 +51,50 @@ fn every_listed_file_is_found_at_its_index_and_every_folder_has_its_run() {
         }
         let tracks: Vec<PathBuf> = tree.walk();
         for (index, track) in tracks.iter().enumerate() {
-            assert_eq!(locate(&tracks, &tree.root, track), Ok(index), "seed {seed}: {} is found at its index", track.display());
+            assert_eq!(
+                locate(&tracks, &tree.root, track),
+                Ok(index),
+                "seed {seed}: {} is found at its index",
+                track.display()
+            );
         }
         let mut folders: Vec<PathBuf> = tracks
             .iter()
-            .flat_map(|track| return track.ancestors().skip(1).take_while(|ancestor| return *ancestor != tree.root).map(Path::to_path_buf).collect::<Vec<_>>())
+            .flat_map(|track| {
+                return track
+                    .ancestors()
+                    .skip(1)
+                    .take_while(|ancestor| return *ancestor != tree.root)
+                    .map(Path::to_path_buf)
+                    .collect::<Vec<_>>();
+            })
             .collect();
         folders.sort();
         folders.dedup();
         for folder in &folders {
-            let expected: Vec<usize> = tracks.iter().enumerate().filter(|(_, track)| return track.starts_with(folder)).map(|(index, _)| return index).collect();
+            let expected: Vec<usize> = tracks
+                .iter()
+                .enumerate()
+                .filter(|(_, track)| return track.starts_with(folder))
+                .map(|(index, _)| return index)
+                .collect();
             let run: Range<usize> = subtree_range(&tracks, &tree.root, folder);
-            assert_eq!(run.clone().collect::<Vec<_>>(), expected, "seed {seed}: the run of {}", folder.display());
-            let own: usize = tracks[run.clone()].iter().filter(|track| return track.parent() == Some(folder.as_path())).count();
-            assert_eq!(direct_files(&tracks, folder, run).len(), own, "seed {seed}: the files directly in {}", folder.display());
+            assert_eq!(
+                run.clone().collect::<Vec<_>>(),
+                expected,
+                "seed {seed}: the run of {}",
+                folder.display()
+            );
+            let own: usize = tracks[run.clone()]
+                .iter()
+                .filter(|track| return track.parent() == Some(folder.as_path()))
+                .count();
+            assert_eq!(
+                direct_files(&tracks, folder, run).len(),
+                own,
+                "seed {seed}: the files directly in {}",
+                folder.display()
+            );
         }
     }
 }
@@ -70,7 +110,8 @@ fn a_file_that_is_not_listed_lands_where_the_walk_would_put_it() {
         }
         let before: Vec<PathBuf> = tree.walk();
         for probe_round in 0..12 {
-            let relative: String = random_name(&mut rng, &format!(" probe {probe_round}")).replace(".txt", ".flac");
+            let relative: String =
+                random_name(&mut rng, &format!(" probe {probe_round}")).replace(".txt", ".flac");
             let probe: PathBuf = tree.path(&relative);
             let Err(place) = locate(&before, &tree.root, &probe) else {
                 panic!("seed {seed}: an absent file was found");
@@ -79,7 +120,11 @@ fn a_file_that_is_not_listed_lands_where_the_walk_would_put_it() {
                 continue;
             }
             let after: Vec<PathBuf> = tree.walk();
-            assert_eq!(after.iter().position(|track| return *track == probe), Some(place), "seed {seed}: {relative} lands at its place");
+            assert_eq!(
+                after.iter().position(|track| return *track == probe),
+                Some(place),
+                "seed {seed}: {relative} lands at its place"
+            );
             std::fs::remove_file(&probe).expect("the probe is removed");
         }
     }
@@ -88,10 +133,28 @@ fn a_file_that_is_not_listed_lands_where_the_walk_would_put_it() {
 #[test]
 fn a_file_comes_before_a_folder_whose_name_sorts_earlier() {
     let root = Path::new("/lib");
-    assert_eq!(walk_cmp(root, Path::new("/lib/z.flac"), Path::new("/lib/a/x.flac")), Ordering::Less, "own files precede subfolders");
-    assert_eq!(walk_cmp(root, Path::new("/lib/a/x.flac"), Path::new("/lib/z.flac")), Ordering::Greater);
-    assert_eq!(walk_cmp(root, Path::new("/lib/Track 2.flac"), Path::new("/lib/Track 10.flac")), Ordering::Less, "natural order");
-    assert_eq!(walk_cmp(root, Path::new("/lib/a/x.flac"), Path::new("/lib/a/x.flac")), Ordering::Equal);
+    assert_eq!(
+        walk_cmp(root, Path::new("/lib/z.flac"), Path::new("/lib/a/x.flac")),
+        Ordering::Less,
+        "own files precede subfolders"
+    );
+    assert_eq!(
+        walk_cmp(root, Path::new("/lib/a/x.flac"), Path::new("/lib/z.flac")),
+        Ordering::Greater
+    );
+    assert_eq!(
+        walk_cmp(
+            root,
+            Path::new("/lib/Track 2.flac"),
+            Path::new("/lib/Track 10.flac")
+        ),
+        Ordering::Less,
+        "natural order"
+    );
+    assert_eq!(
+        walk_cmp(root, Path::new("/lib/a/x.flac"), Path::new("/lib/a/x.flac")),
+        Ordering::Equal
+    );
 }
 
 #[test]

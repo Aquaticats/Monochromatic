@@ -4,17 +4,32 @@
 
 /// The matcher under test,
 ///  with its sources and the size bound.
-use super::{GlobalSource, IgnoreAnswer, IgnoreMatcher, MAX_ENTRIES};
+use super::{
+    GlobalSource,
+    IgnoreAnswer,
+    IgnoreMatcher,
+    MAX_ENTRIES,
+};
 /// Real listings give the same entries,
 ///  paths,
 ///  and directory kinds the reader hands the matcher.
-use crate::workspace::{DirectoryEntry, Workspace};
+use crate::workspace::{
+    DirectoryEntry,
+    Workspace,
+};
 /// Disposable project files.
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Write a file,
 ///  creating its folders.
-fn put(root: &Path, name: &str, text: &str) {
+fn put(
+    root: &Path,
+    name: &str,
+    text: &str,
+) {
     let path = root.join(name);
     fs::create_dir_all(path.parent().expect("parent folder")).expect("fixture folder");
     fs::write(path, text).expect("fixture file");
@@ -31,7 +46,10 @@ fn work_tree() -> (tempfile::TempDir, Workspace) {
 }
 
 /// The listing of a folder of the workspace as the reader would produce it.
-fn listing(workspace: &Workspace, folder: &str) -> (std::path::PathBuf, Vec<DirectoryEntry>) {
+fn listing(
+    workspace: &Workspace,
+    folder: &str,
+) -> (std::path::PathBuf, Vec<DirectoryEntry>) {
     // An empty name must give the root itself, not the root with a trailing separator.
     let path = if folder.is_empty() {
         workspace.root().to_path_buf()
@@ -54,7 +72,11 @@ fn named(answer: &IgnoreAnswer) -> Vec<String> {
 
 /// The ignored names of one folder,
 ///  sorted.
-fn ignored(matcher: &mut IgnoreMatcher, workspace: &Workspace, folder: &str) -> Vec<String> {
+fn ignored(
+    matcher: &mut IgnoreMatcher,
+    workspace: &Workspace,
+    folder: &str,
+) -> Vec<String> {
     let (path, entries) = listing(workspace, folder);
     let answer = matcher.evaluate(&path, &entries);
     return named(&answer);

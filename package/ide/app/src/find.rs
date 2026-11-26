@@ -12,7 +12,11 @@
 /// ```ts
 /// // functions below `throw new Error(message)` instead of returning a Result
 /// ```
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// What:
 ///  Helix reexports the `regex` crate;
 ///  `escape` turns every query character into a literal.
@@ -25,7 +29,10 @@ use anyhow::{Context, Result, bail};
 /// ```
 use helix_core::{
     Rope,
-    regex::{RegexBuilder, escape},
+    regex::{
+        RegexBuilder,
+        escape,
+    },
 };
 /// What:
 ///  `Arc` is a shared pointer that may cross threads;
@@ -125,7 +132,11 @@ pub struct FindMatches {
 /// ```ts
 /// function findMatches(text: string, query: string, limit: number): FindMatches;
 /// ```
-pub fn find_matches(text: &str, query: &str, limit: usize) -> Result<FindMatches> {
+pub fn find_matches(
+    text: &str,
+    query: &str,
+    limit: usize,
+) -> Result<FindMatches> {
     // What: `Vec::new()` creates an empty growable list.
     // Why: The number of matches is unknown until the scan finishes or reaches its limit.
     //
@@ -221,7 +232,10 @@ pub fn find_matches(text: &str, query: &str, limit: usize) -> Result<FindMatches
 /// ```ts
 /// function findInSource(source: Rope, query: string): FindMatches;
 /// ```
-pub fn find_in_source(source: &Rope, query: &str) -> Result<FindMatches> {
+pub fn find_in_source(
+    source: &Rope,
+    query: &str,
+) -> Result<FindMatches> {
     return find_in_bounded_source(source, query, MAX_FIND_SOURCE_BYTES, MAX_FIND_MATCHES);
 }
 

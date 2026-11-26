@@ -7,25 +7,25 @@
 //! Usage:
 //!  `truepeak-core-bench <tracks.jsonl> [window_count]`.
 
-/// The per-track corpus record and loader.
-mod corpus;
-/// The bench's one dBTP conversion and its silence floor.
-mod levels;
-/// The per-candidate evaluation against the corpus.
-mod evaluate;
+/// The bucket-first composite with the FLAC bones-guided probe.
+mod buckets;
 /// The classifier that routes risky long tracks to a full scan from probe features.
 mod classify;
+/// The per-track corpus record and loader.
+mod corpus;
+/// The per-candidate evaluation against the corpus.
+mod evaluate;
 /// The feasible no-classifier model:
 ///  minimize the fixed margin by probe density.
 mod feasible;
+/// The bench's one dBTP conversion and its silence floor.
+mod levels;
+/// The bench's one bridge to the production probe selection.
+mod probe_bins;
 /// The decided proportional-coverage policy and the margin/clamp tradeoff.
 mod proportional;
 /// The corrected-target parameter search and ranking.
 mod search;
-/// The bucket-first composite with the FLAC bones-guided probe.
-mod buckets;
-/// The bench's one bridge to the production probe selection.
-mod probe_bins;
 /// The quarter-measure answer's probe:
 ///  even pass one plus frontier zoom.
 mod zoom;
@@ -36,34 +36,59 @@ mod zoom;
 mod test_fixtures;
 
 /// Imports `anyhow` helpers for application-level error returns.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// Imports the process argument reader.
 use std::env;
 /// Imports the borrowed path type for the corpus location.
 use std::path::Path;
 
-/// Imports the corpus loader,
-///  the track record,
-///  and the safe-provenance loader.
-use crate::corpus::{Track, load_safe_paths, load_tracks};
+/// Imports the bucket-composite report.
+use crate::buckets::report_buckets;
 /// Imports the classifier search,
 ///  the feature diagnostic,
 ///  and the per-track dump.
-use crate::classify::{diagnose, fit_full_scan_rule, write_long_features};
-/// Imports the feasible no-classifier density search and the provenance margin.
-use crate::feasible::{best_feasible, provenance_margin};
+use crate::classify::{
+    diagnose,
+    fit_full_scan_rule,
+    write_long_features,
+};
+/// Imports the corpus loader,
+///  the track record,
+///  and the safe-provenance loader.
+use crate::corpus::{
+    Track,
+    load_safe_paths,
+    load_tracks,
+};
 /// Imports the candidate policy type for the provenance report.
 use crate::evaluate::Candidate;
+/// Imports the feasible no-classifier density search and the provenance margin.
+use crate::feasible::{
+    best_feasible,
+    provenance_margin,
+};
 /// Imports the decided proportional-coverage policy evaluation.
-use crate::proportional::{evaluate_proportional, margin_clamp_table, under_read_quantile};
+use crate::proportional::{
+    evaluate_proportional,
+    margin_clamp_table,
+    under_read_quantile,
+};
+/// Imports the sweep and the objective ranking.
+use crate::search::{
+    rank,
+    sweep,
+};
+/// Imports the frontier-zoom evaluation and its measures.
+use crate::zoom::{
+    evaluate_zoom,
+    measure_zoom,
+    zoom_under_read_quantile,
+};
 /// Imports the safe-provenance path set default.
 use std::collections::HashSet;
-/// Imports the sweep and the objective ranking.
-use crate::search::{rank, sweep};
-/// Imports the frontier-zoom evaluation and its measures.
-use crate::zoom::{evaluate_zoom, measure_zoom, zoom_under_read_quantile};
-/// Imports the bucket-composite report.
-use crate::buckets::report_buckets;
 
 /// The plan's quarter-library divisor for the benchmark target.
 const TARGET_DIVISOR: f64 = 4.0;
@@ -81,10 +106,16 @@ const WINDOW_COUNTS: &[usize] = &[14, 20, 28, 40];
 ///  Why:
 ///  avoids hand-listing
 /// dozens of thresholds and margins.
-fn frange(start: f64, end: f64, step: f64) -> Vec<f64> {
+fn frange(
+    start: f64,
+    end: f64,
+    step: f64,
+) -> Vec<f64> {
     // Count the steps, then map each index to its value (functional, no mutable cursor).
     let steps = ((end - start) / step).round() as i64;
-    return (0..=steps).map(|index| return start + index as f64 * step).collect()
+    return (0..=steps)
+        .map(|index| return start + index as f64 * step)
+        .collect();
 }
 
 /// The stage-two shipped policy's coverage,
@@ -116,7 +147,11 @@ fn report_proportional(
 ) -> Result<()> {
     let policy = truepeak_core::default_policy();
     // The optional metadata argument (a non-flag after the corpus path) enables the safe split.
-    let safe: HashSet<String> = match args.iter().skip(2).find(|arg| return !arg.starts_with("--")) {
+    let safe: HashSet<String> = match args
+        .iter()
+        .skip(2)
+        .find(|arg| return !arg.starts_with("--"))
+    {
         Some(meta) => load_safe_paths(Path::new(meta))?,
         None => HashSet::new(),
     };
@@ -130,29 +165,50 @@ fn report_proportional(
     );
     println!(
         "\nlegacy stage-two proportional policy: short_scan<={}s coverage={} window={}s margin={}dB",
-        policy.short_scan_max_secs, LEGACY_COVERAGE_FRACTION, LEGACY_PROBE_WINDOW_SECS, LEGACY_PROBE_MARGIN_DB
+        policy.short_scan_max_secs,
+        LEGACY_COVERAGE_FRACTION,
+        LEGACY_PROBE_WINDOW_SECS,
+        LEGACY_PROBE_MARGIN_DB
     );
     println!(
         "decoded={:.0}s ({:.1}% of corpus) target={:.0}s {}",
         decoded,
         100.0 * decoded / full_secs,
         target_secs,
-        if decoded <= target_secs { "IN BUDGET" } else { "OVER" }
+        if decoded <= target_secs {
+            "IN BUDGET"
+        } else {
+            "OVER"
+        }
     );
-    print!("loud long tracks={} safe-provenance={} | under-read percentiles dB:", under_reads.len(), safe.len());
+    print!(
+        "loud long tracks={} safe-provenance={} | under-read percentiles dB:",
+        under_reads.len(),
+        safe.len()
+    );
     for fraction in [0.5, 0.9, 0.95, 0.99, 0.995, 1.0] {
-        print!(" p{:.1}={:.2}", fraction * 100.0, under_read_quantile(&under_reads, fraction));
+        print!(
+            " p{:.1}={:.2}",
+            fraction * 100.0,
+            under_read_quantile(&under_reads, fraction)
+        );
     }
     println!();
-    println!("margin/clamp tradeoff (clamped = cold-start tracks the realtime clamp catches, warming later corrects):");
-    for row in margin_clamp_table(&under_reads, &[0.5, 0.8, 1.0, 1.2, 1.5], policy.max_too_loud_db) {
+    println!(
+        "margin/clamp tradeoff (clamped = cold-start tracks the realtime clamp catches, warming later corrects):"
+    );
+    for row in margin_clamp_table(
+        &under_reads,
+        &[0.5, 0.8, 1.0, 1.2, 1.5],
+        policy.max_too_loud_db,
+    ) {
         let percent = 100.0 * row.clamped as f64 / row.total.max(1) as f64;
         println!(
             "  margin={:.1}dB worst_quiet={:+.1}dB -> {} clamped ({percent:.2}%, {} safe) of {}",
             row.margin_db, row.worst_quiet_db, row.clamped, row.clamped_safe, row.total
         );
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// The zoom pass-one coverage fraction the answer fixes (a tenth of each long track).
@@ -187,7 +243,11 @@ fn report_zoom(
 ) -> Result<()> {
     let policy = truepeak_core::default_policy();
     // The optional metadata argument (a non-flag after the corpus path) enables the split.
-    let safe: HashSet<String> = match args.iter().skip(2).find(|arg| return !arg.starts_with("--")) {
+    let safe: HashSet<String> = match args
+        .iter()
+        .skip(2)
+        .find(|arg| return !arg.starts_with("--"))
+    {
         Some(meta) => load_safe_paths(Path::new(meta))?,
         None => HashSet::new(),
     };
@@ -206,7 +266,11 @@ fn report_zoom(
         "decoded={:.0}s ({:.2}% of corpus) {}",
         decoded,
         100.0 * decoded / full_secs,
-        if decoded <= target_secs { "IN BUDGET" } else { "OVER" }
+        if decoded <= target_secs {
+            "IN BUDGET"
+        } else {
+            "OVER"
+        }
     );
     print!("under-read percentiles dB:");
     for fraction in [0.5, 0.9, 0.95, 0.99, 0.995, 1.0] {
@@ -218,7 +282,13 @@ fn report_zoom(
     }
     println!();
     for &margin in ZOOM_MARGINS {
-        let m = measure_zoom(&rows, &|_| return margin, policy.max_too_loud_db, policy.ceiling_dbtp, tracks.len());
+        let m = measure_zoom(
+            &rows,
+            &|_| return margin,
+            policy.max_too_loud_db,
+            policy.ceiling_dbtp,
+            tracks.len(),
+        );
         println!(
             "  margin={margin:.1}: clamped={} ({} safe) avg_quiet={:.3}dB worst_quiet={:.2}dB worst_over={:.2}dB",
             m.clamped, m.clamped_safe, m.avg_quiet_db, m.worst_quiet_db, m.worst_over_db
@@ -227,17 +297,27 @@ fn report_zoom(
     if !safe.is_empty() {
         let split = measure_zoom(
             &rows,
-            &|row| if row.safe { return ZOOM_SPLIT_SAFE_DB } else { return ZOOM_SPLIT_HOT_DB },
+            &|row| {
+                if row.safe {
+                    return ZOOM_SPLIT_SAFE_DB;
+                } else {
+                    return ZOOM_SPLIT_HOT_DB;
+                }
+            },
             policy.max_too_loud_db,
             policy.ceiling_dbtp,
             tracks.len(),
         );
         println!(
             "  split safe={ZOOM_SPLIT_SAFE_DB:.1}/hot={ZOOM_SPLIT_HOT_DB:.1}: clamped={} ({} safe) avg_quiet={:.3}dB worst_quiet={:.2}dB worst_over={:.2}dB",
-            split.clamped, split.clamped_safe, split.avg_quiet_db, split.worst_quiet_db, split.worst_over_db
+            split.clamped,
+            split.clamped_safe,
+            split.avg_quiet_db,
+            split.worst_quiet_db,
+            split.worst_over_db
         );
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Entry point:
@@ -296,7 +376,13 @@ fn main() -> Result<()> {
             .iter()
             .map(|&threshold| return threshold / window_count as f64)
             .collect();
-        let mut points = sweep(&tracks, window_count, &seconds_grid, &margin_grid, target_secs);
+        let mut points = sweep(
+            &tracks,
+            window_count,
+            &seconds_grid,
+            &margin_grid,
+            target_secs,
+        );
         scored.append(&mut points);
     }
     let ranked = rank(scored, target_secs);
@@ -326,7 +412,11 @@ fn main() -> Result<()> {
         println!();
         diagnose(&tracks, best.report.candidate);
         // Dump per-track features so a metadata-aware classifier can be evaluated offline.
-        write_long_features(&tracks, best.report.candidate, Path::new("out/long_features.jsonl"))?;
+        write_long_features(
+            &tracks,
+            best.report.candidate,
+            Path::new("out/long_features.jsonl"),
+        )?;
         println!("wrote per-track features to out/long_features.jsonl");
         let rule = fit_full_scan_rule(&tracks, best.report.candidate, target_secs);
         println!(
@@ -351,9 +441,21 @@ fn main() -> Result<()> {
     let quiet_bound_db = truepeak_core::default_policy().max_too_quiet_db;
     let dense_counts = [20usize, 28, 40, 56, 80];
     let dense_thresholds = frange(40.0, 56.0, 1.0);
-    let feasibles = best_feasible(&tracks, &dense_counts, &dense_thresholds, target_secs, quiet_bound_db);
-    println!("\nfeasible no-classifier model (no full scans; single fixed margin), best densities:");
-    for point in feasibles.iter().filter(|point| return point.feasible).take(30) {
+    let feasibles = best_feasible(
+        &tracks,
+        &dense_counts,
+        &dense_thresholds,
+        target_secs,
+        quiet_bound_db,
+    );
+    println!(
+        "\nfeasible no-classifier model (no full scans; single fixed margin), best densities:"
+    );
+    for point in feasibles
+        .iter()
+        .filter(|point| return point.feasible)
+        .take(30)
+    {
         let threshold = point.candidate.window_count as f64 * point.candidate.window_seconds;
         println!(
             "  count={} thr={:.1}s ws={:.4}s | margin={:.3}dB worst_quiet={:+.3}dB | probe_decoded={:.0}s delta={:+.0}s",
@@ -387,5 +489,5 @@ fn main() -> Result<()> {
         );
     }
 
-    return Ok(())
+    return Ok(());
 }

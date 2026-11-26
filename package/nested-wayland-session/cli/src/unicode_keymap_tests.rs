@@ -3,22 +3,38 @@
 
 use smithay::input::keyboard::xkb;
 
-use super::{base_keymap_text, spare_evdev, with_unicode_keys, MAX_SPARE_KEYS};
+use super::{
+    MAX_SPARE_KEYS,
+    base_keymap_text,
+    spare_evdev,
+    with_unicode_keys,
+};
 
 /// Compile keymap text and return the UTF-8 each evdev code types unshifted.
-fn typed_by(text: &str, evdev: u32) -> Option<String> {
+fn typed_by(
+    text: &str,
+    evdev: u32,
+) -> Option<String> {
     let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
-    let keymap = xkb::Keymap::new_from_string(&context, text.to_string(), xkb::KEYMAP_FORMAT_TEXT_V1, xkb::KEYMAP_COMPILE_NO_FLAGS)?;
+    let keymap = xkb::Keymap::new_from_string(
+        &context,
+        text.to_string(),
+        xkb::KEYMAP_FORMAT_TEXT_V1,
+        xkb::KEYMAP_COMPILE_NO_FLAGS,
+    )?;
     let state = xkb::State::new(&keymap);
     let utf8 = state.key_get_utf8(xkb::Keycode::new(evdev + 8));
-    return if utf8.is_empty() { None } else { Some(utf8) }
+    return if utf8.is_empty() { None } else { Some(utf8) };
 }
 
 /// The base keymap still types ordinary letters.
 #[test]
 fn the_base_keymap_types_a_letter() {
     let base = base_keymap_text();
-    assert_eq!(base.as_ref().map(|text| return typed_by(text, 30)), Ok(Some("a".to_string())));
+    assert_eq!(
+        base.as_ref().map(|text| return typed_by(text, 30)),
+        Ok(Some("a".to_string()))
+    );
 }
 
 /// Accents,
@@ -27,13 +43,28 @@ fn the_base_keymap_types_a_letter() {
 ///  and a character outside the BMP each type as themselves on their spare key.
 #[test]
 fn spare_keys_type_accents_cjk_hangul_and_emoji() {
-    let characters = ['\u{f6}', '\u{304b}', '\u{d55c}', '\u{1F600}', '\u{20AC}', '\u{301}'];
+    let characters = [
+        '\u{f6}',
+        '\u{304b}',
+        '\u{d55c}',
+        '\u{1F600}',
+        '\u{20AC}',
+        '\u{301}',
+    ];
     let base = base_keymap_text().unwrap_or_default();
     let keymap = with_unicode_keys(&base, &characters).unwrap_or_default();
     for (index, character) in characters.iter().enumerate() {
-        assert_eq!(typed_by(&keymap, spare_evdev(index)), Some(character.to_string()), "character {index}");
+        assert_eq!(
+            typed_by(&keymap, spare_evdev(index)),
+            Some(character.to_string()),
+            "character {index}"
+        );
     }
-    assert_eq!(typed_by(&keymap, 30), Some("a".to_string()), "base keys survive");
+    assert_eq!(
+        typed_by(&keymap, 30),
+        Some("a".to_string()),
+        "base keys survive"
+    );
 }
 
 /// More than `MAX_SPARE_KEYS` characters are refused.

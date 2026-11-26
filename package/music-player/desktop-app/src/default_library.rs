@@ -20,7 +20,10 @@
 //! ```
 
 /// Imports the path types that candidates and the chosen folder use.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `pub fn home_music_folder(home: &Path) -> PathBuf`.

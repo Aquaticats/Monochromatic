@@ -12,23 +12,37 @@ use crate::decode::open;
 // What:     `fn fixture(name: &str) -> PathBuf` names a committed fixture file under the package.
 // Why:      The fixture tones are the real audio the decode tests already use.
 fn fixture(name: &str) -> PathBuf {
-    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixture").join(name);
+    return PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("fixture")
+        .join(name);
 }
 
 #[test]
 fn probe_matches_the_decoder_length_for_wav() {
     let path = fixture("tone.wav");
     let probed = probe_duration_secs(&path).expect("the WAV header carries a frame count");
-    let decoded = open(&path).expect("the WAV fixture decodes").spec().duration_secs;
-    assert!((probed - decoded).abs() < 0.01, "probed {probed}, decoded {decoded}");
+    let decoded = open(&path)
+        .expect("the WAV fixture decodes")
+        .spec()
+        .duration_secs;
+    assert!(
+        (probed - decoded).abs() < 0.01,
+        "probed {probed}, decoded {decoded}"
+    );
 }
 
 #[test]
 fn probe_matches_the_decoder_length_for_flac() {
     let path = fixture("tone.flac");
     let probed = probe_duration_secs(&path).expect("the FLAC header carries a frame count");
-    let decoded = open(&path).expect("the FLAC fixture decodes").spec().duration_secs;
-    assert!((probed - decoded).abs() < 0.01, "probed {probed}, decoded {decoded}");
+    let decoded = open(&path)
+        .expect("the FLAC fixture decodes")
+        .spec()
+        .duration_secs;
+    assert!(
+        (probed - decoded).abs() < 0.01,
+        "probed {probed}, decoded {decoded}"
+    );
 }
 
 #[test]

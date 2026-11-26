@@ -34,14 +34,21 @@ use crate::config_convert::located_message;
 /// ```ts
 /// import { ConfigLocations, Location, pointerSegment } from './configLocations';
 /// ```
-use crate::config_locations::{ConfigLocations, Location, pointer_segment};
+use crate::config_locations::{
+    ConfigLocations,
+    Location,
+    pointer_segment,
+};
 /// Imports `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::ValueExpr;
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
 /// Imports `Map`,
 /// `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What:
 ///  The error collector and the readers that fill it.
@@ -88,8 +95,15 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// new Reader(displayPath, locations)
     /// ```
-    pub fn new(display_path: &str, locations: &'a ConfigLocations) -> Reader<'a> {
-        return Reader { errors: Vec::new(), display_path: display_path.to_string(), locations };
+    pub fn new(
+        display_path: &str,
+        locations: &'a ConfigLocations,
+    ) -> Reader<'a> {
+        return Reader {
+            errors: Vec::new(),
+            display_path: display_path.to_string(),
+            locations,
+        };
     }
 
     /// What:
@@ -104,7 +118,11 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// error(pointer: string, message: string): void
     /// ```
-    pub fn error(&mut self, pointer: &str, message: &str) {
+    pub fn error(
+        &mut self,
+        pointer: &str,
+        message: &str,
+    ) {
         let at = self.locations.value_at(pointer);
         self.record(at, pointer, message);
     }
@@ -119,7 +137,11 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// errorAtKey(pointer: string, message: string): void
     /// ```
-    pub fn error_at_key(&mut self, pointer: &str, message: &str) {
+    pub fn error_at_key(
+        &mut self,
+        pointer: &str,
+        message: &str,
+    ) {
         let at = self.locations.key_at(pointer);
         self.record(at, pointer, message);
     }
@@ -133,7 +155,12 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// record(at: Location, pointer: string, message: string): void
     /// ```
-    fn record(&mut self, at: Location, pointer: &str, message: &str) {
+    fn record(
+        &mut self,
+        at: Location,
+        pointer: &str,
+        message: &str,
+    ) {
         let full = located_message(&self.display_path, at, pointer, message);
         let diagnostic = Diagnostic::new("config-invalid", &full).with_path(&self.display_path);
         self.errors.push(diagnostic);
@@ -150,7 +177,11 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// object(value: unknown, pointer: string): Record<string, unknown> | undefined
     /// ```
-    pub fn object<'v>(&mut self, value: &'v Value, pointer: &str) -> Option<&'v Map<String, Value>> {
+    pub fn object<'v>(
+        &mut self,
+        value: &'v Value,
+        pointer: &str,
+    ) -> Option<&'v Map<String, Value>> {
         if let Some(object) = value.as_object() {
             return Some(object);
         }
@@ -168,10 +199,18 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// rejectUnknown(object, pointer, allowed: string[]): void
     /// ```
-    pub fn reject_unknown(&mut self, object: &Map<String, Value>, pointer: &str, allowed: &[&str]) {
+    pub fn reject_unknown(
+        &mut self,
+        object: &Map<String, Value>,
+        pointer: &str,
+        allowed: &[&str],
+    ) {
         for key in object.keys() {
             if !allowed.contains(&key.as_str()) {
-                let message = format!("unknown key {key:?}; accepted keys are {}", allowed.join(", "));
+                let message = format!(
+                    "unknown key {key:?}; accepted keys are {}",
+                    allowed.join(", ")
+                );
                 self.error_at_key(&format!("{pointer}/{}", pointer_segment(key)), &message);
             }
         }
@@ -186,7 +225,12 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// text(object, key, pointer): string
     /// ```
-    pub fn text(&mut self, object: &Map<String, Value>, key: &str, pointer: &str) -> String {
+    pub fn text(
+        &mut self,
+        object: &Map<String, Value>,
+        key: &str,
+        pointer: &str,
+    ) -> String {
         match object.get(key) {
             Some(Value::String(text)) => return text.clone(),
             Some(_) => self.error(&format!("{pointer}/{key}"), "must be a string"),
@@ -206,7 +250,12 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// optionalText(object, key, pointer): string | undefined
     /// ```
-    pub fn optional_text(&mut self, object: &Map<String, Value>, key: &str, pointer: &str) -> Option<String> {
+    pub fn optional_text(
+        &mut self,
+        object: &Map<String, Value>,
+        key: &str,
+        pointer: &str,
+    ) -> Option<String> {
         match object.get(key) {
             None | Some(Value::Null) => return None,
             Some(Value::String(text)) => return Some(text.clone()),
@@ -225,7 +274,12 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// array(object, key, pointer): unknown[]
     /// ```
-    pub fn array<'v>(&mut self, object: &'v Map<String, Value>, key: &str, pointer: &str) -> &'v [Value] {
+    pub fn array<'v>(
+        &mut self,
+        object: &'v Map<String, Value>,
+        key: &str,
+        pointer: &str,
+    ) -> &'v [Value] {
         match object.get(key) {
             Some(Value::Array(items)) => return items.as_slice(),
             Some(_) => self.error(&format!("{pointer}/{key}"), "must be an array"),
@@ -244,7 +298,12 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// textList(object, key, pointer): string[]
     /// ```
-    pub fn text_list(&mut self, object: &Map<String, Value>, key: &str, pointer: &str) -> Vec<String> {
+    pub fn text_list(
+        &mut self,
+        object: &Map<String, Value>,
+        key: &str,
+        pointer: &str,
+    ) -> Vec<String> {
         let items = self.array(object, key, pointer);
         return self.texts_of(items, &format!("{pointer}/{key}"));
     }
@@ -259,7 +318,12 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// optionalTextList(object, key, pointer): string[] | undefined
     /// ```
-    pub fn optional_text_list(&mut self, object: &Map<String, Value>, key: &str, pointer: &str) -> Option<Vec<String>> {
+    pub fn optional_text_list(
+        &mut self,
+        object: &Map<String, Value>,
+        key: &str,
+        pointer: &str,
+    ) -> Option<Vec<String>> {
         match object.get(key) {
             None | Some(Value::Null) => return None,
             Some(_) => return Some(self.text_list(object, key, pointer)),
@@ -276,7 +340,11 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// textsOf(items: unknown[], pointer: string): string[]
     /// ```
-    pub fn texts_of(&mut self, items: &[Value], pointer: &str) -> Vec<String> {
+    pub fn texts_of(
+        &mut self,
+        items: &[Value],
+        pointer: &str,
+    ) -> Vec<String> {
         let mut texts: Vec<String> = Vec::new();
         for (index, item) in items.iter().enumerate() {
             if let Some(text) = item.as_str() {
@@ -302,7 +370,11 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// valueExpr(value: unknown, pointer: string): ValueExpr
     /// ```
-    pub fn value_expr(&mut self, value: &Value, pointer: &str) -> ValueExpr {
+    pub fn value_expr(
+        &mut self,
+        value: &Value,
+        pointer: &str,
+    ) -> ValueExpr {
         match value {
             Value::String(text) => return ValueExpr::Text(text.clone()),
             Value::Bool(flag) => return ValueExpr::Bool(*flag),
@@ -336,27 +408,40 @@ impl<'a> Reader<'a> {
     /// ```ts
     /// taggedExpr(object, pointer): ValueExpr
     /// ```
-    fn tagged_expr(&mut self, object: &Map<String, Value>, pointer: &str) -> ValueExpr {
+    fn tagged_expr(
+        &mut self,
+        object: &Map<String, Value>,
+        pointer: &str,
+    ) -> ValueExpr {
         let allowed = ["file", "var", "concat"];
         self.reject_unknown(object, pointer, &allowed);
         if object.len() != 1 {
-            self.error(pointer, "must hold exactly one of the keys file, var, concat");
+            self.error(
+                pointer,
+                "must hold exactly one of the keys file, var, concat",
+            );
             return ValueExpr::Text(String::new());
         }
         if let Some(inner) = object.get("file") {
             let path = self.value_expr(inner, &format!("{pointer}/file"));
-            return ValueExpr::File { file: Box::new(path) };
+            return ValueExpr::File {
+                file: Box::new(path),
+            };
         }
         if let Some(inner) = object.get("var") {
             let name = self.text(object, "var", pointer);
             let _ = inner;
-            return ValueExpr::Var { var: name };
+            return ValueExpr::Var {
+                var: name,
+            };
         }
         let items = self.array(object, "concat", pointer);
         let mut parts: Vec<ValueExpr> = Vec::new();
         for (index, item) in items.iter().enumerate() {
             parts.push(self.value_expr(item, &format!("{pointer}/concat/{index}")));
         }
-        return ValueExpr::Concat { concat: parts };
+        return ValueExpr::Concat {
+            concat: parts,
+        };
     }
 }

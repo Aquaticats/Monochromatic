@@ -39,9 +39,17 @@ use serde_json::Value;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports the download size bound from `super::http`.
-use super::http::{DEFAULT_MAX_DOWNLOAD_BYTES, DEFAULT_MAX_GET_BYTES};
+use super::http::{
+    DEFAULT_MAX_DOWNLOAD_BYTES,
+    DEFAULT_MAX_GET_BYTES,
+};
 /// Imports the model types the resolvers build.
-use super::model::{Artifact, Declaration, LockedTool, Origin};
+use super::model::{
+    Artifact,
+    Declaration,
+    LockedTool,
+    Origin,
+};
 /// Imports the check that a version is one plain directory name.
 use super::segment::check_version;
 
@@ -90,30 +98,46 @@ impl ResolveError {
 
 /// GETs `url` and returns the body text,
 /// or a `Failed` error naming the URL (and the status for a non-2xx answer).
-pub fn get_text(ctx: &Context, url: &str, headers: &[(String, String)]) -> Result<String, ResolveError> {
+pub fn get_text(
+    ctx: &Context,
+    url: &str,
+    headers: &[(String, String)],
+) -> Result<String, ResolveError> {
     let response = match ctx.http.get(url, headers, DEFAULT_MAX_GET_BYTES) {
         Ok(answered) => answered,
         Err(error) => return Err(ResolveError::Failed(error.to_string())),
     };
     if !(200..300).contains(&response.status) {
-        return Err(ResolveError::Failed(format!("{url}: HTTP {}", response.status)));
+        return Err(ResolveError::Failed(format!(
+            "{url}: HTTP {}",
+            response.status
+        )));
     }
     return Ok(response.text());
 }
 
 /// GETs `url` and parses the body as JSON,
 /// or a `Failed` error naming the URL.
-pub fn get_json(ctx: &Context, url: &str, headers: &[(String, String)]) -> Result<Value, ResolveError> {
+pub fn get_json(
+    ctx: &Context,
+    url: &str,
+    headers: &[(String, String)],
+) -> Result<Value, ResolveError> {
     let text: String = get_text(ctx, url, headers)?;
     return match serde_json::from_str(&text) {
         Ok(value) => Ok(value),
-        Err(error) => Err(ResolveError::Failed(format!("{url}: the answer is not JSON: {error}"))),
+        Err(error) => Err(ResolveError::Failed(format!(
+            "{url}: the answer is not JSON: {error}"
+        ))),
     };
 }
 
 /// The string at `path` inside `value` (`["dist-tags", "latest"]`),
 /// or `None`.
-pub fn text_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
+pub fn text_at<'a>(
+    value: &'a Value,
+    path: &[&str],
+) -> Option<&'a str> {
     let mut cursor: &Value = value;
     for key in path {
         cursor = cursor.get(*key)?;
@@ -136,21 +160,35 @@ pub fn text_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
 /// ```ts
 /// export function hashDownload(ctx: Context, url: string): string
 /// ```
-pub fn hash_download(ctx: &Context, url: &str) -> Result<String, ResolveError> {
-    let scratch: PathBuf = ctx.scope.toolchain_root.join("downloads").join(format!(".update-hash-{}", std::process::id()));
+pub fn hash_download(
+    ctx: &Context,
+    url: &str,
+) -> Result<String, ResolveError> {
+    let scratch: PathBuf = ctx
+        .scope
+        .toolchain_root
+        .join("downloads")
+        .join(format!(".update-hash-{}", std::process::id()));
     let result = ctx.http.download(url, &scratch, DEFAULT_MAX_DOWNLOAD_BYTES);
     // Best effort: the file only existed to be hashed.
     let _ = fs::remove_file(&scratch);
     return match result {
         Ok(hash) => Ok(hash),
-        Err(error) => Err(ResolveError::Failed(format!("cannot download {url} to hash it: {error}"))),
+        Err(error) => Err(ResolveError::Failed(format!(
+            "cannot download {url} to hash it: {error}"
+        ))),
     };
 }
 
 /// The platforms every downloaded tool is recorded for:
 /// Linux on x64 and arm64,
 /// glibc and musl (the repository's Linux-only stopgap).
-pub const LINUX_PLATFORMS: [&str; 4] = ["linux-arm64", "linux-arm64-musl", "linux-x64", "linux-x64-musl"];
+pub const LINUX_PLATFORMS: [&str; 4] = [
+    "linux-arm64",
+    "linux-arm64-musl",
+    "linux-x64",
+    "linux-x64-musl",
+];
 
 /// Whether a platform id names an ARM 64-bit machine.
 pub fn is_arm64(platform: &str) -> bool {
@@ -164,13 +202,19 @@ pub fn is_musl(platform: &str) -> bool {
 
 /// A resolution that keeps what the lock already holds.
 pub fn keep(locked: &LockedTool) -> Resolution {
-    return Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() };
+    return Resolution {
+        version: locked.version.clone(),
+        artifacts: locked.artifacts.clone(),
+    };
 }
 
 /// A resolution for a tool installed by name and version,
 /// with no artifact rows.
 pub fn by_name(version: &str) -> Resolution {
-    return Resolution { version: version.to_string(), artifacts: Vec::new() };
+    return Resolution {
+        version: version.to_string(),
+        artifacts: Vec::new(),
+    };
 }
 
 /// What:
@@ -188,18 +232,29 @@ pub fn by_name(version: &str) -> Resolution {
 /// ```ts
 /// export function resolveTool(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
 /// ```
-pub fn resolve_tool(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
+pub fn resolve_tool(
+    ctx: &Context,
+    declaration: &Declaration,
+    current: Option<&LockedTool>,
+) -> Result<Resolution, ResolveError> {
     let resolution: Resolution = resolve_origin(ctx, declaration, current)?;
     // The version becomes the name of the install directory, and a release tag may hold separators (`release/1.2`).
     if let Err(message) = check_version(&resolution.version) {
-        return Err(ResolveError::Failed(format!("{}: {message}", declaration.id)));
+        return Err(ResolveError::Failed(format!(
+            "{}: {message}",
+            declaration.id
+        )));
     }
     return Ok(resolution);
 }
 
 /// Asks the resolver of the request's origin,
 /// without checking the version it answers.
-fn resolve_origin(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
+fn resolve_origin(
+    ctx: &Context,
+    declaration: &Declaration,
+    current: Option<&LockedTool>,
+) -> Result<Resolution, ResolveError> {
     if declaration.request.is_exact()
         && let Some(locked) = current
         && locked.declaration.request == declaration.request
@@ -209,12 +264,20 @@ fn resolve_origin(ctx: &Context, declaration: &Declaration, current: Option<&Loc
     let range: &str = &declaration.request.range;
     let wanted: Option<&str> = if range == "latest" { None } else { Some(range) };
     match declaration.request.origin() {
-        Origin::Github(repo) => return super::update_github::resolve_github(ctx, declaration, &repo, wanted),
+        Origin::Github(repo) => {
+            return super::update_github::resolve_github(ctx, declaration, &repo, wanted);
+        }
         Origin::Npm(name) => return super::update_registry::resolve_npm(ctx, &name, wanted),
         Origin::Cargo(name) => return super::update_registry::resolve_crate(ctx, &name, wanted),
-        Origin::Pipx(name) => return super::update_registry::resolve_pypi(ctx, declaration, &name, wanted),
-        Origin::Conda(name) => return super::update_android_conda::resolve_conda(ctx, &name, wanted),
-        Origin::GoModule(module) => return super::update_go_zig::resolve_go_module(ctx, &module, wanted),
+        Origin::Pipx(name) => {
+            return super::update_registry::resolve_pypi(ctx, declaration, &name, wanted);
+        }
+        Origin::Conda(name) => {
+            return super::update_android_conda::resolve_conda(ctx, &name, wanted);
+        }
+        Origin::GoModule(module) => {
+            return super::update_go_zig::resolve_go_module(ctx, &module, wanted);
+        }
         Origin::Git(_) => return Ok(by_name(range)),
         Origin::Named(name) => match name.as_str() {
             "node" => return super::update_rust_node::resolve_node(ctx, wanted),
@@ -225,7 +288,11 @@ fn resolve_origin(ctx: &Context, declaration: &Declaration, current: Option<&Loc
             "java:temurin" => return super::update_java_aws::resolve_java(ctx, range),
             "aws" => return super::update_java_aws::resolve_aws(ctx, wanted),
             "android-sdk" => return super::update_android_conda::resolve_android(ctx, wanted),
-            other => return Err(ResolveError::Failed(format!("{other:?} is not an origin with a resolver"))),
+            other => {
+                return Err(ResolveError::Failed(format!(
+                    "{other:?} is not an origin with a resolver"
+                )));
+            }
         },
     }
 }

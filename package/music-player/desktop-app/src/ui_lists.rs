@@ -23,9 +23,17 @@
 use std::cell::RefCell;
 
 /// Imports the focus zone and the shortcut action that list keys carry.
-use music_player::keymap::{FocusZone, ShortcutAction};
+use music_player::keymap::{
+    FocusZone,
+    ShortcutAction,
+};
 /// Imports the focus movement rules and the letter jump.
-use music_player::list_focus::{ListMove, first_starting_with, move_focus, start_focus};
+use music_player::list_focus::{
+    ListMove,
+    first_starting_with,
+    move_focus,
+    start_focus,
+};
 /// Imports the component handle that reaches the window's globals.
 use slint::ComponentHandle;
 
@@ -38,11 +46,24 @@ use crate::TrackLayout;
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, write_screen};
+use crate::ui_screen::{
+    project,
+    read_screen,
+    write_screen,
+};
 /// Imports the row types of the track list and the folder picker.
-use crate::ui_screen_rows::{ListRow, PickerName};
+use crate::ui_screen_rows::{
+    ListRow,
+    PickerName,
+};
 /// Imports the scroll geometry calculations of the track list.
-use crate::ui_screen_scroll::{row_at_px, row_height_px, row_offset_px, row_tops_px, top_of_px};
+use crate::ui_screen_scroll::{
+    row_at_px,
+    row_height_px,
+    row_offset_px,
+    row_tops_px,
+    top_of_px,
+};
 
 thread_local! {
     /// What:
@@ -81,7 +102,10 @@ fn track_tops() -> &'static RefCell<Vec<f32>> {
 /// ```ts
 /// const rowAtOffset = (offset: number, _generation: number): number => rowAtPx(trackTops, offset);
 /// ```
-fn row_at_offset(offset: f32, _generation: i32) -> i32 {
+fn row_at_offset(
+    offset: f32,
+    _generation: i32,
+) -> i32 {
     return i32::try_from(row_at_px(&track_tops().borrow(), offset)).unwrap_or(i32::MAX);
 }
 
@@ -94,7 +118,10 @@ fn row_at_offset(offset: f32, _generation: i32) -> i32 {
 /// ```ts
 /// const topOfRow = (index: number, _generation: number): number => topOfPx(trackTops, index);
 /// ```
-fn top_of_row(index: i32, _generation: i32) -> f32 {
+fn top_of_row(
+    index: i32,
+    _generation: i32,
+) -> f32 {
     return top_of_px(&track_tops().borrow(), usize::try_from(index).unwrap_or(0));
 }
 
@@ -120,7 +147,10 @@ fn top_of_row(index: i32, _generation: i32) -> f32 {
 ///   win.trackLayout.generation += 1;
 /// }
 /// ```
-pub(crate) fn publish_track_layout(window: &AppWindow, rows: &[ListRow]) {
+pub(crate) fn publish_track_layout(
+    window: &AppWindow,
+    rows: &[ListRow],
+) {
     let tops = row_tops_px(rows);
     let total = tops.last().copied().unwrap_or(0.0);
     *track_tops().borrow_mut() = tops;
@@ -133,7 +163,11 @@ pub(crate) fn publish_track_layout(window: &AppWindow, rows: &[ListRow]) {
     }
     layout.set_total_height(total);
     layout.set_generation(layout.get_generation().wrapping_add(1));
-    tracing::debug!(rows = rows.len(), total_height = total, "the track layout was published");
+    tracing::debug!(
+        rows = rows.len(),
+        total_height = total,
+        "the track layout was published"
+    );
 }
 
 /// What:
@@ -142,7 +176,10 @@ pub(crate) fn publish_track_layout(window: &AppWindow, rows: &[ListRow]) {
 /// the ring is stored by library index,
 /// which survives a re-projection,
 /// while movement works on list positions.
-fn track_position_of(rows: &[ListRow], ring: Option<i32>) -> Option<usize> {
+fn track_position_of(
+    rows: &[ListRow],
+    ring: Option<i32>,
+) -> Option<usize> {
     let wanted = ring?;
     for (position, row) in rows.iter().enumerate() {
         if row.kind == 0 && row.index == wanted {
@@ -157,7 +194,10 @@ fn track_position_of(rows: &[ListRow], ring: Option<i32>) -> Option<usize> {
 /// Why:
 /// the folder ring is stored by name,
 /// like the picker's own current folder.
-fn folder_position_of(names: &[PickerName], ring: Option<&str>) -> Option<usize> {
+fn folder_position_of(
+    names: &[PickerName],
+    ring: Option<&str>,
+) -> Option<usize> {
     let wanted = ring?;
     for (position, row) in names.iter().enumerate() {
         if !row.section_start && row.name == wanted {
@@ -199,7 +239,11 @@ fn folder_selectable(names: &[PickerName]) -> Vec<bool> {
 /// `place_track_ring` puts the track ring on the row at `position` and asks the list to scroll it into view.
 /// Why:
 /// the window needs the library index to draw the ring and the row's offset and height to scroll to it.
-fn place_track_ring(window: &AppWindow, rows: &[ListRow], position: usize) {
+fn place_track_ring(
+    window: &AppWindow,
+    rows: &[ListRow],
+    position: usize,
+) {
     let Some(row) = rows.get(position) else {
         return;
     };
@@ -219,7 +263,11 @@ fn place_track_ring(window: &AppWindow, rows: &[ListRow], position: usize) {
 /// Why:
 /// the picker finds the row's place itself,
 /// so only the name and a tick cross.
-fn place_folder_ring(window: &AppWindow, names: &[PickerName], position: usize) {
+fn place_folder_ring(
+    window: &AppWindow,
+    names: &[PickerName],
+    position: usize,
+) {
     let Some(row) = names.get(position) else {
         return;
     };
@@ -253,8 +301,14 @@ fn list_move_of(action: ShortcutAction) -> Option<ListMove> {
 /// Why:
 /// a list key that finds no row (an empty list) is still used,
 /// so it does not fall through to the list's scroll.
-fn move_track_ring(window: &AppWindow, movement: ListMove) -> bool {
-    let (rows, ring) = { let state = read_screen(); (state.shown_rows.clone(), state.ring_track) };
+fn move_track_ring(
+    window: &AppWindow,
+    movement: ListMove,
+) -> bool {
+    let (rows, ring) = {
+        let state = read_screen();
+        (state.shown_rows.clone(), state.ring_track)
+    };
     let page = usize::try_from(window.get_track_page_rows()).unwrap_or(1);
     let position = track_position_of(&rows, ring);
     if let Some(target) = move_focus(&track_selectable(&rows), position, movement, page) {
@@ -267,8 +321,14 @@ fn move_track_ring(window: &AppWindow, movement: ListMove) -> bool {
 /// `move_folder_ring` moves the folder ring and reports that the key was used.
 /// Why:
 /// the same reasons as `move_track_ring`.
-fn move_folder_ring(window: &AppWindow, movement: ListMove) -> bool {
-    let (names, ring) = { let state = read_screen(); (state.shown_names.clone(), state.ring_folder.clone()) };
+fn move_folder_ring(
+    window: &AppWindow,
+    movement: ListMove,
+) -> bool {
+    let (names, ring) = {
+        let state = read_screen();
+        (state.shown_names.clone(), state.ring_folder.clone())
+    };
     let page = usize::try_from(window.get_folder_page_rows()).unwrap_or(1);
     let position = folder_position_of(&names, ring.as_deref());
     if let Some(target) = move_focus(&folder_selectable(&names), position, movement, page) {
@@ -282,11 +342,18 @@ fn move_folder_ring(window: &AppWindow, movement: ListMove) -> bool {
 /// Why:
 /// D106 gives the folder list a type-to-jump key;
 /// a letter with no folder changes nothing.
-fn jump_to_letter(window: &AppWindow, letter: char) -> bool {
+fn jump_to_letter(
+    window: &AppWindow,
+    letter: char,
+) -> bool {
     let names = read_screen().shown_names.clone();
     let mut labels: Vec<Option<&str>> = Vec::with_capacity(names.len());
     for row in &names {
-        labels.push(if row.section_start { None } else { Some(row.name.as_str()) });
+        labels.push(if row.section_start {
+            None
+        } else {
+            Some(row.name.as_str())
+        });
     }
     match first_starting_with(&labels, letter) {
         Some(position) => place_folder_ring(window, &names, position),
@@ -304,7 +371,10 @@ fn jump_to_letter(window: &AppWindow, letter: char) -> bool {
 /// selecting starts playback only with Auto-play on
 /// select on,
 /// and otherwise the second Enter does.
-fn activate_track(window: &AppWindow, host: &dyn Host) -> bool {
+fn activate_track(
+    window: &AppWindow,
+    host: &dyn Host,
+) -> bool {
     let ring_track = read_screen().ring_track;
     let ring_index: Option<usize> = match ring_track {
         Some(ring) => usize::try_from(ring).ok(),
@@ -326,7 +396,10 @@ fn activate_track(window: &AppWindow, host: &dyn Host) -> bool {
 /// on the folded layout the picker closes,
 /// so focus moves to the
 /// track list it uncovers.
-fn activate_folder(window: &AppWindow, host: &dyn Host) -> bool {
+fn activate_folder(
+    window: &AppWindow,
+    host: &dyn Host,
+) -> bool {
     let Some(name) = read_screen().ring_folder.clone() else {
         return true;
     };
@@ -350,10 +423,19 @@ fn activate_folder(window: &AppWindow, host: &dyn Host) -> bool {
 /// ```ts
 /// function apply(win: AppWindow, host: Host, zone: FocusZone, action: ShortcutAction): boolean { ... }
 /// ```
-pub(crate) fn apply(window: &AppWindow, host: &dyn Host, zone: FocusZone, action: ShortcutAction) -> bool {
+pub(crate) fn apply(
+    window: &AppWindow,
+    host: &dyn Host,
+    zone: FocusZone,
+    action: ShortcutAction,
+) -> bool {
     let tracks = zone == FocusZone::TrackList;
     if let Some(movement) = list_move_of(action) {
-        return if tracks { move_track_ring(window, movement) } else { move_folder_ring(window, movement) };
+        return if tracks {
+            move_track_ring(window, movement)
+        } else {
+            move_folder_ring(window, movement)
+        };
     }
     return match action {
         ShortcutAction::ListActivate if tracks => activate_track(window, host),
@@ -370,9 +452,19 @@ pub(crate) fn apply(window: &AppWindow, host: &dyn Host, zone: FocusZone, action
 /// the playing track,
 /// or the current folder,
 /// or the first entry.
-pub(crate) fn list_focused(window: &AppWindow, zone: i32) {
+pub(crate) fn list_focused(
+    window: &AppWindow,
+    zone: i32,
+) {
     if FocusZone::from_int(zone) == FocusZone::TrackList {
-        let (rows, ring, playing) = { let state = read_screen(); (state.shown_rows.clone(), state.ring_track, state.current_index) };
+        let (rows, ring, playing) = {
+            let state = read_screen();
+            (
+                state.shown_rows.clone(),
+                state.ring_track,
+                state.current_index,
+            )
+        };
         // A ring that is already on a row is placed again, which scrolls the row into view: Tab back onto a list whose ring
         // was left out of view must show the ring (LS2).
         if let Some(position) = track_position_of(&rows, ring) {
@@ -390,7 +482,14 @@ pub(crate) fn list_focused(window: &AppWindow, zone: i32) {
             place_track_ring(window, &rows, position);
         }
     } else {
-        let (names, ring, folder) = { let state = read_screen(); (state.shown_names.clone(), state.ring_folder.clone(), state.shown_folder.clone()) };
+        let (names, ring, folder) = {
+            let state = read_screen();
+            (
+                state.shown_names.clone(),
+                state.ring_folder.clone(),
+                state.shown_folder.clone(),
+            )
+        };
         if let Some(position) = folder_position_of(&names, ring.as_deref()) {
             place_folder_ring(window, &names, position);
             return;
@@ -422,11 +521,16 @@ pub(crate) fn sync_rings(window: &AppWindow) {
             state.ring_folder = None;
         }
     }
-    let (track, folder) = { let state = read_screen(); (state.ring_track, state.ring_folder.clone()) };
+    let (track, folder) = {
+        let state = read_screen();
+        (state.ring_track, state.ring_folder.clone())
+    };
     window.set_ring_track(track.unwrap_or(-1));
     window.set_ring_folder(folder.clone().unwrap_or_default().as_str().into());
     let zone = FocusZone::from_int(window.global::<Focus>().get_zone());
-    if (zone == FocusZone::TrackList && track.is_none()) || (zone == FocusZone::FolderList && folder.is_none()) {
+    if (zone == FocusZone::TrackList && track.is_none())
+        || (zone == FocusZone::FolderList && folder.is_none())
+    {
         list_focused(window, if zone == FocusZone::TrackList { 2 } else { 1 });
     }
 }

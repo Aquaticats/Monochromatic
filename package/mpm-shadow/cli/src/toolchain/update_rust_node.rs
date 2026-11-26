@@ -27,15 +27,31 @@ use std::collections::BTreeMap;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports the model types the resolvers build.
-use super::model::{Artifact, is_sha256_hex};
+use super::model::{
+    Artifact,
+    is_sha256_hex,
+};
 /// Imports the shared resolver helpers.
-use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, by_name, get_json, get_text, is_arm64, is_musl, text_at};
+use super::update_resolve::{
+    LINUX_PLATFORMS,
+    Resolution,
+    ResolveError,
+    by_name,
+    get_json,
+    get_text,
+    is_arm64,
+    is_musl,
+    text_at,
+};
 /// Imports the shared named helpers.
 use super::util::all_ascii_digits;
 
 /// The value of the first `key = "value"` (or `'value'`) line in a TOML text,
 /// or `None`.
-fn first_assignment(text: &str, key: &str) -> Option<String> {
+fn first_assignment(
+    text: &str,
+    key: &str,
+) -> Option<String> {
     for line in text.lines() {
         let trimmed: &str = line.trim();
         let Some(rest) = trimmed.strip_prefix(key) else {
@@ -87,7 +103,10 @@ fn pkg_rust_version(text: &str) -> Option<String> {
 /// ```ts
 /// export function resolveRust(ctx: Context, range: string): Resolution
 /// ```
-pub fn resolve_rust(ctx: &Context, range: &str) -> Result<Resolution, ResolveError> {
+pub fn resolve_rust(
+    ctx: &Context,
+    range: &str,
+) -> Result<Resolution, ResolveError> {
     if !matches!(range, "nightly" | "beta" | "stable") {
         return Ok(by_name(range));
     }
@@ -96,12 +115,16 @@ pub fn resolve_rust(ctx: &Context, range: &str) -> Result<Resolution, ResolveErr
     if range == "nightly" {
         return match first_assignment(&text, "date") {
             Some(date) => Ok(by_name(&format!("nightly-{date}"))),
-            None => Err(ResolveError::Failed(format!("{url}: the nightly manifest carries no date"))),
+            None => Err(ResolveError::Failed(format!(
+                "{url}: the nightly manifest carries no date"
+            ))),
         };
     }
     return match pkg_rust_version(&text) {
         Some(version) => Ok(by_name(version.split_whitespace().next().unwrap_or(""))),
-        None => Err(ResolveError::Failed(format!("{url}: the {range} manifest carries no [pkg.rust] version"))),
+        None => Err(ResolveError::Failed(format!(
+            "{url}: the {range} manifest carries no [pkg.rust] version"
+        ))),
     };
 }
 
@@ -156,7 +179,9 @@ fn newest_node_version(ctx: &Context) -> Result<String, ResolveError> {
     let url: &str = "https://nodejs.org/dist/index.json";
     let index: Value = get_json(ctx, url, &[])?;
     let Some(releases) = index.as_array() else {
-        return Err(ResolveError::Failed(format!("{url}: the index is not a list")));
+        return Err(ResolveError::Failed(format!(
+            "{url}: the index is not a list"
+        )));
     };
     for release in releases {
         if let Some(tag) = text_at(release, &["version"])
@@ -165,7 +190,9 @@ fn newest_node_version(ctx: &Context) -> Result<String, ResolveError> {
             return Ok(tag.trim_start_matches('v').to_string());
         }
     }
-    return Err(ResolveError::Failed(format!("{url}: no stable release is listed")));
+    return Err(ResolveError::Failed(format!(
+        "{url}: no stable release is listed"
+    )));
 }
 
 /// What:
@@ -182,18 +209,26 @@ fn newest_node_version(ctx: &Context) -> Result<String, ResolveError> {
 /// ```ts
 /// export function resolveNode(ctx: Context, wanted?: string): Resolution
 /// ```
-pub fn resolve_node(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_node(
+    ctx: &Context,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     let version: String = match wanted {
         Some(exact) => exact.to_string(),
         None => newest_node_version(ctx)?,
     };
-    let hosts: [&str; 2] = ["https://nodejs.org/dist", "https://unofficial-builds.nodejs.org/download/release"];
+    let hosts: [&str; 2] = [
+        "https://nodejs.org/dist",
+        "https://unofficial-builds.nodejs.org/download/release",
+    ];
     let mut sums: BTreeMap<String, String> = BTreeMap::new();
     let mut unreadable: Vec<String> = Vec::new();
     for host in hosts {
         let url: String = format!("{host}/v{version}/SHASUMS256.txt");
         match ctx.http.get(&url, &[], super::http::DEFAULT_MAX_GET_BYTES) {
-            Ok(response) if (200..300).contains(&response.status) => sums.extend(parse_shasums(&response.text())),
+            Ok(response) if (200..300).contains(&response.status) => {
+                sums.extend(parse_shasums(&response.text()))
+            }
             Ok(response) => unreadable.push(format!("{url}: HTTP {}", response.status)),
             Err(error) => unreadable.push(format!("{url}: {}", error.message)),
         }
@@ -201,25 +236,47 @@ pub fn resolve_node(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, R
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
         let arch: &str = if is_arm64(platform) { "arm64" } else { "x64" };
-        let (host, suffix): (&str, &str) = if is_musl(platform) { (hosts[1], "-musl") } else { (hosts[0], "") };
+        let (host, suffix): (&str, &str) = if is_musl(platform) {
+            (hosts[1], "-musl")
+        } else {
+            (hosts[0], "")
+        };
         let name: String = format!("node-v{version}-linux-{arch}{suffix}.tar.gz");
         let Some(digest) = sums.get(&name) else {
             // A fetch that failed is the likely cause, so it is named beside the missing row instead of being
             // reported as a checksum file that lacks the archive.
             let cause: String = match unreadable.is_empty() {
                 true => String::new(),
-                false => format!("; the checksum files could not be read ({})", unreadable.join(", ")),
+                false => format!(
+                    "; the checksum files could not be read ({})",
+                    unreadable.join(", ")
+                ),
             };
-            return Err(ResolveError::Failed(format!("SHASUMS256.txt of Node.js {version} has no row for {name}{cause}")));
+            return Err(ResolveError::Failed(format!(
+                "SHASUMS256.txt of Node.js {version} has no row for {name}{cause}"
+            )));
         };
-        artifacts.push((platform.to_string(), Artifact { url: format!("{host}/v{version}/{name}"), sha256: digest.clone() }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url: format!("{host}/v{version}/{name}"),
+                sha256: digest.clone(),
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }
 
 /// The rustup target triple of a platform id.
 fn rustup_triple(platform: &str) -> String {
-    let arch: &str = if is_arm64(platform) { "aarch64" } else { "x86_64" };
+    let arch: &str = if is_arm64(platform) {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
     let libc: &str = if is_musl(platform) { "musl" } else { "gnu" };
     return format!("{arch}-unknown-linux-{libc}");
 }
@@ -235,7 +292,10 @@ fn rustup_triple(platform: &str) -> String {
 /// ```ts
 /// export function resolveRustup(ctx: Context, wanted?: string): Resolution
 /// ```
-pub fn resolve_rustup(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_rustup(
+    ctx: &Context,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     let version: String = match wanted {
         Some(exact) => exact.to_string(),
         None => {
@@ -243,20 +303,36 @@ pub fn resolve_rustup(ctx: &Context, wanted: Option<&str>) -> Result<Resolution,
             let text: String = get_text(ctx, url, &[])?;
             match first_assignment(&text, "version") {
                 Some(newest) => newest,
-                None => return Err(ResolveError::Failed(format!("{url}: the rustup release manifest carries no version"))),
+                None => {
+                    return Err(ResolveError::Failed(format!(
+                        "{url}: the rustup release manifest carries no version"
+                    )));
+                }
             }
         }
     };
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
         let triple: String = rustup_triple(platform);
-        let url: String = format!("https://static.rust-lang.org/rustup/archive/{version}/{triple}/rustup-init");
+        let url: String =
+            format!("https://static.rust-lang.org/rustup/archive/{version}/{triple}/rustup-init");
         let checksum: String = get_text(ctx, &format!("{url}.sha256"), &[])?;
         let digest: &str = checksum.split_whitespace().next().unwrap_or("");
         if !is_sha256_hex(digest) {
-            return Err(ResolveError::Failed(format!("{url}.sha256: the checksum for {triple} is not a SHA-256 line")));
+            return Err(ResolveError::Failed(format!(
+                "{url}.sha256: the checksum for {triple} is not a SHA-256 line"
+            )));
         }
-        artifacts.push((platform.to_string(), Artifact { url, sha256: digest.to_string() }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url,
+                sha256: digest.to_string(),
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }

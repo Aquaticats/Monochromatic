@@ -19,7 +19,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `Value` from `serde_json::Value`.
 /// Why:
@@ -36,7 +39,11 @@ const ENVS_FILE: &str = "node-releases data/processed/envs.json";
 
 /// Build a data error for the release file without a byte offset.
 fn envs_error(message: &str) -> BrowserslistError {
-    return BrowserslistError::Data { file: ENVS_FILE.to_string(), offset: None, message: message.to_string() };
+    return BrowserslistError::Data {
+        file: ENVS_FILE.to_string(),
+        offset: None,
+        message: message.to_string(),
+    };
 }
 
 /// What:

@@ -38,7 +38,10 @@ use rustc_lint::LateContext;
 ///   return names;
 /// }
 /// ```
-pub fn captured_names(cx: &LateContext<'_>, closure: LocalDefId) -> Vec<String> {
+pub fn captured_names(
+    cx: &LateContext<'_>,
+    closure: LocalDefId,
+) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for captured in cx.typeck_results().closure_min_captures_flattened(closure) {
         let name: String = captured.var_ident.name.to_string();

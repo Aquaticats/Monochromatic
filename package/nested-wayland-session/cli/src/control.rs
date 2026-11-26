@@ -29,10 +29,20 @@
 /// import net from "node:net"; // and a promise to await the main thread's reply
 /// ```
 use std::{
-    io::{BufRead, BufReader, Write},
-    os::unix::net::{UnixListener, UnixStream},
+    io::{
+        BufRead,
+        BufReader,
+        Write,
+    },
+    os::unix::net::{
+        UnixListener,
+        UnixStream,
+    },
     path::Path,
-    sync::mpsc::{sync_channel, SyncSender},
+    sync::mpsc::{
+        SyncSender,
+        sync_channel,
+    },
 };
 
 /// What:
@@ -40,8 +50,12 @@ use std::{
 /// Why:
 ///       Register the channel as an event source on the main loop.
 use smithay::reexports::calloop::{
-    channel::{channel, Event, Sender},
     LoopHandle,
+    channel::{
+        Event,
+        Sender,
+        channel,
+    },
 };
 
 /// What:
@@ -49,7 +63,10 @@ use smithay::reexports::calloop::{
 ///  Error helpers.
 /// Why:
 ///       Socket binding and thread spawning return `Result`.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// What:
 ///      `use tracing::warn;`.
@@ -73,10 +90,20 @@ use tracing::warn;
 /// import { parseCommand, formatResponse, Command, Response } from "./protocol"; ...
 /// ```
 use crate::{
-    child, control_socket::bind_listener, dnd, encoder, input,
+    child,
+    control_socket::bind_listener,
+    dnd,
+    encoder,
+    input,
     lazy_error_text::failed_error,
-    protocol::{format_response, parse_command, Command, Response},
-    recorder, screenshot,
+    protocol::{
+        Command,
+        Response,
+        format_response,
+        parse_command,
+    },
+    recorder,
+    screenshot,
     state::Compositor,
 };
 
@@ -123,7 +150,11 @@ pub struct ControlRequest {
 /// ```ts
 /// function onControlEvent(event, _metadata, state) { if (event.kind === "msg") run(state, event.request); }
 /// ```
-fn on_control_event(event: Event<ControlRequest>, _metadata: &mut (), state: &mut Compositor) {
+fn on_control_event(
+    event: Event<ControlRequest>,
+    _metadata: &mut (),
+    state: &mut Compositor,
+) {
     if let Event::Msg(request) = event {
         crate::control_run::run(state, request.command, request.reply);
     }
@@ -147,7 +178,10 @@ fn on_control_event(event: Event<ControlRequest>, _metadata: &mut (), state: &mu
 /// ```ts
 /// function start(loopHandle, socketPath): void { ... }
 /// ```
-pub fn start(loop_handle: &LoopHandle<Compositor>, socket_path: &Path) -> Result<()> {
+pub fn start(
+    loop_handle: &LoopHandle<Compositor>,
+    socket_path: &Path,
+) -> Result<()> {
     // What:     `let listener = bind_listener(socket_path)?;`. Create the listening socket.
     // Why:      The control thread accepts connections on it.
     let listener = bind_listener(socket_path)?;
@@ -175,7 +209,7 @@ pub fn start(loop_handle: &LoopHandle<Compositor>, socket_path: &Path) -> Result
 
     // What:     `Ok(())`. Success.
     // Why:      Signal the control API is up.
-    return Ok(())
+    return Ok(());
 }
 
 /// The control thread body:
@@ -188,7 +222,10 @@ pub fn start(loop_handle: &LoopHandle<Compositor>, socket_path: &Path) -> Result
 ///       Serialises control clients (a test harness connects one at a time),
 ///  keeping
 ///           the protocol simple.
-fn control_thread(listener: UnixListener, sender: Sender<ControlRequest>) {
+fn control_thread(
+    listener: UnixListener,
+    sender: Sender<ControlRequest>,
+) {
     // What:     `for incoming in listener.incoming() { ... }`. Iterate accepted connections;
     //           `incoming()` yields `Result<UnixStream>` blockingly.
     // Why:      Serve each control client.
@@ -225,7 +262,10 @@ fn control_thread(listener: UnixListener, sender: Sender<ControlRequest>) {
 /// Why:
 ///       Implements the line-per-request,
 ///  line-per-response loop for one client.
-fn handle_connection(stream: UnixStream, sender: &Sender<ControlRequest>) -> Result<()> {
+fn handle_connection(
+    stream: UnixStream,
+    sender: &Sender<ControlRequest>,
+) -> Result<()> {
     // What:     `let reader_half = stream.try_clone().context(...)?;`. Duplicate the socket
     //           fd so one half reads while the other writes.
     // Why:      `BufReader` consumes its reader; we still need to write responses.
@@ -264,13 +304,15 @@ fn handle_connection(stream: UnixStream, sender: &Sender<ControlRequest>) -> Res
         writer
             .write_all(text.as_bytes())
             .context("writing a control response")?;
-        writer.write_all(b"\n").context("writing a control newline")?;
+        writer
+            .write_all(b"\n")
+            .context("writing a control newline")?;
         writer.flush().context("flushing a control response")?;
     }
 
     // What:     `Ok(())`. The client closed the connection normally.
     // Why:      Signal clean end-of-connection.
-    return Ok(())
+    return Ok(());
 }
 
 /// Parse one line and,
@@ -282,7 +324,10 @@ fn handle_connection(stream: UnixStream, sender: &Sender<ControlRequest>) -> Res
 ///           Always returns a `Response` (parse errors become `Err` responses).
 /// Why:
 ///       Bridge the control thread to the main thread for one command.
-fn dispatch_line(line: &str, sender: &Sender<ControlRequest>) -> Response {
+fn dispatch_line(
+    line: &str,
+    sender: &Sender<ControlRequest>,
+) -> Response {
     // What:     `let command = match parse_command(line) { Ok(c) => c, Err(message) =>
     //           return Response::Err(message) };`. Parse; a parse error short-circuits to an
     //           error response.
@@ -335,7 +380,10 @@ fn dispatch_line(line: &str, sender: &Sender<ControlRequest>) -> Response {
 /// ```ts
 /// function execute(state, command): Response { ... }
 /// ```
-pub fn execute(state: &mut Compositor, command: Command) -> Response {
+pub fn execute(
+    state: &mut Compositor,
+    command: Command,
+) -> Response {
     // What:     `match command { ... }`. One arm per command variant.
     // Why:      Route to screenshot, input, resize, or lifecycle handling.
     match command {
@@ -350,33 +398,46 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
                 Err(err) => return Response::Err(format!("{err:#}")),
             }
         }
-        Command::Click { x, y, button, .. } => {
+        Command::Click {
+            x,
+            y,
+            button,
+            ..
+        } => {
             // What:     `input::click(state, x, y, button);`. Inject the click. A double click or
             //           a click with modifiers never gets here: the timeline plans it.
             // Why:      Perform the requested click.
             input::click(state, x, y, button);
-            return Response::Ok
+            return Response::Ok;
         }
-        Command::Wheel { x, y, horizontal, vertical, .. } => {
-            match crate::input_wheel::wheel(state, x, y, horizontal, vertical) {
-                Ok(()) => return Response::Ok,
-                Err(error) => return Response::Err(format!("{error:#}")),
-            }
+        Command::Wheel {
+            x,
+            y,
+            horizontal,
+            vertical,
+            ..
+        } => match crate::input_wheel::wheel(state, x, y, horizontal, vertical) {
+            Ok(()) => return Response::Ok,
+            Err(error) => return Response::Err(format!("{error:#}")),
+        },
+        Command::Drag {
+            ..
         }
-        Command::Drag { .. } | Command::Scroll { .. } => {
-            return Response::Err("timed pointer commands run through the timeline".to_string())
-        }
-        Command::Key { name, action } => {
+        | Command::Scroll {
+            ..
+        } => return Response::Err("timed pointer commands run through the timeline".to_string()),
+        Command::Key {
+            name,
+            action,
+        } => {
             // What:     `parse_chord(&name)` resolves every key of the chord; the first unknown
             //           name fails the whole command before any key is pressed.
             // Why:      Only inject keys we can map to an evdev code.
             match crate::key_chord::parse_chord(&name) {
-                Ok(chord) => {
-                    match crate::input_key::apply(state, &chord, action) {
-                        Ok(()) => return Response::Ok,
-                        Err(error) => return Response::Err(format!("{error:#}")),
-                    }
-                }
+                Ok(chord) => match crate::input_key::apply(state, &chord, action) {
+                    Ok(()) => return Response::Ok,
+                    Err(error) => return Response::Err(format!("{error:#}")),
+                },
                 Err(message) => return Response::Err(message),
             }
         }
@@ -397,9 +458,12 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
         Command::Gpu => return crate::control_session::gpu(state),
         Command::Accessibility => return crate::a11y_tree::response(state),
         Command::Display => {
-            return Response::OkWith(state.socket_name.to_string_lossy().into_owned())
+            return Response::OkWith(state.socket_name.to_string_lossy().into_owned());
         }
-        Command::Resize { width, height } => {
+        Command::Resize {
+            width,
+            height,
+        } => {
             // What:     `screen::resize(state, width, height)`. Apply the new logical size.
             // Why:      Change the nested screen size at once, keeping the output scale.
             return crate::screen::resize(state, width, height);
@@ -409,7 +473,11 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
             // Why:      Keep the logical size so the client sees a scale change, not a resize.
             return crate::screen::switch_scale(state, scale);
         }
-        Command::DropFile { paths, x, y } => {
+        Command::DropFile {
+            paths,
+            x,
+            y,
+        } => {
             // What:     `match dnd::drop_file(state, &paths, x, y) { Ok(()) => Response::Ok,
             //           Err(err) => Response::Err(format!("{err:#}")) }`. Originate the
             //           compositor-side drag; map the outcome. `{err:#}` renders the anyhow
@@ -421,7 +489,11 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
                 Err(err) => return Response::Err(format!("{err:#}")),
             }
         }
-        Command::Record { dir, fps, format } => {
+        Command::Record {
+            dir,
+            fps,
+            format,
+        } => {
             // What:     `match encoder::Format::parse(&format) { Ok(fmt) => ..., Err(message)
             //           => Response::Err(message) }`. Validate the format name first.
             // Why:      Reject an unknown format before touching the recorder.
@@ -445,10 +517,12 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
             //           measured statistics as the response payload.
             // Why:      Make the achieved fps / drop count observable to the caller.
             match recorder::stop(state) {
-                Some(stats) => return Response::OkWith(format!(
-                    "captured={} dropped={} failures={} seconds={:.3} fps={:.1}",
-                    stats.captured, stats.dropped, stats.failures, stats.seconds, stats.fps
-                )),
+                Some(stats) => {
+                    return Response::OkWith(format!(
+                        "captured={} dropped={} failures={} seconds={:.3} fps={:.1}",
+                        stats.captured, stats.dropped, stats.failures, stats.seconds, stats.fps
+                    ));
+                }
                 None => return Response::Err("not recording".to_string()),
             }
         }
@@ -462,7 +536,10 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
             // ```ts
             // return switchColorScheme(state.appearancePortal, preference);
             // ```
-            return crate::control_color_scheme::switch(state.appearance_portal.as_ref(), preference);
+            return crate::control_color_scheme::switch(
+                state.appearance_portal.as_ref(),
+                preference,
+            );
         }
         Command::AccentColor(color) => {
             return crate::control_accent::switch(state.appearance_portal.as_ref(), color);
@@ -473,7 +550,10 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
         Command::Job(verb) => {
             return crate::control_job::run(state.notifications.as_ref(), &verb);
         }
-        Command::Move { x, y } => {
+        Command::Move {
+            x,
+            y,
+        } => {
             // What:     `input_pointer::move_pointer(state, x, y)`. Moves the pointer with no
             //           button, mapping a failure to an `err` line.
             // Why:      Hover is the only effect; the hosted client sees enter and motion events.
@@ -482,7 +562,10 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
                 Err(err) => return Response::Err(format!("{err:#}")),
             }
         }
-        Command::Button { action, button } => {
+        Command::Button {
+            action,
+            button,
+        } => {
             // What:     `input_pointer::button(state, action, button)`. Presses or releases at
             //           the current pointer position; a repeated state answers `err`.
             // Why:      Lets a test hold a press across a pause and a movement.
@@ -499,7 +582,9 @@ pub fn execute(state: &mut Compositor, command: Command) -> Response {
             // Why:      The start time is the clock every update is stamped with.
             return crate::control_launcher::latest(state.launcher.as_ref(), state.start_time);
         }
-        Command::LauncherLog { count } => {
+        Command::LauncherLog {
+            count,
+        } => {
             return crate::control_launcher::log(state.launcher.as_ref(), count);
         }
         Command::LauncherClear => {

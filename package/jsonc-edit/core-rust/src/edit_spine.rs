@@ -22,7 +22,11 @@
 /// ```ts
 /// import { JsoncEditError, JsoncPathNotFoundError, JsoncTypeError } from './error';
 /// ```
-use crate::error::{JsoncEditError, JsoncPathNotFoundError, JsoncTypeError};
+use crate::error::{
+    JsoncEditError,
+    JsoncPathNotFoundError,
+    JsoncTypeError,
+};
 /// What:
 ///      Import the member lookup helper.
 /// Why:
@@ -33,7 +37,10 @@ use crate::error::{JsoncEditError, JsoncPathNotFoundError, JsoncTypeError};
 /// ```ts
 /// import { findEntryIndex, keyUnits } from './navigate';
 /// ```
-use crate::navigate::{find_entry_index, key_units};
+use crate::navigate::{
+    find_entry_index,
+    key_units,
+};
 /// What:
 ///      Import the address segment type.
 /// Why:
@@ -54,7 +61,13 @@ use crate::path::JsoncPathSegment;
 /// ```ts
 /// import { JsoncComment, JsoncEntry, JsoncKey, JsoncKind, JsoncValue } from './value';
 /// ```
-use crate::value::{JsoncComment, JsoncEntry, JsoncKey, JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncComment,
+    JsoncEntry,
+    JsoncKey,
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///      One descended level:
@@ -167,7 +180,9 @@ pub(crate) enum SpineLevel {
 /// ```
 pub(crate) fn not_found(path: &[JsoncPathSegment]) -> JsoncEditError {
     return JsoncEditError::PathNotFound {
-        error: JsoncPathNotFoundError { path: Vec::from(path) },
+        error: JsoncPathNotFoundError {
+            path: Vec::from(path),
+        },
     };
 }
 
@@ -183,7 +198,11 @@ pub(crate) fn not_found(path: &[JsoncPathSegment]) -> JsoncEditError {
 /// function typeError(message: string): JsoncEditError;
 /// ```
 pub(crate) fn type_error(message: String) -> JsoncEditError {
-    return JsoncEditError::Type { error: JsoncTypeError { message } };
+    return JsoncEditError::Type {
+        error: JsoncTypeError {
+            message,
+        },
+    };
 }
 
 /// What:
@@ -218,35 +237,47 @@ pub(crate) fn descend<'a>(
     for (depth, segment) in path.iter().enumerate() {
         let is_last = depth + 1 == path.len();
         match (&current.kind, segment) {
-            (JsoncKind::Record { entries }, JsoncPathSegment::Key { key }) => {
-                match find_entry_index(entries, key) {
-                    Some(index) => {
-                        let Some(child) = entries.get(index) else {
-                            return Err(not_found(full_path));
-                        };
-                        levels.push(SpineLevel::Record {
-                            entries: entries.clone(),
-                            index: Some(index),
-                            insert_key: None,
-                            comment: current.comment.clone(),
-                        });
-                        current = &child.value;
-                    }
-                    None => {
-                        if !is_last || !allow_final_insert {
-                            return Err(not_found(full_path));
-                        }
-                        levels.push(SpineLevel::Record {
-                            entries: entries.clone(),
-                            index: None,
-                            insert_key: Some(String::from(key.as_str())),
-                            comment: current.comment.clone(),
-                        });
-                        return Ok((levels, None));
-                    }
+            (
+                JsoncKind::Record {
+                    entries,
+                },
+                JsoncPathSegment::Key {
+                    key,
+                },
+            ) => match find_entry_index(entries, key) {
+                Some(index) => {
+                    let Some(child) = entries.get(index) else {
+                        return Err(not_found(full_path));
+                    };
+                    levels.push(SpineLevel::Record {
+                        entries: entries.clone(),
+                        index: Some(index),
+                        insert_key: None,
+                        comment: current.comment.clone(),
+                    });
+                    current = &child.value;
                 }
-            }
-            (JsoncKind::Array { elements }, JsoncPathSegment::Index { index }) => {
+                None => {
+                    if !is_last || !allow_final_insert {
+                        return Err(not_found(full_path));
+                    }
+                    levels.push(SpineLevel::Record {
+                        entries: entries.clone(),
+                        index: None,
+                        insert_key: Some(String::from(key.as_str())),
+                        comment: current.comment.clone(),
+                    });
+                    return Ok((levels, None));
+                }
+            },
+            (
+                JsoncKind::Array {
+                    elements,
+                },
+                JsoncPathSegment::Index {
+                    index,
+                },
+            ) => {
                 let position = *index;
                 if position < elements.len() {
                     let Some(child) = elements.get(position) else {
@@ -269,13 +300,35 @@ pub(crate) fn descend<'a>(
                     return Err(not_found(full_path));
                 }
             }
-            (JsoncKind::Record { .. }, JsoncPathSegment::Index { index }) => {
-                return Err(type_error(format!("jsonc edit: cannot index an object with position {index}")));
+            (
+                JsoncKind::Record {
+                    ..
+                },
+                JsoncPathSegment::Index {
+                    index,
+                },
+            ) => {
+                return Err(type_error(format!(
+                    "jsonc edit: cannot index an object with position {index}"
+                )));
             }
-            (JsoncKind::Array { .. }, JsoncPathSegment::Key { key }) => {
-                return Err(type_error(format!("jsonc edit: cannot index an array with key {key:?}")));
+            (
+                JsoncKind::Array {
+                    ..
+                },
+                JsoncPathSegment::Key {
+                    key,
+                },
+            ) => {
+                return Err(type_error(format!(
+                    "jsonc edit: cannot index an array with key {key:?}"
+                )));
             }
-            _ => return Err(type_error(String::from("jsonc edit: cannot index a scalar value"))),
+            _ => {
+                return Err(type_error(String::from(
+                    "jsonc edit: cannot index a scalar value",
+                )));
+            }
         }
     }
     return Ok((levels, Some(current)));
@@ -293,7 +346,10 @@ pub(crate) fn descend<'a>(
 /// ```ts
 /// function rebuild(levels: SpineLevel[], value: JsoncValue): JsoncValue;
 /// ```
-pub(crate) fn rebuild(levels: Vec<SpineLevel>, value: JsoncValue) -> JsoncValue {
+pub(crate) fn rebuild(
+    levels: Vec<SpineLevel>,
+    value: JsoncValue,
+) -> JsoncValue {
     let mut current = value;
     // What:     `into_iter().rev()` consumes the levels from the deepest outward.
     // Why:      Each level wraps the value built from the level below it.
@@ -304,20 +360,42 @@ pub(crate) fn rebuild(levels: Vec<SpineLevel>, value: JsoncValue) -> JsoncValue 
     // ```
     for level in levels.into_iter().rev() {
         current = match level {
-            SpineLevel::Record { mut entries, index, insert_key, comment } => match index {
+            SpineLevel::Record {
+                mut entries,
+                index,
+                insert_key,
+                comment,
+            } => match index {
                 Some(position) => {
                     if let Some(entry) = entries.get_mut(position) {
                         entry.value = current;
                     }
-                    JsoncValue { kind: JsoncKind::Record { entries }, comment }
+                    JsoncValue {
+                        kind: JsoncKind::Record {
+                            entries,
+                        },
+                        comment,
+                    }
                 }
                 None => {
                     let key_text = insert_key.expect("an insert level records its key");
-                    entries.push(JsoncEntry { key: JsoncKey::from_text(&key_text), value: current });
-                    JsoncValue { kind: JsoncKind::Record { entries }, comment }
+                    entries.push(JsoncEntry {
+                        key: JsoncKey::from_text(&key_text),
+                        value: current,
+                    });
+                    JsoncValue {
+                        kind: JsoncKind::Record {
+                            entries,
+                        },
+                        comment,
+                    }
                 }
             },
-            SpineLevel::Array { mut elements, index, comment } => {
+            SpineLevel::Array {
+                mut elements,
+                index,
+                comment,
+            } => {
                 match index {
                     Some(position) => {
                         if let Some(slot) = elements.get_mut(position) {
@@ -326,7 +404,12 @@ pub(crate) fn rebuild(levels: Vec<SpineLevel>, value: JsoncValue) -> JsoncValue 
                     }
                     None => elements.push(current),
                 }
-                JsoncValue { kind: JsoncKind::Array { elements }, comment }
+                JsoncValue {
+                    kind: JsoncKind::Array {
+                        elements,
+                    },
+                    comment,
+                }
             }
         };
     }
@@ -355,11 +438,17 @@ pub(crate) fn set_value(
     value: JsoncValue,
 ) -> Result<JsoncValue, JsoncEditError> {
     if path.is_empty() {
-        return Ok(JsoncValue { kind: value.kind, comment: root.comment.clone() });
+        return Ok(JsoncValue {
+            kind: value.kind,
+            comment: root.comment.clone(),
+        });
     }
     let (levels, target) = descend(root, path, path, true)?;
     let replacement = match target {
-        Some(addressed) => JsoncValue { kind: value.kind, comment: addressed.comment.clone() },
+        Some(addressed) => JsoncValue {
+            kind: value.kind,
+            comment: addressed.comment.clone(),
+        },
         None => value,
     };
     return Ok(rebuild(levels, replacement));
@@ -375,8 +464,14 @@ pub(crate) fn set_value(
 /// ```ts
 /// function withComment(node: JsoncValue, comment: JsoncComment | undefined): JsoncValue;
 /// ```
-fn with_comment(node: &JsoncValue, comment: Option<JsoncComment>) -> JsoncValue {
-    return JsoncValue { kind: node.kind.clone(), comment };
+fn with_comment(
+    node: &JsoncValue,
+    comment: Option<JsoncComment>,
+) -> JsoncValue {
+    return JsoncValue {
+        kind: node.kind.clone(),
+        comment,
+    };
 }
 
 /// What:
@@ -428,14 +523,23 @@ pub(crate) fn delete_value(
     path: &[JsoncPathSegment],
 ) -> Result<JsoncValue, JsoncEditError> {
     let Some((last, parent_path)) = path.split_last() else {
-        return Err(type_error(String::from("jsonc delete: cannot delete the document root")));
+        return Err(type_error(String::from(
+            "jsonc delete: cannot delete the document root",
+        )));
     };
     let (levels, target) = descend(root, parent_path, path, false)?;
     let Some(parent) = target else {
         return Err(not_found(path));
     };
     let rebuilt = match (&parent.kind, last) {
-        (JsoncKind::Record { entries }, JsoncPathSegment::Key { key }) => {
+        (
+            JsoncKind::Record {
+                entries,
+            },
+            JsoncPathSegment::Key {
+                key,
+            },
+        ) => {
             let wanted = key_units(key);
             let mut kept: Vec<JsoncEntry> = Vec::new();
             for entry in entries {
@@ -443,9 +547,21 @@ pub(crate) fn delete_value(
                     kept.push(entry.clone());
                 }
             }
-            JsoncValue { kind: JsoncKind::Record { entries: kept }, comment: parent.comment.clone() }
+            JsoncValue {
+                kind: JsoncKind::Record {
+                    entries: kept,
+                },
+                comment: parent.comment.clone(),
+            }
         }
-        (JsoncKind::Array { elements }, JsoncPathSegment::Index { index }) => {
+        (
+            JsoncKind::Array {
+                elements,
+            },
+            JsoncPathSegment::Index {
+                index,
+            },
+        ) => {
             let position = *index;
             if position >= elements.len() {
                 return Err(not_found(path));
@@ -456,15 +572,42 @@ pub(crate) fn delete_value(
                     kept.push(element.clone());
                 }
             }
-            JsoncValue { kind: JsoncKind::Array { elements: kept }, comment: parent.comment.clone() }
+            JsoncValue {
+                kind: JsoncKind::Array {
+                    elements: kept,
+                },
+                comment: parent.comment.clone(),
+            }
         }
-        (JsoncKind::Record { .. }, JsoncPathSegment::Index { index }) => {
-            return Err(type_error(format!("jsonc delete: cannot index an object with position {index}")));
+        (
+            JsoncKind::Record {
+                ..
+            },
+            JsoncPathSegment::Index {
+                index,
+            },
+        ) => {
+            return Err(type_error(format!(
+                "jsonc delete: cannot index an object with position {index}"
+            )));
         }
-        (JsoncKind::Array { .. }, JsoncPathSegment::Key { key }) => {
-            return Err(type_error(format!("jsonc delete: cannot index an array with key {key:?}")));
+        (
+            JsoncKind::Array {
+                ..
+            },
+            JsoncPathSegment::Key {
+                key,
+            },
+        ) => {
+            return Err(type_error(format!(
+                "jsonc delete: cannot index an array with key {key:?}"
+            )));
         }
-        _ => return Err(type_error(String::from("jsonc delete: cannot index a scalar value"))),
+        _ => {
+            return Err(type_error(String::from(
+                "jsonc delete: cannot index a scalar value",
+            )));
+        }
     };
     return Ok(rebuild(levels, rebuilt));
 }
@@ -491,16 +634,26 @@ pub(crate) fn set_key_comment(
     comment: Option<JsoncComment>,
 ) -> Result<JsoncValue, JsoncEditError> {
     let Some((last, parent_path)) = path.split_last() else {
-        return Err(type_error(String::from("jsonc key comment: empty path has no key")));
+        return Err(type_error(String::from(
+            "jsonc key comment: empty path has no key",
+        )));
     };
-    let JsoncPathSegment::Key { key } = last else {
-        return Err(type_error(String::from("jsonc key comment: final segment is not a key")));
+    let JsoncPathSegment::Key {
+        key,
+    } = last
+    else {
+        return Err(type_error(String::from(
+            "jsonc key comment: final segment is not a key",
+        )));
     };
     let (levels, target) = descend(root, parent_path, path, false)?;
     let Some(parent) = target else {
         return Err(not_found(path));
     };
-    let JsoncKind::Record { entries } = &parent.kind else {
+    let JsoncKind::Record {
+        entries,
+    } = &parent.kind
+    else {
         return Err(not_found(path));
     };
     let Some(index) = find_entry_index(entries, key) else {
@@ -510,7 +663,10 @@ pub(crate) fn set_key_comment(
     for (position, entry) in entries.iter().enumerate() {
         if position == index {
             rebuilt.push(JsoncEntry {
-                key: JsoncKey { comment: comment.clone(), ..entry.key.clone() },
+                key: JsoncKey {
+                    comment: comment.clone(),
+                    ..entry.key.clone()
+                },
                 value: entry.value.clone(),
             });
         } else {
@@ -518,7 +674,9 @@ pub(crate) fn set_key_comment(
         }
     }
     let updated = JsoncValue {
-        kind: JsoncKind::Record { entries: rebuilt },
+        kind: JsoncKind::Record {
+            entries: rebuilt,
+        },
         comment: parent.comment.clone(),
     };
     return Ok(rebuild(levels, updated));

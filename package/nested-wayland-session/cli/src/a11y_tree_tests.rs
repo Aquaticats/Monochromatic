@@ -1,13 +1,25 @@
 //! Unit tests for the accessibility answer formatting.
 
-use super::{format_tree, read_all_within, role_name, state_names, Node};
+use super::{
+    Node,
+    format_tree,
+    read_all_within,
+    role_name,
+    state_names,
+};
 
 /// The named bits decode from the two-word state vector.
 #[test]
 fn state_bits_decode_across_words() {
     assert_eq!(state_names(&[0, 0]), Vec::<&str>::new());
-    assert_eq!(state_names(&[(1 << 11) | (1 << 12), 0]), vec!["focusable", "focused"]);
-    assert_eq!(state_names(&[(1 << 8) | (1 << 30), 0]), vec!["enabled", "visible"]);
+    assert_eq!(
+        state_names(&[(1 << 11) | (1 << 12), 0]),
+        vec!["focusable", "focused"]
+    );
+    assert_eq!(
+        state_names(&[(1 << 8) | (1 << 30), 0]),
+        vec!["enabled", "visible"]
+    );
     assert_eq!(state_names(&[0, 1 << 1]), Vec::<&str>::new());
     assert_eq!(state_names(&[1 << 4]), vec!["checked"]);
 }
@@ -21,8 +33,20 @@ fn state_bits_decode_across_words() {
 #[test]
 fn records_encode_text_and_carry_bounds() {
     let nodes = [
-        Node { depth: 0, role: "application".to_string(), name: "My App".to_string(), states: vec![], bounds: None },
-        Node { depth: 1, role: "push button".to_string(), name: "Play; now".to_string(), states: vec!["enabled", "focusable"], bounds: Some((10, 20, 30, 40)) },
+        Node {
+            depth: 0,
+            role: "application".to_string(),
+            name: "My App".to_string(),
+            states: vec![],
+            bounds: None,
+        },
+        Node {
+            depth: 1,
+            role: "push button".to_string(),
+            name: "Play; now".to_string(),
+            states: vec!["enabled", "focusable"],
+            bounds: Some((10, 20, 30, 40)),
+        },
     ];
     assert_eq!(
         format_tree(&nodes),
@@ -48,10 +72,17 @@ fn roles_have_names() {
 }
 
 /// Imports for the tests that read a fake application over a real private bus.
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use crate::{
-    a11y_service::{A11yService, REGISTRY_NAME, ROOT_PATH},
+    a11y_service::{
+        A11yService,
+        REGISTRY_NAME,
+        ROOT_PATH,
+    },
     bus_test_client,
     private_bus::PrivateBus,
 };
@@ -132,7 +163,7 @@ const _: () = {
 
 /// Starts the service and one fake application that has registered its root on it.
 fn service_with_application(
-    root: impl zbus::object_server::Interface,
+    root: impl zbus::object_server::Interface
 ) -> anyhow::Result<(A11yService, zbus::Connection)> {
     let bus = Arc::new(PrivateBus::start()?);
     let service = A11yService::start(Arc::clone(&bus))?;
@@ -140,10 +171,20 @@ fn service_with_application(
         zbus::connection::Builder::address(bus.address()).serve_at(ROOT_PATH, root),
         "starting the fake application",
     )?;
-    let unique = application.unique_name().map(ToString::to_string).unwrap_or_default();
-    let registry = bus_test_client::Proxy::new(&application, REGISTRY_NAME, ROOT_PATH, "org.a11y.atspi.Socket")?;
-    let _desktop: (String, zbus::OwnedObjectPath) =
-        registry.call("Embed", &(unique, zbus::OwnedObjectPath::try_from(ROOT_PATH)?))?;
+    let unique = application
+        .unique_name()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    let registry = bus_test_client::Proxy::new(
+        &application,
+        REGISTRY_NAME,
+        ROOT_PATH,
+        "org.a11y.atspi.Socket",
+    )?;
+    let _desktop: (String, zbus::OwnedObjectPath) = registry.call(
+        "Embed",
+        &(unique, zbus::OwnedObjectPath::try_from(ROOT_PATH)?),
+    )?;
     return Ok((service, application));
 }
 
@@ -167,8 +208,17 @@ fn a_stalled_application_ends_the_read_at_the_budget() -> anyhow::Result<()> {
     let started = std::time::Instant::now();
     let outcome = read_all_within(&service, SHORT_BUDGET);
     let elapsed = started.elapsed();
-    let message = format!("{:#}", outcome.expect_err("a stalled application cannot be read"));
-    assert!(message.contains("the application did not answer its accessibility tree"), "{message}");
-    assert!(elapsed >= SHORT_BUDGET && elapsed < SHORT_BUDGET * LATE_FACTOR, "ended at {elapsed:?}");
+    let message = format!(
+        "{:#}",
+        outcome.expect_err("a stalled application cannot be read")
+    );
+    assert!(
+        message.contains("the application did not answer its accessibility tree"),
+        "{message}"
+    );
+    assert!(
+        elapsed >= SHORT_BUDGET && elapsed < SHORT_BUDGET * LATE_FACTOR,
+        "ended at {elapsed:?}"
+    );
     return Ok(());
 }

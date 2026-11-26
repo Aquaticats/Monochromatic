@@ -74,7 +74,10 @@ pub trait ProbeBins {
     ///  Why:
     ///  the selection asks one bin at a time,
     ///  in the order its budget and the loudest measured bin decide.
-    fn bin_peak(&mut self, index: usize) -> Result<f32, Self::Failure>;
+    fn bin_peak(
+        &mut self,
+        index: usize,
+    ) -> Result<f32, Self::Failure>;
 }
 
 /// What:
@@ -87,8 +90,11 @@ impl ProbeBins for &[f32] {
     type Failure = Infallible;
 
     /// Reads the bin's precomputed peak out of the slice.
-    fn bin_peak(&mut self, index: usize) -> Result<f32, Infallible> {
-        return Ok(self[index])
+    fn bin_peak(
+        &mut self,
+        index: usize,
+    ) -> Result<f32, Infallible> {
+        return Ok(self[index]);
     }
 }
 
@@ -142,7 +148,11 @@ impl Frontier {
     ///  Why:
     ///  every phase records through this one step,
     ///  so the three phases cannot disagree about what "measured" means.
-    fn record(&mut self, index: usize, bin_peak: f32) {
+    fn record(
+        &mut self,
+        index: usize,
+        bin_peak: f32,
+    ) {
         self.measured[index] = true;
         self.used_bins += 1;
         if bin_peak > self.peak {
@@ -153,7 +163,7 @@ impl Frontier {
 
     /// Whether the selection may still measure a bin.
     fn has_budget(&self) -> bool {
-        return self.used_bins < self.budget_bins
+        return self.used_bins < self.budget_bins;
     }
 }
 
@@ -168,11 +178,15 @@ impl Frontier {
 ///  the first pass spreads over the whole track so it slights no region,
 ///  and one sample has no spread to keep,
 ///  so the middle is the only defensible place for it.
-fn even_bin_at(step: usize, count: usize, span: usize) -> usize {
+fn even_bin_at(
+    step: usize,
+    count: usize,
+    span: usize,
+) -> usize {
     if count <= 1 {
-        return span / 2
+        return span / 2;
     }
-    return ((step as f64 / (count - 1) as f64) * span as f64).round() as usize
+    return ((step as f64 / (count - 1) as f64) * span as f64).round() as usize;
 }
 
 /// Measure the bins a probe visits and report what it read.
@@ -204,7 +218,8 @@ pub fn select_probe_bins<Bins: ProbeBins>(
     // budget is the coverage share of it, at least one bin and never more than the grid
     // holds, so a coverage above one cannot promise more bins than exist.
     let bin_count = grid.bin_count.max(1);
-    let budget_bins = (((grid.coverage_fraction * bin_count as f64).floor() as usize).max(1)).min(bin_count);
+    let budget_bins =
+        (((grid.coverage_fraction * bin_count as f64).floor() as usize).max(1)).min(bin_count);
     tracing::debug!(
         bin_count,
         budget_bins,
@@ -258,8 +273,15 @@ pub fn select_probe_bins<Bins: ProbeBins>(
         }
     }
     // The selection is done: how many bins were measured and the loudest one read.
-    tracing::debug!(used_bins = frontier.used_bins, peak = frontier.peak, "probe selection done");
-    return Ok(ProbeSelection { peak: frontier.peak, used_bins: frontier.used_bins })
+    tracing::debug!(
+        used_bins = frontier.used_bins,
+        peak = frontier.peak,
+        "probe selection done"
+    );
+    return Ok(ProbeSelection {
+        peak: frontier.peak,
+        used_bins: frontier.used_bins,
+    });
 }
 
 /// What:

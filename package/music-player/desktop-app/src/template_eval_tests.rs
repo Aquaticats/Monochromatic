@@ -4,10 +4,21 @@
 // conversion, joins, and the template kinds. The mistake group lives in `template_eval_mistake_tests.rs`.
 
 use super::evaluate_template;
-use crate::template_fixtures::{analysed, bare, playing, waiting};
+use crate::template_fixtures::{
+    analysed,
+    bare,
+    playing,
+    waiting,
+};
 use crate::template_model::{
-    DEFAULT_TRACK_TEMPLATE, TemplateField, TemplateKind, TemplateResult, TemplateTrack, error_lines,
-    playing_template_fields, track_template_fields,
+    DEFAULT_TRACK_TEMPLATE,
+    TemplateField,
+    TemplateKind,
+    TemplateResult,
+    TemplateTrack,
+    error_lines,
+    playing_template_fields,
+    track_template_fields,
 };
 
 // What: `fn assert_shows(text: &str, track: &dyn TemplateTrack, expected: &str)` asserts that a template shows the expected text with the track rows fields.
@@ -17,7 +28,11 @@ use crate::template_model::{
 // ```ts
 // function shows({ text, track, expected }: ShowCase): void { ... }
 // ```
-fn assert_shows(text: &str, track: &dyn TemplateTrack, expected: &str) {
+fn assert_shows(
+    text: &str,
+    track: &dyn TemplateTrack,
+    expected: &str,
+) {
     assert_eq!(
         evaluate_template(text, track, &track_template_fields()),
         TemplateResult::Shown(expected.to_string()),
@@ -32,8 +47,17 @@ fn assert_shows(text: &str, track: &dyn TemplateTrack, expected: &str) {
 // ```ts
 // function showsWith({ text, track, fields, expected }: ShowCase): void { ... }
 // ```
-fn assert_shows_with(text: &str, track: &dyn TemplateTrack, fields: &[TemplateField], expected: &str) {
-    assert_eq!(evaluate_template(text, track, fields), TemplateResult::Shown(expected.to_string()), "{text}");
+fn assert_shows_with(
+    text: &str,
+    track: &dyn TemplateTrack,
+    fields: &[TemplateField],
+    expected: &str,
+) {
+    assert_eq!(
+        evaluate_template(text, track, fields),
+        TemplateResult::Shown(expected.to_string()),
+        "{text}"
+    );
 }
 
 // What: `fn assert_refuses(text: &str, track: &dyn TemplateTrack, lines: &[&str])` asserts that a template is refused with exactly these mistake lines.
@@ -43,7 +67,11 @@ fn assert_shows_with(text: &str, track: &dyn TemplateTrack, fields: &[TemplateFi
 // ```ts
 // function refuses({ text, track, lines }: RefuseCase): void { ... }
 // ```
-fn assert_refuses(text: &str, track: &dyn TemplateTrack, lines: &[&str]) {
+fn assert_refuses(
+    text: &str,
+    track: &dyn TemplateTrack,
+    lines: &[&str],
+) {
     match evaluate_template(text, track, &track_template_fields()) {
         TemplateResult::Refused(errors) => assert_eq!(error_lines(&errors), lines, "{text}"),
         TemplateResult::Shown(shown) => panic!("{text} should be refused but shows {shown:?}"),
@@ -61,8 +89,16 @@ fn assert_refuses(text: &str, track: &dyn TemplateTrack, lines: &[&str]) {
 fn text_fields_and_default_line_show_substitutions() {
     let analysed_track = analysed();
     assert_shows("", &analysed_track, "");
-    assert_shows("plain text, no formula", &analysed_track, "plain text, no formula");
-    assert_shows(DEFAULT_TRACK_TEMPLATE, &analysed_track, "4:35 \u{2212}0.3 dBTP");
+    assert_shows(
+        "plain text, no formula",
+        &analysed_track,
+        "plain text, no formula",
+    );
+    assert_shows(
+        DEFAULT_TRACK_TEMPLATE,
+        &analysed_track,
+        "4:35 \u{2212}0.3 dBTP",
+    );
     assert_shows(DEFAULT_TRACK_TEMPLATE, &waiting(), "4:35 ");
     assert_shows(DEFAULT_TRACK_TEMPLATE, &bare(), " ");
     let field_values = [
@@ -70,12 +106,19 @@ fn text_fields_and_default_line_show_substitutions() {
         ("file", "かめりあ(Camellia) - Another Xronixle"),
         ("ext", "flac"),
         ("folder", "Camellia"),
-        ("path", "Camellia/かめりあ(Camellia) - Another Xronixle.flac"),
+        (
+            "path",
+            "Camellia/かめりあ(Camellia) - Another Xronixle.flac",
+        ),
         ("len", "275"),
         ("peak", "\u{2212}0.3 dBTP"),
     ];
     for (mode, value) in field_values {
-        assert_shows(&format!("[$mi({mode})$]"), &analysed_track, &format!("[{value}]"));
+        assert_shows(
+            &format!("[$mi({mode})$]"),
+            &analysed_track,
+            &format!("[{value}]"),
+        );
     }
     assert_shows(
         "$mi(folder)$/$mi(file)$.$mi(ext)$",
@@ -83,7 +126,11 @@ fn text_fields_and_default_line_show_substitutions() {
         "Camellia/かめりあ(Camellia) - Another Xronixle.flac",
     );
     assert_shows("$mi(peak)$", &waiting(), "");
-    assert_shows("$mi(title)$$mi(ext)$", &analysed_track, "Another Xronixleflac");
+    assert_shows(
+        "$mi(title)$$mi(ext)$",
+        &analysed_track,
+        "Another Xronixleflac",
+    );
 }
 
 // What: `fn duration_formats_follow_the_format_letters(...)` checks each duration format and its refusals.
@@ -104,10 +151,26 @@ fn duration_formats_follow_the_format_letters() {
     assert_shows("$tf(4000, hh:mm:ss)$", &analysed_track, "01:06:40");
     assert_shows("$tf(59.9, m:ss)$", &analysed_track, "0:59");
     // TE5: a letter that is not h, m or s outside apostrophes is a mistake, not text; it used to print as itself.
-    assert_refuses("$tf(mi(len), \"m min\")$", &analysed_track, &["tf: unknown format letter i"]);
-    assert_refuses("$tf(mi(len), \"MM:SS\")$", &analysed_track, &["tf: unknown format letter M"]);
-    assert_refuses("$tf(mi(len), q:q)$", &analysed_track, &["tf: unknown format letter q"]);
-    assert_refuses("$tf(mi(len), q:q)$", &bare(), &["tf: unknown format letter q"]);
+    assert_refuses(
+        "$tf(mi(len), \"m min\")$",
+        &analysed_track,
+        &["tf: unknown format letter i"],
+    );
+    assert_refuses(
+        "$tf(mi(len), \"MM:SS\")$",
+        &analysed_track,
+        &["tf: unknown format letter M"],
+    );
+    assert_refuses(
+        "$tf(mi(len), q:q)$",
+        &analysed_track,
+        &["tf: unknown format letter q"],
+    );
+    assert_refuses(
+        "$tf(mi(len), q:q)$",
+        &bare(),
+        &["tf: unknown format letter q"],
+    );
     assert_shows("$tf(mi(len), \"m'.'ss\")$", &analysed_track, "4.35");
     assert_shows("$tf(mi(len), \"m / ss\")$", &analysed_track, "4 / 35");
     assert_shows("$tf(mi(len), \"m' min'\")$", &analysed_track, "4 min");
@@ -117,9 +180,21 @@ fn duration_formats_follow_the_format_letters() {
         "1 hours and 6 minutes",
     );
     assert_shows("$tf(mi(len), m:ss)$", &bare(), "");
-    assert_refuses("$tf(mi(title))$", &analysed_track, &["tf: needs a number of seconds, not Another Xronixle"]);
-    assert_refuses("$tf()$", &analysed_track, &["tf: takes 1 or 2 values, as in tf(seconds, [format])"]);
-    assert_refuses("$tf(1, m, s)$", &analysed_track, &["tf: takes 1 or 2 values, as in tf(seconds, [format])"]);
+    assert_refuses(
+        "$tf(mi(title))$",
+        &analysed_track,
+        &["tf: needs a number of seconds, not Another Xronixle"],
+    );
+    assert_refuses(
+        "$tf()$",
+        &analysed_track,
+        &["tf: takes 1 or 2 values, as in tf(seconds, [format])"],
+    );
+    assert_refuses(
+        "$tf(1, m, s)$",
+        &analysed_track,
+        &["tf: takes 1 or 2 values, as in tf(seconds, [format])"],
+    );
 }
 
 // What: `fn text_conversion_covers_each_mode(...)` checks low, up, cap, and cut, and their refusals.
@@ -139,7 +214,11 @@ fn text_conversion_covers_each_mode() {
     assert_shows("$tc(cut, mi(title), 7)$", &analysed_track, "Another");
     assert_shows("$tc(cut, mi(file), 4)$", &analysed_track, "かめりあ");
     assert_shows("$tc(cut, mi(title), 0)$", &analysed_track, "");
-    assert_shows("$tc(cut, mi(title), 99)$", &analysed_track, "Another Xronixle");
+    assert_shows(
+        "$tc(cut, mi(title), 99)$",
+        &analysed_track,
+        "Another Xronixle",
+    );
     assert_refuses(
         "$tc(cut, mi(title))$",
         &analysed_track,
@@ -150,8 +229,16 @@ fn text_conversion_covers_each_mode() {
         &analysed_track,
         &["tc: cut needs a length, as in tc(cut, text, 10)"],
     );
-    assert_refuses("$tc(ell, mi(title), 5)$", &analysed_track, &["tc: unknown mode ell"]);
-    assert_refuses("$tc(up)$", &analysed_track, &["tc: takes 2 or 3 values, as in tc(mode, text, [length])"]);
+    assert_refuses(
+        "$tc(ell, mi(title), 5)$",
+        &analysed_track,
+        &["tc: unknown mode ell"],
+    );
+    assert_refuses(
+        "$tc(up)$",
+        &analysed_track,
+        &["tc: takes 2 or 3 values, as in tc(mode, text, [length])"],
+    );
 }
 
 // What: `fn joining_and_no_conditional_follow_the_reference(...)` checks `+`, separators next to empty fields, comparison signs as text, and the refused conditional.
@@ -169,8 +256,16 @@ fn joining_and_no_conditional_follow_the_reference() {
     assert_shows("$mi(folder)$ \u{00B7} $mi(title)$", &bare(), " \u{00B7} x");
     assert_shows("$mi(peak)$ dBTP", &waiting(), " dBTP");
     assert_shows("$tc(up, a<b>=c!=d)$", &analysed_track, "A<B>=C!=D");
-    assert_refuses("$if(mi(peak), yes, no)$", &analysed_track, &["if: unknown function"]);
-    assert_refuses("$if(1, fine, mi(nope))$", &analysed_track, &["if: unknown function"]);
+    assert_refuses(
+        "$if(mi(peak), yes, no)$",
+        &analysed_track,
+        &["if: unknown function"],
+    );
+    assert_refuses(
+        "$if(1, fine, mi(nope))$",
+        &analysed_track,
+        &["if: unknown function"],
+    );
 }
 
 // What: `fn long_join_evaluates_without_recursing_per_plus(...)` checks a join of twenty thousand operands.
@@ -184,7 +279,10 @@ fn joining_and_no_conditional_follow_the_reference() {
 fn long_join_evaluates_without_recursing_per_plus() {
     let text = format!("${}\"b\"$", "\"a\" + ".repeat(20_000));
     let expected = format!("{}b", "a".repeat(20_000));
-    assert_eq!(evaluate_template(&text, &analysed(), &track_template_fields()), TemplateResult::Shown(expected));
+    assert_eq!(
+        evaluate_template(&text, &analysed(), &track_template_fields()),
+        TemplateResult::Shown(expected)
+    );
 }
 
 // What: `fn each_template_has_its_own_defaults_and_fields(...)` checks the playing track's default, fields, and refusals.
@@ -196,7 +294,10 @@ fn long_join_evaluates_without_recursing_per_plus() {
 // ```
 #[test]
 fn each_template_has_its_own_defaults_and_fields() {
-    assert_eq!(TemplateKind::TrackRows.default_template(), DEFAULT_TRACK_TEMPLATE);
+    assert_eq!(
+        TemplateKind::TrackRows.default_template(),
+        DEFAULT_TRACK_TEMPLATE
+    );
     let playing_track = playing();
     assert_shows_with(
         TemplateKind::PlayingTrack.default_template(),

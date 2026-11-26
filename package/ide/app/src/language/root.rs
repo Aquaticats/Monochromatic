@@ -27,7 +27,10 @@ use helix_core::syntax::config::LanguageConfiguration;
 /// ```ts
 /// import { realpathSync } from 'node:fs';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why no server may be started for a file.
@@ -149,7 +152,10 @@ impl RootView {
     }
 
     /// True when the resolved location of `path` is the project root or below it.
-    pub(super) fn contains(&self, path: &Path) -> bool {
+    pub(super) fn contains(
+        &self,
+        path: &Path,
+    ) -> bool {
         // `is_ok_and` is true only when resolution succeeded and the closure accepts the result.
         return match std::fs::canonicalize(path) {
             Ok(resolved) => resolved.starts_with(&self.canonical),
@@ -167,7 +173,10 @@ impl RootView {
     /// ```ts
     /// toHelix(path: string): string
     /// ```
-    pub(super) fn to_helix(&self, path: &Path) -> PathBuf {
+    pub(super) fn to_helix(
+        &self,
+        path: &Path,
+    ) -> PathBuf {
         return match path.strip_prefix(&self.canonical) {
             Ok(below) => self.helix.join(below),
             Err(_) => path.to_path_buf(),

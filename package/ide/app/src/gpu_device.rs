@@ -42,11 +42,17 @@ mod error;
 /// Reads a `WGPU_POWER_PREF` value before any driver is touched.
 use adapter::parse_power_order;
 /// The adapter descriptions and the variables of the choice.
-pub use adapter::{AdapterSummary, Variables};
+pub use adapter::{
+    AdapterSummary,
+    Variables,
+};
 /// The choice.
 pub use choice::choose_adapters;
 /// The failures and the report they carry.
-pub use error::{GpuDeviceError, SelectionReport};
+pub use error::{
+    GpuDeviceError,
+    SelectionReport,
+};
 
 /// The `wgpu` crate as Slint re-exports it,
 ///  so the device is built with exactly the wgpu release (30) that Slint's renderer was built against.
@@ -168,7 +174,7 @@ pub fn open_hardware_device() -> Result<HardwareDevice, GpuDeviceError> {
 /// function openHardwareDeviceCapped(textureCap?: number): HardwareDevice; // throws GpuDeviceError
 /// ```
 pub fn open_hardware_device_capped(
-    texture_cap: Option<u32>,
+    texture_cap: Option<u32>
 ) -> Result<HardwareDevice, GpuDeviceError> {
     // What: the two variables, read once, before any GPU work.
     // Why: a misspelled `WGPU_POWER_PREF` should fail without touching a driver.
@@ -261,7 +267,10 @@ pub fn open_hardware_device_capped(
         }
     }
     let report = SelectionReport::new(&summaries, &choice.indexes, variables);
-    return Err(GpuDeviceError::DeviceRefused { refusals, report });
+    return Err(GpuDeviceError::DeviceRefused {
+        refusals,
+        report,
+    });
 }
 
 /// The adapter choice and the messages of the errors are checked from adapter descriptions alone.

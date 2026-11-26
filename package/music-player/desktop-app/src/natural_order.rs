@@ -59,7 +59,10 @@ fn digit_run(text: &str) -> (&str, &str) {
 /// ```ts
 /// const compareDigitRuns = (a: string, b: string) => { const x = a.replace(/^0+/, ""), y = b.replace(/^0+/, ""); return x.length - y.length || (x < y ? -1 : x > y ? 1 : 0); };
 /// ```
-fn compare_digit_runs(left: &str, right: &str) -> Ordering {
+fn compare_digit_runs(
+    left: &str,
+    right: &str,
+) -> Ordering {
     let left_trimmed: &str = left.trim_start_matches('0');
     let right_trimmed: &str = right.trim_start_matches('0');
     let by_length = left_trimmed.len().cmp(&right_trimmed.len());
@@ -93,7 +96,10 @@ fn compare_digit_runs(left: &str, right: &str) -> Ordering {
 ///   return a < b ? -1 : a > b ? 1 : 0; // last resort
 /// }
 /// ```
-pub fn natural_cmp(left: &str, right: &str) -> Ordering {
+pub fn natural_cmp(
+    left: &str,
+    right: &str,
+) -> Ordering {
     let mut left_rest: &str = left;
     let mut right_rest: &str = right;
     loop {

@@ -14,21 +14,37 @@
 /// Imports the ordering type that the oracle sorts with.
 use std::cmp::Ordering;
 
+/// Imports the folder index types and builder that the oracle rebuilds on every query.
+use crate::folder_index::{
+    FolderEntry,
+    FolderListItem,
+    FolderTrackRow,
+    UNFILED_FOLDER_NAME,
+    folder_index,
+};
+/// Imports the collation key that breaks ties between equal results.
+use crate::folder_rail::collation_key;
 /// Imports the label of a track's top-level folder.
 use crate::pagination::root_level_folder_label;
 /// Imports the function that finds the folder part of a name.
 use crate::search_index_batch::folder_of;
-/// Imports the folder index types and builder that the oracle rebuilds on every query.
-use crate::folder_index::{FolderEntry, FolderListItem, FolderTrackRow, UNFILED_FOLDER_NAME, folder_index};
-/// Imports the collation key that breaks ties between equal results.
-use crate::folder_rail::collation_key;
 /// Imports the matcher helpers that split a query,
 /// normalize names and find highlights.
 use crate::search_matcher::{
-    SearchHighlight, highlight_ranges, match_tier, normalize_for_search, search_terms, trim_kotlin_whitespace,
+    SearchHighlight,
+    highlight_ranges,
+    match_tier,
+    normalize_for_search,
+    search_terms,
+    trim_kotlin_whitespace,
 };
 /// Imports the result types that the oracle returns.
-use crate::search_results::{SEARCH_RESULT_LIMIT, SearchResult, SearchResultKind, SearchState};
+use crate::search_results::{
+    SEARCH_RESULT_LIMIT,
+    SearchResult,
+    SearchResultKind,
+    SearchState,
+};
 /// Imports the track type that the oracle searches.
 use crate::track::Track;
 /// Imports the title that a result shows.
@@ -135,7 +151,9 @@ fn is_unfiled_entry(entry: &FolderEntry) -> bool {
     return entry.items.iter().all(|item| {
         return match item {
             FolderListItem::TrackItem(row) => !row.track.display_path.starts_with(&folder_prefix),
-            FolderListItem::SubfolderHeader { .. } => false,
+            FolderListItem::SubfolderHeader {
+                ..
+            } => false,
         };
     });
 }
@@ -151,7 +169,11 @@ fn is_unfiled_entry(entry: &FolderEntry) -> bool {
 /// ```ts
 /// function folderCandidate(entry: FolderEntry, query: string, terms: string[]): SearchCandidate | null { /* ... */ }
 /// ```
-fn folder_candidate(entry: &FolderEntry, query: &str, terms: &[String]) -> Option<SearchCandidate> {
+fn folder_candidate(
+    entry: &FolderEntry,
+    query: &str,
+    terms: &[String],
+) -> Option<SearchCandidate> {
     let normalized_name: String =
         trim_kotlin_whitespace(&normalize_for_search(&entry.name)).to_string();
     let tier: i32 = match_tier(&normalized_name, terms)?;
@@ -235,7 +257,11 @@ fn track_candidate(
 /// ```ts
 /// function candidatesFor(query: string, terms: string[], tracks: Track[]): SearchCandidate[] { /* ... */ }
 /// ```
-fn candidates_for(query: &str, terms: &[String], tracks: &[Track]) -> Vec<SearchCandidate> {
+fn candidates_for(
+    query: &str,
+    terms: &[String],
+    tracks: &[Track],
+) -> Vec<SearchCandidate> {
     let entries: Vec<FolderEntry> = folder_index(tracks);
     let mut candidates: Vec<SearchCandidate> = entries
         .iter()
@@ -275,7 +301,10 @@ fn candidates_for(query: &str, terms: &[String], tracks: &[Track]) -> Vec<Search
 /// ```ts
 /// const candidateOrder = (a, b) => a.tier - b.tier || a.len - b.len || /* ... */ 0;
 /// ```
-fn candidate_order(left: &SearchCandidate, right: &SearchCandidate) -> Ordering {
+fn candidate_order(
+    left: &SearchCandidate,
+    right: &SearchCandidate,
+) -> Ordering {
     return left
         .result
         .tier
@@ -304,7 +333,11 @@ fn candidate_order(left: &SearchCandidate, right: &SearchCandidate) -> Ordering 
 /// ```ts
 /// function searchLibrary(query: string, tracks: Track[], available: boolean): SearchState { /* ... */ }
 /// ```
-pub fn oracle_search_library(query: &str, tracks: &[Track], available: bool) -> SearchState {
+pub fn oracle_search_library(
+    query: &str,
+    tracks: &[Track],
+    available: bool,
+) -> SearchState {
     if !available {
         return SearchState::Unavailable;
     }
@@ -326,5 +359,8 @@ pub fn oracle_search_library(query: &str, tracks: &[Track], available: bool) -> 
         .take(SEARCH_RESULT_LIMIT)
         .map(|candidate| return candidate.result)
         .collect();
-    return SearchState::Results { items, truncated };
+    return SearchState::Results {
+        items,
+        truncated,
+    };
 }

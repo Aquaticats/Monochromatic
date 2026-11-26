@@ -18,14 +18,20 @@
 use crate::diagnostic::Diagnostic;
 /// Imports `Drift`,
 /// `DriftReason` from `crate::drift`.
-use crate::drift::{Drift, DriftReason};
+use crate::drift::{
+    Drift,
+    DriftReason,
+};
 /// Imports `canonical_or_same` from `crate::identity`.
 use crate::identity::canonical_or_same;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Check the directory is absent or empty,
@@ -39,7 +45,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function validateExpectedDir(dir: string, root: string): void
 /// ```
-pub fn validate_expected_dir(dir: &Path, root: &Path) -> Result<PathBuf, Diagnostic> {
+pub fn validate_expected_dir(
+    dir: &Path,
+    root: &Path,
+) -> Result<PathBuf, Diagnostic> {
     let mut absolute_dir = dir.to_path_buf();
     if absolute_dir.is_relative() {
         match std::env::current_dir() {
@@ -74,7 +83,10 @@ pub fn validate_expected_dir(dir: &Path, root: &Path) -> Result<PathBuf, Diagnos
     if let Ok(mut entries) = fs::read_dir(&canonical_dir)
         && entries.next().is_some()
     {
-        let message = format!("--expected-dir {} is not empty; pick an absent or empty directory", dir.display());
+        let message = format!(
+            "--expected-dir {} is not empty; pick an absent or empty directory",
+            dir.display()
+        );
         return Err(Diagnostic::new("expected-dir-invalid", &message));
     }
     return Ok(canonical_dir);
@@ -92,10 +104,16 @@ pub fn validate_expected_dir(dir: &Path, root: &Path) -> Result<PathBuf, Diagnos
 /// ```ts
 /// function writeExpectedTrees(dir: string, drifts: Drift[]): string[]
 /// ```
-pub fn write_expected_trees(dir: &Path, drifts: &[Drift]) -> Result<Vec<String>, Diagnostic> {
+pub fn write_expected_trees(
+    dir: &Path,
+    drifts: &[Drift],
+) -> Result<Vec<String>, Diagnostic> {
     let mut written: Vec<String> = Vec::new();
     for drift in drifts {
-        let has_content = matches!(drift.reason, DriftReason::Content | DriftReason::Missing | DriftReason::ReplaceLink);
+        let has_content = matches!(
+            drift.reason,
+            DriftReason::Content | DriftReason::Missing | DriftReason::ReplaceLink
+        );
         if !has_content {
             continue;
         }

@@ -18,7 +18,10 @@
 /// Imports the owned operating-system text type.
 use std::ffi::OsString;
 /// Imports the error of a failed start.
-use std::io::{Error, ErrorKind};
+use std::io::{
+    Error,
+    ErrorKind,
+};
 /// Imports the borrowed path type.
 use std::path::Path;
 
@@ -183,7 +186,11 @@ pub fn describe_start_failure(failure: &StartFailure) -> String {
 /// ```ts
 /// export function describeNestingRefusal(outer: string[], program: string, depth: number): string
 /// ```
-pub fn describe_nesting_refusal(outer: &[OsString], program: &Path, depth: u32) -> String {
+pub fn describe_nesting_refusal(
+    outer: &[OsString],
+    program: &Path,
+    depth: u32,
+) -> String {
     let command: String = command_line(outer);
     return format!(
         "mpm-shadow: refusing to start {program} for `{command}`: this mpm-shadow was started by another mpm-shadow (nesting level {depth}, limit {limit}).\n  \

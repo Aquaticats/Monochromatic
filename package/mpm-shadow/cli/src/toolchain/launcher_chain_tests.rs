@@ -3,20 +3,38 @@
 //! every other chain is refused.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use super::{MAX_LAUNCHER_CHAIN, chain_problem};
+use super::{
+    MAX_LAUNCHER_CHAIN,
+    chain_problem,
+};
 use crate::test_scratch::scratch;
-use crate::toolchain::launcher::{LaunchRecord, record_path, render_record};
+use crate::toolchain::launcher::{
+    LaunchRecord,
+    record_path,
+    render_record,
+};
 use crate::toolchain::scope::ScopeKind;
 
 /// A file standing for a launcher or a program,
 /// with a record beside it when `real` is given.
-fn make(path: &Path, real: Option<&Path>) {
+fn make(
+    path: &Path,
+    real: Option<&Path>,
+) {
     fs::create_dir_all(path.parent().expect("a parent folder")).expect("make the folder");
     fs::write(path, "x").expect("write the file");
     if let Some(target) = real {
-        let record = LaunchRecord { tool_id: "t".to_string(), lock_file: PathBuf::from("/dev/null"), real: target.to_path_buf(), scope: ScopeKind::Repo };
+        let record = LaunchRecord {
+            tool_id: "t".to_string(),
+            lock_file: PathBuf::from("/dev/null"),
+            real: target.to_path_buf(),
+            scope: ScopeKind::Repo,
+        };
         fs::write(record_path(path), render_record(&record)).expect("write the record");
     }
 }
@@ -34,7 +52,11 @@ fn a_launcher_that_names_a_program_has_no_problem() {
 #[test]
 fn a_chain_of_launchers_that_ends_at_a_program_has_no_problem() {
     let folder = scratch();
-    let (own, middle, program) = (folder.path().join("own"), folder.path().join("middle"), folder.path().join("program"));
+    let (own, middle, program) = (
+        folder.path().join("own"),
+        folder.path().join("middle"),
+        folder.path().join("program"),
+    );
     make(&program, None);
     make(&middle, Some(&program));
     make(&own, Some(&middle));
@@ -48,7 +70,8 @@ fn a_record_that_names_its_own_launcher_leads_back_to_itself() {
     let own: PathBuf = folder.path().join("own");
     make(&own, Some(&own));
 
-    let problem: String = chain_problem(&own, &own).expect("a launcher that starts itself is a problem");
+    let problem: String =
+        chain_problem(&own, &own).expect("a launcher that starts itself is a problem");
 
     assert!(problem.contains("leads back to itself"), "{problem}");
 }
@@ -60,7 +83,8 @@ fn two_launchers_that_name_each_other_lead_back_to_the_first() {
     make(&own, Some(&other));
     make(&other, Some(&own));
 
-    let problem: String = chain_problem(&own, &other).expect("launchers that start each other are a problem");
+    let problem: String =
+        chain_problem(&own, &other).expect("launchers that start each other are a problem");
 
     assert!(problem.contains("leads back to itself"), "{problem}");
 }
@@ -68,7 +92,11 @@ fn two_launchers_that_name_each_other_lead_back_to_the_first() {
 #[test]
 fn launchers_that_circle_without_the_running_one_are_a_circle() {
     let folder = scratch();
-    let (own, first, second) = (folder.path().join("own"), folder.path().join("first"), folder.path().join("second"));
+    let (own, first, second) = (
+        folder.path().join("own"),
+        folder.path().join("first"),
+        folder.path().join("second"),
+    );
     make(&own, Some(&first));
     make(&first, Some(&second));
     make(&second, Some(&first));
@@ -95,7 +123,10 @@ fn a_chain_longer_than_the_bound_is_refused_and_one_at_the_bound_is_not() {
     make(&own, Some(&next));
 
     // The chain from `launchers[MAX_LAUNCHER_CHAIN - 1]` holds MAX_LAUNCHER_CHAIN launchers before the program: at the bound.
-    assert_eq!(chain_problem(&own, &launchers[MAX_LAUNCHER_CHAIN - 1]), None);
+    assert_eq!(
+        chain_problem(&own, &launchers[MAX_LAUNCHER_CHAIN - 1]),
+        None
+    );
     let problem: String = chain_problem(&own, &next).expect("a chain past the bound is a problem");
     assert!(problem.contains("without reaching a program"), "{problem}");
 }

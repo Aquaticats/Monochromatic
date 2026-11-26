@@ -21,7 +21,10 @@ use unicode_normalization::UnicodeNormalization;
 /// Imports the test that drops non-spacing marks.
 use crate::non_spacing_mark::is_non_spacing_mark;
 /// Imports the whitespace test and trim that match the Kotlin app's rules.
-use crate::search_matcher::{is_kotlin_whitespace, trim_kotlin_whitespace};
+use crate::search_matcher::{
+    is_kotlin_whitespace,
+    trim_kotlin_whitespace,
+};
 
 /// What:
 ///      `pub(crate) struct TextArena { buf: String, ends: Vec<u32> }`.
@@ -70,7 +73,10 @@ impl TextArena {
     /// or an empty text when the position is past the end.
     /// Why:
     /// a caller that races a reset reads an empty name instead of panicking.
-    pub(crate) fn get(&self, position: usize) -> &str {
+    pub(crate) fn get(
+        &self,
+        position: usize,
+    ) -> &str {
         let Some(end) = self.ends.get(position) else {
             return "";
         };
@@ -90,7 +96,10 @@ impl TextArena {
     /// # Panics
     /// When the arena would pass four gibibytes,
     /// which is far above the supported library size.
-    pub(crate) fn push(&mut self, text: &str) {
+    pub(crate) fn push(
+        &mut self,
+        text: &str,
+    ) {
         self.buf.push_str(text);
         self.close_entry();
     }
@@ -114,7 +123,8 @@ impl TextArena {
     /// When the arena would pass four gibibytes,
     /// which is far above the supported library size.
     pub(crate) fn close_entry(&mut self) {
-        let end: u32 = u32::try_from(self.buf.len()).expect("a search arena holds under four gibibytes of text");
+        let end: u32 = u32::try_from(self.buf.len())
+            .expect("a search arena holds under four gibibytes of text");
         self.ends.push(end);
     }
 
@@ -125,7 +135,11 @@ impl TextArena {
     /// which copies the whole buffer,
     /// out of the
     /// lock.
-    pub(crate) fn reserve(&mut self, entries: usize, bytes: usize) {
+    pub(crate) fn reserve(
+        &mut self,
+        entries: usize,
+        bytes: usize,
+    ) {
         self.buf.reserve(bytes);
         self.ends.reserve(entries);
     }
@@ -139,9 +153,13 @@ impl TextArena {
     /// # Panics
     /// When the arena would pass four gibibytes,
     /// which is far above the supported library size.
-    pub(crate) fn append(&mut self, other: &TextArena) {
+    pub(crate) fn append(
+        &mut self,
+        other: &TextArena,
+    ) {
         let total: usize = self.buf.len() + other.buf.len();
-        let shift: u32 = u32::try_from(self.buf.len()).expect("a search arena holds under four gibibytes of text");
+        let shift: u32 = u32::try_from(self.buf.len())
+            .expect("a search arena holds under four gibibytes of text");
         u32::try_from(total).expect("a search arena holds under four gibibytes of text");
         self.buf.push_str(&other.buf);
         for end in &other.ends {
@@ -170,7 +188,10 @@ impl TextArena {
 /// ```ts
 /// const searchForm = (title: string) => normalizeForSearch(title).trim();
 /// ```
-pub(crate) fn normalize_title_into(buffer: &mut String, title: &str) -> usize {
+pub(crate) fn normalize_title_into(
+    buffer: &mut String,
+    title: &str,
+) -> usize {
     let start: usize = buffer.len();
     for character in title.chars() {
         if character.is_ascii() {

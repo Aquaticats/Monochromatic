@@ -10,17 +10,26 @@
 //! ```
 
 /// Import the existing loader and its established error channel.
-use crate::frx_load::{self, LoadedRules};
+use crate::frx_load::{
+    self,
+    LoadedRules,
+};
+/// Imports the list entry whose owned copy a pending request keeps.
+use crate::rules_list::RulesEntry;
 /// Import what a load may write into the shared compiled-rules cache.
 use crate::runtime_cache::CacheAccess;
 /// Imports the shipped baseline's precompiled engine bytes and rule names passed to every load.
-use crate::{BUILTIN_NAMES, BUILTIN_PRECOMPILED};
+use crate::{
+    BUILTIN_NAMES,
+    BUILTIN_PRECOMPILED,
+};
 /// Imports the loader's error channel and the macro building its fixed redacted messages.
-use anyhow::{anyhow, Result};
+use anyhow::{
+    Result,
+    anyhow,
+};
 /// Import a per-thread value slot.
 use std::cell::Cell;
-/// Imports the list entry whose owned copy a pending request keeps.
-use crate::rules_list::RulesEntry;
 /// Imports borrowed caller paths.
 use std::path::Path;
 
@@ -56,19 +65,31 @@ std::thread_local! {
 fn execute_pending() -> Result<LoadedRules> {
     // take leaves None in this thread's slot before loader work begins.
     let Some(request): Option<LoadRequest> = PENDING.take() else {
-        return Err(anyhow!("Forbidden-strings rule loading had no pending request."));
+        return Err(anyhow!(
+            "Forbidden-strings rule loading had no pending request."
+        ));
     };
     return frx_load::load_listed(
-        request.entries.as_slice(), request.builtin, request.implicit, request.access, BUILTIN_PRECOMPILED, BUILTIN_NAMES,
+        request.entries.as_slice(),
+        request.builtin,
+        request.implicit,
+        request.access,
+        BUILTIN_PRECOMPILED,
+        BUILTIN_NAMES,
     );
 }
 
 /// Run one request without changing process-wide panic hooks or exposing panic payloads.
-fn protected_request(request: LoadRequest, operation: fn() -> Result<LoadedRules>) -> Result<LoadedRules> {
+fn protected_request(
+    request: LoadRequest,
+    operation: fn() -> Result<LoadedRules>,
+) -> Result<LoadedRules> {
     // Do not overwrite an unexpected request; restore its owner before returning a setup failure.
     if let Some(previous) = PENDING.replace(Some(request)) {
         PENDING.set(Some(previous));
-        return Err(anyhow!("Forbidden-strings rule loading already has a pending request on this thread."));
+        return Err(anyhow!(
+            "Forbidden-strings rule loading already has a pending request on this thread."
+        ));
     }
     // The function pointer captures nothing; the request slot is private to this native thread.
     let outcome = std::panic::catch_unwind(operation);
@@ -76,22 +97,45 @@ fn protected_request(request: LoadRequest, operation: fn() -> Result<LoadedRules
     let _unused: Option<LoadRequest> = PENDING.take();
     match outcome {
         Ok(result) => return result,
-        Err(_payload) => return Err(anyhow!("Forbidden-strings rule loading panicked; no rule set was accepted.")),
+        Err(_payload) => {
+            return Err(anyhow!(
+                "Forbidden-strings rule loading panicked; no rule set was accepted."
+            ));
+        }
     }
 }
 
 /// Load through the production compiler/cache with owned request arguments and a named callback.
-pub(crate) fn load(path: &Path, builtin: bool, explicit: bool, access: CacheAccess) -> Result<LoadedRules> {
+pub(crate) fn load(
+    path: &Path,
+    builtin: bool,
+    explicit: bool,
+    access: CacheAccess,
+) -> Result<LoadedRules> {
     // The one-path contract is a one-entry list.
     let entry: RulesEntry = frx_load::single_entry(path, builtin, explicit);
-    let request: LoadRequest = LoadRequest { entries: vec![entry], builtin, implicit: !explicit, access };
+    let request: LoadRequest = LoadRequest {
+        entries: vec![entry],
+        builtin,
+        implicit: !explicit,
+        access,
+    };
     return protected_request(request, execute_pending);
 }
 
 /// Load a rules list through the production compiler/cache with owned request arguments and a named callback.
-pub(crate) fn load_entries(entries: &[RulesEntry], builtin: bool, access: CacheAccess) -> Result<LoadedRules> {
+pub(crate) fn load_entries(
+    entries: &[RulesEntry],
+    builtin: bool,
+    access: CacheAccess,
+) -> Result<LoadedRules> {
     // Clone only the entries' ownership; rule source remains under the existing authoritative loader.
-    let request: LoadRequest = LoadRequest { entries: entries.to_vec(), builtin, implicit: false, access };
+    let request: LoadRequest = LoadRequest {
+        entries: entries.to_vec(),
+        builtin,
+        implicit: false,
+        access,
+    };
     return protected_request(request, execute_pending);
 }
 

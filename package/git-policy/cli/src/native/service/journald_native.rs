@@ -446,10 +446,10 @@ impl Sink {
     /// test-only one.
     pub fn from_environment() -> Self {
         let variable: Option<String> = std::env::var(STREAM_VARIABLE).ok();
-        // A test-only setting that is not set (or not text) leaves the journal's own socket.
-        let socket: Target = match std::env::var(TEST_SOCKET_VARIABLE) {
-            Ok(text) => Target::parse(text.as_str()),
-            Err(_unset) => Target::journal(),
+        // A test-only setting that is not set (or not text) leaves the journal's own socket; no release build reads it.
+        let socket: Target = match crate::test_only_switches::text(TEST_SOCKET_VARIABLE) {
+            Some(text) => Target::parse(text.as_str()),
+            None => Target::journal(),
         };
         return Self::choose(variable.as_deref(), stderr_identity(), &socket);
     }

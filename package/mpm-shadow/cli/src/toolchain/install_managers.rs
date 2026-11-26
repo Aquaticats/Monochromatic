@@ -32,13 +32,21 @@ use super::context::Context;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::install_support`.
-use super::install_support::{artifact_for_host, download_verified, run_checked};
+use super::install_support::{
+    artifact_for_host,
+    download_verified,
+    run_checked,
+};
 /// Imports `go_bin_dir_of` from `super::layout`.
 use super::layout::go_bin_dir_of;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::observe`.
-use super::observe::{observe_tool, package_name, satisfies_lock};
+use super::observe::{
+    observe_tool,
+    package_name,
+    satisfies_lock,
+};
 /// Imports `RunRequest` from `super::runner`.
 use super::runner::RunRequest;
 
@@ -52,7 +60,10 @@ fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
 
 /// The path of a prerequisite tool's program,
 /// or an error saying which stage must run first.
-fn prerequisite(ctx: &Context, tool_id: &str) -> Result<PathBuf, ToolchainError> {
+fn prerequisite(
+    ctx: &Context,
+    tool_id: &str,
+) -> Result<PathBuf, ToolchainError> {
     return match ctx.find_bin_of(tool_id, tool_id, &extra_dirs(ctx)) {
         Some(found) => Ok(found),
         None => Err(ToolchainError::failure(format!(
@@ -91,10 +102,19 @@ fn observed_state(observed: Option<&str>) -> String {
 /// ```ts
 /// export function installMpmPnpm(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_mpm_pnpm(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let pnpm: PathBuf = prerequisite(ctx, "pnpm")?;
     let mut args: Vec<String> = vec!["add".to_string(), "--global".to_string()];
-    for allowed in tool.declaration.options.allow_builds.clone().unwrap_or_default() {
+    for allowed in tool
+        .declaration
+        .options
+        .allow_builds
+        .clone()
+        .unwrap_or_default()
+    {
         args.push("--allow-build".to_string());
         args.push(allowed);
     }
@@ -108,7 +128,9 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
     run_checked(ctx, &request, "pnpm add --global", &tool.declaration.id)?;
     let package: String = package_name(tool);
     let observed: Option<String> = observe_tool(ctx, tool);
-    if let Some(version) = observed.as_deref() && satisfies_lock(tool, version) {
+    if let Some(version) = observed.as_deref()
+        && satisfies_lock(tool, version)
+    {
         return Ok(());
     }
     return Err(ToolchainError::failure(format!(
@@ -138,7 +160,10 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
 /// ```ts
 /// export function installMpmUvx(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_mpm_uvx(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let uv: PathBuf = prerequisite(ctx, "uv")?;
     let uv_text: String = uv.to_string_lossy().to_string();
     let what_to_install: String = if tool.declaration.options.is_wheel() {
@@ -150,7 +175,8 @@ pub fn install_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
     } else {
         format!("{}=={}", package_name(tool), tool.version)
     };
-    let request: RunRequest = ctx.request(&uv_text, &["tool", "install", "--force", &what_to_install]);
+    let request: RunRequest =
+        ctx.request(&uv_text, &["tool", "install", "--force", &what_to_install]);
     run_checked(ctx, &request, "uv tool install", &tool.declaration.id)?;
     return read_back_installed_uv_tool(ctx, tool);
 }
@@ -169,10 +195,15 @@ pub fn install_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
 /// ```ts
 /// function readBackInstalledUvTool(ctx: Context, tool: LockedTool): void  // throws
 /// ```
-fn read_back_installed_uv_tool(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+fn read_back_installed_uv_tool(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let package: String = package_name(tool);
     let observed: Option<String> = observe_tool(ctx, tool);
-    if let Some(version) = observed.as_deref() && satisfies_lock(tool, version) {
+    if let Some(version) = observed.as_deref()
+        && satisfies_lock(tool, version)
+    {
         return Ok(());
     }
     return Err(ToolchainError::failure(format!(
@@ -194,14 +225,27 @@ fn read_back_installed_uv_tool(ctx: &Context, tool: &LockedTool) -> Result<(), T
 /// so the exit status alone would report a tool whose binaries are missing as installed;
 /// the read-back is the same observation `list` reads,
 /// so such a tool fails at `install` instead of at the next `list`.
-pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_go_install(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let go: PathBuf = prerequisite(ctx, "go")?;
-    let gobin: PathBuf = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
+    let gobin: PathBuf = go_bin_dir_of(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )?;
     if let Err(error) = fs::create_dir_all(&gobin) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", gobin.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            gobin.display()
+        )));
     }
-    let module_version: String =
-        if tool.version.starts_with('v') { tool.version.clone() } else { format!("v{}", tool.version) };
+    let module_version: String = if tool.version.starts_with('v') {
+        tool.version.clone()
+    } else {
+        format!("v{}", tool.version)
+    };
     let target: String = format!("{}@{module_version}", package_name(tool));
     let mut env = ctx.path_env();
     env.insert("GOBIN".to_string(), gobin.to_string_lossy().to_string());
@@ -228,13 +272,22 @@ pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), Toolch
 /// ```ts
 /// function readBackInstalledGoTool(ctx: Context, tool: LockedTool): void  // throws
 /// ```
-fn read_back_installed_go_tool(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+fn read_back_installed_go_tool(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let package: String = package_name(tool);
     let observed: Option<String> = observe_tool(ctx, tool);
-    if let Some(version) = observed.as_deref() && satisfies_lock(tool, version) {
+    if let Some(version) = observed.as_deref()
+        && satisfies_lock(tool, version)
+    {
         return Ok(());
     }
-    let gobin: PathBuf = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
+    let gobin: PathBuf = go_bin_dir_of(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )?;
     let gobin_text: String = gobin.display().to_string();
     let expected: String = if tool.declaration.bins.is_empty() {
         "any executable file".to_string()

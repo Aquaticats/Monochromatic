@@ -24,7 +24,10 @@ use crate::lazy_error_text::failed_error;
 /// ```ts
 /// // Duration ~ a millisecond count; Instant ~ performance.now().
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///      Grouped `use` of the render-element type,
@@ -40,7 +43,10 @@ use std::time::{Duration, Instant};
 /// import { WaylandSurfaceRenderElement, GlesRenderer, renderOutput, Rectangle } from "smithay";
 /// ```
 use smithay::{
-    backend::renderer::{element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
+    backend::renderer::{
+        element::surface::WaylandSurfaceRenderElement,
+        gles::GlesRenderer,
+    },
     desktop::space::render_output,
     utils::Rectangle,
 };
@@ -58,7 +64,10 @@ use smithay::{
 use crate::state::Compositor;
 
 /// Context names the failed frame step in the error that stops the session.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// Dark grey clear colour (RGBA,
 ///  0..=1) behind the hosted window.
@@ -183,7 +192,10 @@ pub fn redraw(state: &mut Compositor) -> Result<()> {
             &mut state.damage_tracker,
             CLEAR_COLOR,
         );
-        failed_error(rendered, "rendering the hosted window into the nested framebuffer failed")?;
+        failed_error(
+            rendered,
+            "rendering the hosted window into the nested framebuffer failed",
+        )?;
     }
 
     // What:     `winit.submit(Some(&[damage])).unwrap();`. Presents the frame,
@@ -223,7 +235,7 @@ pub fn redraw(state: &mut Compositor) -> Result<()> {
 
     // What:     `Ok(())`. The frame was presented.
     // Why:      Tell the caller the session can continue.
-    return Ok(())
+    return Ok(());
 }
 
 /// Send frame callbacks to every mapped window and refresh space/popup bookkeeping.
@@ -270,7 +282,7 @@ pub fn send_frame_callbacks(state: &mut Compositor) {
             )
         )]
         window.send_frame(&output, elapsed, Some(Duration::ZERO), |_, _| {
-            return Some(output.clone())
+            return Some(output.clone());
         });
     }
 

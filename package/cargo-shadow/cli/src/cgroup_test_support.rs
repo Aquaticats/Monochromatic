@@ -25,14 +25,28 @@ use std::fs;
 use std::path::PathBuf;
 /// The launcher a test starts inside the scope,
 /// with its standard streams.
-use std::process::{Child, Command, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 /// The wait bound,
 /// and the clock polled until the scope reaches the state a test expects.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The control-group types the tests drive,
 /// and the detection of the route they take.
-use crate::control_group::{ControlGroup, Record, Route, RouteSettings, detect_route, parse_record};
+use crate::control_group::{
+    ControlGroup,
+    Record,
+    Route,
+    RouteSettings,
+    detect_route,
+    parse_record,
+};
 
 /// How long a test gives a scope to stop.
 const TEST_STOP: Duration = Duration::from_secs(10);
@@ -64,8 +78,15 @@ pub(crate) fn delegated_route() -> Route {
     return match detect_route(&RouteSettings::default()) {
         Ok(found) => found,
         Err(unavailable) => {
-            let test: String = std::thread::current().name().map(str::to_string).unwrap_or_else(|| { return "<a test the runner did not name>".to_string(); });
-            panic!("{NOT_RUN_PREFIX}{test}]: this host cannot give it a delegated control group ({unavailable}); it runs where a user manager answers on a cgroup v2 mount, for example inside `systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test`");
+            let test: String = std::thread::current()
+                .name()
+                .map(str::to_string)
+                .unwrap_or_else(|| {
+                    return "<a test the runner did not name>".to_string();
+                });
+            panic!(
+                "{NOT_RUN_PREFIX}{test}]: this host cannot give it a delegated control group ({unavailable}); it runs where a user manager answers on a cgroup v2 mount, for example inside `systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test`"
+            );
         }
     };
 }
@@ -123,7 +144,15 @@ impl Drop for TestScope {
 /// ```
 pub(crate) fn start_in_scope(command: &mut Command) -> TestScope {
     let scope: TestScope = start_in_scope_without_waiting(command);
-    wait_until("the program in the scope", &|| { return scope.group.members().map(|found| { return !found.is_empty(); }).unwrap_or(false); });
+    wait_until("the program in the scope", &|| {
+        return scope
+            .group
+            .members()
+            .map(|found| {
+                return !found.is_empty();
+            })
+            .unwrap_or(false);
+    });
     return scope;
 }
 
@@ -141,9 +170,15 @@ pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> TestScope
     let route: Route = delegated_route();
     let group: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let mut launch: Command = group.launcher(&route, command, false);
-    launch.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
+    launch
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
     let child: Child = launch.spawn().expect("starts the launcher");
-    return TestScope { child, group };
+    return TestScope {
+        child,
+        group,
+    };
 }
 
 /// What:
@@ -158,7 +193,10 @@ pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> TestScope
 /// ```ts
 /// export function waitUntil(what: string, condition: () => boolean): void
 /// ```
-pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
+pub(crate) fn wait_until(
+    what: &str,
+    condition: &dyn Fn() -> bool,
+) {
     let deadline: Instant = Instant::now() + STATE_WAIT;
     while !condition() {
         assert!(Instant::now() < deadline, "{what} did not happen in time");
@@ -188,7 +226,12 @@ pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 /// ```ts
 /// export function runUntilThePayloadStarted<T>(first: number, reset: () => void, started: () => boolean, attempt: (limit: number) => T): [T, number]
 /// ```
-pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn(), started: &dyn Fn() -> bool, attempt: &mut dyn FnMut(Duration) -> T) -> (T, Duration, Duration) {
+pub(crate) fn run_until_the_payload_started<T>(
+    first: Duration,
+    reset: &dyn Fn(),
+    started: &dyn Fn() -> bool,
+    attempt: &mut dyn FnMut(Duration) -> T,
+) -> (T, Duration, Duration) {
     let mut limit: Duration = first;
     let mut began: Instant = Instant::now();
     let mut result: T = attempt(limit);
@@ -221,7 +264,10 @@ const LONGEST_ESCALATION: u32 = 6;
 pub(crate) fn assert_scope_record(groups_file: &str) {
     let text: String = fs::read_to_string(groups_file).expect("the record");
     let first: &str = text.lines().next().expect("a first record line");
-    assert!(matches!(parse_record(first), Ok(Record::Scope { .. })), "the run did not use a delegated scope: {text:?}");
+    assert!(
+        matches!(parse_record(first), Ok(Record::Scope { .. })),
+        "the run did not use a delegated scope: {text:?}"
+    );
 }
 
 /// What:
@@ -236,7 +282,11 @@ pub(crate) fn assert_scope_record(groups_file: &str) {
 pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
     let text: String = fs::read_to_string(groups_file).expect("the record");
     for line in text.lines() {
-        if let Ok(Record::Scope { path, .. }) = parse_record(line) {
+        if let Ok(Record::Scope {
+            path,
+            ..
+        }) = parse_record(line)
+        {
             return path;
         }
     }
@@ -255,7 +305,10 @@ pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
 /// export function wrapperGroup(): string
 /// ```
 pub(crate) fn wrapper_group() -> String {
-    return fs::read_to_string("/proc/self/cgroup").expect("the wrapper's own group").trim().to_string();
+    return fs::read_to_string("/proc/self/cgroup")
+        .expect("the wrapper's own group")
+        .trim()
+        .to_string();
 }
 
 /// What:
@@ -272,9 +325,25 @@ pub(crate) fn wrapper_group() -> String {
 /// ```ts
 /// export function assertRanInRecordedScope(groupsFile: string, programGroup: string, wrapperGroup: string): void
 /// ```
-pub(crate) fn assert_ran_in_recorded_scope(groups_file: &str, program_group: &str, wrapper_group: &str) {
+pub(crate) fn assert_ran_in_recorded_scope(
+    groups_file: &str,
+    program_group: &str,
+    wrapper_group: &str,
+) {
     let recorded: PathBuf = scope_directory_of(groups_file);
-    let relative: &str = recorded.to_str().expect("a UTF-8 scope path").strip_prefix(crate::control_group::CGROUP_ROOT).expect("a scope below the cgroup root");
-    assert_eq!(program_group.trim(), format!("0::{relative}"), "the program did not run in the scope the journal recorded for the run");
-    assert_ne!(program_group.trim(), wrapper_group.trim(), "the program ran in the wrapper's own group");
+    let relative: &str = recorded
+        .to_str()
+        .expect("a UTF-8 scope path")
+        .strip_prefix(crate::control_group::CGROUP_ROOT)
+        .expect("a scope below the cgroup root");
+    assert_eq!(
+        program_group.trim(),
+        format!("0::{relative}"),
+        "the program did not run in the scope the journal recorded for the run"
+    );
+    assert_ne!(
+        program_group.trim(),
+        wrapper_group.trim(),
+        "the program ran in the wrapper's own group"
+    );
 }

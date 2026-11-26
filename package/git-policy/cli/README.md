@@ -5145,6 +5145,10 @@ which can name a remote.
 every path segment of 20 characters or more or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`,
 and every control character by a space.
+Those lines are written by a thread of their own,
+so a reader that stopped draining costs the command no wait.
+A process whose process limit refuses that thread says which limit refused it and writes every line on the thread that says it from then on,
+so a command that fails at its process limit still says why (issue 6476).
 
 ## Configuration
 
@@ -6850,6 +6854,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
+  Both build with the Cargo feature `test-only-switches`,
+  as the gate's image does,
+  because a control arms its own `CLI_GIT_TEST_ONLY_*` variable and a build without that feature reads none of them;
+  `native:clippy:test-only-switches` lints that build,
+  and `native:clippy` lints the release's, which holds no such read
+  (`doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`).
 - The gate's tests keep their fixtures on a tmpfs the test container makes:
   `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777` and
   `--env CLI_GIT_TEST_ROOT=/work/package/git-policy/cli/target/gate-fixtures`

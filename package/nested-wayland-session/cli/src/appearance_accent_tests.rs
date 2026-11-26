@@ -1,7 +1,11 @@
 //! The accent color on the real private bus,
 //!  read and followed the way Slint 1.18.1 does.
 
-use std::{collections::HashMap, sync::mpsc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::mpsc,
+    time::Duration,
+};
 
 use anyhow::Context;
 use zbus::OwnedVariant;
@@ -14,7 +18,10 @@ use crate::accent_color::CHANNEL_MAX;
 const SIGNAL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Starts a portal serving the given settings on a fresh private bus.
-fn portal_with(scheme: Option<ColorSchemePreference>, accent: Option<&str>) -> anyhow::Result<AppearancePortal> {
+fn portal_with(
+    scheme: Option<ColorSchemePreference>,
+    accent: Option<&str>,
+) -> anyhow::Result<AppearancePortal> {
     let accent_color = match accent {
         Some(text) => Some(AccentColor::parse(text).map_err(anyhow::Error::msg)?),
         None => None,
@@ -51,15 +58,29 @@ fn accent_only_portal_serves_the_accent_and_not_the_scheme() -> anyhow::Result<(
     let proxy = client(&portal)?;
     assert_eq!(read_accent(&proxy)?, (1.0, 128.0 / CHANNEL_MAX, 0.0));
     let read: OwnedVariant = proxy.call("Read", &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY))?;
-    assert_eq!(read.downcast_ref::<(f64, f64, f64)>()?, (1.0, 128.0 / CHANNEL_MAX, 0.0));
-    let all: HashMap<String, HashMap<String, OwnedVariant>> = proxy.call("ReadAll", &Vec::<String>::new())?;
-    let appearance = all.get(APPEARANCE_NAMESPACE).context("ReadAll omitted the appearance namespace")?;
+    assert_eq!(
+        read.downcast_ref::<(f64, f64, f64)>()?,
+        (1.0, 128.0 / CHANNEL_MAX, 0.0)
+    );
+    let all: HashMap<String, HashMap<String, OwnedVariant>> =
+        proxy.call("ReadAll", &Vec::<String>::new())?;
+    let appearance = all
+        .get(APPEARANCE_NAMESPACE)
+        .context("ReadAll omitted the appearance namespace")?;
     assert!(appearance.contains_key(ACCENT_COLOR_KEY));
     assert!(!appearance.contains_key(COLOR_SCHEME_KEY));
-    let scheme = proxy.call::<_, _, OwnedVariant>("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY));
-    assert!(scheme.is_err(), "an accent-only portal must not invent a color scheme");
+    let scheme =
+        proxy.call::<_, _, OwnedVariant>("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY));
+    assert!(
+        scheme.is_err(),
+        "an accent-only portal must not invent a color scheme"
+    );
     assert!(!portal.serves_color_scheme() && portal.serves_accent_color());
-    assert!(portal.set_color_scheme(ColorSchemePreference::Dark).is_err());
+    assert!(
+        portal
+            .set_color_scheme(ColorSchemePreference::Dark)
+            .is_err()
+    );
     return Ok(());
 }
 
@@ -69,12 +90,23 @@ fn accent_only_portal_serves_the_accent_and_not_the_scheme() -> anyhow::Result<(
 fn scheme_only_portal_does_not_serve_an_accent() -> anyhow::Result<()> {
     let portal = portal_with(Some(ColorSchemePreference::Light), None)?;
     let proxy = client(&portal)?;
-    let accent = proxy.call::<_, _, OwnedVariant>("ReadOne", &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY));
-    assert!(accent.is_err(), "no accent was requested, so none may be served");
-    let all: HashMap<String, HashMap<String, OwnedVariant>> = proxy.call("ReadAll", &Vec::<String>::new())?;
-    let appearance = all.get(APPEARANCE_NAMESPACE).context("ReadAll omitted the appearance namespace")?;
+    let accent =
+        proxy.call::<_, _, OwnedVariant>("ReadOne", &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY));
+    assert!(
+        accent.is_err(),
+        "no accent was requested, so none may be served"
+    );
+    let all: HashMap<String, HashMap<String, OwnedVariant>> =
+        proxy.call("ReadAll", &Vec::<String>::new())?;
+    let appearance = all
+        .get(APPEARANCE_NAMESPACE)
+        .context("ReadAll omitted the appearance namespace")?;
     assert!(!appearance.contains_key(ACCENT_COLOR_KEY));
-    assert!(portal.set_accent_color(AccentColor::parse("112233").map_err(anyhow::Error::msg)?).is_err());
+    assert!(
+        portal
+            .set_accent_color(AccentColor::parse("112233").map_err(anyhow::Error::msg)?)
+            .is_err()
+    );
     return Ok(());
 }
 
@@ -83,8 +115,11 @@ fn scheme_only_portal_does_not_serve_an_accent() -> anyhow::Result<()> {
 fn both_settings_are_served_and_switch_independently() -> anyhow::Result<()> {
     let portal = portal_with(Some(ColorSchemePreference::Dark), Some("3584E4"))?;
     let proxy = client(&portal)?;
-    let all: HashMap<String, HashMap<String, OwnedVariant>> = proxy.call("ReadAll", &Vec::<String>::new())?;
-    let appearance = all.get(APPEARANCE_NAMESPACE).context("ReadAll omitted the appearance namespace")?;
+    let all: HashMap<String, HashMap<String, OwnedVariant>> =
+        proxy.call("ReadAll", &Vec::<String>::new())?;
+    let appearance = all
+        .get(APPEARANCE_NAMESPACE)
+        .context("ReadAll omitted the appearance namespace")?;
     assert_eq!(appearance.len(), 2);
     let red = AccentColor::parse("E01B24").map_err(anyhow::Error::msg)?;
     assert_eq!(portal.set_accent_color(red)?, SwitchOutcome::Changed);
@@ -117,14 +152,25 @@ fn accent_change_reaches_a_subscriber_in_slints_shape() -> anyhow::Result<()> {
     // The unchanged request is the negative control: had it emitted, its signal would arrive first.
     assert_eq!(portal.set_accent_color(same)?, SwitchOutcome::Unchanged);
     assert_eq!(portal.set_accent_color(orange)?, SwitchOutcome::Changed);
-    let message = receiver.recv_timeout(SIGNAL_TIMEOUT).context("no SettingChanged arrived")?;
+    let message = receiver
+        .recv_timeout(SIGNAL_TIMEOUT)
+        .context("no SettingChanged arrived")?;
     let body = message.body();
     assert_eq!(body.signature().to_string_no_parens(), "ssv");
     let (namespace, key, value): (String, String, OwnedVariant) = body.deserialize()?;
-    assert_eq!((namespace.as_str(), key.as_str()), (APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY));
-    assert_eq!(value.downcast_ref::<(f64, f64, f64)>()?, orange.portal_value());
+    assert_eq!(
+        (namespace.as_str(), key.as_str()),
+        (APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY)
+    );
+    assert_eq!(
+        value.downcast_ref::<(f64, f64, f64)>()?,
+        orange.portal_value()
+    );
     // The served value was already the announced one when the signal was delivered.
     assert_eq!(read_accent(&proxy)?, orange.portal_value());
-    assert!(receiver.recv_timeout(Duration::from_millis(200)).is_err(), "the unchanged request must not emit");
+    assert!(
+        receiver.recv_timeout(Duration::from_millis(200)).is_err(),
+        "the unchanged request must not emit"
+    );
     return Ok(());
 }

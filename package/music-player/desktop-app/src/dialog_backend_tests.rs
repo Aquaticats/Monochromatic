@@ -11,7 +11,10 @@ fn scratch(tag: &str) -> std::path::PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| return elapsed.as_nanos());
-    let dir = crate::test_scratch::scratch_root().join(format!("music-player-dialog-{}-{nanos}-{tag}", std::process::id()));
+    let dir = crate::test_scratch::scratch_root().join(format!(
+        "music-player-dialog-{}-{nanos}-{tag}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).expect("the scratch folder is created");
     return dir;
 }
@@ -43,7 +46,10 @@ fn the_found_program_is_named_by_its_absolute_path_in_the_first_folder_that_has_
     std::fs::write(first.join("zenity"), b"#!/bin/sh\n").expect("the first stub is written");
     std::fs::write(second.join("zenity"), b"#!/bin/sh\n").expect("the second stub is written");
     let joined = std::env::join_paths([&first, &second]).expect("the folders join");
-    assert_eq!(resolve_on_path("zenity", &joined), Some(first.join("zenity")));
+    assert_eq!(
+        resolve_on_path("zenity", &joined),
+        Some(first.join("zenity"))
+    );
     std::fs::remove_dir_all(&first).ok();
     std::fs::remove_dir_all(&second).ok();
 }

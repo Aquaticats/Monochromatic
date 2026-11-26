@@ -5,22 +5,42 @@
 /// Setup of the language registry and the launch seam.
 use super::config::LanguageSetup;
 /// The fence decides which results are still about the displayed text.
-use super::fence::{Fence, FenceCounts};
+use super::fence::{
+    Fence,
+    FenceCounts,
+};
 /// Latest-value results.
-use super::{diagnostics::DiagnosticsSnapshot, hints::HintsSnapshot, status::LanguageStatus};
+use super::{
+    diagnostics::DiagnosticsSnapshot,
+    hints::HintsSnapshot,
+    status::LanguageStatus,
+};
 /// Commands and one-shot replies.
 use super::{
     hints::HintWindow,
     identity::DocumentStamp,
-    reply::{LanguageReply, PositionRequest},
-    sync::{DocumentOpen, DocumentReload},
-    worker::{self, Command, Outputs},
+    reply::{
+        LanguageReply,
+        PositionRequest,
+    },
+    sync::{
+        DocumentOpen,
+        DocumentReload,
+    },
+    worker::{
+        self,
+        Command,
+        Outputs,
+    },
 };
 /// The changes the change watcher forwards to servers.
 use crate::change_watch::ServerChange;
 /// Failures are reported as user-facing errors,
 ///  never as empty results.
-use anyhow::{Result, anyhow};
+use anyhow::{
+    Result,
+    anyhow,
+};
 /// What:
 ///  `Path` is a borrowed filesystem path;
 ///  `Arc` is a thread-safe shared pointer;
@@ -34,7 +54,11 @@ use anyhow::{Result, anyhow};
 /// ```ts
 /// const worker = new Worker('language');
 /// ```
-use std::{path::Path, sync::Arc, thread::JoinHandle};
+use std::{
+    path::Path,
+    sync::Arc,
+    thread::JoinHandle,
+};
 /// What:
 ///  `mpsc` is a bounded queue;
 ///  `watch` is a single-slot latest-value cell.
@@ -48,7 +72,11 @@ use std::{path::Path, sync::Arc, thread::JoinHandle};
 /// const commands = boundedQueue<Command>(64);
 /// ```
 use tokio::sync::{
-    mpsc::{self, error::TryRecvError, error::TrySendError},
+    mpsc::{
+        self,
+        error::TryRecvError,
+        error::TrySendError,
+    },
     watch,
 };
 
@@ -148,7 +176,10 @@ impl LanguageWorker {
     /// ```ts
     /// static withSetup(projectRoot: string, setup: LanguageSetup): LanguageWorker
     /// ```
-    pub fn with_setup(project_root: &Path, setup: LanguageSetup) -> Result<Self> {
+    pub fn with_setup(
+        project_root: &Path,
+        setup: LanguageSetup,
+    ) -> Result<Self> {
         // What: `canonicalize` resolves symbolic links; `with_context` attaches a message built by
         //       the closure only on failure; the trailing `?` returns the error to the caller.
         // Why: Containment of targets and roots is judged on resolved paths.
@@ -275,7 +306,10 @@ impl LanguageWorker {
     /// ```ts
     /// send(command: Command): boolean // throws when the worker stopped
     /// ```
-    fn send(&mut self, command: Command) -> Result<bool> {
+    fn send(
+        &mut self,
+        command: Command,
+    ) -> Result<bool> {
         // `as_ref()` borrows the sender inside the `Option`.
         let Some(sender) = self.commands.as_ref() else {
             return Err(self.stopped());
@@ -292,7 +326,10 @@ impl LanguageWorker {
 
     /// A file was displayed.
     ///  From now on only results for `open.stamp` are handed out.
-    pub fn open(&mut self, open: DocumentOpen) -> Result<bool> {
+    pub fn open(
+        &mut self,
+        open: DocumentOpen,
+    ) -> Result<bool> {
         let stamp = open.stamp;
         let sent = self.send(Command::Open(open))?;
         if sent {
@@ -304,7 +341,10 @@ impl LanguageWorker {
 
     /// The displayed file was reloaded.
     ///  Results for the previous revision are dropped from now on.
-    pub fn reload(&mut self, reload: DocumentReload) -> Result<bool> {
+    pub fn reload(
+        &mut self,
+        reload: DocumentReload,
+    ) -> Result<bool> {
         let stamp = DocumentStamp {
             file: reload.file,
             revision: reload.revision,
@@ -342,9 +382,15 @@ impl LanguageWorker {
     /// ```ts
     /// request(request: PositionRequest): number | undefined
     /// ```
-    pub fn request(&mut self, request: PositionRequest) -> Result<Option<u64>> {
+    pub fn request(
+        &mut self,
+        request: PositionRequest,
+    ) -> Result<Option<u64>> {
         let number = self.next_request + 1;
-        let sent = self.send(Command::Request { number, request })?;
+        let sent = self.send(Command::Request {
+            number,
+            request,
+        })?;
         if !sent {
             return Ok(None);
         }
@@ -354,8 +400,15 @@ impl LanguageWorker {
 
     /// Report the visible lines;
     ///  hints for them arrive through `try_take_hints`.
-    pub fn request_hints(&mut self, stamp: DocumentStamp, window: HintWindow) -> Result<bool> {
-        return self.send(Command::Hints { stamp, window });
+    pub fn request_hints(
+        &mut self,
+        stamp: DocumentStamp,
+        window: HintWindow,
+    ) -> Result<bool> {
+        return self.send(Command::Hints {
+            stamp,
+            window,
+        });
     }
 
     /// What:

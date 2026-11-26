@@ -22,11 +22,17 @@ mod target;
 /// ```ts
 /// import { parseArgs } from "node:util";
 /// ```
-use clap::{Parser, Subcommand};
+use clap::{
+    Parser,
+    Subcommand,
+};
 /// Filesystem paths, durations, process status and validated nonzero numbers.
 use std::{
     io,
-    num::{NonZeroU16, NonZeroU64},
+    num::{
+        NonZeroU16,
+        NonZeroU64,
+    },
     path::PathBuf,
     process::ExitCode,
     time::Duration,
@@ -83,7 +89,10 @@ enum Service {
 fn run(cli: Cli) -> io::Result<()> {
     if cli.target.is_some() && cli.service.is_some() {
         // A target update must not accidentally dispatch a systemd entry point.
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "supply a target or a service command"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "supply a target or a service command",
+        ));
     }
     // What
     // `match` selects the entry point and binds the values carried by that case.
@@ -92,7 +101,11 @@ fn run(cli: Cli) -> io::Result<()> {
     // TypeScript pseudocode
     // switch (cli.service?.kind) { case "watch": return watch(); case "release": return release(); }
     match cli.service {
-        Some(Service::Watch { sensors, poll_ms, margin }) => {
+        Some(Service::Watch {
+            sensors,
+            poll_ms,
+            margin,
+        }) => {
             // `PathBuf::from` creates owned paths that stay with the watcher.
             let paths = service::Paths {
                 runtime: cli.runtime_dir,
@@ -119,7 +132,10 @@ fn run(cli: Cli) -> io::Result<()> {
             // Clap requires the positional target when no service action was chosen.
             let Some(target) = cli.target else {
                 // Report an inconsistent dispatch while keeping runtime state intact.
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "supply a Celsius target or off"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "supply a Celsius target or off",
+                ));
             };
             // Publish only to the service's existing directory and contextualize any failure.
             return target::save_target(&cli.runtime_dir, target).map_err(|error| {

@@ -12,9 +12,12 @@
 ///  `notification::{parse_count, parse_id}`,
 ///  `Command` from `super`.
 use super::{
-    no_arguments,
-    notification::{parse_count, parse_id},
     Command,
+    no_arguments,
+    notification::{
+        parse_count,
+        parse_id,
+    },
 };
 
 /// A parsed job verb.
@@ -63,22 +66,38 @@ pub enum JobCommand {
 /// What:
 ///      `pub(super) fn parse(verb, tokens) -> Result<Command, String>`.
 ///  The four per-job verbs take exactly one id.
-pub(super) fn parse(verb: &str, tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
+pub(super) fn parse(
+    verb: &str,
+    tokens: &mut std::str::SplitWhitespace,
+) -> Result<Command, String> {
     let command = match verb {
         "jobs" => return no_arguments(tokens, verb, Command::Job(JobCommand::List)),
         "job-clear" => return no_arguments(tokens, verb, Command::Job(JobCommand::Clear)),
-        "job-log" => JobCommand::Log { count: parse_count(tokens, verb)? },
-        "job-suspend" => JobCommand::Suspend { id: parse_job_id(tokens, verb)? },
-        "job-resume" => JobCommand::Resume { id: parse_job_id(tokens, verb)? },
-        "job-cancel" => JobCommand::Cancel { id: parse_job_id(tokens, verb)? },
-        "job-refresh" => JobCommand::Refresh { id: parse_job_id(tokens, verb)? },
+        "job-log" => JobCommand::Log {
+            count: parse_count(tokens, verb)?,
+        },
+        "job-suspend" => JobCommand::Suspend {
+            id: parse_job_id(tokens, verb)?,
+        },
+        "job-resume" => JobCommand::Resume {
+            id: parse_job_id(tokens, verb)?,
+        },
+        "job-cancel" => JobCommand::Cancel {
+            id: parse_job_id(tokens, verb)?,
+        },
+        "job-refresh" => JobCommand::Refresh {
+            id: parse_job_id(tokens, verb)?,
+        },
         other => return Err(format!("unknown command: {other}")),
     };
     return Ok(Command::Job(command));
 }
 
 /// Parse the single id of a per-job verb and reject anything after it.
-fn parse_job_id(tokens: &mut std::str::SplitWhitespace, verb: &str) -> Result<u32, String> {
+fn parse_job_id(
+    tokens: &mut std::str::SplitWhitespace,
+    verb: &str,
+) -> Result<u32, String> {
     let Some(text) = tokens.next() else {
         return Err(format!("{verb} requires a job id"));
     };

@@ -4,7 +4,12 @@
 //! Each test works on its own text in memory;
 //! nothing here reads or writes a real file.
 
-use super::model::{Declaration, Options, Request, Route};
+use super::model::{
+    Declaration,
+    Options,
+    Request,
+    Route,
+};
 use super::plan::parse_plan;
 use super::plan_insert::plan_with_entries;
 
@@ -32,7 +37,12 @@ const PLAN: &str = r#"// The plan of this fixture: people write these comments.
 "#;
 
 /// One declaration as an argument makes it.
-fn declaration(id: &str, request: &str, route: Route, bins: &[&str]) -> Declaration {
+fn declaration(
+    id: &str,
+    request: &str,
+    route: Route,
+    bins: &[&str],
+) -> Declaration {
     let mut names: Vec<String> = Vec::new();
     for bin in bins {
         names.push((*bin).to_string());
@@ -52,7 +62,12 @@ fn declaration(id: &str, request: &str, route: Route, bins: &[&str]) -> Declarat
 
 /// `cargo:fastmod` on the cargo-binstall route.
 fn fastmod() -> Declaration {
-    return declaration("cargo:fastmod", "cargo:fastmod@latest", Route::CargoBinstall, &["fastmod"]);
+    return declaration(
+        "cargo:fastmod",
+        "cargo:fastmod@latest",
+        Route::CargoBinstall,
+        &["fastmod"],
+    );
 }
 
 #[test]
@@ -84,9 +99,21 @@ fn an_added_entry_keeps_every_comment_trailing_comma_and_the_plans_own_order() {
 "#;
     assert_eq!(updated, expected);
     let plan = parse_plan(&updated, "plan").expect("the new text parses");
-    let ids: Vec<&str> = plan.tools.iter().map(|tool| return tool.id.as_str()).collect();
-    assert_eq!(ids, vec!["tokei", "cargo:fd-find", "cargo:fastmod"], "the entry order the person chose is kept, and the new one is last");
-    let added = plan.tools.iter().find(|tool| return tool.id == "cargo:fastmod").expect("the new entry");
+    let ids: Vec<&str> = plan
+        .tools
+        .iter()
+        .map(|tool| return tool.id.as_str())
+        .collect();
+    assert_eq!(
+        ids,
+        vec!["tokei", "cargo:fd-find", "cargo:fastmod"],
+        "the entry order the person chose is kept, and the new one is last"
+    );
+    let added = plan
+        .tools
+        .iter()
+        .find(|tool| return tool.id == "cargo:fastmod")
+        .expect("the new entry");
     assert_eq!(added.request.text(), "cargo:fastmod@latest");
     assert_eq!(added.route, Route::CargoBinstall);
     assert_eq!(added.bins, vec!["fastmod".to_string()]);
@@ -94,11 +121,23 @@ fn an_added_entry_keeps_every_comment_trailing_comma_and_the_plans_own_order() {
 
 #[test]
 fn two_entries_in_one_call_land_in_the_order_they_were_given() {
-    let second = declaration("npm:is-odd", "npm:is-odd@latest", Route::MpmPnpm, &["is-odd"]);
+    let second = declaration(
+        "npm:is-odd",
+        "npm:is-odd@latest",
+        Route::MpmPnpm,
+        &["is-odd"],
+    );
     let updated = plan_with_entries(PLAN, "plan", &[fastmod(), second]).expect("both are added");
     let plan = parse_plan(&updated, "plan").expect("the new text parses");
-    let ids: Vec<&str> = plan.tools.iter().map(|tool| return tool.id.as_str()).collect();
-    assert_eq!(ids, vec!["tokei", "cargo:fd-find", "cargo:fastmod", "npm:is-odd"]);
+    let ids: Vec<&str> = plan
+        .tools
+        .iter()
+        .map(|tool| return tool.id.as_str())
+        .collect();
+    assert_eq!(
+        ids,
+        vec!["tokei", "cargo:fd-find", "cargo:fastmod", "npm:is-odd"]
+    );
 }
 
 #[test]
@@ -111,20 +150,31 @@ fn a_line_comment_beside_the_last_entry_stays_with_that_entry() {
     assert_eq!(parse_plan(&updated, "plan").expect("parses").tools.len(), 2);
 
     let without_comma = plan.replacen("]},", "]} // why tokei is here", 1);
-    let commented = plan_with_entries(&without_comma, "plan", &[fastmod()]).expect("the entry is added");
+    let commented =
+        plan_with_entries(&without_comma, "plan", &[fastmod()]).expect("the entry is added");
     assert!(
         commented.contains("\"bins\": [\"tokei\"]}, // why tokei is here\n    \"cargo:fastmod\""),
         "the comment stays above the entry it explains: {commented}"
     );
-    assert_eq!(parse_plan(&commented, "plan").expect("parses").tools.len(), 2);
+    assert_eq!(
+        parse_plan(&commented, "plan").expect("parses").tools.len(),
+        2
+    );
 
     let block = plan.replacen("]},", "]} /* why tokei is here */", 1);
-    let block_commented = plan_with_entries(&block, "plan", &[fastmod()]).expect("the entry is added");
+    let block_commented =
+        plan_with_entries(&block, "plan", &[fastmod()]).expect("the entry is added");
     assert!(
         block_commented.contains("/* why tokei is here */\n    \"cargo:fastmod\""),
         "the block comment stays above the entry it explains: {block_commented}"
     );
-    assert_eq!(parse_plan(&block_commented, "plan").expect("parses").tools.len(), 2);
+    assert_eq!(
+        parse_plan(&block_commented, "plan")
+            .expect("parses")
+            .tools
+            .len(),
+        2
+    );
 }
 
 #[test]
@@ -150,13 +200,22 @@ fn a_plan_whose_last_entry_pins_a_version_keeps_the_comma_the_person_wrote() {
     let plan = "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n    \"cargo:tokei\": {\"request\": \"cargo:tokei@1.0.0\", \"route\": \"cargo-binstall\", \"bins\": [\"tokei\"]}\n  }\n}\n";
     let updated = plan_with_entries(plan, "plan", &[fastmod()]).expect("the entry is added");
     assert!(updated.contains("{\"request\": \"cargo:tokei@1.0.0\", \"route\": \"cargo-binstall\", \"bins\": [\"tokei\"]},\n    \"cargo:fastmod\""), "{updated}");
-    assert_eq!(updated.matches("\"cargo:fastmod\"").count(), 1, "the entry appears once: {updated}");
+    assert_eq!(
+        updated.matches("\"cargo:fastmod\"").count(),
+        1,
+        "the entry appears once: {updated}"
+    );
     assert_eq!(parse_plan(&updated, "plan").expect("parses").tools.len(), 2);
 }
 
 #[test]
 fn an_entry_whose_binary_name_is_taken_is_refused_and_no_text_comes_back() {
-    let collides = declaration("cargo:another-tokei", "cargo:another-tokei@latest", Route::CargoBinstall, &["tokei"]);
+    let collides = declaration(
+        "cargo:another-tokei",
+        "cargo:another-tokei@latest",
+        Route::CargoBinstall,
+        &["tokei"],
+    );
     let error = plan_with_entries(PLAN, "plan", &[collides]).expect_err("the binary name is taken");
     assert!(error.message.contains("tokei"), "{error}");
     assert!(error.message.contains("declared by both"), "{error}");
@@ -164,20 +223,31 @@ fn an_entry_whose_binary_name_is_taken_is_refused_and_no_text_comes_back() {
 
 #[test]
 fn an_entry_whose_id_is_taken_is_refused_and_no_text_comes_back() {
-    let twice = declaration("tokei", "cargo:tokei2@latest", Route::CargoBinstall, &["tokei2"]);
+    let twice = declaration(
+        "tokei",
+        "cargo:tokei2@latest",
+        Route::CargoBinstall,
+        &["tokei2"],
+    );
     let error = plan_with_entries(PLAN, "plan", &[twice]).expect_err("the id is taken");
     assert!(error.message.contains("\"tokei\""), "{error}");
 }
 
 #[test]
 fn a_plan_without_a_tools_object_is_refused_by_name() {
-    let error = plan_with_entries("{\n  \"schemaVersion\": 1\n}\n", "plan", &[fastmod()]).expect_err("no tools");
+    let error = plan_with_entries("{\n  \"schemaVersion\": 1\n}\n", "plan", &[fastmod()])
+        .expect_err("no tools");
     assert!(error.message.contains("no \"tools\" object"), "{error}");
 }
 
 #[test]
 fn a_plan_that_does_not_parse_is_refused_before_anything_is_added() {
-    let error = plan_with_entries("{\n  \"schemaVersion\": 1,\n  \"tools\": {\n", "plan", &[fastmod()]).expect_err("broken");
+    let error = plan_with_entries(
+        "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n",
+        "plan",
+        &[fastmod()],
+    )
+    .expect_err("broken");
     assert!(error.message.contains("is not valid JSONC"), "{error}");
 }
 

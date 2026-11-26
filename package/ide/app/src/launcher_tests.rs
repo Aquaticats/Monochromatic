@@ -2,7 +2,10 @@
 //!  and which renderer names it refuses.
 
 /// The decision under test.
-use super::{BackendChoice, choose_backend};
+use super::{
+    BackendChoice,
+    choose_backend,
+};
 
 #[test]
 fn an_unset_value_and_the_winit_spellings_are_this_programs() {

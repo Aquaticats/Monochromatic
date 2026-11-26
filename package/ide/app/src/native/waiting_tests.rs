@@ -7,16 +7,26 @@
 //!  A condition that never holds fails the test with the message given to `step`.
 
 /// The window and the source state whose facts a failed wait names.
-use super::{AppWindow, State, tile_build::FAIL_NEXT_BUILD};
+use super::{
+    AppWindow,
+    State,
+    tile_build::FAIL_NEXT_BUILD,
+};
 /// Native timers and animations run only when the test advances them.
 use slint::platform::update_timers_and_animations;
 /// Deadlines and pauses between checks.
 use std::{
     cell::RefCell,
-    fmt::{self, Display},
+    fmt::{
+        self,
+        Display,
+    },
     rc::Rc,
     sync::atomic::Ordering,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Longest wait for most expected states.
@@ -115,7 +125,10 @@ impl Waiting {
 
     /// Start the clock and then run the native timers once,
     ///  so the first pass counts against the patience.
-    fn begin(patience: Duration, pause: Duration) -> Waiting {
+    fn begin(
+        patience: Duration,
+        pause: Duration,
+    ) -> Waiting {
         let started = Instant::now();
         update_timers_and_animations();
         return Waiting {
@@ -139,7 +152,10 @@ impl Waiting {
     ///   sleep(this.pause); updateTimers();
     /// }
     /// ```
-    pub(super) fn step(&mut self, message: impl Display) {
+    pub(super) fn step(
+        &mut self,
+        message: impl Display,
+    ) {
         assert!(self.started.elapsed() < self.patience, "{message}");
         std::thread::sleep(self.pause);
         update_timers_and_animations();
@@ -147,7 +163,10 @@ impl Waiting {
 
     /// Like `step`,
     ///  with the message "`what` did not appear within" the patience.
-    pub(super) fn step_missing(&mut self, what: impl Display) {
+    pub(super) fn step_missing(
+        &mut self,
+        what: impl Display,
+    ) {
         let patience = self.patience;
         self.step(format_args!("{what} did not appear within {patience:?}"));
     }
@@ -189,7 +208,10 @@ pub(super) struct Facts<'a> {
 impl Display for Facts<'_> {
     /// Write the facts,
     ///  or say that the state was borrowed.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         let Ok(current) = self.source.try_borrow() else {
             return write!(formatter, "[state borrowed]");
         };

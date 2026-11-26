@@ -12,10 +12,16 @@
 //! describe('resolve', () => { /* accumulate, dedupe, sort, errors */ });
 //! ```
 
-use crate::caniuse::{Agent, AgentTable};
+use crate::caniuse::{
+    Agent,
+    AgentTable,
+};
 use crate::data::BrowserData;
 use crate::fixture::fixture_files;
-use crate::resolve::{finalize, resolve_config_text};
+use crate::resolve::{
+    finalize,
+    resolve_config_text,
+};
 
 /// The seven lines of the repository's `.browserslistrc`,
 /// with its leading comment.
@@ -28,22 +34,49 @@ fn committed() -> BrowserData {
 
 /// Build owned strings from literals.
 fn owned(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| return (*item).to_string()).collect();
+    return items
+        .iter()
+        .map(|item| return (*item).to_string())
+        .collect();
 }
 
 /// Names sort ascending bytewise (so `_` sorts before letters) and versions descending by number.
 #[test]
 fn finalize_sorts_names_and_versions() {
     let sorted = finalize(&owned(&[
-        "node 26.1.0", "firefox 153", "chrome 9", "chrome 10", "and_chr 156", "android 4.4.3-4.4.4", "android 4.4", "android 156",
-        "android 4.2-4.3", "and_ff 159", "node 26.13.0", "node 26.2.0", "node 26.2.10", "node 26.2.9",
+        "node 26.1.0",
+        "firefox 153",
+        "chrome 9",
+        "chrome 10",
+        "and_chr 156",
+        "android 4.4.3-4.4.4",
+        "android 4.4",
+        "android 156",
+        "android 4.2-4.3",
+        "and_ff 159",
+        "node 26.13.0",
+        "node 26.2.0",
+        "node 26.2.10",
+        "node 26.2.9",
     ]))
     .expect("sorts");
     assert_eq!(
         sorted,
         owned(&[
-            "and_chr 156", "and_ff 159", "android 156", "android 4.4.3-4.4.4", "android 4.4", "android 4.2-4.3", "chrome 10",
-            "chrome 9", "firefox 153", "node 26.13.0", "node 26.2.10", "node 26.2.9", "node 26.2.0", "node 26.1.0",
+            "and_chr 156",
+            "and_ff 159",
+            "android 156",
+            "android 4.4.3-4.4.4",
+            "android 4.4",
+            "android 4.2-4.3",
+            "chrome 10",
+            "chrome 9",
+            "firefox 153",
+            "node 26.13.0",
+            "node 26.2.10",
+            "node 26.2.9",
+            "node 26.2.0",
+            "node 26.1.0",
         ])
     );
 }
@@ -52,9 +85,18 @@ fn finalize_sorts_names_and_versions() {
 /// and equal sort keys keep their incoming order (stable sort).
 #[test]
 fn finalize_dedupes_and_is_stable() {
-    assert_eq!(finalize(&owned(&["b 1", "a 1", "b 1", "a 1"])).expect("sorts"), owned(&["a 1", "b 1"]));
-    assert_eq!(finalize(&owned(&["x 1.2.3.4", "x 1.2.3.5"])).expect("sorts"), owned(&["x 1.2.3.4", "x 1.2.3.5"]));
-    assert_eq!(finalize(&owned(&["x 1.2.3.5", "x 1.2.3.4"])).expect("sorts"), owned(&["x 1.2.3.5", "x 1.2.3.4"]));
+    assert_eq!(
+        finalize(&owned(&["b 1", "a 1", "b 1", "a 1"])).expect("sorts"),
+        owned(&["a 1", "b 1"])
+    );
+    assert_eq!(
+        finalize(&owned(&["x 1.2.3.4", "x 1.2.3.5"])).expect("sorts"),
+        owned(&["x 1.2.3.4", "x 1.2.3.5"])
+    );
+    assert_eq!(
+        finalize(&owned(&["x 1.2.3.5", "x 1.2.3.4"])).expect("sorts"),
+        owned(&["x 1.2.3.5", "x 1.2.3.4"])
+    );
     assert_eq!(finalize(&[]).expect("empty"), Vec::<String>::new());
 }
 
@@ -62,8 +104,15 @@ fn finalize_dedupes_and_is_stable() {
 /// not guessed.
 #[test]
 fn finalize_refuses_unsortable_entries() {
-    assert!(finalize(&owned(&["nospace"])).expect_err("shape").to_string().starts_with("not implemented: "));
-    let message = finalize(&owned(&["safari TP"])).expect_err("non-numeric").to_string();
+    assert!(
+        finalize(&owned(&["nospace"]))
+            .expect_err("shape")
+            .to_string()
+            .starts_with("not implemented: ")
+    );
+    let message = finalize(&owned(&["safari TP"]))
+        .expect_err("non-numeric")
+        .to_string();
     assert!(message.starts_with("not implemented: "), "{message}");
     assert!(message.contains("\"TP\""), "{message}");
 }
@@ -74,10 +123,25 @@ fn finalize_refuses_unsortable_entries() {
 fn resolves_the_repository_file() {
     let result = resolve_config_text(REPOSITORY_RC, &committed()).expect("resolves");
     assert_eq!(
-        result.iter().take(5).map(String::as_str).collect::<Vec<&str>>(),
-        vec!["and_chr 156", "and_ff 159", "android 156", "chrome 156", "firefox 153"]
+        result
+            .iter()
+            .take(5)
+            .map(String::as_str)
+            .collect::<Vec<&str>>(),
+        vec![
+            "and_chr 156",
+            "and_ff 159",
+            "android 156",
+            "chrome 156",
+            "firefox 153"
+        ]
     );
-    assert!(result.iter().skip(5).all(|entry| return entry.starts_with("node 26.")));
+    assert!(
+        result
+            .iter()
+            .skip(5)
+            .all(|entry| return entry.starts_with("node 26."))
+    );
     assert!(result.len() > 5);
 }
 
@@ -99,9 +163,18 @@ fn order_and_repetition_do_not_matter() {
 /// so is it after only blank and comment lines.
 #[test]
 fn not_dead_needs_a_query_before_it() {
-    for text in ["not dead", "# c\n\nnot dead\nlast 1 Chrome versions", "not dead\nnot dead"] {
-        let message = resolve_config_text(text, &committed()).expect_err("rejected").to_string();
-        assert_eq!(message, "Write any browsers query (for instance, `defaults`) before `not dead`", "{text:?}");
+    for text in [
+        "not dead",
+        "# c\n\nnot dead\nlast 1 Chrome versions",
+        "not dead\nnot dead",
+    ] {
+        let message = resolve_config_text(text, &committed())
+            .expect_err("rejected")
+            .to_string();
+        assert_eq!(
+            message, "Write any browsers query (for instance, `defaults`) before `not dead`",
+            "{text:?}"
+        );
     }
 }
 
@@ -109,8 +182,14 @@ fn not_dead_needs_a_query_before_it() {
 /// like `browserslist([])`.
 #[test]
 fn empty_config_resolves_to_nothing() {
-    assert_eq!(resolve_config_text("", &committed()).expect("empty"), Vec::<String>::new());
-    assert_eq!(resolve_config_text("# only\n", &committed()).expect("empty"), Vec::<String>::new());
+    assert_eq!(
+        resolve_config_text("", &committed()).expect("empty"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        resolve_config_text("# only\n", &committed()).expect("empty"),
+        Vec::<String>::new()
+    );
 }
 
 /// Each supported line alone resolves,
@@ -118,17 +197,34 @@ fn empty_config_resolves_to_nothing() {
 #[test]
 fn each_line_alone() {
     let data = committed();
-    assert_eq!(resolve_config_text("last 1 Chrome versions", &data).expect("chrome"), owned(&["chrome 156"]));
-    assert_eq!(resolve_config_text("Firefox ESR", &data).expect("esr"), owned(&["firefox 153"]));
+    assert_eq!(
+        resolve_config_text("last 1 Chrome versions", &data).expect("chrome"),
+        owned(&["chrome 156"])
+    );
+    assert_eq!(
+        resolve_config_text("Firefox ESR", &data).expect("esr"),
+        owned(&["firefox 153"])
+    );
     assert!(resolve_config_text("not dead", &data).is_err());
 }
 
 /// Unsupported queries and config features fail before anything is selected.
 #[test]
 fn refusals_propagate() {
-    for text in ["last 2 Chrome versions", "defaults", "a, b", "[x]", "not dead\r\n"] {
-        let message = resolve_config_text(text, &committed()).expect_err("refused").to_string();
-        assert!(message.starts_with("not implemented: "), "{text:?}: {message}");
+    for text in [
+        "last 2 Chrome versions",
+        "defaults",
+        "a, b",
+        "[x]",
+        "not dead\r\n",
+    ] {
+        let message = resolve_config_text(text, &committed())
+            .expect_err("refused")
+            .to_string();
+        assert!(
+            message.starts_with("not implemented: "),
+            "{text:?}: {message}"
+        );
     }
 }
 
@@ -136,18 +232,27 @@ fn refusals_propagate() {
 #[test]
 fn zero_version_is_refused() {
     let data = BrowserData {
-        agents: AgentTable::new(vec![Agent { name: "chrome".to_string(), slots: vec![Some("0".to_string()), None, None, None] }]),
+        agents: AgentTable::new(vec![Agent {
+            name: "chrome".to_string(),
+            slots: vec![Some("0".to_string()), None, None, None],
+        }]),
         node_versions: Vec::new(),
         firefox_esr_major: 1,
     };
-    let message = resolve_config_text("last 1 Chrome versions", &data).expect_err("refused").to_string();
+    let message = resolve_config_text("last 1 Chrome versions", &data)
+        .expect_err("refused")
+        .to_string();
     assert!(message.starts_with("not implemented: "), "{message}");
 }
 
 /// A missing browser in the data is browserslist's `Unknown browser` error.
 #[test]
 fn missing_browser_is_reported() {
-    let data = BrowserData { agents: AgentTable::new(Vec::new()), node_versions: Vec::new(), firefox_esr_major: 1 };
+    let data = BrowserData {
+        agents: AgentTable::new(Vec::new()),
+        node_versions: Vec::new(),
+        firefox_esr_major: 1,
+    };
     let error = resolve_config_text("last 1 Android versions", &data).expect_err("missing");
     assert_eq!(error.to_string(), "Unknown browser android");
 }
@@ -158,9 +263,20 @@ fn missing_browser_is_reported() {
 /// the expansion fails like browserslist's.
 #[test]
 fn not_dead_runs_the_subtraction_in_the_resolve_path() {
-    let chrome = Agent { name: "chrome".to_string(), slots: vec![Some("9".to_string()), None, None, None] };
-    let data = BrowserData { agents: AgentTable::new(vec![chrome]), node_versions: Vec::new(), firefox_esr_major: 1 };
-    assert_eq!(resolve_config_text("last 1 Chrome versions\n", &data).expect("resolves"), owned(&["chrome 9"]));
-    let error = resolve_config_text("last 1 Chrome versions\nnot dead\n", &data).expect_err("dead needs baidu");
+    let chrome = Agent {
+        name: "chrome".to_string(),
+        slots: vec![Some("9".to_string()), None, None, None],
+    };
+    let data = BrowserData {
+        agents: AgentTable::new(vec![chrome]),
+        node_versions: Vec::new(),
+        firefox_esr_major: 1,
+    };
+    assert_eq!(
+        resolve_config_text("last 1 Chrome versions\n", &data).expect("resolves"),
+        owned(&["chrome 9"])
+    );
+    let error = resolve_config_text("last 1 Chrome versions\nnot dead\n", &data)
+        .expect_err("dead needs baidu");
     assert_eq!(error.to_string(), "Unknown browser Baidu");
 }

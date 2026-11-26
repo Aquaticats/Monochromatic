@@ -68,23 +68,53 @@ use std::os::unix::process::ExitStatusExt;
 use std::os::unix::process::CommandExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `Command` (build and start a program) and `ExitStatus` (how a finished program ended).
-use std::process::{Command, ExitStatus};
+use std::process::{
+    Command,
+    ExitStatus,
+};
 
 /// Imports the fixed values.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, INSTALL_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+use crate::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    INSTALL_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+    SHADOWED_NAME,
+    SIGNAL_EXIT_CODE_OFFSET,
+};
 /// Imports the loop guard.
-use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard, is_meant_for, parse_guard};
+use crate::guard::{
+    GUARD_VARIABLE,
+    Guard,
+    GuardKind,
+    format_guard,
+    is_meant_for,
+    parse_guard,
+};
 /// Imports the notice handshake.
-use crate::notice_marker::{claim_marker_in, leave_marker_in, runtime_dir};
-/// Imports the PATH lookup.
-use crate::real_binary::{find_in_path, own_real_path};
-/// Imports the notice that follows cargo's version and help.
-use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
+use crate::notice_marker::{
+    claim_marker_in,
+    leave_marker_in,
+    runtime_dir,
+};
 /// Imports the command-word rules.
 use crate::options::asserts_lock;
+/// Imports the PATH lookup.
+use crate::real_binary::{
+    find_in_path,
+    own_real_path,
+};
+/// Imports the notice that follows cargo's version and help.
+use crate::shadow_notice::{
+    TopLevelRequest,
+    notice_text,
+    top_level_request,
+};
 /// What:
 /// `use crate::shadow_step::{Preflight, before_cargo, warn_after_cargo, with_locked};` imports `before_cargo`,
 /// `warn_after_cargo`,
@@ -99,7 +129,12 @@ use crate::options::asserts_lock;
 /// ```ts
 /// import { Preflight, before_cargo, warn_after_cargo, with_locked } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::{Preflight, before_cargo, warn_after_cargo, with_locked};
+use crate::shadow_step::{
+    Preflight,
+    before_cargo,
+    warn_after_cargo,
+    with_locked,
+};
 /// What:
 /// `use crate::shadow_update::run_update_command;` imports `run_update_command` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -121,7 +156,10 @@ use crate::shadow_update::run_update_command;
 /// ```ts
 /// import { Treatment, treatment_of } from 'crate/verb';
 /// ```
-use crate::verb::{Treatment, treatment_of};
+use crate::verb::{
+    Treatment,
+    treatment_of,
+};
 
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` turns a finished child's status into the number the shadow exits with.
@@ -155,7 +193,11 @@ pub fn exit_code_of(status: ExitStatus) -> i32 {
 /// ```ts
 /// export function runProgram(program: string, args: string[]): number  // throws when the spawn fails
 /// ```
-pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&str>) -> std::io::Result<i32> {
+pub fn run_program(
+    program: &Path,
+    arguments: &[OsString],
+    guard_value: Option<&str>,
+) -> std::io::Result<i32> {
     // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
@@ -166,7 +208,11 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
         command.env(GUARD_VARIABLE, value);
     }
     // Mechanism A: the build folder of this toolchain and workspace, for the child cargo only (`lean_keyed_folder.rs`).
-    crate::lean_keyed_folder::apply_keyed_build_dir(&mut command, arguments, &env::current_dir().unwrap_or_default());
+    crate::lean_keyed_folder::apply_keyed_build_dir(
+        &mut command,
+        arguments,
+        &env::current_dir().unwrap_or_default(),
+    );
     crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Spawn);
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
@@ -194,16 +240,26 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // what to type (owner decision of 2026-11-04, option A); there is no second try with another file.
     if let Ok(text) = env::var(GUARD_VARIABLE)
         && let Some(guard) = parse_guard(&text)
-        && is_meant_for(&guard, std::process::id(), std::os::unix::process::parent_id())
+        && is_meant_for(
+            &guard,
+            std::process::id(),
+            std::os::unix::process::parent_id(),
+        )
     {
         let own: PathBuf = env::current_exe().unwrap_or_default();
-        eprint!("{}", crate::arrival::arrival_message(&guard, &own, &env::var("PATH").unwrap_or_default()));
+        eprint!(
+            "{}",
+            crate::arrival::arrival_message(&guard, &own, &env::var("PATH").unwrap_or_default())
+        );
         return crate::arrival::ARRIVAL_EXIT_CODE;
     }
     // The marker every shadow leaves for the program it starts (`shadow_identity.rs`): another shadow (any crate, any version) started this
     // one as its real tool. One line, a non-zero status, nothing done. The guard above is cargo-shadow's own and keeps its long message.
     if let Some(arrival) = crate::shadow_identity::arrival_at_this_process() {
-        eprintln!("{}", crate::shadow_identity::arrival_line(SHADOWED_NAME, &arrival));
+        eprintln!(
+            "{}",
+            crate::shadow_identity::arrival_line(SHADOWED_NAME, &arrival)
+        );
         return crate::shadow_identity::ARRIVAL_EXIT_CODE;
     }
 
@@ -247,14 +303,18 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
                 // ```
                 eprintln!("{text}");
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: the command was not run: the install step stopped it, for the reason given above");
+                eprintln!(
+                    "cargo-shadow: the command was not run: the install step stopped it, for the reason given above"
+                );
                 return INSTALL_FAILED_EXIT_CODE;
             }
             Preflight::Failed(text) => text,
         };
         eprintln!("{message}");
         if !asserts_lock(&arguments) {
-            eprintln!("cargo-shadow: warning: the install step did not complete, so `--locked` is added to your cargo command; cargo stops with its own lock error where it would have changed Cargo.lock");
+            eprintln!(
+                "cargo-shadow: warning: the install step did not complete, so `--locked` is added to your cargo command; cargo stops with its own lock error where it would have changed Cargo.lock"
+            );
         }
         arguments = with_locked(&arguments);
     }
@@ -282,11 +342,21 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // Review finding (recursion guard kind): the guard kind must follow the way the program is really launched below, not the
     // notice classification. An `Other` request that has a catalog notice to print afterwards (`add`, `remove`) is started as a
     // child, so its guard is the spawn kind; only the exec branch below leaves an exec guard.
-    let will_exec: bool = request == TopLevelRequest::Other && treatment != Treatment::CatalogWarning;
+    let will_exec: bool =
+        request == TopLevelRequest::Other && treatment != Treatment::CatalogWarning;
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     // Typed binding: `guard_kind: GuardKind`.
-    let guard_kind: GuardKind = if will_exec { GuardKind::Exec } else { GuardKind::Spawn };
-    let guard_value: String = format_guard(&Guard { kind: guard_kind, pid: std::process::id(), hops: hops + 1, skipped });
+    let guard_kind: GuardKind = if will_exec {
+        GuardKind::Exec
+    } else {
+        GuardKind::Spawn
+    };
+    let guard_value: String = format_guard(&Guard {
+        kind: guard_kind,
+        pid: std::process::id(),
+        hops: hops + 1,
+        skipped,
+    });
 
     // What:     `Command::new(&program).args(&arguments).exec()` replaces this process with cargo: same process id, same
     //           standard streams, and the exit status and signals are cargo's own because nothing of the shadow is left to
@@ -316,10 +386,17 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
         };
         command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
         // Mechanism A: the build folder of this toolchain and workspace, for the child cargo only (`lean_keyed_folder.rs`).
-        crate::lean_keyed_folder::apply_keyed_build_dir(&mut command, &arguments, &env::current_dir().unwrap_or_default());
+        crate::lean_keyed_folder::apply_keyed_build_dir(
+            &mut command,
+            &arguments,
+            &env::current_dir().unwrap_or_default(),
+        );
         crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Exec);
         let error: std::io::Error = command.exec();
-        eprintln!("cargo-shadow: could not start {}: {error}", program.display());
+        eprintln!(
+            "cargo-shadow: could not start {}: {error}",
+            program.display()
+        );
         return EXEC_FAILED_EXIT_CODE;
     }
 
@@ -362,7 +439,10 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
             return code;
         }
         Err(error) => {
-            eprintln!("cargo-shadow: could not start {}: {error}", program.display());
+            eprintln!(
+                "cargo-shadow: could not start {}: {error}",
+                program.display()
+            );
             return EXEC_FAILED_EXIT_CODE;
         }
     }
@@ -399,7 +479,11 @@ pub(crate) fn rerun_command(arguments: &[std::ffi::OsString]) -> String {
 fn shell_word(argument: &std::ffi::OsStr) -> String {
     let text: String = argument.to_string_lossy().to_string();
     let plain: bool = !text.is_empty() && text.chars().all(is_plain_shell_character);
-    return if plain { text } else { format!("'{}'", text.replace('\'', "'\\''")) };
+    return if plain {
+        text
+    } else {
+        format!("'{}'", text.replace('\'', "'\\''"))
+    };
 }
 
 /// What:

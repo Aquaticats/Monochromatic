@@ -8,12 +8,22 @@
 /// Real key events,
 ///  the full production reader,
 ///  and bounded waits shared with the find tests.
-use super::find_tests::{Reader, chord, reader, status_for, type_text};
+use super::find_tests::{
+    Reader,
+    chord,
+    reader,
+    status_for,
+    type_text,
+};
 /// Shared rendering entry point,
 ///  used here only to draw a cold reference image.
 use super::{
-    AppWindow, render,
-    tile_reads::{same_buffers, tile_pixels},
+    AppWindow,
+    render,
+    tile_reads::{
+        same_buffers,
+        tile_pixels,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
@@ -40,13 +50,23 @@ use ide_app::selection_ink::legible_ink;
 /// ```ts
 /// import { ColorScheme, windowInternals } from 'slint/private';
 /// ```
-use slint::private_unstable_api::re_exports::{ColorScheme, WindowInner};
+use slint::private_unstable_api::re_exports::{
+    ColorScheme,
+    WindowInner,
+};
 /// Frames,
 ///  pixels,
 ///  and toolkit colors are read back from the rendered window.
 use slint::{
-    Color, ComponentHandle, Model, Rgba8Pixel, SharedPixelBuffer,
-    platform::{Key, update_timers_and_animations},
+    Color,
+    ComponentHandle,
+    Model,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    platform::{
+        Key,
+        update_timers_and_animations,
+    },
 };
 /// Fixture files are written into a disposable project directory.
 use std::fs;
@@ -82,7 +102,10 @@ const FIND_BAR: usize = 56;
 
 /// Apply a system color scheme exactly where the portal watcher applies it,
 ///  then run change handlers.
-pub(super) fn switch(window: &AppWindow, scheme: ColorScheme) {
+pub(super) fn switch(
+    window: &AppWindow,
+    scheme: ColorScheme,
+) {
     // What: `from_pub` borrows the toolkit's internal window behind the public handle; `context()`
     // borrows the process-wide toolkit context that every window reads its color scheme from.
     // Why: This is the one value `Palette.color-scheme` follows.
@@ -120,7 +143,10 @@ fn source_pixels(reader: &Reader) -> SharedPixelBuffer<Rgba8Pixel> {
 
 /// Whether any fully covered source pixel has exactly this ink;
 ///  covered pixels carry the ink unblended.
-fn has_ink(pixels: &SharedPixelBuffer<Rgba8Pixel>, ink: [u8; 4]) -> bool {
+fn has_ink(
+    pixels: &SharedPixelBuffer<Rgba8Pixel>,
+    ink: [u8; 4],
+) -> bool {
     // What: A `for` loop that stops at the first pixel with the ink.
     // Why: One fully covered pixel of a role proves that role was painted with this ink.
     //
@@ -138,13 +164,21 @@ fn has_ink(pixels: &SharedPixelBuffer<Rgba8Pixel>, ink: [u8; 4]) -> bool {
 
 /// The lightness of the frame's pixel at column `x` and row `y`,
 ///  for a frame `width` pixels wide.
-fn lightness_at(frame: &SharedPixelBuffer<Rgba8Pixel>, width: usize, x: usize, y: usize) -> f32 {
+fn lightness_at(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    width: usize,
+    x: usize,
+    y: usize,
+) -> f32 {
     return lightness(frame.as_slice()[y * width + x]);
 }
 
 /// Fully covered source pixels inside the active match's selection,
 ///  two pixels in from its edges.
-fn selected_inks(reader: &Reader, pixels: &SharedPixelBuffer<Rgba8Pixel>) -> Vec<[u8; 4]> {
+fn selected_inks(
+    reader: &Reader,
+    pixels: &SharedPixelBuffer<Rgba8Pixel>,
+) -> Vec<[u8; 4]> {
     let current = reader.source.borrow();
     // What: `as_ref()` borrows the optional shaped view; `expect` fails the test when it is absent.
     // Why: The selection rectangles come from the same shaped rows that produced the image.
@@ -185,7 +219,10 @@ fn lightness(pixel: Rgba8Pixel) -> f32 {
 /// Mean,
 ///  darkest,
 ///  and lightest pixel of a window region given as `[left, right, top, bottom]`.
-pub(super) fn region(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4]) -> (f32, f32, f32) {
+pub(super) fn region(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    bounds: [usize; 4],
+) -> (f32, f32, f32) {
     let width = frame.width() as usize;
     let mut total = 0.0;
     let mut darkest: f32 = 1.0;
@@ -204,7 +241,10 @@ pub(super) fn region(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4]) 
 
 /// The displayed source image equals a cold render,
 ///  and selected glyphs use the ink chosen from the fill.
-fn assert_current(reader: &Reader, name: &str) -> SharedPixelBuffer<Rgba8Pixel> {
+fn assert_current(
+    reader: &Reader,
+    name: &str,
+) -> SharedPixelBuffer<Rgba8Pixel> {
     let window = &reader.window;
     let live = source_pixels(reader);
     // A cold render after forgetting the previous frame is what this scheme looks like from startup.
@@ -242,7 +282,10 @@ fn assert_current(reader: &Reader, name: &str) -> SharedPixelBuffer<Rgba8Pixel> 
 ///  the scheme's keyword ink,
 ///  overlays,
 ///  and window chrome.
-fn assert_scheme(reader: &Reader, dark: bool) -> SharedPixelBuffer<Rgba8Pixel> {
+fn assert_scheme(
+    reader: &Reader,
+    dark: bool,
+) -> SharedPixelBuffer<Rgba8Pixel> {
     let window = &reader.window;
     let name = if dark { "dark" } else { "light" };
     assert_eq!(

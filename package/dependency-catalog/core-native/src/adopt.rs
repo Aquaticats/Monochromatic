@@ -25,9 +25,16 @@ use crate::crate_info::CrateInfo;
 /// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
 /// Imports `crate::site::{SiteKind, UseSite}`.
-use crate::site::{SiteKind, UseSite};
+use crate::site::{
+    SiteKind,
+    UseSite,
+};
 /// Imports `crate::types::{CatalogDocument, Entry, EntryMap}`.
-use crate::types::{CatalogDocument, Entry, EntryMap};
+use crate::types::{
+    CatalogDocument,
+    Entry,
+    EntryMap,
+};
 
 /// What:
 /// `pub struct AdoptionPlan { ... }` lists the catalog changes adoption needs and the default catalog as it
@@ -54,7 +61,12 @@ pub struct AdoptionPlan {
 
 /// Plans one default-catalog group of git literals:
 /// every pin must agree with the others and the existing entry.
-fn plan_git_group(name: &str, group: &[&UseSite], existing: Option<&Entry>, issues: &mut Vec<SyncIssue>) -> Option<Entry> {
+fn plan_git_group(
+    name: &str,
+    group: &[&UseSite],
+    existing: Option<&Entry>,
+    issues: &mut Vec<SyncIssue>,
+) -> Option<Entry> {
     let first: &UseSite = group.first()?;
     let pin: &Entry = match existing {
         Some(entry) => entry,
@@ -83,7 +95,10 @@ fn plan_git_group(name: &str, group: &[&UseSite], existing: Option<&Entry>, issu
 
 /// Groups literal sites by dependency name in first-seen order;
 /// selected literals go to `selected` instead.
-fn group_literals<'a>(crates: &'a [CrateInfo], selected: &mut Vec<(&'a UseSite, &'a str)>) -> Vec<(&'a str, Vec<&'a UseSite>)> {
+fn group_literals<'a>(
+    crates: &'a [CrateInfo],
+    selected: &mut Vec<(&'a UseSite, &'a str)>,
+) -> Vec<(&'a str, Vec<&'a UseSite>)> {
     let mut groups: Vec<(&'a str, Vec<&'a UseSite>)> = Vec::new();
     for info in crates {
         for site in &info.sites {
@@ -123,7 +138,11 @@ fn group_literals<'a>(crates: &'a [CrateInfo], selected: &mut Vec<(&'a UseSite, 
 /// ```ts
 /// export function planAdoption(args: { document; sites; selections; issues }): AdoptionPlan
 /// ```
-pub fn plan_adoption(document: &CatalogDocument, crates: &[CrateInfo], issues: &mut Vec<SyncIssue>) -> AdoptionPlan {
+pub fn plan_adoption(
+    document: &CatalogDocument,
+    crates: &[CrateInfo],
+    issues: &mut Vec<SyncIssue>,
+) -> AdoptionPlan {
     let mut selected: Vec<(&UseSite, &str)> = Vec::new();
     let groups: Vec<(&str, Vec<&UseSite>)> = group_literals(crates, &mut selected);
     check_selected_literals(document, &selected, issues);
@@ -136,16 +155,24 @@ pub fn plan_adoption(document: &CatalogDocument, crates: &[CrateInfo], issues: &
         let mut has_registry: bool = matches!(current, Some(Entry::Registry { .. }));
         for site in group {
             match site.literal {
-                Entry::Git { .. } => has_git = true,
-                Entry::Registry { .. } => has_registry = true,
+                Entry::Git {
+                    ..
+                } => has_git = true,
+                Entry::Registry {
+                    ..
+                } => has_registry = true,
             }
         }
         if has_git && has_registry {
             issues.push(SyncIssue {
                 file: group[0].manifest_path.clone(),
                 location: (*name).to_string(),
-                problem: format!("{name} is a git dependency in some places and a registry dependency in others"),
-                remedy: "use one source for every crate, or give the other source its own named catalog".to_string(),
+                problem: format!(
+                    "{name} is a git dependency in some places and a registry dependency in others"
+                ),
+                remedy:
+                    "use one source for every crate, or give the other source its own named catalog"
+                        .to_string(),
             });
             continue;
         }
@@ -160,7 +187,10 @@ pub fn plan_adoption(document: &CatalogDocument, crates: &[CrateInfo], issues: &
         match current {
             None => additions.push(((*name).to_string(), entry.clone())),
             Some(existing) => {
-                if let Entry::Registry { version, .. } = &entry
+                if let Entry::Registry {
+                    version,
+                    ..
+                } = &entry
                     && !same_entry(&entry, existing)
                 {
                     floor_raises.push(((*name).to_string(), version.clone()));

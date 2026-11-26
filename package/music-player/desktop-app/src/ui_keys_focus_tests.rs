@@ -14,13 +14,28 @@
 //! so only the composed window shows it.
 
 use i_slint_backend_testing::ElementHandle;
-use slint::platform::{PointerEventButton, WindowEvent};
-use slint::{ComponentHandle, LogicalPosition};
+use slint::platform::{
+    PointerEventButton,
+    WindowEvent,
+};
+use slint::{
+    ComponentHandle,
+    LogicalPosition,
+};
 
 use crate::Focus;
 use crate::ui_screen::read_state;
 use crate::ui_screen_view::Route;
-use crate::ui_test_support::{advance, chord, fresh_window_at, focus_label, load_library, settle, tab_labels, tap};
+use crate::ui_test_support::{
+    advance,
+    chord,
+    focus_label,
+    fresh_window_at,
+    load_library,
+    settle,
+    tab_labels,
+    tap,
+};
 
 /// The unfolded Tab order D106 asks for:
 /// the folder picker,
@@ -63,8 +78,16 @@ fn tab_walks_the_unfolded_player_page_in_the_asked_order_and_wraps_without_a_tra
     let (app, _host) = fresh_window_at(850.0, 900.0);
     load_library(&app);
     let labels = tab_labels(&app, UNFOLDED_ORDER.len() + 3);
-    assert_eq!(&labels[..UNFOLDED_ORDER.len()], UNFOLDED_ORDER.as_slice(), "the first pass");
-    assert_eq!(&labels[UNFOLDED_ORDER.len()..], ["open-pill", "folder-list", "track-list"], "the order repeats: no trap");
+    assert_eq!(
+        &labels[..UNFOLDED_ORDER.len()],
+        UNFOLDED_ORDER.as_slice(),
+        "the first pass"
+    );
+    assert_eq!(
+        &labels[UNFOLDED_ORDER.len()..],
+        ["open-pill", "folder-list", "track-list"],
+        "the order repeats: no trap"
+    );
 }
 
 #[test]
@@ -81,11 +104,25 @@ fn tab_walks_the_folded_page_with_the_folder_picker_open_through_the_picker() {
     load_library(&app);
     chord(&app, &["Ctrl"], "o");
     advance(32);
-    assert_eq!(focus_label(&app), "folder-list", "opening the picker puts the keyboard in it");
+    assert_eq!(
+        focus_label(&app),
+        "folder-list",
+        "opening the picker puts the keyboard in it"
+    );
     let labels = tab_labels(&app, 9);
     assert_eq!(
         labels,
-        ["seek", "previous", "play", "next", "mode-group", "search", "settings", "folder-trigger", "open-pill"],
+        [
+            "seek",
+            "previous",
+            "play",
+            "next",
+            "mode-group",
+            "search",
+            "settings",
+            "folder-trigger",
+            "open-pill"
+        ],
         "the picker is the list; the track list is covered"
     );
 }
@@ -101,7 +138,11 @@ fn shift_tab_walks_the_same_order_backwards() {
     chord(&app, &["Shift"], "Tab");
     assert_eq!(focus_label(&app), "previous");
     chord(&app, &["Shift"], "Backtab");
-    assert_eq!(focus_label(&app), "seek", "a platform that sends Backtab moves the same way");
+    assert_eq!(
+        focus_label(&app),
+        "seek",
+        "a platform that sends Backtab moves the same way"
+    );
 }
 
 #[test]
@@ -125,31 +166,71 @@ fn alt_1_opens_the_folder_picker_on_the_folded_layout_and_alt_2_closes_it() {
     assert!(!read_state(|state| return state.picker_open));
     chord(&app, &["Alt"], "1");
     advance(32);
-    assert!(read_state(|state| return state.picker_open), "Alt+1 opens the picker overlay");
-    assert_eq!(focus_label(&app), "folder-list", "and puts the keyboard in it");
+    assert!(
+        read_state(|state| return state.picker_open),
+        "Alt+1 opens the picker overlay"
+    );
+    assert_eq!(
+        focus_label(&app),
+        "folder-list",
+        "and puts the keyboard in it"
+    );
     chord(&app, &["Alt"], "2");
     advance(32);
-    assert!(!read_state(|state| return state.picker_open), "Alt+2 closes it");
-    assert_eq!(focus_label(&app), "track-list", "and puts the keyboard in the list it uncovers");
+    assert!(
+        !read_state(|state| return state.picker_open),
+        "Alt+2 closes it"
+    );
+    assert_eq!(
+        focus_label(&app),
+        "track-list",
+        "and puts the keyboard in the list it uncovers"
+    );
 }
 
 #[test]
 fn a_key_press_turns_the_ring_on_and_a_pointer_press_turns_it_off() {
     let (app, _host) = fresh_window_at(850.0, 900.0);
     load_library(&app);
-    assert!(!app.global::<Focus>().get_ring_visible(), "no ring before any key");
+    assert!(
+        !app.global::<Focus>().get_ring_visible(),
+        "no ring before any key"
+    );
     tap(&app, "Tab");
-    assert!(app.global::<Focus>().get_ring_visible(), "a key press shows the ring");
-    let row = ElementHandle::find_by_element_id(&app, "TrackListPane::row-touch").next().expect("a track row exists");
+    assert!(
+        app.global::<Focus>().get_ring_visible(),
+        "a key press shows the ring"
+    );
+    let row = ElementHandle::find_by_element_id(&app, "TrackListPane::row-touch")
+        .next()
+        .expect("a track row exists");
     let position = row.absolute_position();
     let size = row.size();
-    let center = LogicalPosition::new(position.x + size.width / 2.0, position.y + size.height / 2.0);
-    app.window().dispatch_event(WindowEvent::PointerMoved { position: center });
-    app.window().dispatch_event(WindowEvent::PointerPressed { position: center, button: PointerEventButton::Left });
-    app.window().dispatch_event(WindowEvent::PointerReleased { position: center, button: PointerEventButton::Left });
+    let center = LogicalPosition::new(
+        position.x + size.width / 2.0,
+        position.y + size.height / 2.0,
+    );
+    app.window().dispatch_event(WindowEvent::PointerMoved {
+        position: center,
+    });
+    app.window().dispatch_event(WindowEvent::PointerPressed {
+        position: center,
+        button: PointerEventButton::Left,
+    });
+    app.window().dispatch_event(WindowEvent::PointerReleased {
+        position: center,
+        button: PointerEventButton::Left,
+    });
     settle();
-    assert!(!app.global::<Focus>().get_ring_visible(), "a click hides the ring");
-    assert_eq!(focus_label(&app), "track-list", "and leaves the keyboard on the list that was clicked");
+    assert!(
+        !app.global::<Focus>().get_ring_visible(),
+        "a click hides the ring"
+    );
+    assert_eq!(
+        focus_label(&app),
+        "track-list",
+        "and leaves the keyboard on the list that was clicked"
+    );
 }
 
 #[test]
@@ -167,7 +248,11 @@ fn the_search_page_keeps_tab_inside_it_and_does_not_trap() {
     load_library(&app);
     chord(&app, &["Ctrl"], "f");
     assert_eq!(app.get_route(), Route::Search.to_int());
-    assert_eq!(focus_label(&app), "search-field", "Search opens with the query field focused");
+    assert_eq!(
+        focus_label(&app),
+        "search-field",
+        "Search opens with the query field focused"
+    );
     let labels = tab_labels(&app, 4);
     for label in &labels {
         assert!(
@@ -175,8 +260,14 @@ fn the_search_page_keeps_tab_inside_it_and_does_not_trap() {
             "Tab stays on the Search page, got {label}"
         );
     }
-    assert!(labels.contains(&"search-back".to_owned()), "the Back button is reachable: {labels:?}");
-    assert!(labels.contains(&"search-field".to_owned()), "the field is reachable again: {labels:?}");
+    assert!(
+        labels.contains(&"search-back".to_owned()),
+        "the Back button is reachable: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"search-field".to_owned()),
+        "the field is reachable again: {labels:?}"
+    );
 }
 
 #[test]
@@ -185,17 +276,35 @@ fn the_settings_page_keeps_tab_inside_it_and_a_template_line_does_not_swallow_ta
     load_library(&app);
     chord(&app, &["Ctrl", "Alt"], "s");
     assert_eq!(app.get_route(), Route::Settings.to_int());
-    assert_eq!(focus_label(&app), "settings-list", "Settings opens with its list focused");
+    assert_eq!(
+        focus_label(&app),
+        "settings-list",
+        "Settings opens with its list focused"
+    );
     let labels = tab_labels(&app, 12);
     for label in &labels {
         assert!(
-            label == "settings-back" || label == "settings-list" || label == "template-field" || label.starts_with("insert-field-") || label == "reset",
+            label == "settings-back"
+                || label == "settings-list"
+                || label == "template-field"
+                || label.starts_with("insert-field-")
+                || label == "reset",
             "Tab stays on the Settings page, got {label}"
         );
     }
-    assert!(labels.contains(&"template-field".to_owned()), "the template line is reachable: {labels:?}");
-    let after_field = labels.iter().position(|label| return label == "template-field").expect("reached");
-    assert_ne!(labels.get(after_field + 1).map(String::as_str), Some("template-field"), "Tab leaves the template line");
+    assert!(
+        labels.contains(&"template-field".to_owned()),
+        "the template line is reachable: {labels:?}"
+    );
+    let after_field = labels
+        .iter()
+        .position(|label| return label == "template-field")
+        .expect("reached");
+    assert_ne!(
+        labels.get(after_field + 1).map(String::as_str),
+        Some("template-field"),
+        "Tab leaves the template line"
+    );
 }
 
 #[test]
@@ -204,10 +313,18 @@ fn a_track_list_made_again_while_settings_is_open_leaves_the_keyboard_on_the_set
     load_library(&app);
     chord(&app, &["Alt"], "2");
     advance(64);
-    assert_eq!(focus_label(&app), "track-list", "Alt+2 asks for the track list and it takes the keyboard");
+    assert_eq!(
+        focus_label(&app),
+        "track-list",
+        "Alt+2 asks for the track list and it takes the keyboard"
+    );
     chord(&app, &["Ctrl", "Alt"], "s");
     assert_eq!(app.get_route(), Route::Settings.to_int());
-    assert_eq!(focus_label(&app), "settings-list", "Settings opens with its list focused");
+    assert_eq!(
+        focus_label(&app),
+        "settings-list",
+        "Settings opens with its list focused"
+    );
     // The track list stays asked for (the request is kept until another one replaces it). A rescan of the library shows the
     // first-run pane for a moment and then makes the track list again; the new list's focus timer fires one frame later,
     // while the Settings page covers the player and the list refuses focus.
@@ -215,7 +332,11 @@ fn a_track_list_made_again_while_settings_is_open_leaves_the_keyboard_on_the_set
     advance(32);
     app.set_first_run_state(0);
     advance(200);
-    assert_eq!(app.get_route(), Route::Settings.to_int(), "Settings is still open");
+    assert_eq!(
+        app.get_route(),
+        Route::Settings.to_int(),
+        "Settings is still open"
+    );
     assert_eq!(
         focus_label(&app),
         "settings-list",

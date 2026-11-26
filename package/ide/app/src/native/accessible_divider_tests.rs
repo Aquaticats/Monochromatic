@@ -15,7 +15,12 @@ use super::find_tests::key;
 /// The 1100 by 660 sidebar fixture,
 ///  its layout constants,
 ///  and settled layout.
-use super::sidebar_tests::{DIVIDER, SOURCE_MINIMUM, fixture, settle};
+use super::sidebar_tests::{
+    DIVIDER,
+    SOURCE_MINIMUM,
+    fixture,
+    settle,
+};
 /// What:
 ///  `AccessibleRole` is the toolkit's enum of accessible roles;
 ///  `Orientation` is its enum of
@@ -30,9 +35,16 @@ use super::sidebar_tests::{DIVIDER, SOURCE_MINIMUM, fixture, settle};
 /// ```ts
 /// import { AccessibleRole, ElementHandle, Orientation } from 'slint-testing';
 /// ```
-use i_slint_backend_testing::{AccessibleRole, ElementHandle, Orientation};
+use i_slint_backend_testing::{
+    AccessibleRole,
+    ElementHandle,
+    Orientation,
+};
 /// Window ownership and the toolkit's key names.
-use slint::{ComponentHandle, platform::Key};
+use slint::{
+    ComponentHandle,
+    platform::Key,
+};
 
 /// What:
 ///  `divider: &ElementHandle` lends the handle;
@@ -48,7 +60,12 @@ use slint::{ComponentHandle, platform::Key};
 /// ```ts
 /// function assertWidth(window: AppWindow, divider: ElementHandle, expected: number, action: string): void;
 /// ```
-fn assert_width(window: &super::AppWindow, divider: &ElementHandle, expected: f32, action: &str) {
+fn assert_width(
+    window: &super::AppWindow,
+    divider: &ElementHandle,
+    expected: f32,
+    action: &str,
+) {
     settle(window);
     assert_eq!(
         window.get_sidebar_width(),

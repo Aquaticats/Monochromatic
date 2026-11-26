@@ -23,10 +23,16 @@ use crate::real_fs::sha256_hex;
 use std::fs;
 /// Imports `DirBuilderExt`,
 /// `MetadataExt` from `std::os::unix::fs`.
-use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+use std::os::unix::fs::{
+    DirBuilderExt,
+    MetadataExt,
+};
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///   The longest socket path accepted,
@@ -73,7 +79,10 @@ pub fn verify_owner_only(dir: &Path) -> Result<(), Diagnostic> {
     let metadata = match fs::symlink_metadata(dir) {
         Ok(metadata) => metadata,
         Err(error) => {
-            let message = format!("cannot inspect the runtime directory {}: {error}", dir.display());
+            let message = format!(
+                "cannot inspect the runtime directory {}: {error}",
+                dir.display()
+            );
             return Err(Diagnostic::new("runtime-dir-unusable", &message));
         }
     };
@@ -102,7 +111,10 @@ fn create_private(dir: &Path) -> Result<(), Diagnostic> {
     let mut builder = fs::DirBuilder::new();
     builder.recursive(true).mode(0o700);
     if let Err(error) = builder.create(dir) {
-        let message = format!("cannot create the runtime directory {}: {error}", dir.display());
+        let message = format!(
+            "cannot create the runtime directory {}: {error}",
+            dir.display()
+        );
         return Err(Diagnostic::new("runtime-dir-unusable", &message));
     }
     return Ok(());
@@ -124,7 +136,10 @@ fn create_private(dir: &Path) -> Result<(), Diagnostic> {
 /// ```ts
 /// function runtimeDirectory(xdg: string | undefined, fallback: string): string
 /// ```
-pub fn runtime_directory(xdg: Option<PathBuf>, fallback_base: &Path) -> Result<PathBuf, Diagnostic> {
+pub fn runtime_directory(
+    xdg: Option<PathBuf>,
+    fallback_base: &Path,
+) -> Result<PathBuf, Diagnostic> {
     if let Some(candidate) = xdg
         && candidate.is_absolute()
         && verify_owner_only(&candidate).is_ok()
@@ -164,7 +179,10 @@ pub fn prepare_runtime_directory(dir: &Path) -> Result<(), Diagnostic> {
 /// ```ts
 /// function socketPath(dir: string, key: string): string
 /// ```
-pub fn socket_path(dir: &Path, key: &str) -> Result<PathBuf, Diagnostic> {
+pub fn socket_path(
+    dir: &Path,
+    key: &str,
+) -> Result<PathBuf, Diagnostic> {
     let path = dir.join(format!("{key}.sock"));
     let length = path.as_os_str().len();
     if length > MAX_SOCKET_PATH_BYTES {
@@ -172,7 +190,8 @@ pub fn socket_path(dir: &Path, key: &str) -> Result<PathBuf, Diagnostic> {
             "the socket path {} is {length} bytes; Unix sockets allow at most {MAX_SOCKET_PATH_BYTES}",
             path.display()
         );
-        return Err(Diagnostic::new("socket-path-too-long", &message).with_hint("set XDG_RUNTIME_DIR to a shorter owner-only directory"));
+        return Err(Diagnostic::new("socket-path-too-long", &message)
+            .with_hint("set XDG_RUNTIME_DIR to a shorter owner-only directory"));
     }
     return Ok(path);
 }

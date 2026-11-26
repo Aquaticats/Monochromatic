@@ -3,7 +3,10 @@
 /// Imports the items this module uses from `crate`.
 use crate::{
     accent_color::AccentColor,
-    appearance_portal::{AppearancePortal, SwitchOutcome},
+    appearance_portal::{
+        AppearancePortal,
+        SwitchOutcome,
+    },
     protocol::Response,
 };
 
@@ -18,7 +21,10 @@ use crate::{
 ///       A session started without `--accent-color` serves no accent color.
 ///  The only other bus this process could reach is the host session bus,
 ///  so the request is refused rather than redirected there.
-pub fn switch(portal: Option<&AppearancePortal>, color: AccentColor) -> Response {
+pub fn switch(
+    portal: Option<&AppearancePortal>,
+    color: AccentColor,
+) -> Response {
     let active = match portal {
         Some(candidate) if candidate.serves_accent_color() => candidate,
         _ => {

@@ -21,13 +21,27 @@ use super::install_archive::install_archive;
 /// Imports `install_bin_sourced` from `super::install_bin`.
 use super::install_bin::install_bin_sourced;
 /// Imports what this module uses from `super::install_cargo`.
-use super::install_cargo::{install_cargo_binstall, install_cargo_git};
+use super::install_cargo::{
+    install_cargo_binstall,
+    install_cargo_git,
+};
 /// Imports what this module uses from `super::install_managers`.
-use super::install_managers::{install_go_install, install_mpm_pnpm, install_mpm_uvx};
+use super::install_managers::{
+    install_go_install,
+    install_mpm_pnpm,
+    install_mpm_uvx,
+};
 /// Imports what this module uses from `super::install_rust_android`.
-use super::install_rust_android::{install_android_sdk, install_rust_components, install_rust_toolchain};
+use super::install_rust_android::{
+    install_android_sdk,
+    install_rust_components,
+    install_rust_toolchain,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Route};
+use super::model::{
+    LockedTool,
+    Route,
+};
 
 /// What:
 /// Installs one tool by its route,
@@ -41,7 +55,10 @@ use super::model::{LockedTool, Route};
 /// ```ts
 /// export function installTool(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_tool(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_tool(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     match tool.declaration.route {
         Route::BinSourced => install_bin_sourced(ctx, tool)?,
         Route::Archive => install_archive(ctx, tool)?,

@@ -68,7 +68,10 @@ impl ScreenState {
     /// so it is built once per queue and never again per
     /// projection.
     /// Returns the shared names so the Search index can be fed from them without another copy.
-    pub fn set_names(&mut self, names: &[String]) -> Arc<Vec<String>> {
+    pub fn set_names(
+        &mut self,
+        names: &[String],
+    ) -> Arc<Vec<String>> {
         let shared: Arc<Vec<String>> = Arc::new(names.to_vec());
         self.names = Arc::clone(&shared);
         self.queue_generation += 1;
@@ -76,7 +79,6 @@ impl ScreenState {
         self.watched_page = None;
         return shared;
     }
-
 
     /// What:
     /// `set_names_keeping_place` replaces the queue names after a rescan and,
@@ -86,11 +88,19 @@ impl ScreenState {
     /// deleting the last file of the folder on screen used to switch the view to the first folder with no word
     /// (the polish review finding PB2).
     /// The nearest folder keeps the user in the same part of the list.
-    pub fn set_names_keeping_place(&mut self, names: &[String]) -> Arc<Vec<String>> {
+    pub fn set_names_keeping_place(
+        &mut self,
+        names: &[String],
+    ) -> Arc<Vec<String>> {
         let previous_position: usize = self.selected_page_position();
         let had_selection: bool = !self.selected_key.is_empty();
         let shared: Arc<Vec<String>> = self.set_names(names);
-        if !had_selection || self.page_index.position_of_identity(&self.selected_key).is_some() {
+        if !had_selection
+            || self
+                .page_index
+                .position_of_identity(&self.selected_key)
+                .is_some()
+        {
             return shared;
         }
         let count: usize = self.page_index.page_count();
@@ -113,7 +123,10 @@ impl ScreenState {
     /// the virtual folders of their letters,
     /// as in Search),
     /// so the name does not touch them.
-    pub fn set_source_root_name(&mut self, name: Option<String>) {
+    pub fn set_source_root_name(
+        &mut self,
+        name: Option<String>,
+    ) {
         self.root_known = true;
         self.source_root_name = name;
     }
@@ -149,7 +162,10 @@ impl ScreenState {
     /// Why:
     /// a track that starts playing moves the picker to its folder,
     /// and finding that page must not scan the queue.
-    pub fn page_key_of_index(&self, index: usize) -> Option<String> {
+    pub fn page_key_of_index(
+        &self,
+        index: usize,
+    ) -> Option<String> {
         let pages: Cow<'_, PageIndex> = self.current_pages();
         let position: usize = pages.page_of_index(index)?;
         return pages.identity_at(position);
@@ -181,7 +197,10 @@ impl ScreenState {
     /// a sweep reports hundreds of thousands of tracks in chunks,
     /// and only a chunk that holds a shown row can
     /// change what the window draws.
-    pub fn measures_touch_selected_page(&mut self, reported: &[(PathBuf, TrackMeasure)]) -> bool {
+    pub fn measures_touch_selected_page(
+        &mut self,
+        reported: &[(PathBuf, TrackMeasure)],
+    ) -> bool {
         let position: usize = self.selected_page_position();
         let stale: bool = !matches!(&self.watched_page, Some(watched) if watched.generation == self.queue_generation && watched.page == position);
         if stale {
@@ -233,7 +252,10 @@ pub fn selected_page_scope(state: &ScreenState) -> Vec<usize> {
 /// ```ts
 /// const selectFolderLabel = (state: ScreenState, label: string): number[] | null => { ... };
 /// ```
-pub fn select_folder_label(state: &mut ScreenState, label: &str) -> Option<Vec<usize>> {
+pub fn select_folder_label(
+    state: &mut ScreenState,
+    label: &str,
+) -> Option<Vec<usize>> {
     let identity: String = {
         let pages: Cow<'_, PageIndex> = state.current_pages();
         let position: usize = pages.position_of_label(label)?;

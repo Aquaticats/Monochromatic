@@ -15,19 +15,27 @@
 ///  so this module reuses it.
 use crate::template_eval::evaluate_parsed_template;
 /// What:
-///      `use crate::template_parse::{ParsedTemplate, parse_template};` imports the parser.
-/// Why:
-///       The template is parsed once when the function is built,
-/// not once per row.
-use crate::template_parse::{ParsedTemplate, parse_template};
-/// What:
 ///      `use crate::template_model::{...};` imports the field list,
 ///  the result type,
 ///  and the track fields.
 /// Why:
 ///       The track rows template reads these fields,
 ///  and the result says whether the template applied.
-use crate::template_model::{TemplateField, TemplateResult, TrackFields, track_template_fields};
+use crate::template_model::{
+    TemplateField,
+    TemplateResult,
+    TrackFields,
+    track_template_fields,
+};
+/// What:
+///      `use crate::template_parse::{ParsedTemplate, parse_template};` imports the parser.
+/// Why:
+///       The template is parsed once when the function is built,
+/// not once per row.
+use crate::template_parse::{
+    ParsedTemplate,
+    parse_template,
+};
 
 /// What:
 ///      `pub trait SupportingLine { fn evaluate(&self, track: &TrackFields) -> Option<String>; }`.
@@ -47,7 +55,10 @@ pub trait SupportingLine {
     /// or nothing when the template refuses it or shows only blanks.
     /// Why:
     /// a row with no line shows only its title.
-    fn evaluate(&self, track: &TrackFields) -> Option<String>;
+    fn evaluate(
+        &self,
+        track: &TrackFields,
+    ) -> Option<String>;
 }
 
 /// A plain function of the same shape is a supporting-line maker too,
@@ -57,7 +68,10 @@ impl<F: Fn(&TrackFields) -> Option<String>> SupportingLine for F {
     /// `evaluate` calls the function.
     /// Why:
     /// it lets a plain function stand in for the template's maker.
-    fn evaluate(&self, track: &TrackFields) -> Option<String> {
+    fn evaluate(
+        &self,
+        track: &TrackFields,
+    ) -> Option<String> {
         return self(track);
     }
 }
@@ -92,11 +106,18 @@ impl SupportingLine for TemplateSupportingLine {
     /// Why:
     /// a refused or blank result is dropped,
     /// as `supportingLineFor` does in the Kotlin app.
-    fn evaluate(&self, track: &TrackFields) -> Option<String> {
+    fn evaluate(
+        &self,
+        track: &TrackFields,
+    ) -> Option<String> {
         return match evaluate_parsed_template(&self.parsed, track, &self.fields) {
             TemplateResult::Shown(text) => {
                 let trimmed: String = text.trim().to_string();
-                if trimmed.is_empty() { None } else { Some(trimmed) }
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
             }
             TemplateResult::Refused(_) => None,
         };
@@ -114,7 +135,10 @@ impl SupportingLine for TemplateSupportingLine {
 /// const supportingLineFromTemplate = (template: string): SupportingLine => new TemplateSupportingLine(parseTemplate(template), trackTemplateFields());
 /// ```
 pub fn supporting_line_from_template(template: &str) -> TemplateSupportingLine {
-    return TemplateSupportingLine { parsed: parse_template(template), fields: track_template_fields() };
+    return TemplateSupportingLine {
+        parsed: parse_template(template),
+        fields: track_template_fields(),
+    };
 }
 
 /// What:

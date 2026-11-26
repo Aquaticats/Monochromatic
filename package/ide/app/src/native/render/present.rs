@@ -8,17 +8,34 @@
 ///  the find presentation,
 ///  and the annotation readings.
 use crate::native::{
-    AppWindow, State, annotate, find::present::present, rows, ui::SourceSelection, viewport::reach,
+    AppWindow,
+    State,
+    annotate,
+    find::present::present,
+    rows,
+    ui::SourceSelection,
+    viewport::reach,
 };
 /// The rectangles a frame hands to the window.
 use ide_app::shaped_text::ReadingRect;
 /// The scene the GPU draws into a texture,
 /// and the scenes of a tile that is drawn across several.
-use ide_app::tile_scene::{TileScene, TileStack};
+use ide_app::tile_scene::{
+    TileScene,
+    TileStack,
+};
 /// Toolkit models carry owned source presentation data.
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    SharedString,
+    VecModel,
+};
 /// UI callbacks share state without cross-thread synchronization.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Width of the cell the gutter's wrap indicator is painted in,
@@ -95,7 +112,10 @@ pub(in crate::native) struct Frame {
 /// ```ts
 /// function ensureSign(current: State, factor: number): Scene | undefined;
 /// ```
-pub(super) fn ensure_sign(current: &mut State, factor: f32) -> Option<TileScene> {
+pub(super) fn ensure_sign(
+    current: &mut State,
+    factor: f32,
+) -> Option<TileScene> {
     if current.sign_scale == Some(factor.to_bits()) {
         return None;
     }
@@ -133,7 +153,11 @@ pub(super) fn ensure_sign(current: &mut State, factor: f32) -> Option<TileScene>
 /// and caret,
 /// then the other readings.
 /// Each setter runs after the state borrow ends.
-pub(in crate::native) fn show(window: &AppWindow, state: &Rc<RefCell<State>>, frame: Frame) {
+pub(in crate::native) fn show(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    frame: Frame,
+) {
     let Frame {
         scene,
         matches_changed,

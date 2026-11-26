@@ -57,13 +57,24 @@ impl ScanFinding {
     /// ```ts
     /// function render(finding, safeDisplayPath): string;
     /// ```
-    pub(crate) fn render(&self, safe_display: &str) -> String {
+    pub(crate) fn render(
+        &self,
+        safe_display: &str,
+    ) -> String {
         // Match only the enum's actual variants; adding an operational failure requires an explicit rendering choice.
         match self {
-            Self::Content { line, rule } => return format!("{safe_display}:{line} rule={rule}"),
-            Self::Name { component, rule } => return format!("{safe_display}:name:{component} rule={rule}"),
+            Self::Content {
+                line,
+                rule,
+            } => return format!("{safe_display}:{line} rule={rule}"),
+            Self::Name {
+                component,
+                rule,
+            } => return format!("{safe_display}:name:{component} rule={rule}"),
             Self::EngineError => return format!("{safe_display}: engine error"),
-            Self::PathnameLineBreak => return format!("{safe_display}: unsupported pathname line break"),
+            Self::PathnameLineBreak => {
+                return format!("{safe_display}: unsupported pathname line break");
+            }
         }
     }
 }

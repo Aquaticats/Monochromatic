@@ -17,11 +17,16 @@ use crate::context::Ctx;
 use crate::nullable::nullable;
 
 fn off() -> Ctx {
-    return Ctx { line_start: false, line_end: false, word_before: false, word_after: false }
+    return Ctx {
+        line_start: false,
+        line_end: false,
+        word_before: false,
+        word_after: false,
+    };
 }
 
 fn lit(b: u8) -> Node {
-    return Node::Class(singleton(b))
+    return Node::Class(singleton(b));
 }
 
 // What:    Derives `input` byte by byte (interior context) and reports final nullability.
@@ -34,12 +39,15 @@ fn lit(b: u8) -> Node {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn matches_interior(node: &Node, input: &[u8]) -> bool {
+fn matches_interior(
+    node: &Node,
+    input: &[u8],
+) -> bool {
     let mut residual = node.clone();
     for &b in input {
         residual = derivative(&residual, b, off());
     }
-    return nullable(&residual, off())
+    return nullable(&residual, off());
 }
 
 #[test]
@@ -91,7 +99,10 @@ fn comp_negates_the_derivative() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert_eq!(derivative(&Node::Comp(Box::new(lit(b'a'))), b'a', off()), Node::Comp(Box::new(Node::Empty)));
+    assert_eq!(
+        derivative(&Node::Comp(Box::new(lit(b'a'))), b'a', off()),
+        Node::Comp(Box::new(Node::Empty))
+    );
 }
 
 #[test]
@@ -113,7 +124,11 @@ fn repeat_matches_the_allowed_counts() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    let rep = Node::Repeat { node: Box::new(lit(b'a')), min: 2, max: 3 };
+    let rep = Node::Repeat {
+        node: Box::new(lit(b'a')),
+        min: 2,
+        max: 3,
+    };
     assert!(!matches_interior(&rep, b"a"));
     assert!(matches_interior(&rep, b"aa"));
     assert!(matches_interior(&rep, b"aaa"));

@@ -18,7 +18,10 @@
 
 /// Imports `TomlBlock`,
 /// `TomlEdit` from `crate::config_parts`.
-use crate::config_parts::{TomlBlock, TomlEdit};
+use crate::config_parts::{
+    TomlBlock,
+    TomlEdit,
+};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
 /// Imports `parent_directory` from `crate::path_text`.
@@ -28,15 +31,27 @@ use crate::real_fs::EntryKind;
 /// Imports `Change`,
 /// `Rule`,
 /// `RulePlan` from `crate::rule`.
-use crate::rule::{Change, Rule, RulePlan};
+use crate::rule::{
+    Change,
+    Rule,
+    RulePlan,
+};
 /// Imports `append_block`,
 /// `lookup`,
 /// `set_key` from `crate::toml_ops`.
-use crate::toml_ops::{append_block, lookup, set_key};
+use crate::toml_ops::{
+    append_block,
+    lookup,
+    set_key,
+};
 /// Imports `Vars`,
 /// `evaluate`,
 /// `evaluate_text` from `crate::value_eval`.
-use crate::value_eval::{Vars, evaluate, evaluate_text};
+use crate::value_eval::{
+    Vars,
+    evaluate,
+    evaluate_text,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 /// Imports `expand_glob` from `crate::view_glob`.
@@ -78,7 +93,10 @@ pub struct TomlKeysRule {
 /// ```ts
 /// function parseManifest(path: string, text: string): TomlDocument
 /// ```
-fn parse_manifest(path: &str, text: &str) -> Result<DocumentMut, Diagnostic> {
+fn parse_manifest(
+    path: &str,
+    text: &str,
+) -> Result<DocumentMut, Diagnostic> {
     match text.parse::<DocumentMut>() {
         Ok(document) => return Ok(document),
         Err(error) => {
@@ -111,7 +129,12 @@ impl TomlKeysRule {
     /// ```ts
     /// transform(view: View, manifest: string, text: string): string
     /// ```
-    fn transform(&self, view: &mut View, manifest: &str, text: &str) -> Result<String, Diagnostic> {
+    fn transform(
+        &self,
+        view: &mut View,
+        manifest: &str,
+        text: &str,
+    ) -> Result<String, Diagnostic> {
         let directory = parent_directory(manifest);
         let mut vars = Vars::new();
         vars.insert("dir".to_string(), directory.to_string());
@@ -174,7 +197,10 @@ impl Rule for TomlKeysRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let mut plan = RulePlan::default();
         let mut manifests: Vec<String> = Vec::new();
         for pattern in &self.manifests {
@@ -192,7 +218,11 @@ impl Rule for TomlKeysRule {
             let text = view.read_text(&manifest)?.unwrap_or_default();
             let transformed = self.transform(view, &manifest, &text)?;
             if transformed != text {
-                plan.changes.push(Change::Write { path: manifest, content: transformed.into_bytes(), mode: None });
+                plan.changes.push(Change::Write {
+                    path: manifest,
+                    content: transformed.into_bytes(),
+                    mode: None,
+                });
             }
         }
         return Ok(plan);

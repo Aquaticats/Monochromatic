@@ -4,11 +4,30 @@
 
 use serde_json::Value;
 
-use super::agree::{compare, project, refusal};
+use super::agree::{
+    compare,
+    project,
+    refusal,
+};
 use super::error::ErrorKind;
-use super::fixtures::{SAMPLE_SHA256, sample_lock, sample_plan};
-use super::lock::{DIGEST_PREFIX, LOCK_GENERATED_FROM, LOCK_SCHEMA_VERSION, Lock, lock_digest, parse_lock, render_lock};
-use super::model::{Artifact, Request};
+use super::fixtures::{
+    SAMPLE_SHA256,
+    sample_lock,
+    sample_plan,
+};
+use super::lock::{
+    DIGEST_PREFIX,
+    LOCK_GENERATED_FROM,
+    LOCK_SCHEMA_VERSION,
+    Lock,
+    lock_digest,
+    parse_lock,
+    render_lock,
+};
+use super::model::{
+    Artifact,
+    Request,
+};
 
 fn rendered_value() -> Value {
     return serde_json::from_str(&render_lock(&sample_lock())).expect("the rendered lock is JSON");
@@ -21,7 +40,10 @@ fn the_rendered_lock_is_strict_json_with_two_space_indentation_and_a_trailing_ne
     let header: String = format!(
         "{{\n  \"schemaVersion\": {LOCK_SCHEMA_VERSION},\n  \"generatedFrom\": {LOCK_GENERATED_FROM:?},\n  \"tools\": {{"
     );
-    assert!(text.starts_with(&header), "the rendered lock starts with the fixed header: {header:?}");
+    assert!(
+        text.starts_with(&header),
+        "the rendered lock starts with the fixed header: {header:?}"
+    );
     assert!(serde_json::from_str::<Value>(&text).is_ok());
 }
 
@@ -29,33 +51,86 @@ fn the_rendered_lock_is_strict_json_with_two_space_indentation_and_a_trailing_ne
 fn the_frozen_surface_is_where_the_jq_readers_look() {
     let value = rendered_value();
     assert_eq!(value["tools"]["node"]["version"], "1.2.3");
-    assert_eq!(value["tools"]["node"]["artifacts"]["linux-x64"]["url"], "https://example.invalid/node/download.tar.gz");
-    assert_eq!(value["tools"]["node"]["artifacts"]["linux-x64"]["sha256"], SAMPLE_SHA256);
-    assert_eq!(value["tools"]["android-sdk"]["options"]["androidPackages"][1], "platform-tools");
+    assert_eq!(
+        value["tools"]["node"]["artifacts"]["linux-x64"]["url"],
+        "https://example.invalid/node/download.tar.gz"
+    );
+    assert_eq!(
+        value["tools"]["node"]["artifacts"]["linux-x64"]["sha256"],
+        SAMPLE_SHA256
+    );
+    assert_eq!(
+        value["tools"]["android-sdk"]["options"]["androidPackages"][1],
+        "platform-tools"
+    );
     assert_eq!(value["tools"]["rust"]["version"], "nightly-2026-10-30");
 }
 
 #[test]
 fn a_tool_entry_writes_its_keys_in_the_documented_order_and_omits_absent_ones() {
     let value = rendered_value();
-    let keys: Vec<&String> = value["tools"]["cargo:fd-find"].as_object().expect("an object").keys().collect();
-    assert_eq!(keys, vec!["request", "version", "route", "manager", "packageId", "bins", "env", "options", "artifacts"]);
-    let node_keys: Vec<&String> = value["tools"]["node"].as_object().expect("an object").keys().collect();
-    assert_eq!(node_keys, vec!["request", "version", "route", "bins", "env", "options", "artifacts"]);
+    let keys: Vec<&String> = value["tools"]["cargo:fd-find"]
+        .as_object()
+        .expect("an object")
+        .keys()
+        .collect();
+    assert_eq!(
+        keys,
+        vec![
+            "request",
+            "version",
+            "route",
+            "manager",
+            "packageId",
+            "bins",
+            "env",
+            "options",
+            "artifacts"
+        ]
+    );
+    let node_keys: Vec<&String> = value["tools"]["node"]
+        .as_object()
+        .expect("an object")
+        .keys()
+        .collect();
+    assert_eq!(
+        node_keys,
+        vec![
+            "request",
+            "version",
+            "route",
+            "bins",
+            "env",
+            "options",
+            "artifacts"
+        ]
+    );
 }
 
 #[test]
 fn the_digest_is_the_last_field() {
     let value = rendered_value();
-    let last = value.as_object().expect("an object").keys().next_back().expect("has keys").clone();
+    let last = value
+        .as_object()
+        .expect("an object")
+        .keys()
+        .next_back()
+        .expect("has keys")
+        .clone();
     assert_eq!(last, "digest");
-    assert!(value["digest"].as_str().expect("a string").starts_with(DIGEST_PREFIX));
+    assert!(
+        value["digest"]
+            .as_str()
+            .expect("a string")
+            .starts_with(DIGEST_PREFIX)
+    );
 }
 
 #[test]
 fn render_then_parse_gives_the_same_lock_and_the_recorded_digest() {
     let lock = sample_lock();
-    let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("the rendered lock parses");
+    let parsed =
+        parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("the rendered lock parses");
     assert_eq!(parsed.lock, lock);
     assert_eq!(parsed.recorded_digest, Some(lock_digest(&lock)));
 }
@@ -76,10 +151,13 @@ fn reformatting_the_file_keeps_the_digest_valid() {
 
 #[test]
 fn a_hand_edited_version_fails_the_digest() {
-    let text = render_lock(&sample_lock()).replace("\"version\": \"1.2.3\"", "\"version\": \"9.9.9\"");
+    let text =
+        render_lock(&sample_lock()).replace("\"version\": \"1.2.3\"", "\"version\": \"9.9.9\"");
     let parsed = parse_lock(&text, "toolchain.lock.json").expect("still parses");
     let verdict = compare(&sample_plan(), &parsed);
-    let problem = verdict.digest_problem.expect("the digest no longer matches");
+    let problem = verdict
+        .digest_problem
+        .expect("the digest no longer matches");
     assert!(problem.contains("edited by hand"), "{problem}");
 }
 
@@ -95,8 +173,11 @@ fn a_hand_edited_artifact_hash_fails_the_digest() {
 fn a_lock_without_a_digest_is_reported_as_not_written_by_mpm_shadow() {
     let mut value = rendered_value();
     value.as_object_mut().expect("an object").remove("digest");
-    let parsed = parse_lock(&value.to_string(), "toolchain.lock.json").expect("parses without a digest");
-    let problem = compare(&sample_plan(), &parsed).digest_problem.expect("no digest is a problem");
+    let parsed =
+        parse_lock(&value.to_string(), "toolchain.lock.json").expect("parses without a digest");
+    let problem = compare(&sample_plan(), &parsed)
+        .digest_problem
+        .expect("no digest is a problem");
     assert!(problem.contains("no digest"), "{problem}");
 }
 
@@ -109,7 +190,8 @@ fn a_current_lock_agrees_with_its_plan() {
 #[test]
 fn a_tool_added_to_the_plan_needs_update() {
     let mut lock = sample_lock();
-    lock.tools.retain(|tool| return tool.declaration.id != "npm:wrangler");
+    lock.tools
+        .retain(|tool| return tool.declaration.id != "npm:wrangler");
     let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
     let verdict = compare(&sample_plan(), &parsed);
     assert_eq!(verdict.added, vec!["npm:wrangler".to_string()]);
@@ -134,12 +216,18 @@ fn a_tool_dropped_from_the_plan_is_fixed_offline() {
 #[test]
 fn a_changed_pin_is_a_resolution_edit_and_offline_lock_refuses_it() {
     let mut lock = sample_lock();
-    lock.tools[0].declaration.request = Request::parse("github:marcosnils/bin@0.1.0").expect("parses");
+    lock.tools[0].declaration.request =
+        Request::parse("github:marcosnils/bin@0.1.0").expect("parses");
     let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
     let verdict = compare(&sample_plan(), &parsed);
     assert_eq!(verdict.resolution_edits.len(), 1);
     assert_eq!(verdict.resolution_edits[0].0, "bin");
-    assert!(verdict.resolution_edits[0].1.iter().any(|name| return name == "request"));
+    assert!(
+        verdict.resolution_edits[0]
+            .1
+            .iter()
+            .any(|name| return name == "request")
+    );
     let error = project(&sample_plan(), &parsed.lock).expect_err("a pin change needs update");
     assert_eq!(error.kind, ErrorKind::Drift);
     assert!(error.message.contains("mpm-shadow update"), "{error}");
@@ -149,12 +237,22 @@ fn a_changed_pin_is_a_resolution_edit_and_offline_lock_refuses_it() {
 fn every_resolution_affecting_field_is_rejected_offline() {
     let plan = sample_plan();
     let edits: Vec<(&str, fn(&mut Lock))> = vec![
-        ("route", |lock| lock.tools[1].declaration.route = super::model::Route::BinSourced),
-        ("packageId", |lock| lock.tools[6].declaration.package_id = Some("other".to_string())),
-        ("manager", |lock| lock.tools[6].declaration.manager = Some("other".to_string())),
+        ("route", |lock| {
+            lock.tools[1].declaration.route = super::model::Route::BinSourced
+        }),
+        ("packageId", |lock| {
+            lock.tools[6].declaration.package_id = Some("other".to_string())
+        }),
+        ("manager", |lock| {
+            lock.tools[6].declaration.manager = Some("other".to_string())
+        }),
         ("os", |lock| lock.tools[7].declaration.os = None),
-        ("options.asset", |lock| lock.tools[1].declaration.options.asset = Some("*.tgz".to_string())),
-        ("options.tagPrefix", |lock| lock.tools[1].declaration.options.tag_prefix = Some("tool-v".to_string())),
+        ("options.asset", |lock| {
+            lock.tools[1].declaration.options.asset = Some("*.tgz".to_string())
+        }),
+        ("options.tagPrefix", |lock| {
+            lock.tools[1].declaration.options.tag_prefix = Some("tool-v".to_string())
+        }),
     ];
     for (field, edit) in edits {
         let mut lock = sample_lock();
@@ -162,7 +260,13 @@ fn every_resolution_affecting_field_is_rejected_offline() {
         let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
         let verdict = compare(&plan, &parsed);
         assert_eq!(verdict.resolution_edits.len(), 1, "{field}");
-        assert!(verdict.resolution_edits[0].1.iter().any(|name| return name == field), "{field}");
+        assert!(
+            verdict.resolution_edits[0]
+                .1
+                .iter()
+                .any(|name| return name == field),
+            "{field}"
+        );
         assert!(project(&plan, &parsed.lock).is_err(), "{field}");
     }
 }
@@ -174,15 +278,25 @@ fn a_changed_bin_list_is_a_projection_edit_that_offline_lock_repairs_keeping_the
     lock.tools[3].version = "26.13.0".to_string();
     lock.tools[3].artifacts.push((
         "linux-arm64".to_string(),
-        Artifact { url: "https://example.invalid/node-arm".to_string(), sha256: SAMPLE_SHA256.to_string() },
+        Artifact {
+            url: "https://example.invalid/node-arm".to_string(),
+            sha256: SAMPLE_SHA256.to_string(),
+        },
     ));
     let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
     let verdict = compare(&sample_plan(), &parsed);
-    assert_eq!(verdict.projection_edits, vec![("node".to_string(), vec!["bins".to_string()])]);
+    assert_eq!(
+        verdict.projection_edits,
+        vec![("node".to_string(), vec!["bins".to_string()])]
+    );
     assert!(!verdict.needs_update());
-    let projected = project(&sample_plan(), &parsed.lock).expect("projection edits project offline");
+    let projected =
+        project(&sample_plan(), &parsed.lock).expect("projection edits project offline");
     let node = projected.tool("node").expect("node is kept");
-    assert_eq!(node.declaration.bins, vec!["node".to_string(), "npm".to_string(), "npx".to_string()]);
+    assert_eq!(
+        node.declaration.bins,
+        vec!["node".to_string(), "npm".to_string(), "npx".to_string()]
+    );
     assert_eq!(node.version, "26.13.0");
     assert_eq!(node.artifacts.len(), 2);
 }
@@ -205,8 +319,18 @@ fn the_refusal_names_lock_for_offline_fixes_and_update_for_network_ones() {
     let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
     let offline = refusal(&compare(&sample_plan(), &parsed));
     assert_eq!(offline.kind, ErrorKind::Drift);
-    assert!(offline.message.contains("mpm-shadow install --lockfile-only --offline"), "{offline}");
-    assert!(offline.message.contains("node differs between the plan and the lock in: bins"), "{offline}");
+    assert!(
+        offline
+            .message
+            .contains("mpm-shadow install --lockfile-only --offline"),
+        "{offline}"
+    );
+    assert!(
+        offline
+            .message
+            .contains("node differs between the plan and the lock in: bins"),
+        "{offline}"
+    );
 
     let mut missing = sample_lock();
     missing.tools.pop();
@@ -217,27 +341,46 @@ fn the_refusal_names_lock_for_offline_fixes_and_update_for_network_ones() {
 
 #[test]
 fn a_digest_problem_points_at_restoring_the_file() {
-    let text = render_lock(&sample_lock()).replace("\"version\": \"1.2.3\"", "\"version\": \"9.9.9\"");
+    let text =
+        render_lock(&sample_lock()).replace("\"version\": \"1.2.3\"", "\"version\": \"9.9.9\"");
     let parsed = parse_lock(&text, "toolchain.lock.json").expect("parses");
     let error = refusal(&compare(&sample_plan(), &parsed));
-    assert!(error.message.contains("restore toolchain.lock.json from version control"), "{error}");
+    assert!(
+        error
+            .message
+            .contains("restore toolchain.lock.json from version control"),
+        "{error}"
+    );
 }
 
 #[test]
 fn an_unknown_lock_field_and_a_bad_hash_are_config_errors_naming_the_path() {
     let mut value = rendered_value();
     value["tools"]["node"]["artifacts"]["linux-x64"]["sha256"] = Value::String("abc".to_string());
-    let error = parse_lock(&value.to_string(), "toolchain.lock.json").expect_err("a short hash is rejected");
+    let error = parse_lock(&value.to_string(), "toolchain.lock.json")
+        .expect_err("a short hash is rejected");
     assert_eq!(error.kind, ErrorKind::Config);
-    assert!(error.message.contains("tools.node.artifacts.linux-x64.sha256"), "{error}");
+    assert!(
+        error
+            .message
+            .contains("tools.node.artifacts.linux-x64.sha256"),
+        "{error}"
+    );
 
     let mut extra = rendered_value();
-    extra.as_object_mut().expect("an object").insert("surprise".to_string(), Value::Bool(true));
-    let unknown = parse_lock(&extra.to_string(), "toolchain.lock.json").expect_err("an unknown top-level field is rejected");
+    extra
+        .as_object_mut()
+        .expect("an object")
+        .insert("surprise".to_string(), Value::Bool(true));
+    let unknown = parse_lock(&extra.to_string(), "toolchain.lock.json")
+        .expect_err("an unknown top-level field is rejected");
     assert!(unknown.message.contains("$.surprise"), "{unknown}");
 
     let truncated = parse_lock("{", "toolchain.lock.json").expect_err("not JSON");
-    assert!(truncated.message.contains("is not valid JSON"), "{truncated}");
+    assert!(
+        truncated.message.contains("is not valid JSON"),
+        "{truncated}"
+    );
 }
 
 /// An artifact row keyed by something that is not a platform id is refused at decode time,
@@ -246,10 +389,19 @@ fn an_unknown_lock_field_and_a_bad_hash_are_config_errors_naming_the_path() {
 #[test]
 fn a_lock_artifact_row_for_an_unknown_platform_is_refused_with_the_platform_named() {
     let mut value = rendered_value();
-    let artifacts = value["tools"]["node"]["artifacts"].as_object_mut().expect("artifact rows");
+    let artifacts = value["tools"]["node"]["artifacts"]
+        .as_object_mut()
+        .expect("artifact rows");
     let row = artifacts.remove("linux-x64").expect("the row under test");
     artifacts.insert("linux-64x".to_string(), row);
-    let error = parse_lock(&value.to_string(), "toolchain.lock.json").expect_err("linux-64x is not a platform id");
-    assert!(error.message.contains("linux-64x"), "the message names the row: {error}");
-    assert!(error.message.contains("linux-x64"), "the message lists the known ids: {error}");
+    let error = parse_lock(&value.to_string(), "toolchain.lock.json")
+        .expect_err("linux-64x is not a platform id");
+    assert!(
+        error.message.contains("linux-64x"),
+        "the message names the row: {error}"
+    );
+    assert!(
+        error.message.contains("linux-x64"),
+        "the message lists the known ids: {error}"
+    );
 }

@@ -6,7 +6,11 @@ use music_player::track_entries::TrackRowModel;
 
 /// What:
 /// `track(index, title, current)` builds a track entry for the row tests.
-fn track(index: usize, title: &str, current: bool) -> TrackListEntry {
+fn track(
+    index: usize,
+    title: &str,
+    current: bool,
+) -> TrackListEntry {
     return TrackListEntry::RowEntry(TrackRowModel {
         index_in_library: index,
         title: title.to_string(),
@@ -81,7 +85,11 @@ fn current_row_position_counts_headers_and_returns_minus_one_without_current() {
 fn picker_heading_rows_precede_each_cell_and_hold_its_names() {
     let sections = rail_for(&["Abba".to_string(), "Beta".to_string()]);
     let picker = picker(&sections, "Beta");
-    let headings: Vec<&PickerName> = picker.names.iter().filter(|row| return row.section_start).collect();
+    let headings: Vec<&PickerName> = picker
+        .names
+        .iter()
+        .filter(|row| return row.section_start)
+        .collect();
     assert_eq!(headings.len(), 2);
     assert_eq!(headings[0].heading, "A");
     let beta_names: Vec<&str> = picker
@@ -112,8 +120,17 @@ fn picker_cell_key_equals_its_label() {
 /// `row` builds a track row (kind 0) or a header row (kind 1) with the given title.
 /// Why:
 /// the prefix tests only read titles and kinds.
-fn plain(kind: i32, title: &str) -> ListRow {
-    return ListRow { kind, title: title.to_string(), supporting: String::new(), current: false, index: if kind == 0 { 1 } else { -1 } };
+fn plain(
+    kind: i32,
+    title: &str,
+) -> ListRow {
+    return ListRow {
+        kind,
+        title: title.to_string(),
+        supporting: String::new(),
+        current: false,
+        index: if kind == 0 { 1 } else { -1 },
+    };
 }
 
 /// What:
@@ -126,7 +143,10 @@ fn titles(rows: &[ListRow]) -> Vec<&str> {
 
 #[test]
 fn rows_of_one_folder_lose_the_prefix_they_share() {
-    let mut rows = vec![plain(0, "かめりあ(Camellia) - Aegis"), plain(0, "かめりあ(Camellia) - Another Xronixle")];
+    let mut rows = vec![
+        plain(0, "かめりあ(Camellia) - Aegis"),
+        plain(0, "かめりあ(Camellia) - Another Xronixle"),
+    ];
     strip_shared_prefixes(&mut rows, "かめりあ(Camellia)");
     assert_eq!(titles(&rows), vec!["Aegis", "Another Xronixle"]);
 }
@@ -143,12 +163,19 @@ fn each_subfolder_run_finds_its_own_prefix() {
         plain(0, "01 Lonely"),
     ];
     strip_shared_prefixes(&mut rows, "Artist");
-    assert_eq!(titles(&rows), vec!["one", "two", "Disc 1", "a", "b", "Disc 2", "01 Lonely"]);
+    assert_eq!(
+        titles(&rows),
+        vec!["one", "two", "Disc 1", "a", "b", "Disc 2", "01 Lonely"]
+    );
 }
 
 #[test]
 fn a_single_row_loses_the_name_of_its_directory() {
-    let mut rows = vec![plain(0, "Artist - Intro"), plain(1, "Album"), plain(0, "Album - Song")];
+    let mut rows = vec![
+        plain(0, "Artist - Intro"),
+        plain(1, "Album"),
+        plain(0, "Album - Song"),
+    ];
     strip_shared_prefixes(&mut rows, "Artist");
     assert_eq!(titles(&rows), vec!["Intro", "Album", "Song"]);
 }
@@ -173,12 +200,33 @@ fn no_rows_and_numbered_rows_are_left_alone() {
 #[test]
 fn the_first_cell_of_each_writing_system_after_the_first_starts_a_rail_section() {
     // A Latin M, a Cyrillic М and a Greek Α look alike in the rail; D28 separates the writing systems with a hairline.
-    let names: Vec<String> = ["Madonna", "Muse", "Мумий Тролль", "Кино", "Αρλέτα"].iter().map(|name| return (*name).to_string()).collect();
+    let names: Vec<String> = ["Madonna", "Muse", "Мумий Тролль", "Кино", "Αρλέτα"]
+        .iter()
+        .map(|name| return (*name).to_string())
+        .collect();
     let sections = rail_for(&names);
     let picked = picker(&sections, "");
-    let starts: Vec<(&str, bool)> = picked.cells.iter().map(|cell| return (cell.label.as_str(), cell.section_start)).collect();
-    assert!(!starts[0].1, "the first cell has nothing above it: {starts:?}");
-    let section_starts = picked.cells.iter().filter(|cell| return cell.section_start).count();
-    assert_eq!(section_starts, sections.len() - 1, "one separator between each pair of writing systems: {starts:?}");
-    assert!(section_starts >= 2, "Latin, Cyrillic and Greek are three sections: {starts:?}");
+    let starts: Vec<(&str, bool)> = picked
+        .cells
+        .iter()
+        .map(|cell| return (cell.label.as_str(), cell.section_start))
+        .collect();
+    assert!(
+        !starts[0].1,
+        "the first cell has nothing above it: {starts:?}"
+    );
+    let section_starts = picked
+        .cells
+        .iter()
+        .filter(|cell| return cell.section_start)
+        .count();
+    assert_eq!(
+        section_starts,
+        sections.len() - 1,
+        "one separator between each pair of writing systems: {starts:?}"
+    );
+    assert!(
+        section_starts >= 2,
+        "Latin, Cyrillic and Greek are three sections: {starts:?}"
+    );
 }

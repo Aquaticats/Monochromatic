@@ -25,7 +25,10 @@
 /// ```ts
 /// import { Agent, AgentTable } from './caniuse';
 /// ```
-use crate::caniuse::{Agent, AgentTable};
+use crate::caniuse::{
+    Agent,
+    AgentTable,
+};
 /// What:
 ///  Import `BrowserslistError, Outcome` from `crate::error`.
 /// Why:
@@ -36,7 +39,10 @@ use crate::caniuse::{Agent, AgentTable};
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `parse_float, parse_latest_float` from `crate::js_number`.
 /// Why:
@@ -46,7 +52,10 @@ use crate::error::{BrowserslistError, Outcome};
 /// ```ts
 /// import { parseFloat, parseLatestFloat } from './js_number';
 /// ```
-use crate::js_number::{parse_float, parse_latest_float};
+use crate::js_number::{
+    parse_float,
+    parse_latest_float,
+};
 /// What:
 ///  Import `HashSet` from `std::collections::HashSet`.
 /// Why:
@@ -110,7 +119,10 @@ const DEAD_RULES: [DeadRule; 6] = [
 ];
 
 /// Whether a dash-joined range such as `10-11` has `version` as one of its parts.
-fn has_part(range: &str, version: &str) -> bool {
+fn has_part(
+    range: &str,
+    version: &str,
+) -> bool {
     for part in range.split('-') {
         if part == version {
             return true;
@@ -120,13 +132,21 @@ fn has_part(range: &str, version: &str) -> bool {
 }
 
 /// Format `<name> <version>` the way every browserslist result is spelled.
-fn entry(agent: &Agent, version: &str) -> String {
+fn entry(
+    agent: &Agent,
+    version: &str,
+) -> String {
     return format!("{} {}", agent.name, version);
 }
 
 /// The ray form:
 /// filter the released versions by comparing parsed numbers (NaN compares false).
-fn ray(table: &AgentTable, written: &str, bound: &str, keep: fn(&str, &str) -> bool) -> Outcome<Vec<String>> {
+fn ray(
+    table: &AgentTable,
+    written: &str,
+    bound: &str,
+    keep: fn(&str, &str) -> bool,
+) -> Outcome<Vec<String>> {
     let agent = table.require(written)?;
     let mut entries: Vec<String> = Vec::new();
     for version in agent.released() {
@@ -138,12 +158,18 @@ fn ray(table: &AgentTable, written: &str, bound: &str, keep: fn(&str, &str) -> b
 }
 
 /// `>=` compares the newest member of a joined range against the bound.
-fn at_least(version: &str, bound: &str) -> bool {
+fn at_least(
+    version: &str,
+    bound: &str,
+) -> bool {
     return parse_latest_float(version) >= parse_latest_float(bound);
 }
 
 /// `<=` compares the leading number of the version against the bound.
-fn at_most(version: &str, bound: &str) -> bool {
+fn at_most(
+    version: &str,
+    bound: &str,
+) -> bool {
     return parse_float(version) <= parse_float(bound);
 }
 
@@ -151,7 +177,10 @@ fn at_most(version: &str, bound: &str) -> bool {
 /// the version itself,
 /// a joined range it belongs to,
 /// or the only version a one-version browser has.
-fn normalize_version(agent: &Agent, version: &str) -> Option<String> {
+fn normalize_version(
+    agent: &Agent,
+    version: &str,
+) -> Option<String> {
     let versions = agent.versions();
     if versions.contains(&version) {
         return Some(version.to_string());
@@ -175,7 +204,11 @@ fn normalize_version(agent: &Agent, version: &str) -> Option<String> {
 /// try the version,
 /// then browserslist's `.0` variant,
 /// else fail like browserslist.
-fn exact(table: &AgentTable, written: &str, version: &str) -> Outcome<Vec<String>> {
+fn exact(
+    table: &AgentTable,
+    written: &str,
+    version: &str,
+) -> Outcome<Vec<String>> {
     let agent = table.require(written)?;
     if let Some(found) = normalize_version(agent, version) {
         return Ok(vec![entry(agent, &found)]);
@@ -186,7 +219,9 @@ fn exact(table: &AgentTable, written: &str, version: &str) -> Outcome<Vec<String
     if let Some(found) = normalize_version(agent, &variant) {
         return Ok(vec![entry(agent, &found)]);
     }
-    return Err(BrowserslistError::Browserslist { message: format!("Unknown version {version} of {written}") });
+    return Err(BrowserslistError::Browserslist {
+        message: format!("Unknown version {version} of {written}"),
+    });
 }
 
 /// What:
@@ -222,7 +257,10 @@ pub fn dead_set(table: &AgentTable) -> Outcome<Vec<String>> {
 /// ```ts
 /// function subtractDead(selected: string[], table: AgentTable): string[];
 /// ```
-pub fn subtract_dead(selected: &[String], table: &AgentTable) -> Outcome<Vec<String>> {
+pub fn subtract_dead(
+    selected: &[String],
+    table: &AgentTable,
+) -> Outcome<Vec<String>> {
     let dead: HashSet<String> = dead_set(table)?.into_iter().collect();
     let mut kept: Vec<String> = Vec::new();
     for candidate in selected {

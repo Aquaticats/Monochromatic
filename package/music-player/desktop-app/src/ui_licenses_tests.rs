@@ -6,7 +6,9 @@ use super::*;
 // What:     Collects every row of a model over `text`.
 fn rows_of(text: &'static str) -> Vec<String> {
     let lines = NoticeLines::new(text);
-    return (0..lines.row_count()).map(|row| return lines.row_data(row).expect("row in range").to_string()).collect();
+    return (0..lines.row_count())
+        .map(|row| return lines.row_data(row).expect("row in range").to_string())
+        .collect();
 }
 
 // What:     Lines split at newlines, blank lines stay as empty rows, and a final newline adds no empty row.
@@ -49,7 +51,10 @@ struct AddressSink {
 }
 
 impl std::io::Write for AddressSink {
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<usize> {
         self.address = Some(buffer.as_ptr() as usize);
         return Ok(buffer.len());
     }
@@ -64,7 +69,13 @@ impl std::io::Write for AddressSink {
 //           (55.5 MB became 57.8 MB when the page first read it); the `static` keeps one copy.
 #[test]
 fn the_page_and_the_licenses_flag_read_one_copy_of_the_notices() {
-    let mut sink = AddressSink { address: None };
+    let mut sink = AddressSink {
+        address: None,
+    };
     music_player::licenses::write_notices(&mut sink).expect("writing to the sink succeeds");
-    assert_eq!(sink.address, Some(NOTICES.as_ptr() as usize), "the binary carries a second copy of the notice text");
+    assert_eq!(
+        sink.address,
+        Some(NOTICES.as_ptr() as usize),
+        "the binary carries a second copy of the notice text"
+    );
 }

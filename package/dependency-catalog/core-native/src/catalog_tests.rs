@@ -14,12 +14,16 @@
 
 /// Imports `crate::catalog::parse_catalog`.
 use crate::catalog::parse_catalog;
+/// The default release floor the parser applies.
+use crate::catalog_settings::DEFAULT_MINIMUM_RELEASE_AGE;
 /// Imports `crate::error::Error`.
 use crate::error::Error;
 /// Imports `crate::types::{CatalogDocument, Entry, TrustPolicy}`.
-use crate::types::{CatalogDocument, Entry, TrustPolicy};
-/// The default release floor the parser applies.
-use crate::catalog_settings::DEFAULT_MINIMUM_RELEASE_AGE;
+use crate::types::{
+    CatalogDocument,
+    Entry,
+    TrustPolicy,
+};
 
 /// Parses `lines` joined as a catalog file.
 fn parse_lines(lines: &[&str]) -> Result<CatalogDocument, Error> {
@@ -31,7 +35,13 @@ fn parse_lines(lines: &[&str]) -> Result<CatalogDocument, Error> {
 /// and returns every issue location in order.
 fn issue_locations(lines: &[&str]) -> Vec<String> {
     return match parse_lines(lines) {
-        Err(Error::Catalog { issues, .. }) => issues.into_iter().map(|issue| return issue.location).collect(),
+        Err(Error::Catalog {
+            issues,
+            ..
+        }) => issues
+            .into_iter()
+            .map(|issue| return issue.location)
+            .collect(),
         other => panic!("expected a catalog error, got {other:?}"),
     };
 }
@@ -55,7 +65,11 @@ fn reads_default_entries_in_source_order() {
         "helix-core = { git = \"https://github.com/helix-editor/helix\", rev = \"ba40e547426b0f9896c8bdc699a4ab11f2b37dbc\" }",
     ])
     .expect("valid catalog");
-    let names: Vec<&str> = document.catalog.iter().map(|pair| return pair.0.as_str()).collect();
+    let names: Vec<&str> = document
+        .catalog
+        .iter()
+        .map(|pair| return pair.0.as_str())
+        .collect();
     assert_eq!(names, vec!["anyhow", "tracing-log", "helix-core"]);
     assert_eq!(document.catalog.get("anyhow"), Some(&registry(">=1.0.104")));
     assert_eq!(
@@ -130,12 +144,18 @@ fn reads_every_setting() {
     .expect("valid catalog");
     let settings = document.settings;
     assert!(settings.catalog_prune);
-    assert_eq!(settings.minimum_release_age_exclude, vec!["ring".to_string(), "zbus@5.19.0 || 5.19.1".to_string()]);
+    assert_eq!(
+        settings.minimum_release_age_exclude,
+        vec!["ring".to_string(), "zbus@5.19.0 || 5.19.1".to_string()]
+    );
     assert!(settings.minimum_release_age_exclude_prune);
     assert!(!settings.minimum_release_age_ignore_missing_time);
     assert!(settings.minimum_release_age_strict);
     assert_eq!(settings.trust_policy, TrustPolicy::NoDowngrade);
-    assert_eq!(settings.trust_policy_exclude, vec!["clap@4.6.7".to_string()]);
+    assert_eq!(
+        settings.trust_policy_exclude,
+        vec!["clap@4.6.7".to_string()]
+    );
     assert!(settings.trust_policy_exclude_prune);
     assert_eq!(settings.trust_policy_ignore_after, Some(525_600));
     assert!(settings.trust_lockfile);
@@ -144,8 +164,12 @@ fn reads_every_setting() {
 /// An explicit `minimumReleaseAgeStrict = false` is honoured.
 #[test]
 fn honours_explicit_strict_false() {
-    let document: CatalogDocument =
-        parse_lines(&["minimumReleaseAge = 60", "minimumReleaseAgeStrict = false", "[catalog]"]).expect("valid catalog");
+    let document: CatalogDocument = parse_lines(&[
+        "minimumReleaseAge = 60",
+        "minimumReleaseAgeStrict = false",
+        "[catalog]",
+    ])
+    .expect("valid catalog");
     assert!(!document.settings.minimum_release_age_strict);
 }
 
@@ -153,7 +177,8 @@ fn honours_explicit_strict_false() {
 /// as it did in the TypeScript reader.
 #[test]
 fn accepts_whole_float_minutes() {
-    let document: CatalogDocument = parse_lines(&["minimumReleaseAge = 60.0", "[catalog]"]).expect("valid catalog");
+    let document: CatalogDocument =
+        parse_lines(&["minimumReleaseAge = 60.0", "[catalog]"]).expect("valid catalog");
     assert_eq!(document.settings.minimum_release_age, 60);
 }
 
@@ -168,7 +193,13 @@ fn rejects_use_site_keys() {
             "turso = { version = \">=0.8\", default-features = false, optional = true }",
             "own = { path = \"../own\" }",
         ]),
-        vec!["catalog.tokio", "catalog.turso", "catalog.turso", "catalog.own", "catalog.own"]
+        vec![
+            "catalog.tokio",
+            "catalog.turso",
+            "catalog.turso",
+            "catalog.own",
+            "catalog.own"
+        ]
     );
 }
 
@@ -234,7 +265,12 @@ fn rejects_adversarial_entries() {
 #[test]
 fn rejects_unknown_top_level_and_malformed_tables() {
     assert_eq!(
-        issue_locations(&["dependencies = {}", "catalog = 1", "[catalogs.default]", "a = \"1\""]),
+        issue_locations(&[
+            "dependencies = {}",
+            "catalog = 1",
+            "[catalogs.default]",
+            "a = \"1\""
+        ]),
         vec!["dependencies", "catalog", "catalogs.default"]
     );
     assert_eq!(issue_locations(&["catalogs = 1"]), vec!["catalogs"]);
@@ -283,14 +319,21 @@ fn rejects_mixed_lists_and_quoted_minutes() {
 /// not a catalog error.
 #[test]
 fn reports_invalid_toml() {
-    assert!(matches!(parse_lines(&["[catalog", "x = "]), Err(Error::Toml { .. })));
+    assert!(matches!(
+        parse_lines(&["[catalog", "x = "]),
+        Err(Error::Toml { .. })
+    ));
 }
 
 /// The message names each issue,
 /// its remedy and the decision record.
 #[test]
 fn message_names_issue_remedy_and_decision_doc() {
-    let error: Error = parse_lines(&["[catalog]", "tokio = { version = \">=1\", features = [\"rt\"] }"]).expect_err("invalid");
+    let error: Error = parse_lines(&[
+        "[catalog]",
+        "tokio = { version = \">=1\", features = [\"rt\"] }",
+    ])
+    .expect_err("invalid");
     let message: String = error.to_string();
     assert!(message.contains("catalog.tokio: declares `features`."));
     assert!(message.contains("doc/decision/rust-dependency-catalog.md"));

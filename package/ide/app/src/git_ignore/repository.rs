@@ -4,7 +4,10 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -58,7 +61,11 @@ fn first_line(path: &Path) -> Option<String> {
 ///  resolved against the file's directory,
 ///  and that git directory may name a common directory in `commondir`,
 ///  resolved against itself.
-fn common_dir(top: &Path, dot_git: &Path, is_file: bool) -> PathBuf {
+fn common_dir(
+    top: &Path,
+    dot_git: &Path,
+    is_file: bool,
+) -> PathBuf {
     if !is_file {
         return dot_git.to_path_buf();
     }

@@ -19,7 +19,10 @@
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// Imports `Map`,
 /// `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The configuration key that lists the files the server ignores.
 pub const EXCLUDE_KEY: &str = "harper-ls.excludePatterns";
@@ -40,7 +43,11 @@ pub const TITLE_CASE_DESCRIPTION: &str = "Prompts you to use title case in relev
 /// ```ts
 /// function parseObject(text: string, label: string): Record<string, unknown>
 /// ```
-pub fn parse_object(text: &str, label: &str, path: &str) -> Result<Map<String, Value>, Diagnostic> {
+pub fn parse_object(
+    text: &str,
+    label: &str,
+    path: &str,
+) -> Result<Map<String, Value>, Diagnostic> {
     match serde_json::from_str::<Value>(text) {
         Ok(Value::Object(object)) => return Ok(object),
         Ok(_) => {
@@ -77,7 +84,10 @@ fn linter_key(name: &str) -> String {
 /// ```ts
 /// function disableLinters(config: Config, names: string[]): void
 /// ```
-pub fn disable_linters(config: &mut Map<String, Value>, names: &[String]) {
+pub fn disable_linters(
+    config: &mut Map<String, Value>,
+    names: &[String],
+) {
     for name in names {
         config.insert(linter_key(name), Value::Bool(false));
     }
@@ -97,7 +107,10 @@ pub fn disable_linters(config: &mut Map<String, Value>, names: &[String]) {
 /// ```ts
 /// function unionExcludes(config: Config, additions: string[]): void
 /// ```
-pub fn union_excludes(config: &mut Map<String, Value>, additions: &[String]) {
+pub fn union_excludes(
+    config: &mut Map<String, Value>,
+    additions: &[String],
+) {
     if additions.is_empty() {
         return;
     }
@@ -116,7 +129,10 @@ pub fn union_excludes(config: &mut Map<String, Value>, additions: &[String]) {
             members.push(addition.clone());
         }
     }
-    config.insert(EXCLUDE_KEY.to_string(), Value::Array(members.into_iter().map(Value::String).collect()));
+    config.insert(
+        EXCLUDE_KEY.to_string(),
+        Value::Array(members.into_iter().map(Value::String).collect()),
+    );
 }
 
 /// What:
@@ -130,7 +146,10 @@ pub fn union_excludes(config: &mut Map<String, Value>, additions: &[String]) {
 /// ```ts
 /// function scopedConfig(base: Config, disabled: string[]): Config
 /// ```
-pub fn scoped_config(base: &Map<String, Value>, disabled: &[String]) -> Map<String, Value> {
+pub fn scoped_config(
+    base: &Map<String, Value>,
+    disabled: &[String],
+) -> Map<String, Value> {
     let mut scoped = base.clone();
     scoped.shift_remove(EXCLUDE_KEY);
     disable_linters(&mut scoped, disabled);
@@ -157,7 +176,10 @@ pub fn with_schema_defaults(mut schema: Map<String, Value>) -> Map<String, Value
         let mut property = Map::new();
         property.insert("type".to_string(), Value::String("boolean".to_string()));
         property.insert("default".to_string(), Value::Bool(true));
-        property.insert("description".to_string(), Value::String(TITLE_CASE_DESCRIPTION.to_string()));
+        property.insert(
+            "description".to_string(),
+            Value::String(TITLE_CASE_DESCRIPTION.to_string()),
+        );
         properties.insert(TITLE_CASE_PROPERTY.to_string(), Value::Object(property));
     }
     schema.insert("properties".to_string(), Value::Object(properties));
@@ -178,7 +200,9 @@ pub fn with_schema_defaults(mut schema: Map<String, Value>) -> Map<String, Value
 pub fn format_object(object: Map<String, Value>) -> String {
     let value = Value::Object(object);
     // A `Value` always serializes; the compact text is only a defensive fallback.
-    let Ok(pretty) = serde_json::to_string_pretty(&value) else { return value.to_string() };
+    let Ok(pretty) = serde_json::to_string_pretty(&value) else {
+        return value.to_string();
+    };
     return pretty;
 }
 

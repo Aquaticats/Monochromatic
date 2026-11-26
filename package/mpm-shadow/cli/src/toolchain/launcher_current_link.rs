@@ -34,7 +34,10 @@ use std::ffi::OsStr;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
@@ -50,9 +53,17 @@ use super::util::file_name_text;
 
 /// The version the lock pins for the tool,
 /// read from the lock's text.
-pub fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
+pub fn locked_version(
+    lock_text: &str,
+    tool_id: &str,
+) -> Option<String> {
     let lock: Value = serde_json::from_str(lock_text).ok()?;
-    return lock.get("tools")?.get(tool_id)?.get("version")?.as_str().map(str::to_string);
+    return lock
+        .get("tools")?
+        .get(tool_id)?
+        .get("version")?
+        .as_str()
+        .map(str::to_string);
 }
 
 /// Whether a path is a link named `current`,
@@ -196,17 +207,34 @@ pub fn missing_program_advice(facts: MissingProgram<'_>) -> String {
         ScopeKind::Global => "this machine's global lock",
     };
     let versions: String = match (locked_pin, current_version) {
-        (Some(locked), Some(used)) => format!("{} is locked at {locked} in {where_locked} and its `current` link names {used}, but", facts.tool_id),
-        (Some(locked), None) => format!("{} is locked at {locked} in {where_locked} and has no readable `current` link, so", facts.tool_id),
+        (Some(locked), Some(used)) => format!(
+            "{} is locked at {locked} in {where_locked} and its `current` link names {used}, but",
+            facts.tool_id
+        ),
+        (Some(locked), None) => format!(
+            "{} is locked at {locked} in {where_locked} and has no readable `current` link, so",
+            facts.tool_id
+        ),
         (None, Some(used)) => format!("{}'s `current` link names {used}, but", facts.tool_id),
         (None, None) => format!("{} has no readable `current` link, so", facts.tool_id),
     };
     let command: String = match facts.scope {
         ScopeKind::Repo => {
-            let tree: PathBuf = facts.lock_file.parent().map(Path::to_path_buf).unwrap_or_default();
-            format!("run `mpm install` in {} to make this tree's links again", tree.display())
+            let tree: PathBuf = facts
+                .lock_file
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default();
+            format!(
+                "run `mpm install` in {} to make this tree's links again",
+                tree.display()
+            )
         }
-        ScopeKind::Global => "run `mpm-shadow install -g` to make the machine-global links again".to_string(),
+        ScopeKind::Global => {
+            "run `mpm-shadow install -g` to make the machine-global links again".to_string()
+        }
     };
-    return format!("{versions} no program named {name} was found under `current` or at the recorded path; {command}");
+    return format!(
+        "{versions} no program named {name} was found under `current` or at the recorded path; {command}"
+    );
 }

@@ -7,42 +7,86 @@
 //! every wait advances timers and lets the workers answer.
 
 /// The production setter and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// Fixture records,
 /// the injected pair of snapshots,
 /// and the pointer helpers of the annotation tests.
-use super::annotation_tests::{TEXT_TOP, above, block, click, hint, painted, problem};
+use super::annotation_tests::{
+    TEXT_TOP,
+    above,
+    block,
+    click,
+    hint,
+    painted,
+    problem,
+};
 /// The caret position the presses leave behind.
 use super::caret_tests::position;
 /// The reader fixture.
 use super::find_tests::Reader;
 /// The counters of the window thread's work.
-use super::overscan_tile_tests::{counts, reset};
+use super::overscan_tile_tests::{
+    counts,
+    reset,
+};
 /// The most lines the window thread brings in for one new width.
 use super::rewrap::REWRAP_LINES;
 /// Window sizing for exact text widths.
-use super::sidebar_tests::{TEXT_LEFT, minimap_beside, resize};
+use super::sidebar_tests::{
+    TEXT_LEFT,
+    minimap_beside,
+    resize,
+};
 /// The worker's build gate.
-use super::tile_build::{BUILD_GATE, PASS_GATE};
+use super::tile_build::{
+    BUILD_GATE,
+    PASS_GATE,
+};
 /// Wrapped fixtures,
 /// the open reader,
 /// and bounded waits.
-use super::wrap_tests::{long_text, open, settled, tabbed_text};
+use super::wrap_tests::{
+    long_text,
+    open,
+    settled,
+    tabbed_text,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Snapshot records exactly as the Language module builds them.
 use ide_app::{
-    document::{ReadingAffinity, ReadingPosition},
+    document::{
+        ReadingAffinity,
+        ReadingPosition,
+    },
     language::{
-        diagnostics::{DiagnosticsSnapshot, Severity, SourceGroup},
+        diagnostics::{
+            DiagnosticsSnapshot,
+            Severity,
+            SourceGroup,
+        },
         hints::HintsSnapshot,
     },
-    row_map::{CODE_ROW, Place},
+    row_map::{
+        CODE_ROW,
+        Place,
+    },
     shaped_text::TextShaper,
-    virtual_row::{BLOCK_GAP, CONTINUATION_INDENT, ROW_HEIGHT},
+    virtual_row::{
+        BLOCK_GAP,
+        CONTINUATION_INDENT,
+        ROW_HEIGHT,
+    },
 };
 /// Toolkit access.
-use slint::{ComponentHandle, LogicalPosition, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    LogicalPosition,
+    platform::update_timers_and_animations,
+};
 /// Snapshots are shared values.
 use std::sync::Arc;
 
@@ -93,7 +137,12 @@ fn annotate_line(opened: &Reader) {
 
 /// The window point on visual row `visual` of `line`,
 /// `x` logical pixels into the text.
-fn on_row(opened: &Reader, line: usize, visual: usize, x: f32) -> LogicalPosition {
+fn on_row(
+    opened: &Reader,
+    line: usize,
+    visual: usize,
+    x: f32,
+) -> LogicalPosition {
     let top = opened.source.borrow().row_map.code_top(line);
     return LogicalPosition::new(
         TEXT_LEFT + x,

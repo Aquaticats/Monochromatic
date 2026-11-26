@@ -13,24 +13,51 @@ use super::find_tests::Reader;
 /// the window sizing,
 /// and the reads of the minimap's texture.
 use super::{
-    minimap_tests::{bands_of, picture_still},
-    sidebar_tests::{HEADER, TEXT_LEFT, minimap_beside},
-    tile_reads::{draw_minimap, minimap_pixels, same_pixels, same_texel},
-    wrap_tests::{long_text, open, settled},
+    minimap_tests::{
+        bands_of,
+        picture_still,
+    },
+    sidebar_tests::{
+        HEADER,
+        TEXT_LEFT,
+        minimap_beside,
+    },
+    tile_reads::{
+        draw_minimap,
+        minimap_pixels,
+        same_pixels,
+        same_texel,
+    },
+    wrap_tests::{
+        long_text,
+        open,
+        settled,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// The window's frame,
 ///  read back from the GPU,
 ///  and how often the window was given a new list of the minimap's textures.
-use crate::native::{gpu_snapshot::snapshot, gpu_tile::SLICE_LISTS_SET};
+use crate::native::{
+    gpu_snapshot::snapshot,
+    gpu_tile::SLICE_LISTS_SET,
+};
 /// The device's texture limit,
 ///  and lowering it for a test.
-use ide_app::shaped_text::{set_texture_dimension, texture_dimension};
+use ide_app::shaped_text::{
+    set_texture_dimension,
+    texture_dimension,
+};
 /// Toolkit events.
 use slint::{
-    ComponentHandle, LogicalSize, Rgba8Pixel,
-    platform::{WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalSize,
+    Rgba8Pixel,
+    platform::{
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Counters are atomic.
 use std::sync::atomic::Ordering;
@@ -39,7 +66,10 @@ use std::sync::atomic::Ordering;
 /// and the line measurements have arrived when `measured` asks for them.
 /// A window as tall as twelve thousand pixels makes a tile the raster limit cuts,
 /// whose measurement pass is not what these tests are about.
-fn tall(height: f32, measured: bool) -> (tempfile::TempDir, Reader) {
+fn tall(
+    height: f32,
+    measured: bool,
+) -> (tempfile::TempDir, Reader) {
     let (project, opened) = open(&long_text(400));
     let window = &opened.window;
     window.window().dispatch_event(WindowEvent::Resized {
@@ -87,7 +117,10 @@ fn tall(height: f32, measured: bool) -> (tempfile::TempDir, Reader) {
 ///  so it is graded;
 ///  a block would be one flat run of a single coverage,
 ///  while glyphs make the coverage rise and fall with every word and gap.
-fn textured_rows(pixels: &[slint::Rgba8Pixel], width: usize) -> (usize, usize) {
+fn textured_rows(
+    pixels: &[slint::Rgba8Pixel],
+    width: usize,
+) -> (usize, usize) {
     let mut inked_rows = 0;
     let mut glyph_rows = 0;
     for row in pixels.chunks(width) {
@@ -205,7 +238,11 @@ fn long_file(lines: usize) -> String {
 /// then resize its window to `height` and wait for the picture of that
 /// height,
 /// drawn.
-fn resized_to(opened: &Reader, height: f32, track: f32) {
+fn resized_to(
+    opened: &Reader,
+    height: f32,
+    track: f32,
+) {
     let window = &opened.window;
     {
         let mut waiting = Waiting::slow();
@@ -370,7 +407,10 @@ fn minimap_column(window: &crate::native::AppWindow) -> (Vec<Rgba8Pixel>, usize)
 
 /// Lower the device limit the shaped text records to `limit` and wait for the picture of the same bands,
 ///  cut for it.
-fn restacked(opened: &Reader, limit: u32) {
+fn restacked(
+    opened: &Reader,
+    limit: u32,
+) {
     let window = &opened.window;
     set_texture_dimension(limit);
     // The window asks for a picture after a render of its own; a change of the limit alone starts none.
@@ -395,7 +435,11 @@ fn restacked(opened: &Reader, limit: u32) {
 
 /// Whether `stacked` is `whole` shifted down by one row of `width` texels,
 ///  which no picture of text equals.
-fn shifted_equals(whole: &[Rgba8Pixel], stacked: &[Rgba8Pixel], width: usize) -> bool {
+fn shifted_equals(
+    whole: &[Rgba8Pixel],
+    stacked: &[Rgba8Pixel],
+    width: usize,
+) -> bool {
     return same_pixels(&whole[width..], &stacked[..stacked.len() - width]);
 }
 

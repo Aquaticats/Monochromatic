@@ -17,7 +17,12 @@
 /// `ManifestFile`,
 /// `SyncInput`,
 /// `sync` from `monochromatic_dependency_catalog`.
-use monochromatic_dependency_catalog::{Error, ManifestFile, SyncInput, sync};
+use monochromatic_dependency_catalog::{
+    Error,
+    ManifestFile,
+    SyncInput,
+    sync,
+};
 /// Imports `RuleConfig` from `monochromatic_file_enforcer::config_types`.
 use monochromatic_file_enforcer::config_types::RuleConfig;
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
@@ -28,7 +33,12 @@ use monochromatic_file_enforcer::real_fs::EntryKind;
 /// `Rule`,
 /// `RuleBuilder`,
 /// `RulePlan` from `monochromatic_file_enforcer::rule`.
-use monochromatic_file_enforcer::rule::{Change, Rule, RuleBuilder, RulePlan};
+use monochromatic_file_enforcer::rule::{
+    Change,
+    Rule,
+    RuleBuilder,
+    RulePlan,
+};
 /// Imports `View` from `monochromatic_file_enforcer::view`.
 use monochromatic_file_enforcer::view::View;
 /// Imports `expand_glob` from `monochromatic_file_enforcer::view_glob`.
@@ -50,13 +60,27 @@ pub struct RustCatalogBuilder;
 impl RuleBuilder for RustCatalogBuilder {
     /// Build the rule,
     /// or explain that the entry is another kind.
-    fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
+    fn build(
+        &self,
+        config: &RuleConfig,
+    ) -> Result<Box<dyn Rule>, Diagnostic> {
         match config {
-            RuleConfig::RustCatalog { id, catalog, manifests } => {
-                return Ok(Box::new(RustCatalogRule { id: id.clone(), catalog: catalog.clone(), manifests: manifests.clone() }));
+            RuleConfig::RustCatalog {
+                id,
+                catalog,
+                manifests,
+            } => {
+                return Ok(Box::new(RustCatalogRule {
+                    id: id.clone(),
+                    catalog: catalog.clone(),
+                    manifests: manifests.clone(),
+                }));
             }
             other => {
-                let message = format!("the rust-catalog builder was given a rule of kind {}", other.kind());
+                let message = format!(
+                    "the rust-catalog builder was given a rule of kind {}",
+                    other.kind()
+                );
                 return Err(Diagnostic::new("kind-unknown", &message).with_rule(other.id()));
             }
         }
@@ -91,14 +115,36 @@ pub struct RustCatalogRule {
 /// ```ts
 /// function diagnose(error: CatalogError, catalog: string, rule: string): Diagnostic
 /// ```
-fn diagnose(error: &Error, catalog: &str, rule: &str) -> Diagnostic {
+fn diagnose(
+    error: &Error,
+    catalog: &str,
+    rule: &str,
+) -> Diagnostic {
     let message = error.to_string();
     match error {
-        Error::Toml { path, .. } => return Diagnostic::new("manifest-invalid", &message).with_path(path).with_rule(rule),
-        Error::Catalog { source_path, .. } => {
-            return Diagnostic::new("catalog-invalid", &message).with_path(source_path).with_rule(rule);
+        Error::Toml {
+            path,
+            ..
+        } => {
+            return Diagnostic::new("manifest-invalid", &message)
+                .with_path(path)
+                .with_rule(rule);
         }
-        Error::Sync { .. } => return Diagnostic::new("catalog-sync-failed", &message).with_path(catalog).with_rule(rule),
+        Error::Catalog {
+            source_path,
+            ..
+        } => {
+            return Diagnostic::new("catalog-invalid", &message)
+                .with_path(source_path)
+                .with_rule(rule);
+        }
+        Error::Sync {
+            ..
+        } => {
+            return Diagnostic::new("catalog-sync-failed", &message)
+                .with_path(catalog)
+                .with_rule(rule);
+        }
     }
 }
 
@@ -115,12 +161,17 @@ impl RustCatalogRule {
     /// ```ts
     /// readCatalog(view: View): string
     /// ```
-    fn read_catalog(&self, view: &mut View) -> Result<String, Diagnostic> {
+    fn read_catalog(
+        &self,
+        view: &mut View,
+    ) -> Result<String, Diagnostic> {
         match view.read_text(&self.catalog)? {
             Some(text) => return Ok(text),
             None => {
                 let message = format!("the dependency catalog {} does not exist", self.catalog);
-                return Err(Diagnostic::new("catalog-missing", &message).with_path(&self.catalog).with_rule(&self.id));
+                return Err(Diagnostic::new("catalog-missing", &message)
+                    .with_path(&self.catalog)
+                    .with_rule(&self.id));
             }
         }
     }
@@ -136,7 +187,10 @@ impl RustCatalogRule {
     /// ```ts
     /// readManifests(view: View): ManifestFile[]
     /// ```
-    fn read_manifests(&self, view: &mut View) -> Result<Vec<ManifestFile>, Diagnostic> {
+    fn read_manifests(
+        &self,
+        view: &mut View,
+    ) -> Result<Vec<ManifestFile>, Diagnostic> {
         let mut paths: Vec<String> = Vec::new();
         for pattern in &self.manifests {
             paths.extend(expand_glob(view, pattern, EntryKind::File)?);
@@ -146,7 +200,10 @@ impl RustCatalogRule {
         let mut files: Vec<ManifestFile> = Vec::new();
         for path in paths {
             if let Some(source) = view.read_text(&path)? {
-                files.push(ManifestFile { path, source });
+                files.push(ManifestFile {
+                    path,
+                    source,
+                });
             }
         }
         return Ok(files);
@@ -182,20 +239,32 @@ impl Rule for RustCatalogRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let catalog_source = self.read_catalog(view)?;
         let manifests = self.read_manifests(view)?;
-        let input = SyncInput { catalog_path: &self.catalog, catalog_source: &catalog_source, manifests: &manifests };
+        let input = SyncInput {
+            catalog_path: &self.catalog,
+            catalog_source: &catalog_source,
+            manifests: &manifests,
+        };
         let output = match sync(&input) {
             Ok(output) => output,
             Err(error) => return Err(diagnose(&error, &self.catalog, &self.id)),
         };
         let mut plan = RulePlan::default();
         for file in output.drift() {
-            plan.changes.push(Change::Write { path: file.path.clone(), content: file.expected.clone().into_bytes(), mode: None });
+            plan.changes.push(Change::Write {
+                path: file.path.clone(),
+                content: file.expected.clone().into_bytes(),
+                mode: None,
+            });
         }
         for warning in &output.warnings {
-            plan.warnings.push(Diagnostic::new("catalog-warning", warning).with_rule(&self.id));
+            plan.warnings
+                .push(Diagnostic::new("catalog-warning", warning).with_rule(&self.id));
         }
         return Ok(plan);
     }

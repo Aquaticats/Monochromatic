@@ -8,12 +8,22 @@ use crate::git_ignore::IgnoreAnswer;
 use crate::workspace::DirectoryEntry;
 /// Invalid snapshots are errors,
 ///  not partial updates or empty-directory fallbacks.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Sets detect duplicate paths without changing input order;
 ///  paths retain non-UTF-8 names.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Component, Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -27,7 +37,10 @@ use std::{
 /// ```ts
 /// const liesUnder = (path: string, removed: Set<string>) => ancestors(path).some((parent) => removed.has(parent));
 /// ```
-fn lies_under(path: &Path, removed: &BTreeSet<PathBuf>) -> bool {
+fn lies_under(
+    path: &Path,
+    removed: &BTreeSet<PathBuf>,
+) -> bool {
     for parent in path.ancestors() {
         if removed.contains(parent) {
             return true;
@@ -48,7 +61,10 @@ fn lies_under(path: &Path, removed: &BTreeSet<PathBuf>) -> bool {
 /// ```ts
 /// for (const path of [...cache.keys()]) if (liesUnder(path, removed)) cache.delete(path);
 /// ```
-fn prune_map<Value>(cache: &mut BTreeMap<PathBuf, Value>, removed: &BTreeSet<PathBuf>) {
+fn prune_map<Value>(
+    cache: &mut BTreeMap<PathBuf, Value>,
+    removed: &BTreeSet<PathBuf>,
+) {
     let mut doomed: Vec<PathBuf> = Vec::new();
     for path in cache.keys() {
         if lies_under(path, removed) {
@@ -61,7 +77,10 @@ fn prune_map<Value>(cache: &mut BTreeMap<PathBuf, Value>, removed: &BTreeSet<Pat
 }
 
 /// The same pruning for a set of paths.
-fn prune_set(cache: &mut BTreeSet<PathBuf>, removed: &BTreeSet<PathBuf>) {
+fn prune_set(
+    cache: &mut BTreeSet<PathBuf>,
+    removed: &BTreeSet<PathBuf>,
+) {
     let mut doomed: Vec<PathBuf> = Vec::new();
     for path in cache.iter() {
         if lies_under(path, removed) {
@@ -74,7 +93,10 @@ fn prune_set(cache: &mut BTreeSet<PathBuf>, removed: &BTreeSet<PathBuf>) {
 }
 
 /// Check one snapshot independently so a rejected reply cannot partly update expansion state.
-fn validate(directory: &Path, entries: &[DirectoryEntry]) -> Result<()> {
+fn validate(
+    directory: &Path,
+    entries: &[DirectoryEntry],
+) -> Result<()> {
     // What: BTreeSet::new owns unique keys; Vec would permit duplicates and require repeated scans.
     // Why: Duplicate row paths must be rejected without sorting the displayed entries.
     //
@@ -127,7 +149,11 @@ impl FileTree {
     /// Removed or reclassified subtrees lose stale caches and pending reads.
     /// The snapshot has no ignored entries,
     ///  as before an answer exists.
-    pub fn apply_listing(&mut self, directory: &Path, entries: Vec<DirectoryEntry>) -> Result<()> {
+    pub fn apply_listing(
+        &mut self,
+        directory: &Path,
+        entries: Vec<DirectoryEntry>,
+    ) -> Result<()> {
         return self.apply_listing_with(directory, entries, IgnoreAnswer::default());
     }
 

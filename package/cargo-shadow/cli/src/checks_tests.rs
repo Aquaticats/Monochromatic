@@ -7,10 +7,16 @@
 // ```ts
 // import { Name } from './module.ts';
 // ```
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 // Imports `monochromatic_dependency_catalog::{Settings...`.
-use monochromatic_dependency_catalog::{Settings, TrustPolicy};
+use monochromatic_dependency_catalog::{
+    Settings,
+    TrustPolicy,
+};
 
 // Imports `crate::checks::check_trust`.
 use crate::checks::check_trust;
@@ -98,7 +104,10 @@ struct OneCrate {
 }
 
 impl Registry for OneCrate {
-    fn pubtimes(&self, _name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+    fn pubtimes(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError> {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
         //
@@ -110,12 +119,19 @@ impl Registry for OneCrate {
         // Constructor `BTreeMap::new()`: an empty owned collection or a boxed value.
         return Ok(BTreeMap::new());
     }
-    fn yanked(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn yanked(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
         return Ok(BTreeSet::new());
     }
-    fn history(&self, _name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+    fn history(
+        &self,
+        _name: &str,
+        _versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError> {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
         // Why:      The copy can be stored or moved elsewhere while the original stays in place.
@@ -127,7 +143,10 @@ impl Registry for OneCrate {
         // ```
         return Ok(self.history.clone());
     }
-    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn owners(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         self.owner_lookups.set(self.owner_lookups.get() + 1);
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.clone()`: an independent owned copy.
@@ -135,7 +154,11 @@ impl Registry for OneCrate {
     }
 }
 
-fn record(num: &str, created_at: &str, publisher_id: &str) -> VersionRecord {
+fn record(
+    num: &str,
+    created_at: &str,
+    publisher_id: &str,
+) -> VersionRecord {
     return VersionRecord {
         // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
         // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
@@ -183,7 +206,10 @@ fn an_owner_who_raises_the_earlier_release_makes_a_later_release_by_a_stranger_a
         // console.error(text);   // eprintln!
         // [a, b]            // vec![a, b]
         // ```
-        history: vec![record("1.0.0", "2024-01-01T00:00:00Z", "1"), record("1.0.1", "2025-01-01T00:00:00Z", "2")],
+        history: vec![
+            record("1.0.0", "2024-01-01T00:00:00Z", "1"),
+            record("1.0.1", "2025-01-01T00:00:00Z", "2"),
+        ],
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
         // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
@@ -206,7 +232,10 @@ fn an_owner_who_raises_the_earlier_release_makes_a_later_release_by_a_stranger_a
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Typed binding: `candidate: Vec<LockedVersion>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let candidate: Vec<LockedVersion> = vec![LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
+    let candidate: Vec<LockedVersion> = vec![LockedVersion {
+        name: "dep".to_string(),
+        version: "1.0.1".to_string(),
+    }];
 
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
     // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
@@ -239,7 +268,10 @@ fn the_owner_list_is_not_asked_when_it_cannot_change_the_verdict() {
     // Typed binding: `registry: OneCrate`.
     let registry: OneCrate = OneCrate {
         // Macro `vec!`: builds or prints text (or a list) from a template.
-        history: vec![record("1.0.0", "2024-01-01T00:00:00Z", "1"), record("1.0.1", "2025-01-01T00:00:00Z", "1")],
+        history: vec![
+            record("1.0.0", "2024-01-01T00:00:00Z", "1"),
+            record("1.0.1", "2025-01-01T00:00:00Z", "1"),
+        ],
         // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
         owners: BTreeSet::new(),
         // Constructor `Cell::new(`: an empty owned collection or a boxed value.
@@ -248,7 +280,10 @@ fn the_owner_list_is_not_asked_when_it_cannot_change_the_verdict() {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Typed binding: `candidate: Vec<LockedVersion>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let candidate: Vec<LockedVersion> = vec![LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
+    let candidate: Vec<LockedVersion> = vec![LockedVersion {
+        name: "dep".to_string(),
+        version: "1.0.1".to_string(),
+    }];
 
     // Borrow `&candidate`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.

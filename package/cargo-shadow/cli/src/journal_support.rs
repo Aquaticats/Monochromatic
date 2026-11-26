@@ -19,14 +19,20 @@ use std::fs;
 // // TS has one type for this: string
 // ```
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `crate::crates::LockSnapshot`.
 /// Imports `crate::crates::LockSnapshot` for this file.
 use crate::crates::LockSnapshot;
 // Imports `crate::journal::{JOURNAL_DIR, begin}`.
 /// Imports `crate::journal::{JOURNAL_DIR, begin}` for this file.
-use crate::journal::{JOURNAL_DIR, begin};
+use crate::journal::{
+    JOURNAL_DIR,
+    begin,
+};
 // Imports `crate::manifest_edit::ManifestEdit`.
 /// Imports `crate::manifest_edit::ManifestEdit` for this file.
 use crate::manifest_edit::ManifestEdit;
@@ -35,7 +41,11 @@ use crate::manifest_edit::ManifestEdit;
 /// the transaction is begun and then
 /// dropped,
 /// so nothing holds it any more and nothing finished it.
-pub fn plant(root: &Path, snapshots: &[LockSnapshot], manifests: &[ManifestEdit]) -> PathBuf {
+pub fn plant(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+    manifests: &[ManifestEdit],
+) -> PathBuf {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
     //
@@ -62,7 +72,9 @@ pub fn plant(root: &Path, snapshots: &[LockSnapshot], manifests: &[ManifestEdit]
     let transaction = begin(root, snapshots, !manifests.is_empty()).expect("begin");
     if !manifests.is_empty() {
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        transaction.add_manifests(manifests).expect("journals the manifests");
+        transaction
+            .add_manifests(manifests)
+            .expect("journals the manifests");
     }
     drop(transaction);
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
@@ -101,7 +113,12 @@ pub fn plant(root: &Path, snapshots: &[LockSnapshot], manifests: &[ManifestEdit]
     // let x = ...;   // plain Rust `let` is TS `const`
     // ```
     // Typed binding: `added: Vec<PathBuf>`.
-    let mut added: Vec<PathBuf> = journal_dirs(root).into_iter().filter(|path| { return !before.contains(path); }).collect();
+    let mut added: Vec<PathBuf> = journal_dirs(root)
+        .into_iter()
+        .filter(|path| {
+            return !before.contains(path);
+        })
+        .collect();
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
     //
@@ -111,7 +128,11 @@ pub fn plant(root: &Path, snapshots: &[LockSnapshot], manifests: &[ManifestEdit]
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    assert_eq!(added.len(), 1, "expected exactly one new journal: {added:?}");
+    assert_eq!(
+        added.len(),
+        1,
+        "expected exactly one new journal: {added:?}"
+    );
     return added.remove(0);
 }
 
@@ -148,10 +169,22 @@ pub fn journal_dirs(root: &Path) -> Vec<PathBuf> {
     let listing = match fs::read_dir(&directory) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
-        Err(error) => panic!("the journals of {} cannot be listed ({error}): an unreadable directory is not an empty one", directory.display()),
+        Err(error) => panic!(
+            "the journals of {} cannot be listed ({error}): an unreadable directory is not an empty one",
+            directory.display()
+        ),
     };
     return listing
-        .map(|entry| { return entry.unwrap_or_else(|error| { panic!("an entry of {} cannot be read ({error})", directory.display()); }).path(); })
+        .map(|entry| {
+            return entry
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "an entry of {} cannot be read ({error})",
+                        directory.display()
+                    );
+                })
+                .path();
+        })
         .collect();
 }
 

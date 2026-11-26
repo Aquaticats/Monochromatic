@@ -10,20 +10,42 @@
 use ide_app::document::Document;
 /// The vertical mapping the frames are placed by,
 /// and the height of one code row.
-use ide_app::row_map::{CODE_ROW, RowMap};
+use ide_app::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// The shaper,
 /// the viewport,
 /// and the rules under test.
 use ide_app::shaped_text::{
-    BIN_SIDE, DEFAULT_TEXTURE_DIMENSION, MAX_BINS, MAX_STACK_TEXTURES, STACK_VIEW_ROOM, TextShaper,
-    Viewport, band_clip, fit_clip, set_texture_dimension, stack_cap, stack_fits, stack_rows,
-    texture_dimension, texture_fits, texture_heights, tile_cap, tile_texture_rows,
+    BIN_SIDE,
+    DEFAULT_TEXTURE_DIMENSION,
+    MAX_BINS,
+    MAX_STACK_TEXTURES,
+    STACK_VIEW_ROOM,
+    TextShaper,
+    Viewport,
+    band_clip,
+    fit_clip,
+    set_texture_dimension,
+    stack_cap,
+    stack_fits,
+    stack_rows,
+    texture_dimension,
+    texture_fits,
+    texture_heights,
+    tile_cap,
+    tile_texture_rows,
 };
 /// The palette of the tile,
 /// and the items whose ink is read back.
 use ide_app::{
     code_colors::CodeColors,
-    tile_scene::{Item, paint_stack, tile_items},
+    tile_scene::{
+        Item,
+        paint_stack,
+        tile_items,
+    },
 };
 
 /// Display scales of ordinary and fractional displays.
