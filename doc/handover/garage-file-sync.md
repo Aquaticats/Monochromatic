@@ -58,6 +58,23 @@ so a default resync uploads the 214, downloads the 312,
 and overwrites the 12 on the Mac with the bucket's versions.
 The Mac's LaunchAgent in Stage D (macOS) also lacks `--conflict-resolve newer` and the settle pass this PC's unit has.
 
+Recovered at 2026-11-25T20:04:52-05:00 on the owner's word
+("Treat the bucket as the golden copy. I intentionally deleted the game mods from the bucket. Resync."):
+
+1.  The 12 files that differed were copied,
+    and the 214 Mac-only files moved,
+    into `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` on the Mac
+    (`differing/` and `only-on-mac/`, with the two path lists);
+    nothing was deleted.
+2.  A fresh `rclone check --size-only` showed 0 Mac-only files.
+3.  `rclone bisync garage:files/Plain /Users/user/Plain` with the agent's flags plus `--resync`
+    exited 0 in 25.2 s, transferring 324 files (the 312 bucket-only and the 12 differing, bucket versions winning);
+    log at `resync.log` in the backup folder.
+4.  A second `rclone check --size-only`: 10333 match, nothing else.
+5.  `launchctl kickstart` of the agent: `Bisync successful` in 4.7 s, last exit code 0.
+
+The backup folder stays until the owner says to remove it.
+
 ## What this builds
 
 - Garage v2.3.0 single-node S3 store on the Coolify host,
