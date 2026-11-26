@@ -74,3 +74,28 @@ fn the_scope_environment_chooses_the_files() {
     let replaced = ScopeEnvironment { system: Some(PathBuf::from("/s")), global: Some(PathBuf::from("/g")), ..base };
     assert_eq!(replaced.files(), vec![PathBuf::from("/s"), PathBuf::from("/g")]);
 }
+
+/// A configuration file is read through a link its person keeps,
+/// because that link is the path the configuration means;
+/// a named pipe is refused rather than waited on,
+/// and a missing file answers `Some(None)` so "there is no file" stays apart from "this reads nothing".
+#[test]
+fn a_linked_configuration_is_read_and_a_named_pipe_is_refused_at_once() {
+    let root = fixture("repo-read-scan-following");
+    let real: PathBuf = root.join("real.config");
+    std::fs::write(real.as_path(), "[core]\n\tbare = true\n").expect("the configuration");
+    let linked: PathBuf = root.join("linked.config");
+    std::os::unix::fs::symlink(real.as_path(), linked.as_path()).expect("a link of the person's own");
+    assert_eq!(read_following(linked.as_path()), Some(Some(b"[core]\n\tbare = true\n".to_vec())));
+    assert_eq!(read_following(root.join("absent.config").as_path()), Some(None), "a missing file is no file, not a refusal");
+    let pipe: PathBuf = root.join("piped.config");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("a named pipe");
+    let inside: PathBuf = pipe.clone();
+    let read = crate::test_support::finished_within(move || return read_following(inside.as_path()));
+    let Some(answer) = read else { panic!("a configuration file that is a named pipe held the read") };
+    assert_eq!(answer, None, "a pipe is no configuration this command reads, so Git is asked");
+    // The read this reader's other callers make, on the same fixture under the same bound, so the bound can see a wait.
+    let waited = crate::test_support::finished_within(move || return std::fs::read(pipe).ok());
+    assert!(waited.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
+    remove(root.as_path());
+}

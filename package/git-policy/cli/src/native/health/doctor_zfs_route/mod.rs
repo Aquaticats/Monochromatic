@@ -76,9 +76,15 @@
 //! - `identity_checks.rs`:
 //!   the recorded parent and slot identities against the live folders,
 //!   naming the failing field or path component.
+//! - `delegation_reply.rs`:
+//!   the kernel's delegation reply and the grant model it becomes:
+//!   who a grant names,
+//!   how widely it reaches,
+//!   and the dataset that carries it.
 //! - `delegation_checks.rs`:
+//!   the required and forbidden permissions,
 //!   the effective delegation including ancestor grants,
-//!   and the absence of the lineage-changing grants.
+//!   and the commands that settle each finding.
 //! - `handler_checks.rs`:
 //!   the handler's installation,
 //!   configuration,
@@ -157,6 +163,9 @@ pub mod store_staging_removal;
 
 /// The recorded parent and slot identities against the live folders.
 pub mod identity_checks;
+
+/// The kernel's delegation reply and the grant model it becomes.
+pub mod delegation_reply;
 
 /// The effective delegation and the lineage-changing grants' absence.
 pub mod delegation_checks;
@@ -241,8 +250,10 @@ pub use store_listing::{
 pub use store_staging_removal::{StagingRemoval, StagingRemovalRefusal, StagingRemovalRequest, remove_known_staging_forms};
 /// The recorded parent and slot identities.
 pub use identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity, SlotIdentityFacts, check_parent_identity, check_slot_identity, walk_refusal_is_unproved};
+/// The kernel's delegation reply and the grant model it becomes.
+pub use delegation_reply::{DelegationFacts, Grant, Inheritance, Who, grants_of};
 /// The effective delegation.
-pub use delegation_checks::{DelegationFacts, FORBIDDEN_PERMISSIONS, Grant, GrantPlace, Inheritance, REQUIRED_GRANTS, RequiredGrant, Who, allow_command, check_delegation, grants_of, missing_grants, place_dataset};
+pub use delegation_checks::{FORBIDDEN_PERMISSIONS, REQUIRED_GRANTS, RequiredGrant, GrantPlace, allow_command, check_delegation, missing_grants, place_dataset};
 /// The handler's installation and folders.
 pub use handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ROOT_MODE_EXECUTABLE_PATH, ZEDLET_EVENT_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
