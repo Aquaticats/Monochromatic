@@ -569,15 +569,50 @@ Size: 29 folders, 97 pairs.
 Label: measured by script; `crate::name` can be a type or function that shares a module's name, which would
 over-count (inferred, small).
 
-### Item 17. Four names say too little
+The round of 2026-11-25 switched the rules on.
+The two rules now run for the whole crate
+in the block `layout-git-policy-cli` of `monochromatic-lint.config.jsonc`.
+Today's findings stand in two lists beside the crate:
 
-Category 6.
-`foundation/` (131 files: diagnostics, scratch folders, runtimes and plain files together), `binary/` (195 files, all
-consumer-level controls and their support), `testing/` (37), and the source root `src/native` itself
-(`Cargo.toml` `[lib] path`, named in many task descriptions): words that fit any code (VGW).
-File names are good: no file is named `helpers`, `utils` or the like; the only repeated name is `mod.rs` (55)
-(`rg --files | xargs -n1 basename | sort | uniq -c`).
-Cost: reading only.
+- `layout-allow-list/folder-rule.txt` holds 1014 entries:
+  524 `uses <folder> -> <folder>` lines for today's folder and entry loop edges;
+  49 lines for the `pub use folder::*` re-exports,
+  which keep the crate's flat module paths;
+  20 lines for the findings that `health/` is a group folder
+  with module files beside its child folder;
+  and 421 lines for the `uses` links the crate does not hold.
+- `layout-allow-list/file-rule.txt` holds 604 entries:
+  544 `file-uses <folder> <file> -> <file>` lines for today's file loops;
+  59 lines for the folders whose top doc has no file list or misses a name;
+  and one for the function that `main.rs` holds beside `fn main`.
+
+The 421 links are recorded rather than written,
+because a link set with mutual uses makes `cargo package --list` walk without end:
+cargo follows every `uses` link and the loops make those paths multiply.
+Measured that day:
+1.9 s with the 109 links the crate had,
+and no answer after 120 s with the 421 added ones;
+the same eight folders in a ring did not answer in 60 s where the same eight in a chain took 0.13 s.
+Two things read that list,
+the control `source_guard::packaged_uses_links_tests` and a release's `cargo publish --dry-run`,
+so a round writes a folder's links when that folder's uses no longer loop,
+and deletes the lines of those links from the list in the same change.
+Seven wrong links went:
+five pointed at the test-only `testing` folder,
+which is outside both rules,
+and two named folders that nothing in their folder uses any more.
+
+Both lists may only shrink:
+a line that matches no finding any more fails the lint;
+and a use added inside a loop a list tolerates is a finding that no line can record.
+The untangling this item asks for is what deletes those lines,
+one use per line.
+What is left for it is 524 folder uses and 544 file uses.
+Neither rule runs in the container gate.
+They run in `mise run //package/git-policy/cli:lint:monochromatic-lint`,
+which fails today on findings of other rules as well:
+2295 `markdown/semantic-line-breaks` and 24 `rust/max-lines` over this package.
+
 Fix: low priority; rename cost is high, so only with item 16.
 Size: 4 names.
 

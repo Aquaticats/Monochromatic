@@ -334,6 +334,7 @@ impl Rule for BrowserslistRule {
         return Ok(RulePlan {
             changes: vec![change],
             warnings: Vec::new(),
+            errors: Vec::new(),
         });
     }
 }

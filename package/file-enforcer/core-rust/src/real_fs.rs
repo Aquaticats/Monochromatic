@@ -208,6 +208,34 @@ pub fn read_real(
     root: &Path,
     rel: &str,
 ) -> Result<RealState, Diagnostic> {
+    // `u64::MAX` is every size a filesystem reports, so this is the unbounded read.
+    return read_real_at_most(root, rel, u64::MAX);
+}
+
+/// What:
+///  Read what `rel` holds under `root` without following links,
+/// refusing a file larger than `max_bytes` by name before its bytes are copied,
+/// and once more after the read for a file that grew meanwhile.
+///  `u64` is an unsigned 64-bit integer, the width a file size wants
+/// (siblings: `usize`,
+/// `u32`).
+/// Why:
+///  A rule that parses a file keeps several copies of it,
+/// so a bounded read turns a file far larger than the shapes the rule was written for into one named
+/// finding instead of a memory spike.
+/// Gotcha:
+///  The reading side is what must bound the read;
+/// a caller that checks the size itself still copies whatever the file grew to in between.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readRealAtMost(root: string, rel: string, maxBytes: number): RealState
+/// ```
+pub fn read_real_at_most(
+    root: &Path,
+    rel: &str,
+    max_bytes: u64,
+) -> Result<RealState, Diagnostic> {
     if !ancestors_are_real_directories(root, rel)? {
         return Ok(RealState::Absent);
     }
@@ -222,6 +250,9 @@ pub fn read_real(
     };
     match kind_of(&metadata) {
         EntryKind::File => {
+            if metadata.len() > max_bytes {
+                return Err(too_large(rel, metadata.len(), max_bytes));
+            }
             let content = match fs::read(&full) {
                 Ok(content) => content,
                 Err(error) => {
@@ -229,6 +260,10 @@ pub fn read_real(
                     return Err(Diagnostic::new("io-failure", &message).with_path(rel));
                 }
             };
+            // The file may have grown between the size check and the read; the read is what bounds memory.
+            if content.len() as u64 > max_bytes {
+                return Err(too_large(rel, content.len() as u64, max_bytes));
+            }
             return Ok(RealState::File {
                 content,
                 mode: metadata.permissions().mode() & 0o7777,
@@ -238,6 +273,29 @@ pub fn read_real(
         EntryKind::Symlink => return Ok(RealState::Symlink),
         EntryKind::Other => return Ok(RealState::Other),
     }
+}
+
+/// What:
+///  The finding that names a file too large for the reader's bound.
+/// Why:
+///  One message shape keeps the file,
+/// its size and the limit in every report of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function tooLarge(rel: string, size: number, maxBytes: number): Diagnostic
+/// ```
+pub fn too_large(
+    rel: &str,
+    size: u64,
+    max_bytes: u64,
+) -> Diagnostic {
+    let message = format!(
+        "{rel} is {size} bytes, over the {max_bytes}-byte limit this rule reads; it names the file instead"
+    );
+    return Diagnostic::new("file-too-large", &message)
+        .with_path(rel)
+        .with_hint("shrink the file, or manage it with a rule that does not read it whole");
 }
 
 /// What:

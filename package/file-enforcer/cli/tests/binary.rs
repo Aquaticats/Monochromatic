@@ -24,7 +24,6 @@ use support::{
     config_path,
     count_code,
 };
-
 #[test]
 fn help_version_and_a_bad_flag_are_each_one_json_line_with_exit_codes_zero_zero_two() {
     let harness = Harness::new();
@@ -615,4 +614,57 @@ fn the_rust_catalog_kind_is_wired_into_the_binary() {
     );
     let (clean_code, clean) = harness.run(&["check"]);
     assert_eq!(clean_code, 0, "{clean:?}");
+}
+
+#[test]
+fn check_fails_on_a_manifest_carrying_the_pre_transfer_url_and_write_converges() {
+    let harness = Harness::new();
+    let config = r#"{"rules": [{"kind": "json-keys", "id": "package-metadata", "manifests": ["package/*/*/package.json"],
+        "edits": [
+          {"guard": ["repository"], "path": ["repository", "type"], "value": "git"},
+          {"guard": ["repository"], "path": ["repository", "url"], "value": "https://github.com/Aquaticats/Monochromatic.git"},
+          {"guard": ["repository"], "path": ["repository", "directory"], "value": {"var": "dir"}},
+          {"guard": ["repository"], "path": ["homepage"], "value": {"concat": ["https://github.com/Aquaticats/Monochromatic/tree/main/", {"var": "dir"}]}}
+        ]}]}"#;
+    harness.write("file-enforcer.config.jsonc", config);
+    let pre_transfer = "{\n  \"name\": \"y\",\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"https://github.com/Aquaticat/Monochromatic.git\"\n  }\n}\n";
+    harness.write("package/x/y/package.json", pre_transfer);
+    let (check_code, check) = harness.run(&["check"]);
+    assert_eq!(check_code, 1, "{check:?}");
+    assert_eq!(count_code(&check, "drift-content"), 1, "{check:?}");
+    assert!(
+        harness
+            .read("package/x/y/package.json")
+            .contains("github.com/Aquaticat/Monochromatic"),
+        "check reports the drift and changes nothing"
+    );
+    let (write_code, write) = harness.run(&["write"]);
+    assert_eq!(write_code, 0, "{write:?}");
+    let written = harness.read("package/x/y/package.json");
+    assert!(
+        written.contains("\"url\": \"https://github.com/Aquaticats/Monochromatic.git\""),
+        "{written}"
+    );
+    assert!(
+        written.contains("\"directory\": \"package/x/y\""),
+        "{written}"
+    );
+    let (clean_code, clean) = harness.run(&["check"]);
+    assert_eq!(
+        clean_code, 0,
+        "a second check after write is clean: {clean:?}"
+    );
+    let string_repository =
+        "{\n  \"name\": \"w\",\n  \"repository\": \"github:Aquaticat/Monochromatic\"\n}\n";
+    harness.write("package/x/w/package.json", string_repository);
+    let (shape_code, shape) = harness.run(&["check"]);
+    assert_eq!(shape_code, 1, "{shape:?}");
+    assert_eq!(count_code(&shape, "manifest-shape"), 1, "{shape:?}");
+    let (shape_write_code, shape_write) = harness.run(&["write"]);
+    assert_eq!(shape_write_code, 1, "{shape_write:?}");
+    assert_eq!(
+        harness.read("package/x/w/package.json"),
+        string_repository,
+        "no homepage lands beside a repository the rule cannot manage"
+    );
 }
