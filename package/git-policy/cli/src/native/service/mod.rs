@@ -192,8 +192,29 @@
 //!   which worktree a unit belongs to,
 //!   whether it is gone,
 //!   and the stop of its units through the manager.
+//! - `service_server_batch_and_idle_limits.rs`:
+//!   the numbers one service run is held to:
+//!   the batch cap,
+//!   the idle exit,
+//!   and how often the run asks whether its own worktree is still there.
+//! - `service_server_serve_settings.rs`:
+//!   what one service run is configured with.
+//! - `service_server_scratch_trees_of_a_group.rs`:
+//!   the scratch trees one group's requests name,
+//!   and their removal once the landing that read them is over.
+//! - `service_server_batch_read.rs`:
+//!   one arrived batch of requests read:
+//!   its withdrawals answered,
+//!   its commits grouped by branch.
+//! - `service_server_after_commit_work_start.rs`:
+//!   the start of the after-commit work,
+//!   and the end of the service when no thread can be had for it.
+//! - `service_server_landing_one_group.rs`:
+//!   one group of a batch,
+//!   landed and answered.
 //! - `service_server.rs`:
-//!   the commit service's loop.
+//!   the commit service's loop,
+//!   and the parts it is made of re-exported so every caller keeps naming them through it.
 //! - `service_address_of_a_worktree.rs`:
 //!   the address one worktree's service listens at:
 //!   a socket file under the runtime directory when that path fits one socket address,
@@ -343,6 +364,33 @@ pub mod service_server_shutdown_after_a_stop;
 /// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
 /// read at a service's start on a thread of its own.
 pub mod service_journal_restored_at_start;
+
+/// The numbers one service run is held to:
+/// the batch cap,
+/// the batch whose cost still grows as its size does,
+/// the idle exit,
+/// and how often the run asks whether its own worktree is still there.
+pub mod service_server_batch_and_idle_limits;
+
+/// What one service run is configured with.
+pub mod service_server_serve_settings;
+
+/// The scratch trees one group's requests name,
+/// and their removal once the landing that read them is over.
+pub mod service_server_scratch_trees_of_a_group;
+
+/// One arrived batch of requests read:
+/// its withdrawals answered,
+/// its commits grouped by branch.
+pub mod service_server_batch_read;
+
+/// The start of the after-commit work,
+/// and the end of the service when no thread can be had for it.
+pub mod service_server_after_commit_work_start;
+
+/// One group of a batch,
+/// landed and answered.
+pub mod service_server_landing_one_group;
 
 /// The commit service's loop.
 pub mod service_server;

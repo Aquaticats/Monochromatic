@@ -28,66 +28,39 @@ use crate::push_retry::{
     PLAN_DIRECTORY,
     PushRetries,
 };
-use crate::service_busy::{
-    GroupAdmission,
-    LandingBoard,
-};
+use crate::service_busy::LandingBoard;
 use crate::service_captures::CaptureMemory;
 use crate::service_claim_watch::{
     ClaimWatch,
     WATCH_DIRECTORY,
 };
 use crate::service_index_lock::unsettled_locks;
-use crate::service_index_prestage::{
-    PrestageGuard,
-    start as start_prestage,
-};
+use crate::service_index_prestage::PrestageGuard;
 use crate::service_journal::{
     DONE_RETAINED,
     landed_commits,
     prune_done,
 };
 use crate::service_land::LandContext;
-use crate::service_protocol::{
-    FailureCode,
-    RELEASE,
-    ServiceMessage,
-};
 use crate::service_queue_received_on_the_runtime::{
     Received,
     receive_for_at_most,
 };
-use crate::service_runtime_build_report::{
-    EXIT_NO_WORKER,
-    no_worker_words,
-    start_what_the_service_cannot_serve_without,
-};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
+use crate::service_server_after_commit_work_start::start_the_after_commit_work_or_exit;
+use crate::service_server_batch_read::{
+    ReadBatch,
+    answer_the_withdrawals,
+    group_the_batch,
+};
 use crate::service_server_connection_handling::ConnectionShared;
-use crate::service_server_land_group::{
-    land_group,
-    settle_open_batches,
+use crate::service_server_land_group::settle_open_batches;
+use crate::service_server_landing_one_group::{
+    TheGroupLanding,
+    land_the_group,
 };
 use crate::service_server_own_worktree_question::own_worktree_gone_now;
-use crate::service_server_queue_types_and_send::{
-    GroupKey,
-    Job,
-    Queued,
-    id_of_queued,
-    index_of_queued,
-    place_in_groups,
-};
-#[cfg(test)]
-use crate::service_server_socket_binding::ensure_socket_passed_in;
-pub use crate::service_server_socket_binding::{
-    Bind,
-    INHERITED_DESCRIPTOR,
-    address_text,
-    bind,
-    socket_passed_in,
-};
-pub use crate::service_server_work_loop::work_loop;
-pub use crate::service_server_work_loop_awaiting::work_loop_awaiting;
+use crate::service_server_queue_types_and_send::Job;
 use crate::service_timing::{
     ExitReason,
     exit_line,
@@ -97,20 +70,10 @@ use crate::service_work::{
     GitHandlers,
     Wake,
 };
-use crate::stop_of_the_service_noticed_by_its_children::{
-    begin_unfinished_work,
-    is_stopping,
-};
-use crate::wait_ceilings::{
-    NEVER_ENDED_STEP_SLOW_AFTER,
-    START_CEILING,
-};
+use crate::stop_of_the_service_noticed_by_its_children::is_stopping;
 use std::collections::HashMap;
 use std::os::unix::net::UnixListener;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{
     AtomicUsize,
@@ -126,205 +89,36 @@ use tokio::sync::mpsc::{
     unbounded_channel,
 };
 
-/// The largest batch whose landing still costs about what its size predicts: 256.
-/// Measured with the service binary on throwaway
-///  repositories,
-/// 2026-11-03,
-/// bursts of simultaneous commit requests (`MAX_BATCH` raised to 4096 for the probe,
-/// three rounds
-///  alternating over 64,
-/// 128,
-/// 256,
-/// 512 and 1024 clients,
-/// other sessions running,
-/// a debug build):
-/// a landing took 71 to 76 ms for
-///  62 to 63 requests,
-/// 82 to 85 ms for 126,
-/// 104 to 109 ms for 253 to 255,
-/// 193 to 204 ms for 509 to 511 (once 2,002 ms,
-/// a host stall)
-///  and 525 to 547 ms for 1,021 to 1,023.
-/// The cost of each added request is 0.16 ms up to 254 requests,
-/// 0.36 ms from there to
-///  510,
-/// and 0.66 ms to 1,022,
-/// so the cost per request has not yet doubled at 256.
-/// The time a client waits for a burst of 128 was
-///  176 to 206 ms in one landing and 243 to 249 ms in three at the old cap of 64.
-pub const BATCH_COST_KNEE: usize = 256;
-
-/// The most requests landed as one batch:
-/// `BATCH_COST_KNEE`.
-/// A batch is answered all at once and holds the index lock while it
-///  lands,
-/// so the cap bounds both.
-/// The prototype's burst reached 64,
-/// and production never reached more than one request in a
-///  batch (1,302 answered requests,
-/// 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z),
-/// so the cap bites only in a burst.
-/// Option B of the
-///  batch size question,
-/// picked by the coordinator under the owner's delegation,
-/// open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Picked for these follow-ups").
-pub const MAX_BATCH: usize = BATCH_COST_KNEE;
-
-/// How long the service waits with nothing to do before it exits;
-/// the manager's socket stays,
-/// so the next connection starts it
-///  again.
-/// Bazel's server does the same with `--max_idle_secs`,
-/// whose default is three hours,
-/// which is this value's precedent.
-///  Measured cost of exceeding it:
-/// of 1,051 commits in the commit timing log (2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z),
-/// the 10
-///  that followed an idle gap of more than three hours reached the service in at most 70 ms (`reachMs`) after a start wait of at
-///  most 47 ms (`startWaitMs`);
-/// 110 idle exits happened in that window.
-/// The 28 running services held 212 MiB together (7.9 MiB each,
-///  `systemctl --user show --property=MemoryCurrent`).
-/// A shorter exit would trade at most that start for that memory;
-/// the owner's
-///  bound is that a commit should not take 5 s longer than native Git (`SPEC.md`).
-/// Kept at three hours as the coordinator's pick under the owner's delegation,
-/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Sizes and ages of the service's own housekeeping").
-pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
-
-/// How often a serving service asks whether the worktree whose units are its own is still there.
-/// Why:
-///   A removal Git ran with the wrapper replaced and a worktree deleted without Git leave the socket unit listening,
-/// and the service that serves it is already running:
-/// no start happens for a gone worktree,
-/// so nothing would ever ask,
-/// and the socket would listen for that directory until a person remembered the sweep.
-/// At this interval the socket stops at most this long after the removal,
-/// and the price is one wake of the landing thread and two stat calls per service per interval:
-/// one `symlink_metadata` on the Git directory and one `is_dir` on the place that holds it
-/// (`service_units_of_removed_worktrees::worktree_is_gone`),
-/// measured on this host at 11.4 microseconds for the pair (five rounds of a million,
-/// 11.32 to 11.74),
-/// so 355 services cost 0.07 milliseconds a second between them.
-/// A minute rather than an hour because the leftover is a listening socket,
-/// and a minute rather than a second
-/// because the loop's own wake is what it costs;
-/// the coordinator's pick under the owner's delegation,
-/// open to the owner's veto.
-pub const OWN_WORKTREE_CHECK: Duration = Duration::from_secs(60);
-
-/// How a service run behaves apart from where it listens and what it lands.
-/// No equality:
-/// the stop of a service's own units is a function pointer,
-/// whose addresses are not comparable.
-#[derive(Clone, Debug)]
-pub struct ServeSettings {
-    /// How long the service waits with nothing to do before it exits.
-    pub idle: Duration,
-    /// The release the service announces to every client.
-    /// It is this build's release (`RELEASE`) except in a test that
-    ///  needs a service of another release.
-    pub release: String,
-    /// The worktree this instance serves,
-    /// as `service_instance::instance_of` names it;
-    /// every message about another worktree
-    ///  is refused.
-    /// Nothing in a development run that serves any worktree.
-    pub instance: Option<String>,
-    /// How long a write the service never ends runs before the clients behind it are told,
-    /// and may be withdrawn while the
-    ///  service is inside it (`wait_ceilings.rs`,
-    /// `NEVER_ENDED_STEP_SLOW_AFTER`);
-    /// a control shortens it.
-    pub stuck_after: Duration,
-    /// How long a batch's first request must have waited before it is told it is next,
-    /// which is how a person sees the service
-    ///  take the commit after a wait (`wait_ceilings.rs`,
-    /// `WAITING_NOTICE_AFTER`);
-    /// a control shortens it.
-    pub place_after: Duration,
-    /// How long a landing waits for the note that names its repository to the service that starts next
-    /// (`wait_ceilings.rs`,
-    /// `LANDING_WATCH_NOTE_CEILING`);
-    /// a control shortens it.
-    pub note_ceiling: Duration,
-    /// The Git directory of the worktree whose units are this service's,
-    /// as its note or its journal named it when the service started,
-    /// and nothing when it was not there or could not be told.
-    /// The serving loop asks about it every `own_worktree_check`.
-    pub own_git_dir: Option<PathBuf>,
-    /// How often the serving loop asks whether `own_git_dir` is still there.
-    pub own_worktree_check: Duration,
-    /// How long the plan of the pushes waiting for a new try and the repositories an earlier service was woken for
-    /// are read for before the service starts without them
-    /// (`service_journal_restored_at_start.rs`);
-    /// a control shortens it.
-    pub journal_restore_ceiling: Duration,
-    /// What the service does when that directory is gone:
-    /// the shipped one stops this service's own socket through the user manager
-    ///  (`service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone`),
-    /// and a control passes its own,
-    /// so the loop is checked without a manager.
-    pub own_units_stop: fn(&str, &Path) -> bool,
-}
-
-impl ServeSettings {
-    /// The settings of an ordinary run:
-    /// the given idle exit and this build's release.
-    pub fn new(idle: Duration) -> Self {
-        return Self {
-            idle,
-            release: String::from(RELEASE),
-            instance: None,
-            stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
-            place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
-            note_ceiling: crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING,
-            own_git_dir: None,
-            own_worktree_check: OWN_WORKTREE_CHECK,
-            journal_restore_ceiling: START_CEILING,
-            own_units_stop:
-                crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
-        };
-    }
-}
-
-/// Starts the after-commit work as a task of the process's runtime,
-/// waiting `RUNTIME_BUILD_PATIENCE` for a build that missed its deadline,
-/// or ends the service with a plain line and status 4:
-/// a service that goes on
-///  without its after-commit work never pushes the person's commits,
-/// while an ended service is started again by the manager.
-/// A build that merely outlasted `BUILD_DEADLINE` is waited for,
-/// because it is kept for the work it was built for.
-/// The plan and the watch are read before this call,
-///  by a thread of their own (`service_journal_restored_at_start.rs`),
-/// so the task starts with what the service that stopped last left and no storage wait of
-///  that reading holds a worker.
-fn start_the_after_commit_work_or_exit(
-    receiver: UnboundedReceiver<Wake>,
-    handlers: GitHandlers,
-    busy: Arc<AtomicUsize>,
-    push_retries: PushRetries,
-    watch: ClaimWatch,
-) {
-    let work = async move {
-        let mut wakes: UnboundedReceiver<Wake> = receiver;
-        work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
-    };
-    if start_what_the_service_cannot_serve_without("the after-commit work", work).is_none() {
-        crate::service_error!("{}", no_worker_words("the after-commit work"));
-        std::process::exit(EXIT_NO_WORKER);
-    }
-}
-
-/// How many withdrawn identities the service remembers before it forgets them all:
-/// the same count as the finished batches it
-///  remembers (`DONE_RETAINED`),
-/// since a client that withdrew sends nothing more for its request.
-const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
+/// What one service run is held to:
+/// the batch cap,
+/// the batch whose cost still grows as its size does,
+/// the idle exit,
+/// and how often the worktree it serves is asked about.
+pub use crate::service_server_batch_and_idle_limits::{
+    BATCH_COST_KNEE,
+    IDLE_EXIT,
+    MAX_BATCH,
+    OWN_WORKTREE_CHECK,
+};
+/// The trees a group's requests name,
+/// and their removal once the landing that read them is over.
+pub use crate::service_server_scratch_trees_of_a_group::{
+    released_trees,
+    remove_the_trees,
+};
+/// What one service run is configured with.
+pub use crate::service_server_serve_settings::ServeSettings;
+#[cfg(test)]
+use crate::service_server_socket_binding::ensure_socket_passed_in;
+pub use crate::service_server_socket_binding::{
+    Bind,
+    INHERITED_DESCRIPTOR,
+    address_text,
+    bind,
+    socket_passed_in,
+};
+pub use crate::service_server_work_loop::work_loop;
+pub use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 
 /// What:
 ///  Runs the service until it is told to retire.
@@ -557,157 +351,29 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 Err(_) => break,
             }
         }
-        // Withdrawals are answered before anything lands, on this one thread, so each is either after a landing that is over (the
-        //  commit is on the branch, and that is the answer) or before the landing of its request begins (the request is dropped
-        //  and remembered, so it can never land, not even when it reaches the queue after the withdrawal).
-        if withdrawn.len() > WITHDRAWN_RETAINED {
-            withdrawn.clear();
-        }
-        for job in &jobs {
-            if let Job::Withdraw(id, reply) = job {
-                match landed.get(id) {
-                    Some(commit) => reply.send(&ServiceMessage::Landed {
-                        id: id.clone(),
-                        commit: commit.clone(),
-                        already: true,
-                        landing: None,
-                    }),
-                    None => {
-                        withdrawn.insert(id.clone());
-                        reply.send(&ServiceMessage::Withdrawn {
-                            id: id.clone(),
-                        });
-                    }
-                }
-            }
-        }
-        // Branches in order of first arrival; within a branch, arrival order.
-        let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
-        for job in jobs {
-            match job {
-                Job::Withdraw(..) => {}
-                Job::Commit(request, _dropped, _arrival) if withdrawn.contains(&request.id) => {
-                    // The client took its request back, so nothing lands on the tree it named and its tree goes back
-                    //  to the age rule with it (`service_scratch_trees_of_queued_requests.rs`).
-                    crate::service_scratch_trees_of_queued_requests::release(request.id.as_str());
-                    crate::service_log!(
-                        "dropped the request {} that its client withdrew",
-                        request.id
-                    );
-                }
-                Job::Retire => retiring = true,
-                Job::Activity => {}
-                Job::Commit(request, stream, arrival) => {
-                    served += 1;
-                    // An amend is a group of its own, and what arrives after it starts another group, so the order on
-                    //  one branch is the order of arrival.
-                    // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
-                    // The key is exact for a name that is not text too, so two branches never share a group.
-                    let queue_reference: String = if request.reference.is_head() {
-                        format!("HEAD@{}", request.repository.display())
-                    } else {
-                        request.reference.hex()
-                    };
-                    let key: GroupKey = (
-                        request.common_dir.clone(),
-                        queue_reference,
-                        request.lands_alone(),
-                    );
-                    place_in_groups(&mut groups, key, (request, stream, arrival));
-                }
-            }
-        }
-        for (_, queued_group) in groups.drain(..) {
-            // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
-            //  landing that reads it, and which the service removes once that landing is over.
-            //  A request the service did not land keeps its tree in its client's hands instead (see `remove_the_trees`).
-            let mut trees: Vec<(String, std::path::PathBuf)> = Vec::new();
-            for queued in &queued_group {
-                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(
-                    queued.0.scratch.as_path(),
-                    queued.0.git_dir.as_path(),
-                ) {
-                    trees.push((queued.0.id.clone(), tree));
-                }
-                // The finished shadow the service drew ahead of this commit, when it was handed one: it is a tree of the
-                //  wrapper's own in this worktree's drawn folder, and the landing that read it is the only place that says
-                //  when the commit is done with it.
-                if let Some(handed) = queued.0.shadow.as_deref()
-                    && crate::shadow_drawn::is_a_drawn_tree(
-                        handed,
-                        queued.0.common_dir.as_path(),
-                        queued.0.git_dir.as_path(),
-                    )
-                {
-                    trees.push((queued.0.id.clone(), handed.to_path_buf()));
-                }
-            }
-            // The shutdown waits for this landing and refuses one that would begin after the stop.
-            let Ok(_landing_in_flight) = begin_unfinished_work(false, "a landing") else {
-                break;
-            };
-            let index: Option<std::path::PathBuf> = queued_group.first().map(index_of_queued);
-            // A request whose client was answered "withdrawn" while this thread was stuck in a write is dropped here, and the
-            //  rest are marked as being landed, under one lock (`service_busy.rs`).
-            let ids: Vec<String> = queued_group.iter().map(id_of_queued).collect();
-            let admission: GroupAdmission = board.begin_group(ids.as_slice());
-            for id in &admission.dropped {
-                crate::service_log!(
-                    "dropped the request {id} that its client withdrew while the service was stuck in a write"
-                );
-            }
-            for id in &admission.unavailable {
-                crate::service_error!(
-                    "the request {id} could not be admitted to its group (the record of the landing thread cannot be written), so it is answered with a failure and not landed"
-                );
-            }
-            // A dropped request is not answered here; an unavailable one is answered with a failure; the rest are landed.
-            let mut unavailable: Vec<Queued> = Vec::new();
-            let mut admitted: Vec<Queued> = Vec::new();
-            for queued in queued_group {
-                if admission.dropped.contains(&queued.0.id) {
-                    continue;
-                }
-                if admission.unavailable.contains(&queued.0.id) {
-                    unavailable.push(queued);
-                } else {
-                    admitted.push(queued);
-                }
-            }
-            for (request, stream, _) in &unavailable {
-                stream.send(&ServiceMessage::Failed {
-                    id: request.id.clone(),
-                    code: FailureCode::Unavailable,
-                });
-            }
-            let group: Vec<Queued> = admitted;
-            if group.is_empty() {
-                board.end_group(ids.as_slice());
-                remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
-                continue;
-            }
-            let mut handed_back: std::collections::HashSet<String> =
-                std::collections::HashSet::new();
-            land_group(
+        answer_the_withdrawals(jobs.as_slice(), &landed, &mut withdrawn);
+        let ReadBatch {
+            groups,
+            retiring: asked_to_retire,
+            commits,
+        } = group_the_batch(jobs, &withdrawn);
+        retiring = asked_to_retire;
+        served += commits;
+        for (_, queued_group) in groups {
+            let landed_one: TheGroupLanding = land_the_group(
                 context,
                 settings.instance.as_deref(),
                 &mut seq,
-                group,
+                queued_group,
                 &mut landed,
                 &mut captures,
                 settings.place_after,
                 settings.note_ceiling,
-                &mut handed_back,
                 &drawn,
+                &board,
             );
-            board.end_group(ids.as_slice());
-            // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
-            //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
-            remove_the_trees(trees.as_slice(), &handed_back);
-            // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
-            //  made and flushed now, while the service is idle, and the next commit only places it.
-            if let Some(next_index) = index {
-                start_prestage(next_index.as_path(), seq + 1);
+            if matches!(landed_one, TheGroupLanding::TheStopBegan) {
+                break;
             }
         }
         // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
@@ -731,79 +397,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
     crate::service_durable::drain();
     log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
-}
-
-/// What:
-///  Starts the removal of the scratch trees of the requests a group has just finished with,
-///  beside the loop,
-///  except those the service handed back to their clients.
-/// Why:
-///   The tree holds the private index and the conclusion copies a landing reads,
-///   so only the landing that named it may decide that it is done with it.
-///  A tree whose client is gone is left where it is rather than removed with its answer:
-///  a client that reconnects sends the same request again and reads it there,
-///  and a request with no client left to make its commit gives its tree to the sweep by age.
-///  A request the service did not land (a commit sent back to be prepared again,
-/// a branch that moved) has no landing
-///  that read its tree:
-/// its client reads the change it prepared from that tree to make the commit again,
-/// so the client
-///  releases it beside its own command.
-///  Removing it here took that read from under every rebuild,
-/// which failed with a missing private index
-///  (2026-11-09,
-///  `service_prepare.rs`,
-///  `retry_of`).
-///  The service is done with what it queued of every request of the group here,
-///  so no tree a send of this group named is held against the collection any more
-///  (`service_scratch_trees_of_queued_requests.rs`):
-/// a tree the client did not take back goes to the age rule once its removal is over.
-///  A release gives up one send of the request,
-///  never the identity:
-///  `land_group` answered this group inside its own call,
-///  so the same request can already be queued again with the next attempt's tree,
-///  and that send keeps its tree held beyond this release.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
-/// ```
-fn remove_the_trees(
-    trees: &[(String, std::path::PathBuf)],
-    handed_back: &std::collections::HashSet<String>,
-) {
-    for (id, _) in trees {
-        crate::service_scratch_trees_of_queued_requests::release(id.as_str());
-    }
-    for tree in released_trees(trees, handed_back) {
-        crate::service_scratch_release_removal::start(tree.clone());
-    }
-}
-
-/// What:
-///  The trees of a group's requests that no client still reads.
-/// Why:
-///   A request the service handed back still reads the tree it named,
-///  so that one is the client's to remove;
-///  every other answer ends the landing that read the tree,
-///  and the service removes it beside the loop.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// releasedTrees(trees, handedBack) // the trees no client still reads
-/// ```
-fn released_trees<'a>(
-    trees: &'a [(String, std::path::PathBuf)],
-    handed_back: &std::collections::HashSet<String>,
-) -> Vec<&'a std::path::PathBuf> {
-    let mut released: Vec<&std::path::PathBuf> = Vec::new();
-    for (id, tree) in trees {
-        if handed_back.contains(id) {
-            continue;
-        }
-        released.push(tree);
-    }
-    return released;
 }
 
 /// Socket controls stay out of the release executable.
