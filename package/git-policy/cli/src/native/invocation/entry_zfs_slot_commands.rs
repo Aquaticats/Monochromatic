@@ -28,7 +28,10 @@
 use crate::action::Action;
 use crate::forwarded_command::ResolvedCommand;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
-use crate::worktree_add_plan::start_directory;
+use crate::worktree_add_plan::{
+    copy_start_directory,
+    start_directory,
+};
 use crate::worktree_clone_link_repair::link_report_lines;
 use crate::worktree_clone_link_repair::live_link_report::{
     repair_paths,
@@ -110,6 +113,12 @@ fn prune_removes_nothing(command: &ResolvedCommand) -> bool {
 ///  so the wrapper is the whole protection for the other.
 ///  Every forwarded command asks,
 ///  so the move word is read before the working directory is.
+///  The start directory is read over Git's whole global table rather than the
+///  ladder's short list,
+///  because a person's `-c` or `--no-optional-locks` does not change where the
+///  operand lies and must not hide it from the refusal
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,11 +134,12 @@ pub fn move_refusal_of(
         return None;
     }
     let common: &Path = common_dir?;
-    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
+    let start: Option<PathBuf> =
+        copy_start_directory(&command.arguments[..command.subcommand_index], current?);
     let source = crate::worktree_move_source::parse_move_source(
         command.arguments.as_slice(),
         command.subcommand_index,
-        start.as_path(),
+        start.as_deref(),
         Some(common),
     )?;
     let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common, source.source.as_path())?;
@@ -252,6 +262,40 @@ pub fn before_a_repair(
             stderr.push('\n');
         }
     }
+}
+
+/// What:
+///  Every ending and notice one forwarded command's words ask of the slots a
+///  binding record names,
+///  over one common directory:
+///  the move refusal,
+///  the repair report and the prune pass.
+/// Why:
+///  A command that stands in a worktree reaches these through the worktree the
+///  identity names,
+///  and a command that stands in a Git directory has no worktree while Git
+///  still names its repository,
+///  so both callers name the common directory once and this file runs the
+///  checks in one order.
+///  The removal's refusal is not here because it reads the pool,
+///  which only the run that would have carried the removal out may do
+///  (`removal_refusal_of`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ending = theSlotEndings(command, commonDir, stderr, current);
+/// ```
+pub fn the_slot_endings(
+    command: &ResolvedCommand,
+    common_dir: &Path,
+    stderr: &mut String,
+    current: Option<&Path>,
+) -> Option<Action> {
+    if let Some(ending) = move_refusal_of(command, Some(common_dir), current) {
+        return Some(ending);
+    }
+    before_a_repair(command, Some(common_dir), stderr, current);
+    return before_a_prune(command, Some(common_dir), stderr);
 }
 
 /// Controls stay out of the release executable.

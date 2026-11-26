@@ -79,6 +79,7 @@ fn a_fixture(name: &str) -> (PathBuf, CopyFacts) {
     };
     let facts: CopyFacts = CopyFacts {
         identity,
+        common_dir: Some(root.join(".git")),
         creates: true,
         destination: Some(destination),
         add_plan: Some(plan),

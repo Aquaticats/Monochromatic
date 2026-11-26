@@ -278,6 +278,8 @@ fn a_non_writer_with_a_copy_runs_settled() {
     ];
     forward.copy = Some(CopyFacts {
         identity: forward.identity.clone(),
+        common_dir: crate::worktree_identity::common_directory(&forward.identity)
+            .map(std::path::Path::to_path_buf),
         creates: false,
         destination: None,
         add_plan: None,

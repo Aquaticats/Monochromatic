@@ -130,6 +130,7 @@ fn only_a_branch_that_exists_leaves_a_line() {
             worktree_root: repo.clone(),
         },
         prefix: Vec::<u8>::new(),
+        common_directory_outside_a_worktree: None,
     };
     let mut facts: ScriptedFacts = scripted_facts();
     record_audited(

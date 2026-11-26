@@ -12,6 +12,8 @@ use crate::test_support::{
     remove,
 };
 use crate::testing::fixture_zfs_binding_record::{
+    RegisteredSlot,
+    a_registered_slot,
     common_directory_in,
     publish_under,
     record_naming,
@@ -19,48 +21,9 @@ use crate::testing::fixture_zfs_binding_record::{
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use std::ffi::OsString;
 
-/// One fixture slot with a real registration and the record an add writes.
-struct Slot {
-    /// The fixture root.
-    root: PathBuf,
-    /// The Git common directory.
-    common: PathBuf,
-    /// The slot's path.
-    slot: PathBuf,
-    /// The bytes Git wrote into the slot.
-    pointer: Vec<u8>,
-}
-
-/// One real registration of one slot.
-fn slot(name: &str) -> Slot {
-    let root: PathBuf = fixture(name);
-    let repository: PathBuf = root.join("repository");
-    std::fs::create_dir(repository.as_path()).expect("repository");
-    git(repository.as_path(), &["init", "--quiet"]);
-    git(
-        repository.as_path(),
-        &["commit", "--quiet", "--allow-empty", "--message", "base"],
-    );
-    let slot_path: PathBuf = root.join("one");
-    git(
-        repository.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "--no-checkout",
-            slot_path.to_str().expect("utf-8"),
-            "HEAD",
-        ],
-    );
-    let common: PathBuf = repository.join(".git");
-    let pointer: Vec<u8> = std::fs::read(slot_path.join(".git")).expect("pointer reads");
-    return Slot {
-        root,
-        common,
-        slot: slot_path,
-        pointer,
-    };
+/// One real registration of one slot, which Git writes.
+fn slot(name: &str) -> RegisteredSlot {
+    return a_registered_slot(name);
 }
 
 /// One command line as the wrapper resolved it.
@@ -89,7 +52,7 @@ fn command_of(values: &[&str]) -> ResolvedCommand {
 ///  so an unmounted slot's move is the wrapper's to refuse.
 #[test]
 fn a_move_of_a_bound_slot_is_refused_at_the_command() {
-    let bound: Slot = slot("command-move");
+    let bound: RegisteredSlot = slot("command-move");
     publish_under(
         bound.common.as_path(),
         &record_naming(
@@ -122,7 +85,7 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
     }
     assert!(bound.slot.is_dir(), "nothing was moved");
     // A slot no record names is Git's, and the wrapper says nothing about it.
-    let other: Slot = slot("command-move-unbound");
+    let other: RegisteredSlot = slot("command-move-unbound");
     assert!(
         move_refusal_of(
             &command_of(&["worktree", "move", "one", "../moved"]),
@@ -146,7 +109,7 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
 ///  and the refusal has to happen instead of Git when nothing can be restored.
 #[test]
 fn the_prune_pass_restores_or_refuses() {
-    let bound: Slot = slot("command-prune");
+    let bound: RegisteredSlot = slot("command-prune");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
     publish_under(
         bound.common.as_path(),
@@ -226,7 +189,7 @@ fn the_prune_pass_restores_or_refuses() {
 ///  so a person reads the difference before they act.
 #[test]
 fn a_repair_prints_the_report_before_git() {
-    let bound: Slot = slot("command-repair");
+    let bound: RegisteredSlot = slot("command-repair");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
     publish_under(
         bound.common.as_path(),
@@ -319,7 +282,7 @@ fn a_repository_without_records_gets_nothing() {
 ///  a repair command for a worktree nothing here endangers.
 #[test]
 fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
-    let bound: Slot = slot("command-same-leaf");
+    let bound: RegisteredSlot = slot("command-same-leaf");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
     publish_under(
         bound.common.as_path(),
@@ -372,7 +335,7 @@ fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
 ///  "Moving a plain worktree that shares a bound slot's last name").
 #[test]
 fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
-    let bound: Slot = slot("command-same-leaf-move");
+    let bound: RegisteredSlot = slot("command-same-leaf-move");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
     publish_under(
         bound.common.as_path(),
@@ -449,7 +412,7 @@ fn leave_the_pointer_gone(pointer: &Path) {
 ///  nothing for.
 #[test]
 fn a_prune_git_reads_as_a_dry_run_writes_nothing() {
-    let bound: Slot = slot("command-prune-dry-spellings");
+    let bound: RegisteredSlot = slot("command-prune-dry-spellings");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
     let pointer: PathBuf = bound.slot.join(".git");
     for words in [
