@@ -1,8 +1,9 @@
 //! Controls for the preflight's own shape:
 //!  it makes the delegation read once,
 //!  that read answers before the claim is taken,
-//!  a removal's plan that still names the clone refuses the preflight
-//!  in the plan stop's own sentence,
+//!  a removal's plan that still names the clone stops the preflight after the
+//!  device opens,
+//!  in the stop's own words and with the command that ends the plan,
 //!  a checkout whose source the fill's own restore would refuse makes the
 //!  preflight decline, so the add takes the ladder and nothing of the route's is
 //!  written,
@@ -14,9 +15,11 @@
 //!  a worktree-scope configuration and an unfinished merge still fail the add.
 //!
 //! Why the source's answers are driven on fixtures:
-//!  the source check, the plan read and the slot's parent stand before the device
-//!  is opened, so a fixture decides every answer they give and no control needs a
-//!  pool.
+//!  the source check and the slot's parent stand before the device is opened,
+//!  so a fixture decides every answer they give and no control needs a pool.
+//!  The plan's stop stands after the device,
+//!  so its sentence is controlled in `add_plan_stop_tests.rs`,
+//!  and what only the preflight can show is the source read below.
 //!  The route's entry point reads this host's mount table and answers no route on
 //!  any machine before plan step 19's migration, so the controls start at the
 //!  preflight and, in `add_route_run_tests.rs`, at the runner that entry point
@@ -30,11 +33,18 @@
 //!  The arm fails when the read is dropped from the preflight,
 //!  which is the defect the read was built for.
 //!
-//! Why the plan's refusal is driven instead:
-//!  the plan read sits before the device is opened,
-//!  so a checkout whose source the preflight accepts reaches it on any machine,
-//!  and what a person reads is then the control's own subject
-//!  (issue 6450: the add printed a Rust `Debug` value here).
+//! Why the plan's stop is driven on fixtures and read in the source:
+//!  the command a person reads beside a standing plan needs the clone the pool can
+//!  find,
+//!  which is a request through the device the preflight opens
+//!  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+//!  choice 2C),
+//!  so a host control cannot reach the preflight's plan stop at all.
+//!  The sentence's own controls stand in `add_plan_stop_tests.rs`,
+//!  and this file controls what only the preflight's code can show:
+//!  the stop sits after the device opens,
+//!  and what the add hands over is the stop's sentence rather than a Rust
+//!  `Debug` value (issue 6450).
 
 use super::preflight_the_add;
 use super::OpenedDevice;
@@ -43,15 +53,9 @@ use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
-use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, refuse_while_a_plan_names_the_clone};
-use crate::worktree_clone_binding_record::registration_home::{home_folder, plans_folder};
+use crate::worktree_clone_binding_record::registration_home::home_folder;
 use std::ffi::OsString;
 use std::path::PathBuf;
-
-/// The plan's own file name:
-///  the clone's canonical numeric GUID,
-///  which is the plan's key and the only name this reader reads.
-const THE_PLANS_KEY: &str = "4821193048571903102";
 
 /// What:
 ///  A main checkout in the shape the route serves,
@@ -88,26 +92,6 @@ fn the_adds_words(route: &RouteFacts) -> Vec<OsString> {
     return [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
 }
 
-/// What:
-///  A clean main checkout with one plan standing that names the clone this add would fill.
-/// Why:
-///  The plan read sits after the source's checks,
-///  so a control reaches the refusal only with a source the preflight accepts,
-///  and the plan's field names the clone's dataset because that is the name the add passes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { root, route, plan } = aCheckoutWithAStandingPlan('preflight-plan');
-/// ```
-fn a_checkout_with_a_standing_plan(name: &str) -> (PathBuf, RouteFacts, AddPlan) {
-    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves(name);
-    let folder: PathBuf = plans_folder(route.common_dir.as_path());
-    std::fs::create_dir_all(folder.as_path()).expect("the plan folder");
-    let plan_text: String = format!("{PLAN_HEADER}\ncloneDataset={}\n", route.clone_dataset());
-    std::fs::write(folder.join(THE_PLANS_KEY), plan_text.as_bytes()).expect("the standing plan");
-    return (root, route, plan);
-}
-
 /// The preflight makes the delegation read once,
 /// inside itself,
 /// before the runner takes the claim.
@@ -137,32 +121,44 @@ fn the_preflight_refuses_through_the_grant_read() {
 }
 
 /// What:
-///  A plan that still names the clone stops the preflight,
-///  and the words the person reads are that stop's own sentence,
+///  The preflight reads a standing plan after it opens the device,
+///  and what it hands over is the stop's own sentence,
 ///  never a Rust `Debug` rendering of it.
 /// Why:
-///   The refusal is the whole of what the person gets,
-///  so a `Debug` value there names types instead of the removal that ends the plan
-///  (issue 6450).
+///  The command the person reads beside a plan needs the clone the pool can find,
+///  so the read stands after `OpenedDevice::open`
+///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+///  "What 2C costs"),
+///  and no host control can drive the preflight that far:
+///  the device is the real `/dev/zfs`.
+///  The refusal is the whole of what the person gets,
+///  so a `Debug` value there would name types instead of the removal that ends
+///  the plan (issue 6450),
+///  and the stop's return type is the sentence itself, which is what makes that
+///  unreachable rather than merely absent today.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(preflight(standingPlan).message).toBe(stop.sentence());
+/// expect(source.indexOf('OpenedDevice::open(')).toBeLessThan(source.indexOf('refuseWhileAPlanStands('));
+/// expect(source).not.toContain('{stop:?}');
 /// ```
 #[test]
-fn a_standing_plan_refuses_the_preflight_in_the_plans_own_sentence() {
-    let (root, route, plan) = a_checkout_with_a_standing_plan("preflight-plan-sentence");
-    let stop: PlanStop = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str()).expect_err("the standing plan stops the read");
-    let sentence: &str = stop.sentence();
-    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), arguments.as_slice()) {
-        Ok(_) => panic!("the standing plan stops the preflight before its first mutation"),
-        Err(refusal) => refusal,
-    };
-    let message: &str = refusal.message.as_str();
-    assert_eq!(message, sentence, "the add prints the plan stop's own sentence: {message}");
-    assert!(!message.contains("NamesTheClone") && !message.contains("PlanNamesTheClone"), "no `Debug` rendering of the stop reaches the person: {message}");
-    remove(root.as_path());
+fn the_preflight_reads_the_plan_after_the_device_opens_with_the_stops_sentence() {
+    let source: &str = include_str!("add_preflight.rs");
+    let code: Vec<&str> = source.lines().map(str::trim_start).filter(|line| return !line.starts_with("//")).collect();
+    let joined: String = code.join("\n");
+    let device_opened: usize = joined.find("OpenedDevice::open(").expect("the preflight opens the device");
+    let plan_stop: usize = joined.find("refuse_while_a_plan_stands(").expect("the preflight calls the plan's stop");
+    assert!(device_opened < plan_stop, "the plan's stop follows the device it asks the pool with");
+    let stop_line: &str = code.iter().find(|line| return line.contains("refuse_while_a_plan_stands(")).expect("the stop's own call line");
+    assert!(stop_line.ends_with("refuse_while_a_plan_stands(route, &device)?;"), "the call hands over the stop's own refusal: {stop_line}");
+    for file in ["add_preflight.rs", "add_route_run.rs"] {
+        let text: &str = match file {
+            "add_preflight.rs" => source,
+            _ => include_str!("add_route_run.rs"),
+        };
+        assert!(!text.contains("{stop:?}"), "`{file}` renders no plan stop with a `Debug` value (issue 6450)");
+    }
 }
 
 /// What:

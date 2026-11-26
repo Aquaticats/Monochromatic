@@ -5119,6 +5119,17 @@ its dataset and the one next safe action
 pruned and moved ZFS worktree clones");
 a record at an earlier phase resumes the add from that phase,
 and a removal's plan that names the clone refuses before the claim.
+That refusal names the plan,
+its head word and the clone the pool can find,
+and prints the one command those two facts leave:
+the removal the plan belongs to,
+the settling command,
+the finish pass's wait line where the pool cannot prove the clone gone,
+`cancel-worktree-removal <slot>` beside it where the plan records no destroy,
+and no command at all where the recorded name answers another clone.
+The read stands after the device opens,
+because the presence is a pool answer,
+and a plan the add cannot read keeps its refusal and names no command.
 
 The record is
 `<common>/monochromatic-git-policy-cli/worktree-clones/v1/<slot>.binding`,
