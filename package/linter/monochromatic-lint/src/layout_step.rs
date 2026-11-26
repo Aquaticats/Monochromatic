@@ -64,6 +64,7 @@ use crate::{
 /// Import an ordered map and native paths.
 use std::{
     collections::BTreeMap,
+    io::Read,
     path::{
         Path,
         PathBuf,
@@ -196,21 +197,59 @@ struct LineSpans {
 }
 
 /// What:
+///  The most bytes of one file this step reads to answer its lines:
+///  two mebibytes.
+/// Why:
+///  Lines are answered for the files a finding is reported in:
+///  the Rust files of the package,
+///  whose largest tracked file here was 176,292 bytes on 2026-11-26,
+///  and a rule's allow list,
+///  which cannot be over one mebibyte (`layout_allow_list::MAX_BYTES`).
+///  Two mebibytes is about eleven times that largest file and twice that cap,
+///  so every file this repository can hold keeps its finding's line,
+///  while a path that turns out to be a device or a file that grew is never read whole.
+///  A line the bound cuts off reports the file start,
+///  because a span with a guessed length would point at the wrong bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAX_SPAN_BYTES = 2 * 1024 * 1024;
+/// ```
+const MAX_SPAN_BYTES: u64 = 2 * 1024 * 1024;
+
+/// What:
 ///  The span of each line of a file in file order,
 ///  or nothing when the file cannot be read.
 /// Why:
-///  One pass over the file answers every line it holds.
+///  One pass over at most `MAX_SPAN_BYTES` of the file answers every line the read reaches,
+///  and the bytes are split on the line break itself,
+///  so no decoding stands between a finding's offset and the bytes of the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function readLineSpans(file: Path): Span[] | undefined;
 /// ```
 fn read_line_spans(file: &Path) -> Option<Vec<Span>> {
-    let text: String = std::fs::read_to_string(file).ok()?;
+    // What: the file opened for a bounded read, or nothing when it cannot be opened.
+    // Why: a folder or a link that vanished between two findings must not fail the run.
+    let opened: std::fs::File = std::fs::File::open(file).ok()?;
+    let mut bytes: Vec<u8> = Vec::<u8>::new();
+    opened.take(MAX_SPAN_BYTES).read_to_end(&mut bytes).ok()?;
+    let cut: bool = bytes.len() as u64 == MAX_SPAN_BYTES;
     let mut spans: Vec<Span> = Vec::<Span>::new();
     let mut start: usize = 0;
-    for (index, part) in text.split_inclusive('\n').enumerate() {
-        let length: usize = part.trim_end_matches(['\n', '\r']).len();
+    for (index, part) in bytes
+        .split_inclusive(|byte| return *byte == b'\n')
+        .enumerate()
+    {
+        // A bound that cut this line left its true length unknown, so this line and the rest get no span.
+        if cut && part.last() != Some(&b'\n') {
+            break;
+        }
+        let mut length: usize = part.len();
+        while length > 0 && (part[length - 1] == b'\n' || part[length - 1] == b'\r') {
+            length -= 1;
+        }
         spans.push(Span {
             offset: start,
             length,

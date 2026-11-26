@@ -11,7 +11,10 @@
 //! test('the rules are off by default', () => expect(run(root, [])).toHaveNoFindings());
 //! ```
 
-use super::LineSpans;
+use super::{
+    LineSpans,
+    MAX_SPAN_BYTES,
+};
 use crate::{
     diagnostic::Span,
     layout_test_support::package_with,
@@ -200,7 +203,8 @@ fn files_behind_uses_links_are_linted_once() {
 ///  and falls back to the file start for line zero,
 ///  a line the file does not have and a file that cannot be read.
 ///  One file read answers every line it holds,
-///  which is what keeps a list full of dead lines from reading the list once per finding.
+///  which is what keeps a list full of dead lines from reading the list once per finding,
+///  so a line read before the file disappears is still answered after it is gone.
 #[test]
 fn layout_the_span_of_a_line_starts_at_that_line() {
     let text: &str = "first\nsecond line\r\nthird";
@@ -227,6 +231,8 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
             column: 1
         }
     );
+    // The file is gone from here on, so the third line can only be answered from the one read above.
+    std::fs::remove_file(&file).expect("remove the fixture file");
     assert_eq!(
         spans.span(&file, 3),
         Span {
@@ -234,11 +240,26 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
             length: "third".len(),
             line: 3,
             column: 1
-        }
+        },
+        "a second read would answer the file start here"
     );
     let at_start: Span = spans.span(&file, 0);
     assert_eq!(spans.span(&file, 4), at_start);
     assert_eq!(spans.span(&fixture.path.join("missing.txt"), 2), at_start);
+}
+
+/// A file over the bound answers the file start for every line it holds,
+///  so a path that turns out to be a device or a file that grew is never read whole.
+#[test]
+fn layout_a_file_over_the_span_bound_answers_the_file_start() {
+    // One line as long as the bound, then a line the bound never reaches.
+    let text: String = format!("{}\nafter the bound\n", "a".repeat(MAX_SPAN_BYTES as usize));
+    let fixture = package_with(&[("long.txt", text.as_str())]);
+    let file = fixture.path.join("long.txt");
+    let mut spans: LineSpans = LineSpans::default();
+    let at_start: Span = spans.span(&file, 0);
+    assert_eq!(spans.span(&file, 1), at_start);
+    assert_eq!(spans.span(&file, 2), at_start);
 }
 
 /// A folder that sits in a plain loop of its own and in a loop of its entry is one state a list can satisfy:
@@ -745,14 +766,22 @@ fn the_allow_path_is_relative_to_the_configuration() {
         "missing-link src/a -> src/b\n",
     );
     let output: RunOutput = run(&fixture.path, &[], "");
+    // The list was found where the configuration file sits, and it tolerated the one finding.
+    assert_eq!(output.stdout, "", "{}", output.stderr);
+    assert_eq!(output.exit_code, 0, "{}", output.stdout);
+    // The control: the same run without that file fails, so an empty report above was not a run that found no list.
+    std::fs::remove_file(fixture.path.join("nested/lists/folder.txt"))
+        .expect("remove the fixture list");
+    let missing: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(missing.exit_code, 2, "{}", missing.stdout);
     assert!(
-        !output.stdout.contains("has no link to it"),
+        missing.stdout.contains("allow list that cannot be read"),
         "{}",
-        output.stdout
+        missing.stdout
     );
     assert!(
-        !output.stdout.contains("tolerates nothing any more"),
+        missing.stdout.contains("nested/lists/folder.txt"),
         "{}",
-        output.stdout
+        missing.stdout
     );
 }
