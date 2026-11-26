@@ -195,6 +195,13 @@ fn check_one_folder(
 ///  with one file and the same reference offsets,
 ///  so the rule reads one node per file and set of offsets,
 ///  and never one node per declaration that reached it.
+///  A file that an inline module splits into two modules gives two shapes,
+///  so a glob inside the inline module is a finding of its own.
+///  A path is resolved against the module that holds it,
+///  and the two declarations of one file are two modules,
+///  so a glob can name a folder in one of them and nothing in the other;
+///  the rule reports the finding when any of them names one,
+///  so the answer never depends on which `mod` line stands first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,12 +212,12 @@ fn glob_reexports(
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    // What: the node shapes this rule has already read, a shape being the file and every reference offset in it.
-    // Why: a file two `mod` declarations reach is read once per declaration, and one node of it is one module.
-    let mut seen: BTreeSet<(PathBuf, Vec<usize>)> = BTreeSet::<(PathBuf, Vec<usize>)>::new();
+    // What: the module nodes of each shape, a shape being the file and every reference offset in it.
+    // Why: a file that two `mod` declarations reach holds one node per declaration and one module,
+    // while a file that holds an inline module holds one node for each of its modules.
+    let mut shapes: BTreeMap<(PathBuf, Vec<usize>), Vec<usize>> =
+        BTreeMap::<(PathBuf, Vec<usize>), Vec<usize>>::new();
     for (index, module) in tree.modules.iter().enumerate() {
-        // What: this node's file and the offsets it holds references at, which no other module node of the file shares.
-        // Why: a repeated module scans the same bytes at the same offsets and reports the same globs again.
         let shape: (PathBuf, Vec<usize>) = (
             module.file.clone(),
             module
@@ -219,39 +226,60 @@ fn glob_reexports(
                 .map(|reference| return reference.raw.offset)
                 .collect::<Vec<usize>>(),
         );
-        if !seen.insert(shape) {
-            continue;
-        }
-        for reference in &module.references {
-            if !(reference.raw.glob && reference.raw.reexport) {
-                continue;
+        shapes.entry(shape).or_default().push(index);
+    }
+    for nodes in shapes.values() {
+        // What: the one finding of each glob of this shape, keyed by where its source line sits and what it names.
+        // Why: the same glob read in the two contexts of one file is one finding,
+        // and two globs on one line, or on two lines, keep one finding each.
+        let mut found: BTreeMap<(usize, String), LayoutFinding> =
+            BTreeMap::<(usize, String), LayoutFinding>::new();
+        for index in nodes {
+            let module = &tree.modules[*index];
+            for reference in &module.references {
+                if !(reference.raw.glob && reference.raw.reexport) {
+                    continue;
+                }
+                let Some(target) =
+                    resolve_path(tree, *index, reference.raw.segments.as_slice(), false)
+                else {
+                    continue;
+                };
+                if target == *index {
+                    continue;
+                }
+                let finding: LayoutFinding = LayoutFinding {
+                    file: module.file.clone(),
+                    line: reference.line,
+                    message: format!(
+                        "`pub use {}::*` re-exports every item of the module in {}, so a path through {} no longer shows which folder defines an item.",
+                        reference.raw.segments.join("::"),
+                        shown(&folder_of(tree, target), base),
+                        shown(&module.file, base)
+                    ),
+                    help: Some(String::from(
+                        "Name the items (`pub use path::{A, B};`), or let callers use the defining folder's path.",
+                    )),
+                    key: format!(
+                        "glob {} {}",
+                        key_path(&module.file, base),
+                        reference.raw.segments.join("::")
+                    ),
+                };
+                let slot: (usize, String) =
+                    (reference.raw.offset, reference.raw.segments.join("::"));
+                // Two contexts that name two different folders keep the one whose message sorts first,
+                // so the report never depends on the order the `mod` lines stand in.
+                let smaller: bool = match found.get(&slot) {
+                    Some(seen) => finding.message < seen.message,
+                    None => true,
+                };
+                if smaller {
+                    found.insert(slot, finding);
+                }
             }
-            let Some(target) = resolve_path(tree, index, reference.raw.segments.as_slice(), false)
-            else {
-                continue;
-            };
-            if target == index {
-                continue;
-            }
-            findings.push(LayoutFinding {
-                file: module.file.clone(),
-                line: reference.line,
-                message: format!(
-                    "`pub use {}::*` re-exports every item of the module in {}, so a path through {} no longer shows which folder defines an item.",
-                    reference.raw.segments.join("::"),
-                    shown(&folder_of(tree, target), base),
-                    shown(&module.file, base)
-                ),
-                help: Some(String::from(
-                    "Name the items (`pub use path::{A, B};`), or let callers use the defining folder's path.",
-                )),
-                key: format!(
-                    "glob {} {}",
-                    key_path(&module.file, base),
-                    reference.raw.segments.join("::")
-                ),
-            });
         }
+        findings.extend(found.into_values());
     }
     return findings;
 }

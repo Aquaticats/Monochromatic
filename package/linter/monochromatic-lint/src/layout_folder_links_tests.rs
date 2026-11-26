@@ -461,6 +461,32 @@ fn a_glob_inside_an_inline_module_is_a_finding_of_its_own() {
     }
 }
 
+/// A file that two `mod` lines declare is read in two module contexts,
+///  and a glob in it can resolve in one and not in the other,
+///  so the rule reports the finding whichever line comes first.
+#[test]
+fn the_glob_dedupe_reports_the_same_findings_whatever_order_the_mod_lines_come_in() {
+    // The only difference between the two packages is the order of the two `mod` lines of the root file.
+    fn globs_of(lines: &str) -> Vec<String> {
+        let fixture = package_with(&[
+            ("src/lib.rs", lines),
+            ("src/a/mod.rs", ""),
+            ("src/m/mod.rs", "#[path = \"../shared.rs\"] mod shared;\n"),
+            // From inside the folder, `super::super` is the crate root, which holds `a`;
+            // from the crate root itself there is no module above it.
+            ("src/shared.rs", "pub use super::super::a::*;\n"),
+        ]);
+        return findings_of(&fixture.path)
+            .into_iter()
+            .filter(|text| return text.contains("re-exports every item"))
+            .collect::<Vec<String>>();
+    }
+    let after: Vec<String> = globs_of("mod a;\nmod m;\nmod shared;\n");
+    let before: Vec<String> = globs_of("mod a;\nmod shared;\nmod m;\n");
+    assert_eq!(after.len(), 1, "{after:#?}");
+    assert_eq!(before.len(), 1, "{before:#?}");
+}
+
 /// Run the rule with an allow list and render each finding as `file:line message`,
 ///  with the fixture folder removed.
 fn findings_with(
