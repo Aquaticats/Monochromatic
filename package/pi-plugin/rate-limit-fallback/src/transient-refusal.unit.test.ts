@@ -9,7 +9,7 @@ import {
 } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import extension from '../dist/final/node/index.mjs';
-import { labelOf, WRITER_TARGETS, } from './member-order-fixture.ts';
+import { labelOf, REVIEWER_TARGETS, WRITER_TARGETS, } from './member-order-fixture.ts';
 import { POLICY_STOP_TEXT, } from './policy-stop-fixture.ts';
 import {
   assistant,
@@ -75,12 +75,21 @@ const UNREACHABLE_523 = `${UNREACHABLE_STATUS}: Error ${UNREACHABLE_STATUS}: ori
 const TIMED_OUT_522 = `${TIMED_OUT_STATUS}: Error ${TIMED_OUT_STATUS}: connection timed out`;
 
 /**
- Path of NeuralWatt's rate-limit endpoint, the one read a refusal makes for that member.
+ Path of Synthetic's quota endpoint, the one read a refusal of that member makes.
 
- The member's quota read also fetches `/v1/quota`, so the count below names the rate-limit request the
- read starts with.
+ The writer pool's head is the qwen plan's member since 2026-11-26, and that provider publishes no quota
+ endpoint, so the cases that tell a 429 from a transient status by the read it makes ask the reviewer pool
+ and register this member first: the pool skips the unregistered qwen member and reaches it.
  */
-const RATE_LIMITS_PATH = '/v1/rate_limits';
+const SYNTHETIC_QUOTA_PATH = '/v2/quotas';
+
+/**
+ Reviewer members these read-discriminating cases register: the quota-reading member, then the one that
+ answers after the refusal.
+ */
+const [QUOTA_MEMBER, ANSWERING_MEMBER,] = REVIEWER_TARGETS.slice(1,);
+if ((QUOTA_MEMBER === undefined) || (ANSWERING_MEMBER === undefined))
+  throw new Error('Expected the reviewer pool to hold a quota-reading member and a member after it',);
 
 /**
  Read the URL from a fetch input without stringifying an arbitrary object.
@@ -263,23 +272,24 @@ await describe({
           const reads = { count: 0, };
           const { provider, calls, options, } = await fixture({
             extension,
+            models: [QUOTA_MEMBER, ANSWERING_MEMBER,],
             play({ model, }) {
               return calls.length === FIRST_ATTEMPT
                 ? immediate({ model, errorMessage: entry.errorMessage, },)
                 : immediate({ model, },);
             },
             async fetchQuota(input,) {
-              if (quotaUrl(input,).includes(RATE_LIMITS_PATH,))
+              if (quotaUrl(input,).includes(SYNTHETIC_QUOTA_PATH,))
                 reads.count += 1;
               return Response.json({});
             },
           },);
-          const model = poolModel({ provider, id: 'writer-pool', },);
+          const model = poolModel({ provider, id: 'reviewer-pool', },);
           const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
           // A 429 reads the member's quota endpoint; a transient status reads nothing.
           expect(reads.count,).toBe(1,);
           expect(result.stopReason,).toBe('stop',);
-          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,), labelOf(SECOND,),],);
+          expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(QUOTA_MEMBER,), labelOf(ANSWERING_MEMBER,),],);
         },
       },);
     },),
@@ -294,22 +304,23 @@ await describe({
         const reads = { count: 0, };
         const { provider, calls, options, } = await fixture({
           extension,
+          models: [QUOTA_MEMBER, ANSWERING_MEMBER,],
           play({ model, }) {
             return calls.length === FIRST_ATTEMPT
               ? immediate({ model, errorMessage: labelled, },)
               : immediate({ model, },);
           },
           async fetchQuota(input,) {
-            if (quotaUrl(input,).includes(RATE_LIMITS_PATH,))
+            if (quotaUrl(input,).includes(SYNTHETIC_QUOTA_PATH,))
               reads.count += 1;
             return Response.json({});
           },
         },);
-        const model = poolModel({ provider, id: 'writer-pool', },);
+        const model = poolModel({ provider, id: 'reviewer-pool', },);
         const { result, } = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(reads.count,).toBe(0,);
         expect(result.stopReason,).toBe('stop',);
-        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(HEAD,), labelOf(SECOND,),],);
+        expect(calls.map(call => labelOf(call.model,),),).toEqual([labelOf(QUOTA_MEMBER,), labelOf(ANSWERING_MEMBER,),],);
       },
     },),
     it({

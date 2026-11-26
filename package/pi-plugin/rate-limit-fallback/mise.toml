@@ -35,3 +35,8 @@ depends = ["build"]
 [tasks."verify:extension"]
 depends = ["build"]
 run = "node src/mise.verify-extension.ts"
+
+[tasks."verify:quota-deadline"]
+description = "Read every pool member's live quota endpoint under the shipped deadline, show the deadline can abandon a read, and fail unless the record shows both: --record=<file> names the file, which defaults to the dated one under doc/quota-read-latency-records/"
+depends = ["build"]
+run = "node src/run-the-live-quota-deadline-check.ts"

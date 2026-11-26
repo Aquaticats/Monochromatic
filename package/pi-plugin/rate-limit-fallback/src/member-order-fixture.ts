@@ -40,8 +40,9 @@ function targetOf({
 }
 
 /**
- Writer members in the order the project chose on 2026-11-19
- (`.agents/skills/pi-as-subagent/SKILL.md`, "Who writes and who reviews").
+ Writer members in the owner's order of 2026-11-26
+ (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order":
+ "Qwen, opencode-go, flex (Recommended)").
  Spelled out here rather than read from the package's pool table, so a pool change fails a test.
  */
 export const WRITER_TARGETS: readonly [
@@ -50,16 +51,16 @@ export const WRITER_TARGETS: readonly [
   Model<Api>,
 ] = [
   targetOf({
-    provider: 'neuralwatt',
+    provider: 'qwen-token-plan-individual',
+    id: 'deepseek-v4.1-flash-1017',
+  },),
+  targetOf({
+    provider: 'opencode-go',
     id: 'deepseek-v4.1-flash',
   },),
   targetOf({
     provider: 'neuralwatt',
     id: 'deepseek-v4.1-flash-flex',
-  },),
-  targetOf({
-    provider: 'opencode-go',
-    id: 'deepseek-v4.1-flash',
   },),
 ];
 
