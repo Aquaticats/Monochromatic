@@ -314,6 +314,14 @@ MEASUREMENT snapshot-ioctl created=2 carried=0 names=...
 The account suite is item 1's shape by the crate's own route:
 nine tests,
 all nine passed.
+The driver's `run` step stops when the root suite fails,
+so it never reached the account half;
+this suite ran through the driver's own account script instead,
+its `chown`,
+its two copies of the toolchain home,
+its `runuser` and its `nextest` filter,
+copy for copy,
+and its log is `guest-account-suite.log` beside the driver's root-suite log.
 
 ```text
 # keep/guest/step-2-binding-live-suites/account-suite-full.log
@@ -627,6 +635,11 @@ so there is no teardown of host state to show.
   Those are step 6's arms and they rewrite the module to refuse it,
   which step 23's paragraph does not ask for,
   and the arm as written pins its header length to the Ubuntu guest's.
+- It did not run the binding's `run` step to completion.
+  That step stops at the root suite's one failing arm,
+  so the account suite was run with the driver's own account script,
+  as the section above says,
+  rather than by the step itself.
 - It did not run the allowlist's negative control.
   The project chose the start probe instead,
   and the design says that control is not owed.
