@@ -361,7 +361,7 @@ Status:
 
      ```ini
      [Unit]
-     Description=Bisync ~/Seafile/Plain with Garage S3
+     Description=Bisync ~/Plain with Garage S3
      Documentation=https://rclone.org/bisync/
      After=network-online.target
      Wants=network-online.target
@@ -370,7 +370,7 @@ Status:
      Type=oneshot
      WorkingDirectory=%h
      TimeoutStartSec=3000
-     ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+     ExecStart=|@rclone bisync garage:files/Plain %h/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
      Nice=10
      IOSchedulingClass=best-effort
      IOSchedulingPriority=6
