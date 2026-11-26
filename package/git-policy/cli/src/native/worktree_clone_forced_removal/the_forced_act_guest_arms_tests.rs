@@ -34,7 +34,7 @@
 //! ```
 
 use super::the_forced_act_guest_fixture::{
-    SLOT, end_now, holds_the_copy_at, in_a_private_namespace, make_the_checkout_shared, phase_line, the_table,
+    SLOT, end_now, holds_the_copy_at, in_a_private_namespace, make_the_checkout_a_slave, make_the_checkout_shared, phase_line, the_table,
     the_table_of_the_process, the_versions, Fixture, a_row,
 };
 use crate::worktree_clone_forced_removal::blocker_end::{Blocker, EndResult, end_the_blockers};
@@ -116,6 +116,10 @@ enum AShape {
     /// its own,
     /// which is the shape systemd leaves a unit's parent.
     NamespaceOfItsOwnAndShared,
+    /// A mount namespace of its own whose checkout is a slave of the host's
+    /// group,
+    /// which is the shape a unit started while the checkout was shared keeps.
+    NamespaceOfItsOwnAsSlave,
     /// A user namespace and a mount namespace of its own,
     /// the shape `unshare --user --map-root-user --mount` makes.
     UserNamespaceOfItsOwn,
@@ -148,7 +152,7 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
     }
     match shape {
         AShape::SessionOfItsOwn => {}
-        AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared => {
+        AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared | AShape::NamespaceOfItsOwnAsSlave => {
             // SAFETY: `unshare` reads one flag word and touches no memory of ours.
             let made: libc::c_int = unsafe { libc::unshare(libc::CLONE_NEWNS) };
             assert_eq!(made, 0, "the holder's own mount namespace: {}", std::io::Error::last_os_error());
@@ -170,15 +174,17 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
     // SAFETY: `setsid` takes no argument and makes this child a session leader of its own.
     let session: libc::pid_t = unsafe { libc::setsid() };
     assert_eq!(session, child, "the holder's own session: {}", std::io::Error::last_os_error());
-    if let AShape::NamespaceOfItsOwnAndShared = shape {
-        make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own");
+    match shape {
+        AShape::NamespaceOfItsOwnAndShared => make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own"),
+        AShape::NamespaceOfItsOwnAsSlave => make_the_checkout_a_slave(checkout).expect("the holder makes its own checkout a slave of the host's group"),
+        AShape::SessionOfItsOwn | AShape::NamespaceOfItsOwn | AShape::UserNamespaceOfItsOwn => {}
     }
     // The working directory is this forked child's own and never the crate's test process's, so the call is the
     // kernel's and not the library call the crate forbids anywhere. A namespace holder keeps the copy in its mount
     // namespace only, so only a session holder works inside the clone.
     let working: &Path = match shape {
         AShape::SessionOfItsOwn => slot,
-        AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared | AShape::UserNamespaceOfItsOwn => Path::new("/"),
+        AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared | AShape::NamespaceOfItsOwnAsSlave | AShape::UserNamespaceOfItsOwn => Path::new("/"),
     };
     let inside: std::ffi::CString = std::ffi::CString::new(working.as_os_str().as_encoded_bytes()).expect("no NUL in the path");
     // SAFETY: the path is this call's own and outlives it; the child becomes a holder whose working directory is the
@@ -253,6 +259,21 @@ fn the_copy(fixture: &Fixture, rows: &[MountRow], slot: &Path) -> MountRow {
     return row;
 }
 
+/// What one mount's propagation tags say it is,
+/// in the words the phases judge by.
+fn propagation_of(one: Option<&MountRow>) -> &'static str {
+    let Some(row) = one else {
+        return "absent";
+    };
+    if row.master.is_some() {
+        return "slave";
+    }
+    if !row.shared.is_empty() {
+        return "shared";
+    }
+    return "private";
+}
+
 /// Unmount the slot in this namespace,
 /// answering the errno the call gave.
 fn unmount_the_slot(slot: &Path) -> Result<(), std::io::Error> {
@@ -324,15 +345,17 @@ fn the_forced_act_guest_arm_tests() {
     // Phase 5: way 7 where the holder's parent shares with no group of its own.
     let repaired: String = in_a_private_namespace("namespace-way7-repaired", &|| return phase_way_7(&fixture, false));
     println!("{repaired}");
-    assert!(repaired.contains("parent=shared") && repaired.contains("way-eight=false"), "a shared parent with a group of its own takes way 8, and this phase's own copy is a peer of it: {repaired}");
+    assert!(repaired.contains("parent-before=private") && repaired.contains("way-eight=false"), "a private parent seeds no group, so the act takes way 7: {repaired}");
+    assert!(repaired.contains("parent-after=private"), "way 7's slave change on a private parent reads as private, which is way 3 there: {repaired}");
     assert!(repaired.contains("directory=removed"), "way 7's directory is removed after the unmount: {repaired}");
 
     // Phase 6: way 7 with the checkout shared, so the parent is a peer of the host's.
     let shared: String = in_a_private_namespace("namespace-way7-shared", &|| return phase_way_7(&fixture, true));
     println!("{shared}");
-    assert!(shared.contains("parent-before=peer"), "the holder's parent is a peer of the host's: {shared}");
-    assert!(shared.contains("parent-after=slave"), "the slave change leaves it a slave and not a peer: {shared}");
+    assert!(shared.contains("parent-before=slave"), "the holder's parent is a slave of the host's group: {shared}");
+    assert!(shared.contains("parent-after=slave"), "it stays a slave of that group after the change: {shared}");
     assert!(shared.contains("hosts-copy=stays"), "the host's own copy stays: {shared}");
+    assert!(shared.contains("directory=removed"), "way 7's directory is removed after the unmount: {shared}");
 
     // Phase 7: a holder in a user namespace of its own is refused before any signal.
     let locked: String = in_a_private_namespace("locked-holder-refused", &|| return phase_locked(&fixture));
@@ -489,7 +512,7 @@ fn phase_peer(fixture: &Fixture) -> String {
     let after_theirs: Vec<MountRow> = the_table_of_the_process(holder.pid).rows;
     let after_ours: Vec<MountRow> = the_table();
     let parent_now: Option<MountRow> = after_theirs.iter().find(|row| return row.mount_point == checkout.to_string_lossy()).cloned();
-    fields.push(("parent-after", if parent_now.as_ref().is_some_and(|row| return row.master.is_some() && row.shared.is_empty()) { "slave" } else { "not-slave" }));
+    fields.push(("parent-after", propagation_of(parent_now.as_ref())));
     fields.push(("holders-copy", if holds_the_copy_at(after_theirs.as_slice(), slot.as_path(), fixture.clone().as_str()) { "stays" } else { "gone" }));
     fields.push(("hosts-copy", if holds_the_copy_at(after_ours.as_slice(), slot.as_path(), fixture.clone().as_str()) { "stays" } else { "gone" }));
     fields.push(("directory", if checkout.join(THE_RESERVED_NAME).exists() { "left" } else { "removed" }));
@@ -526,15 +549,17 @@ fn phase_way_7(fixture: &Fixture, shared_here: bool) -> String {
     mount_the_clone(fixture, slot.as_path());
     let shape: AShape = if shared_here {
         make_the_checkout_shared(checkout.as_path()).expect("the host shares the checkout");
-        AShape::NamespaceOfItsOwn
+        AShape::NamespaceOfItsOwnAsSlave
     } else {
-        AShape::NamespaceOfItsOwnAndShared
+        // The repaired state: the checkout is private, so the holder's copy of it is private too, and its seed group
+        // is empty.
+        AShape::NamespaceOfItsOwn
     };
     let holder: AHolder = hold(shape, checkout.as_path(), slot.as_path(), false);
     pause(Duration::from_millis(200));
     let (copy, theirs, _ours, receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
     let parent_before: Option<MountRow> = theirs.rows.iter().find(|row| return row.mount_point == checkout.to_string_lossy()).cloned();
-    fields.push(("parent-before", if parent_before.as_ref().is_some_and(|row| return row.master.is_some()) { "peer" } else { "shared" }));
+    fields.push(("parent-before", propagation_of(parent_before.as_ref())));
     let route: Route = if receivers.way_eight { Route::InPlaceByTheHandle } else { Route::SlaveMoveAndUnmount };
     fields.push(("way-eight", if receivers.way_eight { "true" } else { "false" }));
     fields.push(("route", route.word()));
@@ -543,7 +568,7 @@ fn phase_way_7(fixture: &Fixture, shared_here: bool) -> String {
     let after_theirs: Vec<MountRow> = the_table_of_the_process(holder.pid).rows;
     let after_ours: Vec<MountRow> = the_table();
     let parent_after: Option<MountRow> = after_theirs.iter().find(|row| return row.mount_point == checkout.to_string_lossy()).cloned();
-    fields.push(("parent-after", if parent_after.as_ref().is_some_and(|row| return row.master.is_some() && row.shared.is_empty()) { "slave" } else { "not-slave" }));
+    fields.push(("parent-after", propagation_of(parent_after.as_ref())));
     fields.push(("holders-copy", if holds_the_copy_at(after_theirs.as_slice(), slot.as_path(), fixture.clone().as_str()) { "stays" } else { "gone" }));
     fields.push(("hosts-copy", if holds_the_copy_at(after_ours.as_slice(), slot.as_path(), fixture.clone().as_str()) { "stays" } else { "gone" }));
     fields.push(("directory", if checkout.join(THE_RESERVED_NAME).exists() { "left" } else { "removed" }));

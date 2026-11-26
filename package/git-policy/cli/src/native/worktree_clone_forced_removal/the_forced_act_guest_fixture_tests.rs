@@ -380,6 +380,22 @@ pub(crate) fn make_the_checkout_shared(checkout: &Path) -> Result<(), std::io::E
 }
 
 /// What:
+///  Make the checkout a slave of the group it shares with the host,
+///  which is the shape a unit started while the checkout was shared keeps.
+/// Why:
+///  Way 7's change on such a parent must leave it a slave of that same group,
+///  and a phase that wants that shape cannot get it from a copy alone.
+pub(crate) fn make_the_checkout_a_slave(checkout: &Path) -> Result<(), std::io::Error> {
+    let path: std::ffi::CString = std::ffi::CString::new(checkout.as_os_str().as_encoded_bytes()).expect("no NUL in the checkout path");
+    // SAFETY: the path outlives the call and the flag word asks for the slave change on one mount.
+    let changed: libc::c_int = unsafe { libc::mount(std::ptr::null(), path.as_ptr(), std::ptr::null(), libc::MS_SLAVE, std::ptr::null()) };
+    if changed != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(());
+}
+
+/// What:
 ///  Die if one pool command may not run,
 ///  naming the guest and the release that answered.
 /// Why:
