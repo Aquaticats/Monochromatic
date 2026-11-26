@@ -2073,6 +2073,90 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     );
 }
 
+/// A `mod.rs` that no `mod` line declares is not its folder's index:
+///  the layout rules read the module tree, so a leftover file moves no key,
+///  hides no code check of the folder's real index, and makes no group.
+#[test]
+fn layout_an_undeclared_index_file_changes_nothing() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The index holds code and lists no file, and no `mod` line reaches the stray file below.
+    fixture.write("src/lib.rs", "pub fn code_in_index() {}\nmod a;\n");
+    fixture.write("src/a.rs", "\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "error" }
+    } }]"#,
+    );
+    let without: Run = run(&fixture.path, &["--debug", "src/lib.rs", "src/a.rs"], b"");
+    assert_eq!(without.status, 1, "{}", without.stderr);
+    fixture.write("src/mod.rs", "//! Stray.\n");
+    // The stray file is not part of the package, so every finding stays keyed to the real index.
+    let stray: Run = run(
+        &fixture.path,
+        &["--debug", "src/lib.rs", "src/a.rs", "src/mod.rs"],
+        b"",
+    );
+    assert_eq!(stray.status, 1, "{}", stray.stderr);
+    assert_eq!(
+        located(stray.stdout.as_str()),
+        located(without.stdout.as_str()),
+        "{}\n{}",
+        without.stdout,
+        stray.stdout
+    );
+    for key in [
+        "rust/file-order-in-folder: allow-list key: index-item src/lib.rs function-code_in_index",
+        "rust/file-order-in-folder: allow-list key: no-file-list src/lib.rs",
+        "rust/file-order-in-folder: allow-list key: missing-entry src/lib.rs a.rs",
+    ] {
+        assert!(
+            stray.stderr.contains(key),
+            "{key} missing in {}",
+            stray.stderr
+        );
+    }
+    // The same file beside two child folders makes no group of the folder it sits in.
+    let group: Fixture = Fixture::new();
+    group.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    group.write("src/lib.rs", "//! Index.\nmod a;\nmod b;\n");
+    group.write("src/a/mod.rs", "//! A.\nmod x;\npub use x::X;\n");
+    group.write("src/a/x.rs", "pub struct X;\n");
+    group.write("src/b/mod.rs", "//! B.\nmod y;\n");
+    group.write("src/b/y.rs", "use crate::a::X;\n");
+    group.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" }
+    } }]"#,
+    );
+    std::fs::create_dir_all(group.path.join("src/b/uses")).expect("uses folder");
+    std::os::unix::fs::symlink("../../a", group.path.join("src/b/uses/a")).expect("link");
+    let shelf: Run = run(&group.path, &["src"], b"");
+    assert_eq!(
+        (shelf.status, shelf.stdout.as_str()),
+        (0, ""),
+        "{}",
+        shelf.stderr
+    );
+    group.write("src/mod.rs", "//! Stray.\n");
+    let stray_group: Run = run(&group.path, &["src"], b"");
+    assert_eq!(
+        (stray_group.status, stray_group.stdout.as_str()),
+        (0, ""),
+        "{}",
+        stray_group.stderr
+    );
+}
+
 /// A module file a `#[path]` names outside the package is keyed by the walk from the package folder,
 ///  never by an absolute path,
 ///  so the line that tolerates its finding reads the same in every checkout.

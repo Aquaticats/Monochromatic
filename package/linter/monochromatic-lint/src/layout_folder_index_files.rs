@@ -97,12 +97,19 @@ pub(crate) fn files_by_folder(
 /// `lib.rs`,
 /// else `main.rs`,
 /// for the folder of a crate root.
-///  A `mod.rs` is the folder's index whether or not the module tree could read it:
-///  a folder whose index cannot be read is reported as unreadable,
-///  with one missing entry per file it holds,
-///  rather than as a folder that has no top doc at all.
-///  `lib.rs` and `main.rs` stay tied to the tree's roots,
+///  A `mod.rs` is the folder's index when the module tree holds it,
+///  and `lib.rs` and `main.rs` stay tied to the tree's roots,
 ///  because a file of that name beside a root is another executable and not an index.
+///  The layout rules read what `mod` lines reach and nothing else,
+///  so a `mod.rs` that no `mod` line declares is not its folder's index:
+///  a leftover file moves no key, hides no code check of the folder's real index,
+///  and makes no group of the folder around it.
+///  The one such file that is read is the one that cannot be read at all:
+///  the module tree found the folder's files without reading that index
+///  (a `#[path]` declaration in another folder named them),
+///  so the folder does hold an index and saying that it cannot be read,
+///  with one missing entry per file it holds, is the honest answer
+///  rather than a folder with no top doc at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,9 +121,9 @@ pub(crate) fn index_file(
     roots: &BTreeSet<PathBuf>,
 ) -> Option<PathBuf> {
     let candidate: PathBuf = folder.join("mod.rs");
-    // What: a `mod.rs` the tree holds, or one on disk that the tree could not read.
-    // Why: an unreadable index still owes its reader a list, and that is the finding the file rule reports.
-    if files.contains(&candidate) || candidate.is_file() {
+    // What: the index the module tree reached, which decides the folder's keys and whether it is a group.
+    // Why: a file no `mod` line declares is no part of the package, whatever its name suggests.
+    if files.contains(&candidate) {
         return Some(candidate);
     }
     for name in ["lib.rs", "main.rs"] {
@@ -124,6 +131,11 @@ pub(crate) fn index_file(
         if files.contains(&root) && roots.contains(&root) {
             return Some(root);
         }
+    }
+    // What: a `mod.rs` on disk that the tree never read, taken only when it cannot be read.
+    // Why: the folder's files were declared from elsewhere, and a doc that cannot be read lists nothing.
+    if candidate.is_file() && std::fs::read_to_string(&candidate).is_err() {
+        return Some(candidate);
     }
     return None;
 }
