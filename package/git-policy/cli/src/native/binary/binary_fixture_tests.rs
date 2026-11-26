@@ -371,7 +371,9 @@ fn a_fixture_root_that_cannot_be_created_says_what_became_of_it() {
     std::fs::write(root.join("gone"), b"a file where a folder is needed").expect("a file in place of the folder");
     let probe: PathBuf = wanted.clone();
     let caught = std::panic::catch_unwind(move || {
-        let _made = super::support::fixture_in(probe.as_path(), "vanished");
+        // What: the run's shared fixture root is where a fixture under `probe` would link its wrapper from.
+        // Why: the folder that cannot be made is `probe`, and the store is the one a fixture one folder down would use.
+        let _made = super::support::fixture_in(probe.as_path(), super::support::run_fixture_root().as_path(), "vanished");
     });
     let message: String = match caught {
         Err(payload) => payload.downcast_ref::<String>().cloned().unwrap_or_else(|| { return String::from("<not text>"); }),

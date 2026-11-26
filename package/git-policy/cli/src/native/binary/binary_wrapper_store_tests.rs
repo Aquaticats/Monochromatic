@@ -5,7 +5,7 @@
 //! is made again,
 //! and fixtures in any root share one file.
 
-use super::support::{Fixture, WRAPPER, fixture, fixture_in};
+use super::support::{Fixture, WRAPPER, fixture, fixture_in, run_fixture_root};
 use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
     remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy, shared_copy_named, shared_copy_waiting, wait_for_publisher, wait_for_publisher_on, WaitClock, WaitEnd,
@@ -544,10 +544,11 @@ fn assert_fixtures_follow_the_links_the_filesystem_allows(directory: &Path, firs
 /// its one
 /// stored copy where it does not (`EXDEV`),
 /// and copies of its bytes where no link works.
+/// The store stands in the run's shared fixture root, the parent of every process's own fixture root.
 #[test]
 fn fixtures_are_the_built_executable_or_its_one_stored_copy() {
     let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
-    let root: PathBuf = first.root.parent().expect("the fixture root").to_path_buf();
+    let root: PathBuf = run_fixture_root();
     assert_fixtures_follow_the_links_the_filesystem_allows(root.as_path(), &first, &second);
 }
 
@@ -652,7 +653,9 @@ fn scratch_on_another_filesystem(candidates: &[PathBuf], built: &Path) -> Result
 
 /// Two fixtures in a root on another filesystem than the build,
 /// where the link of the build itself fails (`EXDEV`),
-/// are one stored copy of the build's bytes.
+/// are one stored copy of the build's bytes,
+/// because both the fixtures and their store stand on that other filesystem,
+/// as the gate's fixtures and its shared root stand together on its tmpfs.
 /// Where no such filesystem is available the control says why and ends.
 #[test]
 fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
@@ -663,9 +666,9 @@ fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
             return;
         }
     };
-    let (first, second): (Fixture, Fixture) =
-        (fixture_in(scratch.directory.as_path(), "share-first"), fixture_in(scratch.directory.as_path(), "share-second"));
-    let linking: Linking = assert_fixtures_follow_the_links_the_filesystem_allows(scratch.directory.as_path(), &first, &second);
+    let root: &Path = scratch.directory.as_path();
+    let (first, second): (Fixture, Fixture) = (fixture_in(root, root, "share-first"), fixture_in(root, root, "share-second"));
+    let linking: Linking = assert_fixtures_follow_the_links_the_filesystem_allows(root, &first, &second);
     assert_eq!(linking, Linking::Stored, "the scratch directory was chosen because it could not link the build");
 }
 

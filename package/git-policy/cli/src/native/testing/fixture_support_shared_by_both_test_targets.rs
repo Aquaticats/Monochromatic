@@ -132,31 +132,25 @@ pub(crate) fn forbid_core_dumps() {
 }
 
 /// What:
-///  The directory this process's fixtures are created in:
-///  `test-fixtures/process-<pid>` beside the build output of the running test executable
+///  The fixture root of one run:
+///  the directory the variable `CLI_GIT_TEST_ROOT` names,
+///  or `test-fixtures` beside the build output of the running test executable
 /// (`<target>/debug/deps/<test>` has the target directory three levels up),
 ///  never `/tmp`;
-///  and `CLI_GIT_TEST_ROOT/process-<pid>` instead when the run names a root.
+///  and the parent of every `process-<pid>` folder a process's own fixtures are made in.
 /// Why:
-///   The build output is shared by every checkout that builds into the same target directory,
-///  so a bare `test-fixtures` itself is shared by every checkout and every test process of this host.
-///  The names under it that are not the fixtures' own (the scratch home the product keeps
-///  its per-user state in,
-///  the marker `refused-push-ran`,
-///  the repositories a control makes beside the fixtures)
-///  were one fixed name for all of them,
-///  so two runs at once shared them:
-///  two checkouts started at the same moment reported three subvolume controls failing in
-///  ten to twenty seconds while the same three passed alone.
-///  A directory of the process's own makes every fixed name below it the process's,
-///  and nothing else changes:
-///  fixtures are still removed by their own test and kept for inspection on request.
+///   The one stored copy of the built executable that fixtures on another file system than the build's link stands in this
+///  root (`binary_support_fixture_directories::fixture_in`),
+///  so every process of one run links the one copy instead of copying the whole executable into a folder of its own:
+///  the container gate's root is a 768 MiB tmpfs,
+///  so a copy per test process filled it and the whole gate failed with `No space left on device` (issue 6488).
+///  Everything one process writes for itself stays under its own `process-<pid>` folder (`fixture_root`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const root = join(movedRootOrTarget, 'test-fixtures', `process-${process.pid}`);
+/// const root = env.CLI_GIT_TEST_ROOT ?? join(targetDir(), 'test-fixtures');
 /// ```
-pub(crate) fn fixture_root() -> PathBuf {
+pub(crate) fn run_fixture_root() -> PathBuf {
     // What: `map_or_else` answers from the first function when the variable is absent and from the second when it is
     //  present; `var_os` reads one environment variable as an operating-system string, the form a path may hold.
     //  The closure syntax `|| { ... }` is TS's `() => { ... }`.
@@ -192,6 +186,49 @@ pub(crate) fn fixture_root() -> PathBuf {
         },
         PathBuf::from,
     );
+    // What: `create_dir_all` makes the folder and any parent that is missing; `expect` ends the test with a message
+    //  when it fails, and it then returns `()`.
+    // Why: the wrapper store and every process's own folder are made under this one, so it must exist before the first
+    //  fixture is made.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // mkdirSync(base, { recursive: true });
+    // ```
+    std::fs::create_dir_all(&base).expect("run fixture root");
+    // What: a tail expression with no `;` is the return value, here the folder every process of the run shares.
+    // Why: the caller joins its own names under it, and the wrapper store stands in it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return base;
+    // ```
+    return base;
+}
+
+/// What:
+///  The directory this process's fixtures are created in:
+///  `process-<pid>` under the run's own fixture root (`run_fixture_root`), never `/tmp`.
+/// Why:
+///   The build output is shared by every checkout that builds into the same target directory,
+///  so a bare `test-fixtures` itself is shared by every checkout and every test process of this host.
+///  The names under it that are not the fixtures' own (the scratch home the product keeps
+///  its per-user state in,
+///  the marker `refused-push-ran`,
+///  the repositories a control makes beside the fixtures)
+///  were one fixed name for all of them,
+///  so two runs at once shared them:
+///  two checkouts started at the same moment reported three subvolume controls failing in
+///  ten to twenty seconds while the same three passed alone.
+///  A directory of the process's own makes every fixed name below it the process's,
+///  and nothing else changes:
+///  fixtures are still removed by their own test and kept for inspection on request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = join(runFixtureRoot(), `process-${process.pid}`);
+/// ```
+pub(crate) fn fixture_root() -> PathBuf {
     // What: the folder is per process, named after the process number that `id()` reads.
     // Why: two test processes of the same checkout, and two checkouts, then never share one fixed name below it.
     //
@@ -199,7 +236,7 @@ pub(crate) fn fixture_root() -> PathBuf {
     // ```ts
     // const root = join(base, `process-${process.pid}`);
     // ```
-    let root: PathBuf = base.join(format!("process-{}", std::process::id()));
+    let root: PathBuf = run_fixture_root().join(format!("process-{}", std::process::id()));
     // What: `create_dir_all` makes the folder and any parent that is missing; `expect` ends the test with a message
     //  when it fails, and it then returns `()`.
     // Why: every caller writes fixtures under this folder, so it must exist before the first one is made.
