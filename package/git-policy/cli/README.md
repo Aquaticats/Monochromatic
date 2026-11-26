@@ -8446,6 +8446,45 @@ each with its sidecar test file.
   The integration test roots (`native_binary`,
   `native_candidates`) keep their names.
 
+#### Who depends on whom
+
+The repository's layout rules are on for this crate since 2026-11-25
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+`monochromatic-lint.config.jsonc` turns them on in its block `layout-git-policy-cli`.
+The crate does not satisfy them yet,
+so today's findings stand in the two allow lists beside this file:
+
+- `layout-allow-list/folder-rule.txt`:
+  524 `uses <folder> -> <folder>` lines for the uses of today's folder and entry loops,
+  49 lines for the `pub use folder::*` re-exports,
+  which keep the crate's flat module paths,
+  20 lines for the findings that `health/` is a group folder
+  with module files beside its child folder,
+  and 421 lines for the `uses` links the crate does not hold.
+- `layout-allow-list/file-rule.txt`:
+  544 `file-uses <folder> <file> -> <file>` lines for the uses of today's file loops,
+  59 lines for the folders whose top doc has no file list or misses a name,
+  and one for the function that `main.rs` holds beside `fn main`.
+
+The 421 links are recorded rather than written,
+because a link set that holds mutual uses makes `cargo package --list` walk without end:
+cargo follows every `uses` link,
+and the crate's loops make those paths multiply.
+Measured on 2026-11-25:
+1.9 s for the whole list with the 109 links the crate had,
+and no answer after 120 s with the 421 added ones.
+The crate's own control `source_guard::packaged_uses_links_tests` reads that list,
+and a release runs `cargo publish --dry-run`.
+So a round writes a folder's links when that folder's uses no longer loop,
+and deletes the lines of those links from the list in the same change.
+
+A line matches only while its finding is still there,
+so a round that untangles a use deletes its line,
+and the rule refuses a use added inside a loop the list tolerates today.
+Both rules run in the package's `lint:monochromatic-lint` task,
+never in the container gate,
+and `package/linter/monochromatic-lint/README.md` describes the lists.
+
 #### Subsystems
 
 - `invocation/`:
