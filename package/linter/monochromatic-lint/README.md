@@ -1282,6 +1282,15 @@ Every key names exactly one finding:
 - A key about an entry of a `uses` folder carries the fault,
   such as `link src/a/uses/b broken`,
   because one entry can go wrong in ten ways.
+- A finding of the folder checks that is neither a use nor a link nor a glob
+  starts with its own shape word:
+  `unused-link`,
+  `group-file`,
+  `names-group`,
+  `links-group`,
+  `nested-group`,
+  `below-uses`,
+  `summary-missing` or `summary-extra`.
 - A key about a file or a folder writes its path relative to the package folder,
   and the package folder itself is written `.`,
   so `no-top-doc .` and `missing-link . -> sub` name it,
