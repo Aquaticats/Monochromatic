@@ -97,12 +97,19 @@ pub(crate) fn files_by_folder(
 /// `lib.rs`,
 /// else `main.rs`,
 /// for the folder of a crate root.
-///  A `mod.rs` is the folder's index whether or not the module tree could read it:
-///  a folder whose index cannot be read is reported as unreadable,
-///  with one missing entry per file it holds,
-///  rather than as a folder that has no top doc at all.
-///  `lib.rs` and `main.rs` stay tied to the tree's roots,
+///  A `mod.rs` is the folder's index when the module tree holds it,
+///  and `lib.rs` and `main.rs` stay tied to the tree's roots,
 ///  because a file of that name beside a root is another executable and not an index.
+///  The layout rules read what `mod` lines reach and nothing else,
+///  so a `mod.rs` that no `mod` line declares is not its folder's index:
+///  a leftover file moves no key, hides no code check of the folder's real index,
+///  and makes no group of the folder around it.
+///  The one such file that is read is the one that cannot be read at all:
+///  the module tree found the folder's files without reading that index
+///  (a `#[path]` declaration in another folder named them),
+///  so the folder does hold an index and saying that it cannot be read,
+///  with one missing entry per file it holds, is the honest answer
+///  rather than a folder with no top doc at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,9 +121,9 @@ pub(crate) fn index_file(
     roots: &BTreeSet<PathBuf>,
 ) -> Option<PathBuf> {
     let candidate: PathBuf = folder.join("mod.rs");
-    // What: a `mod.rs` the tree holds, or one on disk that the tree could not read.
-    // Why: an unreadable index still owes its reader a list, and that is the finding the file rule reports.
-    if files.contains(&candidate) || candidate.is_file() {
+    // What: the index the module tree reached, which decides the folder's keys and whether it is a group.
+    // Why: a file no `mod` line declares is no part of the package, whatever its name suggests.
+    if files.contains(&candidate) {
         return Some(candidate);
     }
     for name in ["lib.rs", "main.rs"] {
@@ -125,14 +132,20 @@ pub(crate) fn index_file(
             return Some(root);
         }
     }
+    // What: a `mod.rs` on disk that the tree never read, taken only when it cannot be read.
+    // Why: the folder's files were declared from elsewhere, and a doc that cannot be read lists nothing.
+    if candidate.is_file() && std::fs::read_to_string(&candidate).is_err() {
+        return Some(candidate);
+    }
     return None;
 }
 
 /// What:
 ///  Whether a module file's name holds a space.
 /// Why:
-///  A key separates its words by spaces,
-///  so a file name holding one cannot be read back from the key that names it.
+///  A `file-uses` line separates its words by spaces,
+///  so such a name cannot be written in one,
+///  and a use through that file can never be tolerated.
 ///  A `#[path]` attribute can declare such a file, so the rule must answer it.
 ///
 /// In TS you'd write (pseudocode):
@@ -146,11 +159,13 @@ pub(crate) fn name_holds_space(file: &Path) -> bool {
 /// What:
 ///  The finding for a module file whose name holds a space.
 /// Why:
-///  No key and no `file-uses` line can name that file unambiguously,
-///  because both separate their words by spaces;
-///  the finding therefore names the folder and the file in its message,
-///  and its key names only the folder,
-///  so the line a round records is itself unambiguous.
+///  A key line is read as its whole text,
+///  so it names the file exactly, spaces and all,
+///  and renaming the file kills the line rather than passing it to another file.
+///  What such a name does forbid is a `file-uses` line,
+///  which separates its words by spaces,
+///  so a loop through this file is reported and cannot be tolerated:
+///  the file is renamed, or the loop is untangled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,14 +180,18 @@ pub(crate) fn space_finding(
         file: file.to_path_buf(),
         line: 0,
         message: format!(
-            "{} in the folder {} holds a space, so no key and no file-use line can name it unambiguously.",
+            "{} in the folder {} holds a space, so no `file-uses` line can name it: a use between two files is written as three words.",
             file_name(file),
             shown(folder, base)
         ),
         help: Some(String::from(
-            "Rename the file so its name holds no space, and update the mod line or the `#[path]` attribute that declares it.",
+            "Rename the file so its name holds no space, and update the mod line or the `#[path]` attribute that declares it; until then a loop through this file cannot be tolerated.",
         )),
-        key: format!("space-in-file-name {}", key_path(folder, base)),
+        key: format!(
+            "space-in-file-name {} {}",
+            key_path(folder, base),
+            file_name(file)
+        ),
     };
 }
 
