@@ -263,17 +263,17 @@ fn a_line_the_queue_could_not_take_is_counted_and_said_before_the_next() {
 
 /// What:
 ///  A process whose process limit refuses the thread that writes its lines says which limit refused it,
-///  and the line said after that refusal reaches the stream.
+///  and every line the process says after that refusal reaches the stream.
 /// Why:
 ///   A commit at its process limit failed on 2026-11-25 saying nothing at all (issue 6476):
 /// its refusal waited in a queue that no thread would ever write.
 ///  The body runs in a child whose process limit is one,
 /// which is the one state in which the thread is refused,
-///  and the line after the refusal is what a failing command says.
+///  and the two lines after the refusal are a command's first word and its last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// inChild(() => { const [reader, writer] = pipe(); giveTheThread(writer); write(line); expect(read()).toContain('ulimit -u'); expect(read()).toContain(line) })
+/// inChild(() => { const [reader, writer] = pipe(); giveTheThread(writer); write(first); write(last); expect(read()).toContain('ulimit -u'); expect(read()).toContain(first); expect(read()).toContain(last) })
 /// ```
 #[cfg(target_os = "linux")]
 #[test]
@@ -283,9 +283,12 @@ fn a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_line
     }
     let (mut reader, writer) = std::io::pipe().expect("a pipe");
     give_the_thread(Box::new(writer));
-    let line: &str = "[warn] the line a process at its process limit would have lost\n";
-    write(line);
+    let first: &str = "[warn] the line a process at its process limit would have lost\n";
+    let last: &str = "monochromatic-git-policy-cli: the line after it, which a queue no thread writes would also have lost\n";
+    write(first);
+    write(last);
     let said: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
     assert!(said.contains("ulimit -u"), "the refusal names the process limit that refused the thread, and not only the system's error: {said}");
-    assert!(said.contains(line), "the line said after the refusal is written where it is said: {said}");
+    assert!(said.contains(first), "the line said as the refusal is written where it is said: {said}");
+    assert!(said.contains(last), "the line said after the refusal is written where it is said too: {said}");
 }

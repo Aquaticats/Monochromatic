@@ -131,12 +131,16 @@ struct Queue {
     /// leaves a stream that no wait can bring back.
     stream_is_gone: bool,
     /// Whether the system refused the thread that writes these lines,
-    /// with the line that says which limit refused it,
-    /// and nothing where a thread was started.
+    /// so every line is written on the thread that says it.
     /// Why the refusal is kept and not retried:
     ///  a process limit that refused the thread once refuses every later start too,
-    ///  so a line waiting for a new one would never reach the person,
-    ///  and the sentence waits here until a line is said, which is when a control's stream is in place.
+    ///  so a line waiting for a new one would never reach the person.
+    thread_refused: bool,
+    /// The line that says which limit refused that thread,
+    /// or nothing once it is said.
+    /// Why it waits here:
+    ///  the queue is made before a control's stream is given to it,
+    ///  so the sentence is said with the first line the process says.
     thread_refusal: Option<String>,
     /// Where a control's lines go,
     /// or nothing when they go to this process's standard error.
@@ -194,6 +198,7 @@ fn start_the_queue() -> &'static TheQueueOfThisProcess {
             writing: false,
             reader_stopped: false,
             stream_is_gone: false,
+            thread_refused: false,
             thread_refusal: None,
             writer: None,
         }),
@@ -212,6 +217,7 @@ fn start_the_queue() -> &'static TheQueueOfThisProcess {
             crate::scoped_start::refused_thread_sentence("write this command's own lines", &refusal)
         );
         let mut held = started.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        held.thread_refused = true;
         held.thread_refusal = Some(said);
     }
     return started;
@@ -394,10 +400,13 @@ pub fn write_bytes(line: &[u8]) {
     let ticket: u64 = {
         let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         // No thread was given these lines, so no caller waits for a line number here: the refusal, once, and then this
-        //  line are written now.
-        if let Some(said) = held.thread_refusal.take() {
+        //  line are written now, and every line after it too.
+        if held.thread_refused {
+            let refusal_line: Option<String> = held.thread_refusal.take();
             drop(held);
-            write_where_it_is_said(queue, said.as_bytes());
+            if let Some(which_limit) = refusal_line {
+                write_where_it_is_said(queue, which_limit.as_bytes());
+            }
             write_where_it_is_said(queue, line);
             return;
         }
