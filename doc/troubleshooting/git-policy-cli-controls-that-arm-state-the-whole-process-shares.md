@@ -253,6 +253,25 @@ in 0.33 s,
 So neither the host's speed nor a control's own bound was the cause;
 which controls shared the process decided the set that failed.
 
+The module beside it,
+`push::child_watch_output_watched_on_the_runtime::tests`,
+was red the same way,
+and its two failures name both facts at once:
+its 7 controls threaded ran `5 passed; 2 failed` twice,
+in 0.53 s each,
+and `7 passed; 0 failed` with `--test-threads=1`,
+in 1.13 s.
+`a_step_awaited_on_the_runtime_leaves_no_descriptor_open` read `left: 16`,
+`right: 23`,
+the run having added 7 descriptors another control's child held,
+and `a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late` read
+"the runtime this process built can run a task,
+so the late build has workers",
+because another control's stand-in had refused every task of the process at that moment.
+After the change that module ran `7 passed; 0 failed` twice,
+in 0.56 s each,
+and each of its seven controls alone passed.
+
 ### Root cause
 
 Two facts of the whole process:
@@ -283,9 +302,10 @@ and returns in the parent:
 
 - `push::child_watch::tests`:
   three controls;
-- `push::child_watch::output_watched_on_the_runtime_tests`:
+- `push::child_watch_output_watched_on_the_runtime::tests`,
+  the module whose file is `push/child_watch_output_watched_on_the_runtime_tests.rs`:
   two;
-- `service::service_runtime_build_report_tests`:
+- `service::service_runtime_build_report::tests`:
   three,
   which is the only other module of this crate that arms them.
 
