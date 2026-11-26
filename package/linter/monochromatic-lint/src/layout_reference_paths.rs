@@ -153,7 +153,11 @@ struct Read {
 /// ```ts
 /// function leaf(segments: string[], glob: boolean, offset: number): RawReference;
 /// ```
-fn leaf(segments: &[String], glob: bool, offset: usize) -> RawReference {
+fn leaf(
+    segments: &[String],
+    glob: bool,
+    offset: usize,
+) -> RawReference {
     return RawReference {
         segments: segments.to_vec(),
         glob,
@@ -173,7 +177,10 @@ fn leaf(segments: &[String], glob: bool, offset: usize) -> RawReference {
 /// ```ts
 /// function kindAt(tokens: Token[], index: number): TokenKind;
 /// ```
-fn kind_at(tokens: &[Token], index: usize) -> TokenKind {
+fn kind_at(
+    tokens: &[Token],
+    index: usize,
+) -> TokenKind {
     return match tokens.get(index) {
         Some(token) => token.kind,
         None => TokenKind::Other,
@@ -190,7 +197,10 @@ fn kind_at(tokens: &[Token], index: usize) -> TokenKind {
 /// ```ts
 /// function aliasAt(tokens: Token[], index: number): string | undefined;
 /// ```
-fn alias_at(tokens: &[Token], index: usize) -> Option<String> {
+fn alias_at(
+    tokens: &[Token],
+    index: usize,
+) -> Option<String> {
     if kind_at(tokens, index) != TokenKind::As {
         return None;
     }
@@ -225,7 +235,10 @@ fn is_segment(kind: TokenKind) -> bool {
 /// ```ts
 /// function startsPath(tokens: Token[], index: number): boolean;
 /// ```
-fn starts_path(tokens: &[Token], index: usize) -> bool {
+fn starts_path(
+    tokens: &[Token],
+    index: usize,
+) -> bool {
     if !is_segment(kind_at(tokens, index)) {
         return false;
     }
@@ -250,7 +263,12 @@ fn starts_path(tokens: &[Token], index: usize) -> bool {
 /// ```ts
 /// function readGroup(tokens: Token[], open: number, prefix: string[], offset: number): Read;
 /// ```
-fn read_group(tokens: &[Token], open: usize, prefix: &[String], offset: usize) -> Read {
+fn read_group(
+    tokens: &[Token],
+    open: usize,
+    prefix: &[String],
+    offset: usize,
+) -> Read {
     let mut leaves: Vec<RawReference> = Vec::<RawReference>::new();
     let mut index: usize = open + 1;
     loop {
@@ -292,7 +310,12 @@ fn read_group(tokens: &[Token], open: usize, prefix: &[String], offset: usize) -
 /// ```ts
 /// function readEntry(tokens: Token[], start: number, prefix: string[], offset: number): Read;
 /// ```
-fn read_entry(tokens: &[Token], start: usize, prefix: &[String], offset: usize) -> Read {
+fn read_entry(
+    tokens: &[Token],
+    start: usize,
+    prefix: &[String],
+    offset: usize,
+) -> Read {
     let first: TokenKind = kind_at(tokens, start);
     if first == TokenKind::OpenBrace {
         return read_group(tokens, start, prefix, offset);
@@ -364,7 +387,10 @@ fn read_entry(tokens: &[Token], start: usize, prefix: &[String], offset: usize) 
 /// ```ts
 /// function readPath(tokens: Token[], start: number): Read;
 /// ```
-fn read_path(tokens: &[Token], start: usize) -> Read {
+fn read_path(
+    tokens: &[Token],
+    start: usize,
+) -> Read {
     let offset: usize = tokens[start].offset;
     let mut segments: Vec<String> = vec![tokens[start].text.clone()];
     let mut index: usize = start + 1;
@@ -407,7 +433,10 @@ fn read_path(tokens: &[Token], start: usize) -> Read {
 /// ```ts
 /// function readReferences(tokens: Token[], publicUses: Range[]): RawReference[];
 /// ```
-pub fn read_references(tokens: &[Token], public_uses: &[(usize, usize)]) -> Vec<RawReference> {
+pub fn read_references(
+    tokens: &[Token],
+    public_uses: &[(usize, usize)],
+) -> Vec<RawReference> {
     let mut found: Vec<RawReference> = Vec::<RawReference>::new();
     let mut index: usize = 0;
     while index < tokens.len() {

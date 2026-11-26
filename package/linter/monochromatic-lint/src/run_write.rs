@@ -17,10 +17,20 @@
 /// Import a counter that several threads can advance without a lock.
 use std::{
     ffi::OsString,
-    fs::{File, Metadata, OpenOptions},
+    fs::{
+        File,
+        Metadata,
+        OpenOptions,
+    },
     io::Write,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// What:
@@ -59,7 +69,10 @@ pub struct WriteError {
 /// Render the failure through the ordinary error interface.
 impl std::fmt::Display for WriteError {
     /// Borrow the formatter only while writing the stored explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -78,7 +91,11 @@ impl std::error::Error for WriteError {}
 /// ```ts
 /// function failure(operation: string, path: Path, error: Error): WriteError;
 /// ```
-fn failure(operation: &str, path: &Path, error: &std::io::Error) -> WriteError {
+fn failure(
+    operation: &str,
+    path: &Path,
+    error: &std::io::Error,
+) -> WriteError {
     return WriteError {
         message: format!("Cannot {operation} {}: {error}.", path.display()),
     };
@@ -163,7 +180,10 @@ fn fill_temporary(
 /// ```ts
 /// async function writeAtomically(path: Path, contents: Uint8Array): Promise<void>;
 /// ```
-pub fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), WriteError> {
+pub fn write_atomically(
+    path: &Path,
+    contents: &[u8],
+) -> Result<(), WriteError> {
     let target: PathBuf = match std::fs::canonicalize(path) {
         Ok(resolved) => resolved,
         Err(error) => return Err(failure("resolve", path, &error)),

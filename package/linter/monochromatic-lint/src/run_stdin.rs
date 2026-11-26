@@ -16,10 +16,17 @@ use crate::{
     run_modes::SetupError,
     run_output::RunOutput,
     run_plan::ConfigStore,
-    run_source::{SourceRun, lint_source_bytes, require_supported_name},
+    run_source::{
+        SourceRun,
+        lint_source_bytes,
+        require_supported_name,
+    },
 };
 /// Import the reader trait for standard input and borrowed native paths.
-use std::{io::Read, path::Path};
+use std::{
+    io::Read,
+    path::Path,
+};
 
 /// What:
 ///  Lint one source read from standard input as if it lived at `--stdin-filename`.

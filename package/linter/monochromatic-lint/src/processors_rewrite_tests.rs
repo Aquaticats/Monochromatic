@@ -11,7 +11,15 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, fixed, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    VirtualSource,
+    fixed,
+    inputs,
+};
 /// Typed refusals carry the explanation under test.
 use crate::processors::ProcessorError;
 
@@ -24,7 +32,11 @@ const SPLIT_CRLF: &str = "Processor fix splits an authored CRLF newline.";
 const CHANGED_CONTAINER: &str = "Projected fix changes its Markdown/Rust container or hidden-line preparation. No edits in this atomic group can be applied safely.";
 
 /// Build a one-edit group.
-fn group(start: usize, end: usize, replacement: &str) -> Fix {
+fn group(
+    start: usize,
+    end: usize,
+    replacement: &str,
+) -> Fix {
     return Fix {
         class: FixClass::Content,
         edits: vec![Edit {
@@ -36,7 +48,10 @@ fn group(start: usize, end: usize, replacement: &str) -> Fix {
 }
 
 /// Project a group that must be refused and return its typed refusal.
-fn refusal(input: &VirtualSource, fix: &Fix) -> ProcessorError {
+fn refusal(
+    input: &VirtualSource,
+    fix: &Fix,
+) -> ProcessorError {
     return input.project_fix(fix).expect_err("refused group");
 }
 

@@ -11,7 +11,11 @@
 
 /// Import the matcher,
 /// its refusal type and the attribute translation.
-use super::{PathPatternError, PathPatterns, lfs_tracked_patterns};
+use super::{
+    PathPatternError,
+    PathPatterns,
+    lfs_tracked_patterns,
+};
 
 /// Attribute lines mirroring the repository's `.gitattributes`.
 const ATTRIBUTES: &str = "* text=auto eol=lf\n\n# raster formats\n*.png filter=lfs diff=lfs merge=lfs -text\n*.jpg\tfilter=lfs diff=lfs merge=lfs -text\ndesign/*.bin filter=lfs\npackage/*/asset/readme/*.png !filter !diff !merge";

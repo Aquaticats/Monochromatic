@@ -11,7 +11,10 @@
 //! ```
 
 /// Import the dialect and construct tables.
-use crate::shell_dialect::{Construct, ShellDialect};
+use crate::shell_dialect::{
+    Construct,
+    ShellDialect,
+};
 
 /// What:
 ///  One banned construct and the bytes it occupies in the run body.
@@ -46,7 +49,10 @@ pub struct Hit {
 /// ```ts
 /// function expressionEnd(text: string, index: number): number | undefined;
 /// ```
-pub(crate) fn expression_end(bytes: &[u8], index: usize) -> Option<usize> {
+pub(crate) fn expression_end(
+    bytes: &[u8],
+    index: usize,
+) -> Option<usize> {
     // `&[u8]` is a borrowed view of bytes, like a read-only Uint8Array; `starts_with` compares a prefix.
     if !bytes[index..].starts_with(b"${{") {
         return None;
@@ -71,7 +77,10 @@ pub(crate) fn expression_end(bytes: &[u8], index: usize) -> Option<usize> {
 /// ```ts
 /// function scan(text: string, dialect: ShellDialect): Hit[];
 /// ```
-pub fn scan(text: &str, dialect: ShellDialect) -> Vec<Hit> {
+pub fn scan(
+    text: &str,
+    dialect: ShellDialect,
+) -> Vec<Hit> {
     let found: Vec<Hit> = match dialect {
         ShellDialect::Posix => crate::shell_scan_posix::scan(text, false),
         ShellDialect::Fish => crate::shell_scan_posix::scan(text, true),

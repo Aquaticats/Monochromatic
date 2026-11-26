@@ -20,23 +20,43 @@
 /// Import the parsed document whose images and definitions name candidate paths.
 use crate::{
     markdown_lfs_config::{
-        LFS_CONFIG_FILENAME, LfsConfigError, read_lfs_object_base, read_optional_text,
+        LFS_CONFIG_FILENAME,
+        LfsConfigError,
+        read_lfs_object_base,
+        read_optional_text,
     },
     markdown_lfs_oid::lfs_oid_of_bytes,
-    markdown_lfs_patterns::{PathPatterns, lfs_tracked_patterns},
+    markdown_lfs_patterns::{
+        PathPatterns,
+        lfs_tracked_patterns,
+    },
     markdown_lfs_target::{
-        apply_segments, lexical_normal, object_url_parts, relative_target_path, repo_relative,
+        apply_segments,
+        lexical_normal,
+        object_url_parts,
+        relative_target_path,
+        repo_relative,
     },
     markdown_source::MarkdownSource,
 };
 /// Import node kinds and the typed image and definition payload decoders.
-use satteri_ast::mdast::{MdastNodeType, decode_definition_data, decode_image_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_definition_data,
+    decode_image_data,
+};
 /// Import an ordered map (deterministic iteration) and a lock for the shared per-run cache.
 use std::{
     collections::BTreeMap,
     io::ErrorKind,
-    path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Mutex,
+        MutexGuard,
+    },
 };
 
 /// What:
@@ -155,7 +175,10 @@ pub struct LfsImageContext {
 /// ```
 impl LfsImageContext {
     /// Return an owned copy so the caller is not tied to this context's borrow.
-    pub fn resolve_target(&self, repo_relative_path: &str) -> LfsImageTarget {
+    pub fn resolve_target(
+        &self,
+        repo_relative_path: &str,
+    ) -> LfsImageTarget {
         if let Some(target) = self.targets.get(repo_relative_path) {
             return target.clone();
         }
@@ -287,7 +310,11 @@ pub fn discover_lfs_image_repo(start: &Path) -> Result<Option<LfsImageRepo>, Lfs
 /// ```ts
 /// function isExcluded(repoRoot, filePath, exclude): boolean;
 /// ```
-pub fn is_excluded(repo_root: &Path, file_path: &Path, exclude: &PathPatterns) -> bool {
+pub fn is_excluded(
+    repo_root: &Path,
+    file_path: &Path,
+    exclude: &PathPatterns,
+) -> bool {
     let normal: PathBuf = lexical_normal(file_path);
     let Some(relative): Option<String> = repo_relative(repo_root, &normal) else {
         return false;

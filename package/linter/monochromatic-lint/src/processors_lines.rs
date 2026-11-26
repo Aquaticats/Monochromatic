@@ -12,7 +12,10 @@
 //! ```
 
 /// Import immutable mapped-line and snapshot records.
-use crate::processors_model::{MappedLine, Mapping};
+use crate::processors_model::{
+    MappedLine,
+    Mapping,
+};
 
 /// What:
 ///  Byte indexes use usize rather than u32/u64/i32/i64.
@@ -110,7 +113,10 @@ pub(crate) fn copy_line(
 
 /// Return the physical line's newline spelling,
 ///  choosing LF only for an unterminated input.
-pub(crate) fn newline(source: &str, offset: usize) -> &str {
+pub(crate) fn newline(
+    source: &str,
+    offset: usize,
+) -> &str {
     // Borrow the indexed suffix; range syntax is a checked byte slice, not TS string indexing.
     let suffix: &str = &source[offset..];
     // Inspect physical ranges without converting original bytes.

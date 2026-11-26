@@ -8,10 +8,16 @@
 //! test('files that use each other in a loop are one finding', () => expect(check(tree)).toEqual([...]));
 //! ```
 
-use super::{check_file_order, uses_between};
+use super::{
+    check_file_order,
+    uses_between,
+};
 use crate::{
     layout_module_uses::collect_uses,
-    layout_test_support::{package_with, tree_of},
+    layout_test_support::{
+        package_with,
+        tree_of,
+    },
     layout_top_doc::LIST_MARKER,
 };
 use std::path::Path;
@@ -33,7 +39,10 @@ fn findings_of(root: &Path) -> Vec<String> {
 }
 
 /// A `mod.rs` for the folder `src/a` whose top doc lists the given file names after the marker.
-fn index_listing(names: &[&str], modules: &[&str]) -> String {
+fn index_listing(
+    names: &[&str],
+    modules: &[&str],
+) -> String {
     let mut text: String = format!("//! Words about the folder.\n//!\n//! {LIST_MARKER}\n//!\n");
     for name in names {
         text.push_str(format!("//! - `{name}`: what it does.\n").as_str());
@@ -540,7 +549,10 @@ fn layout_the_smallest_proof_of_a_use_between_two_files_wins_in_any_order() {
 
 /// Run the rule with an allow list and render each finding as `file:line message`,
 ///  with the fixture folder removed.
-fn findings_with(root: &Path, lines: &str) -> Vec<String> {
+fn findings_with(
+    root: &Path,
+    lines: &str,
+) -> Vec<String> {
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
@@ -588,7 +600,9 @@ fn a_listed_file_use_that_names_no_use_is_reported() {
     let found: Vec<String> = findings_with(&fixture.path, "file-uses src/a one.rs -> two.rs\n");
     assert_eq!(found.len(), 1, "{found:#?}");
     assert!(
-        found[0].starts_with("allow-list.txt:1 The allow-list entry `file-uses src/a one.rs -> two.rs`"),
+        found[0].starts_with(
+            "allow-list.txt:1 The allow-list entry `file-uses src/a one.rs -> two.rs`"
+        ),
         "{}",
         found[0]
     );

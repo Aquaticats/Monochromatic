@@ -72,7 +72,10 @@ pub struct DirectiveOptions {
 impl DirectiveOptions {
     /// The plain flag means warning severity;
     ///  the severity option names its own level.
-    pub fn from_flags(report: bool, severity: Option<UnusedDirectiveSeverity>) -> DirectiveOptions {
+    pub fn from_flags(
+        report: bool,
+        severity: Option<UnusedDirectiveSeverity>,
+    ) -> DirectiveOptions {
         let unused: Option<Severity> = match severity {
             Some(UnusedDirectiveSeverity::Allow) | Some(UnusedDirectiveSeverity::Off) => None,
             Some(UnusedDirectiveSeverity::Warn) => Some(Severity::Warn),
@@ -82,7 +85,9 @@ impl DirectiveOptions {
             None if report => Some(Severity::Warn),
             None => None,
         };
-        return DirectiveOptions { unused };
+        return DirectiveOptions {
+            unused,
+        };
     }
 }
 

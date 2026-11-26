@@ -14,11 +14,26 @@
 //! ```
 
 /// Import the pipeline and fixture helpers.
-use super::{FileOutcome, SourceOutcome, process_file, process_file_with, process_source};
-use crate::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
+use super::{
+    FileOutcome,
+    SourceOutcome,
+    process_file,
+    process_file_with,
+    process_source,
+};
+use crate::run_failure::{
+    FIX_REFUSED,
+    PROCESSING_FAILURE,
+};
 use crate::run_lfs::LfsRepos;
 use crate::run_plan::FilePlan;
-use crate::run_test_support::{ALL_RULES, CONFIG, plan, read, write};
+use crate::run_test_support::{
+    ALL_RULES,
+    CONFIG,
+    plan,
+    read,
+    write,
+};
 use crate::run_write::WriteError;
 use crate::test_fs::Fixture;
 use std::path::Path;
@@ -34,7 +49,11 @@ fn codes(findings: &[crate::diagnostic::Diagnostic]) -> Vec<&str> {
 }
 
 /// Process one file below a root that already holds a configuration.
-fn process(root: &Path, file: &str, fix: bool) -> FileOutcome {
+fn process(
+    root: &Path,
+    file: &str,
+    fix: bool,
+) -> FileOutcome {
     let planned: FilePlan = plan(root, file);
     let lfs: LfsRepos = LfsRepos::new();
     return process_file(&planned, fix, &lfs, None);
@@ -245,7 +264,10 @@ fn a_directory_named_like_a_source_file_is_a_processing_finding() {
 
 /// A writer that always refuses,
 ///  standing in for a full disk or a read-only directory.
-fn refusing_writer(path: &Path, _contents: &[u8]) -> Result<(), WriteError> {
+fn refusing_writer(
+    path: &Path,
+    _contents: &[u8],
+) -> Result<(), WriteError> {
     return Err(WriteError {
         message: format!(
             "Cannot replace {}: refused by the test writer.",

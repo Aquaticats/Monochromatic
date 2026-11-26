@@ -30,11 +30,17 @@
 
 /// Import the finding shape,
 ///  the display helper and native paths.
-use crate::layout_finding::{LayoutFinding, shown};
+use crate::layout_finding::{
+    LayoutFinding,
+    shown,
+};
 /// Import ordered collections and native paths.
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -173,7 +179,10 @@ fn usable(path: &str) -> bool {
 /// ```ts
 /// function entryOf(line: number, text: string): AllowEntry;
 /// ```
-fn entry_of(line: usize, text: &str) -> Result<AllowEntry, String> {
+fn entry_of(
+    line: usize,
+    text: &str,
+) -> Result<AllowEntry, String> {
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
     let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
         if words.len() != 4 || words[2] != ARROW {
@@ -228,7 +237,10 @@ fn entry_of(line: usize, text: &str) -> Result<AllowEntry, String> {
 /// ```ts
 /// function parseAllowList(text: string, source: Path): AllowList;
 /// ```
-pub fn parse_allow_list(text: &str, source: &Path) -> Result<AllowList, String> {
+pub fn parse_allow_list(
+    text: &str,
+    source: &Path,
+) -> Result<AllowList, String> {
     let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::new();
     let mut seen: BTreeSet<String> = BTreeSet::<String>::new();
     for (index, raw) in text.lines().enumerate() {
@@ -314,7 +326,11 @@ impl AllowList {
     }
 
     /// Whether one use between two folders is tolerated.
-    pub fn covers_use(&self, from: &Path, to: &Path) -> bool {
+    pub fn covers_use(
+        &self,
+        from: &Path,
+        to: &Path,
+    ) -> bool {
         for entry in &self.entries {
             let AllowKind::FolderUse {
                 from: listed_from,
@@ -331,7 +347,12 @@ impl AllowList {
     }
 
     /// Whether one use between two files of a folder is tolerated.
-    pub fn covers_file_use(&self, folder: &Path, from: &str, to: &str) -> bool {
+    pub fn covers_file_use(
+        &self,
+        folder: &Path,
+        from: &str,
+        to: &str,
+    ) -> bool {
         for entry in &self.entries {
             let AllowKind::FileUse {
                 folder: listed_folder,
@@ -349,7 +370,10 @@ impl AllowList {
     }
 
     /// Whether one finding's key is tolerated.
-    pub fn covers_key(&self, key: &str) -> bool {
+    pub fn covers_key(
+        &self,
+        key: &str,
+    ) -> bool {
         for entry in &self.entries {
             let AllowKind::Key(listed) = &entry.kind else {
                 continue;
@@ -360,7 +384,6 @@ impl AllowList {
         }
         return false;
     }
-
 }
 
 /// What:

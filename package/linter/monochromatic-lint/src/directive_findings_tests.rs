@@ -10,10 +10,27 @@
 //! ```
 
 /// Import the reporter and the pieces needed to position its findings.
-use super::{MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE, Reporter, UNKNOWN_RULE, UNUSED};
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::directive_parse::{DirectiveKind, RuleToken};
-use crate::directive_scan::{CommentSite, ScannedComments, scan_comments};
+use super::{
+    MALFORMED,
+    MISSING_JUSTIFICATION,
+    NON_SUPPRESSIBLE,
+    Reporter,
+    UNKNOWN_RULE,
+    UNUSED,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::directive_parse::{
+    DirectiveKind,
+    RuleToken,
+};
+use crate::directive_scan::{
+    CommentSite,
+    ScannedComments,
+    scan_comments,
+};
 use crate::run_paths::Language;
 
 /// The shared fixture:

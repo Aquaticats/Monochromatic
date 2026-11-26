@@ -13,7 +13,11 @@
 ///  the declared long option surface,
 ///  the severity an unused-directive finding carries,
 ///  and the parser's fallible entry point.
-use super::{ABOUT, CliOptions, long_options};
+use super::{
+    ABOUT,
+    CliOptions,
+    long_options,
+};
 use crate::diagnostic::Severity;
 use crate::run_finish::PROGRAM;
 use clap::Parser;

@@ -11,16 +11,28 @@
 //! ```
 
 /// Import the diagnostic and severity types that heading findings are reported with.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import node findings and the processing failure reported when the document's structure cannot be walked.
-use crate::markdown_finding::{finding, structure_failure};
+use crate::markdown_finding::{
+    finding,
+    structure_failure,
+};
 /// Import the parsed Markdown source whose heading structure is inspected.
 use crate::markdown_source::MarkdownSource;
 /// Import native heading data and shared finding construction.
-use satteri_ast::mdast::{MdastNodeType, decode_heading_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_heading_data,
+};
 
 /// Report heading-depth increases larger than one after the first heading.
-pub fn heading_increment(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn heading_increment(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings = Vec::new();
     let mut previous = 0_u8;
     for id in context.visible_nodes() {
@@ -45,7 +57,10 @@ pub fn heading_increment(context: &MarkdownSource, severity: Severity) -> Vec<Di
 
 /// Report every h1 after the first;
 ///  frontmatter titles are not headings.
-pub fn single_h1(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn single_h1(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings = Vec::new();
     let mut count = 0;
     for id in context.visible_nodes() {
@@ -98,7 +113,10 @@ fn is_sentence_punctuation(character: char) -> bool {
 }
 
 /// Report emphasis-only paragraphs that are not sentences or list labels.
-pub fn no_emphasis_as_heading(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn no_emphasis_as_heading(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings = Vec::new();
     for id in context.visible_nodes() {
         if context.kind(*id) != MdastNodeType::Paragraph {

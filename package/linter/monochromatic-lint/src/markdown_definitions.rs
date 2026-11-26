@@ -10,7 +10,10 @@
 //! ```
 
 /// Import the shared finding model so this rule uses the same output and fix contracts.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import a byte-addressed deletion rather than rebuilding surrounding Markdown.
 use crate::edits::Edit;
 /// Import the common diagnostic builder and original-source view.
@@ -20,7 +23,11 @@ use crate::markdown_source::MarkdownSource;
 /// Import typed payload decoders;
 ///  identifiers are already normalized by the parser.
 use satteri_ast::mdast::{
-    DefinitionData, MdastNodeType, ReferenceData, decode_definition_data, decode_reference_data,
+    DefinitionData,
+    MdastNodeType,
+    ReferenceData,
+    decode_definition_data,
+    decode_reference_data,
 };
 /// What:
 ///  BTreeSet keeps unique owned String values,
@@ -44,7 +51,10 @@ use std::collections::BTreeSet;
 /// ```ts
 /// function removalEdit(context, id): Edit;
 /// ```
-fn removal_edit(context: &MarkdownSource, id: u32) -> Edit {
+fn removal_edit(
+    context: &MarkdownSource,
+    id: u32,
+) -> Edit {
     // Borrow the original bytes; usize addresses the complete buffer, unlike fixed-width u32/u64 or signed i32/i64.
     let bytes: &[u8] = context.source.as_bytes();
     // Copy the parser's original-source range instead of using normalized string lengths.
@@ -105,7 +115,10 @@ fn removal_edit(context: &MarkdownSource, id: u32) -> Edit {
 /// ```ts
 /// function referenceDefinitions(context, severity): Diagnostic[];
 /// ```
-pub fn reference_definitions(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn reference_definitions(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     // Owned growable Vec buffers collect unknown counts; &[T] borrows and [T; N] has a fixed length.
     let mut definitions: Vec<u32> = Vec::<u32>::new();
     // Separate sets distinguish resolved uses from definitions already retained.

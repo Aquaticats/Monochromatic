@@ -23,7 +23,10 @@ use crate::markdown_lfs_target::lexical_normal;
 ///  and native paths.
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:

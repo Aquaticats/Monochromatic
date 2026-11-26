@@ -31,19 +31,42 @@
 ///  the index item check,
 ///  the link type and the tree.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
-    layout_folder_index_files::{file_name, files_by_folder},
-    layout_folder_uses::{FolderUses, Proof, record_use, use_loops},
-    layout_group_entries::{entry_of, owner_of},
+    layout_finding::{
+        LayoutFinding,
+        shown,
+    },
+    layout_folder_index_files::{
+        file_name,
+        files_by_folder,
+    },
+    layout_folder_uses::{
+        FolderUses,
+        Proof,
+        record_use,
+        use_loops,
+    },
+    layout_group_entries::{
+        entry_of,
+        owner_of,
+    },
     layout_group_summary_links::summary_findings,
-    layout_index_file_items::{IndexRole, check_index_items},
+    layout_index_file_items::{
+        IndexRole,
+        check_index_items,
+    },
     layout_link_entries::Link,
     layout_module_tree::ModuleTree,
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -121,7 +144,12 @@ fn shelf_findings(
 /// ```ts
 /// function namesGroup(from: Path, group: Path, proof: Proof, base: Path): LayoutFinding;
 /// ```
-fn names_group(from: &Path, group: &Path, proof: &Proof, base: &Path) -> LayoutFinding {
+fn names_group(
+    from: &Path,
+    group: &Path,
+    proof: &Proof,
+    base: &Path,
+) -> LayoutFinding {
     return LayoutFinding {
         file: proof.file.clone(),
         line: proof.line,
@@ -135,11 +163,7 @@ fn names_group(from: &Path, group: &Path, proof: &Proof, base: &Path) -> LayoutF
             "Name the folder inside {} that holds what is needed, and link that folder.",
             shown(group, base)
         )),
-        key: format!(
-            "names-group {} {}",
-            shown(from, base),
-            shown(group, base)
-        ),
+        key: format!("names-group {} {}", shown(from, base), shown(group, base)),
     };
 }
 
@@ -153,7 +177,10 @@ fn names_group(from: &Path, group: &Path, proof: &Proof, base: &Path) -> LayoutF
 /// ```ts
 /// function linksGroup(link: Link, base: Path): LayoutFinding;
 /// ```
-pub fn links_group(link: &Link, base: &Path) -> LayoutFinding {
+pub fn links_group(
+    link: &Link,
+    base: &Path,
+) -> LayoutFinding {
     return LayoutFinding {
         file: link.entry.clone(),
         line: 0,

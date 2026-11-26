@@ -13,14 +13,24 @@
 /// Import the actual rule and its helpers through the module under test.
 use super::check_tests_in_sidecars;
 /// Import the same owned findings returned to the executable.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the retained source context.
 use crate::rust_source::RustSource;
 /// Import the exact parser interface to validate that fixtures contain real Rust syntax.
-use ra_ap_syntax::{Edition, Parse, SourceFile};
+use ra_ap_syntax::{
+    Edition,
+    Parse,
+    SourceFile,
+};
 
 /// Parse a fixture under a chosen file name and return the rule's findings.
-fn check_as(filename: &str, source: &str) -> Vec<Diagnostic> {
+fn check_as(
+    filename: &str,
+    source: &str,
+) -> Vec<Diagnostic> {
     let parsed: Parse<SourceFile> = SourceFile::parse(source, Edition::CURRENT);
     // The parser must accept the fixture before its lint results count as evidence.
     assert!(parsed.errors().is_empty(), "fixture must parse: {source}");

@@ -175,7 +175,10 @@ fn class_as_git_reads_it(members: &[char]) -> String {
 /// ```ts
 /// const closingBracket = (chars, open) => { let i = open + 1; if (chars[i] === '!' || chars[i] === '^') i += 1; if (chars[i] === ']') i += 1; while (i < chars.length) { if (chars[i] === ']') return i; i += 1; } return undefined; };
 /// ```
-fn closing_bracket(characters: &[char], open: usize) -> Option<usize> {
+fn closing_bracket(
+    characters: &[char],
+    open: usize,
+) -> Option<usize> {
     let mut index: usize = open + 1;
     if matches!(characters.get(index), Some('!' | '^')) {
         index += 1;

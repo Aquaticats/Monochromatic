@@ -19,7 +19,11 @@ use crate::config_error::ConfigError;
 /// ```ts
 /// import { unitsToString } from 'jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+    units_to_string,
+};
 /// What:
 ///  Import a set for decoded object-property identities.
 /// Why:
@@ -145,7 +149,10 @@ pub(crate) fn key_text(units: &[u16]) -> Result<String, ConfigError> {
 /// ```ts
 /// function text(value: JsoncValue, field: string): string;
 /// ```
-pub(crate) fn text(value: &JsoncValue, field: &str) -> Result<String, ConfigError> {
+pub(crate) fn text(
+    value: &JsoncValue,
+    field: &str,
+) -> Result<String, ConfigError> {
     // Extract a borrowed string view without changing the parsed document.
     if let Some(units) = value.text_units() {
         return key_text(units);
@@ -164,7 +171,10 @@ pub(crate) fn text(value: &JsoncValue, field: &str) -> Result<String, ConfigErro
 /// ```ts
 /// function strings(value: JsoncValue, field: string): string[];
 /// ```
-pub(crate) fn strings(value: &JsoncValue, field: &str) -> Result<Vec<String>, ConfigError> {
+pub(crate) fn strings(
+    value: &JsoncValue,
+    field: &str,
+) -> Result<Vec<String>, ConfigError> {
     // Extract the array view; absence is a schema error rather than an empty list.
     let Some(elements) = value.elements() else {
         return Err(ConfigError::new(

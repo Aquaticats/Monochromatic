@@ -17,8 +17,18 @@
 /// Import per-file processing,
 ///  its outcome and the plan model.
 use crate::{
-    run_failure::{file_start, panic_text, processing_failure},
-    run_file::{FileOutcome, SourceOutcome, Writer, process_file_with, process_source},
+    run_failure::{
+        file_start,
+        panic_text,
+        processing_failure,
+    },
+    run_file::{
+        FileOutcome,
+        SourceOutcome,
+        Writer,
+        process_file_with,
+        process_source,
+    },
     run_lfs::LfsRepos,
     run_plan::FilePlan,
     run_write::write_atomically,
@@ -30,9 +40,19 @@ use crate::{
 /// Import scoped threads,
 ///  which may borrow data owned by the spawning function.
 use std::{
-    panic::{AssertUnwindSafe, catch_unwind},
-    sync::atomic::{AtomicUsize, Ordering},
-    thread::{Builder, Scope, ScopedJoinHandle},
+    panic::{
+        AssertUnwindSafe,
+        catch_unwind,
+    },
+    sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    },
+    thread::{
+        Builder,
+        Scope,
+        ScopedJoinHandle,
+    },
 };
 
 /// What:
@@ -110,7 +130,10 @@ struct Shared<'run> {
 /// ```ts
 /// function panicked(plan: FilePlan, payload: unknown): FileOutcome;
 /// ```
-fn panicked(plan: &FilePlan, payload: &(dyn std::any::Any + Send)) -> FileOutcome {
+fn panicked(
+    plan: &FilePlan,
+    payload: &(dyn std::any::Any + Send),
+) -> FileOutcome {
     return FileOutcome {
         findings: vec![processing_failure(
             plan.display.as_str(),
@@ -313,7 +336,10 @@ fn spawn_and_join<'scope, 'env>(
 /// ```ts
 /// function runWorkers(shared: Shared, workers: number): [number, FileOutcome][];
 /// ```
-fn run_workers(shared: &Shared<'_>, workers: usize) -> Vec<(usize, FileOutcome)> {
+fn run_workers(
+    shared: &Shared<'_>,
+    workers: usize,
+) -> Vec<(usize, FileOutcome)> {
     // The scope API needs a callable; the closure only forwards to the named `spawn_and_join`.
     return std::thread::scope(
         #[cfg_attr(

@@ -203,7 +203,10 @@ fn plain_version_byte(byte: u8) -> bool {
 /// ```ts
 /// function olderThanPin(own: string, pinned: string): boolean;
 /// ```
-fn older_than_pin(own: &str, pinned: &str) -> bool {
+fn older_than_pin(
+    own: &str,
+    pinned: &str,
+) -> bool {
     let Some(own_version) = parse_version(own) else {
         return false;
     };
@@ -284,7 +287,10 @@ fn parse_version(version: &str) -> Option<Version> {
 /// ```ts
 /// function compareVersions(left: Version, right: Version): -1 | 0 | 1;
 /// ```
-fn compare_versions(left: &Version, right: &Version) -> std::cmp::Ordering {
+fn compare_versions(
+    left: &Version,
+    right: &Version,
+) -> std::cmp::Ordering {
     let by_core = left.core.cmp(&right.core);
     if by_core != std::cmp::Ordering::Equal {
         return by_core;
@@ -308,7 +314,10 @@ fn compare_versions(left: &Version, right: &Version) -> std::cmp::Ordering {
 /// ```ts
 /// function compareIdentifiers(left: string[], right: string[]): -1 | 0 | 1;
 /// ```
-fn compare_identifiers(left: &[String], right: &[String]) -> std::cmp::Ordering {
+fn compare_identifiers(
+    left: &[String],
+    right: &[String],
+) -> std::cmp::Ordering {
     for (own, other) in left.iter().zip(right.iter()) {
         let ordered = match (decimal(own), decimal(other)) {
             (Some(own_number), Some(other_number)) => own_number.cmp(&other_number),

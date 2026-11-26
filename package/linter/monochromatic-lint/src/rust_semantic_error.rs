@@ -29,7 +29,10 @@ impl SemanticError {
 /// Render the owned explanation through Rust's ordinary error-formatting interface.
 impl std::fmt::Display for SemanticError {
     /// Borrow the formatter while emitting the message.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }

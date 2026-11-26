@@ -10,13 +10,25 @@
 
 /// Import the actual engine and its selected-rule inputs.
 use super::RustFileEngine;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::rust_rule_settings::{LineBudget, RustRuleSettings};
-use crate::rust_semantic_test_support::{prepare_lockfile, progress};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::rust_rule_settings::{
+    LineBudget,
+    RustRuleSettings,
+};
+use crate::rust_semantic_test_support::{
+    prepare_lockfile,
+    progress,
+};
 use crate::rust_workspace::WorkspacePreparation;
 /// Import native paths and owned fixtures for real workspace verification.
 use crate::test_fs::Fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Syntax-only checks cannot need project discovery,
 ///  because this path deliberately has no physical source.

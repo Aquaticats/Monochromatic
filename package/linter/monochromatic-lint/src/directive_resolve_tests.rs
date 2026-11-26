@@ -12,12 +12,23 @@
 //! ```
 
 /// Import the resolver and the pieces it is checked against.
-use super::{Directive, Targets, resolve_directives};
+use super::{
+    Directive,
+    Targets,
+    resolve_directives,
+};
 use crate::diagnostic::Diagnostic;
 use crate::directive_findings::Reporter;
-use crate::directive_findings::{MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE};
+use crate::directive_findings::{
+    MALFORMED,
+    MISSING_JUSTIFICATION,
+    NON_SUPPRESSIBLE,
+};
 use crate::directive_parse::DirectiveKind;
-use crate::directive_scan::{ScannedComments, scan_comments};
+use crate::directive_scan::{
+    ScannedComments,
+    scan_comments,
+};
 use crate::run_paths::Language;
 
 /// Resolve the directives of a Rust source,

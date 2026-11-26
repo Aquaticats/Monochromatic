@@ -13,7 +13,10 @@
 /// Import the store under test and its typed inputs.
 use super::LfsRepos;
 use crate::diagnostic::Severity;
-use crate::markdown_lfs_context::{LfsImageContext, LfsImageTarget};
+use crate::markdown_lfs_context::{
+    LfsImageContext,
+    LfsImageTarget,
+};
 use crate::markdown_lfs_patterns::PathPatterns;
 use crate::markdown_rule_settings::LfsSetting;
 use crate::markdown_source::MarkdownSource;

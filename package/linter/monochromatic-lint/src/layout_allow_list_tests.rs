@@ -9,8 +9,16 @@
 //! test('a repeated line is an error', () => expect(() => parse(text)).toThrow());
 //! ```
 
-use super::{AllowKind, AllowList, parse_allow_list, read_allow_list};
-use crate::{run_test_support::write, test_fs::Fixture};
+use super::{
+    AllowKind,
+    AllowList,
+    parse_allow_list,
+    read_allow_list,
+};
+use crate::{
+    run_test_support::write,
+    test_fs::Fixture,
+};
 use std::path::Path;
 
 /// Read a list from text, as the file it would be.
@@ -39,7 +47,10 @@ fn every_shape_of_entry_is_read_in_file_order() {
     );
     let entries = list.entries();
     assert_eq!(entries.len(), 3);
-    assert_eq!(entries[0].text, "uses src/native/landing -> src/native/foundation");
+    assert_eq!(
+        entries[0].text,
+        "uses src/native/landing -> src/native/foundation"
+    );
     assert_eq!(entries[0].line, 2);
     assert!(
         matches!(
@@ -110,7 +121,10 @@ fn a_file_use_line_without_a_folder_and_two_files_is_an_error() {
         "file-uses src/a one.rs two.rs\n",
     ] {
         let error: String = error_of(line);
-        assert!(error.contains("file-uses <folder> <file> -> <file>"), "{error}");
+        assert!(
+            error.contains("file-uses <folder> <file> -> <file>"),
+            "{error}"
+        );
     }
 }
 

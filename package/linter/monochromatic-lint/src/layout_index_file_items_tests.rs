@@ -9,12 +9,18 @@
 //! test('a function in mod.rs is reported on its line', () => expect(check('fn f() {}')).toEqual(['1 ...']));
 //! ```
 
-use super::{IndexRole, check_index_items};
+use super::{
+    IndexRole,
+    check_index_items,
+};
 use crate::layout_test_support::package_with;
 
 /// Check the text as `src/a/mod.rs` in the given role,
 /// and render each finding as `line message`.
-fn findings_of(text: &str, role: IndexRole) -> Vec<String> {
+fn findings_of(
+    text: &str,
+    role: IndexRole,
+) -> Vec<String> {
     let fixture = package_with(&[("src/lib.rs", "mod a;\n"), ("src/a/mod.rs", text)]);
     return check_index_items(&fixture.path.join("src/a/mod.rs"), role, &fixture.path)
         .iter()

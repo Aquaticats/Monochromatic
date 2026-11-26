@@ -18,18 +18,37 @@
 ///  the injected-environment runner,
 ///  output model and lint threads.
 use crate::{
-    cli_options::CliOptions, run_command::run_command, run_failure::panic_text,
-    run_finish::PROGRAM, run_output::RunOutput, run_workers::lint_thread,
+    cli_options::CliOptions,
+    run_command::run_command,
+    run_failure::panic_text,
+    run_finish::PROGRAM,
+    run_output::RunOutput,
+    run_workers::lint_thread,
 };
 /// Import the argument parser trait that provides `parse`.
 use clap::Parser;
 /// Import stream reading and writing,
 ///  panic containment and scoped threads.
 use std::{
-    io::{ErrorKind, Read, Write},
-    panic::{AssertUnwindSafe, PanicHookInfo, catch_unwind},
-    path::{Path, PathBuf},
-    thread::{Builder, Scope, ScopedJoinHandle},
+    io::{
+        ErrorKind,
+        Read,
+        Write,
+    },
+    panic::{
+        AssertUnwindSafe,
+        PanicHookInfo,
+        catch_unwind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    thread::{
+        Builder,
+        Scope,
+        ScopedJoinHandle,
+    },
 };
 
 /// What:
@@ -96,7 +115,10 @@ fn silences_panics(debug: bool) -> bool {
 /// ```ts
 /// function emit(stream: Writable, text: string): void; // throws a real failure
 /// ```
-fn emit(stream: &mut dyn Write, text: &str) -> std::io::Result<()> {
+fn emit(
+    stream: &mut dyn Write,
+    text: &str,
+) -> std::io::Result<()> {
     if text.is_empty() {
         return Ok(());
     }
@@ -124,7 +146,11 @@ fn emit(stream: &mut dyn Write, text: &str) -> std::io::Result<()> {
 /// ```ts
 /// function writeOutputs(stdout: Writable, stderr: Writable, output: RunOutput): number;
 /// ```
-fn write_outputs(stdout: &mut dyn Write, stderr: &mut dyn Write, output: &RunOutput) -> u8 {
+fn write_outputs(
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    output: &RunOutput,
+) -> u8 {
     let refused_stdout: Option<std::io::Error> = emit(stdout, output.stdout.as_str()).err();
     let refused_stderr: Option<std::io::Error> = emit(stderr, output.stderr.as_str()).err();
     match (refused_stdout, refused_stderr) {
@@ -180,7 +206,10 @@ fn internal_error(payload: &(dyn std::any::Any + Send)) -> RunOutput {
 /// ```ts
 /// function runWithEnvironment(options: CliOptions, run: Runner): RunOutput;
 /// ```
-fn run_with_environment(options: &CliOptions, run: Runner) -> RunOutput {
+fn run_with_environment(
+    options: &CliOptions,
+    run: Runner,
+) -> RunOutput {
     let cwd: PathBuf = match std::env::current_dir() {
         Ok(directory) => directory,
         Err(error) => {
@@ -206,7 +235,10 @@ fn run_with_environment(options: &CliOptions, run: Runner) -> RunOutput {
 /// ```ts
 /// function containedRun(options, run): RunOutput { try { return runWithEnvironment(options, run); } catch (error) { return internalError(error); } }
 /// ```
-fn contained_run(options: &CliOptions, run: Runner) -> RunOutput {
+fn contained_run(
+    options: &CliOptions,
+    run: Runner,
+) -> RunOutput {
     let attempt: Result<RunOutput, Box<dyn std::any::Any + Send>> = catch_unwind(AssertUnwindSafe(
         #[cfg_attr(
             dylint_lib = "monochromatic_lint_closure",
@@ -286,7 +318,10 @@ fn run_in_scope<'scope, 'env>(
 /// ```ts
 /// function runProcessWith(options: CliOptions, run: Runner): number;
 /// ```
-pub(crate) fn run_process_with(options: &CliOptions, run: Runner) -> u8 {
+pub(crate) fn run_process_with(
+    options: &CliOptions,
+    run: Runner,
+) -> u8 {
     if silences_panics(options.debug) {
         // Box::new moves the function pointer to the heap, as the hook API requires an owned callable.
         std::panic::set_hook(Box::new(silent_hook));

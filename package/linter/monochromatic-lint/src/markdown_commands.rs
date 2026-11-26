@@ -10,9 +10,16 @@
 //! ```
 
 /// Import the diagnostic and severity types that command-example checks report through.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the edit and fix types that a command-example repair is expressed as.
-use crate::edits::{Edit, Fix, FixClass};
+use crate::edits::{
+    Edit,
+    Fix,
+    FixClass,
+};
 /// Import the fence lookup that finds where a command block's closing marker ends.
 use crate::markdown_code::fence_marker_end;
 /// Import the finding constructor that wraps a command-example problem as a diagnostic.
@@ -20,7 +27,10 @@ use crate::markdown_finding::finding;
 /// Import the parsed Markdown source that command blocks are read from.
 use crate::markdown_source::MarkdownSource;
 /// Import native code payloads and shared diagnostics/fixes.
-use satteri_ast::mdast::{MdastNodeType, decode_code_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_code_data,
+};
 
 /// Require at least one nonblank line and reject every non-prompt content line.
 fn all_prompts(value: &str) -> bool {
@@ -49,7 +59,11 @@ fn all_prompts(value: &str) -> bool {
 /// ```ts
 /// function promptEdits(source, nodeStart, nodeEnd): Edit[];
 /// ```
-fn prompt_edits(source: &str, start: usize, end: usize) -> Vec<Edit> {
+fn prompt_edits(
+    source: &str,
+    start: usize,
+    end: usize,
+) -> Vec<Edit> {
     // Borrow the authored node, fence lines included, and let the standard iterator retain every newline byte.
     let written: &str = &source[start..end];
     let mut line_start: usize = start;
@@ -69,7 +83,10 @@ fn prompt_edits(source: &str, start: usize, end: usize) -> Vec<Edit> {
 }
 
 /// Report each prompt-only column-one fenced block and group its localized prefix removals atomically.
-pub fn commands_show_output(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn commands_show_output(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for id in context.visible_nodes() {
         if context.kind(*id) != MdastNodeType::Code || context.node_span(*id).column != 1 {

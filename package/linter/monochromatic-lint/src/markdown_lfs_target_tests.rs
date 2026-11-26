@@ -14,10 +14,20 @@
 
 /// Import the classification operations under test.
 use super::{
-    ObjectUrlParts, apply_segments, is_relative_path, lexical_normal, object_url_parts, path_part,
-    relative_link, relative_target_path, repo_relative,
+    ObjectUrlParts,
+    apply_segments,
+    is_relative_path,
+    lexical_normal,
+    object_url_parts,
+    path_part,
+    relative_link,
+    relative_target_path,
+    repo_relative,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Object id used by the object-URL fixtures.
 const OID: &str = "de7030234493a8bea844dbe1d8676e68a2c1a4b014c721f0425a22b6df66faec";

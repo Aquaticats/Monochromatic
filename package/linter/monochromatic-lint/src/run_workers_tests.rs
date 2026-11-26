@@ -14,13 +14,27 @@
 
 /// Import the worker entry points and fixture helpers.
 use super::{
-    WORKER_STACK_BYTES, contained_source, contained_with, lint_thread, panicked, process_plans,
+    WORKER_STACK_BYTES,
+    contained_source,
+    contained_with,
+    lint_thread,
+    panicked,
+    process_plans,
 };
 use crate::run_failure::PROCESSING_FAILURE;
-use crate::run_file::{FileOutcome, SourceOutcome};
+use crate::run_file::{
+    FileOutcome,
+    SourceOutcome,
+};
 use crate::run_lfs::LfsRepos;
 use crate::run_plan::FilePlan;
-use crate::run_test_support::{ALL_RULES, CONFIG, plan, read, write};
+use crate::run_test_support::{
+    ALL_RULES,
+    CONFIG,
+    plan,
+    read,
+    write,
+};
 use crate::run_write::WriteError;
 use crate::rust_file_engine::RustFileEngine;
 use crate::rust_workspace::WorkspacePreparation;
@@ -236,7 +250,10 @@ const PROBE_BYTES: usize = WORKER_STACK_BYTES - 512 * 1024;
 ///  and return that span.
 /// The span is measured from frame addresses,
 ///  so it does not depend on how large the compiler makes each frame.
-fn stack_reach(top: usize, target: usize) -> usize {
+fn stack_reach(
+    top: usize,
+    target: usize,
+) -> usize {
     let frame: [u8; 4096] = std::hint::black_box([0_u8; 4096]);
     let span: usize = top.abs_diff((&raw const frame).addr());
     if span >= target {
@@ -277,7 +294,10 @@ fn lint_threads_hold_the_documented_eight_mebibyte_stack() {
 
 /// A writer that panics,
 ///  standing in for a defect inside per-file processing.
-fn panicking_writer(_path: &std::path::Path, _contents: &[u8]) -> Result<(), WriteError> {
+fn panicking_writer(
+    _path: &std::path::Path,
+    _contents: &[u8],
+) -> Result<(), WriteError> {
     panic!("writer exploded");
 }
 

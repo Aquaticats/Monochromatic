@@ -11,7 +11,14 @@
 //! ```
 
 /// Import consumer helpers and the actual edit interface.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, fixed, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    fixed,
+    inputs,
+};
 /// Conflict selection belongs to the existing host edit engine.
 use crate::edits::apply_fixes;
 

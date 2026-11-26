@@ -10,8 +10,16 @@
 //! ```
 
 /// Import actual output routing and diagnostic construction.
-use super::{OutputOptions, RunOutput, run_output};
-use crate::diagnostic::{Diagnostic, Severity, Span};
+use super::{
+    OutputOptions,
+    RunOutput,
+    run_output,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
 
 /// Construct one real finding with a known source position.
 fn finding(severity: Severity) -> Diagnostic {

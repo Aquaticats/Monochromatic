@@ -28,23 +28,55 @@
 ///  the tree and the resolver.
 use crate::{
     layout_allow_list::{
-        AllowKind, AllowList, dead_entry_findings, tolerated,
+        AllowKind,
+        AllowList,
+        dead_entry_findings,
+        tolerated,
     },
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{
+        LayoutFinding,
+        shown,
+    },
     layout_folder_uses::{
-        FolderUses, Proof, group_by_folder, loop_membership, record_use, use_loops,
+        FolderUses,
+        Proof,
+        group_by_folder,
+        loop_membership,
+        record_use,
+        use_loops,
     },
-    layout_group_entries::{entry_of, find_groups},
-    layout_group_folders::{entry_uses, group_findings, group_loops, links_group},
-    layout_link_entries::{USES_FOLDER, link_command, read_links},
+    layout_group_entries::{
+        entry_of,
+        find_groups,
+    },
+    layout_group_folders::{
+        entry_uses,
+        group_findings,
+        group_loops,
+        links_group,
+    },
+    layout_link_entries::{
+        USES_FOLDER,
+        link_command,
+        read_links,
+    },
     layout_module_tree::ModuleTree,
-    layout_module_uses::{ModuleUse, folder_of},
+    layout_module_uses::{
+        ModuleUse,
+        folder_of,
+    },
     layout_path_resolution::resolve_path,
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -56,7 +88,12 @@ use std::{
 /// ```ts
 /// function missingLink(from: Path, to: Path, proof: Proof, base: Path): LayoutFinding;
 /// ```
-fn missing_link(from: &Path, to: &Path, proof: &Proof, base: &Path) -> LayoutFinding {
+fn missing_link(
+    from: &Path,
+    to: &Path,
+    proof: &Proof,
+    base: &Path,
+) -> LayoutFinding {
     return LayoutFinding {
         file: proof.file.clone(),
         line: proof.line,
@@ -68,11 +105,7 @@ fn missing_link(from: &Path, to: &Path, proof: &Proof, base: &Path) -> LayoutFin
             shown(from, base)
         ),
         help: Some(format!("Create the link: {}", link_command(from, to, base))),
-        key: format!(
-            "missing-link {} -> {}",
-            shown(from, base),
-            shown(to, base)
-        ),
+        key: format!("missing-link {} -> {}", shown(from, base), shown(to, base)),
     };
 }
 
@@ -152,7 +185,10 @@ fn check_one_folder(
 /// ```ts
 /// function globReexports(tree: ModuleTree, base: Path): LayoutFinding[];
 /// ```
-fn glob_reexports(tree: &ModuleTree, base: &Path) -> Vec<LayoutFinding> {
+fn glob_reexports(
+    tree: &ModuleTree,
+    base: &Path,
+) -> Vec<LayoutFinding> {
     let mut seen: BTreeSet<(PathBuf, usize)> = BTreeSet::<(PathBuf, usize)>::new();
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (index, module) in tree.modules.iter().enumerate() {
@@ -200,7 +236,10 @@ fn glob_reexports(tree: &ModuleTree, base: &Path) -> Vec<LayoutFinding> {
 /// ```ts
 /// function folderBelowUses(folders: Path[], base: Path): LayoutFinding[];
 /// ```
-fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
+fn folder_below_uses(
+    folders: &[PathBuf],
+    base: &Path,
+) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for folder in folders {
         let Ok(below) = folder.strip_prefix(base) else {
@@ -274,7 +313,11 @@ fn loop_of_each_folder(
 /// ```ts
 /// function withoutTolerated(grouped: FolderUses, list: AllowList): FolderUses;
 /// ```
-fn without_tolerated(grouped: &FolderUses, list: &AllowList, base: &Path) -> FolderUses {
+fn without_tolerated(
+    grouped: &FolderUses,
+    list: &AllowList,
+    base: &Path,
+) -> FolderUses {
     let mut kept: FolderUses = FolderUses::new();
     for (from, targets) in grouped {
         for (to, proof) in targets {
@@ -415,7 +458,11 @@ fn live_use_entries(
 ) -> BTreeSet<usize> {
     let mut used: BTreeSet<usize> = BTreeSet::<usize>::new();
     for (index, entry) in list.entries().iter().enumerate() {
-        let AllowKind::FolderUse { from, to } = &entry.kind else {
+        let AllowKind::FolderUse {
+            from,
+            to,
+        } = &entry.kind
+        else {
             continue;
         };
         let absolute_from: PathBuf = base.join(from);
@@ -501,7 +548,8 @@ pub fn check_folder_links(
     let Some(list) = allow else {
         return findings;
     };
-    let loops: BTreeMap<PathBuf, (u8, usize)> = loop_of_each_folder(&folder_list, &grouped, &groups);
+    let loops: BTreeMap<PathBuf, (u8, usize)> =
+        loop_of_each_folder(&folder_list, &grouped, &groups);
     let reported_loops: BTreeMap<PathBuf, (u8, usize)> =
         loop_of_each_folder(&folder_list, &reported, &groups);
     let tolerated_loops: BTreeSet<(u8, usize)> = tolerated_loops(&grouped, &loops, list, base);

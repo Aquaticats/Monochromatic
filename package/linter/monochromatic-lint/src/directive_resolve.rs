@@ -17,9 +17,17 @@
 use crate::{
     diagnostic::Diagnostic,
     directive_findings::Reporter,
-    directive_parse::{DirectiveKind, ParsedComment, ParsedDirective, parse_comment},
+    directive_parse::{
+        DirectiveKind,
+        ParsedComment,
+        ParsedDirective,
+        parse_comment,
+    },
     directive_scan::CommentSite,
-    run_modes::{RuleInfo, rule_info},
+    run_modes::{
+        RuleInfo,
+        rule_info,
+    },
 };
 
 /// What:
@@ -109,7 +117,10 @@ impl Directive {
 
     /// The entry that covers a finding's rule,
     ///  if any.
-    pub fn slot_for(&self, code: &str) -> Option<usize> {
+    pub fn slot_for(
+        &self,
+        code: &str,
+    ) -> Option<usize> {
         match &self.targets {
             Targets::All => return Some(0),
             Targets::Listed(listed) => {

@@ -9,13 +9,23 @@
 //! test('absent inputs skip', () => expect(() => ghosttySetup(emptyDirectory)).toThrow(/fetch:ghostty-offline-inputs/));
 //! ```
 
-use super::{GHOSTTY_SOURCE_VARIABLE, GHOSTTY_ZIG_SYSTEM_VARIABLE, ghostty_setup};
+use super::{
+    GHOSTTY_SOURCE_VARIABLE,
+    GHOSTTY_ZIG_SYSTEM_VARIABLE,
+    ghostty_setup,
+};
 use crate::test_fs::Fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Write the inputs as the package's fetch task leaves them,
 /// the ready marker last.
-fn write_inputs(package: &Path, marker: bool) -> PathBuf {
+fn write_inputs(
+    package: &Path,
+    marker: bool,
+) -> PathBuf {
     let root: PathBuf = package.join("target").join("ghostty-offline");
     std::fs::create_dir_all(root.join("source")).expect("source directory");
     std::fs::write(root.join("source").join("build.zig"), "").expect("build.zig");

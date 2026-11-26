@@ -26,7 +26,10 @@
 //! ```
 
 /// Import the tree the paths are resolved in and the reference a re-export is read from.
-use crate::{layout_module_tree::ModuleTree, layout_reference_paths::RawReference};
+use crate::{
+    layout_module_tree::ModuleTree,
+    layout_reference_paths::RawReference,
+};
 /// Import an ordered set for the visited modules.
 use std::collections::BTreeSet;
 
@@ -39,7 +42,10 @@ use std::collections::BTreeSet;
 /// ```ts
 /// function rootOf(tree: ModuleTree, module: number): number;
 /// ```
-fn root_of(tree: &ModuleTree, module: usize) -> usize {
+fn root_of(
+    tree: &ModuleTree,
+    module: usize,
+) -> usize {
     let mut current: usize = module;
     while let Some(parent) = tree.modules[current].parent {
         current = parent;
@@ -58,7 +64,12 @@ fn root_of(tree: &ModuleTree, module: usize) -> usize {
 /// ```ts
 /// function findChild(tree: ModuleTree, module: number, name: string, throughGlobs: boolean): number | undefined;
 /// ```
-fn find_child(tree: &ModuleTree, module: usize, name: &str, through_globs: bool) -> Option<usize> {
+fn find_child(
+    tree: &ModuleTree,
+    module: usize,
+    name: &str,
+    through_globs: bool,
+) -> Option<usize> {
     if let Some(child) = tree.modules[module].children.get(name) {
         return Some(*child);
     }
@@ -185,7 +196,11 @@ fn exported_name(reference: &RawReference) -> Option<&String> {
 /// ```ts
 /// function resolveUsePath(tree: ModuleTree, from: number, segments: string[]): number | undefined;
 /// ```
-pub fn resolve_use_path(tree: &ModuleTree, from: usize, segments: &[String]) -> Option<usize> {
+pub fn resolve_use_path(
+    tree: &ModuleTree,
+    from: usize,
+    segments: &[String],
+) -> Option<usize> {
     let (mut module, mut next): (usize, usize) = walk_path(tree, from, segments, true)?;
     let mut path: &[String] = segments;
     let mut followed: BTreeSet<(usize, &String)> = BTreeSet::<(usize, &String)>::new();

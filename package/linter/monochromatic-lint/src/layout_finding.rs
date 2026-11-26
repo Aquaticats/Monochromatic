@@ -57,7 +57,10 @@ pub struct LayoutFinding {
 /// ```ts
 /// function shown(path: Path, base: Path): string;
 /// ```
-pub fn shown(path: &std::path::Path, base: &std::path::Path) -> String {
+pub fn shown(
+    path: &std::path::Path,
+    base: &std::path::Path,
+) -> String {
     return match path.strip_prefix(base) {
         Ok(below) if below.components().next().is_some() => below.to_string_lossy().into_owned(),
         _ => path.to_string_lossy().into_owned(),

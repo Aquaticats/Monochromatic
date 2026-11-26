@@ -36,7 +36,11 @@ use std::collections::BTreeMap;
 /// ```ts
 /// import type { JsoncValue, JsoncKey, JsoncEntry } from 'jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncKey,
+    JsoncValue,
+};
 
 /// What:
 ///  Merge every input together in its original order.
@@ -188,7 +192,10 @@ fn merge_records(values: &[&JsoncValue]) -> JsoncValue {
         // Recurse only into this key's structural child values, never the flat member sequence.
         let value = merge_values(members.as_slice());
         // Move the owned key and merged value into the result member.
-        merged.push(JsoncEntry { key, value });
+        merged.push(JsoncEntry {
+            key,
+            value,
+        });
     }
     return JsoncValue::record(merged);
 }
