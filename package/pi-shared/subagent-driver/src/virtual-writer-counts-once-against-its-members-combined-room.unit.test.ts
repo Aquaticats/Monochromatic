@@ -51,6 +51,7 @@ import {
   summaryTextOf,
   talliesOf,
   virtualPoolNamed,
+  virtualRoomOf,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -801,6 +802,45 @@ await describe({
                 tallies: talliesOf({ runs: [], },),
               },);
             },).toThrow('virtual selection',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: virtualRoomOf.name,
+      children: [
+        it({
+          name: 'reads the member pools of a selection, the runs on them and their room together, and refuses to read a selection the tallies never counted',
+          fn: async () => {
+            /**
+             One run on the virtual writer, and one pinned to the second pool of its order.
+             */
+            const runs = [
+              aRunOnAVirtualSelection('copy-route', VIRTUAL_WRITER,),
+              aRunIn('another-writer', OPENCODE_GO,),
+            ];
+            /**
+             What the table counted of that selection.
+             */
+            const room = virtualRoomOf({
+              tallies: talliesOf({ runs, },),
+              virtual: VIRTUAL_WRITER,
+            },);
+            expect(room.virtual,).toEqual(VIRTUAL_WRITER,);
+            expect(namesOf(room.pools,),).toEqual(namesOf(VIRTUAL_WRITER.memberPools,),);
+            // The pinned run is on a member too, so both runs are counted once in the selection's room.
+            expect(room.going,).toBe(runs.length,);
+            expect(room.room,).toBe(combinedRoomOf(VIRTUAL_WRITER.memberPools,),);
+            // A tallies table counted for no selection at all says so rather than inventing a room.
+            expect(function countsNoSelection() {
+              virtualRoomOf({
+                tallies: talliesOf({
+                  runs: [],
+                  virtuals: [],
+                },),
+                virtual: VIRTUAL_WRITER,
+              },);
+            },).toThrow('was not counted',);
           },
         },),
       ],

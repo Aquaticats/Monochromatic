@@ -959,6 +959,18 @@ await describe({
           },
         },),
         it({
+          name: 'refuses a membership that names every pool a run could be on, which is how an unreadable run is counted and never how a run is placed',
+          fn: async () => {
+            expect(function placesAnUnreadableRun() {
+              poolChoiceFor({
+                requested: couldBeIn(PROVIDER_POOLS,),
+                tallies: talliesOf({ runs: [], },),
+                resumes: false,
+              },);
+            },).toThrow('places none',);
+          },
+        },),
+        it({
           name: 'says no pool has room when every pool the run could take is full, including the Kimi pool it named',
           fn: async () => {
             /**
