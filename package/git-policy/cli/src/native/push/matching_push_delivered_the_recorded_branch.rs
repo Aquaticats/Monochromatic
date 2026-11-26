@@ -46,7 +46,10 @@
 
 /// The real Git of a push and the failure type of its coordination,
 /// with the queries that ask it.
-use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query, run_query_awaiting};
+use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query_awaiting};
+/// The synchronous query the control of the synchronous face still asks.
+#[cfg(test)]
+use crate::auto_push_single_flight::run_query;
 /// The two markers Git prints for a refused ref:
 /// the stale `[rejected]` and the remote's own `[remote rejected]`.
 use crate::auto_push_reconcile_basics_and_limits::{REJECTED_MARKER, REMOTE_REJECTED_MARKER};
@@ -282,6 +285,10 @@ fn argv_of<'text>(arguments: &[&'text str]) -> Vec<OsString> {
 /// and the question costs a few queries on a push that already failed.
 ///  A question that cannot be put proves nothing,
 /// and the push keeps the failure it was.
+///  Only the controls ask this face:
+/// the synchronous push is a bridge onto the awaited one,
+/// which asks the awaited face,
+/// so no release path reaches a synchronous query here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -290,6 +297,7 @@ fn argv_of<'text>(arguments: &[&'text str]) -> Vec<OsString> {
 /// const urls = pushUrls(git, push.remote); if (urls.length === 0) return false;
 /// return everyUrlNamedIt(urls.map((url) => lsRemote(git, [url, ref])), push.landedOid);
 /// ```
+#[cfg(test)]
 pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'_>) -> Result<bool, SingleFlightError> {
     if !asks_the_remote(push.git_matched, push.exit_code) {
         return Ok(false);
