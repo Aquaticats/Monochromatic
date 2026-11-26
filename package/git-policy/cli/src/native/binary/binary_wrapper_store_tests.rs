@@ -1110,10 +1110,10 @@ mod shared_by_a_run {
         // What: `split_once` answers the text before the marker and the text after it.
         // Why: libtest writes `test <path> ... ` with no newline before the test's own output, so the marker is in the
         //  middle of a line and never at the start of one.
-        let named: Option<&str> = said
+        let printed: Option<&str> = said
             .split_once(THE_FIXTURE_ROOT_LINE)
             .map(|(_before, after)| { return after.lines().next().unwrap_or(after); });
-        let Some(named) = named else {
+        let Some(named) = printed else {
             panic!("the child printed no line beginning {THE_FIXTURE_ROOT_LINE:?}, so the control cannot tell which fixture root it made: {said}");
         };
         // What: the tail expression is the path the child wrote, as an owned path.
