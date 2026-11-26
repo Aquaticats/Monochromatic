@@ -121,14 +121,14 @@ Rounds started before that decision run on flex.
 - The crate split's round 1 (the rest of move-order step 2),
   briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
   starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
-  at 04:58 issues 6489, 6494, 6497 and 6498 did.
+  at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
+  and the setgroups round touches `invocation/` too.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Plan step 23, the host-kernel qualification guest,
-  window `zfs-step-23-host-kernel-qualification`, run 2 on flex.
+- Issue 6502 (step 23's one failing arm pins the BTF header to the Ubuntu guest's 24 bytes; the CachyOS module declares 32),
+  window `issue-6502-live-gate-arm-reads-the-header-the-module-declares`, on Qwen, in `mvm` guests.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
-- Issue 6489, run 2 on Qwen (run 1 on flex timed out at turn 150 with its fix committed and no report),
-  and issues 6493 and 6495 (flex),
+- Issues 6493 and 6495 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
@@ -166,8 +166,19 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6487 as `f9096f7531`,
   6498 as `ed9766ffad`,
   6496 as `03212a32ff`,
-  6497 as `ad67562f20` and
-  6499 as `2f5b9c87bd`.
+  6497 as `ad67562f20`,
+  6499 as `2f5b9c87bd` and
+  6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
+- ZFS plan step 23, the host-kernel qualification run, as `0c4064831d`:
+  record `doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`;
+  every arm passed on `7.3.5-1-cachyos` with OpenZFS `2.4.4-1` except the gate arm issue 6502 fixes.
+  The template is `~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4.qcow2`,
+  its four pinned packages (gone from the mirrors) are copied with signatures and `SHA256SUMS` to
+  `~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4-packages/`,
+  and its build driver is in `~/temp/agent/zfs-step-23-host-kernel-qualification-2026-11-26/keep/template-build/`.
+  Left: the owner declares the release qualified or not;
+  the template carries `cargo-nextest` `0.9.151` against the recipe's `0.9.152`;
+  a guest of it needs a hostname rename (no cloud-init) before a driver's guard lets arms run.
 - The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
 - The linter's `alpha.13` fixes as `88e77f3553`,
   the release commit `e58ba6f078`,
@@ -203,7 +214,7 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
 The last gate was at `b6d160365e` (2026-11-26T05:40:41-05:00),
-and it failed only issue 6489's lane-read control, whose round is open;
+and it failed only issue 6489's lane-read control, since merged as `6b67efe5ef`;
 its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
@@ -244,11 +255,11 @@ Of those filed tonight,
 6487,
 6498,
 6496,
-6497 and
-6499 are merged (`### Merged tonight`),
-and 6489,
-6493,
-6494,
+6497,
+6499 and
+6489 are merged (`### Merged tonight`),
+and 6493,
+6494 and
 6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
