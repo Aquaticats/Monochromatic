@@ -347,6 +347,12 @@
 //! - `worktree_dirty_restore.rs`:
 //!   the restore of a snapshot of a main checkout with uncommitted changes,
 //!   and its proof.
+//! - `worktree_ladder_finish_binding.rs`:
+//!   the binding of an add to the directories Git made for it,
+//!   and the claim on the stage name that a rung took or gives back.
+//! - `worktree_ladder_finish_git_checkout.rs`:
+//!   Git's own checkout in the bound worktree when a rung cannot finish the add,
+//!   and the report of an add that could not be completed.
 //! - `worktree_ladder_finish_clones.rs`:
 //!   the answers worktree ladder finish clones holds.
 //! - `worktree_ladder_target_tree_skip.rs`:
@@ -495,9 +501,13 @@
 //!   snapshot to a stage name,
 //!   make it a worktree,
 //!   swap it into place.
+//! - `worktree_ladder_finish_snapshot.rs`:
+//!   the snapshot rung after real Git returned:
+//!   the snapshot and the swap into place,
+//!   and the fall back to Git's checkout.
 //! - `worktree_ladder_finish.rs`:
 //!   the ladder's steps after real Git returned:
-//!   the snapshot rung and the fall back to Git's checkout.
+//!   the clone rung and the claim each rung takes or gives back.
 //! - `worktree_trash_set_aside_entries.rs`:
 //!   the entries a snapshot's leave-out sets aside,
 //! - `worktree_trash_unaccounted.rs`:
@@ -991,8 +1001,24 @@ pub mod inner_git_words;
 #[cfg(target_os = "linux")]
 pub mod worktree_slow_route;
 
+/// The binding of an add to the directories Git made for it,
+/// and the claim on the stage name that a rung took or gives back.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_binding;
+
+/// Git's own checkout in the bound worktree when a rung cannot finish the add,
+/// and the report of an add that could not be completed.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_git_checkout;
+
+/// The snapshot rung after real Git returned:
+/// the snapshot and the swap into place,
+/// and the fall back to Git's checkout.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_snapshot;
+
 /// The ladder's steps after real Git returned:
-/// the snapshot rung and the fall back to Git's checkout.
+/// the clone rung and the claim each rung takes or gives back.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
