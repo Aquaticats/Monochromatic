@@ -485,6 +485,39 @@ fn the_sweep_is_named_by_the_zed_start_and_never_by_a_row_under_the_words() {
     );
 }
 
+/// The shutdown-unmount row says what the mode does and that this build refuses
+/// it,
+/// because the mode is `AWAITING` plan step 19's boot unit
+/// (`shutdown_unmount_mode.rs`,
+/// `AWAITING`),
+/// and a row promising the unmount would describe a mode no command reaches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const row = usage().split('\n').find((line) => line.trimStart().startsWith('shutdown-unmount '));
+/// expect(row).toContain('refuses in this build');
+/// ```
+#[test]
+fn the_shutdown_unmount_row_says_this_build_refuses_it() {
+    let text: String = usage();
+    let row: &str = text
+        .lines()
+        .find(|line| return line.trim_start().starts_with("shutdown-unmount "))
+        .expect("the usage names the shutdown mode");
+    assert!(
+        row.contains("refuses in this build"),
+        "the row says the mode refuses: {row}"
+    );
+    assert!(
+        row.contains("plan step 19"),
+        "and names the step whose unit runs it: {row}"
+    );
+    assert!(
+        !row.contains("unmount the verified clone mounts at shutdown"),
+        "and promises no unmount this build makes: {row}"
+    );
+}
+
 /// The version line names the program and this build's release.
 #[test]
 fn the_version_line_names_the_words_and_the_release() {

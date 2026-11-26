@@ -128,19 +128,23 @@ export const rootModeWords = [
 export const rootModesFirstRelease = '0.6.1-alpha.46';
 
 /**
- The releases whose builds answer the root modes' words, oldest first: the release list the floor above is kept beside.
+ The releases whose builds answer the root modes' words, oldest first: the release list the floor above is kept
+ beside, and the witness that makes the floor's one fact checkable.
 
- A release that answered the words is added here when it is released, and {@link rootModesFirstRelease} is the oldest
- entry, which is what makes one fact of two statements checkable instead of remembered. The floor, not this list,
- decides the skip: a release no list can name yet is still older than the floor or newer than it, and the install
- answers it the same way.
+ {@link rootModesFirstRelease} is the oldest entry and every entry answers the words, which is what a control
+ compares instead of trusting a remembered list. The floor alone decides the skip, and the list never does: a
+ release this list does not name, older than the floor or newer, is answered by its place against the floor, so a
+ release no round adds here is still installed and checked the same way.
 
  @example
  ```ts
- rootModesReleases[0]; // '0.6.1-alpha.46', which is rootModesFirstRelease
+ rootModesReleases; // ['0.6.1-alpha.46', '0.6.1-alpha.47'], oldest first
  ```
  */
-export const rootModesReleases: readonly string[] = ['0.6.1-alpha.46'];
+export const rootModesReleases: readonly string[] = [
+  '0.6.1-alpha.46',
+  '0.6.1-alpha.47',
+];
 
 /**
  The text the installed build's `--version` prints for one release.
