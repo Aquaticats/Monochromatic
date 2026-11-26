@@ -780,9 +780,11 @@ fn the_look_sees_this_process_and_the_processes_it_started() {
 /// Why:
 ///  The helper reports every check as one sentence and ends with them,
 ///  so the control reads what failed although nobody reads the helper's own output,
-///  and the child it starts is the only one the two looks can count:
-///  in a threaded run one task of another test ended between them, which took the added task away again
-///  (measured 2026-11-26: 21 members before the child and 21 after it).
+///  and the child it starts is the only one the two looks can count.
+///  A threaded run ended a task of another test between them,
+///  which took the added task away again:
+///  measured 2026-11-26,
+///  21 members before the child and 21 after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
