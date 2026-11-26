@@ -412,6 +412,35 @@ and a control that arms its point in a process of the whole run,
 are the two shapes this item still meets elsewhere:
 the registry's refusal names both at the arming that would hide them.
 
+Round of 2026-11-26,
+issue 6489:
+a control of `landing/service_round_tests.rs` asserted a stall the release no longer has,
+and the whole container gate on `main` at `6543be0d1a` failed it after 10.016 s.
+The control left a named pipe at a worktree's `commondir`
+and spent ten seconds opening it for a writer, to end a read it believed was waiting there,
+then asserted that the round's lane read had outlasted its ceiling.
+`98f943d61a` had already moved that file's reader onto `foundation/plain_file.rs`,
+which opens without blocking and takes the type from the open handle,
+and the gates at `2005f92347` and earlier ran the same control without reporting it,
+so the read answered at once and the ten seconds were the control's own wait.
+Reproduced here with the control as the issue found it:
+`0 passed; 1 failed` in 10.01 s alone with `--exact`,
+and its sibling of the same file `1 passed; 0 failed` in 10.11 s,
+which is the same ten seconds of waiting with an assertion loose enough to pass.
+The place the drain's step needs is now held by a job of the control's own,
+awaited no longer than a ceiling and let go on a channel the control owns,
+and the control owns a process of its own for the bound it holds,
+as the setters of this item now require.
+Its sibling asserts what the release does,
+that a pipe at `commondir` answers at once with the directory's own lane;
+with a blocking read put back in `common_directory_of_a_git_directory.rs`
+the sibling answered `0 passed; 1 failed` in 30.01 s,
+so that control is the guard a blocking `commondir` read has to pass.
+Measured after:
+`cargo test --locked --offline --lib --features test-only-switches landing::service_round:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 12 passed; 0 failed; 0 ignored`,
+and each changed control alone answered `1 passed; 0 failed`.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
