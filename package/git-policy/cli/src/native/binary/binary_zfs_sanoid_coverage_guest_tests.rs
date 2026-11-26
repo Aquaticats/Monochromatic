@@ -63,8 +63,9 @@ const DEFAULTS_MEASURED: &str = "/opt/sanoid-2.3.0/sanoid.defaults.conf";
 /// The Sanoid script the Ubuntu package installed.
 const SANOID_CONTROL: &str = "/usr/sbin/sanoid";
 
-/// The defaults file that ships with the Ubuntu package.
-const DEFAULTS_CONTROL: &str = "/etc/sanoid/sanoid.defaults.conf";
+/// The defaults file that ships with the Ubuntu package,
+/// which the package puts under `share` and not under `etc`.
+const DEFAULTS_CONTROL: &str = "/usr/share/sanoid/sanoid.defaults.conf";
 
 /// The prefix every snapshot Sanoid takes begins with.
 const AUTOSNAP: &str = "autosnap_";
@@ -142,8 +143,14 @@ struct Pool {
 
 impl Pool {
     /// A file-backed pool, so no device of the guest is touched.
+    /// A pool an earlier run left is destroyed first,
+    /// so the arm can be repeated in one guest.
     fn create(name: &str) -> Pool {
         fs::create_dir_all(FIXTURE).expect("the fixture folder");
+        let listed = Command::new("zpool").args([ "list", "-H", "-o", "name", name ]).output().expect("zpool runs");
+        if listed.status.success() {
+            run("zpool", &[ "destroy", name ]);
+        }
         let image: String = format!("{FIXTURE}/pool.img");
         run("truncate", &[ "--size", IMAGE_SIZE, image.as_str() ]);
         run("zpool", &[ "create", "-f", name, image.as_str() ]);
