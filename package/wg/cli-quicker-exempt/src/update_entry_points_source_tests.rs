@@ -704,10 +704,16 @@ fn the_reader_finds_fetching_tasks_and_skips_the_offline_install_forms() {
         "alpha", "a", "zeta", "theta", "iota", "gamma", "kappa", "lambda", "mu", "xi", "omicron",
         "pi", "sigma",
     ] {
-        assert!(found.contains(&name.to_string()), "{name}: {found:?}");
+        assert!(
+            found.iter().any(|item| return item == name),
+            "{name}: {found:?}"
+        );
     }
     for name in ["beta", "delta", "epsilon", "eta", "nu", "rho"] {
-        assert!(!found.contains(&name.to_string()), "{name}: {found:?}");
+        assert!(
+            !found.iter().any(|item| return item == name),
+            "{name}: {found:?}"
+        );
     }
 }
 
@@ -755,14 +761,22 @@ fn a_package_reference_reaches_its_own_file_by_the_local_name() {
         "[tasks.fetch]\nrun = \"runMpmShadow(['update'])\"\n[tasks.group]\ndepends = [\"fetch\"]\n",
         "//package/x:",
     );
-    assert!(fetching_names(&own, &fixture_grammar()).contains(&"//package/x:group".to_string()));
+    assert!(
+        fetching_names(&own, &fixture_grammar())
+            .iter()
+            .any(|item| return item == "//package/x:group")
+    );
     let other = parse_tasks("[tasks.group]\ndepends = [\"fetch\"]\n", "//package/y:");
     let mut both = parse_tasks(
         "[tasks.fetch]\nrun = \"runMpmShadow(['update'])\"\n",
         "//package/x:",
     );
     both.extend(other);
-    assert!(!fetching_names(&both, &fixture_grammar()).contains(&"//package/y:group".to_string()));
+    assert!(
+        !fetching_names(&both, &fixture_grammar())
+            .iter()
+            .any(|item| return item == "//package/y:group")
+    );
 }
 
 /// A package file qualifies its task names the way `mise run` spells them.
@@ -801,7 +815,7 @@ fn every_fetching_mise_task_is_listed() {
     let fetching = fetching_names(&all_tasks(), &grammar_verbs());
     for name in DETECTION_POSITIVE_CONTROL {
         assert!(
-            fetching.contains(&(*name).to_string()),
+            fetching.iter().any(|item| return item == (*name)),
             "the detection did not find {name}: {fetching:?}"
         );
     }
@@ -842,7 +856,7 @@ fn offline_mise_tasks_are_not_listed() {
         );
         assert!(!MISE_TASKS.contains(name), "{name}");
         assert!(
-            !fetching.contains(&(*name).to_string()),
+            !fetching.iter().any(|item| return item == (*name)),
             "{name} is found fetching"
         );
     }
