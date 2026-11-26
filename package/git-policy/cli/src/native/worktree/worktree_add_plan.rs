@@ -373,6 +373,10 @@ pub fn add_is_quiet(
 ///  so these tables are compared with that Git's `handle_options` before this constant moves.
 ///  Only the major and minor numbers are compared:
 ///  a later patch release is taken to add no global option, and these tables stand for it.
+///  It is `pub` because the release build never reads it:
+///  the tables below are used by `copy_start_directory`, and this release fact is read by the
+///  control and by anyone comparing the tables with a Git, so it is part of this module's API
+///  and not a private constant the release holds unused.
 /// Source:
 ///  `git.c` at tag `v2.56.0` of `git/git`,
 ///  `handle_options`, lines 157 to 370,
@@ -402,7 +406,7 @@ pub fn add_is_quiet(
 /// ```ts
 /// const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: [number, number] = [2, 56];
 /// ```
-const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: (u64, u64) = (2, 56);
+pub const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: (u64, u64) = (2, 56);
 
 /// The global options that take no value and change nothing about where a relative destination lies.
 const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
