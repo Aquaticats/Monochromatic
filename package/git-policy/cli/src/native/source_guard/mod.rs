@@ -142,6 +142,13 @@ mod notice_controls_take_their_window_tests;
 #[path = "no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs"]
 mod no_control_starts_an_interactive_git_on_the_run_s_input_tests;
 
+/// The ban on a control of the Git version cache writing its fixture Git in the process the run holds:
+/// such a control starts a child of its own first,
+/// so no other thread of the run forks while one of its write descriptors is open.
+#[cfg(test)]
+#[path = "no_control_writes_a_fixture_git_in_the_run_tests.rs"]
+mod no_control_writes_a_fixture_git_in_the_run_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.
