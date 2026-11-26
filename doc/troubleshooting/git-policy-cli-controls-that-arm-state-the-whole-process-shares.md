@@ -650,6 +650,11 @@ with one control of `service::service_runtime_build_report::tests` taken out of 
   the control set a stand-in of the whole process and nothing said so,
   and the refusal is what catches it.
 
+After the last merge of `origin/main` (`a2f41fc43e`),
+the module answered `test result: ok. 47 passed; 0 failed; 1 ignored` in 21.36 s threaded,
+and in 41.41 s with one test thread;
+`source_guard::` answered `test result: ok. 145 passed; 0 failed`.
+
 ### Not covered
 
 - The container gate was not run:
