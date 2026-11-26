@@ -162,7 +162,7 @@ impl std::error::Error for LfsConfigError {}
 ///  This repository's root `.gitattributes` is 774 bytes and its `.lfsconfig` is 61 bytes
 ///  (measured 2026-11-25),
 ///  and a line of either is short,
-///  so one mebibyte holds more than a thousand times this repository's own newest file.
+///  so one mebibyte holds more than a thousand times this repository's own largest one.
 ///  The siblings a reader might expect are an unbounded read and a per-line limit;
 ///  a bound on the whole file is the one that also ends on a file that keeps growing.
 ///

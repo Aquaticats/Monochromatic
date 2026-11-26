@@ -53,7 +53,7 @@ use std::{
 /// Why:
 ///  This repository's largest lists are the git wrapper's,
 ///  measured on 2026-11-25 from the branch that builds them:
-///  `folder-rule.txt` 57,956 bytes with 524 `uses` lines and 416 link lines,
+///  `folder-rule.txt` 57,956 bytes with 524 `uses` lines and 416 `missing-link` lines,
 ///  `file-rule.txt` 53,048 bytes with 544 `file-uses` lines and 42 `no-file-list` lines.
 ///  A mebibyte is about 18 times the larger one,
 ///  so it leaves room for a decade of growth and still bounds a file a person controls.

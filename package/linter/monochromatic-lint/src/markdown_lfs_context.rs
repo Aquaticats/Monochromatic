@@ -86,7 +86,7 @@ const GIT_MARKER_NAME: &str = ".git";
 ///  from filling memory in the middle of a lint run.
 ///  This repository's largest tracked image is 3,380,183 bytes
 ///  (a screenshot under `package/ide/app/design/screenshots`, measured 2026-11-25),
-///  and the next four are between 2.2 and 2.9 mebibytes,
+///  and the next largest are between 2.1 and 2.8 mebibytes,
 ///  so sixteen mebibytes leaves room for about five times that.
 ///  The siblings a reader might expect are an unbounded read and a streamed hash;
 ///  a bound on the bytes read is the one that also ends on a file that keeps growing.
