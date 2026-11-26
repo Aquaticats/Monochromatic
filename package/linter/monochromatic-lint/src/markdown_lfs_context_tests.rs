@@ -432,6 +432,22 @@ fn pointers_are_read_and_traversal_stays_inside_the_repository() {
     );
 }
 
+/// A bound a caller passes is one it may pass anything for,
+///  so the byte read starts one past it without overflowing on the largest value.
+#[test]
+fn the_largest_bound_a_caller_can_pass_still_reads_the_image() {
+    let fixture: Fixture = Fixture::new();
+    write_tree(&fixture.path);
+    let repo: LfsImageRepo = repository(&fixture.path);
+    assert_eq!(
+        repo.resolve_target("pkg/asset/shot.png", u64::MAX)
+            .expect("a bound of the largest value accepts every file"),
+        LfsImageTarget::Lfs {
+            oid: String::from(IMAGE_OID)
+        }
+    );
+}
+
 /// A resolved target is reused for the run even when the file changes afterwards.
 #[test]
 fn resolved_targets_are_cached_per_repository() {

@@ -195,6 +195,13 @@ fn check_one_folder(
 ///  with one file and the same reference offsets,
 ///  so the rule reads one node per file and set of offsets,
 ///  and never one node per declaration that reached it.
+///  A file that an inline module splits into two modules gives two shapes,
+///  so a glob inside the inline module is a finding of its own.
+///  A path is resolved against the module that holds it,
+///  and the two declarations of one file are two modules,
+///  so a glob can name a folder in one of them and nothing in the other;
+///  the rule reports the finding when any of them names one,
+///  so the answer never depends on which `mod` line stands first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,12 +212,12 @@ fn glob_reexports(
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    // What: the node shapes this rule has already read, a shape being the file and every reference offset in it.
-    // Why: a file two `mod` declarations reach is read once per declaration, and one node of it is one module.
-    let mut seen: BTreeSet<(PathBuf, Vec<usize>)> = BTreeSet::<(PathBuf, Vec<usize>)>::new();
+    // What: the module nodes of each shape, a shape being the file and every reference offset in it.
+    // Why: a file that two `mod` declarations reach holds one node per declaration and one module,
+    // while a file that holds an inline module holds one node for each of its modules.
+    let mut shapes: BTreeMap<(PathBuf, Vec<usize>), Vec<usize>> =
+        BTreeMap::<(PathBuf, Vec<usize>), Vec<usize>>::new();
     for (index, module) in tree.modules.iter().enumerate() {
-        // What: this node's file and the offsets it holds references at, which no other module node of the file shares.
-        // Why: a repeated module scans the same bytes at the same offsets and reports the same globs again.
         let shape: (PathBuf, Vec<usize>) = (
             module.file.clone(),
             module
@@ -219,39 +226,89 @@ fn glob_reexports(
                 .map(|reference| return reference.raw.offset)
                 .collect::<Vec<usize>>(),
         );
-        if !seen.insert(shape) {
-            continue;
-        }
-        for reference in &module.references {
-            if !(reference.raw.glob && reference.raw.reexport) {
-                continue;
+        shapes.entry(shape).or_default().push(index);
+    }
+    // What: each shape paired with the module node it starts at, in that node's order.
+    // Why: a finding belongs where the tree first reads the file that holds it,
+    // and a file that two `mod` declarations reach is still read once.
+    let mut order: Vec<(&(PathBuf, Vec<usize>), usize)> =
+        Vec::<(&(PathBuf, Vec<usize>), usize)>::new();
+    for (shape, nodes) in &shapes {
+        let first: usize = match nodes.first() {
+            Some(index) => *index,
+            None => usize::MAX,
+        };
+        order.push((shape, first));
+    }
+    order.sort_by_key(|pair| return pair.1);
+    for pair in order {
+        let shape: &(PathBuf, Vec<usize>) = pair.0;
+        // What: every node of this shape, which is every context the file is read in.
+        // Why: a glob can resolve in one context and not in another, so every one of them is asked.
+        let nodes: &Vec<usize> = match shapes.get(shape) {
+            Some(found) => found,
+            None => continue,
+        };
+        // What: the one finding of each glob of this shape,
+        // keyed by where its source path starts, what it names and how many globs before it name the same module.
+        // Why: the same glob read in the two contexts of one file is one finding,
+        // and two globs on one line, or on two lines, keep one finding each.
+        let mut found: BTreeMap<(usize, String, usize), LayoutFinding> =
+            BTreeMap::<(usize, String, usize), LayoutFinding>::new();
+        for index in nodes {
+            let module = &tree.modules[*index];
+            // What: how many globs of one start and one path came before, inside this module.
+            // Why: `pub use crate::{a::*, a::*};` is two re-exports that start where the path starts,
+            // so only their order apart keeps them two findings.
+            let mut repeated: BTreeMap<(usize, String), usize> =
+                BTreeMap::<(usize, String), usize>::new();
+            for reference in &module.references {
+                if !(reference.raw.glob && reference.raw.reexport) {
+                    continue;
+                }
+                let Some(target) =
+                    resolve_path(tree, *index, reference.raw.segments.as_slice(), false)
+                else {
+                    continue;
+                };
+                if target == *index {
+                    continue;
+                }
+                let finding: LayoutFinding = LayoutFinding {
+                    file: module.file.clone(),
+                    line: reference.line,
+                    message: format!(
+                        "`pub use {}::*` re-exports every item of the module in {}, so a path through {} no longer shows which folder defines an item.",
+                        reference.raw.segments.join("::"),
+                        shown(&folder_of(tree, target), base),
+                        shown(&module.file, base)
+                    ),
+                    help: Some(String::from(
+                        "Name the items (`pub use path::{A, B};`), or let callers use the defining folder's path.",
+                    )),
+                    key: format!(
+                        "glob {} {}",
+                        key_path(&module.file, base),
+                        reference.raw.segments.join("::")
+                    ),
+                };
+                let start: (usize, String) =
+                    (reference.raw.offset, reference.raw.segments.join("::"));
+                let place: usize = repeated.get(&start).copied().unwrap_or(0);
+                repeated.insert(start.clone(), place + 1);
+                let slot: (usize, String, usize) = (start.0, start.1, place);
+                // Two contexts that name two different folders keep the one whose message sorts first,
+                // so the report never depends on the order the `mod` lines stand in.
+                let smaller: bool = match found.get(&slot) {
+                    Some(seen) => finding.message < seen.message,
+                    None => true,
+                };
+                if smaller {
+                    found.insert(slot, finding);
+                }
             }
-            let Some(target) = resolve_path(tree, index, reference.raw.segments.as_slice(), false)
-            else {
-                continue;
-            };
-            if target == index {
-                continue;
-            }
-            findings.push(LayoutFinding {
-                file: module.file.clone(),
-                line: reference.line,
-                message: format!(
-                    "`pub use {}::*` re-exports every item of the module in {}, so a path through {} no longer shows which folder defines an item.",
-                    reference.raw.segments.join("::"),
-                    shown(&folder_of(tree, target), base),
-                    shown(&module.file, base)
-                ),
-                help: Some(String::from(
-                    "Name the items (`pub use path::{A, B};`), or let callers use the defining folder's path.",
-                )),
-                key: format!(
-                    "glob {} {}",
-                    key_path(&module.file, base),
-                    reference.raw.segments.join("::")
-                ),
-            });
         }
+        findings.extend(found.into_values());
     }
     return findings;
 }
@@ -427,7 +484,95 @@ fn shared_loops(
 }
 
 /// What:
-///  The uses one entry takes to reach a group again,
+///  The entry graph the own-file check searches:
+///  every use between two entries,
+///  and every use written in a group's own file as an edge from that group.
+/// Why:
+///  A group's own code makes no edge of the entry graph
+///  (the shelf rule reports the file and a group's summary is what its child folders use),
+///  so the loop checks of the entries never see such a use.
+///  A walk back from the entry one own file uses must be able to step over another group's own-file use,
+///  or a mutual dependency that two own-file uses close is never seen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownLoopSearch(groups: Set<Path>, grouped: FolderUses): FolderUses;
+/// ```
+fn own_loop_search(
+    groups: &BTreeSet<PathBuf>,
+    grouped: &FolderUses,
+) -> FolderUses {
+    let (_, entries): (Vec<PathBuf>, FolderUses) = entry_uses(groups, grouped);
+    let mut search: FolderUses = entries;
+    for (from, targets) in grouped {
+        if !groups.contains(from) {
+            continue;
+        }
+        for (to, proof) in targets {
+            let target_entry: PathBuf = entry_of(to, groups);
+            // A use of the group's own child folders joins no two entries.
+            if target_entry == *from {
+                continue;
+            }
+            record_use(&mut search, from.clone(), target_entry, proof.clone());
+        }
+    }
+    return search;
+}
+
+/// What:
+///  The uses that lead each entry back to one target entry,
+///  with the reference that proves the first step of each.
+/// Why:
+///  One walk back answers every use written in the own file of the entry it starts from.
+///  A walk forward per use walks the whole graph once per use,
+///  so a group whose own file uses many folders costs that many passes over the uses;
+///  one walk per such group costs one.
+///  The walk is breadth first,
+///  so each message spells the fewest uses that lead back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function backSteps(entries: FolderUses, target: Path): Map<Path, [Path, Proof]>;
+/// ```
+fn back_steps(
+    entries: &FolderUses,
+    target: &Path,
+) -> BTreeMap<PathBuf, (PathBuf, Proof)> {
+    // What: every use filed under the entry it reaches, which is the step a walk back takes.
+    // Why: a walk against the direction of the uses needs each target's sources together.
+    let mut before: BTreeMap<PathBuf, Vec<(PathBuf, Proof)>> =
+        BTreeMap::<PathBuf, Vec<(PathBuf, Proof)>>::new();
+    for (from, targets) in entries {
+        for (to, proof) in targets {
+            before
+                .entry(to.clone())
+                .or_default()
+                .push((from.clone(), proof.clone()));
+        }
+    }
+    // What: the first step from each entry toward the target, and the entries already reached.
+    // Why: the first walk to reach an entry is its shortest way back, and the set keeps a loop in the graph finite.
+    let mut next: BTreeMap<PathBuf, (PathBuf, Proof)> =
+        BTreeMap::<PathBuf, (PathBuf, Proof)>::new();
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+    let mut queue: VecDeque<PathBuf> = VecDeque::<PathBuf>::new();
+    queue.push_back(target.to_path_buf());
+    seen.insert(target.to_path_buf());
+    while let Some(node) = queue.pop_front() {
+        for (step_from, proof) in before.get(&node).into_iter().flatten() {
+            if !seen.insert(step_from.clone()) {
+                continue;
+            }
+            next.insert(step_from.clone(), (node.clone(), proof.clone()));
+            queue.push_back(step_from.clone());
+        }
+    }
+    return next;
+}
+
+/// What:
+///  The uses one entry takes to reach the searched one,
 ///  in order and with the reference that proves each.
 /// Why:
 ///  The finding about a group's own file names the use that closes the loop
@@ -435,53 +580,29 @@ fn shared_loops(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryPathUses(entries: FolderUses, from: Path, to: Path, base: Path): string[] | undefined;
+/// function pathBack(next: Map<Path, [Path, Proof]>, target: Path, start: Path, base: Path): string[] | undefined;
 /// ```
-fn entry_path_uses(
-    entries: &FolderUses,
-    from: &Path,
-    to: &Path,
+fn path_back(
+    next: &BTreeMap<PathBuf, (PathBuf, Proof)>,
+    target: &Path,
+    start: &Path,
     base: &Path,
 ) -> Option<Vec<String>> {
-    // What: the step each entry was first reached by.
-    // Why: walking that record back from the target spells the path in order.
-    let mut previous: BTreeMap<PathBuf, (PathBuf, Proof)> =
-        BTreeMap::<PathBuf, (PathBuf, Proof)>::new();
-    let mut queue: VecDeque<PathBuf> = VecDeque::<PathBuf>::new();
-    let mut seen: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
-    queue.push_back(from.to_path_buf());
-    seen.insert(from.to_path_buf());
-    while let Some(node) = queue.pop_front() {
-        if node == *to {
-            break;
-        }
-        for (next, proof) in entries.get(&node).into_iter().flatten() {
-            // A breadth-first search reaches every entry by its shortest path, in one order.
-            if !seen.insert(next.clone()) {
-                continue;
-            }
-            previous.insert(next.clone(), (node.clone(), proof.clone()));
-            queue.push_back(next.clone());
-        }
-    }
-    if !seen.contains(to) {
-        return None;
-    }
     let mut steps: Vec<String> = Vec::<String>::new();
-    let mut node: PathBuf = to.to_path_buf();
-    while node != *from {
-        let (before, proof) = previous.get(&node)?;
+    let mut node: PathBuf = start.to_path_buf();
+    while node != *target {
+        // No step back means the walk never reached this entry, so the use closes no loop.
+        let (after, proof) = next.get(&node)?;
         steps.push(format!(
             "{} uses {} (`{}` at {}:{})",
-            shown(before, base),
             shown(&node, base),
+            shown(after, base),
             proof.text,
             shown(&proof.file, base),
             proof.line
         ));
-        node = before.clone();
+        node = after.clone();
     }
-    steps.reverse();
     return Some(steps);
 }
 
@@ -494,24 +615,33 @@ fn entry_path_uses(
 ///  so the loop checks of the entries never see such a use.
 ///  Without this check, new code in a tolerated group file could add a loop,
 ///  and the allow list promises that new code cannot add one.
+///  The search runs over the entry graph with every own-file use added as an edge,
+///  so a loop that two own-file uses close is seen as one that a single use closes,
+///  and it walks back once per group whose own file holds a use rather than once per use.
 ///  A use the folder loop already holds is left to the loop checks,
 ///  which report it or the use added inside a tolerated loop.
-///  The finding carries no key:
-///  a loop is tolerated one use at a time and never as a whole,
-///  and this use cannot be tolerated at all.
+///  A use of the group's own child folders joins no two entries and owes nothing.
+///  The finding is keyed by the use it reports, `own-file-loop <group> -> <used folder>`,
+///  so a tree that already holds one can record it on a list;
+///  a list of every finding never grows,
+///  so a use added later still has no line to hold it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function groupOwnLoopUses(grouped: FolderUses, entries: FolderUses, loops: FolderLoops, groups: Set<Path>, base: Path): LayoutFinding[];
+/// function groupOwnLoopUses(grouped: FolderUses, search: FolderUses, loops: FolderLoops, groups: Set<Path>, base: Path): LayoutFinding[];
 /// ```
 fn group_own_loop_uses(
     grouped: &FolderUses,
-    entries: &FolderUses,
+    search: &FolderUses,
     loops: &FolderLoops,
     groups: &BTreeSet<PathBuf>,
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    // What: the walk back from each group that its own file's uses need, built the first time one asks.
+    // Why: every use of one group needs the same answer, and one walk answers all of them.
+    let mut searched: BTreeMap<PathBuf, BTreeMap<PathBuf, (PathBuf, Proof)>> =
+        BTreeMap::<PathBuf, BTreeMap<PathBuf, (PathBuf, Proof)>>::new();
     for (from, targets) in grouped {
         if !groups.contains(from) {
             continue;
@@ -526,7 +656,10 @@ fn group_own_loop_uses(
             if !shared_loops(loops, from, to, groups).is_empty() {
                 continue;
             }
-            let Some(back) = entry_path_uses(entries, &target_entry, from, base) else {
+            let next: &BTreeMap<PathBuf, (PathBuf, Proof)> = searched
+                .entry(from.clone())
+                .or_insert_with(|| return back_steps(search, from));
+            let Some(back) = path_back(next, from, &target_entry, base) else {
                 continue;
             };
             findings.push(LayoutFinding {
@@ -544,7 +677,11 @@ fn group_own_loop_uses(
                     shown(from, base),
                     shown(&target_entry, base)
                 )),
-                key: String::new(),
+                key: format!(
+                    "own-file-loop {} -> {}",
+                    key_path(from, base),
+                    key_path(to, base)
+                ),
             });
         }
     }
@@ -789,14 +926,11 @@ pub fn check_folder_links(
     findings.extend(glob_reexports(tree, base));
     findings.extend(folder_below_uses(folder_list.as_slice(), base));
     let loops: FolderLoops = loops_of_each_folder(&folder_list, &grouped, &groups);
-    // A group's own file makes no entry edge, so only this check sees a loop it closes.
-    let (_, entry_grouped): (Vec<PathBuf>, FolderUses) = entry_uses(&groups, &grouped);
+    // A group's own file makes no entry edge, so only this check sees a loop it closes;
+    // the searched graph holds those uses as edges, so a loop that two own-file uses close is seen too.
+    let search: FolderUses = own_loop_search(&groups, &grouped);
     findings.extend(group_own_loop_uses(
-        &grouped,
-        &entry_grouped,
-        &loops,
-        &groups,
-        base,
+        &grouped, &search, &loops, &groups, base,
     ));
     // Every key names one finding before a line can tolerate it, so a second finding of one shape is reported.
     unique_keys(&mut findings);
