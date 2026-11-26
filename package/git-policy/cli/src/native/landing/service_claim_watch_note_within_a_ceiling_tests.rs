@@ -8,8 +8,8 @@
 use super::*;
 use crate::service_claim_watch::{
     ClaimWatch,
-    next_service_note_point,
     WATCH_DIRECTORY,
+    next_service_note_point,
 };
 use crate::service_fault::hooks::{
     HoldOnAnyThread,

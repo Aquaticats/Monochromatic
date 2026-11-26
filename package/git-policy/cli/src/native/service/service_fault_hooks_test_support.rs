@@ -139,7 +139,8 @@ pub(crate) struct HoldOnAnyThread {
 /// ```ts
 /// const HELD_ON_ANY_THREAD: HoldOnAnyThread[] = [];
 /// ```
-static HELD_ON_ANY_THREAD: std::sync::Mutex<Vec<HoldOnAnyThread>> = std::sync::Mutex::new(Vec::new());
+static HELD_ON_ANY_THREAD: std::sync::Mutex<Vec<HoldOnAnyThread>> =
+    std::sync::Mutex::new(Vec::new());
 
 /// What:
 ///  Holds `point` on whichever thread reaches it,
@@ -246,7 +247,8 @@ pub(crate) struct HoldAwaitingOnAnyThread {
 /// ```ts
 /// const HELD_AWAITING: HoldAwaitingOnAnyThread[] = [];
 /// ```
-static HELD_AWAITING: std::sync::Mutex<Vec<HoldAwaitingOnAnyThread>> = std::sync::Mutex::new(Vec::new());
+static HELD_AWAITING: std::sync::Mutex<Vec<HoldAwaitingOnAnyThread>> =
+    std::sync::Mutex::new(Vec::new());
 
 /// What:
 ///  Holds `point` on whichever task reaches it,

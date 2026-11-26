@@ -46,9 +46,7 @@ const REACH_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
 /// ```ts
 /// const said = reachedWithin(REACH_DEADLINE, reached); // undefined when nothing said
 /// ```
-fn reached(
-    reached: tokio::sync::oneshot::Receiver<()>
-) -> Option<()> {
+fn reached(reached: tokio::sync::oneshot::Receiver<()>) -> Option<()> {
     return crate::test_support::finished_within_at(REACH_DEADLINE, move || {
         return reached.blocking_recv().ok();
     })
@@ -122,8 +120,7 @@ fn each_hold_is_taken_by_the_point_it_names_while_another_is_held() {
 fn a_second_hold_of_one_point_in_one_process_is_refused() {
     let (refusal_reached, refusal_go) = hold_the_point(THE_REFUSAL_CONTROLS_POINT);
     let refused: std::thread::Result<()> = std::panic::catch_unwind(|| {
-        let (_second_reach, _second_go) = hold_the_point(THE_REFUSAL_CONTROLS_POINT);
-        return ();
+        let _refused_hold = hold_the_point(THE_REFUSAL_CONTROLS_POINT);
     });
     // The hold that was there before the refusal is the one this process answers, and it is taken and let go here.
     let taking_the_point = std::thread::spawn(|| {
