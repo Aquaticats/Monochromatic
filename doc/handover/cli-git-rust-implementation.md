@@ -142,8 +142,11 @@ Rounds started before that decision run on flex.
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
   (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
   a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
-  window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
-  then the `alpha.14` release, its Sonnet release pass and the lock bump.
+  merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`;
+  its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-14-release-review`.
+  The fix round's claim of 244 `rust/folder-uses-links` findings on `main` did not reproduce:
+  clean `git archive` exports of `44996d08eb` and `1efb8a1163` give 0 and 0
+  (`~/temp/agent/layout-findings-on-a-clean-export-of-main-2026-11-26/keep/`).
 - The virtual writer with Qwen first,
   window `virtual-writer-qwen-first`, run 2 on Qwen
   (run 1 on flex ended the same way at turn 151, its work committed as `f5bca9e28f`).
@@ -171,6 +174,7 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   the release commit `e58ba6f078`,
   its lock as `07c8785fa9`
   (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
+- The linter's `alpha.14` fixes as `d127a911a0`, the release commit `73f1091ce0`, its lock as `925cec1406`.
 
 - 6462 as `d169557d37`:
   a clone inherits `mountpoint=legacy` from its container,
