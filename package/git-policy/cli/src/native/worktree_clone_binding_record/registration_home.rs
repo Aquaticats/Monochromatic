@@ -123,6 +123,25 @@ pub fn binding_name(slot: &str) -> String {
     return format!("{slot}{BINDING_SUFFIX}");
 }
 
+/// What:
+///  The record's own file for one slot,
+///  under one Git common directory.
+/// Why:
+///  The writer and every reader of one binding spell the same two names,
+///  so a sentence that names the file a person must delete and the reader that
+///  finds it cannot disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bindingPath('/repo/.git', 'topic'); // '/repo/.git/monochromatic-git-policy-cli/worktree-clones/v1/topic.binding'
+/// ```
+pub fn binding_path(
+    common_dir: &Path,
+    slot: &str,
+) -> PathBuf {
+    return home_folder(common_dir).join(binding_name(slot));
+}
+
 /// The origin inventory's name for one slot.
 pub fn origin_inventory_name(slot: &str) -> String {
     return format!("{slot}{ORIGIN_INVENTORY_SUFFIX}");

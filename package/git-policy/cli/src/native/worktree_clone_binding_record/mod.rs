@@ -31,6 +31,9 @@
 //!   the eight phases,
 //!   the seven settle reasons,
 //!   the three request forms and the keys' order.
+//! - `registration_home.rs`:
+//!   the folder,
+//!   the four name forms and the plan folder.
 //! - `add_state_commands.rs`:
 //!   the command each state names.
 //! - `binding_bound.rs`:
@@ -60,9 +63,6 @@
 //! - `registration_finder.rs`:
 //!   Git's sanitiser,
 //!   the candidate names and the rows a kill leaves.
-//! - `registration_home.rs`:
-//!   the folder,
-//!   the four name forms and the plan folder.
 //! - `plan_folder_read.rs`:
 //!   the plan that names the add's clone,
 //!   and the fields its stop reads.

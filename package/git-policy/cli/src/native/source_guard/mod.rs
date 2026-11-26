@@ -34,6 +34,14 @@ mod lint_attribute_tests;
 #[path = "typed_ban_configuration_tests.rs"]
 mod typed_ban_configuration_tests;
 
+/// The passage each piece built ahead of its command has in both release
+/// documents,
+/// because a reader of either one must learn that the piece exists and that no
+/// command reaches it.
+#[cfg(test)]
+#[path = "spec_and_readme_reach_tests.rs"]
+mod spec_and_readme_reach_tests;
+
 /// The lock inventory of the service and its support modules:
 /// a lock stands only on the inventory,
 /// with its reason beside it.
