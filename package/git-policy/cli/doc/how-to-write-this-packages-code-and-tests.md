@@ -54,6 +54,31 @@ Give them to the child it starts instead (`Command::current_dir`, `env`, `env_cl
 async-signal-safe functions).
 Issue 6454 removed the current-directory changes; keep them out.
 
+The same holds for what a test reads:
+`crate::run_progress::look` and `look_now` add up every task of this process,
+so a control that judges the run's own figures runs its reading in a helper process of the test's own
+(`testing/helper_process_test_support.rs`),
+as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
+
+A control that gives this process room for blocking jobs,
+holds its bound on them,
+or sets any other fact that belongs
+to the whole process runs its body in a child of its own
+(`testing/process_wide_state_child_test_support.rs`):
+the room and the bound are made once for a process,
+so two controls of a threaded run cannot both have theirs,
+and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
+The setters refuse in any other process and name the starter,
+as the descriptor limit's setter does.
+A child makes its own fixtures;
+nothing here counts this process's descriptors.
+A threaded run moves those counters on other tests' threads,
+and the comparison then fails on a figure the control never named.
+The four share one comparison,
+`the_figures_did_not_move` in `testing/run_progress_tests.rs`,
+which refuses a look where a task that is not the control's own moved between two looks
+and says which helper runs the body alone.
+
 ## One fixture folder per test
 
 A test takes its folder from `testing/test_support.rs`.

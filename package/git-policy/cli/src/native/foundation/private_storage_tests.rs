@@ -395,6 +395,12 @@ fn a_named_pipe_where_a_record_is_expected_is_refused_without_waiting() {
 #[cfg(unix)]
 #[test]
 fn the_durability_answer_decides_whether_a_file_is_flushed() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_durability_answer_decides_whether_a_file_is_flushed",
+    ) {
+        return;
+    }
     use std::os::fd::FromRawFd;
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `pipe` writes the two descriptors it created into the array.
