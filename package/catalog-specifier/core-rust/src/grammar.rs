@@ -65,7 +65,10 @@ fn is_catalog_name_character(character: char) -> bool {
     // ```ts
     // return /[A-Za-z0-9]/.test(character) || character === '.' || character === '_' || character === '-';
     // ```
-    return character.is_ascii_alphanumeric() || character == '.' || character == '_' || character == '-';
+    return character.is_ascii_alphanumeric()
+        || character == '.'
+        || character == '_'
+        || character == '-';
 }
 
 /// What:
@@ -114,7 +117,10 @@ fn is_catalog_reference(specifier: &str) -> bool {
 /// ```ts
 /// export function isAllowedSpecifier(kind: SectionKind, specifier: string): boolean
 /// ```
-pub fn is_allowed_specifier(kind: SectionKind, specifier: &str) -> bool {
+pub fn is_allowed_specifier(
+    kind: SectionKind,
+    specifier: &str,
+) -> bool {
     if is_catalog_reference(specifier) {
         return true;
     }

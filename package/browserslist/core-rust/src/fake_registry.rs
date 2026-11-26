@@ -29,7 +29,10 @@ use std::collections::HashMap;
 /// ```ts
 /// import { Read, Write } from 'std/io';
 /// ```
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 /// What:
 ///  Import `Shutdown, TcpListener, TcpStream` from `std::net`.
 /// Why:
@@ -39,7 +42,11 @@ use std::io::{Read, Write};
 /// ```ts
 /// import { Shutdown, TcpListener, TcpStream } from 'std/net';
 /// ```
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{
+    Shutdown,
+    TcpListener,
+    TcpStream,
+};
 /// What:
 ///  Import `AtomicBool, Ordering` from `std::sync::atomic`.
 /// Why:
@@ -49,7 +56,10 @@ use std::net::{Shutdown, TcpListener, TcpStream};
 /// ```ts
 /// import { AtomicBool, Ordering } from 'std/sync/atomic';
 /// ```
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 /// What:
 ///  Import `Arc, Mutex` from `std::sync`.
 /// Why:
@@ -59,7 +69,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// ```ts
 /// import { Arc, Mutex } from 'std/sync';
 /// ```
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 /// What:
 ///  Import `JoinHandle, sleep, spawn` from `std::thread`.
 /// Why:
@@ -69,7 +82,11 @@ use std::sync::{Arc, Mutex};
 /// ```ts
 /// import { JoinHandle, sleep, spawn } from 'std/thread';
 /// ```
-use std::thread::{JoinHandle, sleep, spawn};
+use std::thread::{
+    JoinHandle,
+    sleep,
+    spawn,
+};
 /// What:
 ///  Import `Duration` from `std::time::Duration`.
 /// Why:
@@ -131,13 +148,25 @@ fn read_path(stream: &mut TcpStream) -> Option<String> {
 }
 
 /// Answer one connection from the routes table.
-fn serve(mut stream: TcpStream, routes: &Mutex<HashMap<String, Route>>, requests: &Mutex<Vec<String>>) {
+fn serve(
+    mut stream: TcpStream,
+    routes: &Mutex<HashMap<String, Route>>,
+    requests: &Mutex<Vec<String>>,
+) {
     let Some(path) = read_path(&mut stream) else {
         return;
     };
     requests.lock().expect("requests lock").push(path.clone());
-    let (status, body) = routes.lock().expect("routes lock").get(&path).cloned().unwrap_or((404, b"not found".to_vec()));
-    let head = format!("HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+    let (status, body) = routes
+        .lock()
+        .expect("routes lock")
+        .get(&path)
+        .cloned()
+        .unwrap_or((404, b"not found".to_vec()));
+    let head = format!(
+        "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
     let _ = stream.write_all(head.as_bytes());
     let _ = stream.write_all(&body);
     let _ = stream.flush();
@@ -159,10 +188,14 @@ impl FakeRegistry {
     /// Start serving `routes` (path to status and body) on a free loopback port.
     pub fn start(routes: Vec<(&str, u16, Vec<u8>)>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
-        listener.set_nonblocking(true).expect("nonblocking listener");
+        listener
+            .set_nonblocking(true)
+            .expect("nonblocking listener");
         let address = format!("http://{}", listener.local_addr().expect("local address"));
-        let table: HashMap<String, Route> =
-            routes.into_iter().map(|(path, status, body)| return (path.to_string(), (status, body))).collect();
+        let table: HashMap<String, Route> = routes
+            .into_iter()
+            .map(|(path, status, body)| return (path.to_string(), (status, body)))
+            .collect();
         let routes_shared = Arc::new(Mutex::new(table));
         let requests_shared = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
@@ -177,7 +210,13 @@ impl FakeRegistry {
                 }
             }
         });
-        return Self { address, routes: routes_shared, requests: requests_shared, stop, thread: Some(thread) };
+        return Self {
+            address,
+            routes: routes_shared,
+            requests: requests_shared,
+            stop,
+            thread: Some(thread),
+        };
     }
 
     /// The base URL,
@@ -193,8 +232,16 @@ impl FakeRegistry {
     }
 
     /// Add or replace a route while the server runs.
-    pub fn set_route(&self, path: &str, status: u16, body: Vec<u8>) {
-        self.routes.lock().expect("routes lock").insert(path.to_string(), (status, body));
+    pub fn set_route(
+        &self,
+        path: &str,
+        status: u16,
+        body: Vec<u8>,
+    ) {
+        self.routes
+            .lock()
+            .expect("routes lock")
+            .insert(path.to_string(), (status, body));
     }
 }
 

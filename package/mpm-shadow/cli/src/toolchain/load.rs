@@ -17,15 +17,29 @@
 //! ```
 
 /// Imports what this module uses from `super::agree`.
-use super::agree::{compare, refusal};
+use super::agree::{
+    compare,
+    refusal,
+};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::lock`.
-use super::lock::{Lock, ParsedLock, parse_lock};
+use super::lock::{
+    Lock,
+    ParsedLock,
+    parse_lock,
+};
 /// Imports what this module uses from `super::plan`.
-use super::plan::{Plan, parse_plan};
+use super::plan::{
+    Plan,
+    parse_plan,
+};
 /// Imports what this module uses from `super::publish`.
-use super::publish::{Revisions, read_optional, revision_of};
+use super::publish::{
+    Revisions,
+    read_optional,
+    revision_of,
+};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
@@ -68,7 +82,10 @@ pub fn load(scope: &Scope) -> Result<Loaded, ToolchainError> {
     let plan_text: String = match String::from_utf8(plan_content.clone()) {
         Ok(text) => text,
         Err(error) => {
-            return Err(ToolchainError::config(format!("{} is not valid UTF-8: {error}", scope.plan_file.display())));
+            return Err(ToolchainError::config(format!(
+                "{} is not valid UTF-8: {error}",
+                scope.plan_file.display()
+            )));
         }
     };
     let plan: Plan = parse_plan(&plan_text, &scope.plan_file.display().to_string())?;
@@ -79,14 +96,25 @@ pub fn load(scope: &Scope) -> Result<Loaded, ToolchainError> {
         let text: String = match String::from_utf8(content.clone()) {
             Ok(text) => text,
             Err(error) => {
-                return Err(ToolchainError::config(format!("{} is not valid UTF-8: {error}", scope.lock_file.display())));
+                return Err(ToolchainError::config(format!(
+                    "{} is not valid UTF-8: {error}",
+                    scope.lock_file.display()
+                )));
             }
         };
         lock = Some(parse_lock(&text, &scope.lock_file.display().to_string())?);
         lock_text = Some(text);
     }
-    let revisions: Revisions = Revisions { plan: revision_of(&plan_bytes), lock: revision_of(&lock_bytes) };
-    return Ok(Loaded { plan, lock, lock_text, revisions });
+    let revisions: Revisions = Revisions {
+        plan: revision_of(&plan_bytes),
+        lock: revision_of(&lock_bytes),
+    };
+    return Ok(Loaded {
+        plan,
+        lock,
+        lock_text,
+        revisions,
+    });
 }
 
 /// What:

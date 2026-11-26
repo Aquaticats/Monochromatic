@@ -1,7 +1,10 @@
 //! Iterate expanded snapshots without recursion or filesystem reads.
 
 /// Parent-owned snapshots and public visible-row values are shared by native UI and tests.
-use super::{FileTree, TreeRow};
+use super::{
+    FileTree,
+    TreeRow,
+};
 /// Pending directory requests retain exact native paths for the background reader.
 use std::path::PathBuf;
 

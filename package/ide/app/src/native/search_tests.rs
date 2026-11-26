@@ -10,15 +10,31 @@ use super::gpu_snapshot::install_gpu_platform;
 use super::navigation_tests::row;
 /// Reuse the production window and source bindings,
 ///  not a parallel test-only overlay.
-use super::{AppWindow, State, bind_appearance, bind_keys, bind_viewport, navigation};
+use super::{
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_viewport,
+    navigation,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Project boundary creation reads only disposable fixtures.
 use ide_app::workspace::Workspace;
 /// Real toolkit key events drive capture before focused input handling.
 use slint::{
-    ComponentHandle, Model, SharedString, Timer,
-    platform::{Key, WindowEvent},
+    ComponentHandle,
+    Model,
+    SharedString,
+    Timer,
+    platform::{
+        Key,
+        WindowEvent,
+    },
 };
 /// Fixture writes never touch shared project state.
 use std::{
@@ -26,7 +42,10 @@ use std::{
     fs,
     path::Path,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The retained timer owns navigation until the test window is released.
@@ -74,13 +93,16 @@ pub(super) fn reader(root: &Path) -> Reader {
 /// window.dispatchEvent(keydown(key));
 /// window.dispatchEvent(keyup(key));
 /// ```
-fn key(window: &AppWindow, key: Key) {
-    window
-        .window()
-        .dispatch_event(WindowEvent::KeyPressed { text: key.into() });
-    window
-        .window()
-        .dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+fn key(
+    window: &AppWindow,
+    key: Key,
+) {
+    window.window().dispatch_event(WindowEvent::KeyPressed {
+        text: key.into(),
+    });
+    window.window().dispatch_event(WindowEvent::KeyReleased {
+        text: key.into(),
+    });
 }
 
 /// Two native Shift releases should focus the transient query input from either tree or source.
@@ -99,7 +121,10 @@ pub(super) fn open(window: &AppWindow) {
 
 /// Search completion means accepted results or a visible diagnostic,
 ///  not merely elapsed debounce time.
-fn query(window: &AppWindow, raw: &str) {
+fn query(
+    window: &AppWindow,
+    raw: &str,
+) {
     window.invoke_search_edited(SharedString::from(raw));
     assert!(window.get_search_busy());
     assert_eq!(
@@ -221,11 +246,15 @@ fn pending_file_open_does_not_steal_search_input_focus() {
     reader
         .window
         .window()
-        .dispatch_event(WindowEvent::KeyPressed { text: "n".into() });
+        .dispatch_event(WindowEvent::KeyPressed {
+            text: "n".into(),
+        });
     reader
         .window
         .window()
-        .dispatch_event(WindowEvent::KeyReleased { text: "n".into() });
+        .dispatch_event(WindowEvent::KeyReleased {
+            text: "n".into(),
+        });
     assert_eq!(
         reader.window.get_search_query(),
         "n",
@@ -237,11 +266,15 @@ fn pending_file_open_does_not_steal_search_input_focus() {
     reader
         .window
         .window()
-        .dispatch_event(WindowEvent::KeyPressed { text: "e".into() });
+        .dispatch_event(WindowEvent::KeyPressed {
+            text: "e".into(),
+        });
     reader
         .window
         .window()
-        .dispatch_event(WindowEvent::KeyReleased { text: "e".into() });
+        .dispatch_event(WindowEvent::KeyReleased {
+            text: "e".into(),
+        });
     assert_eq!(
         reader.window.get_search_query(),
         "ne",

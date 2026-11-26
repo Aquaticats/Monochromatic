@@ -133,7 +133,11 @@ pub fn is_word_break(unit: u16) -> bool {
 /// ```ts
 /// const found = text.indexOf(target, from);
 /// ```
-pub fn find_unit(units: &[u16], from: usize, target: u16) -> Option<usize> {
+pub fn find_unit(
+    units: &[u16],
+    from: usize,
+    target: u16,
+) -> Option<usize> {
     let tail = units.get(from..)?;
     for (offset, unit) in tail.iter().enumerate() {
         if *unit == target {
@@ -153,7 +157,11 @@ pub fn find_unit(units: &[u16], from: usize, target: u16) -> Option<usize> {
 /// ```ts
 /// const piece = text.slice(start, end);
 /// ```
-pub fn slice_units(units: &[u16], start: usize, end: usize) -> String {
+pub fn slice_units(
+    units: &[u16],
+    start: usize,
+    end: usize,
+) -> String {
     return String::from_utf16_lossy(&units[start..end]);
 }
 
@@ -167,7 +175,11 @@ pub fn slice_units(units: &[u16], start: usize, end: usize) -> String {
 /// ```ts
 /// function tokenize(text: string, offset: number, errors: TemplateError[]): Token[] { ... }
 /// ```
-pub fn tokenize(units: &[u16], offset: usize, errors: &mut Vec<TemplateError>) -> Vec<Token> {
+pub fn tokenize(
+    units: &[u16],
+    offset: usize,
+    errors: &mut Vec<TemplateError>,
+) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut index = 0;
     while index < units.len() {

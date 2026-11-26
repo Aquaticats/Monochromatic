@@ -20,7 +20,10 @@
 /// Imports the sorted map the environment is held in (sorted so child-process environments are deterministic).
 use std::collections::BTreeMap;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -69,7 +72,9 @@ impl EnvMap {
         for (name, value) in std::env::vars() {
             values.insert(name, value);
         }
-        return EnvMap { values };
+        return EnvMap {
+            values,
+        };
     }
 
     /// An environment built from literal pairs (for tests).
@@ -78,12 +83,17 @@ impl EnvMap {
         for (name, value) in pairs {
             values.insert((*name).to_string(), (*value).to_string());
         }
-        return EnvMap { values };
+        return EnvMap {
+            values,
+        };
     }
 
     /// The value of `name`,
     /// or `None` when it is unset or empty.
-    pub fn get(&self, name: &str) -> Option<&str> {
+    pub fn get(
+        &self,
+        name: &str,
+    ) -> Option<&str> {
         return match self.values.get(name) {
             Some(value) if !value.is_empty() => Some(value.as_str()),
             _ => None,
@@ -91,10 +101,16 @@ impl EnvMap {
     }
 
     /// A copy with `name` set to `value`.
-    pub fn with(&self, name: &str, value: &str) -> EnvMap {
+    pub fn with(
+        &self,
+        name: &str,
+        value: &str,
+    ) -> EnvMap {
         let mut values: BTreeMap<String, String> = self.values.clone();
         values.insert(name.to_string(), value.to_string());
-        return EnvMap { values };
+        return EnvMap {
+            values,
+        };
     }
 
     /// Every variable,
@@ -190,11 +206,16 @@ pub fn home_dir(env: &EnvMap) -> Result<PathBuf, ToolchainError> {
     if let Some(profile) = env.get("USERPROFILE") {
         return Ok(PathBuf::from(profile));
     }
-    return Err(ToolchainError::config("neither HOME nor USERPROFILE is set, so the user's directories cannot be found"));
+    return Err(ToolchainError::config(
+        "neither HOME nor USERPROFILE is set, so the user's directories cannot be found",
+    ));
 }
 
 /// `${XDG_DATA_HOME:-$HOME/.local/share}`.
-fn data_home(env: &EnvMap, home: &Path) -> PathBuf {
+fn data_home(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     return match env.get("XDG_DATA_HOME") {
         Some(directory) => PathBuf::from(directory),
         None => home.join(".local").join("share"),
@@ -202,7 +223,10 @@ fn data_home(env: &EnvMap, home: &Path) -> PathBuf {
 }
 
 /// `${XDG_CONFIG_HOME:-$HOME/.config}`.
-fn config_home(env: &EnvMap, home: &Path) -> PathBuf {
+fn config_home(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     return match env.get("XDG_CONFIG_HOME") {
         Some(directory) => PathBuf::from(directory),
         None => home.join(".config"),
@@ -219,10 +243,17 @@ fn config_home(env: &EnvMap, home: &Path) -> PathBuf {
 /// ```ts
 /// export function repoScope(root: string, env: EnvMap): Scope
 /// ```
-pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
+pub fn repo_scope(
+    root: &Path,
+    env: &EnvMap,
+) -> Result<Scope, ToolchainError> {
     let home: PathBuf = home_dir(env)?;
-    let toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain");
-    let other_toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain-global");
+    let toolchain_root: PathBuf = data_home(env, &home)
+        .join("monochromatic-dev")
+        .join("toolchain");
+    let other_toolchain_root: PathBuf = data_home(env, &home)
+        .join("monochromatic-dev")
+        .join("toolchain-global");
     return Ok(Scope {
         kind: ScopeKind::Repo,
         root: root.to_path_buf(),
@@ -256,9 +287,15 @@ pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
 /// ```
 pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
     let home: PathBuf = home_dir(env)?;
-    let config_dir: PathBuf = config_home(env, &home).join("monochromatic-dev").join("toolchain");
-    let toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain-global");
-    let other_toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain");
+    let config_dir: PathBuf = config_home(env, &home)
+        .join("monochromatic-dev")
+        .join("toolchain");
+    let toolchain_root: PathBuf = data_home(env, &home)
+        .join("monochromatic-dev")
+        .join("toolchain-global");
+    let other_toolchain_root: PathBuf = data_home(env, &home)
+        .join("monochromatic-dev")
+        .join("toolchain");
     return Ok(Scope {
         kind: ScopeKind::Global,
         root: config_dir.clone(),
@@ -316,7 +353,10 @@ pub fn toolchain_roots(env: &EnvMap) -> Vec<PathBuf> {
 /// ```ts
 /// export function findRepoRoot(start: string, env: EnvMap): string  // throws when none
 /// ```
-pub fn find_repo_root(start: &Path, env: &EnvMap) -> Result<PathBuf, ToolchainError> {
+pub fn find_repo_root(
+    start: &Path,
+    env: &EnvMap,
+) -> Result<PathBuf, ToolchainError> {
     if let Some(root) = env.get("MONOCHROMATIC_WORKTREE_ROOT") {
         return Ok(PathBuf::from(root));
     }
@@ -335,7 +375,11 @@ pub fn find_repo_root(start: &Path, env: &EnvMap) -> Result<PathBuf, ToolchainEr
 /// The scope for a command:
 /// the global scope when `global` is set,
 /// otherwise the repository scope found from `start`.
-pub fn resolve_scope(global: bool, start: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
+pub fn resolve_scope(
+    global: bool,
+    start: &Path,
+    env: &EnvMap,
+) -> Result<Scope, ToolchainError> {
     if global {
         return global_scope(env);
     }

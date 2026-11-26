@@ -10,7 +10,10 @@
 //!  build.rs
 //!      is exempt from the require-rustdoc / max-lines linters.
 
-use cxx_qt_build::{CxxQtBuilder, QmlModule};
+use cxx_qt_build::{
+    CxxQtBuilder,
+    QmlModule,
+};
 
 fn main() {
     CxxQtBuilder::new_qml_module(

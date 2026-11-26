@@ -6,22 +6,41 @@
 use super::gpu_snapshot::install_gpu_platform;
 /// Share production bindings and native polling helpers without adding test interfaces to the shipped binary.
 use super::{
-    AppWindow, State, bind_appearance, bind_viewport, navigation, navigation_tests::row, render,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_viewport,
+    navigation,
+    navigation_tests::row,
+    render,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Canonical project identity and source positions are the same types used in navigation.
-use ide_app::{document::ReadingPosition, workspace::Workspace};
+use ide_app::{
+    document::ReadingPosition,
+    workspace::Workspace,
+};
 /// ModelRc equality compares underlying model identity,
 ///  not only equal row values.
-use slint::{ComponentHandle, Model, SharedString};
+use slint::{
+    ComponentHandle,
+    Model,
+    SharedString,
+};
 /// Native symlinks and file replacement live only in disposable directories.
 use std::{
     cell::RefCell,
     fs,
     os::unix::fs::symlink,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A missing current row waits for real directory changes instead of rebuilding the ListView every timer tick.

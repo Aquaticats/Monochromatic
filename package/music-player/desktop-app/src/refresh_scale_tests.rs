@@ -7,14 +7,29 @@
 //           CPU seconds); it must cost milliseconds, and the run-to-run spread is printed so a bar is read against it.
 
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use crate::change_set::{Change, DirtyPaths};
-use crate::command::{Command, Update};
+use crate::change_set::{
+    Change,
+    DirtyPaths,
+};
+use crate::command::{
+    Command,
+    Update,
+};
 use crate::controller::Controller;
 use crate::peakcache::CacheHandle;
-use crate::refresh_scale_support::{ROOT, million_library};
+use crate::refresh_scale_support::{
+    ROOT,
+    million_library,
+};
 use crate::sweep_report::SweepReport;
 
 /// The runs per measurement:
@@ -38,7 +53,11 @@ const LIST_RUNS: usize = if cfg!(debug_assertions) { 2 } else { 5 };
 /// so
 /// host noise does not fail it and a return of the walk (more than a second) does.
 /// The debug bar allows unoptimized code.
-const REPLACE_BAR: Duration = if cfg!(debug_assertions) { Duration::from_millis(500) } else { Duration::from_millis(50) };
+const REPLACE_BAR: Duration = if cfg!(debug_assertions) {
+    Duration::from_millis(500)
+} else {
+    Duration::from_millis(50)
+};
 
 /// What:
 /// the bar for the engine-thread cost of one added or deleted file,
@@ -52,17 +71,30 @@ const REPLACE_BAR: Duration = if cfg!(debug_assertions) { Duration::from_millis(
 /// The
 /// bar sits between the two.
 /// The debug bar only catches a return of something far slower.
-const LIST_BAR: Duration = if cfg!(debug_assertions) { Duration::from_secs(20) } else { Duration::from_millis(1_200) };
+const LIST_BAR: Duration = if cfg!(debug_assertions) {
+    Duration::from_secs(20)
+} else {
+    Duration::from_millis(1_200)
+};
 
 /// What:
 /// `spread` prints the median with the minimum and maximum of the samples in milliseconds and returns the median.
 /// Why:
 /// the report quotes the spread of the runs.
-fn spread(label: &str, samples: &mut [Duration]) -> Duration {
+fn spread(
+    label: &str,
+    samples: &mut [Duration],
+) -> Duration {
     samples.sort();
     let ms = |value: Duration| return value.as_secs_f64() * 1000.0;
     let median = samples[samples.len() / 2];
-    println!("REFRESH {label}: median {:.3} ms, min {:.3} ms, max {:.3} ms over {} runs", ms(median), ms(samples[0]), ms(samples[samples.len() - 1]), samples.len());
+    println!(
+        "REFRESH {label}: median {:.3} ms, min {:.3} ms, max {:.3} ms over {} runs",
+        ms(median),
+        ms(samples[0]),
+        ms(samples[samples.len() - 1]),
+        samples.len()
+    );
     return median;
 }
 
@@ -92,17 +124,28 @@ impl Scale {
     /// so the changed files must exist there.
     fn new(tag: &str) -> Scale {
         crate::logging::init();
-        let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| return elapsed.as_nanos());
-        let folder = crate::test_scratch::scratch_root().join(format!("mp-refresh-scale-{}-{nanos}-{tag}", std::process::id()));
+        let nanos: u128 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| return elapsed.as_nanos());
+        let folder = crate::test_scratch::scratch_root().join(format!(
+            "mp-refresh-scale-{}-{nanos}-{tag}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&folder).expect("the folder is created");
-        let tracks: Vec<PathBuf> = million_library().into_iter().map(|path| return folder.join(path.strip_prefix(ROOT).expect("below the root"))).collect();
+        let tracks: Vec<PathBuf> = million_library()
+            .into_iter()
+            .map(|path| return folder.join(path.strip_prefix(ROOT).expect("below the root")))
+            .collect();
         let reports: Arc<Mutex<Vec<SweepReport>>> = Arc::new(Mutex::new(Vec::new()));
         let updates: Arc<Mutex<Vec<Update>>> = Arc::new(Mutex::new(Vec::new()));
         let update_sink = Arc::clone(&updates);
         let mut controller = Controller::new(
             Box::new(move |update| {
                 if matches!(update, Update::Measures(_)) {
-                    update_sink.lock().expect("the sink is not poisoned").push(update);
+                    update_sink
+                        .lock()
+                        .expect("the sink is not poisoned")
+                        .push(update);
                 }
             }),
             None,
@@ -110,20 +153,35 @@ impl Scale {
         );
         let report_sink = Arc::clone(&reports);
         controller.sweep_sink = Arc::new(move |report| {
-            report_sink.lock().expect("the sink is not poisoned").push(report);
+            report_sink
+                .lock()
+                .expect("the sink is not poisoned")
+                .push(report);
         });
         controller.source_root = Some(folder.clone());
         controller.queue.set_tracks(tracks.clone());
         controller.queue.clear_selection();
-        return Scale { controller, folder, tracks, reports, updates, pumped: 0 };
+        return Scale {
+            controller,
+            folder,
+            tracks,
+            reports,
+            updates,
+            pumped: 0,
+        };
     }
 
     /// What:
     /// `put` writes a real fixture file at the track's path.
     /// Why:
     /// a replaced or added file has to exist for the planner to find it.
-    fn put(&self, path: &PathBuf, fixture: &str) {
-        std::fs::create_dir_all(path.parent().expect("a track has a folder")).expect("the folder is created");
+    fn put(
+        &self,
+        path: &PathBuf,
+        fixture: &str,
+    ) {
+        std::fs::create_dir_all(path.parent().expect("a track has a folder"))
+            .expect("the folder is created");
         std::fs::copy(PathBuf::from("fixture").join(fixture), path).expect("the fixture is copied");
     }
 
@@ -132,7 +190,8 @@ impl Scale {
     /// Why:
     /// the end of a sweep is how the next one is allowed to start.
     fn pump(&mut self) {
-        let waiting: Vec<SweepReport> = self.reports.lock().expect("the sink is not poisoned")[self.pumped..].to_vec();
+        let waiting: Vec<SweepReport> =
+            self.reports.lock().expect("the sink is not poisoned")[self.pumped..].to_vec();
         for report in waiting {
             self.pumped += 1;
             self.controller.handle_command(Command::SweepReport(report));
@@ -144,7 +203,11 @@ impl Scale {
     /// and says how long it took.
     /// Why:
     /// the person sees the new peak when that update arrives.
-    fn wait_for_measure(&mut self, path: &PathBuf, started: Instant) -> Duration {
+    fn wait_for_measure(
+        &mut self,
+        path: &PathBuf,
+        started: Instant,
+    ) -> Duration {
         let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline {
             self.pump();
@@ -198,17 +261,39 @@ fn one_replaced_file_in_a_million_tracks_costs_milliseconds_not_a_walk() {
     for run in 0..RUNS {
         let path: PathBuf = scale.tracks[scale.tracks.len() * (run + 1) / (RUNS + 1)].clone();
         scale.put(&path, fixtures[run % fixtures.len()]);
-        scale.updates.lock().expect("the sink is not poisoned").clear();
+        scale
+            .updates
+            .lock()
+            .expect("the sink is not poisoned")
+            .clear();
         let started = Instant::now();
-        scale.controller.handle_command(Command::SourceChanged(Change::Paths(DirtyPaths::single(path.clone(), false))));
+        scale
+            .controller
+            .handle_command(Command::SourceChanged(Change::Paths(DirtyPaths::single(
+                path.clone(),
+                false,
+            ))));
         handler.push(started.elapsed());
         shown.push(scale.wait_for_measure(&path, started));
         scale.wait_idle();
     }
-    let median = spread("one replaced file at 1,000,000 tracks: engine-thread handler", &mut handler);
-    spread("one replaced file at 1,000,000 tracks: handler until the new peak is shown", &mut shown);
-    assert!(median <= REPLACE_BAR, "the handler took {median:?} for one replaced file; a walk of the library would take over a second");
-    assert_eq!(scale.controller.queue.len(), 1_000_000, "the list did not change");
+    let median = spread(
+        "one replaced file at 1,000,000 tracks: engine-thread handler",
+        &mut handler,
+    );
+    spread(
+        "one replaced file at 1,000,000 tracks: handler until the new peak is shown",
+        &mut shown,
+    );
+    assert!(
+        median <= REPLACE_BAR,
+        "the handler took {median:?} for one replaced file; a walk of the library would take over a second"
+    );
+    assert_eq!(
+        scale.controller.queue.len(),
+        1_000_000,
+        "the list did not change"
+    );
 }
 
 #[test]
@@ -217,24 +302,51 @@ fn one_added_and_one_deleted_file_in_a_million_tracks_edit_the_list_in_place() {
     let mut added: Vec<Duration> = Vec::new();
     let mut deleted: Vec<Duration> = Vec::new();
     for run in 0..LIST_RUNS {
-        let neighbour: PathBuf = scale.tracks[scale.tracks.len() * (run + 1) / (LIST_RUNS + 1)].clone();
+        let neighbour: PathBuf =
+            scale.tracks[scale.tracks.len() * (run + 1) / (LIST_RUNS + 1)].clone();
         let path: PathBuf = neighbour.with_file_name(format!("zz added {run}.wav"));
         scale.put(&path, "tone.wav");
         let started = Instant::now();
-        scale.controller.handle_command(Command::SourceChanged(Change::Paths(DirtyPaths::single(path.clone(), true))));
+        scale
+            .controller
+            .handle_command(Command::SourceChanged(Change::Paths(DirtyPaths::single(
+                path.clone(),
+                true,
+            ))));
         added.push(started.elapsed());
-        assert_eq!(scale.controller.queue.len(), 1_000_000 + 1, "the file is listed");
+        assert_eq!(
+            scale.controller.queue.len(),
+            1_000_000 + 1,
+            "the file is listed"
+        );
         scale.wait_for_measure(&path, started);
         scale.wait_idle();
         std::fs::remove_file(&path).expect("removed");
         let deletion_started = Instant::now();
-        scale.controller.handle_command(Command::SourceChanged(Change::Paths(DirtyPaths::single(path.clone(), true))));
+        scale
+            .controller
+            .handle_command(Command::SourceChanged(Change::Paths(DirtyPaths::single(
+                path.clone(),
+                true,
+            ))));
         deleted.push(deletion_started.elapsed());
         assert_eq!(scale.controller.queue.len(), 1_000_000, "and unlisted");
         scale.wait_idle();
     }
-    let added_median = spread("one added file at 1,000,000 tracks: engine-thread handler (list edit and announcement)", &mut added);
-    let deleted_median = spread("one deleted file at 1,000,000 tracks: engine-thread handler (list edit and announcement)", &mut deleted);
-    assert!(added_median <= LIST_BAR, "an added file took {added_median:?}");
-    assert!(deleted_median <= LIST_BAR, "a deleted file took {deleted_median:?}");
+    let added_median = spread(
+        "one added file at 1,000,000 tracks: engine-thread handler (list edit and announcement)",
+        &mut added,
+    );
+    let deleted_median = spread(
+        "one deleted file at 1,000,000 tracks: engine-thread handler (list edit and announcement)",
+        &mut deleted,
+    );
+    assert!(
+        added_median <= LIST_BAR,
+        "an added file took {added_median:?}"
+    );
+    assert!(
+        deleted_median <= LIST_BAR,
+        "a deleted file took {deleted_median:?}"
+    );
 }

@@ -4,8 +4,15 @@
 
 /// Markdown roles share the tuned syntax hues.
 use crate::source_style::{
-    BOLD_ROLE, HEADING_ROLE, ITALIC_ROLE, LINK_ROLE, LINK_URL_ROLE, LIST_ROLE, QUOTE_ROLE,
-    RAW_INLINE_ROLE, STRIKETHROUGH_ROLE,
+    BOLD_ROLE,
+    HEADING_ROLE,
+    ITALIC_ROLE,
+    LINK_ROLE,
+    LINK_URL_ROLE,
+    LIST_ROLE,
+    QUOTE_ROLE,
+    RAW_INLINE_ROLE,
+    STRIKETHROUGH_ROLE,
 };
 
 /// Native palette values needed by code painting.
@@ -21,7 +28,10 @@ pub struct CodeColors {
 
 /// Translate semantic paint roles into the selected system-theme palette;
 ///  the minimap's picture takes its glyph colors from the same function.
-pub fn ink(role: u32, colors: CodeColors) -> [u8; 4] {
+pub fn ink(
+    role: u32,
+    colors: CodeColors,
+) -> [u8; 4] {
     if role == 64 {
         return colors.selected;
     }

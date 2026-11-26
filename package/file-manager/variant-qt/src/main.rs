@@ -25,7 +25,11 @@ pub mod cxxqt_object;
 ///  see qt_log.rs.
 mod qt_log;
 
-use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
+use cxx_qt_lib::{
+    QGuiApplication,
+    QQmlApplicationEngine,
+    QUrl,
+};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
 
@@ -51,7 +55,7 @@ fn setup_tracing() -> WorkerGuard {
         .with_env_filter(filter)
         .with_writer(writer)
         .init();
-    return guard
+    return guard;
 }
 
 /// What:

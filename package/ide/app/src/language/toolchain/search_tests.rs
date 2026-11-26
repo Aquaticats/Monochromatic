@@ -2,12 +2,23 @@
 //!  shim refusal,
 //!  and `PATH` construction on disposable directories.
 
-use super::{Missed, find_program_in, is_shim, search_path};
+use super::{
+    Missed,
+    find_program_in,
+    is_shim,
+    search_path,
+};
 use std::{
     ffi::OsString,
     fs,
-    os::unix::fs::{PermissionsExt, symlink},
-    path::{Path, PathBuf},
+    os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn executable(path: &Path) {
@@ -44,7 +55,12 @@ fn the_application_path_is_searched_when_the_toolchain_has_no_such_program() {
 fn a_program_that_is_nowhere_is_missed_without_a_shim() {
     let root = crate::test_scratch::scratch().expect("directory");
     let missed = find_program_in("absent", root.path(), &[], &[]).expect_err("missed");
-    assert_eq!(missed, Missed { shim: None });
+    assert_eq!(
+        missed,
+        Missed {
+            shim: None
+        }
+    );
 }
 
 #[test]

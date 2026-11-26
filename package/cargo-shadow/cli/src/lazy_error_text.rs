@@ -17,7 +17,10 @@
 //! ```
 
 /// The formatting types the methods take and the bound on the failure.
-use std::fmt::{Arguments, Display};
+use std::fmt::{
+    Arguments,
+    Display,
+};
 
 /// What:
 /// `ExplainedError` adds `explained` and `explained_with_tail` to a `Result` whose failure can be printed.
@@ -36,19 +39,29 @@ pub trait ExplainedError<T> {
     /// Why:
     /// The subject names the step that failed,
     /// the parenthesis carries the cause.
-    fn explained(self, subject: Arguments<'_>) -> Result<T, String>;
+    fn explained(
+        self,
+        subject: Arguments<'_>,
+    ) -> Result<T, String>;
 
     /// What:
     /// `explained_with_tail(subject, tail)` keeps a success and turns a failure into `"{subject} ({failure}){tail}"`.
     /// Why:
     /// Some failures end with advice that follows the cause.
-    fn explained_with_tail(self, subject: Arguments<'_>, tail: &str) -> Result<T, String>;
+    fn explained_with_tail(
+        self,
+        subject: Arguments<'_>,
+        tail: &str,
+    ) -> Result<T, String>;
 
     /// What:
     /// `described(subject)` keeps a success and turns a failure into `"{subject}: {failure}"`.
     /// Why:
     /// Some failure texts put the cause after a colon instead of in a parenthesis.
-    fn described(self, subject: Arguments<'_>) -> Result<T, String>;
+    fn described(
+        self,
+        subject: Arguments<'_>,
+    ) -> Result<T, String>;
 }
 
 /// What:
@@ -60,7 +73,10 @@ impl<T, E: Display> ExplainedError<T> for Result<T, E> {
     /// Builds `"{subject} ({failure})"` on the `Err` arm.
     /// Why:
     /// The common shape of a step failure.
-    fn explained(self, subject: Arguments<'_>) -> Result<T, String> {
+    fn explained(
+        self,
+        subject: Arguments<'_>,
+    ) -> Result<T, String> {
         match self {
             Ok(value) => return Ok(value),
             Err(error) => return Err(format!("{subject} ({error})")),
@@ -71,7 +87,10 @@ impl<T, E: Display> ExplainedError<T> for Result<T, E> {
     /// Builds `"{subject}: {failure}"` on the `Err` arm.
     /// Why:
     /// A failure text with the cause after a colon.
-    fn described(self, subject: Arguments<'_>) -> Result<T, String> {
+    fn described(
+        self,
+        subject: Arguments<'_>,
+    ) -> Result<T, String> {
         match self {
             Ok(value) => return Ok(value),
             Err(error) => return Err(format!("{subject}: {error}")),
@@ -82,7 +101,11 @@ impl<T, E: Display> ExplainedError<T> for Result<T, E> {
     /// Builds `"{subject} ({failure}){tail}"` on the `Err` arm.
     /// Why:
     /// A step failure with advice after the cause.
-    fn explained_with_tail(self, subject: Arguments<'_>, tail: &str) -> Result<T, String> {
+    fn explained_with_tail(
+        self,
+        subject: Arguments<'_>,
+        tail: &str,
+    ) -> Result<T, String> {
         match self {
             Ok(value) => return Ok(value),
             Err(error) => return Err(format!("{subject} ({error}){tail}")),
@@ -105,7 +128,10 @@ pub trait OrText<T> {
     /// `or_text(message)` keeps a present value and turns an absent one into `message` as an owned `String`.
     /// Why:
     /// Replaces `ok_or_else(|| format!(..))`.
-    fn or_text(self, message: Arguments<'_>) -> Result<T, String>;
+    fn or_text(
+        self,
+        message: Arguments<'_>,
+    ) -> Result<T, String>;
 }
 
 /// What:
@@ -117,7 +143,10 @@ impl<T> OrText<T> for Option<T> {
     /// Builds the message on the `None` arm.
     /// Why:
     /// A present value costs nothing.
-    fn or_text(self, message: Arguments<'_>) -> Result<T, String> {
+    fn or_text(
+        self,
+        message: Arguments<'_>,
+    ) -> Result<T, String> {
         match self {
             Some(value) => return Ok(value),
             None => return Err(message.to_string()),

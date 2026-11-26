@@ -1,5 +1,8 @@
 //! Encode a native Bash hook rewrite without parsing or re-encoding shell source.
 
+/// Import the crate's library module,
+/// which owns the POSIX single-quote escaping used at the command boundary.
+use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// What:
 /// `use` imports a name;
 /// `::` separates module names.
@@ -8,9 +11,6 @@
 /// TypeScript equivalent:
 /// `type Value = JsonValue;`
 use serde_json::Value;
-/// Import the crate's library module,
-/// which owns the POSIX single-quote escaping used at the command boundary.
-use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// Import filesystem checks for the previously initialized worker group.
 use std::fs;
 /// Import the standard error and result types.
@@ -26,7 +26,10 @@ use std::path::Path;
 /// Reject invalid hook events and resource controls before proposing a command.
 /// TypeScript equivalent:
 /// `export function response(input: string, parent: string): string { ... }`
-pub fn response(input: &str, parent: &Path) -> io::Result<String> {
+pub fn response(
+    input: &str,
+    parent: &Path,
+) -> io::Result<String> {
     // What: The `Value` annotation selects serde_json's general JSON representation.
     // `map_err` converts parser errors to the entry point's I/O error type; `?` propagates them.
     // Why: A malformed event must block rather than run an unmodified command.
@@ -51,7 +54,9 @@ pub fn response(input: &str, parent: &Path) -> io::Result<String> {
     // Borrow the exact decoded command string supplied by Codex.
     let Some(original) = tool_input.get("command").and_then(Value::as_str) else {
         // Distinguish absent or non-string input from a legitimate empty command.
-        return Err(io::Error::other("The Bash hook event requires a command string."));
+        return Err(io::Error::other(
+            "The Bash hook event requires a command string.",
+        ));
     };
     // Check the real parent controls before releasing any original command text.
     crate::limits::verify(parent)?;
@@ -63,12 +68,16 @@ pub fn response(input: &str, parent: &Path) -> io::Result<String> {
     let metadata = fs::metadata(&membership)?;
     if !metadata.is_file() {
         // Refuse a directory or other non-file membership target.
-        return Err(io::Error::other("The worker cgroup membership target must be a file."));
+        return Err(io::Error::other(
+            "The worker cgroup membership target must be a file.",
+        ));
     }
     // Require lossless path text before shell quoting.
     let Some(membership_text) = membership.to_str() else {
         // Reject unrepresentable path bytes instead of changing the target.
-        return Err(io::Error::other("The worker membership path must be UTF-8."));
+        return Err(io::Error::other(
+            "The worker membership path must be UTF-8.",
+        ));
     };
     // Own the prefix buffer; the original shell body is appended without shell parsing.
     let mut command = String::from("command printf '%s' \"$$\" > ");
@@ -79,7 +88,9 @@ pub fn response(input: &str, parent: &Path) -> io::Result<String> {
     // Serialize only the JSON string boundary, preserving the decoded command verbatim.
     let encoded = serde_json::to_string(&command).map_err(io::Error::other)?;
     // Construct the fixed native hook envelope around the safely encoded string.
-    let mut output = String::from("{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"updatedInput\":{\"command\":");
+    let mut output = String::from(
+        "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"updatedInput\":{\"command\":",
+    );
     // Append the JSON-encoded command rather than interpolating shell text into JSON syntax.
     output.push_str(&encoded);
     output.push_str("}}}");

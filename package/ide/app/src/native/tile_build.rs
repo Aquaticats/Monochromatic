@@ -5,20 +5,44 @@
 /// The background measurement of the whole text,
 /// its slots,
 /// and its walk.
-use super::tile_pass::{PassControl, PassJob, PassOutbox, PassOutput};
+use super::tile_pass::{
+    PassControl,
+    PassJob,
+    PassOutbox,
+    PassOutput,
+};
 /// Worker-start and build failures stay visible diagnostics.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// The shaper a worker is started with.
 use ide_app::shaped_text::TextShaper;
 /// Owned snapshots are shared between the UI and worker threads.
 use std::{
-    panic::{AssertUnwindSafe, catch_unwind},
+    panic::{
+        AssertUnwindSafe,
+        catch_unwind,
+    },
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, sync_channel},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
+        mpsc::{
+            Receiver,
+            SyncSender,
+            TryRecvError,
+            TrySendError,
+            sync_channel,
+        },
     },
-    thread::{self, JoinHandle},
+    thread::{
+        self,
+        JoinHandle,
+    },
 };
 
 /// The inputs and result of one tile,
@@ -36,10 +60,18 @@ mod worker_thread;
 #[cfg(test)]
 pub(super) use job::FAIL_NEXT_BUILD;
 /// The tile types and the construction the window thread and the minimap worker also use.
-pub(super) use job::{TileBuilt, TileJob, build_tile, same_typography};
+pub(super) use job::{
+    TileBuilt,
+    TileJob,
+    build_tile,
+    same_typography,
+};
 /// Test gates that hold a build or a pass chunk in flight.
 #[cfg(test)]
-pub(super) use worker_thread::{BUILD_GATE, PASS_GATE};
+pub(super) use worker_thread::{
+    BUILD_GATE,
+    PASS_GATE,
+};
 
 /// What a worker sends back:
 /// once its shaper is ready,
@@ -181,7 +213,10 @@ impl TileWorker {
 
     /// Make `job` the only waiting request;
     /// a job already running finishes first.
-    pub(super) fn request(&mut self, job: TileJob) -> Result<()> {
+    pub(super) fn request(
+        &mut self,
+        job: TileJob,
+    ) -> Result<()> {
         self.waiting = Some(job);
         return self.dispatch();
     }
@@ -197,7 +232,10 @@ impl TileWorker {
     /// ```ts
     /// postPass(job: PassJob): void;
     /// ```
-    pub(super) fn post_pass(&mut self, mut job: PassJob) -> Result<()> {
+    pub(super) fn post_pass(
+        &mut self,
+        mut job: PassJob,
+    ) -> Result<()> {
         self.pass_generation += 1;
         job.generation = self.pass_generation;
         self.shared.control.set(job);
@@ -224,7 +262,10 @@ impl TileWorker {
     ///  The finishing output of a replaced pass still arrives after the newer pass was posted,
     ///  and closing on it would hide the newer pass from `is_busy` while it runs,
     ///  so the poll would stop and the newer pass's output would never be taken.
-    pub(super) fn take_pass(&mut self, limit: usize) -> Option<PassOutput> {
+    pub(super) fn take_pass(
+        &mut self,
+        limit: usize,
+    ) -> Option<PassOutput> {
         let output = self.shared.outbox.take(limit)?;
         if output.done && output.generation == self.pass_generation {
             self.pass_open = false;

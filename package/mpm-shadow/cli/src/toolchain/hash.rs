@@ -25,7 +25,10 @@
 /// ```ts
 /// import { createHash } from 'node:crypto';
 /// ```
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 /// Imports `File` from `std::fs`.
 use std::fs::File;
@@ -77,14 +80,24 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let mut file: File = match File::open(path) {
         Ok(opened) => opened,
-        Err(error) => return Err(format!("cannot open {} to hash it: {error}", path.display())),
+        Err(error) => {
+            return Err(format!(
+                "cannot open {} to hash it: {error}",
+                path.display()
+            ));
+        }
     };
     let mut hasher: Sha256 = Sha256::new();
     let mut buffer: Vec<u8> = vec![0; READ_CHUNK_BYTES];
     loop {
         let read: usize = match file.read(&mut buffer) {
             Ok(count) => count,
-            Err(error) => return Err(format!("cannot read {} to hash it: {error}", path.display())),
+            Err(error) => {
+                return Err(format!(
+                    "cannot read {} to hash it: {error}",
+                    path.display()
+                ));
+            }
         };
         if read == 0 {
             break;

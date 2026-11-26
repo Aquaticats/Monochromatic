@@ -10,7 +10,11 @@
 //! ```
 
 /// Import the exact protected boundary and test-only cache-free matcher constructor.
-use super::{LoadRequest, PENDING, protected_request};
+use super::{
+    LoadRequest,
+    PENDING,
+    protected_request,
+};
 use crate::frx_load::LoadedRules;
 use crate::rules_list::RulesEntry;
 use crate::runtime_cache::CacheAccess;
@@ -19,7 +23,10 @@ use std::path::PathBuf;
 /// Owned fixture arguments avoid filesystem/cache side effects.
 fn request() -> LoadRequest {
     return LoadRequest {
-        entries: vec![RulesEntry { path: PathBuf::from("fixture-rules"), optional: false }],
+        entries: vec![RulesEntry {
+            path: PathBuf::from("fixture-rules"),
+            optional: false,
+        }],
         builtin: false,
         implicit: false,
         access: CacheAccess::ReadWrite,
@@ -47,12 +54,18 @@ fn panic_after_take() -> anyhow::Result<LoadedRules> {
 /// Both fault timings return payload-free errors and leave the next call usable.
 #[test]
 fn panics_do_not_poison_the_next_request() {
-    for operation in [panic_before_take as fn() -> anyhow::Result<LoadedRules>, panic_after_take] {
+    for operation in [
+        panic_before_take as fn() -> anyhow::Result<LoadedRules>,
+        panic_after_take,
+    ] {
         let error = match protected_request(request(), operation) {
             Ok(_) => panic!("fault must not return a ruleset"),
             Err(failure) => failure,
         };
-        assert_eq!(error.to_string(), "Forbidden-strings rule loading panicked; no rule set was accepted.");
+        assert_eq!(
+            error.to_string(),
+            "Forbidden-strings rule loading panicked; no rule set was accepted."
+        );
         assert!(!error.to_string().contains("SYNTHETIC_PRIVATE_RULE_94a1"));
         assert!(PENDING.take().is_none());
         assert!(protected_request(request(), complete_request).is_ok());

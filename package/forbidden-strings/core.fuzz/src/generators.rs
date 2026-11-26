@@ -5,7 +5,11 @@
 //        DFA/counting builders and the matcher, so the roundtrip and differential
 //        targets actually test matching, not just parsing.
 
-use arbitrary::{Arbitrary, Result, Unstructured};
+use arbitrary::{
+    Arbitrary,
+    Result,
+    Unstructured,
+};
 
 // Bounds keep a generated pattern small and its unrolled automaton fast to build.
 const MAX_DEPTH: u32 = 4;
@@ -40,9 +44,33 @@ struct Builder {
 
 // Simple single-token atoms that are always valid `&`/`|` operands.
 const SIMPLE: &[&str] = &[
-    "a", "b", "c", "Z", "0", "9", "_", "\\t", "\\.", "\\$", "\\|", "\\\\", ".", "\\d", "\\w",
-    "\\s", "\\D", "\\W", "\\S", "[a-z]", "[A-Z]", "[0-9]", "[a-zA-Z0-9]", "[^0-9]", "[abc]",
-    "[a-f0-9]", "[ \\t]",
+    "a",
+    "b",
+    "c",
+    "Z",
+    "0",
+    "9",
+    "_",
+    "\\t",
+    "\\.",
+    "\\$",
+    "\\|",
+    "\\\\",
+    ".",
+    "\\d",
+    "\\w",
+    "\\s",
+    "\\D",
+    "\\W",
+    "\\S",
+    "[a-z]",
+    "[A-Z]",
+    "[0-9]",
+    "[a-zA-Z0-9]",
+    "[^0-9]",
+    "[abc]",
+    "[a-f0-9]",
+    "[ \\t]",
 ];
 
 // Zero-width anchors, valid inside a sequence.
@@ -51,24 +79,35 @@ const ANCHORS: &[&str] = &["^", "$", "\\b"];
 impl Builder {
     // What:  a single-token atom that is a valid operand anywhere.
     // Why:   `&`/`|` operands and repetition bases must be single atoms.
-    fn simple(&mut self, u: &mut Unstructured) -> Result<String> {
-        return Ok((*u.choose(SIMPLE)?).to_string())
+    fn simple(
+        &mut self,
+        u: &mut Unstructured,
+    ) -> Result<String> {
+        return Ok((*u.choose(SIMPLE)?).to_string());
     }
 
     // What:  an operand: a simple atom or a parenthesized sub-sequence.
     // Why:   a group `(?:...)` is the way to make a sequence into one atom.
-    fn operand(&mut self, u: &mut Unstructured, depth: u32) -> Result<String> {
+    fn operand(
+        &mut self,
+        u: &mut Unstructured,
+        depth: u32,
+    ) -> Result<String> {
         if depth == 0 || u.ratio(3, 4)? {
-            return self.simple(u)
+            return self.simple(u);
         } else {
-            return Ok(format!("(?:{})", self.seq(u, depth - 1)?))
+            return Ok(format!("(?:{})", self.seq(u, depth - 1)?));
         }
     }
 
     // What:  any atom: an operand, an anchor, a repetition, an option, an
     //        alternation, or (deeper) an intersection or complement.
     // Why:   covers every construct the parser and back-end selector branch on.
-    fn atom(&mut self, u: &mut Unstructured, depth: u32) -> Result<String> {
+    fn atom(
+        &mut self,
+        u: &mut Unstructured,
+        depth: u32,
+    ) -> Result<String> {
         match u.int_in_range(0u32..=7)? {
             0 | 1 => return self.operand(u, depth),
             2 => return Ok((*u.choose(ANCHORS)?).to_string()),
@@ -87,31 +126,43 @@ impl Builder {
     //        never builds multiplicatively-nested repeats like `(?:(?:X{4}){4}){4}` whose
     //        unrolled automaton explodes (the engine's residual guard bounds those, but
     //        producing them just throttles the fuzzer with multi-second compiles).
-    fn repeat(&mut self, u: &mut Unstructured, _depth: u32) -> Result<String> {
+    fn repeat(
+        &mut self,
+        u: &mut Unstructured,
+        _depth: u32,
+    ) -> Result<String> {
         let base = self.simple(u)?;
         let n = u.int_in_range(0u32..=MAX_REPEAT)?;
         if u.ratio(1, 2)? {
-            return Ok(format!("{base}{{{n}}}"))
+            return Ok(format!("{base}{{{n}}}"));
         } else {
             let m = u.int_in_range(n..=MAX_REPEAT)?;
-            return Ok(format!("{base}{{{n},{m}}}"))
+            return Ok(format!("{base}{{{n},{m}}}"));
         }
     }
 
     // What:  an alternation `(?:a|b|...)` of operands.
     // Why:   branches must be single atoms, so each branch is an operand.
-    fn alt(&mut self, u: &mut Unstructured, depth: u32) -> Result<String> {
+    fn alt(
+        &mut self,
+        u: &mut Unstructured,
+        depth: u32,
+    ) -> Result<String> {
         let count = u.int_in_range(2u32..=MAX_ALT)?;
         let mut branches = Vec::new();
         for _ in 0..count {
             branches.push(self.operand(u, depth)?);
         }
-        return Ok(format!("(?:{})", branches.join("|")))
+        return Ok(format!("(?:{})", branches.join("|")));
     }
 
     // What:  an intersection `op & op`, where the right side may be a complement.
     // Why:   the canonical algebra shape is `X & ~(Y)`; both operands are atoms.
-    fn inter(&mut self, u: &mut Unstructured, depth: u32) -> Result<String> {
+    fn inter(
+        &mut self,
+        u: &mut Unstructured,
+        depth: u32,
+    ) -> Result<String> {
         self.uses_algebra = true;
         let left = self.operand(u, depth)?;
         let right = if u.ratio(1, 2)? {
@@ -119,26 +170,34 @@ impl Builder {
         } else {
             self.operand(u, depth)?
         };
-        return Ok(format!("{left}&{right}"))
+        return Ok(format!("{left}&{right}"));
     }
 
     // What:  a complement `~(...)` over a sub-sequence.
     // Why:   `~` must always be parenthesized; the engine rejects a bare `~(Y)`,
     //        which exercises that rejection path.
-    fn comp(&mut self, u: &mut Unstructured, depth: u32) -> Result<String> {
+    fn comp(
+        &mut self,
+        u: &mut Unstructured,
+        depth: u32,
+    ) -> Result<String> {
         self.uses_algebra = true;
-        return Ok(format!("~({})", self.seq(u, depth.saturating_sub(1))?))
+        return Ok(format!("~({})", self.seq(u, depth.saturating_sub(1))?));
     }
 
     // What:  a concatenation of one to `MAX_SEQ` atoms.
     // Why:   the linear backbone every pattern is built on.
-    fn seq(&mut self, u: &mut Unstructured, depth: u32) -> Result<String> {
+    fn seq(
+        &mut self,
+        u: &mut Unstructured,
+        depth: u32,
+    ) -> Result<String> {
         let count = u.int_in_range(1u32..=MAX_SEQ)?;
         let mut out = String::new();
         for _ in 0..count {
             out.push_str(&self.atom(u, depth)?);
         }
-        return Ok(out)
+        return Ok(out);
     }
 }
 
@@ -147,19 +206,28 @@ impl Builder {
 //        semantics and break the differential comparison against `regex`.
 fn content(u: &mut Unstructured) -> Result<Vec<u8>> {
     let raw: Vec<u8> = u.arbitrary()?;
-    return Ok(raw.into_iter().filter(|&b| return b != b'\n').take(MAX_CONTENT).collect())
+    return Ok(raw
+        .into_iter()
+        .filter(|&b| return b != b'\n')
+        .take(MAX_CONTENT)
+        .collect());
 }
 
 impl<'a> Arbitrary<'a> for PatternAndContent {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let mut builder = Builder { uses_algebra: false };
+        let mut builder = Builder {
+            uses_algebra: false,
+        };
         let text = builder.seq(u, MAX_DEPTH)?;
         let pattern = Pattern {
             text,
             uses_algebra: builder.uses_algebra,
         };
         let content = content(u)?;
-        return Ok(PatternAndContent { pattern, content })
+        return Ok(PatternAndContent {
+            pattern,
+            content,
+        });
     }
 }
 
@@ -209,7 +277,11 @@ impl RulesetAndBuffer {
     pub fn line_contents(&self) -> Vec<&[u8]> {
         let mut lines: Vec<&[u8]> = Vec::with_capacity(self.starts.len());
         for (index, &start) in self.starts.iter().enumerate() {
-            let mut end = self.starts.get(index + 1).copied().unwrap_or(self.buf.len());
+            let mut end = self
+                .starts
+                .get(index + 1)
+                .copied()
+                .unwrap_or(self.buf.len());
             if end > start && self.buf[end - 1] == b'\n' {
                 end -= 1;
             }
@@ -218,13 +290,15 @@ impl RulesetAndBuffer {
             }
             lines.push(&self.buf[start..end]);
         }
-        return lines
+        return lines;
     }
 }
 
 impl<'a> Arbitrary<'a> for RulesetAndBuffer {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let mut builder = Builder { uses_algebra: false };
+        let mut builder = Builder {
+            uses_algebra: false,
+        };
         let rule_count = u.int_in_range(1u32..=MAX_RULES)?;
         let mut patterns = Vec::new();
         for _ in 0..rule_count {
@@ -243,7 +317,11 @@ impl<'a> Arbitrary<'a> for RulesetAndBuffer {
             // What:  bias toward an empty line now and then instead of relying on a
             //        rare arbitrary-length-zero draw from `content`.
             // Why:   the acceptance criteria calls out empty-line coverage explicitly.
-            let line = if u.ratio(1, 5)? { Vec::new() } else { content(u)? };
+            let line = if u.ratio(1, 5)? {
+                Vec::new()
+            } else {
+                content(u)?
+            };
             buf.extend_from_slice(&line);
 
             let last = index + 1 == line_count;
@@ -264,6 +342,10 @@ impl<'a> Arbitrary<'a> for RulesetAndBuffer {
             }
         }
 
-        return Ok(RulesetAndBuffer { patterns, buf, starts })
+        return Ok(RulesetAndBuffer {
+            patterns,
+            buf,
+            starts,
+        });
     }
 }

@@ -27,16 +27,32 @@ use std::path::PathBuf;
 use super::error::ToolchainError;
 /// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
+/// Imports what this module uses from `super::layout`.
+use super::layout::{
+    current_family,
+    current_platform_id,
+    find_tool_bin,
+};
+/// Imports what this module uses from `super::model`.
+use super::model::{
+    LockedTool,
+    OsFamily,
+};
+/// Imports what this module uses from `super::runner`.
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+    Runner,
+    pnpm_env,
+    toolchain_path_env,
+};
+/// Imports what this module uses from `super::scope`.
+use super::scope::{
+    EnvMap,
+    Scope,
+};
 /// Imports the tool lookup.
 use super::util::find_tool;
-/// Imports what this module uses from `super::layout`.
-use super::layout::{current_family, current_platform_id, find_tool_bin};
-/// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, OsFamily};
-/// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest, Runner, pnpm_env, toolchain_path_env};
-/// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope};
 
 /// What:
 /// The machine the commands run on,
@@ -62,7 +78,10 @@ pub struct Host {
 impl Host {
     /// The running machine.
     pub fn current() -> Host {
-        return Host { platform: current_platform_id(), family: current_family() };
+        return Host {
+            platform: current_platform_id(),
+            family: current_family(),
+        };
     }
 }
 
@@ -91,17 +110,27 @@ pub struct Context<'a> {
 impl Context<'_> {
     /// The locked tool with this id,
     /// or an error naming the id.
-    pub fn tool(&self, id: &str) -> Result<&LockedTool, ToolchainError> {
+    pub fn tool(
+        &self,
+        id: &str,
+    ) -> Result<&LockedTool, ToolchainError> {
         return match find_tool(self.tools, id) {
             Some(found) => Ok(found),
-            None => Err(ToolchainError::failure(format!("the toolchain plan has no tool {id:?}"))),
+            None => Err(ToolchainError::failure(format!(
+                "the toolchain plan has no tool {id:?}"
+            ))),
         };
     }
 
     /// The executable `name` of the tool `tool_id`,
     /// searched where that tool's route installs it,
     /// or `None`.
-    pub fn find_bin_of(&self, tool_id: &str, name: &str, extra_dirs: &[PathBuf]) -> Option<PathBuf> {
+    pub fn find_bin_of(
+        &self,
+        tool_id: &str,
+        name: &str,
+        extra_dirs: &[PathBuf],
+    ) -> Option<PathBuf> {
         let tool: &LockedTool = self.tool(tool_id).ok()?;
         return find_tool_bin(tool, name, self.scope, self.env, extra_dirs);
     }
@@ -117,12 +146,20 @@ impl Context<'_> {
     }
 
     /// A request for `pnpm` run with the pnpm environment.
-    pub fn pnpm_request(&self, command: &str, args: &[&str]) -> RunRequest {
+    pub fn pnpm_request(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> RunRequest {
         return RunRequest::new(command, args).with_env(self.pnpm_env());
     }
 
     /// A request for `command` run with the toolchain environment.
-    pub fn request(&self, command: &str, args: &[&str]) -> RunRequest {
+    pub fn request(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> RunRequest {
         return RunRequest::new(command, args).with_env(self.path_env());
     }
 
@@ -136,14 +173,20 @@ impl Context<'_> {
     /// downloading and installing it (see `src/config.rs`, `should_auto_install`);
     /// with it the same query fails,
     /// which is what a reader of the answer can act on.
-    pub fn rustup_query(&self, args: &[&str]) -> RunRequest {
+    pub fn rustup_query(
+        &self,
+        args: &[&str],
+    ) -> RunRequest {
         let mut env: BTreeMap<String, String> = self.path_env();
         env.insert("RUSTUP_AUTO_INSTALL".to_string(), "0".to_string());
         return RunRequest::new("rustup", args).with_env(env);
     }
 
     /// Runs a request.
-    pub fn run(&self, request: &RunRequest) -> RunOutcome {
+    pub fn run(
+        &self,
+        request: &RunRequest,
+    ) -> RunOutcome {
         return self.runner.run(request);
     }
 
@@ -164,7 +207,9 @@ impl Context<'_> {
         if let Some(token) = self.env.get("GITHUB_TOKEN") {
             return Some(token.to_string());
         }
-        let outcome: RunOutcome = self.runner.run(&RunRequest::new("gh", &["auth", "token"]).with_env(self.env.all().clone()));
+        let outcome: RunOutcome = self
+            .runner
+            .run(&RunRequest::new("gh", &["auth", "token"]).with_env(self.env.all().clone()));
         let token: String = outcome.stdout.trim().to_string();
         if outcome.succeeded() && !token.is_empty() {
             return Some(token);

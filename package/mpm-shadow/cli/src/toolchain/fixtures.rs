@@ -14,13 +14,26 @@
 //! ```
 
 /// Imports what this module uses from `super::lock`.
-use super::lock::{Lock, render_lock};
+use super::lock::{
+    Lock,
+    render_lock,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{Artifact, LockedTool};
+use super::model::{
+    Artifact,
+    LockedTool,
+};
 /// Imports what this module uses from `super::plan`.
-use super::plan::{Plan, parse_plan};
+use super::plan::{
+    Plan,
+    parse_plan,
+};
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope, repo_scope};
+use super::scope::{
+    EnvMap,
+    Scope,
+    repo_scope,
+};
 
 /// The sample plan,
 /// with comments and trailing commas the way people write it.
@@ -115,7 +128,8 @@ pub(crate) const SAMPLE_PLAN: &str = r#"{
 "#;
 
 /// The 64-character hash the fixture lock gives every artifact row.
-pub(crate) const SAMPLE_SHA256: &str = "439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791";
+pub(crate) const SAMPLE_SHA256: &str =
+    "439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791";
 
 /// The sample plan decoded.
 pub(crate) fn sample_plan() -> Plan {
@@ -143,7 +157,9 @@ pub(crate) fn sample_lock() -> Lock {
     for declaration in plan.tools {
         let needs_artifact: bool = matches!(
             declaration.route,
-            super::model::Route::Archive | super::model::Route::BinSourced | super::model::Route::AndroidSdk
+            super::model::Route::Archive
+                | super::model::Route::BinSourced
+                | super::model::Route::AndroidSdk
         );
         let mut artifacts: Vec<(String, Artifact)> = Vec::new();
         if needs_artifact {
@@ -156,9 +172,15 @@ pub(crate) fn sample_lock() -> Lock {
             ));
         }
         let version: String = sample_version(&declaration.id);
-        tools.push(LockedTool { declaration, version, artifacts });
+        tools.push(LockedTool {
+            declaration,
+            version,
+            artifacts,
+        });
     }
-    return Lock { tools };
+    return Lock {
+        tools,
+    };
 }
 
 /// What:
@@ -174,10 +196,15 @@ pub(crate) fn sample_lock() -> Lock {
 /// ```
 #[cfg(target_os = "linux")]
 pub(crate) fn pid_of_a_process_that_ended() -> u32 {
-    let mut child: std::process::Child = std::process::Command::new("true").spawn().expect("start a short-lived program");
+    let mut child: std::process::Child = std::process::Command::new("true")
+        .spawn()
+        .expect("start a short-lived program");
     let pid: u32 = child.id();
     child.wait().expect("wait for it");
-    assert!(!std::path::Path::new("/proc").join(pid.to_string()).exists(), "the kernel no longer lists pid {pid}");
+    assert!(
+        !std::path::Path::new("/proc").join(pid.to_string()).exists(),
+        "the kernel no longer lists pid {pid}"
+    );
     return pid;
 }
 

@@ -89,11 +89,11 @@ pub fn concat(parts: Vec<Node>) -> Node {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     if flat.is_empty() {
-        return Node::Empty
+        return Node::Empty;
     } else if flat.len() == 1 {
-        return flat.into_iter().next().unwrap()
+        return flat.into_iter().next().unwrap();
     } else {
-        return Node::Concat(flat)
+        return Node::Concat(flat);
     }
 }
 
@@ -148,11 +148,11 @@ pub fn alt(parts: Vec<Node>) -> Node {
     flat.sort();
     flat.dedup();
     if flat.is_empty() {
-        return Node::Fail
+        return Node::Fail;
     } else if flat.len() == 1 {
-        return flat.into_iter().next().unwrap()
+        return flat.into_iter().next().unwrap();
     } else {
-        return Node::Alt(flat)
+        return Node::Alt(flat);
     }
 }
 
@@ -205,11 +205,11 @@ pub fn inter(parts: Vec<Node>) -> Node {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     if flat.is_empty() {
-        return Node::Top
+        return Node::Top;
     } else if flat.len() == 1 {
-        return flat.into_iter().next().unwrap()
+        return flat.into_iter().next().unwrap();
     } else {
-        return Node::Inter(flat)
+        return Node::Inter(flat);
     }
 }
 
@@ -258,7 +258,11 @@ pub fn comp(inner: Node) -> Node {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn repeat(node: Node, min: usize, max: usize) -> Node {
+pub fn repeat(
+    node: Node,
+    min: usize,
+    max: usize,
+) -> Node {
     if max == 0 {
         return Node::Empty;
     }
@@ -272,7 +276,7 @@ pub fn repeat(node: Node, min: usize, max: usize) -> Node {
         node: Box::new(node),
         min,
         max,
-    }
+    };
 }
 
 /// Builds `x?` as `x{0,1}`.
@@ -290,7 +294,7 @@ pub fn repeat(node: Node, min: usize, max: usize) -> Node {
 /// }
 /// ```
 pub fn optional(node: Node) -> Node {
-    return repeat(node, 0, 1)
+    return repeat(node, 0, 1);
 }
 
 /// Builds a one-byte class node,
@@ -311,9 +315,9 @@ pub fn optional(node: Node) -> Node {
 /// ```
 pub fn class(set: ByteSet) -> Node {
     if set.is_empty() {
-        return Node::Fail
+        return Node::Fail;
     } else {
-        return Node::Class(set)
+        return Node::Class(set);
     }
 }
 

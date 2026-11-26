@@ -27,10 +27,20 @@
 /// Files,
 /// directories and links,
 /// and the device and inode of an open entry.
-use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{
+    fs,
+    os::unix::fs::MetadataExt,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// Device and inode of what a foreign-namespace process holds.
-use crate::lean_identity::{Identity, identity_of};
+use crate::lean_identity::{
+    Identity,
+    identity_of,
+};
 
 /// The suffix `/proc` appends to the link of a file that was unlinked while open.
 const DELETED_SUFFIX: &str = " (deleted)";
@@ -97,7 +107,10 @@ impl ScanReport {
     /// Why only the uses it saw:
     /// a process whose entries could not be read is named by `describe` and is not judged here;
     /// `doc/handover/cargo-shadow-lean-build-folders.md` records that limit and the measurement under it.
-    pub fn blocks(&self, candidate: &Path) -> Option<&ProcessUse> {
+    pub fn blocks(
+        &self,
+        candidate: &Path,
+    ) -> Option<&ProcessUse> {
         for used in &self.uses {
             if used.how == FOREIGN_IDENTITY_HOW || used.path.starts_with(candidate) {
                 return Some(used);
@@ -205,11 +218,21 @@ fn map_path(line: &str) -> Option<PathBuf> {
 /// ```ts
 /// function noteIfUnder(report: ScanReport, pid: number, how: string, path: string, roots: string[]): void
 /// ```
-fn note_if_under(report: &mut ScanReport, pid: i32, how: &'static str, path: PathBuf, roots: &[PathBuf]) {
+fn note_if_under(
+    report: &mut ScanReport,
+    pid: i32,
+    how: &'static str,
+    path: PathBuf,
+    roots: &[PathBuf],
+) {
     let clean: PathBuf = without_deleted(path);
     for root in roots {
         if clean.starts_with(root) {
-            report.uses.push(ProcessUse { pid, how, path: clean });
+            report.uses.push(ProcessUse {
+                pid,
+                how,
+                path: clean,
+            });
             return;
         }
     }
@@ -232,18 +255,34 @@ fn note_if_under(report: &mut ScanReport, pid: i32, how: &'static str, path: Pat
 /// ```ts
 /// function scanForeign(report: ScanReport, pid: number, entry: string, identities: Identity[], roots: string[]): void
 /// ```
-fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[Identity], roots: &[PathBuf]) {
-    let mut held: Vec<(&'static str, PathBuf)> = vec![("cwd", entry.join("cwd")), ("exe", entry.join("exe"))];
+fn scan_foreign(
+    report: &mut ScanReport,
+    pid: i32,
+    entry: &Path,
+    identities: &[Identity],
+    roots: &[PathBuf],
+) {
+    let mut held: Vec<(&'static str, PathBuf)> =
+        vec![("cwd", entry.join("cwd")), ("exe", entry.join("exe"))];
     if let Ok(descriptors) = fs::read_dir(entry.join("fd")) {
         for descriptor in descriptors.flatten() {
             held.push(("fd", descriptor.path()));
         }
     }
     for (how, link) in held {
-        let Ok(metadata) = fs::metadata(&link) else { continue };
-        let found: Identity = Identity { device: metadata.dev(), inode: metadata.ino() };
+        let Ok(metadata) = fs::metadata(&link) else {
+            continue;
+        };
+        let found: Identity = Identity {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        };
         if identities.contains(&found) {
-            report.uses.push(ProcessUse { pid, how: FOREIGN_IDENTITY_HOW, path: link.clone() });
+            report.uses.push(ProcessUse {
+                pid,
+                how: FOREIGN_IDENTITY_HOW,
+                path: link.clone(),
+            });
         }
         if let Ok(target) = fs::read_link(&link) {
             note_if_under(report, pid, how, target, roots);
@@ -268,10 +307,17 @@ fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[I
 /// ```ts
 /// const statusField = (status: string, name: string): string | undefined => status.split('\n').find((line) => line.startsWith(`${name}:`))?.slice(name.length + 1).trim();
 /// ```
-fn status_field<'a>(status: &'a str, name: &str) -> Option<&'a str> {
+fn status_field<'a>(
+    status: &'a str,
+    name: &str,
+) -> Option<&'a str> {
     for line in status.lines() {
-        let Some(rest) = line.strip_prefix(name) else { continue };
-        let Some(value) = rest.strip_prefix(':') else { continue };
+        let Some(rest) = line.strip_prefix(name) else {
+            continue;
+        };
+        let Some(value) = rest.strip_prefix(':') else {
+            continue;
+        };
         return Some(value.trim());
     }
     return None;
@@ -333,7 +379,9 @@ fn real_uid_of(field: &str) -> Option<u32> {
 /// ```
 pub fn other_uids_can_reach(root: &Path) -> bool {
     for ancestor in root.ancestors() {
-        let Ok(metadata) = fs::metadata(ancestor) else { return true };
+        let Ok(metadata) = fs::metadata(ancestor) else {
+            return true;
+        };
         if metadata.mode() & 0o077 == 0 {
             return false;
         }
@@ -359,7 +407,12 @@ pub fn other_uids_can_reach(root: &Path) -> bool {
 /// ```ts
 /// function noteWithoutEntries(report: ScanReport, procRoot: string, pid: number, roots: string[]): void
 /// ```
-fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roots: &[PathBuf]) {
+fn note_without_entries(
+    report: &mut ScanReport,
+    proc_root: &Path,
+    pid: i32,
+    roots: &[PathBuf],
+) {
     let Ok(status) = fs::read_to_string(proc_root.join(pid.to_string()).join("status")) else {
         // The process ended between the listing and this read, so it holds nothing.
         report.inert += 1;
@@ -403,7 +456,12 @@ fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roo
 /// ```ts
 /// export function scanProcesses(procRoot: string, roots: string[], identities: Identity[], skipPid: number): ScanReport
 /// ```
-pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32) -> ScanReport {
+pub fn scan_processes(
+    proc_root: &Path,
+    roots: &[&Path],
+    identities: &[Identity],
+    skip_pid: i32,
+) -> ScanReport {
     let mut report: ScanReport = ScanReport::default();
     let own_namespace: Option<PathBuf> = fs::read_link(proc_root.join("self/ns/mnt")).ok();
     // Both spellings of every root: the one a caller spelled, and the one the kernel holds.
@@ -415,10 +473,14 @@ pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity]
             compared.push(resolved);
         }
     }
-    let Ok(entries) = fs::read_dir(proc_root) else { return report };
+    let Ok(entries) = fs::read_dir(proc_root) else {
+        return report;
+    };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        let Ok(pid) = name.parse::<i32>() else { continue };
+        let Ok(pid) = name.parse::<i32>() else {
+            continue;
+        };
         if pid == skip_pid {
             continue;
         }

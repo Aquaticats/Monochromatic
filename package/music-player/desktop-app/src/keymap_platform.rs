@@ -120,7 +120,10 @@ impl std::fmt::Display for KeymapError {
     /// ```ts
     /// toString(): string { return "Unknown keyboard-map platform."; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Self::UnknownPlatform => formatter.write_str("Unknown keyboard-map platform."),
         };

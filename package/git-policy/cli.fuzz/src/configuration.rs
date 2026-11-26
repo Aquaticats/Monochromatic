@@ -18,13 +18,30 @@
 use git_policy_cli::config_error::ConfigError;
 use git_policy_cli::config_parse::parse_config;
 use git_policy_cli::config_schema::{
-    CliGitConfig, MarkdownRule, PolicySetting, RulesFileEntry, markdown_rule_name,
+    CliGitConfig,
+    MarkdownRule,
+    PolicySetting,
+    RulesFileEntry,
+    markdown_rule_name,
 };
-use git_policy_cli::diagnostics::{EngineFailureCode, render_engine_failure};
-use git_policy_cli::policy_registry::{POLICY_REGISTRY, PolicyId, Severity, severity_name};
+use git_policy_cli::diagnostics::{
+    EngineFailureCode,
+    render_engine_failure,
+};
+use git_policy_cli::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+    Severity,
+    severity_name,
+};
 /// Import the JSONC value model used to build and re-read documents.
 use monochromatic_jsonc_edit::{
-    JsoncEntry, JsoncKey, JsoncValue, emit_jsonc_value, parse_jsonc, units_to_string,
+    JsoncEntry,
+    JsoncKey,
+    JsoncValue,
+    emit_jsonc_value,
+    parse_jsonc,
+    units_to_string,
 };
 
 /// JavaScript's largest safe integer,
@@ -65,7 +82,10 @@ pub struct GeneratedConfig {
 /// ```ts
 /// function entry(name: string, value: JsoncValue): JsoncEntry;
 /// ```
-fn entry(name: &str, value: JsoncValue) -> JsoncEntry {
+fn entry(
+    name: &str,
+    value: JsoncValue,
+) -> JsoncEntry {
     return JsoncEntry {
         key: JsoncKey::from_text(name),
         value,
@@ -117,7 +137,10 @@ fn number(value: u64) -> JsoncValue {
 /// ```ts
 /// function byteAt(data: Uint8Array, index: number): number { return data[index] ?? 0; }
 /// ```
-fn byte_at(data: &[u8], index: usize) -> u8 {
+fn byte_at(
+    data: &[u8],
+    index: usize,
+) -> u8 {
     if index < data.len() {
         return data[index];
     }
@@ -181,7 +204,10 @@ const RULES_PATHS: [&str; 6] = [
 /// ```ts
 /// function generatedRulesFiles(kind: number, seed: number): { value: JsoncValue; files: RulesFileEntry[] };
 /// ```
-fn generated_rules_files(kind: u8, seed: u8) -> (JsoncValue, Vec<RulesFileEntry>) {
+fn generated_rules_files(
+    kind: u8,
+    seed: u8,
+) -> (JsoncValue, Vec<RulesFileEntry>) {
     let start: usize = usize::from(seed) % RULES_PATHS.len();
     if kind == 1 {
         return (
@@ -476,7 +502,10 @@ fn check_accepted(config: &CliGitConfig) {
         parse_config(emit_jsonc_value(&canonical_document(config)).as_str())
             .expect("a canonical document is accepted");
     // The canonical document states every retired key, so only whether the file had each one differs.
-    assert_eq!(restated.concurrency.hooks.concurrent_commits, config.concurrency.hooks.concurrent_commits);
+    assert_eq!(
+        restated.concurrency.hooks.concurrent_commits,
+        config.concurrency.hooks.concurrent_commits
+    );
     assert!(restated.concurrency.hooks.present);
     assert_eq!(
         restated.concurrency.index_lock.unproven_owner_timeout_ms,

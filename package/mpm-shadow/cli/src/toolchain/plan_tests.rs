@@ -1,9 +1,19 @@
 //! Unit tests of the plan reader and the model decoding behind it.
 
 use super::error::ErrorKind;
-use super::fixtures::{SAMPLE_PLAN, sample_plan};
-use super::model::{Postinstall, Request, Route};
-use super::plan::{parse_plan, read_plan};
+use super::fixtures::{
+    SAMPLE_PLAN,
+    sample_plan,
+};
+use super::model::{
+    Postinstall,
+    Request,
+    Route,
+};
+use super::plan::{
+    parse_plan,
+    read_plan,
+};
 use crate::test_scratch::scratch;
 
 #[test]
@@ -29,7 +39,11 @@ fn every_route_has_a_name_that_parses_back() {
 #[test]
 fn the_sample_plan_keeps_the_written_order_and_decodes_every_field() {
     let plan = sample_plan();
-    let ids: Vec<&str> = plan.tools.iter().map(|tool| return tool.id.as_str()).collect();
+    let ids: Vec<&str> = plan
+        .tools
+        .iter()
+        .map(|tool| return tool.id.as_str())
+        .collect();
     assert_eq!(
         ids,
         vec![
@@ -46,13 +60,28 @@ fn the_sample_plan_keeps_the_written_order_and_decodes_every_field() {
             "android-sdk"
         ]
     );
-    assert_eq!(plan.tools[0].request, Request::parse("github:marcosnils/bin@0.29.4").expect("parses"));
+    assert_eq!(
+        plan.tools[0].request,
+        Request::parse("github:marcosnils/bin@0.29.4").expect("parses")
+    );
     let rust = &plan.tools[4];
-    assert_eq!(rust.request, Request::parse("rust@nightly").expect("parses"));
+    assert_eq!(
+        rust.request,
+        Request::parse("rust@nightly").expect("parses")
+    );
     assert_eq!(rust.route, Route::RustupToolchain);
     assert_eq!(rust.package_id.as_deref(), Some("nightly-2026-10-30"));
-    assert_eq!(rust.env, vec![("RUSTUP_TOOLCHAIN".to_string(), "nightly-2026-10-30".to_string())]);
-    assert_eq!(rust.options.rust_components, Some(vec!["clippy".to_string(), "rust-src".to_string()]));
+    assert_eq!(
+        rust.env,
+        vec![(
+            "RUSTUP_TOOLCHAIN".to_string(),
+            "nightly-2026-10-30".to_string()
+        )]
+    );
+    assert_eq!(
+        rust.options.rust_components,
+        Some(vec!["clippy".to_string(), "rust-src".to_string()])
+    );
     let shadow = &plan.tools[7];
     assert!(shadow.os.is_some());
     let Some(Postinstall::Link(link)) = &shadow.options.postinstall else {
@@ -71,7 +100,10 @@ fn comments_and_trailing_commas_parse_but_strict_json_is_not_required() {
 
 #[test]
 fn an_unknown_tool_field_is_rejected_with_its_path() {
-    let source = SAMPLE_PLAN.replace("\"route\": \"archive\",\n      \"bins\": [\"uv\"", "\"route\": \"archive\",\n      \"colour\": 1,\n      \"bins\": [\"uv\"");
+    let source = SAMPLE_PLAN.replace(
+        "\"route\": \"archive\",\n      \"bins\": [\"uv\"",
+        "\"route\": \"archive\",\n      \"colour\": 1,\n      \"bins\": [\"uv\"",
+    );
     let error = parse_plan(&source, "plan.jsonc").expect_err("an unknown field is rejected");
     assert_eq!(error.kind, ErrorKind::Config);
     assert!(error.message.contains("plan.jsonc"), "{error}");
@@ -80,7 +112,10 @@ fn an_unknown_tool_field_is_rejected_with_its_path() {
 
 #[test]
 fn a_resolved_field_in_the_plan_is_rejected_because_update_owns_it() {
-    let source = SAMPLE_PLAN.replace("\"bins\": [\"node\", \"npm\", \"npx\"],", "\"bins\": [\"node\", \"npm\", \"npx\"], \"version\": \"26.0.0\",");
+    let source = SAMPLE_PLAN.replace(
+        "\"bins\": [\"node\", \"npm\", \"npx\"],",
+        "\"bins\": [\"node\", \"npm\", \"npx\"], \"version\": \"26.0.0\",",
+    );
     let error = parse_plan(&source, "plan.jsonc").expect_err("version is not a plan field");
     assert!(error.message.contains("tools.node.version"), "{error}");
 }
@@ -102,7 +137,10 @@ fn a_binary_name_declared_by_two_tools_is_rejected() {
 
 #[test]
 fn an_unknown_route_names_the_valid_routes() {
-    let source = SAMPLE_PLAN.replace("\"route\": \"android-sdk\"", "\"route\": \"carrier-pigeon\"");
+    let source = SAMPLE_PLAN.replace(
+        "\"route\": \"android-sdk\"",
+        "\"route\": \"carrier-pigeon\"",
+    );
     let error = parse_plan(&source, "plan.jsonc").expect_err("an unknown route is rejected");
     assert!(error.message.contains("carrier-pigeon"), "{error}");
     assert!(error.message.contains("bin-sourced"), "{error}");
@@ -112,19 +150,31 @@ fn an_unknown_route_names_the_valid_routes() {
 fn a_wrong_typed_field_names_the_path_and_what_was_found() {
     let source = SAMPLE_PLAN.replace("\"bins\": [\"adb\", \"sdkmanager\"]", "\"bins\": \"adb\"");
     let error = parse_plan(&source, "plan.jsonc").expect_err("bins must be an array");
-    assert!(error.message.contains("tools.android-sdk.bins must be an array of strings, found a string"), "{error}");
+    assert!(
+        error
+            .message
+            .contains("tools.android-sdk.bins must be an array of strings, found a string"),
+        "{error}"
+    );
 }
 
 #[test]
 fn text_that_is_not_jsonc_names_the_file() {
-    let error = parse_plan("{ \"tools\": ", "toolchain.plan.jsonc").expect_err("truncated input is rejected");
+    let error = parse_plan("{ \"tools\": ", "toolchain.plan.jsonc")
+        .expect_err("truncated input is rejected");
     assert_eq!(error.kind, ErrorKind::Config);
-    assert!(error.message.starts_with("toolchain.plan.jsonc is not valid JSONC"), "{error}");
+    assert!(
+        error
+            .message
+            .starts_with("toolchain.plan.jsonc is not valid JSONC"),
+        "{error}"
+    );
 }
 
 #[test]
 fn a_wrong_schema_version_is_rejected() {
-    let error = parse_plan("{ \"schemaVersion\": 2, \"tools\": {} }", "plan.jsonc").expect_err("only version 1 exists");
+    let error = parse_plan("{ \"schemaVersion\": 2, \"tools\": {} }", "plan.jsonc")
+        .expect_err("only version 1 exists");
     assert!(error.message.contains("schemaVersion must be 1"), "{error}");
 }
 
@@ -162,8 +212,14 @@ fn an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postin
     let plan = parse_plan(source, "global-plan.jsonc").expect("the global plan's entry decodes");
     let wrapper = &plan.tools[0];
     assert_eq!(wrapper.route, Route::Archive);
-    assert_eq!(wrapper.options.tag_prefix.as_deref(), Some("monochromatic-git-policy-cli-v"));
-    assert!(matches!(wrapper.options.postinstall, Some(Postinstall::Link(_))));
+    assert_eq!(
+        wrapper.options.tag_prefix.as_deref(),
+        Some("monochromatic-git-policy-cli-v")
+    );
+    assert!(matches!(
+        wrapper.options.postinstall,
+        Some(Postinstall::Link(_))
+    ));
 }
 
 /// A postinstall holding both a link and a run is refused, with both fields named:
@@ -182,5 +238,8 @@ fn a_postinstall_holding_both_a_link_and_a_run_is_refused_with_both_fields_named
 fn a_cargo_git_plan_entry_without_a_package_id_is_refused_at_decode_time() {
     let source = "{\"schemaVersion\": 1, \"tools\": {\"tools-ok\": {\"request\": \"git:https://github.com/o/r@main\", \"route\": \"cargo-git\", \"bins\": [\"x\"]}}}";
     let error = parse_plan(source, "toolchain.plan.jsonc").expect_err("the crate name is unknown");
-    assert!(error.message.contains("packageId"), "the field is named: {error}");
+    assert!(
+        error.message.contains("packageId"),
+        "the field is named: {error}"
+    );
 }

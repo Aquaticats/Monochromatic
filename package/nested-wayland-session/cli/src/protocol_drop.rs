@@ -7,7 +7,10 @@
 use std::path::PathBuf;
 
 /// Sibling modules of this crate.
-use super::{parse_f64, Command};
+use super::{
+    Command,
+    parse_f64,
+};
 
 /// Most files one drop carries.
 ///
@@ -84,10 +87,10 @@ fn tokenize(line: &str) -> Result<Vec<Token>, String> {
                 }
             }
             if !closed {
-                return Err("drop-file has a quoted path with no closing quote".to_string())
+                return Err("drop-file has a quoted path with no closing quote".to_string());
             }
             if matches!(characters.peek(), Some(after) if !after.is_whitespace()) {
-                return Err("drop-file needs whitespace after a closing quote".to_string())
+                return Err("drop-file needs whitespace after a closing quote".to_string());
             }
         } else {
             while let Some(character) = characters.peek().copied() {
@@ -98,9 +101,12 @@ fn tokenize(line: &str) -> Result<Vec<Token>, String> {
                 characters.next();
             }
         }
-        tokens.push(Token { text, quoted });
+        tokens.push(Token {
+            text,
+            quoted,
+        });
     }
-    return Ok(tokens)
+    return Ok(tokens);
 }
 
 /// Parse the part of a `drop-file` line after the verb.
@@ -133,22 +139,26 @@ pub(super) fn parse(rest: &str) -> Result<Command, String> {
         let y = parse_f64(Some(tokens[count - 1].text.as_str()), "drop-file y")?;
         point = Some((x, y));
         path_count = count - 3;
-    } else if count == 3 && !tokens[1].quoted && !tokens[2].quoted && tokens[1].text.parse::<f64>().is_ok() {
+    } else if count == 3
+        && !tokens[1].quoted
+        && !tokens[2].quoted
+        && tokens[1].text.parse::<f64>().is_ok()
+    {
         let x = parse_f64(Some(tokens[1].text.as_str()), "drop-file x")?;
         let y = parse_f64(Some(tokens[2].text.as_str()), "drop-file y")?;
         point = Some((x, y));
         path_count = 1;
     } else if count == 2 && !tokens[1].quoted && tokens[1].text.parse::<f64>().is_ok() {
-        return Err("drop-file needs both x and y or neither".to_string())
+        return Err("drop-file needs both x and y or neither".to_string());
     }
     if matches!(point, Some((x, y)) if !x.is_finite() || !y.is_finite()) {
-        return Err("drop-file coordinates must be finite".to_string())
+        return Err("drop-file coordinates must be finite".to_string());
     }
     if path_count == 0 {
-        return Err("drop-file requires at least one path".to_string())
+        return Err("drop-file requires at least one path".to_string());
     }
     if path_count > MAX_FILES {
-        return Err(format!("drop-file takes at most {MAX_FILES} paths"))
+        return Err(format!("drop-file takes at most {MAX_FILES} paths"));
     }
     let mut paths: Vec<PathBuf> = Vec::new();
     for token in tokens.iter().take(path_count) {
@@ -158,5 +168,9 @@ pub(super) fn parse(rest: &str) -> Result<Command, String> {
         Some((x, y)) => (Some(x), Some(y)),
         None => (None, None),
     };
-    return Ok(Command::DropFile { paths, x, y })
+    return Ok(Command::DropFile {
+        paths,
+        x,
+        y,
+    });
 }

@@ -1,10 +1,20 @@
 //! Stale-result fencing without a server:
 //!  each identity component is moved on its own.
 
-use super::{Fence, FenceCounts, FenceVerdict};
-use crate::language::identity::{DocumentStamp, ServerIdentity};
+use super::{
+    Fence,
+    FenceCounts,
+    FenceVerdict,
+};
+use crate::language::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 
-fn server(name: &str, instance: u64) -> ServerIdentity {
+fn server(
+    name: &str,
+    instance: u64,
+) -> ServerIdentity {
     return ServerIdentity {
         name: name.to_string(),
         instance,

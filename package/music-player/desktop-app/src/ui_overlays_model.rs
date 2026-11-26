@@ -8,10 +8,17 @@
 //! and the window only places the values.
 
 /// Imports the feedback kind and queue that the rows come from.
-use music_player::feedback::{FeedbackKind, FeedbackQueue};
+use music_player::feedback::{
+    FeedbackKind,
+    FeedbackQueue,
+};
 /// Imports the first-run state,
 /// its copy and the analysis explanation.
-use music_player::first_run::{ANALYSIS_EXPLANATION, FirstRunState, first_run_copy};
+use music_player::first_run::{
+    ANALYSIS_EXPLANATION,
+    FirstRunState,
+    first_run_copy,
+};
 
 /// Imports the screen state that decides whether the first-run pane shows.
 use crate::ui_screen_view::ScreenState;
@@ -83,7 +90,11 @@ pub fn first_run_view(state: &ScreenState) -> Option<FirstRunView> {
         body: copy.body,
         primary_label: copy.primary_action.unwrap_or("").to_string(),
         secondary_labels: secondary_labels(&copy.secondary_actions),
-        explanation: if copy.explains_analysis { ANALYSIS_EXPLANATION.to_string() } else { String::new() },
+        explanation: if copy.explains_analysis {
+            ANALYSIS_EXPLANATION.to_string()
+        } else {
+            String::new()
+        },
     });
 }
 
@@ -139,7 +150,10 @@ pub enum Hold {
 /// ```ts
 /// const visibleTimeMs = (text: string, hold: Hold) => Math.min(15_000, Math.max(hold === "long" ? 8_000 : 4_000, 2_000 + 60 * [...text].length));
 /// ```
-pub fn visible_time_ms(text: &str, hold: Hold) -> i64 {
+pub fn visible_time_ms(
+    text: &str,
+    hold: Hold,
+) -> i64 {
     let floor: i64 = match hold {
         Hold::Brief => 4_000,
         Hold::Long => 8_000,

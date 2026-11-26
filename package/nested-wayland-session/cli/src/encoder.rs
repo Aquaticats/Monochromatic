@@ -30,13 +30,22 @@
 /// import fs from "node:fs"; import { Worker } from "node:worker_threads";
 /// ```
 use std::{
-    io::BufWriter,
     fs::File,
-    path::{Path, PathBuf},
+    io::BufWriter,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        atomic::{AtomicU64, Ordering},
-        mpsc::{Receiver, Sender},
         Arc,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
+        mpsc::{
+            Receiver,
+            Sender,
+        },
     },
     thread::JoinHandle,
 };
@@ -53,11 +62,16 @@ use std::{
 /// import { PngEncoder, BmpEncoder } from "image";
 /// ```
 use image::{
+    ColorType,
+    ImageEncoder,
     codecs::{
         bmp::BmpEncoder,
-        png::{CompressionType, FilterType, PngEncoder},
+        png::{
+            CompressionType,
+            FilterType,
+            PngEncoder,
+        },
     },
-    ColorType, ImageEncoder,
 };
 
 /// What:
@@ -242,7 +256,12 @@ impl EncoderPool {
     /// ```ts
     /// const pool = EncoderPool.new("/tmp/frames", Format.Png, 6, 18);
     /// ```
-    pub fn new(dir: PathBuf, format: Format, workers: usize, pool_buffers: usize) -> EncoderPool {
+    pub fn new(
+        dir: PathBuf,
+        format: Format,
+        workers: usize,
+        pool_buffers: usize,
+    ) -> EncoderPool {
         // What:     `let (work_tx, work_rx) = crossbeam_channel::bounded::<Frame>(pool_buffers);`.
         //           A bounded MPMC queue; bounding it caps in-flight frames (and thus memory).
         // Why:      Backpressure: if encoders fall behind, the queue fills and the render
@@ -289,7 +308,13 @@ impl EncoderPool {
             let handle = std::thread::Builder::new()
                 .name(format!("nws-encoder-{id}"))
                 .spawn(move || {
-                    worker_loop(worker_rx, worker_free_tx, worker_dir, format, worker_failures);
+                    worker_loop(
+                        worker_rx,
+                        worker_free_tx,
+                        worker_dir,
+                        format,
+                        worker_failures,
+                    );
                 })
                 .expect("spawning an encoder worker failed");
 
@@ -306,7 +331,7 @@ impl EncoderPool {
             free_tx,
             failures,
             handles,
-        }
+        };
     }
 
     /// Take a free buffer from the pool,
@@ -322,7 +347,7 @@ impl EncoderPool {
         // What:     `self.free_rx.try_recv().ok()`. Non-blocking take; `.ok()` turns the
         //           empty/disconnected error into `None`. Tail expression.
         // Why:      Never block the 60fps render thread waiting for a buffer.
-        return self.free_rx.try_recv().ok()
+        return self.free_rx.try_recv().ok();
     }
 
     /// Submit a filled frame to the encoder pool.
@@ -337,11 +362,17 @@ impl EncoderPool {
     ///  a full queue means encoders are behind,
     ///  so drop this
     ///           frame rather than block.
-    pub fn submit(&self, frame: Frame) -> Result<(), Frame> {
+    pub fn submit(
+        &self,
+        frame: Frame,
+    ) -> Result<(), Frame> {
         // What:     `self.work_tx.try_send(frame).map_err(|err| err.into_inner())`. Try to
         //           enqueue; on failure recover the `Frame` from the send error.
         // Why:      Return the buffer to the caller for reuse when dropping.
-        return self.work_tx.try_send(frame).map_err(crossbeam_channel::TrySendError::into_inner)
+        return self
+            .work_tx
+            .try_send(frame)
+            .map_err(crossbeam_channel::TrySendError::into_inner);
     }
 
     /// Return a buffer to the free pool (used when a frame is dropped or reclaimed).
@@ -351,7 +382,10 @@ impl EncoderPool {
     ///  Push a buffer back.
     /// Why:
     ///       Recycle a dropped frame's buffer.
-    pub fn return_buffer(&self, buffer: Vec<u8>) {
+    pub fn return_buffer(
+        &self,
+        buffer: Vec<u8>,
+    ) {
         // What:     `self.free_tx.send(buffer).ok();`. Return it; ignore a closed pool.
         // Why:      Keep the pool populated.
         self.free_tx.send(buffer).ok();
@@ -384,7 +418,7 @@ impl EncoderPool {
 
         // What:     `self.failures.load(Ordering::Relaxed)`. Read the final failure count.
         // Why:      Report it to the caller.
-        return self.failures.load(Ordering::Relaxed)
+        return self.failures.load(Ordering::Relaxed);
     }
 }
 
@@ -451,7 +485,12 @@ fn worker_loop(
 ///           the row order with one linear pass over the rows.
 /// Why:
 ///       Turn the GPU-native bottom-up readback into a top-down image buffer.
-fn flip_rows(src: &[u8], dst: &mut Vec<u8>, width: u32, height: u32) {
+fn flip_rows(
+    src: &[u8],
+    dst: &mut Vec<u8>,
+    width: u32,
+    height: u32,
+) {
     // What:     `let stride = width as usize * BYTES_PER_PIXEL;`. Bytes per row.
     // Why:      Row boundaries for the copy.
     let stride = width as usize * crate::screenshot::BYTES_PER_PIXEL;
@@ -495,7 +534,13 @@ fn flip_rows(src: &[u8], dst: &mut Vec<u8>, width: u32, height: u32) {
 /// ```ts
 /// writeFlipped(rawBottomUpPixels, 800, 600, "/tmp/a.png", Format.Png);
 /// ```
-pub fn write_flipped(raw: &[u8], width: u32, height: u32, path: &Path, format: Format) -> Result<()> {
+pub fn write_flipped(
+    raw: &[u8],
+    width: u32,
+    height: u32,
+    path: &Path,
+    format: Format,
+) -> Result<()> {
     // What:     `let mut flipped: Vec<u8> = Vec::new();`. A one-off scratch buffer.
     // Why:      Hold the top-down copy for encoding.
     let mut flipped: Vec<u8> = Vec::new();
@@ -507,7 +552,7 @@ pub fn write_flipped(raw: &[u8], width: u32, height: u32, path: &Path, format: F
     // What:     `write(&flipped, width, height, path, format)`. Encode the flipped pixels
     //           (tail expression).
     // Why:      Produce the upright file.
-    return write(&flipped, width, height, path, format)
+    return write(&flipped, width, height, path, format);
 }
 
 /// Encode top-down RGBA pixels to `path` in `format`.
@@ -518,7 +563,13 @@ pub fn write_flipped(raw: &[u8], width: u32, height: u32, path: &Path, format: F
 ///  Dispatches to the PNG or BMP encoder.
 /// Why:
 ///       One dispatch point shared by the pool and single screenshots.
-fn write(pixels: &[u8], width: u32, height: u32, path: &Path, format: Format) -> Result<()> {
+fn write(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    path: &Path,
+    format: Format,
+) -> Result<()> {
     // What:     `match format { Png => write_png(...), Bmp => write_bmp(...) }`. Route by
     //           format (tail expression).
     // Why:      Select the encoder.
@@ -543,12 +594,20 @@ fn write(pixels: &[u8], width: u32, height: u32, path: &Path, format: Format) ->
 /// ```ts
 /// writePng(pixels, 800, 600, "/tmp/a.png");
 /// ```
-pub fn write_png(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<()> {
+pub fn write_png(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    path: &Path,
+) -> Result<()> {
     // What:     `let file = BufWriter::new(File::create(path).with_context(...)?);`. Create
     //           the file and wrap it in a buffered writer.
     // Why:      Buffered writes are faster than many small syscalls.
     let created = File::create(path);
-    let file = BufWriter::new(with_message(created, format_args!("creating {}", path.display()))?);
+    let file = BufWriter::new(with_message(
+        created,
+        format_args!("creating {}", path.display()),
+    )?);
 
     // What:     `let encoder = PngEncoder::new_with_quality(file, CompressionType::Fast,
     //           FilterType::NoFilter);`. Build a fast, filterless PNG encoder.
@@ -564,7 +623,7 @@ pub fn write_png(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<
 
     // What:     `Ok(())`. Success.
     // Why:      Frame written.
-    return Ok(())
+    return Ok(());
 }
 
 /// Encode top-down RGBA pixels to an uncompressed BMP file.
@@ -576,12 +635,20 @@ pub fn write_png(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<
 ///  so encoding is near-free.
 /// Why:
 ///       The reliable sustained-60fps path when PNG's deflate cannot keep up.
-pub fn write_bmp(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<()> {
+pub fn write_bmp(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    path: &Path,
+) -> Result<()> {
     // What:     `let mut file = BufWriter::new(File::create(path).with_context(...)?);`.
     //           `mut` because `BmpEncoder::new` borrows the writer mutably.
     // Why:      Create the destination.
     let created = File::create(path);
-    let mut file = BufWriter::new(with_message(created, format_args!("creating {}", path.display()))?);
+    let mut file = BufWriter::new(with_message(
+        created,
+        format_args!("creating {}", path.display()),
+    )?);
 
     // What:     `BmpEncoder::new(&mut file).encode(pixels, width, height,
     //           ColorType::Rgba8.into()).context(...)?;`. Write the BMP.
@@ -591,5 +658,5 @@ pub fn write_bmp(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<
 
     // What:     `Ok(())`. Success.
     // Why:      Frame written.
-    return Ok(())
+    return Ok(());
 }

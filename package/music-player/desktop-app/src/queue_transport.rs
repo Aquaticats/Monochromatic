@@ -55,7 +55,10 @@ impl Queue {
     ///   this.pos = 0; return this.order[0]; // a manual Next loops the scope (page or all)
     /// }
     /// ```
-    pub fn advance(&mut self, natural: bool) -> Option<usize> {
+    pub fn advance(
+        &mut self,
+        natural: bool,
+    ) -> Option<usize> {
         // What:     `let pos = self.pos?;`. The `?` operator on an `Option`: if `self.pos`
         //           is `Some(p)` it unwraps to `p`; if `None` it RETURNS `None` from the
         //           whole function immediately. (This early-return shape is why `advance`
@@ -202,7 +205,10 @@ impl Queue {
         // if (natural && this.mode === "in_order") return null;
         // ```
         if natural && self.mode == PlaybackMode::InOrder {
-            tracing::info!(slot = pos, "In order reached the end of the scope; nothing follows");
+            tracing::info!(
+                slot = pos,
+                "In order reached the end of the scope; nothing follows"
+            );
             return None;
         }
         // What:     `self.pos = Some(self.sequential_start);`. Past the end of the scope: wrap to its start. The start
@@ -224,7 +230,7 @@ impl Queue {
         // ```ts
         // return this.order[this.sequentialStart];
         // ```
-        return Some(self.order[self.sequential_start])
+        return Some(self.order[self.sequential_start]);
     }
 
     /// What:
@@ -273,7 +279,7 @@ impl Queue {
         if self.mode == PlaybackMode::InOrder {
             return None;
         }
-        return Some(self.order[self.sequential_start])
+        return Some(self.order[self.sequential_start]);
     }
 
     /// What:
@@ -321,7 +327,11 @@ impl Queue {
         }
         let slot: usize = self.sequential_start.min(self.order.len() - 1);
         self.pos = Some(slot);
-        tracing::info!(slot, track = self.order[slot], "the cursor is back on the first track of the scope");
+        tracing::info!(
+            slot,
+            track = self.order[slot],
+            "the cursor is back on the first track of the scope"
+        );
         return Some(self.order[slot]);
     }
 
@@ -463,6 +473,6 @@ impl Queue {
         // ```ts
         // return this.order[last];
         // ```
-        return Some(self.order[last])
+        return Some(self.order[last]);
     }
 }

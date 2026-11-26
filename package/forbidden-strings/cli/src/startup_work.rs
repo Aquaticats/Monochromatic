@@ -8,16 +8,25 @@
 //! so the parallel call names a function and carries its state as data.
 
 /// Imports the error constructor and the result type of the two pieces of work.
-use anyhow::{anyhow, Result};
+use anyhow::{
+    Result,
+    anyhow,
+};
 /// Imports the parallel-iterator traits that run the pieces side by side.
 use rayon::prelude::*;
 
 /// Imports the rules loader and the compiled rules it returns.
-use crate::frx_load::{load_listed, LoadedRules};
+use crate::frx_load::{
+    LoadedRules,
+    load_listed,
+};
 /// Imports the entry type of the rules list.
 use crate::rules_list::RulesEntry;
 /// Imports the working-tree walk and what it lists.
-use crate::walk::{list_files, WorkingTreeListing};
+use crate::walk::{
+    WorkingTreeListing,
+    list_files,
+};
 
 /// What the two pieces of startup work need to know.
 pub(crate) struct StartupRequest<'entries> {
@@ -86,7 +95,7 @@ fn run_work(work: StartupWork<'_, '_>) -> StartupOutcome {
 /// Returns the rules result and the listing result;
 /// the listing is `None` when it was not asked for.
 pub(crate) fn run_startup_work(
-    request: &StartupRequest<'_>,
+    request: &StartupRequest<'_>
 ) -> (Result<LoadedRules>, Option<Result<WorkingTreeListing>>) {
     let mut work: Vec<StartupWork<'_, '_>> = vec![StartupWork::LoadRules(request)];
     if request.list_working_tree {
@@ -102,7 +111,10 @@ pub(crate) fn run_startup_work(
         }
     }
     let Some(rules) = rules_result else {
-        return (Err(anyhow!("startup work returned no rules result")), files_result);
+        return (
+            Err(anyhow!("startup work returned no rules result")),
+            files_result,
+        );
     };
     return (rules, files_result);
 }

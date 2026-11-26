@@ -30,7 +30,10 @@
 //!  so only the affected rules are transformed.
 
 /// Imports the class-span and group-span helpers shared with the porter.
-use crate::port::{class_end, matching_close};
+use crate::port::{
+    class_end,
+    matching_close,
+};
 
 /// Selects which casing `recase` applies to a literal run.
 enum CaseMode {
@@ -93,7 +96,10 @@ fn has_case_flag(s: &str) -> bool {
 /// PCRE scopes a flag to its enclosing group,
 ///  so a single left-to-right walk with per-group
 /// recursion models the exact case-insensitive spans.
-fn expand_scope(s: &str, initial_ci: bool) -> String {
+fn expand_scope(
+    s: &str,
+    initial_ci: bool,
+) -> String {
     let b = s.as_bytes();
     let mut out = String::new();
     let mut run = String::new();
@@ -202,7 +208,11 @@ fn expand_scope(s: &str, initial_ci: bool) -> String {
 ///  then clears it.
 ///  Why:
 ///  a run is the unit the three-casing applies to.
-fn flush_run(run: &mut String, ci: bool, out: &mut String) {
+fn flush_run(
+    run: &mut String,
+    ci: bool,
+    out: &mut String,
+) {
     if run.is_empty() {
         return;
     }
@@ -254,7 +264,10 @@ fn three_case(run: &str) -> String {
 ///  a backslash escape and any non-letter break the alphabetic run and pass through.
 ///  Why:
 /// an escape such as `\_` or `\x60` must never have its bytes recased.
-fn recase(run: &str, mode: CaseMode) -> String {
+fn recase(
+    run: &str,
+    mode: CaseMode,
+) -> String {
     let b = run.as_bytes();
     let mut out = String::new();
     let mut fresh = true;
@@ -342,7 +355,10 @@ fn widen_class(class: &str) -> String {
 ///  else one byte.
 ///  Why:
 ///  range detection must step over whole members.
-fn read_class_atom(body: &str, i: usize) -> (String, usize) {
+fn read_class_atom(
+    body: &str,
+    i: usize,
+) -> (String, usize) {
     let bb = body.as_bytes();
     if bb[i] == b'\\' && i + 1 < bb.len() {
         return (body[i..i + 2].to_string(), i + 2);
@@ -358,7 +374,11 @@ fn read_class_atom(body: &str, i: usize) -> (String, usize) {
 ///  Why:
 ///  avoids re-adding a case
 /// a class such as `[a-zA-Z0-9]` already spans.
-fn widen_letter_range(lo: &str, hi: &str, body: &str) -> Option<String> {
+fn widen_letter_range(
+    lo: &str,
+    hi: &str,
+    body: &str,
+) -> Option<String> {
     let (l, h) = (single_letter(lo)?, single_letter(hi)?);
     if l.is_ascii_lowercase() != h.is_ascii_lowercase() {
         return None;
@@ -378,7 +398,10 @@ fn widen_letter_range(lo: &str, hi: &str, body: &str) -> Option<String> {
 ///  Why:
 ///  widens a lone letter such as
 /// the `a` through `f` of a hex class.
-fn widen_letter_single(atom: &str, body: &str) -> Option<String> {
+fn widen_letter_single(
+    atom: &str,
+    body: &str,
+) -> Option<String> {
     let a = single_letter(atom)?;
     let opp = swap_case(a) as char;
     if body.contains(opp) {
@@ -413,7 +436,12 @@ fn single_letter(atom: &str) -> Option<u8> {
 ///  a quantifier binds one atom,
 ///  so the letter cannot
 /// join a keyword run and instead widens like a class.
-fn emit_quantified_unit(unit: &str, quant: &str, ci: bool, out: &mut String) {
+fn emit_quantified_unit(
+    unit: &str,
+    quant: &str,
+    ci: bool,
+    out: &mut String,
+) {
     let bytes = unit.as_bytes();
     if ci && bytes.len() == 1 && bytes[0].is_ascii_alphabetic() {
         out.push('[');
@@ -453,7 +481,10 @@ fn is_run_literal_escape(n: u8) -> bool {
 ///  Why:
 ///  the walker
 /// must consume a quantifier together with the unit it binds.
-fn quant_len(b: &[u8], pos: usize) -> usize {
+fn quant_len(
+    b: &[u8],
+    pos: usize,
+) -> usize {
     match b.get(pos) {
         Some(b'?' | b'*' | b'+') => return 1,
         Some(b'{') => {
@@ -474,7 +505,10 @@ fn quant_len(b: &[u8], pos: usize) -> usize {
 ///  scans forward to the first `}`.
 ///  Why:
 ///  a `{n,m}` quantifier is copied or measured whole.
-fn brace_end(b: &[u8], pos: usize) -> usize {
+fn brace_end(
+    b: &[u8],
+    pos: usize,
+) -> usize {
     for (offset, byte) in b[pos + 1..].iter().enumerate() {
         if *byte == b'}' {
             return pos + offset + 2;

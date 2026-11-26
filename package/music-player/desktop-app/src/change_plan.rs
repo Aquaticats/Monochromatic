@@ -60,7 +60,10 @@ use std::ops::Range;
 /// ```ts
 /// type Path = string; type PathBuf = string; // TypeScript has one string type for both
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use crate::change_set::DirtyPaths;` imports the record of paths the watcher named,
@@ -85,7 +88,10 @@ use crate::change_set::DirtyPaths;
 /// ```ts
 /// import { type Disk, EntryKind } from "./disk_view";
 /// ```
-use crate::disk_view::{Disk, EntryKind};
+use crate::disk_view::{
+    Disk,
+    EntryKind,
+};
 /// What:
 /// `use crate::walk_order::{direct_files, locate, subtree_range, walk_cmp};` imports the four functions that search the
 /// sorted queue by the walk's own order.
@@ -97,7 +103,12 @@ use crate::disk_view::{Disk, EntryKind};
 /// ```ts
 /// import { directFiles, locate, subtreeRange, walkCmp } from "./walk_order";
 /// ```
-use crate::walk_order::{direct_files, locate, subtree_range, walk_cmp};
+use crate::walk_order::{
+    direct_files,
+    locate,
+    subtree_range,
+    walk_cmp,
+};
 
 /// What:
 /// `pub(crate) struct Plan { removed, added, touched }` is the edits one change set asks of the queue.
@@ -322,7 +333,10 @@ impl Planner<'_> {
     /// ```ts
     /// removePath(path: string): void { /* push the run of the path, or its single index */ }
     /// ```
-    fn remove_path(&mut self, path: &Path) {
+    fn remove_path(
+        &mut self,
+        path: &Path,
+    ) {
         // What:     `let run: Range<usize> = subtree_range(self.tracks, self.root, path);` asks for the stretch of the queue at or
         //           under the path. The `: Range<usize>` annotation names the type, which would also be inferred.
         // Why:      A folder that is gone has a stretch of tracks; a file has none, because nothing is listed under a file.
@@ -364,7 +378,10 @@ impl Planner<'_> {
     /// ```ts
     /// visitTrack(path: string): void { /* drop a stale run, then touched or added */ }
     /// ```
-    fn visit_track(&mut self, path: &Path) {
+    fn visit_track(
+        &mut self,
+        path: &Path,
+    ) {
         // What:     `let run: Range<usize> = subtree_range(self.tracks, self.root, path);` asks for the tracks listed under the
         //           path as if it were a folder.
         // Why:      A folder that was replaced by a file of the same name leaves tracks listed under it.
@@ -411,7 +428,10 @@ impl Planner<'_> {
     /// ```ts
     /// readSubtree(folder: string): void { /* merge the old run with a fresh walk, both sorted */ }
     /// ```
-    fn read_subtree(&mut self, folder: &Path) {
+    fn read_subtree(
+        &mut self,
+        folder: &Path,
+    ) {
         // What:     `let run: Range<usize> = subtree_range(self.tracks, self.root, folder);` is the stretch of the queue under the
         //           folder.
         // Why:      It is the old side of the comparison.
@@ -499,7 +519,9 @@ impl Planner<'_> {
                     right += 1;
                 }
                 std::cmp::Ordering::Less => {
-                    self.plan.removed.push(run.start + left..run.start + left + 1);
+                    self.plan
+                        .removed
+                        .push(run.start + left..run.start + left + 1);
                     left += 1;
                 }
                 std::cmp::Ordering::Greater => {
@@ -534,7 +556,11 @@ impl Planner<'_> {
     /// ```ts
     /// compareEntries(folder: string, run: Range): void { /* files by set difference, then subfolders by their runs */ }
     /// ```
-    fn compare_entries(&mut self, folder: &Path, run: Range<usize>) {
+    fn compare_entries(
+        &mut self,
+        folder: &Path,
+        run: Range<usize>,
+    ) {
         // What:     `let entries: Vec<(PathBuf, EntryKind)> = self.disk.entries(folder);` lists the folder's direct entries, each a
         //           tuple of a path and what it is. A tuple is a fixed group like TypeScript's `[string, EntryKind]`.
         // Why:      One directory listing is enough to find new and missing entries.
@@ -764,7 +790,11 @@ impl Planner<'_> {
     /// ```ts
     /// visit(path: string, structural: boolean): void { /* skip covered paths, then dispatch on what the path is now */ }
     /// ```
-    fn visit(&mut self, path: &Path, structural: bool) {
+    fn visit(
+        &mut self,
+        path: &Path,
+        structural: bool,
+    ) {
         // What:     `if !path.starts_with(self.root) || matches!(self.walked_until.as_deref(), Some(folder) if
         //           path.starts_with(folder)) { return; }` ignores a path outside the root and a path inside a
         //           folder that the walk has already covered. `matches!` with a guard is true only when
@@ -775,7 +805,9 @@ impl Planner<'_> {
         // ```ts
         // if (!path.startsWith(this.root) || (this.walkedUntil !== null && path.startsWith(this.walkedUntil))) return;
         // ```
-        if !path.starts_with(self.root) || matches!(self.walked_until.as_deref(), Some(folder) if path.starts_with(folder)) {
+        if !path.starts_with(self.root)
+            || matches!(self.walked_until.as_deref(), Some(folder) if path.starts_with(folder))
+        {
             return;
         }
         // What:     `match self.disk.kind(path) { ... }` dispatches on what the path is on disk now. `EntryKind::Missing | EntryKind::Other`
@@ -929,7 +961,12 @@ fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>> {
 /// ```ts
 /// export function planChanges(tracks: readonly string[], root: string, dirty: DirtyPaths, disk: Disk): Plan { ... }
 /// ```
-pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, disk: &dyn Disk) -> Plan {
+pub(crate) fn plan_changes(
+    tracks: &[PathBuf],
+    root: &Path,
+    dirty: &DirtyPaths,
+    disk: &dyn Disk,
+) -> Plan {
     // What:     `let mut planner: Planner = Planner { tracks, root, disk, plan: Plan::default(), walked_until: None };` builds the
     //           planner. Bare names such as `tracks` are shorthand for `tracks: tracks`; `Plan::default()` is an empty plan and
     //           `None` is the absent case of `Option`.
@@ -939,7 +976,13 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
     // ```ts
     // const planner = new Planner(tracks, root, disk);
     // ```
-    let mut planner: Planner = Planner { tracks, root, disk, plan: Plan::default(), walked_until: None };
+    let mut planner: Planner = Planner {
+        tracks,
+        root,
+        disk,
+        plan: Plan::default(),
+        walked_until: None,
+    };
     // What:     `for (path, structural) in dirty.sorted() { planner.visit(&path, structural); }` visits each named path. The loop
     //           variable is a tuple taken apart into two names, and `&path` lends the owned path to `visit`.
     // Why:      Sorted order puts a folder before what is inside it, so `walked_until` can skip the covered paths.
@@ -1048,7 +1091,11 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
 /// ```ts
 /// export function applyPlan(old: string[], root: string, plan: Plan): string[] { /* merge old, minus removed runs, with added */ }
 /// ```
-pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<PathBuf> {
+pub(crate) fn apply_plan(
+    old: Vec<PathBuf>,
+    root: &Path,
+    plan: &Plan,
+) -> Vec<PathBuf> {
     // What:     The loop below fills `places` with the position of each added track. `locate` answers `Ok(place)`
     //           when the track is already in the old list and `Err(place)` for the position where it would go; both
     //           arms give the place.

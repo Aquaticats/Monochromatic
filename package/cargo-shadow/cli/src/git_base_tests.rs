@@ -15,12 +15,18 @@
 // ```ts
 // // TS has one type for this: string
 // ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 // Imports `std::process::Command`.
 use std::process::Command;
 
 // Imports `crate::git_base::{git_lock_reader_at, resol...`.
-use crate::git_base::{git_lock_reader_at, resolve_trust_base};
+use crate::git_base::{
+    git_lock_reader_at,
+    resolve_trust_base,
+};
 // Imports `crate::test_scratch::scratch`.
 use crate::test_scratch::scratch;
 
@@ -29,9 +35,21 @@ use crate::test_scratch::scratch;
 /// that one may be a policy wrapper that refuses a bare `git commit` in a fixture.
 const SYSTEM_GIT: &str = "/usr/bin/git";
 
-fn git(directory: &Path, arguments: &[&str]) -> String {
+fn git(
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     let output = Command::new(SYSTEM_GIT)
-        .args(["-c", "user.name=tester", "-c", "user.email=tester@example.invalid", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"])
+        .args([
+            "-c",
+            "user.name=tester",
+            "-c",
+            "user.email=tester@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "init.defaultBranch=main",
+        ])
         .args(arguments)
         .current_dir(directory)
         .output()
@@ -61,7 +79,11 @@ fn git(directory: &Path, arguments: &[&str]) -> String {
     // ```ts
     // // TS has one type for this: string
     // ```
-    assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "git {arguments:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     // Borrow `&output.stdout`: lends the value without copying or giving it away.
     // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
     // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
@@ -106,16 +128,25 @@ fn repository_ahead_of_its_upstream() -> (tempfile::TempDir, PathBuf, String, St
     git(&work, &["commit", "--quiet", "-m", "pushed"]);
     // Borrow `&work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(&work, &["remote", "add", "origin", remote.to_str().expect("utf8")]);
+    git(
+        &work,
+        &["remote", "add", "origin", remote.to_str().expect("utf8")],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(&work, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &work,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
     // Typed binding: `pushed: String`.
     let pushed: String = git(&work, &["rev-parse", "HEAD"]);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     std::fs::write(work.join("package/a/one/Cargo.lock"), "merged lock\n").expect("lock");
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(&work, &["commit", "--quiet", "--all", "-m", "merged, not pushed"]);
+    git(
+        &work,
+        &["commit", "--quiet", "--all", "-m", "merged, not pushed"],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
     // Typed binding: `local: String`.
     let local: String = git(&work, &["rev-parse", "HEAD"]);
@@ -176,17 +207,26 @@ fn ci_compares_with_head_and_an_explicit_base_wins() {
     // Borrow `&work`: lends the value without copying or giving it away.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(resolve_trust_base(&work, true, None).commit, Ok(local.clone()));
+    assert_eq!(
+        resolve_trust_base(&work, true, None).commit,
+        Ok(local.clone())
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&work`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(resolve_trust_base(&work, false, Some(&local)).commit, Ok(local));
+    assert_eq!(
+        resolve_trust_base(&work, false, Some(&local)).commit,
+        Ok(local)
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&work`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(resolve_trust_base(&work, true, Some(&pushed)).commit, Ok(pushed));
+    assert_eq!(
+        resolve_trust_base(&work, true, Some(&pushed)).commit,
+        Ok(pushed)
+    );
 }
 
 /// Without an upstream the base falls back to the remote's default branch,
@@ -243,7 +283,11 @@ fn a_base_that_names_no_commit_is_an_error() {
     let base = resolve_trust_base(&work, false, Some("no-such-revision"));
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(base.commit.expect_err("not a commit").contains("no-such-revision"));
+    assert!(
+        base.commit
+            .expect_err("not a commit")
+            .contains("no-such-revision")
+    );
 }
 
 // Owner rules (2026-11-01, `package/git-policy/cli/SPEC.md`): "Invoke real git as rarely as possible." and "embed instead of
@@ -251,7 +295,10 @@ fn a_base_that_names_no_commit_is_an_error() {
 // the answer with the system git as the oracle.
 
 // Imports `crate::git_base::{TrustBase, resolve_trust_...`.
-use crate::git_base::{TrustBase, resolve_trust_base_with};
+use crate::git_base::{
+    TrustBase,
+    resolve_trust_base_with,
+};
 // Imports `crate::git_refs::NativeEnvironment`.
 use crate::git_refs::NativeEnvironment;
 
@@ -266,16 +313,33 @@ fn isolated_environment(root: &Path) -> NativeEnvironment {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     std::fs::create_dir_all(&home).expect("home");
     // `Some`: the present or the absent value of an `Option`.
-    return NativeEnvironment { home: Some(home), xdg_config_home: None, system_config: Some(root.join("no-system-config")), blocking_variable: None, git: crate::git_refs::GitProgram::default(), user_id: crate::git_refs::current_user_id() };
+    return NativeEnvironment {
+        home: Some(home),
+        xdg_config_home: None,
+        system_config: Some(root.join("no-system-config")),
+        blocking_variable: None,
+        git: crate::git_refs::GitProgram::default(),
+        user_id: crate::git_refs::current_user_id(),
+    };
 }
 
-fn oracle(work: &Path, revision: &str) -> String {
+fn oracle(
+    work: &Path,
+    revision: &str,
+) -> String {
     // Borrow `&[`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return git(work, &["rev-parse", "--verify", &format!("{revision}^{{commit}}")]);
+    return git(
+        work,
+        &["rev-parse", "--verify", &format!("{revision}^{{commit}}")],
+    );
 }
 
-fn chosen(root: &tempfile::TempDir, work: &Path, in_ci: bool) -> TrustBase {
+fn chosen(
+    root: &tempfile::TempDir,
+    work: &Path,
+    in_ci: bool,
+) -> TrustBase {
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&isolated_environment`: lends the value without copying or giving it away.
     return resolve_trust_base_with(work, in_ci, None, &isolated_environment(root.path()));
@@ -293,11 +357,25 @@ fn a_plain_repository_is_answered_from_its_files_with_no_git_process() {
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!((local_run.spelling.as_str(), local_run.commit.clone(), local_run.git_starts), ("@{upstream}", Ok(pushed), 0));
+    assert_eq!(
+        (
+            local_run.spelling.as_str(),
+            local_run.commit.clone(),
+            local_run.git_starts
+        ),
+        ("@{upstream}", Ok(pushed), 0)
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!((ci_run.spelling.as_str(), ci_run.commit.clone(), ci_run.git_starts), ("HEAD", Ok(local), 0));
+    assert_eq!(
+        (
+            ci_run.spelling.as_str(),
+            ci_run.commit.clone(),
+            ci_run.git_starts
+        ),
+        ("HEAD", Ok(local), 0)
+    );
 }
 
 #[test]
@@ -330,11 +408,25 @@ fn without_an_upstream_the_fallbacks_are_read_from_the_files_too() {
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!((from_origin.spelling.as_str(), from_origin.commit.clone(), from_origin.git_starts), ("origin/main", Ok(pushed), 0));
+    assert_eq!(
+        (
+            from_origin.spelling.as_str(),
+            from_origin.commit.clone(),
+            from_origin.git_starts
+        ),
+        ("origin/main", Ok(pushed), 0)
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!((alone.spelling.as_str(), alone.commit.clone(), alone.git_starts), ("HEAD", Ok(local), 0));
+    assert_eq!(
+        (
+            alone.spelling.as_str(),
+            alone.commit.clone(),
+            alone.git_starts
+        ),
+        ("HEAD", Ok(local), 0)
+    );
 }
 
 #[test]
@@ -361,9 +453,22 @@ fn a_linked_worktree_reads_its_own_head_and_the_shared_configuration_and_referen
     let linked: PathBuf = root.path().join("linked");
     // Borrow `&work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(&work, &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("utf8")]);
+    git(
+        &work,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            linked.to_str().expect("utf8"),
+        ],
+    );
     // Borrow `&linked`: lends the value without copying or giving it away.
-    git(&linked, &["branch", "--quiet", "--set-upstream-to=origin/main"]);
+    git(
+        &linked,
+        &["branch", "--quiet", "--set-upstream-to=origin/main"],
+    );
 
     // Borrow `&root`: lends the value without copying or giving it away.
     let base = chosen(&root, &linked, false);
@@ -371,7 +476,10 @@ fn a_linked_worktree_reads_its_own_head_and_the_shared_configuration_and_referen
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!((base.spelling.as_str(), base.commit.clone(), base.git_starts), ("@{upstream}", Ok(pushed.clone()), 0));
+    assert_eq!(
+        (base.spelling.as_str(), base.commit.clone(), base.git_starts),
+        ("@{upstream}", Ok(pushed.clone()), 0)
+    );
     // Borrow `&linked`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(oracle(&linked, "@{upstream}"), pushed);
@@ -379,9 +487,15 @@ fn a_linked_worktree_reads_its_own_head_and_the_shared_configuration_and_referen
 
 /// Each layout or setting the reader cannot answer exactly costs one Git start,
 /// and the answer is still Git's.
-fn assert_asked_git(base: &TrustBase, expected: &str) {
+fn assert_asked_git(
+    base: &TrustBase,
+    expected: &str,
+) {
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(base.git_starts >= 1, "the files should not have answered: {base:?}");
+    assert!(
+        base.git_starts >= 1,
+        "the files should not have answered: {base:?}"
+    );
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -395,7 +509,14 @@ fn a_configuration_include_is_asked_of_git() {
     std::fs::write(root.path().join("extra.config"), "[user]\n\tname = extra\n").expect("extra");
     // Borrow `&work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(&work, &["config", "include.path", root.path().join("extra.config").to_str().expect("utf8")]);
+    git(
+        &work,
+        &[
+            "config",
+            "include.path",
+            root.path().join("extra.config").to_str().expect("utf8"),
+        ],
+    );
 
     // Borrow `&chosen`: lends the value without copying or giving it away.
     assert_asked_git(&chosen(&root, &work, false), &pushed);
@@ -408,7 +529,14 @@ fn a_conditional_include_is_asked_of_git() {
     std::fs::write(root.path().join("extra.config"), "[user]\n\tname = extra\n").expect("extra");
     // Borrow `&work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(&work, &["config", "includeIf.gitdir:/nowhere/.path", root.path().join("extra.config").to_str().expect("utf8")]);
+    git(
+        &work,
+        &[
+            "config",
+            "includeIf.gitdir:/nowhere/.path",
+            root.path().join("extra.config").to_str().expect("utf8"),
+        ],
+    );
 
     // Borrow `&chosen`: lends the value without copying or giving it away.
     assert_asked_git(&chosen(&root, &work, false), &pushed);
@@ -421,7 +549,11 @@ fn an_include_in_the_users_configuration_is_asked_of_git() {
     let environment: NativeEnvironment = isolated_environment(root.path());
     // `.clone()`: an independent owned copy.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    std::fs::write(environment.home.clone().expect("home").join(".gitconfig"), "[include]\n\tpath = /nowhere\n").expect("user config");
+    std::fs::write(
+        environment.home.clone().expect("home").join(".gitconfig"),
+        "[include]\n\tpath = /nowhere\n",
+    )
+    .expect("user config");
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&work`: lends the value without copying or giving it away.
@@ -449,7 +581,10 @@ fn a_blocking_environment_variable_is_asked_of_git() {
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&resolve_trust_base_with`: lends the value without copying or giving it away.
-    assert_asked_git(&resolve_trust_base_with(&work, false, None, &environment), &pushed);
+    assert_asked_git(
+        &resolve_trust_base_with(&work, false, None, &environment),
+        &pushed,
+    );
 }
 
 #[test]
@@ -478,7 +613,15 @@ fn a_tag_that_shadows_the_remote_default_branch_is_asked_of_git() {
 fn a_negative_fetch_refspec_is_asked_of_git() {
     let (root, work, pushed, _local) = repository_ahead_of_its_upstream();
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(&work, &["config", "--add", "remote.origin.fetch", "^refs/heads/nothing"]);
+    git(
+        &work,
+        &[
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "^refs/heads/nothing",
+        ],
+    );
 
     // Borrow `&chosen`: lends the value without copying or giving it away.
     assert_asked_git(&chosen(&root, &work, false), &pushed);
@@ -490,7 +633,14 @@ fn a_symbolic_reference_where_a_commit_is_expected_is_asked_of_git() {
     // Borrow `&work`: lends the value without copying or giving it away.
     git(&work, &["checkout", "--quiet", "-b", "feature"]);
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(&work, &["symbolic-ref", "refs/remotes/origin/main", "refs/remotes/origin/other"]);
+    git(
+        &work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/main",
+            "refs/remotes/origin/other",
+        ],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
     git(&work, &["update-ref", "refs/remotes/origin/other", &pushed]);
 
@@ -526,7 +676,12 @@ fn an_explicit_base_is_verified_by_git() {
 
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&work`: lends the value without copying or giving it away.
-    let base = resolve_trust_base_with(&work, false, Some(&pushed), &isolated_environment(root.path()));
+    let base = resolve_trust_base_with(
+        &work,
+        false,
+        Some(&pushed),
+        &isolated_environment(root.path()),
+    );
 
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.

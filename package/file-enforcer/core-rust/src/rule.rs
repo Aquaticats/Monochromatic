@@ -123,7 +123,10 @@ pub trait Rule: Send + Sync {
     /// revalidation,
     /// for `watch` and for `explain`.
     /// Return `Err` for a failure that stops the run.
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic>;
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic>;
 }
 
 /// What:
@@ -139,5 +142,8 @@ pub trait Rule: Send + Sync {
 pub trait RuleBuilder: Send + Sync {
     /// Build the rule for `config`,
     /// or explain why it cannot be built.
-    fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic>;
+    fn build(
+        &self,
+        config: &RuleConfig,
+    ) -> Result<Box<dyn Rule>, Diagnostic>;
 }

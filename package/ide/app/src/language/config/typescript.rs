@@ -11,7 +11,10 @@
 //!  Adopted in `doc/planning/slint-ide-language-intelligence.md`.
 
 /// Helix's typed configuration and one server definition.
-use helix_core::syntax::config::{Configuration, LanguageServerConfiguration};
+use helix_core::syntax::config::{
+    Configuration,
+    LanguageServerConfiguration,
+};
 /// What:
 ///  `Value` is any JSON value;
 ///  `json!` builds one from literal syntax.
@@ -22,7 +25,10 @@ use helix_core::syntax::config::{Configuration, LanguageServerConfiguration};
 /// ```ts
 /// type Value = unknown;
 /// ```
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 /// What:
 ///  `HashMap` is a key-value table;
 ///  `Path`/`PathBuf` are borrowed and owned paths.
@@ -35,7 +41,10 @@ use serde_json::{Value, json};
 /// ```
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Name of Helix's default server for the TypeScript family,
@@ -110,7 +119,11 @@ fn settings() -> Value {
 ///     for (const server of language.languageServers) if (server.name === DEFAULT_SERVER) server.name = SERVER;
 /// }
 /// ```
-pub(super) fn apply(configuration: &mut Configuration, root: &Path, launcher: Option<&Path>) {
+pub(super) fn apply(
+    configuration: &mut Configuration,
+    root: &Path,
+    launcher: Option<&Path>,
+) {
     // Variables an application-supplied definition of this server adds are kept, for example
     // probe markers in acceptance tests; command, arguments, and settings are always replaced.
     let environment = match configuration.language_server.get(SERVER) {
@@ -168,7 +181,10 @@ pub(super) fn apply(configuration: &mut Configuration, root: &Path, launcher: Op
 /// ```ts
 /// function searched(root: string, document?: string): string[]
 /// ```
-fn searched(root: &Path, document: Option<&Path>) -> Vec<PathBuf> {
+fn searched(
+    root: &Path,
+    document: Option<&Path>,
+) -> Vec<PathBuf> {
     let mut folders = Vec::new();
     // `and_then` continues only when a document was given; `starts_with` keeps the walk inside the root.
     let mut start = None;
@@ -237,7 +253,10 @@ fn install_above(root: &Path) -> Option<PathBuf> {
 /// ```ts
 /// function locate(root: string, document?: string): string // throws with the reason
 /// ```
-pub(super) fn locate(root: &Path, document: Option<&Path>) -> Result<PathBuf, String> {
+pub(super) fn locate(
+    root: &Path,
+    document: Option<&Path>,
+) -> Result<PathBuf, String> {
     let folders = searched(root, document);
     for folder in &folders {
         let launcher = folder.join(LAUNCHER);
@@ -287,7 +306,10 @@ pub(super) fn locate(root: &Path, document: Option<&Path>) -> Result<PathBuf, St
 /// ```ts
 /// function checkVersion(folder: string, launcher: string): string // throws with the reason
 /// ```
-fn check_version(folder: &Path, launcher: PathBuf) -> Result<PathBuf, String> {
+fn check_version(
+    folder: &Path,
+    launcher: PathBuf,
+) -> Result<PathBuf, String> {
     let manifest = folder.join(MANIFEST);
     // What: `read_to_string` returns `Result`; `map_err` converts the I/O error into the text
     //       reason, and the trailing `?` returns it on failure.

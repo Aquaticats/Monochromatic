@@ -10,10 +10,20 @@
 /// The view,
 /// the namespace and mount reads,
 /// and the membership read the verdict builds on.
-use crate::control_group::{CGROUP_ROOT, View, is_cgroup2, namespace_id, populated_at, view_of};
+use crate::control_group::{
+    CGROUP_ROOT,
+    View,
+    is_cgroup2,
+    namespace_id,
+    populated_at,
+    view_of,
+};
 /// Error text built only on failure,
 /// from a `format_args!` value.
-use crate::lazy_error_text::{ExplainedError, OrText};
+use crate::lazy_error_text::{
+    ExplainedError,
+    OrText,
+};
 /// Imports `std::fmt` for this file.
 use std::fmt;
 
@@ -23,22 +33,14 @@ use std::fs;
 /// Imports `std::io` for this file.
 use std::io;
 
-
-
-
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
-
-
-
-
-
-
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
-
 
 /// What a journal remembers of a run's containment.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,11 +129,33 @@ impl fmt::Display for Record {
     /// ```ts
     /// toString(): string
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
-            Record::Scope { namespace, parent_view, path } => write!(formatter, "scope {namespace} {parent_view} {}", path.display()),
-            Record::Settled { path } => write!(formatter, "settled {}", path.display()),
-            Record::Launcher { pid, start, pid_namespace, path } => write!(formatter, "launcher {pid} {start} {pid_namespace} {}", path.display()),
+            Record::Scope {
+                namespace,
+                parent_view,
+                path,
+            } => write!(
+                formatter,
+                "scope {namespace} {parent_view} {}",
+                path.display()
+            ),
+            Record::Settled {
+                path,
+            } => write!(formatter, "settled {}", path.display()),
+            Record::Launcher {
+                pid,
+                start,
+                pid_namespace,
+                path,
+            } => write!(
+                formatter,
+                "launcher {pid} {start} {pid_namespace} {}",
+                path.display()
+            ),
             Record::ProcessGroup(leader) => write!(formatter, "pgroup {leader}"),
             Record::ProcessGroupStarting => write!(formatter, "pgroup starting"),
         };
@@ -147,8 +171,14 @@ impl fmt::Display for Record {
 /// ```ts
 /// function parseNumber(text: string, what: string, line: string): number
 /// ```
-pub(crate) fn parse_number(text: &str, what: &str, line: &str) -> Result<u64, String> {
-    return text.parse::<u64>().explained(format_args!("{line:?} has no {what}"));
+pub(crate) fn parse_number(
+    text: &str,
+    what: &str,
+    line: &str,
+) -> Result<u64, String> {
+    return text
+        .parse::<u64>()
+        .explained(format_args!("{line:?} has no {what}"));
 }
 
 /// What:
@@ -166,7 +196,10 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
         return Ok(Record::ProcessGroupStarting);
     }
     if let Some(rest) = line.strip_prefix("pgroup ") {
-        let leader: i32 = rest.trim().parse::<i32>().explained(format_args!("{line:?} is not a process group"))?;
+        let leader: i32 = rest
+            .trim()
+            .parse::<i32>()
+            .explained(format_args!("{line:?} is not a process group"))?;
         if leader <= 0 {
             return Err(format!("{line:?} is not a process group"));
         }
@@ -175,38 +208,59 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
     if let Some(rest) = line.strip_prefix("launcher ") {
         let mut parts = rest.splitn(4, ' ');
         let pid_text: &str = parts.next().unwrap_or("");
-        let pid: i32 = pid_text.parse::<i32>().explained(format_args!("{line:?} has no launcher process id"))?;
+        let pid: i32 = pid_text
+            .parse::<i32>()
+            .explained(format_args!("{line:?} has no launcher process id"))?;
         if pid <= 0 {
             return Err(format!("{line:?} has no launcher process id"));
         }
         let start: u64 = parse_number(parts.next().unwrap_or(""), "start time", line)?;
-        let pid_namespace: u64 = parse_number(parts.next().unwrap_or(""), "process id namespace", line)?;
+        let pid_namespace: u64 =
+            parse_number(parts.next().unwrap_or(""), "process id namespace", line)?;
         let path: &str = parts.next().unwrap_or("");
         // The path is absolute: a line with anything else there (a field of another version) is not understood.
         if !path.starts_with('/') {
             return Err(format!("{line:?} has no absolute path"));
         }
-        return Ok(Record::Launcher { pid, start, pid_namespace, path: PathBuf::from(path) });
+        return Ok(Record::Launcher {
+            pid,
+            start,
+            pid_namespace,
+            path: PathBuf::from(path),
+        });
     }
     if let Some(rest) = line.strip_prefix("settled ") {
         if rest.is_empty() {
             return Err(format!("{line:?} has no path"));
         }
-        return Ok(Record::Settled { path: PathBuf::from(rest) });
+        return Ok(Record::Settled {
+            path: PathBuf::from(rest),
+        });
     }
     if let Some(rest) = line.strip_prefix("scope ") {
         let mut parts = rest.splitn(3, ' ');
         let namespace: u64 = parse_number(parts.next().unwrap_or(""), "namespace id", line)?;
         let view_text: &str = parts.next().unwrap_or("");
-        let (mount_text, inode_text) = view_text.split_once(':').or_text(format_args!("{line:?} has no mount view"))?;
-        let parent_view: View = View { mount: parse_number(mount_text, "mount id", line)?, inode: parse_number(inode_text, "inode", line)? };
+        let (mount_text, inode_text) = view_text
+            .split_once(':')
+            .or_text(format_args!("{line:?} has no mount view"))?;
+        let parent_view: View = View {
+            mount: parse_number(mount_text, "mount id", line)?,
+            inode: parse_number(inode_text, "inode", line)?,
+        };
         let path: &str = parts.next().unwrap_or("");
         if path.is_empty() {
             return Err(format!("{line:?} has no path"));
         }
-        return Ok(Record::Scope { namespace, parent_view, path: PathBuf::from(path) });
+        return Ok(Record::Scope {
+            namespace,
+            parent_view,
+            path: PathBuf::from(path),
+        });
     }
-    return Err(format!("{line:?} is not a record of a scope or a process group"));
+    return Err(format!(
+        "{line:?} is not a record of a scope or a process group"
+    ));
 }
 
 /// What:
@@ -224,16 +278,36 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
 /// ```ts
 /// export function query(namespace: number, parentView: View, path: string): 'gone' | 'alive' | { unknown: string }
 /// ```
-pub(crate) fn query(namespace: u64, parent_view: View, path: &Path) -> Membership {
+pub(crate) fn query(
+    namespace: u64,
+    parent_view: View,
+    path: &Path,
+) -> Membership {
     match namespace_id() {
         Ok(found) if found == namespace => {}
-        Ok(_) => return Membership::Unknown(format!("{} was made in another cgroup namespace than this process is in", path.display())),
-        Err(error) => return Membership::Unknown(format!("the cgroup namespace of this process cannot be identified ({error})")),
+        Ok(_) => {
+            return Membership::Unknown(format!(
+                "{} was made in another cgroup namespace than this process is in",
+                path.display()
+            ));
+        }
+        Err(error) => {
+            return Membership::Unknown(format!(
+                "the cgroup namespace of this process cannot be identified ({error})"
+            ));
+        }
     }
     match is_cgroup2(Path::new(CGROUP_ROOT)) {
         Ok(true) => {}
-        Ok(false) => return Membership::Unknown(format!("{CGROUP_ROOT} is not a cgroup v2 mount, so {} cannot be examined", path.display())),
-        Err(error) => return Membership::Unknown(format!("{CGROUP_ROOT} cannot be examined ({error})")),
+        Ok(false) => {
+            return Membership::Unknown(format!(
+                "{CGROUP_ROOT} is not a cgroup v2 mount, so {} cannot be examined",
+                path.display()
+            ));
+        }
+        Err(error) => {
+            return Membership::Unknown(format!("{CGROUP_ROOT} cannot be examined ({error})"));
+        }
     }
     let Some(parent) = path.parent() else {
         return Membership::Unknown(format!("{} has no parent directory", path.display()));
@@ -246,18 +320,33 @@ pub(crate) fn query(namespace: u64, parent_view: View, path: &Path) -> Membershi
                 parent.display()
             ));
         }
-        Err(error) => return Membership::Unknown(format!("{} cannot be examined ({error})", parent.display())),
+        Err(error) => {
+            return Membership::Unknown(format!(
+                "{} cannot be examined ({error})",
+                parent.display()
+            ));
+        }
     }
     match fs::metadata(path) {
         Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Membership::Gone,
-        Err(error) => return Membership::Unknown(format!("{} cannot be examined ({error})", path.display())),
+        Err(error) => {
+            return Membership::Unknown(format!("{} cannot be examined ({error})", path.display()));
+        }
     }
     return match populated_at(path) {
         Ok(true) => Membership::Alive,
         Ok(false) => Membership::Gone,
         // A scope removed between the two reads is absent.
-        Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => Membership::Gone,
-        Err(error) => Membership::Unknown(format!("{} cannot be read ({error})", path.join("cgroup.events").display())),
+        Err(error)
+            if error.kind() == io::ErrorKind::NotFound
+                || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) =>
+        {
+            Membership::Gone
+        }
+        Err(error) => Membership::Unknown(format!(
+            "{} cannot be read ({error})",
+            path.join("cgroup.events").display()
+        )),
     };
 }

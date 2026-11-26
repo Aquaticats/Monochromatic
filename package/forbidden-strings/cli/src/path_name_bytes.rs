@@ -8,10 +8,13 @@
 //! // Keep native path bytes for matching; encode only when constructing the safe display label.
 //! ```
 
-/// Import native path components without converting the pathname to a lossy string.
-use std::path::{Component, Path};
 /// Lowercase hexadecimal spelling shared with the digest directory names.
 use crate::bytes_as_lowercase_hex::push_lowercase_hex_byte;
+/// Import native path components without converting the pathname to a lossy string.
+use std::path::{
+    Component,
+    Path,
+};
 
 /// Normalize native separator bytes while retaining every non-separator byte for matching.
 pub(crate) fn normalized_path(path: &Path) -> Vec<u8> {
@@ -20,15 +23,21 @@ pub(crate) fn normalized_path(path: &Path) -> Vec<u8> {
 }
 
 /// Normalize bytes with explicit target separator semantics so Windows branches are testable on Unix.
-pub(crate) fn normalize_bytes(native: &[u8], windows: bool) -> Vec<u8> {
+pub(crate) fn normalize_bytes(
+    native: &[u8],
+    windows: bool,
+) -> Vec<u8> {
     // Vec owns a normalized copy; the caller's native bytes remain unchanged.
     let mut bytes: Vec<u8> = native.to_vec();
     if windows {
         for byte in &mut bytes {
-            if *byte == b'\\' { *byte = b'/'; }
+            if *byte == b'\\' {
+                *byte = b'/';
+            }
         }
         // A drive-relative name contains a volume prefix and a real first filename component.
-        if bytes.len() > 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] != b'/' {
+        if bytes.len() > 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] != b'/'
+        {
             bytes.insert(2, b'/');
         }
     }
@@ -37,9 +46,13 @@ pub(crate) fn normalize_bytes(native: &[u8], windows: bool) -> Vec<u8> {
 
 /// Count volume-prefix components excluded by the incumbent pathname rule.
 pub(crate) fn prefix_parts(path: &Path) -> usize {
-    if !cfg!(windows) { return 0; }
+    if !cfg!(windows) {
+        return 0;
+    }
     // Native parsing identifies drive/UNC prefixes; arbitrary colon-containing names remain ordinary components.
-    let Some(Component::Prefix(prefix)) = path.components().next() else { return 0; };
+    let Some(Component::Prefix(prefix)) = path.components().next() else {
+        return 0;
+    };
     // Native prefix detection stays platform-owned; counting its separator-delimited parts is platform-independent.
     return count_prefix_parts(prefix.as_os_str().as_encoded_bytes());
 }

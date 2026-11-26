@@ -14,10 +14,16 @@
 use crate::drift::Drift;
 /// Imports `Event`,
 /// `EventSink` from `crate::event`.
-use crate::event::{Event, EventSink};
+use crate::event::{
+    Event,
+    EventSink,
+};
 /// Imports `validate_expected_dir`,
 /// `write_expected_trees` from `crate::expected_dir`.
-use crate::expected_dir::{validate_expected_dir, write_expected_trees};
+use crate::expected_dir::{
+    validate_expected_dir,
+    write_expected_trees,
+};
 /// Imports `OutputScope` from `crate::output_scope`.
 use crate::output_scope::OutputScope;
 /// Imports `PlanReport` from `crate::plan`.
@@ -29,7 +35,13 @@ use crate::publish::publish;
 /// `EXIT_USAGE`,
 /// `RunRequest`,
 /// `emit_errors` from `crate::run`.
-use crate::run::{EXIT_CLEAN, EXIT_DRIFT, EXIT_USAGE, RunRequest, emit_errors};
+use crate::run::{
+    EXIT_CLEAN,
+    EXIT_DRIFT,
+    EXIT_USAGE,
+    RunRequest,
+    emit_errors,
+};
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 /// Imports `PathBuf` from `std::path`.
@@ -44,15 +56,33 @@ use std::path::PathBuf;
 /// ```ts
 /// function resultEvent(command: string, clean: boolean, counts: Record<string, number>, outputs: OutputScope): Event
 /// ```
-pub fn result_event(command: &str, clean: bool, counts: &[(&str, usize)], outputs: OutputScope) -> Event {
+pub fn result_event(
+    command: &str,
+    clean: bool,
+    counts: &[(&str, usize)],
+    outputs: OutputScope,
+) -> Event {
     // A scoped run says which outputs it covered, in the message and in the `outputs` member, so a clean line is never read as covering more.
-    let kind = if outputs == OutputScope::All { "generated".to_string() } else { format!("{} generated", outputs.name()) };
-    let (code, message) = if command == "write" {
-        ("write-done".to_string(), format!("write: every {kind} file is now up to date"))
-    } else if clean {
-        (format!("{command}-clean"), format!("{command}: every {kind} file is up to date"))
+    let kind = if outputs == OutputScope::All {
+        "generated".to_string()
     } else {
-        (format!("{command}-drift"), format!("{command}: {kind} files differ from their rules"))
+        format!("{} generated", outputs.name())
+    };
+    let (code, message) = if command == "write" {
+        (
+            "write-done".to_string(),
+            format!("write: every {kind} file is now up to date"),
+        )
+    } else if clean {
+        (
+            format!("{command}-clean"),
+            format!("{command}: every {kind} file is up to date"),
+        )
+    } else {
+        (
+            format!("{command}-drift"),
+            format!("{command}: {kind} files differ from their rules"),
+        )
     };
     let mut event = Event::new("result", &code, &message);
     if outputs != OutputScope::All {
@@ -76,7 +106,12 @@ pub fn result_event(command: &str, clean: bool, counts: &[(&str, usize)], output
 /// ```ts
 /// function finishCheck(...): number
 /// ```
-pub fn finish_check(request: &RunRequest, sink: &mut dyn EventSink, drifts: &[Drift], expected_dir: &Option<PathBuf>) -> i32 {
+pub fn finish_check(
+    request: &RunRequest,
+    sink: &mut dyn EventSink,
+    drifts: &[Drift],
+    expected_dir: &Option<PathBuf>,
+) -> i32 {
     let mut written: Vec<String> = Vec::new();
     if let Some(dir) = expected_dir {
         let checked = match validate_expected_dir(dir, &request.root) {
@@ -98,7 +133,12 @@ pub fn finish_check(request: &RunRequest, sink: &mut dyn EventSink, drifts: &[Dr
         }
         sink.emit(event);
     }
-    sink.emit(result_event("check", drifts.is_empty(), &[("drifted", drifts.len())], request.outputs));
+    sink.emit(result_event(
+        "check",
+        drifts.is_empty(),
+        &[("drifted", drifts.len())],
+        request.outputs,
+    ));
     if drifts.is_empty() {
         return EXIT_CLEAN;
     }
@@ -115,7 +155,12 @@ pub fn finish_check(request: &RunRequest, sink: &mut dyn EventSink, drifts: &[Dr
 /// ```ts
 /// function finishWrite(...): number
 /// ```
-pub fn finish_write(request: &RunRequest, sink: &mut dyn EventSink, report: &PlanReport, drifts: &[Drift]) -> i32 {
+pub fn finish_write(
+    request: &RunRequest,
+    sink: &mut dyn EventSink,
+    report: &PlanReport,
+    drifts: &[Drift],
+) -> i32 {
     match publish(&request.root, report, drifts) {
         Ok(outcome) => {
             for path in &outcome.written {
@@ -123,7 +168,11 @@ pub fn finish_write(request: &RunRequest, sink: &mut dyn EventSink, report: &Pla
                 event.set_field("path", Value::String(path.clone()));
                 sink.emit(event);
             }
-            let counts = [("written", outcome.written.len()), ("modes", outcome.modes.len()), ("removed", outcome.removed.len())];
+            let counts = [
+                ("written", outcome.written.len()),
+                ("modes", outcome.modes.len()),
+                ("removed", outcome.removed.len()),
+            ];
             sink.emit(result_event("write", true, &counts, request.outputs));
             return EXIT_CLEAN;
         }

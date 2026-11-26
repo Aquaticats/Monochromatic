@@ -5,15 +5,32 @@
 
 /// Fixtures and real key and pointer events.
 use super::test_support::{
-    LanguageReader, caret, caret_x, definitions, escape, hover, idle, move_to, point, popup,
-    project, reader, ready,
+    LanguageReader,
+    caret,
+    caret_x,
+    definitions,
+    escape,
+    hover,
+    idle,
+    move_to,
+    point,
+    popup,
+    project,
+    reader,
+    ready,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Key events and a tree-row lookup shared with the other window tests.
-use crate::native::{find_tests::key, navigation_tests::row};
+use crate::native::{
+    find_tests::key,
+    navigation_tests::row,
+};
 /// Encoded keys and window points.
-use slint::{LogicalPosition, platform::Key};
+use slint::{
+    LogicalPosition,
+    platform::Key,
+};
 
 /// Forty lines:
 ///  words on even lines,

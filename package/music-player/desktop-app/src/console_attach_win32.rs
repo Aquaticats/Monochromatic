@@ -27,21 +27,46 @@
 
 /// Imports the pure attachment decisions and their outcome types that this module carries out.
 use crate::console_attach::{
-    ConsoleAttachOutcome, StdHandleAction, StreamReport, needs_console_attach, std_handle_action_after_attach,
+    ConsoleAttachOutcome,
+    StdHandleAction,
+    StreamReport,
+    needs_console_attach,
+    std_handle_action_after_attach,
 };
 /// Imports the console color decisions and their support level that this module reads from the console.
-use crate::console_color::{ConsoleColorSupport, ConsoleColors, has_virtual_terminal, mode_with_virtual_terminal};
+use crate::console_color::{
+    ConsoleColorSupport,
+    ConsoleColors,
+    has_virtual_terminal,
+    mode_with_virtual_terminal,
+};
 /// Imports the access rights and the handle type that the console file open needs.
-use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, HANDLE};
+use windows::Win32::Foundation::{
+    GENERIC_READ,
+    GENERIC_WRITE,
+    HANDLE,
+};
 /// Imports the file creation call and its flags that open the console device.
 use windows::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    CreateFileW,
+    FILE_ATTRIBUTE_NORMAL,
+    FILE_SHARE_READ,
+    FILE_SHARE_WRITE,
+    OPEN_EXISTING,
 };
 /// Imports the console calls,
 /// modes and standard handles that attach the process to its parent's console.
 use windows::Win32::System::Console::{
-    ATTACH_PARENT_PROCESS, AttachConsole, CONSOLE_MODE, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE, STD_HANDLE,
-    STD_OUTPUT_HANDLE, SetConsoleMode, SetStdHandle,
+    ATTACH_PARENT_PROCESS,
+    AttachConsole,
+    CONSOLE_MODE,
+    GetConsoleMode,
+    GetStdHandle,
+    STD_ERROR_HANDLE,
+    STD_HANDLE,
+    STD_OUTPUT_HANDLE,
+    SetConsoleMode,
+    SetStdHandle,
 };
 /// Imports the macro that builds a wide string literal for the console device name.
 use windows::core::w;
@@ -55,7 +80,9 @@ use windows::core::w;
 /// and raw integers keep them testable on every host.
 fn std_handle(kind: STD_HANDLE) -> Option<isize> {
     // SAFETY: `GetStdHandle` only reads the process parameters and has no preconditions.
-    return unsafe { GetStdHandle(kind) }.ok().map(|handle| return handle.0 as isize);
+    return unsafe { GetStdHandle(kind) }
+        .ok()
+        .map(|handle| return handle.0 as isize);
 }
 
 /// What:
@@ -75,12 +102,19 @@ fn win32_code(error: &windows::core::Error) -> u32 {
 /// Why:
 ///       A failed repair must not stop the program;
 /// the report keeps the code for the debug log.
-fn carry_out(kind: STD_HANDLE, action: StdHandleAction) -> Option<u32> {
+fn carry_out(
+    kind: STD_HANDLE,
+    action: StdHandleAction,
+) -> Option<u32> {
     return match action {
         StdHandleAction::Keep => None,
-        StdHandleAction::Restore { original } => {
+        StdHandleAction::Restore {
+            original,
+        } => {
             // SAFETY: `original` is the value `GetStdHandle` returned at startup for this process.
-            unsafe { SetStdHandle(kind, HANDLE(original as *mut core::ffi::c_void)) }.err().map(|error| return win32_code(&error))
+            unsafe { SetStdHandle(kind, HANDLE(original as *mut core::ffi::c_void)) }
+                .err()
+                .map(|error| return win32_code(&error))
         }
         StdHandleAction::OpenConsoleOutput => {
             // SAFETY: the file name is a NUL-terminated wide literal and every other argument is a plain value or `None`.
@@ -98,7 +132,9 @@ fn carry_out(kind: STD_HANDLE, action: StdHandleAction) -> Option<u32> {
             match opened {
                 // The handle is never closed on purpose: it is the process's standard handle until the process ends.
                 // SAFETY: `console` is the valid handle `CreateFileW` just returned.
-                Ok(console) => unsafe { SetStdHandle(kind, console) }.err().map(|error| return win32_code(&error)),
+                Ok(console) => unsafe { SetStdHandle(kind, console) }
+                    .err()
+                    .map(|error| return win32_code(&error)),
                 Err(error) => Some(win32_code(&error)),
             }
         }
@@ -113,11 +149,17 @@ fn carry_out(kind: STD_HANDLE, action: StdHandleAction) -> Option<u32> {
 /// Why:
 ///       One path for stdout and stderr,
 /// so both follow the same rule.
-fn repair_stream(kind: STD_HANDLE, before: Option<isize>) -> StreamReport {
+fn repair_stream(
+    kind: STD_HANDLE,
+    before: Option<isize>,
+) -> StreamReport {
     let after = std_handle(kind);
     let action = std_handle_action_after_attach(before, after);
     let failure_code = carry_out(kind, action);
-    return StreamReport { action, failure_code };
+    return StreamReport {
+        action,
+        failure_code,
+    };
 }
 
 /// What:
@@ -150,7 +192,9 @@ pub fn attach_parent_console() -> ConsoleAttachOutcome {
     }
     // SAFETY: `AttachConsole` takes a process id or `ATTACH_PARENT_PROCESS` and has no pointer arguments.
     if let Err(error) = unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } {
-        return ConsoleAttachOutcome::NoParentConsole { error_code: win32_code(&error) };
+        return ConsoleAttachOutcome::NoParentConsole {
+            error_code: win32_code(&error),
+        };
     }
     return ConsoleAttachOutcome::Attached {
         stdout: repair_stream(STD_OUTPUT_HANDLE, stdout_before),
@@ -182,9 +226,12 @@ fn color_support(kind: STD_HANDLE) -> ConsoleColorSupport {
         return ConsoleColorSupport::VirtualTerminal;
     }
     // SAFETY: `handle` is a console output handle (its mode was just read) and the mode is a plain value.
-    return match unsafe { SetConsoleMode(handle, CONSOLE_MODE(mode_with_virtual_terminal(mode.0))) } {
+    return match unsafe { SetConsoleMode(handle, CONSOLE_MODE(mode_with_virtual_terminal(mode.0))) }
+    {
         Ok(()) => ConsoleColorSupport::VirtualTerminal,
-        Err(error) => ConsoleColorSupport::NoVirtualTerminal { error_code: win32_code(&error) },
+        Err(error) => ConsoleColorSupport::NoVirtualTerminal {
+            error_code: win32_code(&error),
+        },
     };
 }
 
@@ -200,5 +247,8 @@ fn color_support(kind: STD_HANDLE) -> ConsoleColorSupport {
 /// Gotcha:
 ///       Must run after `attach_parent_console` (the handles are final then) and before the logger and argument parsing.
 pub fn enable_console_colors() -> ConsoleColors {
-    return ConsoleColors { stdout: color_support(STD_OUTPUT_HANDLE), stderr: color_support(STD_ERROR_HANDLE) };
+    return ConsoleColors {
+        stdout: color_support(STD_OUTPUT_HANDLE),
+        stderr: color_support(STD_ERROR_HANDLE),
+    };
 }

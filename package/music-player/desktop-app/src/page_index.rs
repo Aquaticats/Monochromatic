@@ -150,7 +150,11 @@ impl<'groups> Iterator for Pages<'groups> {
 /// Why:
 ///       Equal keys must give the same page order as `paginate`.
 fn page_sort_key(group: &PageGroup) -> (u8, String, &str) {
-    return (group.group, group.label.to_uppercase(), group.label.as_str());
+    return (
+        group.group,
+        group.label.to_uppercase(),
+        group.label.as_str(),
+    );
 }
 
 /// Methods of `PageIndex`.
@@ -180,7 +184,10 @@ impl PageIndex {
     /// Why:
     /// the page comes from the text before the first `/`,
     /// or from the first letter for a root file.
-    fn group_for(&mut self, name: &str) -> usize {
+    fn group_for(
+        &mut self,
+        name: &str,
+    ) -> usize {
         if let Some(slash) = name.find('/') {
             let folder: &str = &name[..slash];
             if let Some(slot) = self.folder_slots.get(folder) {
@@ -196,7 +203,8 @@ impl PageIndex {
                 if let Some(slot) = self.letter_slots[letter] {
                     return slot;
                 }
-                let slot: usize = self.add_group(first.to_ascii_uppercase().to_string(), LETTER_GROUP, "root");
+                let slot: usize =
+                    self.add_group(first.to_ascii_uppercase().to_string(), LETTER_GROUP, "root");
                 self.letter_slots[letter] = Some(slot);
                 slot
             }
@@ -204,7 +212,8 @@ impl PageIndex {
                 if let Some(slot) = self.catch_all_slot {
                     return slot;
                 }
-                let slot: usize = self.add_group(CATCH_ALL_LABEL.to_string(), CATCH_ALL_GROUP, "root");
+                let slot: usize =
+                    self.add_group(CATCH_ALL_LABEL.to_string(), CATCH_ALL_GROUP, "root");
                 self.catch_all_slot = Some(slot);
                 slot
             }
@@ -216,7 +225,12 @@ impl PageIndex {
     /// Why:
     /// its display position is settled after the batch,
     /// in `extend`.
-    fn add_group(&mut self, label: String, group: u8, kind: &str) -> usize {
+    fn add_group(
+        &mut self,
+        label: String,
+        group: u8,
+        kind: &str,
+    ) -> usize {
         let identity: String = format!("{kind}:{label}");
         self.groups.push(PageGroup {
             label,
@@ -237,14 +251,20 @@ impl PageIndex {
     /// # Panics
     /// When the library passes four billion names,
     /// which is far above the supported size.
-    pub fn extend(&mut self, names: &[String]) {
+    pub fn extend(
+        &mut self,
+        names: &[String],
+    ) {
         let started: usize = self.group_of.len();
         let groups_before: usize = self.groups.len();
         self.group_of.reserve(names.len().saturating_sub(started));
         for (position, name) in names.iter().enumerate().skip(started) {
             let slot: usize = self.group_for(name);
-            self.groups[slot].indices.push(u32::try_from(position).expect("a library holds under four billion names"));
-            self.group_of.push(u32::try_from(slot).expect("a library holds under four billion pages"));
+            self.groups[slot]
+                .indices
+                .push(u32::try_from(position).expect("a library holds under four billion names"));
+            self.group_of
+                .push(u32::try_from(slot).expect("a library holds under four billion pages"));
         }
         if self.groups.len() != groups_before || self.order.len() != self.groups.len() {
             let mut keyed: Vec<((u8, String, &str), usize)> = Vec::with_capacity(self.groups.len());
@@ -279,7 +299,10 @@ impl PageIndex {
     /// Why:
     /// the window reads the selected page and the labels in page order.
     #[must_use]
-    pub fn page(&self, position: usize) -> Option<&PageGroup> {
+    pub fn page(
+        &self,
+        position: usize,
+    ) -> Option<&PageGroup> {
         return match self.order.get(position) {
             Some(slot) => Some(&self.groups[*slot]),
             None => None,
@@ -291,7 +314,10 @@ impl PageIndex {
     /// Why:
     /// the rail is built from all labels.
     pub fn pages(&self) -> Pages<'_> {
-        return Pages { groups: &self.groups, slots: self.order.iter() };
+        return Pages {
+            groups: &self.groups,
+            slots: self.order.iter(),
+        };
     }
 
     /// What:
@@ -299,7 +325,10 @@ impl PageIndex {
     /// Why:
     /// the selection is stored as an identity so it survives a rebuild.
     #[must_use]
-    pub fn position_of_identity(&self, identity: &str) -> Option<usize> {
+    pub fn position_of_identity(
+        &self,
+        identity: &str,
+    ) -> Option<usize> {
         for (position, page) in self.pages().enumerate() {
             if page.identity == identity {
                 return Some(position);
@@ -314,7 +343,10 @@ impl PageIndex {
     /// choosing a folder from Search or the picker names the folder,
     /// not its identity.
     #[must_use]
-    pub fn position_of_label(&self, label: &str) -> Option<usize> {
+    pub fn position_of_label(
+        &self,
+        label: &str,
+    ) -> Option<usize> {
         for (position, page) in self.pages().enumerate() {
             if page.label == label {
                 return Some(position);
@@ -336,7 +368,10 @@ impl PageIndex {
     /// identityAt(position: number): string | null { return this.page(position)?.identity ?? null; }
     /// ```
     #[must_use]
-    pub fn identity_at(&self, position: usize) -> Option<String> {
+    pub fn identity_at(
+        &self,
+        position: usize,
+    ) -> Option<String> {
         let group = self.page(position)?;
         return Some(group.identity.clone());
     }
@@ -346,7 +381,10 @@ impl PageIndex {
     /// Why:
     /// following the playing track must not scan the library.
     #[must_use]
-    pub fn page_of_index(&self, index: usize) -> Option<usize> {
+    pub fn page_of_index(
+        &self,
+        index: usize,
+    ) -> Option<usize> {
         let slot = self.group_of.get(index)?;
         return Some(self.rank[*slot as usize]);
     }

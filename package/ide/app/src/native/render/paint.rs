@@ -12,21 +12,32 @@ use super::code_colors;
 use crate::native::viewport::TILE_VIEWS;
 /// Virtual-row texts and diagnostic marks are positioned against the frame's shaped rows.
 use crate::native::{
-    AppWindow, State, annotate, find::present::present, tile::TileBounds, tile_build::TileJob,
+    AppWindow,
+    State,
+    annotate,
+    find::present::present,
+    tile::TileBounds,
+    tile_build::TileJob,
 };
 /// Paint identity and the frame rectangles come from the same shaped rows.
 use ide_app::annotation_layout::AnnotationColors;
 /// Native palette values retain syntax and selection contrast.
 use ide_app::code_colors::CodeColors;
 /// Match ranges and the active match of the in-file find.
-use ide_app::find::{FindRange, FindRanges};
+use ide_app::find::{
+    FindRange,
+    FindRanges,
+};
 /// Match ranges of the displayed find results.
 use ide_app::find_navigation::paint_ranges;
 /// The rule that gives the tallest tile for a raster width.
 use ide_app::shaped_text::tile_cap as raster_cap;
 /// Physical viewport description for shared shaping,
 ///  and the width of its raster.
-use ide_app::shaped_text::{Viewport, raster_width};
+use ide_app::shaped_text::{
+    Viewport,
+    raster_width,
+};
 /// Exact paint inputs exclude collapsed caret movement.
 use ide_app::source_frame::FrameStamp;
 /// A wrap width must be a positive number of pixels.
@@ -64,7 +75,10 @@ pub(in crate::native) struct Paint {
 impl Paint {
     /// Capture the window and find inputs;
     /// stale find results contribute no ranges.
-    pub(in crate::native) fn new(window: &AppWindow, current: &State) -> Self {
+    pub(in crate::native) fn new(
+        window: &AppWindow,
+        current: &State,
+    ) -> Self {
         return Self {
             scale: window.window().scale_factor(),
             colors: code_colors(window),
@@ -95,7 +109,11 @@ impl Paint {
 /// ```ts
 /// function tileCap(width: number, scale: number, view: number): number;
 /// ```
-pub(in crate::native) fn tile_cap(width: f32, scale: f32, view: f32) -> f32 {
+pub(in crate::native) fn tile_cap(
+    width: f32,
+    scale: f32,
+    view: f32,
+) -> f32 {
     let wrap = has_wrap_width(width).then_some(width);
     let raster = raster_width(wrap);
     let columns = ((raster * scale).ceil() as u64).max(1);
@@ -105,7 +123,10 @@ pub(in crate::native) fn tile_cap(width: f32, scale: f32, view: f32) -> f32 {
 /// The viewport of a tile at `bounds`:
 /// its lines broken at the wrap width,
 /// and a raster as wide as the text area.
-pub(in crate::native) fn viewport_of(bounds: TileBounds, scale: f32) -> Viewport {
+pub(in crate::native) fn viewport_of(
+    bounds: TileBounds,
+    scale: f32,
+) -> Viewport {
     let wrap = has_wrap_width(bounds.width).then_some(bounds.width);
     return Viewport {
         first: bounds.first,
@@ -136,7 +157,11 @@ pub(in crate::native) fn stamp_for(
 
 /// Owned inputs of a tile at `bounds`,
 /// ready for the tile worker or for an immediate build.
-pub(in crate::native) fn job(current: &State, bounds: TileBounds, paint: &Paint) -> TileJob {
+pub(in crate::native) fn job(
+    current: &State,
+    bounds: TileBounds,
+    paint: &Paint,
+) -> TileJob {
     return TileJob {
         bounds,
         file: current.file_generation,

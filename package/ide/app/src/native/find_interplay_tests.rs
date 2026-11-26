@@ -2,15 +2,31 @@
 //!  through real window key events.
 
 /// The complete reader fixture and key helpers of the find tests.
-use super::find_tests::{chord, key, reader, selection, settle, status, status_for, type_text};
+use super::find_tests::{
+    chord,
+    key,
+    reader,
+    selection,
+    settle,
+    status,
+    status_for,
+    type_text,
+};
 /// Bounded waits and tree-row lookup shared with the navigation tests.
 use super::navigation_tests::row;
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// The documented query bound the find diagnostic names.
 use ide_app::find::MAX_FIND_QUERY_CHARS;
 /// Real toolkit key events reach the same capture scopes as seat input.
-use slint::{ComponentHandle, Model, platform::Key};
+use slint::{
+    ComponentHandle,
+    Model,
+    platform::Key,
+};
 /// What:
 ///  `fs` writes disposable fixture files;
 ///  nothing here touches a real project.

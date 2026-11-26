@@ -17,13 +17,28 @@
 /// The state,
 ///  the action and request records,
 ///  and the helpers for each kind of result.
-use super::{Action, Language, Pending, hover_text, message, surface, targets};
+use super::{
+    Action,
+    Language,
+    Pending,
+    hover_text,
+    message,
+    surface,
+    targets,
+};
 /// The window,
 ///  the source,
 ///  and the navigation that opens other files.
-use crate::native::{AppWindow, State, navigation::Navigation};
+use crate::native::{
+    AppWindow,
+    State,
+    navigation::Navigation,
+};
 /// Replies' results.
-use ide_app::language::reply::{RequestOutcome, Target};
+use ide_app::language::reply::{
+    RequestOutcome,
+    Target,
+};
 /// What:
 ///  `Rc<RefCell<T>>` is the window's shared,
 ///  borrow-checked state.
@@ -36,7 +51,10 @@ use ide_app::language::reply::{RequestOutcome, Target};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Show a note for an explicit action,
@@ -86,7 +104,13 @@ pub(super) fn note(
         }
         tracing::debug!(sentence, "pointer hover produced nothing to show");
         // A pointer popup describing another character must not stay after an empty answer.
-        if matches!(language.shown, surface::Shown::Popup { pointer: true, .. }) {
+        if matches!(
+            language.shown,
+            surface::Shown::Popup {
+                pointer: true,
+                ..
+            }
+        ) {
             language.shown = surface::dismiss(window, &language.shown, "nothing to hover here");
         }
         return;
@@ -105,7 +129,10 @@ pub(super) fn note(
 /// ```ts
 /// function atDefinition(targets: Target[], line: number): boolean
 /// ```
-fn at_definition(found: &[Target], line: usize) -> bool {
+fn at_definition(
+    found: &[Target],
+    line: usize,
+) -> bool {
     // A slice pattern: exactly one element, which must be an openable target.
     let [Target::Open(only)] = found else {
         return false;
@@ -186,7 +213,11 @@ pub(super) fn finish(
     if pending.action == Action::PointerHover
         && matches!(
             language.shown,
-            surface::Shown::List { .. } | surface::Shown::Popup { note: true, .. }
+            surface::Shown::List { .. }
+                | surface::Shown::Popup {
+                    note: true,
+                    ..
+                }
         )
     {
         tracing::debug!("dropped a pointer hover answer under a list or a note");

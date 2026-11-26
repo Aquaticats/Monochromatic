@@ -9,11 +9,17 @@ use super::*;
 
 // What:     `use truepeak_core::{Decision, DecisionKind};`. The cached value and its tag.
 // Why:      The cache-hit test seeds a `Decision` and reads its gain back.
-use truepeak_core::{Decision, DecisionKind};
+use truepeak_core::{
+    Decision,
+    DecisionKind,
+};
 
 // What:     `use std::path::{Path, PathBuf};`. Borrowed and owned path types.
 // Why:      Tests borrow fixture paths and create owned temp cache paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // What:     `use std::thread;`. Rust's standard OS-thread API.
 // Why:      Tests pass the current test thread handle into the peak worker.
@@ -22,7 +28,11 @@ use std::thread;
 // What:     `use std::time::{Duration, SystemTime, UNIX_EPOCH};`. `Duration` is a
 //           timeout span; `SystemTime` and `UNIX_EPOCH` build unique temp names.
 // Why:      Async tests wait for worker results and isolate cache files.
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // What:     `fn temp_cache(tag: &str) -> PathBuf`. Build a fresh disposable cache path.
 // Why:      Tests must never touch the user's real peak cache.
@@ -41,7 +51,7 @@ fn temp_cache(tag: &str) -> PathBuf {
         std::process::id(),
         nanos,
         tag
-    ))
+    ));
 }
 
 // What:     `fn fixture() -> &'static Path`. Return the committed FLAC fixture path.
@@ -50,7 +60,7 @@ fn fixture() -> &'static Path {
     // What:     `Path::new("fixture/tone.flac")`. Borrow a static string as a path.
     //           Tail expression returns it.
     // Why:      Existing true-peak tests already use this quiet fixture.
-    return Path::new("fixture/tone.flac")
+    return Path::new("fixture/tone.flac");
 }
 
 // What:     `fn test_cache(path: &Path) -> CacheHandle`. Build a cache handle backed by a
@@ -60,13 +70,16 @@ fn test_cache(path: &Path) -> CacheHandle {
     // What:     `CacheHandle::open_at(path.to_path_buf())`. Start the cache actor on the
     //           given temp database file.
     // Why:      The measurement worker and test thread share the same cache handle.
-    return CacheHandle::open_at(path.to_path_buf())
+    return CacheHandle::open_at(path.to_path_buf());
 }
 
 // What:     `fn wait_cached(cache: &CacheHandle, key: u64)`. Poll until the key is cached,
 //           up to ~2s, then return whether it landed.
 // Why:      Writes are fire-and-forget, so a test must wait before reading the value back.
-fn wait_cached(cache: &CacheHandle, key: u64) -> bool {
+fn wait_cached(
+    cache: &CacheHandle,
+    key: u64,
+) -> bool {
     // What:     up to 100 polls, 20ms apart.
     // Why:      Bounded wait for the async write to land.
     for _ in 0..100 {
@@ -75,19 +88,22 @@ fn wait_cached(cache: &CacheHandle, key: u64) -> bool {
         }
         thread::sleep(Duration::from_millis(20));
     }
-    return false
+    return false;
 }
 
 // What:     `fn approx_eq(a: f32, b: f32) -> bool`. Float comparison helper.
 // Why:      Gains are f32 values and should be compared with tolerance.
-fn approx_eq(a: f32, b: f32) -> bool {
+fn approx_eq(
+    a: f32,
+    b: f32,
+) -> bool {
     // What:     `const TOLERANCE: f32 = 1e-4;`. Allowed float difference.
     // Why:      Fixture decode and f32 math can vary in tiny low-order bits.
     const TOLERANCE: f32 = 1e-4;
     // What:     `(a - b).abs() < TOLERANCE`. Difference-based comparison. Tail
     //           expression returns the boolean.
     // Why:      Avoid brittle exact float equality.
-    return (a - b).abs() < TOLERANCE
+    return (a - b).abs() < TOLERANCE;
 }
 
 // What:     `#[test]` marks the next function as a unit test.
@@ -139,7 +155,10 @@ fn cached_track_gain_returns_measured_gain() {
 // What:     `fn wait_until_ready(pending: &PendingPeakMeasurement, timeout: Duration) -> PendingPeakStatus`.
 //           Polls the handle until a result, a disconnect, or the deadline.
 // Why:      The engine polls the same handle without blocking, so the test does the same with a deadline.
-fn wait_until_ready(pending: &PendingPeakMeasurement, timeout: Duration) -> PendingPeakStatus {
+fn wait_until_ready(
+    pending: &PendingPeakMeasurement,
+    timeout: Duration,
+) -> PendingPeakStatus {
     // What:     `let deadline = std::time::Instant::now() + timeout;`. The last moment to keep polling.
     // Why:      Bounds the test so a broken worker fails instead of hanging.
     let deadline = std::time::Instant::now() + timeout;

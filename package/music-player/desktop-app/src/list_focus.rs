@@ -70,7 +70,12 @@ fn last_selectable(selectable: &[bool]) -> Option<usize> {
 /// Why:
 ///      Up,
 ///  Down and the page keys all move by whole selectable entries and stop at the ends without wrapping.
-fn step_from(selectable: &[bool], current: usize, steps: usize, forward: bool) -> usize {
+fn step_from(
+    selectable: &[bool],
+    current: usize,
+    steps: usize,
+    forward: bool,
+) -> usize {
     let mut position = current;
     let mut remaining = steps;
     while remaining > 0 {
@@ -112,7 +117,12 @@ fn step_from(selectable: &[bool], current: usize, steps: usize, forward: bool) -
 /// ```ts
 /// function moveFocus(selectable: boolean[], current: number | null, move: ListMove, page: number): number | null;
 /// ```
-pub fn move_focus(selectable: &[bool], current: Option<usize>, movement: ListMove, page: usize) -> Option<usize> {
+pub fn move_focus(
+    selectable: &[bool],
+    current: Option<usize>,
+    movement: ListMove,
+    page: usize,
+) -> Option<usize> {
     let first = first_selectable(selectable)?;
     let last = last_selectable(selectable)?;
     let valid = match current {
@@ -120,7 +130,11 @@ pub fn move_focus(selectable: &[bool], current: Option<usize>, movement: ListMov
         _ => None,
     };
     let Some(from) = valid else {
-        return Some(if matches!(movement, ListMove::End | ListMove::PageDown) { last } else { first });
+        return Some(if matches!(movement, ListMove::End | ListMove::PageDown) {
+            last
+        } else {
+            first
+        });
     };
     let page_steps = page.max(1);
     return Some(match movement {
@@ -143,7 +157,10 @@ pub fn move_focus(selectable: &[bool], current: Option<usize>, movement: ListMov
 /// ```ts
 /// const startFocus = (selectable: boolean[], preferred: number | null) => ...;
 /// ```
-pub fn start_focus(selectable: &[bool], preferred: Option<usize>) -> Option<usize> {
+pub fn start_focus(
+    selectable: &[bool],
+    preferred: Option<usize>,
+) -> Option<usize> {
     let usable = match preferred {
         Some(at) if selectable.get(at).copied().unwrap_or(false) => Some(at),
         _ => None,
@@ -166,7 +183,10 @@ pub fn start_focus(selectable: &[bool], preferred: Option<usize>) -> Option<usiz
 /// const firstStartingWith = (labels: (string | null)[], letter: string) =>
 ///   labels.findIndex(label => label?.toLowerCase().startsWith(letter.toLowerCase())) ?? null;
 /// ```
-pub fn first_starting_with(labels: &[Option<&str>], letter: char) -> Option<usize> {
+pub fn first_starting_with(
+    labels: &[Option<&str>],
+    letter: char,
+) -> Option<usize> {
     let wanted: String = letter.to_lowercase().collect();
     for (index, label) in labels.iter().enumerate() {
         if matches!(label, Some(text) if text.to_lowercase().starts_with(&wanted)) {

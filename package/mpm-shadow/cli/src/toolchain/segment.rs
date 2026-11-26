@@ -41,7 +41,13 @@ use super::layout::install_dir_name;
 
 /// The names under the toolchain root that belong to no tool,
 /// so no tool id may map to one of them.
-pub const RESERVED_TOOL_DIRECTORIES: [&str; 5] = ["cargo", "downloads", "exposure", "launchers", "bin.config.json"];
+pub const RESERVED_TOOL_DIRECTORIES: [&str; 5] = [
+    "cargo",
+    "downloads",
+    "exposure",
+    "launchers",
+    "bin.config.json",
+];
 
 /// What:
 /// Why `text` cannot be a single plain file or directory name,
@@ -78,14 +84,17 @@ pub fn directory_name_problem(text: &str) -> Option<&'static str> {
         return Some(problem);
     }
     if text.starts_with('.') {
-        return Some("starts with a dot, which the installer keeps for its own hidden staging directories");
+        return Some(
+            "starts with a dot, which the installer keeps for its own hidden staging directories",
+        );
     }
     return None;
 }
 
 /// What a person can do about a refused plan name (an id,
 /// a bin name or a package name).
-const PLAN_REMEDY: &str = "rename it in toolchain.plan.jsonc and run `mpm-shadow update` to write the lock again";
+const PLAN_REMEDY: &str =
+    "rename it in toolchain.plan.jsonc and run `mpm-shadow update` to write the lock again";
 
 /// What a person can do about a refused version.
 const VERSION_REMEDY: &str = "pin a version that is one plain name in the request, \
@@ -96,8 +105,15 @@ const VERSION_REMEDY: &str = "pin a version that is one plain name in the reques
 /// the name itself,
 /// the problem,
 /// and what the person can do about it.
-fn refusal(label: &str, text: &str, problem: &str, remedy: &str) -> String {
-    return format!("{label} {text:?} {problem}, so it cannot be used as a directory name under the toolchain root; {remedy}");
+fn refusal(
+    label: &str,
+    text: &str,
+    problem: &str,
+    remedy: &str,
+) -> String {
+    return format!(
+        "{label} {text:?} {problem}, so it cannot be used as a directory name under the toolchain root; {remedy}"
+    );
 }
 
 /// What:
@@ -110,7 +126,10 @@ fn refusal(label: &str, text: &str, problem: &str, remedy: &str) -> String {
 /// ```ts
 /// export function checkDirectoryName(label: string, text: string): void  // throws
 /// ```
-pub fn check_directory_name(label: &str, text: &str) -> Result<(), String> {
+pub fn check_directory_name(
+    label: &str,
+    text: &str,
+) -> Result<(), String> {
     if let Some(problem) = directory_name_problem(&install_dir_name(text)) {
         return Err(refusal(label, text, problem, PLAN_REMEDY));
     }
@@ -133,13 +152,20 @@ pub fn check_directory_name(label: &str, text: &str) -> Result<(), String> {
 pub fn check_tool_id(id: &str) -> Result<(), String> {
     let directory: String = install_dir_name(id);
     if let Some(problem) = directory_name_problem(&directory) {
-        return Err(refusal("the tool id", id, &format!("becomes the directory name {directory:?}, which {problem}"), PLAN_REMEDY));
+        return Err(refusal(
+            "the tool id",
+            id,
+            &format!("becomes the directory name {directory:?}, which {problem}"),
+            PLAN_REMEDY,
+        ));
     }
     if RESERVED_TOOL_DIRECTORIES.contains(&directory.as_str()) {
         return Err(refusal(
             "the tool id",
             id,
-            &format!("becomes the directory name {directory:?}, which the toolchain root already uses for something that is no tool"),
+            &format!(
+                "becomes the directory name {directory:?}, which the toolchain root already uses for something that is no tool"
+            ),
             PLAN_REMEDY,
         ));
     }
@@ -162,7 +188,12 @@ pub fn check_version(version: &str) -> Result<(), String> {
         return Err(refusal("the version", version, problem, VERSION_REMEDY));
     }
     if version == CURRENT_LINK_NAME {
-        return Err(refusal("the version", version, "is the name of the link that points at the running version", VERSION_REMEDY));
+        return Err(refusal(
+            "the version",
+            version,
+            "is the name of the link that points at the running version",
+            VERSION_REMEDY,
+        ));
     }
     return Ok(());
 }

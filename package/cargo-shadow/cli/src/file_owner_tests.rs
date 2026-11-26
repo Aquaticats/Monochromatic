@@ -19,7 +19,12 @@ use std::fs;
 use std::time::Duration;
 
 // Imports `crate::file_owner::{Claim, claim_output, ob...`.
-use crate::file_owner::{Claim, claim_output, observe, timed};
+use crate::file_owner::{
+    Claim,
+    claim_output,
+    observe,
+    timed,
+};
 // Imports `crate::test_scratch::scratch`.
 use crate::test_scratch::scratch;
 
@@ -51,7 +56,9 @@ fn a_file_the_child_rewrote_inside_its_window_is_the_childs_output() {
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let (_, window) = timed(|| { fs::write(&path, "child output").expect("the child writes"); });
+    let (_, window) = timed(|| {
+        fs::write(&path, "child output").expect("the child writes");
+    });
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
@@ -71,7 +78,10 @@ fn a_file_the_child_rewrote_inside_its_window_is_the_childs_output() {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    assert_eq!(claim_output(&path, "before", window).expect("claims"), Claim::Ours("child output".to_string()));
+    assert_eq!(
+        claim_output(&path, "before", window).expect("claims"),
+        Claim::Ours("child output".to_string())
+    );
 }
 
 #[test]
@@ -86,14 +96,20 @@ fn a_file_equal_to_its_snapshot_is_unchanged_and_a_missing_one_is_absent() {
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(claim_output(&path, "before", window).expect("claims"), Claim::Unchanged);
+    assert_eq!(
+        claim_output(&path, "before", window).expect("claims"),
+        Claim::Unchanged
+    );
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(&path).expect("remove");
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(claim_output(&path, "before", window).expect("claims"), Claim::Absent);
+    assert_eq!(
+        claim_output(&path, "before", window).expect("claims"),
+        Claim::Absent
+    );
 }
 
 /// Review finding (2b 1,
@@ -112,7 +128,9 @@ fn a_file_published_after_the_child_returned_is_another_writers() {
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let (_, window) = timed(|| { fs::write(&path, "child output").expect("the child writes"); });
+    let (_, window) = timed(|| {
+        fs::write(&path, "child output").expect("the child writes");
+    });
     std::thread::sleep(AFTER_THE_WINDOW);
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -121,7 +139,10 @@ fn a_file_published_after_the_child_returned_is_another_writers() {
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(claim_output(&path, "before", window).expect("claims"), Claim::Foreign);
+    assert_eq!(
+        claim_output(&path, "before", window).expect("claims"),
+        Claim::Foreign
+    );
 }
 
 /// The same for a file renamed into place after the child returned:
@@ -140,7 +161,9 @@ fn a_file_renamed_into_place_after_the_child_returned_is_another_writers() {
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let (_, window) = timed(|| { fs::write(&path, "child output").expect("the child writes"); });
+    let (_, window) = timed(|| {
+        fs::write(&path, "child output").expect("the child writes");
+    });
     std::thread::sleep(AFTER_THE_WINDOW);
     // Borrow `&prepared`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -149,7 +172,10 @@ fn a_file_renamed_into_place_after_the_child_returned_is_another_writers() {
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(claim_output(&path, "before", window).expect("claims"), Claim::Foreign);
+    assert_eq!(
+        claim_output(&path, "before", window).expect("claims"),
+        Claim::Foreign
+    );
 }
 
 /// Review finding (2b 5):
@@ -183,11 +209,17 @@ fn a_window_that_ends_before_it_starts_claims_the_changed_file() {
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(&path, "changed").expect("lock");
-    let inverted = crate::file_owner::Window { start_ns: crate::file_owner::clock_ns() + 3_600_000_000_000, end_ns: crate::file_owner::clock_ns() - 3_600_000_000_000 };
+    let inverted = crate::file_owner::Window {
+        start_ns: crate::file_owner::clock_ns() + 3_600_000_000_000,
+        end_ns: crate::file_owner::clock_ns() - 3_600_000_000_000,
+    };
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(claim_output(&path, "before", inverted).expect("claims"), Claim::Ours("changed".to_string()));
+    assert_eq!(
+        claim_output(&path, "before", inverted).expect("claims"),
+        Claim::Ours("changed".to_string())
+    );
 }

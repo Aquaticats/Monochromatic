@@ -8,21 +8,41 @@
 /// The production window.
 use super::AppWindow;
 /// The production setter and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// Snapshot builders,
 ///  the fixture,
 ///  the painted-record counts,
 ///  and the text origin shared with the behavior tests.
-use super::annotation_tests::{FIXTURE, TEXT_LEFT, TEXT_TOP, annotate, painted as shown, problem};
+use super::annotation_tests::{
+    FIXTURE,
+    TEXT_LEFT,
+    TEXT_TOP,
+    annotate,
+    painted as shown,
+    problem,
+};
 /// The complete reader fixture.
-use super::find_tests::{Reader, reader};
+use super::find_tests::{
+    Reader,
+    reader,
+};
 /// The size of the tile's texture,
 /// read after a frame.
 use super::tile_reads::tile_size;
 /// Snapshot records.
-use ide_app::language::diagnostics::{DiagnosticsSnapshot, Severity, SourceGroup};
+use ide_app::language::diagnostics::{
+    DiagnosticsSnapshot,
+    Severity,
+    SourceGroup,
+};
 /// The heights virtual rows are built from.
-use ide_app::virtual_row::{BLOCK_GAP, ROW_HEIGHT};
+use ide_app::virtual_row::{
+    BLOCK_GAP,
+    ROW_HEIGHT,
+};
 /// What:
 ///  `ColorScheme` is the toolkit's scheme enum;
 ///  `WindowInner` is the toolkit's internal side of a window,
@@ -40,22 +60,37 @@ use ide_app::virtual_row::{BLOCK_GAP, ROW_HEIGHT};
 /// ```ts
 /// import { ColorScheme, windowInternals } from 'slint/private';
 /// ```
-use slint::private_unstable_api::re_exports::{ColorScheme, WindowInner};
+use slint::private_unstable_api::re_exports::{
+    ColorScheme,
+    WindowInner,
+};
 /// Frames,
 ///  pixels,
 ///  and toolkit colors are read back from the rendered window;
 ///  a scale change arrives as a
 /// window event.
 use slint::{
-    Color, ComponentHandle, Rgba8Pixel, SharedPixelBuffer,
-    platform::{WindowEvent, update_timers_and_animations},
+    Color,
+    ComponentHandle,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    platform::{
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Disposable fixtures and shared snapshot pointers.
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    sync::Arc,
+};
 
 /// Apply a system color scheme exactly where the portal watcher applies it,
 ///  then run change handlers.
-pub(super) fn switch(window: &AppWindow, scheme: ColorScheme) {
+pub(super) fn switch(
+    window: &AppWindow,
+    scheme: ColorScheme,
+) {
     WindowInner::from_pub(window.window())
         .context()
         .set_color_scheme(scheme);
@@ -69,7 +104,11 @@ pub(super) fn frame(window: &AppWindow) -> SharedPixelBuffer<Rgba8Pixel> {
 
 /// One frame pixel at whole logical coordinates;
 ///  the headless window has scale one.
-pub(super) fn pixel(frame: &SharedPixelBuffer<Rgba8Pixel>, x: f32, y: f32) -> Rgba8Pixel {
+pub(super) fn pixel(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    x: f32,
+    y: f32,
+) -> Rgba8Pixel {
     let index = y as usize * frame.width() as usize + x as usize;
     return frame.as_slice()[index];
 }
@@ -113,7 +152,10 @@ fn heights(reader: &Reader) -> Vec<f32> {
 }
 
 /// WCAG 2 contrast ratio of two opaque pixels.
-pub(super) fn contrast(first: Rgba8Pixel, second: Rgba8Pixel) -> f32 {
+pub(super) fn contrast(
+    first: Rgba8Pixel,
+    second: Rgba8Pixel,
+) -> f32 {
     let (lighter, darker) = (
         luminance(first).max(luminance(second)),
         luminance(first).min(luminance(second)),
@@ -122,7 +164,10 @@ pub(super) fn contrast(first: Rgba8Pixel, second: Rgba8Pixel) -> f32 {
 }
 
 /// Whether a frame pixel equals a toolkit color within rounding.
-pub(super) fn near(pixel: Rgba8Pixel, color: Color) -> bool {
+pub(super) fn near(
+    pixel: Rgba8Pixel,
+    color: Color,
+) -> bool {
     return pixel.r.abs_diff(color.red()) <= 2
         && pixel.g.abs_diff(color.green()) <= 2
         && pixel.b.abs_diff(color.blue()) <= 2;
@@ -130,7 +175,11 @@ pub(super) fn near(pixel: Rgba8Pixel, color: Color) -> bool {
 
 /// Whether a frame pixel is at least half way from `background` to a toolkit color,
 ///  in every channel that differs between the two.
-fn mostly(pixel: Rgba8Pixel, color: Color, background: Rgba8Pixel) -> bool {
+fn mostly(
+    pixel: Rgba8Pixel,
+    color: Color,
+    background: Rgba8Pixel,
+) -> bool {
     let channels = [
         (pixel.r, color.red(), background.r),
         (pixel.g, color.green(), background.g),

@@ -7,22 +7,47 @@
 use super::gpu_snapshot::install_gpu_platform;
 /// Use the same source and navigation bindings as the shipped window.
 use super::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, navigation, reload,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    navigation,
+    reload,
     render,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Reading positions and canonical project identity remain independent of UI labels.
-use ide_app::{document::ReadingPosition, workspace::Workspace};
+use ide_app::{
+    document::ReadingPosition,
+    workspace::Workspace,
+};
 /// Headless snapshots use the real window and system-time timer processing.
-use slint::{ComponentHandle, Model, SharedString, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    Model,
+    SharedString,
+    platform::update_timers_and_animations,
+};
 /// Fixtures and waits are bounded,
 ///  while UI ownership remains single-threaded.
-use std::{cell::RefCell, fs, rc::Rc};
+use std::{
+    cell::RefCell,
+    fs,
+    rc::Rc,
+};
 
 /// Find a visible fixture label;
 ///  actions still use the model index backed by its native path.
-pub(super) fn row(window: &AppWindow, label: &str) -> Option<i32> {
+pub(super) fn row(
+    window: &AppWindow,
+    label: &str,
+) -> Option<i32> {
     let model = window.get_tree_entries();
     for index in 0..model.row_count() {
         if let Some(entry) = model.row_data(index)

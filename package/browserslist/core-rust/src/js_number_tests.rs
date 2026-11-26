@@ -9,7 +9,11 @@
 //! describe('number readers', () => { /* parseInt, parseFloat, parseLatestFloat */ });
 //! ```
 
-use crate::js_number::{parse_float, parse_int_prefix, parse_latest_float};
+use crate::js_number::{
+    parse_float,
+    parse_int_prefix,
+    parse_latest_float,
+};
 
 /// `parseInt` keeps the digit prefix and gives NaN (`None`) without one.
 #[test]

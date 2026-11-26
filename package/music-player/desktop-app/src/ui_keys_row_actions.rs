@@ -20,7 +20,11 @@ use music_player::keymap::ShortcutAction;
 
 /// Imports the menu actions,
 /// the lookup of an action by its access letter and the list of actions for a track.
-use music_player::track_menu::{TrackMenuAction, access_action, track_menu_actions_for};
+use music_player::track_menu::{
+    TrackMenuAction,
+    access_action,
+    track_menu_actions_for,
+};
 
 /// Imports the window that the actions change.
 use crate::AppWindow;
@@ -32,7 +36,10 @@ use crate::ui_host::Host;
 use crate::ui_keys::KeyContext;
 
 /// Imports the state accessors of the screen.
-use crate::ui_screen::{read_screen, write_screen};
+use crate::ui_screen::{
+    read_screen,
+    write_screen,
+};
 
 /// Imports the row offset calculation that places the menu beside its row.
 use crate::ui_screen_scroll::row_offset_px;
@@ -57,7 +64,12 @@ fn menu_action_of(action: ShortcutAction) -> Option<TrackMenuAction> {
 /// Why:
 /// they act on the row with the keyboard ring,
 /// or on the row the open menu belongs to.
-pub(super) fn run_row_action(window: &AppWindow, host: &dyn Host, action: ShortcutAction, context: &KeyContext) -> bool {
+pub(super) fn run_row_action(
+    window: &AppWindow,
+    host: &dyn Host,
+    action: ShortcutAction,
+    context: &KeyContext,
+) -> bool {
     match action {
         ShortcutAction::RowMenu => request_row_menu(window),
         ShortcutAction::ClosePopup => window.invoke_close_menu(),
@@ -86,7 +98,12 @@ pub(super) fn run_row_action(window: &AppWindow, host: &dyn Host, action: Shortc
 /// with the menu open the row is the menu's;
 /// otherwise it is the row with the ring,
 /// and with no ring nothing happens.
-fn run_chord_on_row(window: &AppWindow, host: &dyn Host, action: TrackMenuAction, popup_open: bool) {
+fn run_chord_on_row(
+    window: &AppWindow,
+    host: &dyn Host,
+    action: TrackMenuAction,
+    popup_open: bool,
+) {
     if !popup_open {
         let ring_track = read_screen().ring_track;
         let ring_index: Option<usize> = match ring_track {
@@ -116,7 +133,10 @@ fn run_chord_on_row(window: &AppWindow, host: &dyn Host, action: TrackMenuAction
 /// D114);
 /// the list knows where the row is on screen.
 fn request_row_menu(window: &AppWindow) {
-    let (rows, ring) = { let state = read_screen(); (state.shown_rows.clone(), state.ring_track) };
+    let (rows, ring) = {
+        let state = read_screen();
+        (state.shown_rows.clone(), state.ring_track)
+    };
     let mut ring_position: Option<usize> = None;
     for (at, row) in rows.iter().enumerate() {
         if row.kind == 0 && Some(row.index) == ring {
@@ -143,7 +163,10 @@ fn request_row_menu(window: &AppWindow) {
 /// Why:
 /// Up and Down choose a menu row (D106);
 /// the first Down with nothing highlighted lands on the first row.
-fn move_menu_ring(window: &AppWindow, delta: isize) {
+fn move_menu_ring(
+    window: &AppWindow,
+    delta: isize,
+) {
     let count = track_menu_actions_for().len();
     let row = {
         let mut state = write_screen();
@@ -165,7 +188,10 @@ fn move_menu_ring(window: &AppWindow, delta: isize) {
 /// Enter chooses a row (D106);
 /// with no row highlighted,
 /// Enter does nothing and leaves the menu open.
-fn choose_menu_row(window: &AppWindow, host: &dyn Host) {
+fn choose_menu_row(
+    window: &AppWindow,
+    host: &dyn Host,
+) {
     let Some(row) = read_screen().menu_ring else {
         return;
     };

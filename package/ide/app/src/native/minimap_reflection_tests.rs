@@ -12,28 +12,51 @@
 //! every wait advances timers and lets the workers answer.
 
 /// The window's snapshot and its toolkit colors.
-use super::annotation_paint_tests::{fixture_reader, frame};
+use super::annotation_paint_tests::{
+    fixture_reader,
+    frame,
+};
 /// Hints and diagnostics over the fixture,
 /// and the position of the text.
-use super::annotation_tests::{FIXTURE, annotate};
+use super::annotation_tests::{
+    FIXTURE,
+    annotate,
+};
 /// The reader fixture and the keys.
-use super::find_tests::{Reader, chord, settle, type_text};
+use super::find_tests::{
+    Reader,
+    chord,
+    settle,
+    type_text,
+};
 /// The geometry of the text now shown.
 use super::render::render;
 /// The window's metrics.
-use super::sidebar_tests::{DIVIDER, GUTTER, HEADER, resize};
+use super::sidebar_tests::{
+    DIVIDER,
+    GUTTER,
+    HEADER,
+    resize,
+};
 /// The minimap's texture,
 /// read back from the GPU.
 use super::tile_reads::minimap_pixels;
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// The geometry the picture follows.
-use ide_app::document::{ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    ReadingAffinity,
+    ReadingPosition,
+};
 use ide_app::minimap::Geometry;
 /// Toolkit events.
 use slint::{
     ComponentHandle,
-    platform::{Key, WindowEvent, update_timers_and_animations},
+    platform::{
+        Key,
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 
 /// The fixture's three lines followed by code,
@@ -82,7 +105,10 @@ fn opened(scale: f32) -> (tempfile::TempDir, Reader) {
 /// with the text,
 /// the classes,
 /// and the rows the window has now.
-fn picture_current(reader: &Reader, shown: u64) {
+fn picture_current(
+    reader: &Reader,
+    shown: u64,
+) {
     {
         let mut waiting = Waiting::slow();
         while reader.source.borrow().styles.is_empty() {
@@ -136,7 +162,12 @@ struct Found {
 }
 
 /// The overlap of the intervals `[a, b)` and `[c, d)`.
-fn overlap(a: f64, b: f64, c: f64, d: f64) -> f64 {
+fn overlap(
+    a: f64,
+    b: f64,
+    c: f64,
+    d: f64,
+) -> f64 {
     return (b.min(d) - a.max(c)).max(0.0);
 }
 
@@ -155,7 +186,10 @@ fn compare(reader: &Reader) -> Found {
 
 /// `compare`,
 /// with the source read `shift` pixels to the right and down of where it should be.
-fn compare_at(reader: &Reader, shift: (i64, i64)) -> Found {
+fn compare_at(
+    reader: &Reader,
+    shift: (i64, i64),
+) -> Found {
     let window = &reader.window;
     let scale = f64::from(window.window().scale_factor());
     let snapshot = frame(window);
@@ -251,7 +285,10 @@ fn compare_at(reader: &Reader, shift: (i64, i64)) -> Found {
 
 /// The picture is the reflection the window gives,
 /// with a bound on how far any pixel strays.
-fn assert_reflection(reader: &Reader, what: &str) -> Found {
+fn assert_reflection(
+    reader: &Reader,
+    what: &str,
+) -> Found {
     let found = compare(reader);
     println!(
         "{what}: {} pixels compared, {} with ink, worst difference {}, mean {:.3}",

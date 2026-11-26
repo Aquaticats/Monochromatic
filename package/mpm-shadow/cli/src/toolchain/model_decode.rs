@@ -16,27 +16,54 @@
 //! ```
 
 /// Imports the JSON value types.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Imports the shared decoding checks.
-use super::model_decode_support::{DecodeResult, as_nonempty_text, as_object, as_text, as_text_list, reject_unknown_keys};
+use super::model_decode_support::{
+    DecodeResult,
+    as_nonempty_text,
+    as_object,
+    as_text,
+    as_text_list,
+    reject_unknown_keys,
+};
 /// Imports the package name a declaration installs.
 use super::observe::declared_package_name;
 /// Imports the checks that a name is one plain directory name.
-use super::segment::{check_bin_name, check_directory_name, check_tool_id, check_version};
+use super::segment::{
+    check_bin_name,
+    check_directory_name,
+    check_tool_id,
+    check_version,
+};
 /// Imports the platform ids an artifact row may be keyed by.
 use super::update_resolve::LINUX_PLATFORMS;
 
 /// Imports the model types the decoders build.
 use super::model::{
-    Artifact, Bootstrap, Declaration, LockedTool, Options, OsFamily, Postinstall, PostinstallLink, PostinstallRun, ROUTE_NAMES,
-    Request, Route,
+    Artifact,
+    Bootstrap,
+    Declaration,
+    LockedTool,
+    Options,
+    OsFamily,
+    Postinstall,
+    PostinstallLink,
+    PostinstallRun,
+    ROUTE_NAMES,
+    Request,
+    Route,
 };
-
 
 /// The request text at `path`:
 /// `<origin>@<range>`.
-fn decode_request(value: &Value, path: &str) -> DecodeResult<Request> {
+fn decode_request(
+    value: &Value,
+    path: &str,
+) -> DecodeResult<Request> {
     let text: String = as_nonempty_text(value, path)?;
     return match Request::parse(&text) {
         Ok(request) => Ok(request),
@@ -45,7 +72,10 @@ fn decode_request(value: &Value, path: &str) -> DecodeResult<Request> {
 }
 
 /// The postinstall object at `path`.
-fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
+fn decode_postinstall(
+    value: &Value,
+    path: &str,
+) -> DecodeResult<Postinstall> {
     let map = as_object(value, path)?;
     reject_unknown_keys(map, &["when", "link", "run"], path)?;
     if map.get("when").and_then(Value::as_str) != Some("always") {
@@ -54,7 +84,9 @@ fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
     // The model carries one step, so an entry holding both is refused with both fields named rather than keeping the
     // link and silently dropping the run.
     if map.contains_key("link") && map.contains_key("run") {
-        return Err(format!("{path} holds both a link and a run; state one step"));
+        return Err(format!(
+            "{path} holds both a link and a run; state one step"
+        ));
     }
     if let Some(link) = map.get("link") {
         let link_path: String = format!("{path}.link");
@@ -67,7 +99,10 @@ fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
             return Err(format!("{link_path}.linkName is required"));
         };
         let link_dir: Option<String> = match link_map.get("linkDir") {
-            Some(directory) => Some(as_nonempty_text(directory, &format!("{link_path}.linkDir"))?),
+            Some(directory) => Some(as_nonempty_text(
+                directory,
+                &format!("{link_path}.linkDir"),
+            )?),
             None => None,
         };
         return Ok(Postinstall::Link(PostinstallLink {
@@ -108,7 +143,10 @@ fn is_tag_character(character: char) -> bool {
 }
 
 /// The options object at `path`.
-fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
+fn decode_options(
+    value: &Value,
+    path: &str,
+) -> DecodeResult<Options> {
     let map = as_object(value, path)?;
     reject_unknown_keys(
         map,
@@ -143,7 +181,9 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
         let prefix_path: String = format!("{path}.tagPrefix");
         let text: String = as_nonempty_text(prefix, &prefix_path)?;
         if !text.chars().all(is_tag_character) {
-            return Err(format!("{prefix_path}: {text:?} may hold only letters, digits, '.', '_' and '-' (it is the start of a release tag)"));
+            return Err(format!(
+                "{prefix_path}: {text:?} may hold only letters, digits, '.', '_' and '-' (it is the start of a release tag)"
+            ));
         }
         options.tag_prefix = Some(text);
     }
@@ -179,22 +219,35 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
         let Some(distribution) = boot_map.get("distribution") else {
             return Err(format!("{boot_path}.distribution is required"));
         };
-        let distribution_text: String = as_text(distribution, &format!("{boot_path}.distribution"))?;
+        let distribution_text: String =
+            as_text(distribution, &format!("{boot_path}.distribution"))?;
         if distribution_text != "wheel" && distribution_text != "standalone-binary" {
-            return Err(format!("{boot_path}.distribution must be \"wheel\" or \"standalone-binary\""));
+            return Err(format!(
+                "{boot_path}.distribution must be \"wheel\" or \"standalone-binary\""
+            ));
         }
         let requires_tool: Option<String> = match boot_map.get("requiresTool") {
-            Some(tool) => Some(as_nonempty_text(tool, &format!("{boot_path}.requiresTool"))?),
+            Some(tool) => Some(as_nonempty_text(
+                tool,
+                &format!("{boot_path}.requiresTool"),
+            )?),
             None => None,
         };
-        options.bootstrap = Some(Bootstrap { requires_tool, distribution: distribution_text });
+        options.bootstrap = Some(Bootstrap {
+            requires_tool,
+            distribution: distribution_text,
+        });
     }
     return Ok(options);
 }
 
 /// The declaration fields of the tool `id` in `map`;
 /// `extra` lists the field names the lock adds on top.
-fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> DecodeResult<Declaration> {
+fn decode_declaration_fields(
+    id: &str,
+    map: &Map<String, Value>,
+    path: &str,
+) -> DecodeResult<Declaration> {
     // The id becomes a directory name under the toolchain root, and a name such as `..` would leave it.
     if let Err(message) = check_tool_id(id) {
         return Err(format!("{path}: {message}"));
@@ -212,7 +265,10 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
         for (_, route_name) in ROUTE_NAMES {
             names.push(route_name);
         }
-        return Err(format!("{path}.route {route_text:?} is not a route; the routes are {}", names.join(", ")));
+        return Err(format!(
+            "{path}.route {route_text:?} is not a route; the routes are {}",
+            names.join(", ")
+        ));
     };
     let manager: Option<String> = match map.get("manager") {
         Some(value) => Some(as_nonempty_text(value, &format!("{path}.manager"))?),
@@ -237,7 +293,9 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
             let mut families: Vec<OsFamily> = Vec::new();
             for name in names {
                 let Some(family) = OsFamily::parse(&name) else {
-                    return Err(format!("{path}.os {name:?} must be linux, macos or windows"));
+                    return Err(format!(
+                        "{path}.os {name:?} must be linux, macos or windows"
+                    ));
                 };
                 families.push(family);
             }
@@ -270,11 +328,14 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
     // A `cargo-git` request names a repository and a revision, never a crate, so `packageId` is the only place the
     // crate name can come from: without it `cargo install --git` was handed the plan key and failed there.
     if declaration.route == Route::CargoGit && declaration.package_id.is_none() {
-        return Err(format!("{path}.packageId is required for the cargo-git route: the request names a repository, so it cannot name the crate"));
+        return Err(format!(
+            "{path}.packageId is required for the cargo-git route: the request names a repository, so it cannot name the crate"
+        ));
     }
     // The `cargo-binstall` route installs under `<toolchain root>/cargo/<package name>`.
     if declaration.route == Route::CargoBinstall
-        && let Err(message) = check_directory_name("the package name", &declared_package_name(&declaration))
+        && let Err(message) =
+            check_directory_name("the package name", &declared_package_name(&declaration))
     {
         return Err(format!("{path}: {message}"));
     }
@@ -293,21 +354,44 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
 /// ```ts
 /// export function decodePlanEntry(id: string, value: unknown, path: string): Declaration
 /// ```
-pub fn decode_plan_entry(id: &str, value: &Value, path: &str) -> DecodeResult<Declaration> {
+pub fn decode_plan_entry(
+    id: &str,
+    value: &Value,
+    path: &str,
+) -> DecodeResult<Declaration> {
     let map = as_object(value, path)?;
-    reject_unknown_keys(map, &["request", "route", "manager", "packageId", "bins", "os", "env", "options"], path)?;
+    reject_unknown_keys(
+        map,
+        &[
+            "request",
+            "route",
+            "manager",
+            "packageId",
+            "bins",
+            "os",
+            "env",
+            "options",
+        ],
+        path,
+    )?;
     return decode_declaration_fields(id, map, path);
 }
 
 /// The artifact rows object at `path`.
-fn decode_artifacts(value: &Value, path: &str) -> DecodeResult<Vec<(String, Artifact)>> {
+fn decode_artifacts(
+    value: &Value,
+    path: &str,
+) -> DecodeResult<Vec<(String, Artifact)>> {
     let map = as_object(value, path)?;
     let mut rows: Vec<(String, Artifact)> = Vec::new();
     for (platform, row) in map {
         let row_path: String = format!("{path}.{platform}");
         // A row keyed by anything else can never match the running machine, so it is refused here, naming the row.
         if !LINUX_PLATFORMS.contains(&platform.as_str()) {
-            return Err(format!("{row_path}: {platform:?} is not a platform id; the known ids are {}", LINUX_PLATFORMS.join(", ")));
+            return Err(format!(
+                "{row_path}: {platform:?} is not a platform id; the known ids are {}",
+                LINUX_PLATFORMS.join(", ")
+            ));
         }
         let row_map = as_object(row, &row_path)?;
         reject_unknown_keys(row_map, &["url", "sha256"], &row_path)?;
@@ -319,9 +403,17 @@ fn decode_artifacts(value: &Value, path: &str) -> DecodeResult<Vec<(String, Arti
         };
         let sha256_text: String = as_text(sha256, &format!("{row_path}.sha256"))?;
         if !is_sha256_hex(&sha256_text) {
-            return Err(format!("{row_path}.sha256 must be 64 lowercase hex characters"));
+            return Err(format!(
+                "{row_path}.sha256 must be 64 lowercase hex characters"
+            ));
         }
-        rows.push((platform.clone(), Artifact { url: as_nonempty_text(url, &format!("{row_path}.url"))?, sha256: sha256_text }));
+        rows.push((
+            platform.clone(),
+            Artifact {
+                url: as_nonempty_text(url, &format!("{row_path}.url"))?,
+                sha256: sha256_text,
+            },
+        ));
     }
     return Ok(rows);
 }
@@ -355,11 +447,26 @@ pub fn is_sha256_hex(text: &str) -> bool {
 /// ```ts
 /// export function decodeLockEntry(id: string, value: unknown, path: string): LockedTool
 /// ```
-pub fn decode_lock_entry(id: &str, value: &Value, path: &str) -> DecodeResult<LockedTool> {
+pub fn decode_lock_entry(
+    id: &str,
+    value: &Value,
+    path: &str,
+) -> DecodeResult<LockedTool> {
     let map = as_object(value, path)?;
     reject_unknown_keys(
         map,
-        &["request", "version", "route", "manager", "packageId", "bins", "os", "env", "options", "artifacts"],
+        &[
+            "request",
+            "version",
+            "route",
+            "manager",
+            "packageId",
+            "bins",
+            "os",
+            "env",
+            "options",
+            "artifacts",
+        ],
         path,
     )?;
     let declaration: Declaration = decode_declaration_fields(id, map, path)?;
@@ -375,5 +482,9 @@ pub fn decode_lock_entry(id: &str, value: &Value, path: &str) -> DecodeResult<Lo
         Some(rows) => decode_artifacts(rows, &format!("{path}.artifacts"))?,
         None => Vec::new(),
     };
-    return Ok(LockedTool { declaration, version, artifacts });
+    return Ok(LockedTool {
+        declaration,
+        version,
+        artifacts,
+    });
 }

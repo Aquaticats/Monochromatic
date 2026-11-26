@@ -8,13 +8,26 @@ use ide_app::document::Document;
 /// Diagnostics name the documented query bound.
 use ide_app::find::MAX_FIND_QUERY_CHARS;
 /// The same handle the native find bar owns.
-use ide_app::find_worker::{FindIdentity, FindReply, FindRequest, FindWorker};
+use ide_app::find_worker::{
+    FindIdentity,
+    FindReply,
+    FindRequest,
+    FindWorker,
+};
 /// Waits are bounded so a lost reply fails the test instead of hanging it.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Build an owned request;
 ///  the rope clone shares the document's text chunks.
-fn request(document: &Document, file: u64, query_generation: u64, query: &str) -> FindRequest {
+fn request(
+    document: &Document,
+    file: u64,
+    query_generation: u64,
+    query: &str,
+) -> FindRequest {
     // What: `clone` on a rope copies a small handle; `to_string` copies the query into owned storage.
     // Why: A request must own everything it carries to another thread.
     //

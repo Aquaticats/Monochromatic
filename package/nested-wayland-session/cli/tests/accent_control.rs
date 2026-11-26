@@ -2,15 +2,21 @@
 
 use std::sync::Arc;
 
+use nested_wayland_session::bus_test_client::{
+    Proxy,
+    connect,
+};
 use nested_wayland_session::{
+    ColorSchemePreference,
     accent_color::AccentColor,
-    appearance_portal::{AppearancePortal, PortalStart},
+    appearance_portal::{
+        AppearancePortal,
+        PortalStart,
+    },
     control_accent::switch,
     private_bus::PrivateBus,
     protocol::Response,
-    ColorSchemePreference,
 };
-use nested_wayland_session::bus_test_client::{connect, Proxy};
 use zbus::OwnedVariant;
 
 /// Parses a color the way the verb does.
@@ -31,7 +37,10 @@ fn switch_without_an_accent_is_refused_with_its_remedy() -> anyhow::Result<()> {
     let Response::Err(scheme_only) = switch(Some(&portal), color("112233")) else {
         panic!("expected a refusal from a scheme-only portal");
     };
-    assert!(scheme_only.contains("--accent-color RRGGBB"), "{scheme_only}");
+    assert!(
+        scheme_only.contains("--accent-color RRGGBB"),
+        "{scheme_only}"
+    );
     return Ok(());
 }
 
@@ -53,16 +62,36 @@ fn accent_change_reaches_a_slint_style_client() -> anyhow::Result<()> {
     )?;
     // Slint subscribes before its initial read.
     let mut changes = settings.receive_signal("SettingChanged")?;
-    let initial: OwnedVariant = settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
-    assert_eq!(initial.downcast_ref::<(f64, f64, f64)>()?, color("3584E4").portal_value());
+    let initial: OwnedVariant =
+        settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
+    assert_eq!(
+        initial.downcast_ref::<(f64, f64, f64)>()?,
+        color("3584E4").portal_value()
+    );
 
-    assert_eq!(switch(Some(&portal), color("3584E4")), Response::OkWith("unchanged".to_string()));
-    assert_eq!(switch(Some(&portal), color("FF7800")), Response::OkWith("changed".to_string()));
+    assert_eq!(
+        switch(Some(&portal), color("3584E4")),
+        Response::OkWith("unchanged".to_string())
+    );
+    assert_eq!(
+        switch(Some(&portal), color("FF7800")),
+        Response::OkWith("changed".to_string())
+    );
     let message = changes.next().expect("the signal stream stays open");
     let (namespace, key, value): (String, String, OwnedVariant) = message.body().deserialize()?;
-    assert_eq!((namespace.as_str(), key.as_str()), ("org.freedesktop.appearance", "accent-color"));
-    assert_eq!(value.downcast_ref::<(f64, f64, f64)>()?, (1.0, 120.0 / 255.0, 0.0));
-    let reread: OwnedVariant = settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
-    assert_eq!(reread.downcast_ref::<(f64, f64, f64)>()?, (1.0, 120.0 / 255.0, 0.0));
+    assert_eq!(
+        (namespace.as_str(), key.as_str()),
+        ("org.freedesktop.appearance", "accent-color")
+    );
+    assert_eq!(
+        value.downcast_ref::<(f64, f64, f64)>()?,
+        (1.0, 120.0 / 255.0, 0.0)
+    );
+    let reread: OwnedVariant =
+        settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
+    assert_eq!(
+        reread.downcast_ref::<(f64, f64, f64)>()?,
+        (1.0, 120.0 / 255.0, 0.0)
+    );
     return Ok(());
 }

@@ -5,7 +5,10 @@
 
 /// One window and one source owner;
 ///  the find worker never receives either.
-use super::{AppWindow, State};
+use super::{
+    AppWindow,
+    State,
+};
 /// What:
 ///  `Result` carries either the started binding or a startup error.
 /// Why:
@@ -20,9 +23,16 @@ use anyhow::Result;
 /// Requests and replies are tagged by file generation,
 ///  content revision,
 ///  and query generation.
-use ide_app::find_worker::{FindIdentity, FindWorker};
+use ide_app::find_worker::{
+    FindIdentity,
+    FindWorker,
+};
 /// Weak window handles and a retained timer connect worker replies to the native event loop.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    Timer,
+    TimerMode,
+};
 /// What:
 ///  `Rc` shares one owner on this thread;
 ///  `RefCell` checks mutable borrows at run time.
@@ -33,7 +43,11 @@ use slint::{ComponentHandle, Timer, TimerMode};
 /// ```ts
 /// const find = { current: createFind() };
 /// ```
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Duration,
+};
 
 /// Count text and active match derived from accepted results and the selection.
 pub(super) mod present;
@@ -82,7 +96,10 @@ pub(super) struct Find {
 /// Bind the find callbacks and poll the worker every 20 ms.
 /// The returned timer must stay alive until the window closes;
 ///  dropping all owners joins the worker.
-pub(super) fn bind(owner: &AppWindow, source: &Rc<RefCell<State>>) -> Result<Timer> {
+pub(super) fn bind(
+    owner: &AppWindow,
+    source: &Rc<RefCell<State>>,
+) -> Result<Timer> {
     // What: `?` returns a worker-start failure; `Rc::new(RefCell::new(...))` creates the shared owner.
     // Why: Every callback below needs the same find state after this function returns.
     //

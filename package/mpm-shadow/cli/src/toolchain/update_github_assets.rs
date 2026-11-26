@@ -22,9 +22,17 @@ use serde_json::Value;
 /// Imports the glob matcher.
 use super::update_github::glob_matches;
 /// Imports the shared resolver helpers.
-use super::update_resolve::{ResolveError, is_arm64, is_musl, text_at};
+use super::update_resolve::{
+    ResolveError,
+    is_arm64,
+    is_musl,
+    text_at,
+};
 /// Imports the shared named helpers.
-use super::util::{contains_any, ends_with_any};
+use super::util::{
+    contains_any,
+    ends_with_any,
+};
 
 /// File-name endings that are never the program:
 /// checksums,
@@ -32,8 +40,32 @@ use super::util::{contains_any, ends_with_any};
 /// installer packages,
 /// scripts and metadata.
 const EXCLUDED_ENDINGS: [&str; 26] = [
-    ".sha256", ".sha256sum", ".sha512", ".sig", ".asc", ".sbom", ".json", ".jsonl", ".txt", ".md", ".pem", ".minisig", ".deb", ".rpm", ".msi", ".apk", ".dmg",
-    ".pkg", ".exe", ".sh", ".ps1", ".b3", ".crt", ".bundle", ".whl", ".vsix",
+    ".sha256",
+    ".sha256sum",
+    ".sha512",
+    ".sig",
+    ".asc",
+    ".sbom",
+    ".json",
+    ".jsonl",
+    ".txt",
+    ".md",
+    ".pem",
+    ".minisig",
+    ".deb",
+    ".rpm",
+    ".msi",
+    ".apk",
+    ".dmg",
+    ".pkg",
+    ".exe",
+    ".sh",
+    ".ps1",
+    ".b3",
+    ".crt",
+    ".bundle",
+    ".whl",
+    ".vsix",
 ];
 
 /// Name fragments that mark a build the toolchain does not want:
@@ -41,17 +73,53 @@ const EXCLUDED_ENDINGS: [&str; 26] = [
 /// baseline CPU builds,
 /// sources and documentation,
 /// and bundles with extras.
-const EXCLUDED_FRAGMENTS: [&str; 13] = ["baseline", "debug", "symbols", "-src", "_src", "source", "docs", "completion", "provenance", "checksums", "profile", "sbom", ".full."];
+const EXCLUDED_FRAGMENTS: [&str; 13] = [
+    "baseline",
+    "debug",
+    "symbols",
+    "-src",
+    "_src",
+    "source",
+    "docs",
+    "completion",
+    "provenance",
+    "checksums",
+    "profile",
+    "sbom",
+    ".full.",
+];
 
 /// Name fragments of GPU-accelerated builds.
 /// They are skipped by default,
 /// but a plan entry whose `asset` glob matches the name asked for that build by name.
-const GPU_FRAGMENTS: [&str; 7] = ["vulkan", "rocm", "cuda", "openvino", "sycl", "opencl", "-hip"];
+const GPU_FRAGMENTS: [&str; 7] = [
+    "vulkan", "rocm", "cuda", "openvino", "sycl", "opencl", "-hip",
+];
 
 /// Name fragments of operating systems and CPUs other than the platforms looked for.
 const FOREIGN_FRAGMENTS: [&str; 22] = [
-    "windows", "win32", "win64", "darwin", "macos", "apple", "freebsd", "netbsd", "openbsd", "android", "i686", "i386", "-386", "armv6", "armv7", "ppc64", "s390x",
-    "riscv64", "loongarch", "mips", "wasm", "illumos",
+    "windows",
+    "win32",
+    "win64",
+    "darwin",
+    "macos",
+    "apple",
+    "freebsd",
+    "netbsd",
+    "openbsd",
+    "android",
+    "i686",
+    "i386",
+    "-386",
+    "armv6",
+    "armv7",
+    "ppc64",
+    "s390x",
+    "riscv64",
+    "loongarch",
+    "mips",
+    "wasm",
+    "illumos",
 ];
 
 /// Whether the name says Linux (`ubuntu` builds count).
@@ -60,10 +128,17 @@ fn says_linux(lower: &str) -> bool {
 }
 
 /// Whether the name says the platform's CPU and not the other one.
-fn says_cpu(lower: &str, arm64: bool) -> bool {
+fn says_cpu(
+    lower: &str,
+    arm64: bool,
+) -> bool {
     let arm_tokens: [&str; 3] = ["aarch64", "arm64", "armv8"];
     let x64_tokens: [&str; 4] = ["x86_64", "amd64", "x64", "x86-64"];
-    let (wanted, unwanted): (&[&str], &[&str]) = if arm64 { (&arm_tokens, &x64_tokens) } else { (&x64_tokens, &arm_tokens) };
+    let (wanted, unwanted): (&[&str], &[&str]) = if arm64 {
+        (&arm_tokens, &x64_tokens)
+    } else {
+        (&x64_tokens, &arm_tokens)
+    };
     let has_wanted: bool = contains_any(lower, wanted);
     let has_unwanted: bool = contains_any(lower, unwanted);
     return has_wanted && !has_unwanted;
@@ -91,7 +166,11 @@ fn format_score(lower: &str) -> u32 {
 /// or `None` when the name rules it out.
 /// `hinted` says the plan's `asset` glob already matched the name,
 /// which lets a GPU build through.
-fn score(name: &str, platform: &str, hinted: bool) -> Option<u32> {
+fn score(
+    name: &str,
+    platform: &str,
+    hinted: bool,
+) -> Option<u32> {
     let lower: String = name.to_ascii_lowercase();
     if ends_with_any(&lower, &EXCLUDED_ENDINGS) {
         return None;
@@ -129,7 +208,13 @@ fn score(name: &str, platform: &str, hinted: bool) -> Option<u32> {
 /// ```ts
 /// export function pickAsset(assets, platform, hint, repo, tag): Asset | undefined  // throws on a tie
 /// ```
-pub fn pick_asset<'a>(assets: &'a [Value], platform: &str, hint: Option<&str>, repo: &str, tag: &str) -> Result<Option<&'a Value>, ResolveError> {
+pub fn pick_asset<'a>(
+    assets: &'a [Value],
+    platform: &str,
+    hint: Option<&str>,
+    repo: &str,
+    tag: &str,
+) -> Result<Option<&'a Value>, ResolveError> {
     let mut best: Vec<&Value> = Vec::new();
     let mut best_score: u32 = 0;
     for asset in assets {

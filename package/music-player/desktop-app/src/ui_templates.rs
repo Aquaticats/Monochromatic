@@ -10,14 +10,21 @@
 //! the engine evaluates templates over these structs only,
 //! and the editor's offsets come from Slint in bytes.
 
-/// Imports the playing track fields and the template field builders.
-use music_player::template_model::{PlayingTrackFields, TrackFields, playing_template_fields};
 /// Imports the template evaluation.
 use music_player::template_eval::evaluate_template;
+/// Imports the playing track fields and the template field builders.
+use music_player::template_model::{
+    PlayingTrackFields,
+    TrackFields,
+    playing_template_fields,
+};
 /// Imports the title that a track shows.
 use music_player::track_entries::track_title_for;
 /// Imports the track measure and the field filler.
-use music_player::track_measure::{TrackMeasure, fields_with_measure};
+use music_player::track_measure::{
+    TrackMeasure,
+    fields_with_measure,
+};
 /// Imports the map type that holds measures by name.
 use std::collections::HashMap;
 
@@ -58,7 +65,12 @@ pub fn track_fields(display_path: &str) -> TrackFields {
 /// the playing template reads `track` and `total`,
 /// which are the place in the list and the list size;
 /// the measure supplies `len` and `peak`.
-pub fn playing_track(display_path: &str, place: usize, total: usize, measure: Option<&TrackMeasure>) -> PlayingTrackFields {
+pub fn playing_track(
+    display_path: &str,
+    place: usize,
+    total: usize,
+    measure: Option<&TrackMeasure>,
+) -> PlayingTrackFields {
     return PlayingTrackFields {
         track: fields_with_measure(track_fields(display_path), measure),
         place_in_folder: Some(place),
@@ -72,7 +84,10 @@ pub fn playing_track(display_path: &str, place: usize, total: usize, measure: Op
 /// the editor's preview reads the library in queue order,
 /// with the place and total of the whole queue,
 /// and each track's known measure.
-pub fn editor_library(names: &[String], measures: &HashMap<String, TrackMeasure>) -> Vec<PlayingTrackFields> {
+pub fn editor_library(
+    names: &[String],
+    measures: &HashMap<String, TrackMeasure>,
+) -> Vec<PlayingTrackFields> {
     let total = names.len();
     let mut library: Vec<PlayingTrackFields> = Vec::with_capacity(total);
     for (position, name) in names.iter().enumerate() {
@@ -92,12 +107,19 @@ pub fn editor_library(names: &[String], measures: &HashMap<String, TrackMeasure>
 /// ```ts
 /// const playingSubtitle = (text: string, track: PlayingTrackFields): string | null => { ... };
 /// ```
-pub fn playing_subtitle(text: &str, track: &PlayingTrackFields) -> Option<String> {
+pub fn playing_subtitle(
+    text: &str,
+    track: &PlayingTrackFields,
+) -> Option<String> {
     let fields = playing_template_fields();
     return match evaluate_template(text, track, &fields) {
         music_player::template_model::TemplateResult::Shown(line) => {
             let trimmed: String = line.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
         }
         music_player::template_model::TemplateResult::Refused(_) => None,
     };
@@ -114,7 +136,10 @@ pub fn playing_subtitle(text: &str, track: &PlayingTrackFields) -> Option<String
 /// ```ts
 /// const utf16Offset = (text: string, byteOffset: number): number => new TextEncoder().encode(text.slice(0, ...)).length;
 /// ```
-pub fn utf16_offset(text: &str, byte_offset: usize) -> usize {
+pub fn utf16_offset(
+    text: &str,
+    byte_offset: usize,
+) -> usize {
     let mut end = byte_offset.min(text.len());
     while end > 0 && !text.is_char_boundary(end) {
         end -= 1;

@@ -63,7 +63,7 @@ fn decode_all(path: &Path) -> Result<(AudioSpec, Vec<f32>), PlayerError> {
     // ```ts
     // return [spec, all];
     // ```
-    return Ok((spec, all))
+    return Ok((spec, all));
 }
 
 // What:     `fn check_fixture(name: &str)`. Shared assertion routine: decode

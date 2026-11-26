@@ -8,7 +8,10 @@
 //!  in the markup's order and inks.
 
 /// The rectangles come from the same shaped rows as the glyphs.
-use crate::shaped_text::{ReadingRect, ShapedView};
+use crate::shaped_text::{
+    ReadingRect,
+    ShapedView,
+};
 /// The fills are paint items beside the glyph runs.
 use crate::tile_scene::Item;
 
@@ -72,7 +75,12 @@ struct Cell {
 /// A fill of `cell` in the straight RGBA `ink`,
 /// as a frame of `inset` pixels along its edges when that is more than zero,
 /// or nothing when the ink is clear or the cell is empty.
-fn fill(items: &mut Vec<Item>, cell: Cell, inset: i64, ink: [u8; 4]) {
+fn fill(
+    items: &mut Vec<Item>,
+    cell: Cell,
+    inset: i64,
+    ink: [u8; 4],
+) {
     if ink[3] == 0 || cell.right <= cell.left || cell.bottom <= cell.top {
         return;
     }
@@ -145,7 +153,10 @@ fn joined(mut cells: Vec<Cell>) -> Vec<Cell> {
 }
 
 /// The straight RGBA `color` at `opacity` of its own alpha.
-fn faded(color: [u8; 4], opacity: f32) -> [u8; 4] {
+fn faded(
+    color: [u8; 4],
+    opacity: f32,
+) -> [u8; 4] {
     let alpha = (f32::from(color[3]) * opacity).round().clamp(0.0, 255.0) as u8;
     return [color[0], color[1], color[2], alpha];
 }
@@ -155,7 +166,12 @@ fn faded(color: [u8; 4], opacity: f32) -> [u8; 4] {
 /// in a frame whose top is `origin` logical pixels down the text,
 /// at `scale`:
 /// edges rounded to the nearest pixel.
-fn cell_of(rectangle: &ReadingRect, origin: f32, scale: f32, grow: (f32, f32, f32)) -> Cell {
+fn cell_of(
+    rectangle: &ReadingRect,
+    origin: f32,
+    scale: f32,
+    grow: (f32, f32, f32),
+) -> Cell {
     let (side, above, below) = grow;
     let left = (rectangle.x - side) * scale;
     let right = (rectangle.x + rectangle.width + side) * scale;
@@ -183,7 +199,10 @@ fn cell_of(rectangle: &ReadingRect, origin: f32, scale: f32, grow: (f32, f32, f3
 /// ```ts
 /// function fillItems(view: ShapedView, fills: Fills): Item[];
 /// ```
-pub fn fill_items(view: &ShapedView, fills: Fills) -> Vec<Item> {
+pub fn fill_items(
+    view: &ShapedView,
+    fills: Fills,
+) -> Vec<Item> {
     let scale = view.viewport.scale;
     let mut items = Vec::new();
     let mut selected = Vec::with_capacity(view.selections.len());

@@ -169,7 +169,7 @@ impl ProgressDebouncer {
         // ```ts
         // return new ProgressDebouncer();
         // ```
-        return Self::default()
+        return Self::default();
     }
 
     /// What:
@@ -190,7 +190,11 @@ impl ProgressDebouncer {
     /// ```ts
     /// shouldSurface(now: number, kind: ProgressUpdateKind): boolean { ... }
     /// ```
-    pub fn should_surface(&mut self, now: Duration, kind: ProgressUpdateKind) -> bool {
+    pub fn should_surface(
+        &mut self,
+        now: Duration,
+        kind: ProgressUpdateKind,
+    ) -> bool {
         // What:     `if kind == ProgressUpdateKind::Immediate { ... }`. Compare the
         //           passed kind against the immediate variant with `==` (available
         //           because the enum derives `PartialEq`).
@@ -286,7 +290,7 @@ impl ProgressDebouncer {
         // ```ts
         // return intervalElapsed;
         // ```
-        return interval_elapsed
+        return interval_elapsed;
     }
 }
 

@@ -11,7 +11,10 @@
 /// Imports `event_ring::{EventRing, Timed}`,
 ///  `value_summary::ValueSummary` from `crate`.
 use crate::{
-    event_ring::{EventRing, Timed},
+    event_ring::{
+        EventRing,
+        Timed,
+    },
     value_summary::ValueSummary,
 };
 
@@ -182,7 +185,11 @@ impl JobStore {
     ///      `pub fn request_view(&mut self, at_ms: u64, request: JobRequest) -> JobRecord`.
     ///  Numbers start at one,
     ///  as Plasma's counter does.
-    pub fn request_view(&mut self, at_ms: u64, request: JobRequest) -> JobRecord {
+    pub fn request_view(
+        &mut self,
+        at_ms: u64,
+        request: JobRequest,
+    ) -> JobRecord {
         self.last_id += 1;
         let record = JobRecord {
             id: self.last_id,
@@ -214,7 +221,11 @@ impl JobStore {
     /// What:
     ///      `pub fn update(&mut self, at_ms: u64, call: UpdateCall)`.
     ///  The job keeps every property the call leaves out.
-    pub fn update(&mut self, at_ms: u64, call: UpdateCall) {
+    pub fn update(
+        &mut self,
+        at_ms: u64,
+        call: UpdateCall,
+    ) {
         if let Some(job) = self.find_mut(call.id) {
             if let Some(title) = call.changes.title {
                 job.title = title;
@@ -231,14 +242,25 @@ impl JobStore {
         }
         self.events.push(
             at_ms,
-            JobEvent::Update { id: call.id, no_reply: call.no_reply, properties: call.properties },
+            JobEvent::Update {
+                id: call.id,
+                no_reply: call.no_reply,
+                properties: call.properties,
+            },
         );
     }
 
     /// Records a `terminate` call and marks the job ended.
-    pub fn terminate(&mut self, at_ms: u64, call: TerminateCall) {
+    pub fn terminate(
+        &mut self,
+        at_ms: u64,
+        call: TerminateCall,
+    ) {
         if let Some(job) = self.find_mut(call.id) {
-            job.termination = Some(Termination { code: call.code, message: call.message.clone() });
+            job.termination = Some(Termination {
+                code: call.code,
+                message: call.message.clone(),
+            });
         }
         self.events.push(
             at_ms,
@@ -253,21 +275,43 @@ impl JobStore {
     }
 
     /// Logs a V3 signal about to be emitted.
-    pub fn log_signal(&mut self, at_ms: u64, id: u32, name: &str) {
-        self.events.push(at_ms, JobEvent::Signal { id, name: name.to_string() });
+    pub fn log_signal(
+        &mut self,
+        at_ms: u64,
+        id: u32,
+        name: &str,
+    ) {
+        self.events.push(
+            at_ms,
+            JobEvent::Signal {
+                id,
+                name: name.to_string(),
+            },
+        );
     }
 
     /// Logs a call to `org.kde.kuiserver`.
-    pub fn log_kuiserver_call(&mut self, at_ms: u64, method: &str, detail: &str) {
+    pub fn log_kuiserver_call(
+        &mut self,
+        at_ms: u64,
+        method: &str,
+        detail: &str,
+    ) {
         self.events.push(
             at_ms,
-            JobEvent::KuiserverCall { method: method.to_string(), detail: detail.to_string() },
+            JobEvent::KuiserverCall {
+                method: method.to_string(),
+                detail: detail.to_string(),
+            },
         );
     }
 
     /// Returns a job by number.
     #[must_use]
-    pub fn find(&self, id: u32) -> Option<&JobRecord> {
+    pub fn find(
+        &self,
+        id: u32,
+    ) -> Option<&JobRecord> {
         for job in &self.jobs {
             if job.id == id {
                 return Some(job);
@@ -277,7 +321,10 @@ impl JobStore {
     }
 
     /// Returns a job by number for changing.
-    fn find_mut(&mut self, id: u32) -> Option<&mut JobRecord> {
+    fn find_mut(
+        &mut self,
+        id: u32,
+    ) -> Option<&mut JobRecord> {
         for job in &mut self.jobs {
             if job.id == id {
                 return Some(job);
@@ -296,7 +343,10 @@ impl JobStore {
     /// Returns up to `count` of the newest log entries,
     ///  oldest first.
     #[must_use]
-    pub fn last_events(&self, count: usize) -> Vec<&Timed<JobEvent>> {
+    pub fn last_events(
+        &self,
+        count: usize,
+    ) -> Vec<&Timed<JobEvent>> {
         return self.events.last_n(count);
     }
 

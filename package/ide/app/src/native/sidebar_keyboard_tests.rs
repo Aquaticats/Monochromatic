@@ -4,7 +4,10 @@
 
 /// Real key events through the window,
 ///  shared with the find tests.
-use super::find_tests::{chord, key};
+use super::find_tests::{
+    chord,
+    key,
+};
 /// Windows are drawn on the hardware GPU,
 ///  so the platform is installed before the thread's first window.
 use super::gpu_snapshot::install_gpu_platform;
@@ -12,14 +15,32 @@ use super::gpu_snapshot::install_gpu_platform;
 ///  pointer helpers,
 ///  and the pinned layout measurements.
 use super::sidebar_tests::{
-    DIVIDER, HEADER, MINIMUM, SOURCE_MINIMUM, click, fixture, resize, settle, text_area,
+    DIVIDER,
+    HEADER,
+    MINIMUM,
+    SOURCE_MINIMUM,
+    click,
+    fixture,
+    resize,
+    settle,
+    text_area,
 };
 /// The shipped window,
 ///  source state,
 ///  and bindings for a window without a project.
-use super::{AppWindow, State, bind_keys, bind_pointer, bind_viewport, render};
+use super::{
+    AppWindow,
+    State,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    render,
+};
 /// Toolkit key names and window ownership.
-use slint::{ComponentHandle, platform::Key};
+use slint::{
+    ComponentHandle,
+    platform::Key,
+};
 /// What:
 ///  `Rc` is a shared pointer for one thread (sibling `Arc` works across threads);
 ///  `RefCell` allows
@@ -31,7 +52,10 @@ use slint::{ComponentHandle, platform::Key};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Tab order is tree,
 ///  divider,

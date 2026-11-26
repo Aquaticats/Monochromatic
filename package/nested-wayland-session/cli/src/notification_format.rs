@@ -6,9 +6,16 @@
 /// Imports the items this module uses from `crate`.
 use crate::{
     event_ring::Timed,
-    notification_store::{NotificationEvent, NotifyCall, VisibleNotification},
+    notification_store::{
+        NotificationEvent,
+        NotifyCall,
+        VisibleNotification,
+    },
     value_summary::format_summaries,
-    wire_text::{encode_text, format_records},
+    wire_text::{
+        encode_text,
+        format_records,
+    },
 };
 
 /// Writes the actions of a call as `key=label` items separated by `,`.
@@ -68,7 +75,10 @@ fn format_call_fields(call: &NotifyCall) -> String {
 /// Why:
 ///       One line carries everything a test compares after a `Notify` or a replacement.
 #[must_use]
-pub fn format_visible(shown: &VisibleNotification, now_ms: u64) -> String {
+pub fn format_visible(
+    shown: &VisibleNotification,
+    now_ms: u64,
+) -> String {
     return format!(
         "id={} {} replaced={} age-ms={}",
         shown.id,
@@ -82,7 +92,10 @@ pub fn format_visible(shown: &VisibleNotification, now_ms: u64) -> String {
 ///  a count,
 ///  then the visible notifications.
 #[must_use]
-pub fn format_visible_list(visible: &[VisibleNotification], now_ms: u64) -> String {
+pub fn format_visible_list(
+    visible: &[VisibleNotification],
+    now_ms: u64,
+) -> String {
     let mut records = Vec::with_capacity(visible.len());
     for shown in visible {
         records.push(format_visible(shown, now_ms));
@@ -105,12 +118,28 @@ pub fn format_visible_list(visible: &[VisibleNotification], now_ms: u64) -> Stri
 #[must_use]
 pub fn format_event(timed: &Timed<NotificationEvent>) -> String {
     let detail = match &timed.event {
-        NotificationEvent::Notify { id, call } => {
-            format!("notify id={id} replaces={} {}", call.replaces_id, format_call_fields(call))
+        NotificationEvent::Notify {
+            id,
+            call,
+        } => {
+            format!(
+                "notify id={id} replaces={} {}",
+                call.replaces_id,
+                format_call_fields(call)
+            )
         }
-        NotificationEvent::CloseCall { id, known } => format!("close-call id={id} known={known}"),
-        NotificationEvent::Closed { id, reason } => format!("closed id={id} reason={reason}"),
-        NotificationEvent::ActionInvoked { id, key } => {
+        NotificationEvent::CloseCall {
+            id,
+            known,
+        } => format!("close-call id={id} known={known}"),
+        NotificationEvent::Closed {
+            id,
+            reason,
+        } => format!("closed id={id} reason={reason}"),
+        NotificationEvent::ActionInvoked {
+            id,
+            key,
+        } => {
             format!("action-invoked id={id} key={}", encode_text(key))
         }
     };

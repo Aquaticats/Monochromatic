@@ -12,7 +12,10 @@ use super::describe;
 /// ```ts
 /// import { NotifyError, ErrorKind } from 'notify';
 /// ```
-use notify::{Error, ErrorKind};
+use notify::{
+    Error,
+    ErrorKind,
+};
 /// Borrowed native paths name the affected directory.
 use std::path::Path;
 

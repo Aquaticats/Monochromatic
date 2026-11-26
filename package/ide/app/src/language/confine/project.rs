@@ -14,7 +14,10 @@
 /// ```ts
 /// type Path = string;
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The bubblewrap option that mounts the project.
@@ -86,7 +89,10 @@ pub fn replaced_location(path: &Path) -> Option<&'static str> {
 /// ```ts
 /// function text(path: string, what: string): string // throws to refuse
 /// ```
-fn text<'a>(path: &'a Path, what: &str) -> Result<&'a str, String> {
+fn text<'a>(
+    path: &'a Path,
+    what: &str,
+) -> Result<&'a str, String> {
     return match path.to_str() {
         Some(found) => Ok(found),
         None => Err(format!("{what} {} is not valid Unicode", path.display())),
@@ -110,7 +116,10 @@ fn text<'a>(path: &'a Path, what: &str) -> Result<&'a str, String> {
 /// ```ts
 /// function projectBinds(project: string, spellings: string[]): string[] // throws to refuse
 /// ```
-pub fn project_binds(project: &Path, spellings: &[PathBuf]) -> Result<Vec<String>, String> {
+pub fn project_binds(
+    project: &Path,
+    spellings: &[PathBuf],
+) -> Result<Vec<String>, String> {
     let canonical = text(project, "the project")?;
     let mut options = vec![
         PROJECT_MOUNT.to_string(),

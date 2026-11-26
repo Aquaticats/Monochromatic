@@ -14,14 +14,21 @@
 /// Imports `Cli`,
 /// `Command`,
 /// `UserCommand` from `crate::args`.
-use crate::args::{Cli, Command, UserCommand};
+use crate::args::{
+    Cli,
+    Command,
+    UserCommand,
+};
 /// Imports `resolve_repository` from `crate::discover`.
 use crate::discover::resolve_repository;
 /// Imports `production_registry` from `crate::kinds`.
 use crate::kinds::production_registry;
 /// Imports `ClientOptions`,
 /// `connect` from `monochromatic_file_enforcer::client`.
-use monochromatic_file_enforcer::client::{ClientOptions, connect};
+use monochromatic_file_enforcer::client::{
+    ClientOptions,
+    connect,
+};
 /// Imports `ConfigScope` from `monochromatic_file_enforcer::config_decode`.
 use monochromatic_file_enforcer::config_decode::ConfigScope;
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
@@ -30,7 +37,12 @@ use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// `default_user_config_path`,
 /// `repository_endpoint`,
 /// `user_endpoint` from `monochromatic_file_enforcer::endpoint`.
-use monochromatic_file_enforcer::endpoint::{Endpoint, default_user_config_path, repository_endpoint, user_endpoint};
+use monochromatic_file_enforcer::endpoint::{
+    Endpoint,
+    default_user_config_path,
+    repository_endpoint,
+    user_endpoint,
+};
 /// Imports `EventSink` from `monochromatic_file_enforcer::event`.
 use monochromatic_file_enforcer::event::EventSink;
 /// Imports `object` from `monochromatic_file_enforcer::json_build`.
@@ -39,17 +51,26 @@ use monochromatic_file_enforcer::json_build::object;
 use monochromatic_file_enforcer::launch::ServerLaunch;
 /// Imports `EXIT_DRIFT`,
 /// `EXIT_USAGE` from `monochromatic_file_enforcer::run`.
-use monochromatic_file_enforcer::run::{EXIT_DRIFT, EXIT_USAGE};
+use monochromatic_file_enforcer::run::{
+    EXIT_DRIFT,
+    EXIT_USAGE,
+};
 /// Imports `ServerOptions`,
 /// `serve` from `monochromatic_file_enforcer::server`.
-use monochromatic_file_enforcer::server::{ServerOptions, serve};
+use monochromatic_file_enforcer::server::{
+    ServerOptions,
+    serve,
+};
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 /// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports `Duration` from `std::time`.
 use std::time::Duration;
 
@@ -93,7 +114,9 @@ pub const IDLE_SECONDS_VARIABLE: &str = "FILE_ENFORCER_IDLE_SECONDS";
 /// function idleSeconds(): number
 /// ```
 fn idle_seconds() -> Result<u64, Diagnostic> {
-    let Ok(text) = std::env::var(IDLE_SECONDS_VARIABLE) else { return Ok(DEFAULT_IDLE_SECONDS) };
+    let Ok(text) = std::env::var(IDLE_SECONDS_VARIABLE) else {
+        return Ok(DEFAULT_IDLE_SECONDS);
+    };
     let Ok(seconds) = text.parse::<u64>() else {
         let message = format!(
             "{IDLE_SECONDS_VARIABLE} is set to '{text}', which is not a whole number of seconds; unset it or give a number such as {DEFAULT_IDLE_SECONDS}"
@@ -112,7 +135,10 @@ fn idle_seconds() -> Result<u64, Diagnostic> {
 /// ```ts
 /// function usageFailure(sink: EventSink, error: Diagnostic): number
 /// ```
-fn usage_failure(sink: &mut dyn EventSink, error: &Diagnostic) -> i32 {
+fn usage_failure(
+    sink: &mut dyn EventSink,
+    error: &Diagnostic,
+) -> i32 {
     sink.emit(error.to_event("error"));
     return EXIT_USAGE;
 }
@@ -127,7 +153,10 @@ fn usage_failure(sink: &mut dyn EventSink, error: &Diagnostic) -> i32 {
 /// ```ts
 /// function clientOptions(endpoint: Endpoint, user: boolean): ClientOptions
 /// ```
-fn client_options(endpoint: &Endpoint, user: bool) -> Result<ClientOptions, Diagnostic> {
+fn client_options(
+    endpoint: &Endpoint,
+    user: bool,
+) -> Result<ClientOptions, Diagnostic> {
     let program = match std::env::current_exe() {
         Ok(program) => program,
         Err(error) => {
@@ -135,7 +164,11 @@ fn client_options(endpoint: &Endpoint, user: bool) -> Result<ClientOptions, Diag
             return Err(Diagnostic::new("server-start-failed", &message));
         }
     };
-    let mut args: Vec<OsString> = vec![OsString::from("serve"), OsString::from("--root"), endpoint.root.clone().into_os_string()];
+    let mut args: Vec<OsString> = vec![
+        OsString::from("serve"),
+        OsString::from("--root"),
+        endpoint.root.clone().into_os_string(),
+    ];
     args.push(OsString::from("--socket"));
     args.push(endpoint.socket.clone().into_os_string());
     args.push(OsString::from("--idle-seconds"));
@@ -144,8 +177,16 @@ fn client_options(endpoint: &Endpoint, user: bool) -> Result<ClientOptions, Diag
     if user {
         args.push(OsString::from("--user"));
     }
-    let launch = ServerLaunch { program, args };
-    return Ok(ClientOptions { root: endpoint.root.clone(), socket: endpoint.socket.clone(), launch, deadline: CONNECT_DEADLINE });
+    let launch = ServerLaunch {
+        program,
+        args,
+    };
+    return Ok(ClientOptions {
+        root: endpoint.root.clone(),
+        socket: endpoint.socket.clone(),
+        launch,
+        deadline: CONNECT_DEADLINE,
+    });
 }
 
 /// What:
@@ -160,7 +201,13 @@ fn client_options(endpoint: &Endpoint, user: bool) -> Result<ClientOptions, Diag
 /// ```ts
 /// async function request(endpoint: Endpoint, user: boolean, method: string, params: unknown, sink: EventSink): Promise<number>
 /// ```
-fn request(endpoint: &Endpoint, user: bool, method: &str, params: Value, sink: &mut dyn EventSink) -> i32 {
+fn request(
+    endpoint: &Endpoint,
+    user: bool,
+    method: &str,
+    params: Value,
+    sink: &mut dyn EventSink,
+) -> i32 {
     let options = match client_options(endpoint, user) {
         Ok(options) => options,
         Err(error) => return usage_failure(sink, &error),
@@ -184,8 +231,15 @@ fn request(endpoint: &Endpoint, user: bool, method: &str, params: Value, sink: &
 /// ```ts
 /// function runParams(mode: string, config: string, extra: Record<string, unknown>): unknown
 /// ```
-fn run_params(mode: &str, config: &Path, extra: &[(&str, Value)]) -> Value {
-    let mut pairs: Vec<(&str, Value)> = vec![("mode", Value::from(mode)), ("configPath", Value::from(config.display().to_string()))];
+fn run_params(
+    mode: &str,
+    config: &Path,
+    extra: &[(&str, Value)],
+) -> Value {
+    let mut pairs: Vec<(&str, Value)> = vec![
+        ("mode", Value::from(mode)),
+        ("configPath", Value::from(config.display().to_string())),
+    ];
     for pair in extra {
         pairs.push((pair.0, pair.1.clone()));
     }
@@ -206,7 +260,9 @@ fn absolute_path(path: &Path) -> PathBuf {
     if path.is_absolute() {
         return path.to_path_buf();
     }
-    let Ok(current) = std::env::current_dir() else { return path.to_path_buf() };
+    let Ok(current) = std::env::current_dir() else {
+        return path.to_path_buf();
+    };
     return current.join(path);
 }
 
@@ -219,9 +275,17 @@ fn absolute_path(path: &Path) -> PathBuf {
 /// ```ts
 /// async function dispatch(cli: Cli, sink: EventSink): Promise<number>
 /// ```
-pub fn dispatch(cli: &Cli, sink: &mut dyn EventSink) -> i32 {
+pub fn dispatch(
+    cli: &Cli,
+    sink: &mut dyn EventSink,
+) -> i32 {
     match &cli.command {
-        Command::Serve { root, socket, idle_seconds, user } => return run_server(root, socket, *idle_seconds, *user, sink),
+        Command::Serve {
+            root,
+            socket,
+            idle_seconds,
+            user,
+        } => return run_server(root, socket, *idle_seconds, *user, sink),
         Command::User(subcommand) => return dispatch_user(cli, subcommand, sink),
         _ => {}
     }
@@ -234,22 +298,59 @@ pub fn dispatch(cli: &Cli, sink: &mut dyn EventSink) -> i32 {
         Err(error) => return usage_failure(sink, &error),
     };
     match &cli.command {
-        Command::Write { outputs } => {
+        Command::Write {
+            outputs,
+        } => {
             let extra = [("outputs", Value::from(outputs.scope().name()))];
-            return request(&endpoint, false, "run", run_params("write", &config_path, &extra), sink);
+            return request(
+                &endpoint,
+                false,
+                "run",
+                run_params("write", &config_path, &extra),
+                sink,
+            );
         }
-        Command::Check { expected_dir, outputs } => {
-            let mut extra: Vec<(&str, Value)> = vec![("outputs", Value::from(outputs.scope().name()))];
+        Command::Check {
+            expected_dir,
+            outputs,
+        } => {
+            let mut extra: Vec<(&str, Value)> =
+                vec![("outputs", Value::from(outputs.scope().name()))];
             if let Some(dir) = expected_dir {
-                extra.push(("expectedDir", Value::from(absolute_path(dir).display().to_string())));
+                extra.push((
+                    "expectedDir",
+                    Value::from(absolute_path(dir).display().to_string()),
+                ));
             }
-            return request(&endpoint, false, "run", run_params("check", &config_path, &extra), sink);
+            return request(
+                &endpoint,
+                false,
+                "run",
+                run_params("check", &config_path, &extra),
+                sink,
+            );
         }
-        Command::Explain { path } => {
+        Command::Explain {
+            path,
+        } => {
             let extra = [("path", Value::from(path.as_str()))];
-            return request(&endpoint, false, "run", run_params("explain", &config_path, &extra), sink);
+            return request(
+                &endpoint,
+                false,
+                "run",
+                run_params("explain", &config_path, &extra),
+                sink,
+            );
         }
-        Command::Watch => return request(&endpoint, false, "watch", run_params("write", &config_path, &[]), sink),
+        Command::Watch => {
+            return request(
+                &endpoint,
+                false,
+                "watch",
+                run_params("write", &config_path, &[]),
+                sink,
+            );
+        }
         _ => return EXIT_USAGE,
     }
 }
@@ -263,7 +364,11 @@ pub fn dispatch(cli: &Cli, sink: &mut dyn EventSink) -> i32 {
 /// ```ts
 /// async function dispatchUser(cli: Cli, command: UserCommand, sink: EventSink): Promise<number>
 /// ```
-fn dispatch_user(cli: &Cli, subcommand: &UserCommand, sink: &mut dyn EventSink) -> i32 {
+fn dispatch_user(
+    cli: &Cli,
+    subcommand: &UserCommand,
+    sink: &mut dyn EventSink,
+) -> i32 {
     let config_path = match &cli.user_config {
         Some(path) => absolute_path(path),
         None => match default_user_config_path() {
@@ -279,7 +384,13 @@ fn dispatch_user(cli: &Cli, subcommand: &UserCommand, sink: &mut dyn EventSink) 
         UserCommand::Write => "write",
         UserCommand::Check => "check",
     };
-    return request(&endpoint, true, "run", run_params(mode, &config_path, &[]), sink);
+    return request(
+        &endpoint,
+        true,
+        "run",
+        run_params(mode, &config_path, &[]),
+        sink,
+    );
 }
 
 /// What:
@@ -295,9 +406,24 @@ fn dispatch_user(cli: &Cli, subcommand: &UserCommand, sink: &mut dyn EventSink) 
 /// ```ts
 /// async function runServer(root: string, socket: string, idleSeconds: number, user: boolean): Promise<number>
 /// ```
-fn run_server(root: &Path, socket: &Path, idle_seconds: u64, user: bool, sink: &mut dyn EventSink) -> i32 {
-    let scope = if user { ConfigScope::User } else { ConfigScope::Repository };
-    let options = ServerOptions { root: root.to_path_buf(), scope, socket: socket.to_path_buf(), idle: Duration::from_secs(idle_seconds) };
+fn run_server(
+    root: &Path,
+    socket: &Path,
+    idle_seconds: u64,
+    user: bool,
+    sink: &mut dyn EventSink,
+) -> i32 {
+    let scope = if user {
+        ConfigScope::User
+    } else {
+        ConfigScope::Repository
+    };
+    let options = ServerOptions {
+        root: root.to_path_buf(),
+        scope,
+        socket: socket.to_path_buf(),
+        idle: Duration::from_secs(idle_seconds),
+    };
     match serve(&options, production_registry()) {
         Ok(()) => return 0,
         Err(error) => return usage_failure(sink, &error),

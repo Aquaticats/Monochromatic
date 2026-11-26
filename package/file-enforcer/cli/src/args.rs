@@ -25,7 +25,11 @@
 /// Imports `Parser`,
 /// `Subcommand`,
 /// `ValueEnum` from `clap`.
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{
+    Parser,
+    Subcommand,
+    ValueEnum,
+};
 /// Imports `OutputScope` from `monochromatic_file_enforcer::output_scope`.
 use monochromatic_file_enforcer::output_scope::OutputScope;
 /// Imports `PathBuf` from `std::path`.
@@ -46,7 +50,11 @@ use std::path::PathBuf;
 /// type Cli = { config?: string; userConfig?: string; command: Command };
 /// ```
 #[derive(Debug, Parser)]
-#[command(name = "file-enforcer", version, about = "Generate and check the files this repository derives from other files.")]
+#[command(
+    name = "file-enforcer",
+    version,
+    about = "Generate and check the files this repository derives from other files."
+)]
 pub struct Cli {
     /// Path of the repository config;
     /// the worktree root is its directory.

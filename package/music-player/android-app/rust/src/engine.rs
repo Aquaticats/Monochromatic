@@ -79,7 +79,10 @@
 /// type RawFd = number; // the OS handle integer
 /// type BorrowedFd = number; // same integer, but "do not close this yourself"
 /// ```
-use std::os::fd::{BorrowedFd, RawFd};
+use std::os::fd::{
+    BorrowedFd,
+    RawFd,
+};
 
 /// What:
 ///      `use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};`.
@@ -117,7 +120,12 @@ use std::os::fd::{BorrowedFd, RawFd};
 /// // mentally: shared cells read/written via Atomics.load / Atomics.store,
 /// // never plain assignment, with an Ordering arg saying how synchronized.
 /// ```
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU32,
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 ///      `use std::sync::mpsc::{self, Sender};`.
@@ -140,7 +148,10 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 /// ```ts
 /// // a thread-safe queue; we keep only the Sender (push) end here.
 /// ```
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{
+    self,
+    Sender,
+};
 
 /// What:
 ///      `use std::sync::Arc;`.
@@ -188,7 +199,10 @@ use std::sync::Arc;
 /// ```ts
 /// // JoinHandle ~ a Worker + a promise that resolves when the worker exits.
 /// ```
-use std::thread::{self, JoinHandle};
+use std::thread::{
+    self,
+    JoinHandle,
+};
 
 /// What:
 ///      `use crate::engine_worker;`.
@@ -619,7 +633,7 @@ impl Control {
             // failedLoad: makeSharedU64(0),
             // ```
             failed_load: AtomicU64::new(0),
-        }
+        };
     }
 
     /// What:
@@ -655,7 +669,7 @@ impl Control {
         // ```ts
         // return bitsToF32(Atomics.load(this.volumeBits, 0));
         // ```
-        return f32::from_bits(self.volume_bits.load(Ordering::Relaxed))
+        return f32::from_bits(self.volume_bits.load(Ordering::Relaxed));
     }
 
     /// What:
@@ -681,7 +695,7 @@ impl Control {
         // ```ts
         // return bitsToF32(Atomics.load(this.normGainBits, 0));
         // ```
-        return f32::from_bits(self.norm_gain_bits.load(Ordering::Relaxed))
+        return f32::from_bits(self.norm_gain_bits.load(Ordering::Relaxed));
     }
 }
 
@@ -1032,7 +1046,7 @@ impl Engine {
             worker: Some(worker),
             control,
             play_intent: false,
-        })
+        });
     }
 
     /// What:
@@ -1060,7 +1074,11 @@ impl Engine {
     /// ```ts
     /// load(fd: number, play: boolean): void { /* throws PlayerError on worker-gone */ }
     /// ```
-    pub fn load(&mut self, fd: RawFd, play: bool) -> Result<(), PlayerError> {
+    pub fn load(
+        &mut self,
+        fd: RawFd,
+        play: bool,
+    ) -> Result<(), PlayerError> {
         // What:     `let borrowed = unsafe { BorrowedFd::borrow_raw(fd) };`. `unsafe { ... }`
         //           is a block where we promise the compiler we have manually upheld a
         //           safety rule it cannot check. Inside, `BorrowedFd::borrow_raw(fd)` wraps
@@ -1134,7 +1152,7 @@ impl Engine {
         // ```ts
         // return; // success, no value
         // ```
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -1230,7 +1248,10 @@ impl Engine {
     /// ```ts
     /// seekTo(positionSec: number): void { ... }
     /// ```
-    pub fn seek_to(&self, position_sec: f64) {
+    pub fn seek_to(
+        &self,
+        position_sec: f64,
+    ) {
         // What:     `let _ = self.tx.send(Command::Seek(position_sec));`.
         //           `Command::Seek(position_sec)` is a WRAPPER CONSTRUCTOR building the
         //           `Seek` variant around the position. `self.tx.send(...)` returns a
@@ -1260,7 +1281,10 @@ impl Engine {
     /// ```ts
     /// setVolume(volume: number): void { ... }
     /// ```
-    pub fn set_volume(&self, volume: f32) {
+    pub fn set_volume(
+        &self,
+        volume: f32,
+    ) {
         // What:     `self.control.volume_bits.store(volume.to_bits(), Ordering::Relaxed);`.
         //           `volume.to_bits()` REINTERPRETS the `f32` as its raw `u32` bit-pattern
         //           (a conversion, not a numeric cast). `.store(..., Ordering::Relaxed)`
@@ -1292,7 +1316,10 @@ impl Engine {
     /// ```ts
     /// setNormalizationGain(gain: number): void { ... }
     /// ```
-    pub fn set_normalization_gain(&self, gain: f32) {
+    pub fn set_normalization_gain(
+        &self,
+        gain: f32,
+    ) {
         // What:     `self.control.norm_gain_bits.store(gain.to_bits(), Ordering::Relaxed);`.
         //           `gain.to_bits()` reinterprets the `f32` gain as raw `u32` bits;
         //           `.store(..., Ordering::Relaxed)` atomically writes them into
@@ -1360,8 +1387,8 @@ impl Engine {
         // const frames =
         //   Atomics.load(this.control.startFrame, 0) + Atomics.load(this.control.framesPlayed, 0);
         // ```
-        let frames =
-            self.control.start_frame.load(Ordering::Acquire) + self.control.frames_played.load(Ordering::Acquire);
+        let frames = self.control.start_frame.load(Ordering::Acquire)
+            + self.control.frames_played.load(Ordering::Acquire);
         // What:     `frames as f64 / rate as f64`. `frames as f64` and `rate as f64` are
         //           explicit numeric CASTS from the unsigned 64-bit integers to `f64`
         //           floats (the `as` keyword); `/` is then floating-point division. No
@@ -1375,7 +1402,7 @@ impl Engine {
         // ```ts
         // return frames / rate; // both already floats in TS
         // ```
-        return frames as f64 / rate as f64
+        return frames as f64 / rate as f64;
     }
 
     /// What:
@@ -1402,7 +1429,7 @@ impl Engine {
         // ```ts
         // return Atomics.load(this.control.durationMs, 0) / MILLIS_PER_SEC;
         // ```
-        return self.control.duration_ms.load(Ordering::Acquire) as f64 / MILLIS_PER_SEC
+        return self.control.duration_ms.load(Ordering::Acquire) as f64 / MILLIS_PER_SEC;
     }
 
     /// What:
@@ -1434,7 +1461,8 @@ impl Engine {
         //   Atomics.load(this.control.playing, 0) && !Atomics.load(this.control.ended, 0)
         // );
         // ```
-        return self.control.playing.load(Ordering::Acquire) && !self.control.ended.load(Ordering::Acquire)
+        return self.control.playing.load(Ordering::Acquire)
+            && !self.control.ended.load(Ordering::Acquire);
     }
 
     /// What:
@@ -1459,7 +1487,7 @@ impl Engine {
         // ```ts
         // return Atomics.load(this.control.ended, 0);
         // ```
-        return self.control.ended.load(Ordering::Acquire)
+        return self.control.ended.load(Ordering::Acquire);
     }
 
     /// What:
@@ -1484,7 +1512,7 @@ impl Engine {
         // ```ts
         // return Atomics.load(this.control.failedLoad, 0);
         // ```
-        return self.control.failed_load.load(Ordering::Acquire)
+        return self.control.failed_load.load(Ordering::Acquire);
     }
 
     /// What:
@@ -1511,7 +1539,7 @@ impl Engine {
         // ```ts
         // return this.playIntent;
         // ```
-        return self.play_intent
+        return self.play_intent;
     }
 }
 

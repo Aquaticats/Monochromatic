@@ -25,7 +25,10 @@
 //!  platforms that have them set the flags themselves.
 
 /// Imports the bones profile walk and the hot-slot selection.
-use crate::bones::{bones_hot_bins, flac_bones_profile};
+use crate::bones::{
+    bones_hot_bins,
+    flac_bones_profile,
+};
 /// Imports the provenance signals the resolver consumes.
 use crate::bucketpolicy::TrackProvenance;
 /// Imports the policy for the bones seed count.
@@ -55,7 +58,7 @@ fn sniff_flac(bytes: &[u8]) -> bool {
         let offset = 10 + tag_size + footer;
         return bytes.len() >= offset + 4 && &bytes[offset..offset + 4] == b"fLaC";
     }
-    return false
+    return false;
 }
 
 /// The resolver's inputs from a file's raw bytes.
@@ -69,13 +72,22 @@ fn sniff_flac(bytes: &[u8]) -> bool {
 ///  Why:
 ///  one call turns bytes into everything
 /// `resolve_decision_for` needs beyond the decoded source.
-pub fn probe_inputs_from_bytes(bytes: &[u8], policy: &Policy) -> (TrackProvenance, Option<Vec<usize>>) {
+pub fn probe_inputs_from_bytes(
+    bytes: &[u8],
+    policy: &Policy,
+) -> (TrackProvenance, Option<Vec<usize>>) {
     if !sniff_flac(bytes) {
         // Not FLAC: the uninformed provenance. Debug, not warn, since lossy files are normal.
-        tracing::debug!(bytes = bytes.len(), "not a flac container; using the bare bucket");
+        tracing::debug!(
+            bytes = bytes.len(),
+            "not a flac container; using the bare bucket"
+        );
         return (TrackProvenance::unknown(), None);
     }
-    let provenance = TrackProvenance { lossless: true, ..TrackProvenance::unknown() };
+    let provenance = TrackProvenance {
+        lossless: true,
+        ..TrackProvenance::unknown()
+    };
     // A failed walk keeps the lossless bucket without bones (its plain, deeper dial); the
     // cause is logged here rather than swallowed by the old `.ok()`.
     let bones = match flac_bones_profile(bytes) {
@@ -86,7 +98,7 @@ pub fn probe_inputs_from_bytes(bytes: &[u8], policy: &Policy) -> (TrackProvenanc
             None
         }
     };
-    return (provenance, bones)
+    return (provenance, bones);
 }
 
 /// The resolver's inputs from a file path.
@@ -100,7 +112,10 @@ pub fn probe_inputs_from_bytes(bytes: &[u8], policy: &Policy) -> (TrackProvenanc
 ///
 /// @example desktop:
 ///  `let (provenance, bones) = probe_inputs_from_file(path, &policy);`
-pub fn probe_inputs_from_file(path: &Path, policy: &Policy) -> (TrackProvenance, Option<Vec<usize>>) {
+pub fn probe_inputs_from_file(
+    path: &Path,
+    policy: &Policy,
+) -> (TrackProvenance, Option<Vec<usize>>) {
     // The degradation contract: any read failure lands in the bare bucket, cause logged.
     match fs::read(path) {
         Ok(bytes) => return probe_inputs_from_bytes(&bytes, policy),
@@ -111,7 +126,7 @@ pub fn probe_inputs_from_file(path: &Path, policy: &Policy) -> (TrackProvenance,
                 cause = %error,
                 "could not read file for probe inputs; using the bare bucket"
             );
-            return (TrackProvenance::unknown(), None)
+            return (TrackProvenance::unknown(), None);
         }
     }
 }

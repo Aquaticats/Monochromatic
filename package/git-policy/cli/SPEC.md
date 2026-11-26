@@ -13250,8 +13250,9 @@ in-process reader can) gives every value of the multi-valued keys.
   a control that must see it fire cannot wait that long,
   so `CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`,
   a positive whole number of seconds,
-  shortens it for every run of the process,
-  in the manner of the crate's other control-only variables.
+  shortens it for every run of a build made for a control,
+  in the manner of the crate's other control-only variables;
+  a release build holds no read of it.
   One limit applies,
   in whole seconds and ignored when zero,
   negative,
@@ -13868,7 +13869,8 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
   (`lock_birth_times.rs`);
   a control states a file system of one-second ticks,
   and one of no birth times,
-  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`;
+  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`,
+  which only a build made for a control reads;
 - **no live process has that number**.
   A number a process has now is no proof of anything:
   it may be the recorded process that still runs,
@@ -16700,6 +16702,11 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+A process whose process limit refuses that thread says which limit refused it,
+and writes every line on the thread that says it instead:
+one write, made only where the descriptor reports room,
+so no caller waits for a reader and nothing a command says is lost
+(issue 6476).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -23362,9 +23369,13 @@ Until step 19 adds the `ExecStartPre=-`,
 no boot unit runs the probe,
 and it runs only from a transient unit in a guest.
 
-Test-only variables are compiled into the release executable and inert unless
-set,
-and none turns a refusal into a pass:
+A build the release ships reads no test-only variable at all:
+a `CLI_GIT_TEST_ONLY_*` value is read only by a build made for a control,
+which turns on the Cargo feature `test-only-switches`
+(and `start-probe-raised-deadline` for the probe's own deadline below),
+so a unit's `Environment=` line cannot arm one in a shipped run
+(`doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`).
+None of them turns a refusal into a pass:
 `CLI_GIT_TEST_ONLY_START_PROBE` takes `disabled`,
 which writes a skipped record for the timing control arm,
 or `hold-<step>`,
@@ -23519,6 +23530,8 @@ and compare each commit line with native Git field by field.
 Phases that have no hook are reached through a test-only phase marker:
 `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill[:<directory>]` makes the wrapper `SIGKILL` itself at the phase,
 and `<phase>:pause:<directory>` writes `<directory>/<phase>.reached` and waits for `<directory>/<phase>.release`.
+A release build holds no read of that variable,
+so only a build made for a control reaches a marker at all.
 The phases that are still reached are `service-staged`
 (a commit has staged its content in the private index and has not yet read it back),
 `service-prepared`

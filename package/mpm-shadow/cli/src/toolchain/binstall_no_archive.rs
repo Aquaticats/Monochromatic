@@ -44,7 +44,10 @@ fn has_reason_marker(line: &str) -> bool {
 }
 
 /// Whether the line is already among the reasons collected.
-fn is_listed(reasons: &[String], line: &str) -> bool {
+fn is_listed(
+    reasons: &[String],
+    line: &str,
+) -> bool {
     for seen in reasons {
         if seen == line {
             return true;
@@ -56,7 +59,10 @@ fn is_listed(reasons: &[String], line: &str) -> bool {
 /// Whether cargo-binstall's output says it stopped because compiling is disabled,
 /// however its error report wrapped the sentence.
 fn stopped_for_disabled_compile(text: &str) -> bool {
-    let words: Vec<&str> = text.split_whitespace().filter(is_not_report_drawing).collect();
+    let words: Vec<&str> = text
+        .split_whitespace()
+        .filter(is_not_report_drawing)
+        .collect();
     return words.join(" ").contains(COMPILE_DISABLED_TEXT);
 }
 
@@ -94,7 +100,12 @@ fn reason_lines(text: &str) -> Vec<String> {
 /// ```ts
 /// export function noArchiveFailure(toolId: string, crate: string, version: string, outcome: RunOutcome): Error | undefined
 /// ```
-pub fn no_archive_failure(tool_id: &str, crate_name: &str, version: &str, outcome: &RunOutcome) -> Option<ToolchainError> {
+pub fn no_archive_failure(
+    tool_id: &str,
+    crate_name: &str,
+    version: &str,
+    outcome: &RunOutcome,
+) -> Option<ToolchainError> {
     let text: String = format!("{}\n{}", outcome.stdout, outcome.stderr);
     if !stopped_for_disabled_compile(&text) {
         return None;

@@ -37,7 +37,10 @@ use crate::track_measure::TrackMeasure;
 /// ```ts
 /// const applyMeasures = (current: Map<string, M>, updates: [string, M][]) => { for (const [p, m] of updates) current.set(p, m); };
 /// ```
-pub fn apply_measures(current: &mut HashMap<PathBuf, TrackMeasure>, updates: &[(PathBuf, TrackMeasure)]) {
+pub fn apply_measures(
+    current: &mut HashMap<PathBuf, TrackMeasure>,
+    updates: &[(PathBuf, TrackMeasure)],
+) {
     current.reserve(updates.len());
     for (path, measure) in updates {
         current.insert(path.clone(), *measure);

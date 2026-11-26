@@ -232,7 +232,11 @@ pub use crate::error::CompileError;
 /// ```ts
 /// // Same step as the Rust statement below, written with ordinary TS objects/functions.
 /// ```
-pub use crate::regex::{Regex, RegexSet, compile};
+pub use crate::regex::{
+    Regex,
+    RegexSet,
+    compile,
+};
 
 /// Diagnostic:
 ///  debug-prints the parsed node of a pattern that has no usable seed.
@@ -257,9 +261,9 @@ pub fn debug_seedless(pattern: &str) -> Option<String> {
     let leading = crate::counting::leading_seeds(&node);
     let seeds = crate::counting::seeds_from_node(&node);
     if leading.is_empty() && seeds.is_empty() {
-        return Some(format!("{node:?}"))
+        return Some(format!("{node:?}"));
     } else {
-        return None
+        return None;
     }
 }
 
@@ -295,5 +299,5 @@ pub fn try_combined_dfa(patterns: &[&str]) -> Result<usize, CompileError> {
     }
     let union = crate::ast::smart::alt(roots);
     let combined = crate::ast::smart::concat(vec![crate::ast::node::Node::Top, union]);
-    return Ok(crate::dfa::build_dfa_within(combined, 65_534)?.num_states as usize)
+    return Ok(crate::dfa::build_dfa_within(combined, 65_534)?.num_states as usize);
 }

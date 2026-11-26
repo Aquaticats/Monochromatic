@@ -16,35 +16,56 @@
 
 /// Imports `ConfigScope`,
 /// `decode_config` from `crate::config_decode`.
-use crate::config_decode::{ConfigScope, decode_config};
+use crate::config_decode::{
+    ConfigScope,
+    decode_config,
+};
 /// Imports `load_config_file` from `crate::config_load`.
 use crate::config_load::load_config_file;
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
 /// Imports `Drift`,
 /// `compute_drift` from `crate::drift`.
-use crate::drift::{Drift, compute_drift};
+use crate::drift::{
+    Drift,
+    compute_drift,
+};
 /// Imports `EventSink` from `crate::event`.
 use crate::event::EventSink;
 /// Imports `explain`,
 /// `normalize_target` from `crate::explain`.
-use crate::explain::{explain, normalize_target};
+use crate::explain::{
+    explain,
+    normalize_target,
+};
 /// Imports `OutputScope`,
 /// `select_drifts` from `crate::output_scope`.
-use crate::output_scope::{OutputScope, select_drifts};
+use crate::output_scope::{
+    OutputScope,
+    select_drifts,
+};
 /// Imports `PlanReport`,
 /// `plan_run` from `crate::plan`.
-use crate::plan::{PlanReport, plan_run};
+use crate::plan::{
+    PlanReport,
+    plan_run,
+};
 /// Imports `RuleRegistry` from `crate::registry`.
 use crate::registry::RuleRegistry;
 /// Imports `Rule` from `crate::rule`.
 use crate::rule::Rule;
 /// Imports `finish_check`,
 /// `finish_write` from `crate::run_finish`.
-use crate::run_finish::{finish_check, finish_write};
+use crate::run_finish::{
+    finish_check,
+    finish_write,
+};
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///   Exit code `0`.
@@ -149,7 +170,10 @@ pub struct RunRequest {
 /// ```ts
 /// function emitErrors(sink: EventSink, errors: Diagnostic[]): void
 /// ```
-pub fn emit_errors(sink: &mut dyn EventSink, errors: &[Diagnostic]) {
+pub fn emit_errors(
+    sink: &mut dyn EventSink,
+    errors: &[Diagnostic],
+) {
     for error in errors {
         sink.emit(error.to_event("error"));
     }
@@ -167,7 +191,11 @@ pub fn emit_errors(sink: &mut dyn EventSink, errors: &[Diagnostic]) {
 /// ```ts
 /// function loadRules(request: RunRequest, registry: RuleRegistry, sink: EventSink): Rule[] | number
 /// ```
-pub fn load_rules(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink) -> Result<Vec<Box<dyn Rule>>, i32> {
+pub fn load_rules(
+    request: &RunRequest,
+    registry: &RuleRegistry,
+    sink: &mut dyn EventSink,
+) -> Result<Vec<Box<dyn Rule>>, i32> {
     let document = match load_config_file(&request.config_path) {
         Ok(document) => document,
         Err(error) => {
@@ -202,7 +230,10 @@ pub fn load_rules(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn 
 /// ```ts
 /// function emitWarnings(sink: EventSink, report: PlanReport): void
 /// ```
-fn emit_warnings(sink: &mut dyn EventSink, report: &PlanReport) {
+fn emit_warnings(
+    sink: &mut dyn EventSink,
+    report: &PlanReport,
+) {
     for warning in &report.warnings {
         sink.emit(warning.to_event("warning"));
     }
@@ -223,7 +254,12 @@ fn emit_warnings(sink: &mut dyn EventSink, report: &PlanReport) {
 /// ```ts
 /// function planAndDiff(root: string, rules: Rule[], revalidate: boolean, outputs: OutputScope): [PlanReport, Drift[]]
 /// ```
-fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool, outputs: OutputScope) -> Result<(PlanReport, Vec<Drift>), Diagnostic> {
+fn plan_and_diff(
+    root: &Path,
+    rules: &[Box<dyn Rule>],
+    revalidate: bool,
+    outputs: OutputScope,
+) -> Result<(PlanReport, Vec<Drift>), Diagnostic> {
     let mut attempts = 0;
     loop {
         let mut report = plan_run(root, rules);
@@ -242,8 +278,12 @@ fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool, outputs
             return Ok((report, drifts));
         }
         if attempts >= REPLAN_LIMIT {
-            let message = format!("{} changed while the plan was being built, {attempts} times in a row", changed.join(", "));
-            return Err(Diagnostic::new("snapshot-changed", &message).with_hint("stop the other writer and run again"));
+            let message = format!(
+                "{} changed while the plan was being built, {attempts} times in a row",
+                changed.join(", ")
+            );
+            return Err(Diagnostic::new("snapshot-changed", &message)
+                .with_hint("stop the other writer and run again"));
         }
     }
 }
@@ -257,7 +297,11 @@ fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool, outputs
 /// ```ts
 /// function run(request: RunRequest, registry: RuleRegistry, sink: EventSink): number
 /// ```
-pub fn run(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink) -> i32 {
+pub fn run(
+    request: &RunRequest,
+    registry: &RuleRegistry,
+    sink: &mut dyn EventSink,
+) -> i32 {
     let mut paths = WatchPaths::default();
     return run_detailed(request, registry, sink, &mut paths);
 }
@@ -293,13 +337,22 @@ pub struct WatchPaths {
 /// ```ts
 /// function runDetailed(request: RunRequest, registry: RuleRegistry, sink: EventSink, paths: WatchPaths): number
 /// ```
-pub fn run_detailed(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink, paths: &mut WatchPaths) -> i32 {
+pub fn run_detailed(
+    request: &RunRequest,
+    registry: &RuleRegistry,
+    sink: &mut dyn EventSink,
+    paths: &mut WatchPaths,
+) -> i32 {
     let rules = match load_rules(request, registry, sink) {
         Ok(rules) => rules,
         Err(code) => return code,
     };
     let is_write = request.mode == RunMode::Write;
-    let outputs = if matches!(request.mode, RunMode::Explain { .. }) { OutputScope::All } else { request.outputs };
+    let outputs = if matches!(request.mode, RunMode::Explain { .. }) {
+        OutputScope::All
+    } else {
+        request.outputs
+    };
     let (report, drifts) = match plan_and_diff(&request.root, &rules, is_write, outputs) {
         Ok(pair) => pair,
         Err(error) => {
@@ -315,14 +368,19 @@ pub fn run_detailed(request: &RunRequest, registry: &RuleRegistry, sink: &mut dy
         emit_errors(sink, &report.errors);
         return EXIT_DRIFT;
     }
-    if let RunMode::Explain { path } = &request.mode {
+    if let RunMode::Explain {
+        path,
+    } = &request.mode
+    {
         for event in explain(&report, &normalize_target(&request.root, path)) {
             sink.emit(event);
         }
         return EXIT_CLEAN;
     }
     match &request.mode {
-        RunMode::Check { expected_dir } => return finish_check(request, sink, &drifts, expected_dir),
+        RunMode::Check {
+            expected_dir,
+        } => return finish_check(request, sink, &drifts, expected_dir),
         _ => return finish_write(request, sink, &report, &drifts),
     }
 }

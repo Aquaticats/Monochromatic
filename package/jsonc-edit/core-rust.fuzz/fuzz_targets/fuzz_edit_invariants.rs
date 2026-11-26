@@ -13,11 +13,6 @@
 #![no_main]
 
 /// What:
-///      Import the harness macro.
-/// Why:
-///       Every target in this sidecar is a libFuzzer entry point.
-use libfuzzer_sys::fuzz_target;
-/// What:
 ///      Import the byte-budget reader.
 /// Why:
 ///       Address selection and the action choice both come from fuzzer bytes.
@@ -34,9 +29,18 @@ use jsonc_edit_fuzz::generators::replacement_value;
 ///  and only checkable against the
 ///           same properties the other targets assert.
 use jsonc_edit_fuzz::{
-    assert_canonical_stability, assert_comments_preserved, assert_depth_bound, assert_trees_equal, random_path,
     GeneratedDocument,
+    assert_canonical_stability,
+    assert_comments_preserved,
+    assert_depth_bound,
+    assert_trees_equal,
+    random_path,
 };
+/// What:
+///      Import the harness macro.
+/// Why:
+///       Every target in this sidecar is a libFuzzer entry point.
+use libfuzzer_sys::fuzz_target;
 /// What:
 ///      Import the crate's edit,
 ///  query and emission surface.
@@ -44,17 +48,32 @@ use jsonc_edit_fuzz::{
 ///       The target exercises the API a consumer uses,
 ///  not internals.
 use monochromatic_jsonc_edit::{
-    emit_jsonc_value, jsonc_comment, jsonc_delete, jsonc_has, jsonc_key_comment, jsonc_lookup, jsonc_set,
-    jsonc_set_comment, jsonc_set_key_comment, parse_jsonc, parse_jsonc_edit, JsoncComment, JsoncCommentKind,
+    JsoncComment,
+    JsoncCommentKind,
     JsoncPathSegment,
+    emit_jsonc_value,
+    jsonc_comment,
+    jsonc_delete,
+    jsonc_has,
+    jsonc_key_comment,
+    jsonc_lookup,
+    jsonc_set,
+    jsonc_set_comment,
+    jsonc_set_key_comment,
+    parse_jsonc,
+    parse_jsonc_edit,
 };
 
 fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
     let (document, noise) = input;
     let mut unstructured = Unstructured::new(&noise);
 
-    let state = parse_jsonc_edit(&document.source)
-        .unwrap_or_else(|error| panic!("generated document rejected: {error}\n{:?}", document.source));
+    let state = parse_jsonc_edit(&document.source).unwrap_or_else(|error| {
+        panic!(
+            "generated document rejected: {error}\n{:?}",
+            document.source
+        )
+    });
     // A second, independent parse is the reference copy for the immutability assertion.
     let reference = parse_jsonc(&document.source).expect("generated document parses twice");
 
@@ -69,9 +88,13 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
         0 => {
             // Set: write a generated value at the address, carrying the existing comment across so
             // comment preservation can be asserted on the result.
-            let Ok(target) = jsonc_lookup(&state.root, &path) else { return };
+            let Ok(target) = jsonc_lookup(&state.root, &path) else {
+                return;
+            };
             // An exhausted byte budget is not a defect, so the input is skipped rather than failed.
-            let Ok(mut replacement) = replacement_value(&mut unstructured) else { return };
+            let Ok(mut replacement) = replacement_value(&mut unstructured) else {
+                return;
+            };
             replacement.comment = target.comment.clone();
             written = Some(replacement.clone());
             match jsonc_set(&state.root, &path, replacement) {
@@ -79,7 +102,10 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
                 Err(error) => {
                     // The only refusal this target may provoke is the root shape guard: a scalar at
                     // the root would break the container-root contract, so the crate refuses it.
-                    assert!(path.is_empty(), "set at a resolved address was refused: {error}");
+                    assert!(
+                        path.is_empty(),
+                        "set at a resolved address was refused: {error}"
+                    );
                     return;
                 }
             }
@@ -93,13 +119,24 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
         }
         2 => {
             // Attach a multi-line value comment, which forces leading placement during emission.
-            let comment = JsoncComment { kind: JsoncCommentKind::Block, text: " fuzz\nnote ".to_string() };
+            let comment = JsoncComment {
+                kind: JsoncCommentKind::Block,
+                text: " fuzz\nnote ".to_string(),
+            };
             jsonc_set_comment(&state.root, &path, Some(comment)).expect("comment attaches")
         }
         3 => {
             // Attach a key comment, which only exists where the final segment names a member.
-            let Some(JsoncPathSegment::Key { .. }) = path.last() else { return };
-            let comment = JsoncComment { kind: JsoncCommentKind::Line, text: " fuzzkey ".to_string() };
+            let Some(JsoncPathSegment::Key {
+                ..
+            }) = path.last()
+            else {
+                return;
+            };
+            let comment = JsoncComment {
+                kind: JsoncCommentKind::Line,
+                text: " fuzzkey ".to_string(),
+            };
             jsonc_set_key_comment(&state.root, &path, Some(comment)).expect("key comment attaches")
         }
         _ => {
@@ -114,7 +151,8 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
     // The edited document must satisfy the same properties an untouched one does.
     assert_depth_bound(&edited);
     let emitted = emit_jsonc_value(&edited);
-    let reparsed = parse_jsonc(&emitted).unwrap_or_else(|error| panic!("edited emission rejected: {error}\n{emitted}"));
+    let reparsed = parse_jsonc(&emitted)
+        .unwrap_or_else(|error| panic!("edited emission rejected: {error}\n{emitted}"));
     assert_depth_bound(&reparsed);
     assert_comments_preserved(&edited, &emitted);
     assert_canonical_stability(&emitted);
@@ -123,8 +161,14 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
         // A set must be visible at the address it was written to, with the value that was written.
         let found = jsonc_lookup(&edited, &path).expect("address still resolves after set");
         assert_eq!(
-            format!("{:?}", found.kind).split(' ').next().unwrap_or_default(),
-            format!("{:?}", expected.kind).split(' ').next().unwrap_or_default(),
+            format!("{:?}", found.kind)
+                .split(' ')
+                .next()
+                .unwrap_or_default(),
+            format!("{:?}", expected.kind)
+                .split(' ')
+                .next()
+                .unwrap_or_default(),
             "set wrote a different kind of value than the address now holds"
         );
     }
@@ -137,26 +181,47 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
         let before = jsonc_lookup(&state.root, parent).expect("parent resolves before the delete");
         let after = jsonc_lookup(&edited, parent).expect("parent resolves after the delete");
         match path.last() {
-            Some(JsoncPathSegment::Key { .. }) => {
+            Some(JsoncPathSegment::Key {
+                ..
+            }) => {
                 assert!(!jsonc_has(&edited, &path), "deleted member still resolves");
                 let siblings_before = before.entries().expect("record parent").len();
                 let siblings_after = after.entries().expect("record parent").len();
-                assert_eq!(siblings_after + 1, siblings_before, "member delete did not remove exactly one member");
+                assert_eq!(
+                    siblings_after + 1,
+                    siblings_before,
+                    "member delete did not remove exactly one member"
+                );
             }
-            Some(JsoncPathSegment::Index { .. }) => {
+            Some(JsoncPathSegment::Index {
+                ..
+            }) => {
                 let elements_before = before.elements().expect("array parent").len();
                 let elements_after = after.elements().expect("array parent").len();
-                assert_eq!(elements_after + 1, elements_before, "element delete did not remove exactly one element");
+                assert_eq!(
+                    elements_after + 1,
+                    elements_before,
+                    "element delete did not remove exactly one element"
+                );
             }
             None => panic!("the root address returns before any delete"),
         }
     }
     if action == 2 {
         let found = jsonc_comment(&reparsed, &path).expect("comment query on reparsed document");
-        assert_eq!(found.map(|comment| return comment.text.as_str()), Some(" fuzz\nnote "), "value comment did not survive the round trip");
+        assert_eq!(
+            found.map(|comment| return comment.text.as_str()),
+            Some(" fuzz\nnote "),
+            "value comment did not survive the round trip"
+        );
     }
     if action == 3 {
-        let found = jsonc_key_comment(&reparsed, &path).expect("key comment query on reparsed document");
-        assert_eq!(found.map(|comment| return comment.text.as_str()), Some(" fuzzkey "), "key comment did not survive the round trip");
+        let found =
+            jsonc_key_comment(&reparsed, &path).expect("key comment query on reparsed document");
+        assert_eq!(
+            found.map(|comment| return comment.text.as_str()),
+            Some(" fuzzkey "),
+            "key comment did not survive the round trip"
+        );
     }
 });

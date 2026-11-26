@@ -17,6 +17,44 @@
 //! export function observeAll(ctx: Context, tools: LockedTool[]): Observation[]
 //! ```
 
+/// Imports `winning_version` from `super::across_roots`.
+use super::across_roots::winning_version;
+/// Imports what this module uses from `super::cargo_installs`.
+use super::cargo_installs::{
+    is_repository_published,
+    observed_cargo_version,
+};
+/// Imports `Context` from `super::context`.
+use super::context::Context;
+/// Imports `is_executable` and what else this module uses from `super::layout`.
+use super::layout::{
+    applies_to_family,
+    go_bin_dir_of,
+    is_executable,
+    tool_directory,
+    tool_install_dir,
+};
+/// Imports what this module uses from `super::model`.
+use super::model::{
+    Declaration,
+    LockedTool,
+    Origin,
+    Route,
+};
+/// Imports what this module uses from `super::parse_output`.
+use super::parse_output::{
+    global_pnpm_versions,
+    parse_bin_list,
+    parse_uv_tool_list,
+    version_matches,
+};
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::is_published_archive;
+/// Imports what this module uses from `super::runner`.
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+};
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 /// Imports `Value` from `serde_json`.
@@ -26,25 +64,10 @@ use std::cmp::Ordering;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
-/// Imports `winning_version` from `super::across_roots`.
-use super::across_roots::winning_version;
-/// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_repository_published, observed_cargo_version};
-/// Imports `Context` from `super::context`.
-use super::context::Context;
-/// Imports `is_executable` and what else this module uses from `super::layout`.
-use super::layout::{applies_to_family, go_bin_dir_of, is_executable, tool_directory, tool_install_dir};
-/// Imports what this module uses from `super::model`.
-use super::model::{Declaration, LockedTool, Origin, Route};
-/// Imports what this module uses from `super::published_archive`.
-use super::published_archive::is_published_archive;
-/// Imports what this module uses from `super::parse_output`.
-use super::parse_output::{
-    global_pnpm_versions, parse_bin_list, parse_uv_tool_list, version_matches,
+use std::path::{
+    Path,
+    PathBuf,
 };
-/// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
 
 /// What:
 /// The package key under `uv tool list`:
@@ -87,18 +110,29 @@ pub fn declared_package_name(declaration: &Declaration) -> String {
         return package_id.clone();
     }
     return match declaration.request.origin() {
-        Origin::Npm(name) | Origin::Cargo(name) | Origin::Pipx(name) | Origin::Conda(name) | Origin::GoModule(name) => name,
+        Origin::Npm(name)
+        | Origin::Cargo(name)
+        | Origin::Pipx(name)
+        | Origin::Conda(name)
+        | Origin::GoModule(name) => name,
         _ => declaration.id.clone(),
     };
 }
 
 /// `bin list`,
 /// for the bin-sourced route.
-fn observe_bin_sourced(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_bin_sourced(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     let cli: PathBuf = ctx.find_bin_of("bin", "bin", &[])?;
     let mut env = ctx.path_env();
-    env.insert("BIN_CONFIG".to_string(), ctx.scope.bin_config_file.to_string_lossy().to_string());
-    let outcome: RunOutcome = ctx.run(&RunRequest::new(&cli.to_string_lossy(), &["list"]).with_env(env));
+    env.insert(
+        "BIN_CONFIG".to_string(),
+        ctx.scope.bin_config_file.to_string_lossy().to_string(),
+    );
+    let outcome: RunOutcome =
+        ctx.run(&RunRequest::new(&cli.to_string_lossy(), &["list"]).with_env(env));
     // A listing that failed proves nothing about what is installed, and only the rows `bin list` writes on standard
     // output are a listing: a diagnostic on standard error that looks like a row is not one.
     if !outcome.succeeded() {
@@ -116,29 +150,45 @@ fn observe_bin_sourced(ctx: &Context, tool: &LockedTool) -> Option<String> {
 /// The cargo install root of the crate's version directory,
 /// for the cargo-binstall route (never `cargo binstall --list` or `$CARGO_HOME`,
 /// which describe the shared install).
-fn observe_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_cargo_binstall(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     return observed_cargo_version(ctx.scope, tool);
 }
 
 /// `pnpm list --global --depth=0 --json`,
 /// for the mpm-pnpm route.
-fn observe_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_mpm_pnpm(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     let pnpm: PathBuf = ctx.find_bin_of("pnpm", "pnpm", &[])?;
-    let outcome: RunOutcome = ctx.run(&ctx.pnpm_request(&pnpm.to_string_lossy(), &["list", "--global", "--depth=0", "--json"]));
+    let outcome: RunOutcome = ctx.run(&ctx.pnpm_request(
+        &pnpm.to_string_lossy(),
+        &["list", "--global", "--depth=0", "--json"],
+    ));
     let parsed: Value = match serde_json::from_str(&outcome.stdout) {
         Ok(value) => value,
         // Not JSON: pnpm failed or printed something else, so the tool is read as absent.
         Err(_) => return None,
     };
-    return global_pnpm_versions(&parsed).get(&package_name(tool)).cloned();
+    return global_pnpm_versions(&parsed)
+        .get(&package_name(tool))
+        .cloned();
 }
 
 /// `uv tool list`,
 /// for the mpm-uvx route.
-fn observe_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_mpm_uvx(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     let uv: PathBuf = ctx.find_bin_of("uv", "uv", &[])?;
     let outcome: RunOutcome = ctx.run(&ctx.request(&uv.to_string_lossy(), &["tool", "list"]));
-    return parse_uv_tool_list(&outcome.stdout).get(&uv_key(tool)).cloned();
+    return parse_uv_tool_list(&outcome.stdout)
+        .get(&uv_key(tool))
+        .cloned();
 }
 
 /// What:
@@ -154,7 +204,10 @@ fn observe_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Option<String> {
 /// so no name is guessed and a toolchain for another host is never taken for this one.
 /// `rustup_query` keeps the question from installing a toolchain that is missing,
 /// and a query that failed or printed no path proves nothing.
-fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_rustup_toolchain(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     let channel: &str = tool.rustup_channel();
     let rustc: PathBuf = resolved_rustc(ctx, channel)?;
     // What: a row whose channel text differs from its version also asks that toolchain's compiler which release
@@ -164,7 +217,10 @@ fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> 
     // A locked text that names no release (a dated channel such as `nightly-2026-10-30`) is not compared: the
     // compiler of such a channel reports `1.9x.0-nightly`, which names no channel date, and the dated channel
     // text is the identity.
-    if channel != tool.version && names_a_release(&tool.version) && !compiler_reports(ctx, &rustc, &tool.version) {
+    if channel != tool.version
+        && names_a_release(&tool.version)
+        && !compiler_reports(ctx, &rustc, &tool.version)
+    {
         return None;
     }
     return Some(channel.to_string());
@@ -175,8 +231,12 @@ fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> 
 /// or `None` when rustup says that channel is not installed.
 /// Why:
 /// The path is what the version question runs, and its absence is the answer that the channel is not installed.
-fn resolved_rustc(ctx: &Context, channel: &str) -> Option<PathBuf> {
-    let outcome: RunOutcome = ctx.run(&ctx.rustup_query(&["which", "--toolchain", channel, "rustc"]));
+fn resolved_rustc(
+    ctx: &Context,
+    channel: &str,
+) -> Option<PathBuf> {
+    let outcome: RunOutcome =
+        ctx.run(&ctx.rustup_query(&["which", "--toolchain", channel, "rustc"]));
     if !outcome.succeeded() {
         return None;
     }
@@ -191,7 +251,11 @@ fn resolved_rustc(ctx: &Context, channel: &str) -> Option<PathBuf> {
 /// Whether the compiler at `rustc` reports the release `locked` names (`rustc 1.90.0 (hash date)`).
 /// Why:
 /// The installed compiler is the only witness of which release a moving channel holds now.
-fn compiler_reports(ctx: &Context, rustc: &Path, locked: &str) -> bool {
+fn compiler_reports(
+    ctx: &Context,
+    rustc: &Path,
+    locked: &str,
+) -> bool {
     let outcome: RunOutcome = ctx.run(&ctx.request(&rustc.to_string_lossy(), &["--version"]));
     if !outcome.succeeded() {
         return false;
@@ -208,16 +272,27 @@ fn compiler_reports(ctx: &Context, rustc: &Path, locked: &str) -> bool {
 /// Only a release text is something a compiler can confirm or contradict;
 /// a channel text is the toolchain's identity, which `rustup which` already resolved.
 fn names_a_release(text: &str) -> bool {
-    let without_prefix: &str = text.strip_prefix('v').filter(|rest| return !rest.is_empty()).unwrap_or(text);
+    let without_prefix: &str = text
+        .strip_prefix('v')
+        .filter(|rest| return !rest.is_empty())
+        .unwrap_or(text);
     return without_prefix.starts_with(|first: char| return first.is_ascii_digit());
 }
 
 /// The Android command-line tools directory for the locked version,
 /// for the android-sdk route.
-fn observe_android_sdk(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_android_sdk(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     // A name that is not one plain directory name is refused where the lock is decoded; for any other value the
     // answer "not installed" is the safe one.
-    let install: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version).ok()?;
+    let install: PathBuf = tool_install_dir(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )
+    .ok()?;
     if install.join("cmdline-tools").join(&tool.version).exists() {
         return Some(tool.version.clone());
     }
@@ -254,8 +329,12 @@ fn version_directory_names(tool_root: &Path) -> Vec<String> {
 /// ```ts
 /// function observeVersionDirectory(ctx: Context, tool: LockedTool): string | undefined
 /// ```
-fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let tool_root: PathBuf = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id).ok()?;
+fn observe_version_directory(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
+    let tool_root: PathBuf =
+        tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id).ok()?;
     let names: Vec<String> = version_directory_names(&tool_root);
     if names.contains(&tool.version) {
         return Some(tool.version.clone());
@@ -266,7 +345,10 @@ fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String>
 /// Whether the `bin` directory of one Go-installed version holds what `go install` writes there:
 /// every executable the declaration names,
 /// or any executable file when it names none.
-fn go_bins_present(bin_dir: &Path, tool: &LockedTool) -> bool {
+fn go_bins_present(
+    bin_dir: &Path,
+    tool: &LockedTool,
+) -> bool {
     if tool.declaration.bins.is_empty() {
         let Ok(entries) = fs::read_dir(bin_dir) else {
             return false;
@@ -305,7 +387,10 @@ fn go_bins_present(bin_dir: &Path, tool: &LockedTool) -> bool {
 /// ```ts
 /// function observeGoInstall(ctx: Context, tool: LockedTool): string | undefined
 /// ```
-fn observe_go_install(ctx: &Context, tool: &LockedTool) -> Option<String> {
+fn observe_go_install(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     let mut candidates: Vec<String> = vec![tool.version.clone()];
     let Ok(tool_root) = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id) else {
         return None;
@@ -316,7 +401,8 @@ fn observe_go_install(ctx: &Context, tool: &LockedTool) -> Option<String> {
         }
     }
     for name in candidates {
-        let Ok(bin_dir) = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &name) else {
+        let Ok(bin_dir) = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &name)
+        else {
             continue;
         };
         if go_bins_present(&bin_dir, tool) {
@@ -338,7 +424,10 @@ fn observe_go_install(ctx: &Context, tool: &LockedTool) -> Option<String> {
 /// ```ts
 /// export function observeTool(ctx: Context, tool: LockedTool): string | undefined
 /// ```
-pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
+pub fn observe_tool(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Option<String> {
     match tool.declaration.route {
         Route::BinSourced => return observe_bin_sourced(ctx, tool),
         Route::CargoBinstall => return observe_cargo_binstall(ctx, tool),
@@ -388,7 +477,10 @@ pub fn compared_with_lock(tool: &LockedTool) -> &str {
 /// ```ts
 /// export function satisfiesLock(tool: LockedTool, observed: string): boolean
 /// ```
-pub fn satisfies_lock(tool: &LockedTool, observed: &str) -> bool {
+pub fn satisfies_lock(
+    tool: &LockedTool,
+    observed: &str,
+) -> bool {
     if is_repository_published(tool) {
         return compare_versions(observed, &tool.version) != Ordering::Less;
     }
@@ -422,7 +514,10 @@ pub struct Observation {
 /// ```ts
 /// export function observeAll(ctx: Context, tools: LockedTool[]): Observation[]
 /// ```
-pub fn observe_all(ctx: &Context, tools: &[LockedTool]) -> Vec<Observation> {
+pub fn observe_all(
+    ctx: &Context,
+    tools: &[LockedTool],
+) -> Vec<Observation> {
     let mut observations: Vec<Observation> = Vec::new();
     for tool in tools {
         if !applies_to_family(&tool.declaration.os, ctx.host.family) {
@@ -433,7 +528,12 @@ pub fn observe_all(ctx: &Context, tools: &[LockedTool]) -> Vec<Observation> {
             Some(version) => satisfies_lock(tool, version),
             None => false,
         };
-        observations.push(Observation { id: tool.declaration.id.clone(), locked: tool.version.clone(), observed, in_sync });
+        observations.push(Observation {
+            id: tool.declaration.id.clone(),
+            locked: tool.version.clone(),
+            observed,
+            in_sync,
+        });
     }
     return observations;
 }
@@ -453,7 +553,10 @@ pub fn format_status(observations: &[Observation]) -> String {
     let mut text: String = String::new();
     for observation in observations {
         if observation.in_sync {
-            text.push_str(&format!("ok      {}  {}\n", observation.id, observation.locked));
+            text.push_str(&format!(
+                "ok      {}  {}\n",
+                observation.id, observation.locked
+            ));
         } else {
             text.push_str(&format!(
                 "drift   {}  locked={}  observed={}\n",
@@ -470,9 +573,15 @@ pub fn format_status(observations: &[Observation]) -> String {
         }
     }
     if drifted == 0 {
-        text.push_str(&format!("toolchain list: {} tools in sync with toolchain.lock.json\n", observations.len()));
+        text.push_str(&format!(
+            "toolchain list: {} tools in sync with toolchain.lock.json\n",
+            observations.len()
+        ));
     } else {
-        text.push_str(&format!("toolchain list: {drifted} of {} tools drifted from toolchain.lock.json\n", observations.len()));
+        text.push_str(&format!(
+            "toolchain list: {drifted} of {} tools drifted from toolchain.lock.json\n",
+            observations.len()
+        ));
     }
     return text;
 }

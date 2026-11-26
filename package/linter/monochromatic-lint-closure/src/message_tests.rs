@@ -10,7 +10,13 @@
 //! ```
 
 /// Import the text builders under test and the constants they embed.
-use crate::message::{LIBRARY_NAME, LINT_NAME, capture_list, help_message, primary_message};
+use crate::message::{
+    LIBRARY_NAME,
+    LINT_NAME,
+    capture_list,
+    help_message,
+    primary_message,
+};
 /// Import the placement categories to enumerate.
 use crate::placement::Placement;
 

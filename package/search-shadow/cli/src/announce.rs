@@ -24,7 +24,10 @@
 use std::ffi::OsString;
 
 /// Imports `Write` (the trait that adds `write_all` and `flush` to standard output).
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 
 /// Imports the Unix-only trait that adds `.signal()` to an exit status,
 /// so a tool killed by a signal gets the shell's
@@ -32,16 +35,30 @@ use std::io::{self, Write};
 use std::os::unix::process::ExitStatusExt;
 
 /// Imports `Path` (a borrowed read-only path).
-use std::path::{self, Path};
+use std::path::{
+    self,
+    Path,
+};
 
 /// Imports `Command` (the builder that starts the real tool) and `ExitStatus` (how it ended).
-use std::process::{Command, ExitStatus};
+use std::process::{
+    Command,
+    ExitStatus,
+};
 
 /// Imports the check of the chosen program and the arrival marker of its start.
-use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
+use crate::shadow_identity::{
+    StartMode,
+    Vetted,
+    mark_start,
+    vet,
+};
 
 /// Imports the escape-hatch variable name (printed in the help section) and the exit code for a real tool that cannot start.
-use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE};
+use crate::constants::{
+    ALLOW_WIDE_VARIABLE,
+    EXEC_FAILED_EXIT_CODE,
+};
 
 /// What:
 /// `pub enum Announcement { Version, Help }` declares a type whose value is exactly one of the two listed
@@ -174,7 +191,10 @@ pub fn announced_flags(name: &str) -> Option<AnnouncedFlags> {
 ///   ...
 /// }
 /// ```
-pub fn announcement_for(name: &str, arguments: &[OsString]) -> Option<Announcement> {
+pub fn announcement_for(
+    name: &str,
+    arguments: &[OsString],
+) -> Option<Announcement> {
     let flags: AnnouncedFlags = announced_flags(name)?;
     if arguments.len() != 1 {
         return None;
@@ -229,7 +249,10 @@ fn absolute(real: &Path) -> String {
 /// ```ts
 /// export const versionLine = (name: string, real: string) => `search-shadow ${version}, shadowing ${name} at ${real}\n`;
 /// ```
-pub fn version_line(name: &str, real: &Path) -> String {
+pub fn version_line(
+    name: &str,
+    real: &Path,
+) -> String {
     return format!(
         "search-shadow {}, shadowing {name} at {}\n",
         env!("CARGO_PKG_VERSION"),
@@ -286,7 +309,10 @@ fn behaviour_lines(name: &str) -> String {
 /// ```ts
 /// export function helpSection(name: string, real: string): string { ... }
 /// ```
-pub fn help_section(name: &str, real: &Path) -> String {
+pub fn help_section(
+    name: &str,
+    real: &Path,
+) -> String {
     return format!(
         "\n{}The help above is the real {name}'s own. search-shadow starts it at best-effort disk priority 7 and:\n{}Run `search-shadow --help` for the shadow itself.\n",
         version_line(name, real),
@@ -342,7 +368,12 @@ fn exit_code_of(status: ExitStatus) -> i32 {
 ///   return result.status ?? 128 + signal;
 /// }
 /// ```
-pub fn run_announced(name: &str, real: &Path, arguments: &[OsString], announcement: Announcement) -> i32 {
+pub fn run_announced(
+    name: &str,
+    real: &Path,
+    arguments: &[OsString],
+    announcement: Announcement,
+) -> i32 {
     // What:     `Command::new(real).args(arguments).status()` starts the child (standard streams are inherited by
     // default for `.status()`), waits and returns a `Result` of how it ended. `match` picks the branch.
     // Why:      On a start failure the message and exit code are the same as for the normal path's failed launch.
@@ -355,7 +386,10 @@ pub fn run_announced(name: &str, real: &Path, arguments: &[OsString], announceme
     let vetted: Vetted = match vet(real) {
         Ok(checked) => checked,
         Err(reason) => {
-            eprintln!("search-shadow: could not start {}: {reason}", real.display());
+            eprintln!(
+                "search-shadow: could not start {}: {reason}",
+                real.display()
+            );
             return EXEC_FAILED_EXIT_CODE;
         }
     };

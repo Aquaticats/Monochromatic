@@ -6,7 +6,13 @@
 ///  the scripted server's definitions,
 ///  bounded waiting,
 ///  and the readiness wait.
-use super::test_support::{address, definitions, project, reader, ready};
+use super::test_support::{
+    address,
+    definitions,
+    project,
+    reader,
+    ready,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// External writes and the server's report.

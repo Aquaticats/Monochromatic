@@ -15,7 +15,11 @@ use rustc_hir::def_id::DefId;
 /// Import the lint context that gives access to compiler queries.
 use rustc_lint::LateContext;
 /// Import clause kinds (the compiler's name for where-clauses and bounds) and type kinds.
-use rustc_middle::ty::{ClauseKind, Ty, TyKind};
+use rustc_middle::ty::{
+    ClauseKind,
+    Ty,
+    TyKind,
+};
 
 /// What:
 ///  True when the declared parameter at `index` of `callee` must outlive `'static`.
@@ -71,7 +75,11 @@ pub fn parameter_requires_static(
 /// ```ts
 /// function typeRequiresStatic(callee: DefId, parameter: Type): boolean;
 /// ```
-fn type_requires_static<'tcx>(cx: &LateContext<'tcx>, callee: DefId, parameter: Ty<'tcx>) -> bool {
+fn type_requires_static<'tcx>(
+    cx: &LateContext<'tcx>,
+    callee: DefId,
+    parameter: Ty<'tcx>,
+) -> bool {
     match parameter.kind() {
         TyKind::Dynamic(_, region) => return region.is_static(),
         TyKind::Param(_) => return environment_requires_static(cx, callee, parameter),

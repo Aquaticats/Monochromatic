@@ -21,7 +21,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `parse_esr_major` from `crate::firefox_esr::parse_esr_major`.
 /// Why:
@@ -51,14 +54,21 @@ use crate::integrity::parse_sha512;
 /// ```ts
 /// import { Map, Value } from 'serde_json';
 /// ```
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The lock format version this crate reads and writes.
 const LOCK_VERSION: u64 = 1;
 
 /// Build a lock error with a message.
 fn lock_error(message: &str) -> BrowserslistError {
-    return BrowserslistError::Data { file: "browserslist data lock".to_string(), offset: None, message: message.to_string() };
+    return BrowserslistError::Data {
+        file: "browserslist data lock".to_string(),
+        offset: None,
+        message: message.to_string(),
+    };
 }
 
 /// What:
@@ -117,26 +127,46 @@ fn valid_version(version: &str) -> bool {
 fn package_value(package: &PinnedPackage) -> Value {
     let mut entry: Map<String, Value> = Map::new();
     entry.insert("version".to_string(), Value::from(package.version.clone()));
-    entry.insert("integrity".to_string(), Value::from(package.integrity.clone()));
+    entry.insert(
+        "integrity".to_string(),
+        Value::from(package.integrity.clone()),
+    );
     return Value::Object(entry);
 }
 
 /// Read one pinned package out of the lock object.
-fn read_package(root: &Map<String, Value>, name: &str) -> Outcome<PinnedPackage> {
+fn read_package(
+    root: &Map<String, Value>,
+    name: &str,
+) -> Outcome<PinnedPackage> {
     let Some(Value::Object(entry)) = root.get(name) else {
-        return Err(lock_error(&format!("\"{name}\" is missing or not an object")));
+        return Err(lock_error(&format!(
+            "\"{name}\" is missing or not an object"
+        )));
     };
     if entry.len() != 2 {
-        return Err(lock_error(&format!("\"{name}\" must hold exactly \"version\" and \"integrity\"")));
+        return Err(lock_error(&format!(
+            "\"{name}\" must hold exactly \"version\" and \"integrity\""
+        )));
     }
-    let (Some(Value::String(version)), Some(Value::String(integrity))) = (entry.get("version"), entry.get("integrity")) else {
-        return Err(lock_error(&format!("\"{name}\" needs string \"version\" and \"integrity\" values")));
+    let (Some(Value::String(version)), Some(Value::String(integrity))) =
+        (entry.get("version"), entry.get("integrity"))
+    else {
+        return Err(lock_error(&format!(
+            "\"{name}\" needs string \"version\" and \"integrity\" values"
+        )));
     };
     if !valid_version(version) {
-        return Err(lock_error(&format!("\"{name}\" version {version:?} holds characters outside letters, digits, dot, dash and underscore")));
+        return Err(lock_error(&format!(
+            "\"{name}\" version {version:?} holds characters outside letters, digits, dot, dash and underscore"
+        )));
     }
     parse_sha512(integrity)?;
-    return Ok(PinnedPackage { name: name.to_string(), version: version.clone(), integrity: integrity.clone() });
+    return Ok(PinnedPackage {
+        name: name.to_string(),
+        version: version.clone(),
+        integrity: integrity.clone(),
+    });
 }
 
 /// What:
@@ -170,7 +200,9 @@ impl DataLock {
             return Err(lock_error("the top level is not an object"));
         };
         if root.len() != 4 {
-            return Err(lock_error("expected exactly lockVersion, caniuse-lite, node-releases and firefoxEsr"));
+            return Err(lock_error(
+                "expected exactly lockVersion, caniuse-lite, node-releases and firefoxEsr",
+            ));
         }
         if root.get("lockVersion").and_then(Value::as_u64) != Some(LOCK_VERSION) {
             return Err(lock_error(&format!("lockVersion must be {LOCK_VERSION}")));
@@ -199,10 +231,20 @@ impl DataLock {
     pub fn to_json(&self) -> String {
         let mut document: Map<String, Value> = Map::new();
         document.insert("lockVersion".to_string(), Value::from(LOCK_VERSION));
-        document.insert("caniuse-lite".to_string(), package_value(&self.caniuse_lite));
-        document.insert("node-releases".to_string(), package_value(&self.node_releases));
-        document.insert("firefoxEsr".to_string(), Value::from(self.firefox_esr.clone()));
-        let mut text = serde_json::to_string_pretty(&Value::Object(document)).expect("a JSON value always serializes");
+        document.insert(
+            "caniuse-lite".to_string(),
+            package_value(&self.caniuse_lite),
+        );
+        document.insert(
+            "node-releases".to_string(),
+            package_value(&self.node_releases),
+        );
+        document.insert(
+            "firefoxEsr".to_string(),
+            Value::from(self.firefox_esr.clone()),
+        );
+        let mut text = serde_json::to_string_pretty(&Value::Object(document))
+            .expect("a JSON value always serializes");
         text.push('\n');
         return text;
     }

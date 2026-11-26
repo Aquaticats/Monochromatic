@@ -24,7 +24,10 @@ use crate::config_decode::ConfigScope;
 use crate::diagnostic::Diagnostic;
 /// Imports `build_identity`,
 /// `worktree_identity` from `crate::identity`.
-use crate::identity::{build_identity, worktree_identity};
+use crate::identity::{
+    build_identity,
+    worktree_identity,
+};
 /// Imports `RuleRegistry` from `crate::registry`.
 use crate::registry::RuleRegistry;
 /// Imports `handle_connection` from `crate::server_connection`.
@@ -42,13 +45,23 @@ use std::path::PathBuf;
 /// Imports `AtomicBool`,
 /// `AtomicUsize`,
 /// `Ordering` from `std::sync::atomic`.
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
 /// Imports `Arc`,
 /// `Mutex` from `std::sync`.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 /// Imports `Duration`,
 /// `Instant` from `std::time`.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  What a server serves and how it behaves.
@@ -174,18 +187,27 @@ fn should_stop(shared: &Shared) -> bool {
 /// ```ts
 /// export async function serve(options: ServerOptions, registry: RuleRegistry): Promise<void>
 /// ```
-pub fn serve(options: &ServerOptions, registry: RuleRegistry) -> Result<(), Diagnostic> {
+pub fn serve(
+    options: &ServerOptions,
+    registry: RuleRegistry,
+) -> Result<(), Diagnostic> {
     let worktree = worktree_identity(&options.root)?;
     let listener = match UnixListener::bind(&options.socket) {
         Ok(listener) => listener,
         Err(error) => {
-            let message = format!("cannot bind the socket {}: {error}", options.socket.display());
+            let message = format!(
+                "cannot bind the socket {}: {error}",
+                options.socket.display()
+            );
             return Err(Diagnostic::new("socket-bind-failed", &message));
         }
     };
     if let Err(error) = fs::set_permissions(&options.socket, fs::Permissions::from_mode(0o600)) {
         let _ = fs::remove_file(&options.socket);
-        let message = format!("cannot restrict the socket {}: {error}", options.socket.display());
+        let message = format!(
+            "cannot restrict the socket {}: {error}",
+            options.socket.display()
+        );
         return Err(Diagnostic::new("socket-bind-failed", &message));
     }
     if let Err(error) = listener.set_nonblocking(true) {
@@ -216,7 +238,9 @@ pub fn serve(options: &ServerOptions, registry: RuleRegistry) -> Result<(), Diag
                     connection_state.touch();
                 });
             }
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(20)),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(20))
+            }
             Err(_) => std::thread::sleep(Duration::from_millis(100)),
         }
     }

@@ -113,6 +113,11 @@ export async function runPlantedControl({
       'run',
       '--offline',
       '--locked',
+      // The same build the gate's CMD runs, so a planted control's suite is the one the gate ran: without this feature
+      // no control could arm its own test-only variable, and the run would fail for a reason the control is not about
+      // (doc/decision/cli-git-test-only-switches-compiled-out-of-release.md).
+      '--features',
+      'test-only-switches',
       '--all-targets',
       '--no-fail-fast',
     ],

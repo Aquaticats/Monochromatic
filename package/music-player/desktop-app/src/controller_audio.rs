@@ -20,7 +20,10 @@
 /// ```ts
 /// // a path is just a string in TS
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `use ringbuf::traits::Producer;`.
@@ -72,7 +75,10 @@ use crate::controller::Controller;
 /// ```ts
 /// import { Source } from "./decode";
 /// ```
-use crate::decode::{AudioSpec, Source};
+use crate::decode::{
+    AudioSpec,
+    Source,
+};
 
 /// What:
 ///      `use crate::playback::{expand_paths, file_name_of, process_sample};`.
@@ -88,7 +94,11 @@ use crate::decode::{AudioSpec, Source};
 /// ```ts
 /// import { expandPaths, fileNameOf, processSample } from "./playback";
 /// ```
-use crate::playback::{expand_paths, file_name_of, process_sample};
+use crate::playback::{
+    expand_paths,
+    file_name_of,
+    process_sample,
+};
 
 /// What:
 ///      `use crate::audio_meter::MeterReporter;`.
@@ -201,7 +211,10 @@ impl crate::scan_stream::BatchListener for ScanBatchAnnouncer<'_> {
     /// `on_batch` announces one batch and advances the queue position.
     /// Why:
     /// the window and the Search index learn the new names while the walk goes on.
-    fn on_batch(&mut self, batch: &[PathBuf]) {
+    fn on_batch(
+        &mut self,
+        batch: &[PathBuf],
+    ) {
         self.controller.emit(Update::ScanBatch {
             first_index: self.next_index,
             names: crate::scan_stream::batch_names(self.root, batch),
@@ -259,7 +272,10 @@ impl Controller {
     /// so a save at shutdown cannot erase them;
     /// taking `stored` as an argument lets a test prove that without the
     /// user's session file.
-    fn session_over(&self, stored: Session) -> Session {
+    fn session_over(
+        &self,
+        stored: Session,
+    ) -> Session {
         let position_secs = self.audible_secs();
         // What:     `Session { ... }`. Build the record from the Source Root + state.
         //           `self.source_root.clone()` copies the owned root option;
@@ -284,7 +300,7 @@ impl Controller {
             playing_template: stored.playing_template,
             auto_play_on_select: stored.auto_play_on_select,
             text_sizes: stored.text_sizes,
-        }
+        };
     }
 
     /// What:
@@ -472,7 +488,10 @@ impl Controller {
     ///   this.queue.setTracks(expandPaths([root]));
     /// }
     /// ```
-    pub(crate) fn scan_root_into_queue(&mut self, root: PathBuf) {
+    pub(crate) fn scan_root_into_queue(
+        &mut self,
+        root: PathBuf,
+    ) {
         // What:     `self.source_root = Some(root.clone());`. Remember the directory the queue
         //           is scanned from. `.clone()` because `root` is moved into `expand_paths`.
         // Why:      The session, the watcher, and any rescan need the root.
@@ -523,8 +542,17 @@ impl Controller {
         //           queue position, because the queue is exactly this list.
         let tracks: Vec<PathBuf> = if root.is_dir() {
             let pause: std::time::Duration = crate::scan_stream::pause_from_environment();
-            let mut announcer = ScanBatchAnnouncer { controller: &*self, root: &root, next_index: 0, pause };
-            crate::scan_stream::scan_streaming(&root, crate::scan_stream::STREAM_BATCH, &mut announcer)
+            let mut announcer = ScanBatchAnnouncer {
+                controller: &*self,
+                root: &root,
+                next_index: 0,
+                pause,
+            };
+            crate::scan_stream::scan_streaming(
+                &root,
+                crate::scan_stream::STREAM_BATCH,
+                &mut announcer,
+            )
         } else {
             expand_paths(vec![root])
         };
@@ -703,7 +731,11 @@ impl Controller {
     /// ```ts
     /// installSource(source: Source, path: string): void { ... }
     /// ```
-    pub(crate) fn install_source(&mut self, source: Box<dyn Source>, path: &Path) {
+    pub(crate) fn install_source(
+        &mut self,
+        source: Box<dyn Source>,
+        path: &Path,
+    ) {
         let duration_secs: f64 = self.install_source_silently(source, path);
         // What:     `self.emit_now_playing(path, duration_secs);`. Tell the UI which track plays and put the seek bar at zero.
         // Why:      The same announcement is made when a track that was queued behind the audible one
@@ -731,7 +763,11 @@ impl Controller {
     /// ```ts
     /// installSourceSilently(source: Source, path: string): number { ...; return spec.durationSecs; }
     /// ```
-    pub(crate) fn install_source_silently(&mut self, source: Box<dyn Source>, path: &Path) -> f64 {
+    pub(crate) fn install_source_silently(
+        &mut self,
+        source: Box<dyn Source>,
+        path: &Path,
+    ) -> f64 {
         // What:     `let spec = source.spec();`. Copy the stream's rate/channels/duration
         //           (`AudioSpec` is `Copy`).
         // Why:      Needed to configure the output and the position math.
@@ -885,7 +921,11 @@ impl Controller {
     /// ```ts
     /// emitNowPlaying(path: string, durationSecs: number): void { ... }
     /// ```
-    pub(crate) fn emit_now_playing(&self, path: &Path, duration_secs: f64) {
+    pub(crate) fn emit_now_playing(
+        &self,
+        path: &Path,
+        duration_secs: f64,
+    ) {
         // What:     `let index = self.queue.current_index();`. Its LOAD-ORDER position in the
         //           queue (an `Option<usize>`).
         // Why:      Lets the UI highlight the current row, and indexes the display paths for
@@ -948,7 +988,10 @@ impl Controller {
     /// ```ts
     /// seek(secs: number): void { ... }
     /// ```
-    pub(crate) fn seek(&mut self, secs: f64) {
+    pub(crate) fn seek(
+        &mut self,
+        secs: f64,
+    ) {
         // What:     `if self.staged.is_some() && !self.return_to_audible_track() { return; }`. When the next track
         //           was opened early, switch the decoder back to the track the listener still hears.
         // Why:      The seek bar belongs to the audible track; seeking the staged one would play the wrong file.
@@ -1323,7 +1366,7 @@ impl Controller {
         // ```ts
         // return true;
         // ```
-        return true
+        return true;
     }
 
     /// What:
@@ -1339,7 +1382,10 @@ impl Controller {
     /// ```ts
     /// reportAudioMeters(reporter: MeterReporter): void { ... }
     /// ```
-    pub(crate) fn report_audio_meters(&self, reporter: &mut MeterReporter) {
+    pub(crate) fn report_audio_meters(
+        &self,
+        reporter: &mut MeterReporter,
+    ) {
         let Some(output) = self.output.as_ref() else {
             return;
         };
@@ -1366,7 +1412,6 @@ impl Controller {
             "audio output buffer sizes"
         );
     }
-
 }
 
 /// What:

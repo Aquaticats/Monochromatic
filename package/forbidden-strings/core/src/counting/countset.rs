@@ -93,7 +93,7 @@ impl CountSet {
     pub(crate) fn new(max: usize) -> CountSet {
         return CountSet {
             words: vec![0u64; nwords(max)],
-        }
+        };
     }
 
     /// Empties the set in place without reallocating.
@@ -134,7 +134,7 @@ impl CountSet {
     pub(crate) fn insert_zero(&mut self) -> bool {
         let changed = self.words[0] & 1 == 0;
         self.words[0] |= 1;
-        return changed
+        return changed;
     }
 
     /// Reports whether any live count is at least `min`.
@@ -151,7 +151,10 @@ impl CountSet {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub(crate) fn has_at_least(&self, min: usize) -> bool {
+    pub(crate) fn has_at_least(
+        &self,
+        min: usize,
+    ) -> bool {
         let wi = min / 64;
         if wi >= self.words.len() {
             return false;
@@ -159,7 +162,7 @@ impl CountSet {
         if self.words[wi] >> (min % 64) != 0 {
             return true;
         }
-        return !self.words[wi + 1..].iter().all(is_zero_word)
+        return !self.words[wi + 1..].iter().all(is_zero_word);
     }
 
     /// Reports whether no count is live.
@@ -177,7 +180,7 @@ impl CountSet {
     /// }
     /// ```
     pub(crate) fn is_empty(&self) -> bool {
-        return self.words.iter().all(is_zero_word)
+        return self.words.iter().all(is_zero_word);
     }
 
     /// Sets this set to `src` with every count advanced by one,
@@ -198,7 +201,11 @@ impl CountSet {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub(crate) fn copy_advanced_from(&mut self, src: &CountSet, max: usize) {
+    pub(crate) fn copy_advanced_from(
+        &mut self,
+        src: &CountSet,
+        max: usize,
+    ) {
         let mut carry = 0u64;
         for (dst, &word) in self.words.iter_mut().zip(&src.words) {
             *dst = (word << 1) | carry;
@@ -222,7 +229,10 @@ impl CountSet {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn clear_above(&mut self, max: usize) {
+    fn clear_above(
+        &mut self,
+        max: usize,
+    ) {
         let pos = max + 1;
         let wi = pos / 64;
         if wi < self.words.len() {
@@ -246,7 +256,7 @@ impl CountSet {
 /// }
 /// ```
 fn nwords(max: usize) -> usize {
-    return (max + 1) / 64 + 1
+    return (max + 1) / 64 + 1;
 }
 
 /// What:

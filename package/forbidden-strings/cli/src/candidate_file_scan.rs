@@ -18,7 +18,11 @@ use crate::frx_scan;
 /// Imports the module that scans a file's logical name with the rules.
 use crate::path_scan;
 /// Imports the two skip decisions and the binary-checked file read that the scan of one file starts with.
-use crate::{is_config_file_at_cwd, is_walker_skipped, read_with_binary_check};
+use crate::{
+    is_config_file_at_cwd,
+    is_walker_skipped,
+    read_with_binary_check,
+};
 
 /// The facts of one run that every file's scan reads and none changes.
 #[derive(Clone, Copy)]
@@ -48,8 +52,19 @@ pub(crate) struct CandidateFileScan<'run> {
 ///
 /// `map_with` hands every worker a copy of the shared facts,
 /// and `(index, p)` is the file's position and path.
-pub(crate) fn scan_candidate_file(context: &mut CandidateFileScan<'_>, (index, p): (usize, &String)) -> Vec<String> {
-    let CandidateFileScan { all, cwd_canonical, repository_root, self_match_set, skip_set, name_paths, loaded } = *context;
+pub(crate) fn scan_candidate_file(
+    context: &mut CandidateFileScan<'_>,
+    (index, p): (usize, &String),
+) -> Vec<String> {
+    let CandidateFileScan {
+        all,
+        cwd_canonical,
+        repository_root,
+        self_match_set,
+        skip_set,
+        name_paths,
+        loaded,
+    } = *context;
     // Always skip the scanner's own ruleset files at cwd
     // (forbidden-strings.*.txt), regardless of --all vs explicit
     // args: they hold literal rule bodies that self-match.
@@ -175,5 +190,5 @@ pub(crate) fn scan_candidate_file(context: &mut CandidateFileScan<'_>, (index, p
         }
         return labelled;
     }
-    return findings
+    return findings;
 }

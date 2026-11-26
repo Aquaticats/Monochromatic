@@ -21,7 +21,10 @@ use std::cmp::Ordering;
 /// ```ts
 /// function snapped(left: number, right: number): [number, number];
 /// ```
-pub fn snapped(left: f32, right: f32) -> (f32, f32) {
+pub fn snapped(
+    left: f32,
+    right: f32,
+) -> (f32, f32) {
     return (left.round(), right.round());
 }
 
@@ -35,7 +38,10 @@ pub fn snapped(left: f32, right: f32) -> (f32, f32) {
 /// ```ts
 /// function byStart(left: [number, number], right: [number, number]): number;
 /// ```
-fn by_start(left: &(f32, f32), right: &(f32, f32)) -> Ordering {
+fn by_start(
+    left: &(f32, f32),
+    right: &(f32, f32),
+) -> Ordering {
     return left.0.total_cmp(&right.0);
 }
 
@@ -95,7 +101,11 @@ pub struct Place {
 }
 
 /// Whether the part of a row from `from` to `to` meets the x range `reach` of a drawing's ink.
-fn meets(reach: (f32, f32), from: f32, to: f32) -> bool {
+fn meets(
+    reach: (f32, f32),
+    from: f32,
+    to: f32,
+) -> bool {
     return to > reach.0 && from < reach.1;
 }
 

@@ -10,12 +10,33 @@
 ///  the servers' part,
 ///  and the kernel calls.
 use super::{
-    reconcile::{Kernel, Request, Watches, reconcile},
+    reconcile::{
+        Kernel,
+        Request,
+        Watches,
+        reconcile,
+    },
     record::record,
-    server_wake::{Servers, prepare, start_scan},
-    server_watch::{ServerRequest, TreeFirst, reconcile_servers},
-    shared::{Shared, SourceChange, lock},
-    watch_ops::{WatchFailure, add, remove},
+    server_wake::{
+        Servers,
+        prepare,
+        start_scan,
+    },
+    server_watch::{
+        ServerRequest,
+        TreeFirst,
+        reconcile_servers,
+    },
+    shared::{
+        Shared,
+        SourceChange,
+        lock,
+    },
+    watch_ops::{
+        WatchFailure,
+        add,
+        remove,
+    },
 };
 /// Containment uses the same canonical check as every project read.
 use crate::workspace::Workspace;
@@ -30,7 +51,13 @@ use crate::workspace::Workspace;
 /// ```ts
 /// import { INotifyWatcher, Config } from 'notify';
 /// ```
-use notify::{Config, Event, EventHandler, INotifyWatcher, Watcher};
+use notify::{
+    Config,
+    Event,
+    EventHandler,
+    INotifyWatcher,
+    Watcher,
+};
 /// What:
 ///  `Arc` shares the state across threads;
 ///  `Receiver`/`SyncSender` are the bounded wake channel's ends;
@@ -49,10 +76,18 @@ use notify::{Config, Event, EventHandler, INotifyWatcher, Watcher};
 use std::{
     path::Path,
     sync::{
-        Arc, Mutex,
-        mpsc::{Receiver, RecvTimeoutError, SyncSender},
+        Arc,
+        Mutex,
+        mpsc::{
+            Receiver,
+            RecvTimeoutError,
+            SyncSender,
+        },
     },
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Shortest sleep while waiting for the servers' backoff,
@@ -81,7 +116,10 @@ struct EventRecorder {
 /// Each event is recorded as a change or an invalidation.
 impl EventHandler for EventRecorder {
     /// Record one event or error from notify.
-    fn handle_event(&mut self, event: notify::Result<Event>) {
+    fn handle_event(
+        &mut self,
+        event: notify::Result<Event>,
+    ) {
         record(&self.shared, &self.waker, event);
     }
 }
@@ -109,13 +147,19 @@ struct Inotify<'a> {
 ///  after the containment check for adds.
 impl Kernel for Inotify<'_> {
     /// Add one non-recursive watch inside the root.
-    fn add(&mut self, path: &Path) -> Result<(), WatchFailure> {
+    fn add(
+        &mut self,
+        path: &Path,
+    ) -> Result<(), WatchFailure> {
         return add(self.watcher, self.workspace, path);
     }
 
     /// Remove one watch;
     ///  one the kernel already dropped is only logged.
-    fn remove(&mut self, path: &Path) {
+    fn remove(
+        &mut self,
+        path: &Path,
+    ) {
         remove(self.watcher, path);
     }
 }
@@ -153,7 +197,10 @@ fn apply(
     drop(guard);
     let desired_changed = prepare(servers, requests, feed.as_ref(), workspace.root());
     let now = Instant::now();
-    let mut kernel = Inotify { watcher, workspace };
+    let mut kernel = Inotify {
+        watcher,
+        workspace,
+    };
     // What: `TreeFirst { ... }` wraps the real kernel so the tree shares folders with the servers and
     //       takes one of their watches when the limit refuses it; the block ends that borrow.
     // Why: The decisions stay testable with fake calls; only here do they reach the kernel.

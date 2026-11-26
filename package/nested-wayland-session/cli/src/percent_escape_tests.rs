@@ -42,7 +42,11 @@ fn refuse_every_byte(_byte: u8) -> bool {
 #[test]
 fn every_byte_matches_the_standard_uppercase_formatting() {
     for byte in u8::MIN..=u8::MAX {
-        assert_eq!(percent_escape(&[byte], refuse_every_byte), format!("%{byte:02X}"), "byte {byte}");
+        assert_eq!(
+            percent_escape(&[byte], refuse_every_byte),
+            format!("%{byte:02X}"),
+            "byte {byte}"
+        );
     }
 }
 
@@ -60,6 +64,12 @@ fn accepted_bytes_are_copied_unchanged() {
 #[test]
 fn the_three_formats_escape_their_separators_with_the_shared_digits() {
     assert_eq!(encode_text("Done; 100 %"), "Done%3B%20100%20%25");
-    assert_eq!(encode_uri("application://a b.desktop"), "application://a%20b.desktop");
-    assert_eq!(file_uri(Path::new("/music/a b#1.mp3")), "file:///music/a%20b%231.mp3");
+    assert_eq!(
+        encode_uri("application://a b.desktop"),
+        "application://a%20b.desktop"
+    );
+    assert_eq!(
+        file_uri(Path::new("/music/a b#1.mp3")),
+        "file:///music/a%20b%231.mp3"
+    );
 }

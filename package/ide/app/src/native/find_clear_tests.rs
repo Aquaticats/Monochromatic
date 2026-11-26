@@ -9,15 +9,28 @@ use super::AppWindow;
 /// Real key events,
 ///  the full production reader,
 ///  and bounded waits shared with the find tests.
-use super::find_tests::{chord, reader, status_for, type_text};
+use super::find_tests::{
+    chord,
+    reader,
+    status_for,
+    type_text,
+};
 /// Pointer helpers that dispatch real window events and then lay the window out again.
-use super::sidebar_tests::{click, resize, settle};
+use super::sidebar_tests::{
+    click,
+    resize,
+    settle,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Toolkit key names,
 ///  window ownership,
 ///  and the model interface that counts match rectangles.
-use slint::{ComponentHandle, Model, platform::Key};
+use slint::{
+    ComponentHandle,
+    Model,
+    platform::Key,
+};
 /// Fixture files are written into a disposable project directory.
 use std::fs;
 

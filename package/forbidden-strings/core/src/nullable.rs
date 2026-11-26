@@ -38,7 +38,10 @@ use crate::ast::node::Node;
 use crate::context::Ctx;
 
 /// Whether every part matches the empty string.
-fn all_nullable(parts: &[Node], ctx: Ctx) -> bool {
+fn all_nullable(
+    parts: &[Node],
+    ctx: Ctx,
+) -> bool {
     for part in parts {
         if !nullable(part, ctx) {
             return false;
@@ -48,7 +51,10 @@ fn all_nullable(parts: &[Node], ctx: Ctx) -> bool {
 }
 
 /// Whether some part matches the empty string.
-fn any_nullable(parts: &[Node], ctx: Ctx) -> bool {
+fn any_nullable(
+    parts: &[Node],
+    ctx: Ctx,
+) -> bool {
     for part in parts {
         if nullable(part, ctx) {
             return true;
@@ -84,7 +90,10 @@ fn any_nullable(parts: &[Node], ctx: Ctx) -> bool {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn nullable(node: &Node, ctx: Ctx) -> bool {
+pub fn nullable(
+    node: &Node,
+    ctx: Ctx,
+) -> bool {
     // What: one arm per variant; structural recursion over the node tree (a
     // bounded walk, never over flat input). Why: nullability is defined by case.
     //
@@ -98,7 +107,11 @@ pub fn nullable(node: &Node, ctx: Ctx) -> bool {
         Node::Concat(parts) | Node::Inter(parts) => return all_nullable(parts, ctx),
         Node::Alt(parts) => return any_nullable(parts, ctx),
         Node::Comp(inner) => return !nullable(inner, ctx),
-        Node::Repeat { node: body, min, .. } => return *min == 0 || nullable(body, ctx),
+        Node::Repeat {
+            node: body,
+            min,
+            ..
+        } => return *min == 0 || nullable(body, ctx),
         Node::LineStart => return ctx.line_start,
         Node::LineEnd => return ctx.line_end,
         Node::WordBoundary => return ctx.word_before != ctx.word_after,

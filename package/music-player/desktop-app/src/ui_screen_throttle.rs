@@ -21,11 +21,18 @@
 /// Imports the cell that holds the time of the last projection.
 use std::cell::Cell;
 /// Imports the duration and instant types that space the projections.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the component handle,
 /// the timer and its mode that run the delayed projection.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    Timer,
+    TimerMode,
+};
 
 /// Imports the window that is projected.
 use crate::AppWindow;
@@ -98,7 +105,10 @@ pub(crate) fn project_soon(app: &AppWindow) {
             if PENDING.replace(true) {
                 return;
             }
-            tracing::debug!(wait_ms = (at - now).as_millis(), "projection delayed to the end of the interval");
+            tracing::debug!(
+                wait_ms = (at - now).as_millis(),
+                "projection delayed to the end of the interval"
+            );
             let weak = app.as_weak();
             delayed_timer().start(TimerMode::SingleShot, at - now, move || {
                 PENDING.set(false);

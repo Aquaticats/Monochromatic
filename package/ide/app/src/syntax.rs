@@ -6,18 +6,33 @@
 //!  Helix's runtime directory search is never consulted.
 
 /// Source paint spans remain unrelated to native pixel coordinates.
-use crate::source_style::{SourceStyles, StyleSpan};
+use crate::source_style::{
+    SourceStyles,
+    StyleSpan,
+};
 /// The upstream error enum needs explicit conversion and operation-specific remedies.
 use crate::syntax_error::parser_failure;
 /// Reuse Helix's built-in language table for recognition;
 ///  grammars and queries come from the own loader.
-use crate::{runtime, syntax_loader::OwnLoader};
+use crate::{
+    runtime,
+    syntax_loader::OwnLoader,
+};
 /// Errors distinguish unavailable parsers/rules from a successful plain-text language.
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{
+    Context,
+    Result,
+    anyhow,
+    bail,
+};
 /// Helix's built-in language table and rope text type.
 use helix_core::{
-    Language, Rope,
-    syntax::{Loader, config::Configuration},
+    Language,
+    Rope,
+    syntax::{
+        Loader,
+        config::Configuration,
+    },
 };
 /// Decode the bundled manifest into a typed record instead of probing untyped JSON.
 use serde::Deserialize;
@@ -36,10 +51,18 @@ use serde::Deserialize;
 /// import { readFileSync } from 'node:fs';
 /// import { type Path, Rope, LanguageLoader, Syntax } from './helix';
 /// ```
-use std::{collections::HashSet, fs, path::Path, time::Duration};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+    time::Duration,
+};
 /// The parser library Helix builds on,
 ///  driven here with the application's own loader.
-use tree_house::{Syntax, highlighter::Highlighter};
+use tree_house::{
+    Syntax,
+    highlighter::Highlighter,
+};
 
 /// What:
 ///  How long one parse may take;
@@ -246,7 +269,10 @@ pub fn provisioned_grammars_from(
 
 /// Merge touching intervals with identical paint roles,
 ///  not unrelated syntax nodes.
-fn append_span(spans: &mut Vec<StyleSpan>, incoming: StyleSpan) {
+fn append_span(
+    spans: &mut Vec<StyleSpan>,
+    incoming: StyleSpan,
+) {
     // last_mut lends only the final owned interval; source text remains immutable.
     // Extract a present interval only when its paint role and boundary both match.
     if let Some(previous) = spans.last_mut()
@@ -323,7 +349,10 @@ impl SyntaxEngine {
     /// ```ts
     /// static namesALanguage(path: string, text: Rope): boolean
     /// ```
-    pub fn names_a_language(path: &Path, text: &Rope) -> Result<bool> {
+    pub fn names_a_language(
+        path: &Path,
+        text: &Rope,
+    ) -> Result<bool> {
         // An empty grammar set: only the compiled-in filename and shebang rules are consulted.
         let rules = Self::with_provisioned(HashSet::new())?;
         // What: the shebang is tried only when the filename named nothing; `is_some` asks
@@ -344,7 +373,11 @@ impl SyntaxEngine {
     /// Recognize a bundled language by filename,
     ///  then by shebang.
     /// None means the registry does not know the file or this build does not ship its grammar.
-    fn recognize(&self, path: &Path, text: &Rope) -> Option<Language> {
+    fn recognize(
+        &self,
+        path: &Path,
+        text: &Rope,
+    ) -> Option<Language> {
         // What: the trailing `?` on an `Option` returns `None` from this function when the
         //       registry recognized nothing, and otherwise yields the contained language handle.
         // Why:  An unknown filename and shebang is ordinary plain text, not a failure.
@@ -389,7 +422,11 @@ impl SyntaxEngine {
     /// None means plain text:
     ///  an unknown file,
     ///  or a language this build does not ship.
-    pub fn language_id(&self, path: &Path, text: &Rope) -> Option<String> {
+    pub fn language_id(
+        &self,
+        path: &Path,
+        text: &Rope,
+    ) -> Option<String> {
         let language = self.recognize(path, text)?;
         // What: `.clone()` duplicates the registry's owned id into a new `String`.
         //       Sibling: `&str`, a borrowed view tied to this engine's lifetime.
@@ -413,7 +450,10 @@ impl SyntaxEngine {
     /// reporting why it fails.
     ///  Ok(false) means the id is unknown or its grammar is not bundled.
     /// Checks of a runtime use this to prove every bundled language compiles.
-    pub fn compile_language(&self, language_id: &str) -> Result<bool> {
+    pub fn compile_language(
+        &self,
+        language_id: &str,
+    ) -> Result<bool> {
         // What: `language_for_name(language_id.to_string())` looks the id up in Helix's table.
         // Why: The table compares owned names.
         //
@@ -450,7 +490,11 @@ impl SyntaxEngine {
     /// Returned intervals are sorted,
     ///  non-overlapping,
     ///  and merge adjacent identical paint roles.
-    pub fn highlight(&self, path: &Path, text: &Rope) -> Result<Option<SourceStyles>> {
+    pub fn highlight(
+        &self,
+        path: &Path,
+        text: &Rope,
+    ) -> Result<Option<SourceStyles>> {
         let Some(language) = self.recognize(path, text) else {
             return Ok(None);
         };

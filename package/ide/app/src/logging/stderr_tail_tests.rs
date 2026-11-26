@@ -4,7 +4,16 @@
 //! the store is shared by the whole test process.
 
 use super::{
-    CUT_MARK, KEPT_LINES, LINE_BYTES, cut, ended, forget, is_closed, remember, take, unescape,
+    CUT_MARK,
+    KEPT_LINES,
+    LINE_BYTES,
+    cut,
+    ended,
+    forget,
+    is_closed,
+    remember,
+    take,
+    unescape,
 };
 
 #[test]

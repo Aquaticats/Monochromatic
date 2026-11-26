@@ -3,9 +3,17 @@
 
 use std::collections::BTreeSet;
 
-use monochromatic_dependency_catalog::{Settings, TrustPolicy};
+use monochromatic_dependency_catalog::{
+    Settings,
+    TrustPolicy,
+};
 
-use crate::policy::{VersionRecord, release_age_problems, trust_level, trust_problems};
+use crate::policy::{
+    VersionRecord,
+    release_age_problems,
+    trust_level,
+    trust_problems,
+};
 use crate::time_text::parse_rfc3339_millis;
 
 /// The repository's defaults.
@@ -30,7 +38,13 @@ fn now() -> i64 {
     return parse_rfc3339_millis("2026-10-29T12:00:00Z").expect("a fixed time");
 }
 
-fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: &str, repository: &str) -> VersionRecord {
+fn record(
+    num: &str,
+    created_at: &str,
+    publisher_id: &str,
+    trustpub_repository: &str,
+    repository: &str,
+) -> VersionRecord {
     return VersionRecord {
         num: num.to_string(),
         created_at: created_at.to_string(),
@@ -43,14 +57,23 @@ fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: 
 const REPO: &str = "https://github.com/o/r";
 
 fn owners(ids: &[&str]) -> BTreeSet<String> {
-    return ids.iter().map(|id| { return id.to_string(); }).collect();
+    return ids
+        .iter()
+        .map(|id| {
+            return id.to_string();
+        })
+        .collect();
 }
 
 #[test]
 fn a_mature_version_passes_and_a_young_one_fails_with_the_time_it_matures() {
-    assert_eq!(release_age_problems("a", "1.0.0", "2026-10-27T12:00:00Z", &settings(), now()), Vec::<String>::new());
+    assert_eq!(
+        release_age_problems("a", "1.0.0", "2026-10-27T12:00:00Z", &settings(), now()),
+        Vec::<String>::new()
+    );
 
-    let young: Vec<String> = release_age_problems("a", "1.0.1", "2026-10-29T10:00:00Z", &settings(), now());
+    let young: Vec<String> =
+        release_age_problems("a", "1.0.1", "2026-10-29T10:00:00Z", &settings(), now());
 
     assert_eq!(young.len(), 1);
     assert!(young[0].contains("2026-10-30T10:00:00.000Z"));
@@ -61,12 +84,17 @@ fn an_excluded_version_skips_the_age_rule() {
     let mut with_exclude: Settings = settings();
     with_exclude.minimum_release_age_exclude = vec!["a".to_string()];
 
-    assert!(release_age_problems("a", "1.0.1", "2026-10-29T10:00:00Z", &with_exclude, now()).is_empty());
+    assert!(
+        release_age_problems("a", "1.0.1", "2026-10-29T10:00:00Z", &with_exclude, now()).is_empty()
+    );
 }
 
 #[test]
 fn a_missing_publish_time_follows_the_ignore_missing_time_setting() {
-    assert_eq!(release_age_problems("a", "1.0.0", "", &settings(), now()).len(), 1);
+    assert_eq!(
+        release_age_problems("a", "1.0.0", "", &settings(), now()).len(),
+        1
+    );
     let mut ignoring: Settings = settings();
     ignoring.minimum_release_age_ignore_missing_time = true;
 
@@ -79,8 +107,14 @@ fn trusted_publishing_rates_three_a_returning_publisher_two_and_a_first_time_pub
     let trusted: VersionRecord = record("1.0.1", "2026-02-01T00:00:00Z", "", "o/r", REPO);
     let returning: VersionRecord = record("1.0.1", "2026-02-01T00:00:00Z", "7", "", REPO);
 
-    assert_eq!(trust_level(&trusted, std::slice::from_ref(&first), &owners(&[])), 3);
-    assert_eq!(trust_level(&returning, std::slice::from_ref(&first), &owners(&[])), 2);
+    assert_eq!(
+        trust_level(&trusted, std::slice::from_ref(&first), &owners(&[])),
+        3
+    );
+    assert_eq!(
+        trust_level(&returning, std::slice::from_ref(&first), &owners(&[])),
+        2
+    );
     assert_eq!(trust_level(&first, &[], &owners(&[])), 1);
 }
 
@@ -93,7 +127,8 @@ fn a_token_publish_after_trusted_publishing_fails_and_a_returning_publisher_pass
     ];
 
     assert!(trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&[])).is_empty());
-    let downgraded: Vec<String> = trust_problems("a", "1.0.2", &history, &settings(), now(), &owners(&[]));
+    let downgraded: Vec<String> =
+        trust_problems("a", "1.0.2", &history, &settings(), now(), &owners(&[]));
     assert_eq!(downgraded.len(), 1);
     assert!(downgraded[0].contains("trust level 1, below an earlier release's 3"));
 }
@@ -106,7 +141,8 @@ fn each_earlier_stable_release_is_rated_against_the_full_history_prereleases_inc
         record("1.0.1", "2026-03-01T00:00:00Z", "9", "", REPO),
     ];
 
-    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&[]));
+    let problems: Vec<String> =
+        trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&[]));
 
     assert_eq!(problems.len(), 1);
     assert!(problems[0].contains("trust level 1, below an earlier release's 2"));
@@ -116,10 +152,17 @@ fn each_earlier_stable_release_is_rated_against_the_full_history_prereleases_inc
 fn a_trusted_publishing_repository_change_and_a_declared_repository_change_both_fail() {
     let history: Vec<VersionRecord> = vec![
         record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r", REPO),
-        record("1.0.1", "2026-02-01T00:00:00Z", "", "evil/r", "https://github.com/evil/r"),
+        record(
+            "1.0.1",
+            "2026-02-01T00:00:00Z",
+            "",
+            "evil/r",
+            "https://github.com/evil/r",
+        ),
     ];
 
-    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&[]));
+    let problems: Vec<String> =
+        trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&[]));
 
     assert_eq!(problems.len(), 2);
     assert!(problems[0].contains("trusted-published from evil/r, not o/r"));
@@ -152,24 +195,61 @@ fn a_listed_owners_first_release_is_a_known_publisher_and_a_non_owner_is_still_r
         record("1.0.2", "2026-03-01T00:00:00Z", "9", "", REPO),
     ];
 
-    assert!(trust_problems("a", "1.0.2", &history, &settings(), now(), &owners(&["7", "9"])).is_empty());
-    assert_eq!(trust_problems("a", "1.0.2", &history, &settings(), now(), &owners(&["7"])).len(), 1);
+    assert!(
+        trust_problems(
+            "a",
+            "1.0.2",
+            &history,
+            &settings(),
+            now(),
+            &owners(&["7", "9"])
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        trust_problems("a", "1.0.2", &history, &settings(), now(), &owners(&["7"])).len(),
+        1
+    );
 }
 
 #[test]
-fn a_repository_undeclared_before_or_after_is_ignored_and_a_change_between_declared_ones_is_flagged() {
-    let placeholder: Vec<VersionRecord> =
-        vec![record("0.0.0", "2026-01-01T00:00:00Z", "7", "", ""), record("0.12.0", "2026-02-01T00:00:00Z", "7", "", REPO)];
-    let dropped: Vec<VersionRecord> =
-        vec![record("1.0.0", "2026-01-01T00:00:00Z", "7", "", REPO), record("1.0.1", "2026-02-01T00:00:00Z", "7", "", "")];
+fn a_repository_undeclared_before_or_after_is_ignored_and_a_change_between_declared_ones_is_flagged()
+ {
+    let placeholder: Vec<VersionRecord> = vec![
+        record("0.0.0", "2026-01-01T00:00:00Z", "7", "", ""),
+        record("0.12.0", "2026-02-01T00:00:00Z", "7", "", REPO),
+    ];
+    let dropped: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "7", "", REPO),
+        record("1.0.1", "2026-02-01T00:00:00Z", "7", "", ""),
+    ];
     let changed: Vec<VersionRecord> = vec![
         record("1.0.0", "2026-01-01T00:00:00Z", "7", "", REPO),
-        record("1.0.1", "2026-02-01T00:00:00Z", "7", "", "https://github.com/other/r"),
+        record(
+            "1.0.1",
+            "2026-02-01T00:00:00Z",
+            "7",
+            "",
+            "https://github.com/other/r",
+        ),
     ];
 
-    assert!(trust_problems("a", "0.12.0", &placeholder, &settings(), now(), &owners(&[])).is_empty());
+    assert!(
+        trust_problems(
+            "a",
+            "0.12.0",
+            &placeholder,
+            &settings(),
+            now(),
+            &owners(&[])
+        )
+        .is_empty()
+    );
     assert!(trust_problems("a", "1.0.1", &dropped, &settings(), now(), &owners(&[])).is_empty());
-    assert_eq!(trust_problems("a", "1.0.1", &changed, &settings(), now(), &owners(&[])).len(), 1);
+    assert_eq!(
+        trust_problems("a", "1.0.1", &changed, &settings(), now(), &owners(&[])).len(),
+        1
+    );
 }
 
 #[test]
@@ -254,10 +334,20 @@ fn a_release_with_an_unreadable_publish_time_never_gets_the_ignore_after_exempti
     // ```ts
     // // TS has one type for this: string
     // ```
-    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &with_ignore_after, now(), &BTreeSet::new());
+    let problems: Vec<String> = trust_problems(
+        "a",
+        "1.0.1",
+        &history,
+        &with_ignore_after,
+        now(),
+        &BTreeSet::new(),
+    );
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!problems.is_empty(), "an unknown publish time granted the age exemption");
+    assert!(
+        !problems.is_empty(),
+        "an unknown publish time granted the age exemption"
+    );
 }
 
 /// The same for a missing value.
@@ -278,10 +368,20 @@ fn a_release_with_an_empty_publish_time_never_gets_the_ignore_after_exemption() 
     // Borrow `&history`: lends the value without copying or giving it away.
     // Typed binding: `problems: Vec<String>`.
     // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
-    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &with_ignore_after, now(), &BTreeSet::new());
+    let problems: Vec<String> = trust_problems(
+        "a",
+        "1.0.1",
+        &history,
+        &with_ignore_after,
+        now(),
+        &BTreeSet::new(),
+    );
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!problems.is_empty(), "a missing publish time granted the age exemption");
+    assert!(
+        !problems.is_empty(),
+        "a missing publish time granted the age exemption"
+    );
 }
 
 /// Delegated pick 9 (2026-11-03):
@@ -301,14 +401,21 @@ fn a_trust_downgrade_names_the_earlier_and_the_new_publisher() {
     // Borrow `&history`: lends the value without copying or giving it away.
     // Typed binding: `problems: Vec<String>`.
     // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
-    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &BTreeSet::new());
+    let problems: Vec<String> =
+        trust_problems("a", "1.0.1", &history, &settings(), now(), &BTreeSet::new());
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(problems.len(), 1, "{problems:?}");
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(problems[0].contains("4242"), "the new publisher account is not named: {problems:?}");
+    assert!(
+        problems[0].contains("4242"),
+        "the new publisher account is not named: {problems:?}"
+    );
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(problems[0].contains("o/trusted-ci") && problems[0].contains("1.0.0"), "the earlier publisher is not named: {problems:?}");
+    assert!(
+        problems[0].contains("o/trusted-ci") && problems[0].contains("1.0.0"),
+        "the earlier publisher is not named: {problems:?}"
+    );
 }
 
 /// Review finding (2c 7):
@@ -327,8 +434,13 @@ fn an_unreadable_historical_timestamp_cannot_give_a_new_publisher_an_earlier_his
 
     // Borrow `&history`: lends the value without copying or giving it away.
     // Typed binding: `problems: Vec<String>`.
-    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&["A"]));
+    let problems: Vec<String> =
+        trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&["A"]));
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(problems.len(), 1, "publisher B has no earlier history and A is an owner: {problems:?}");
+    assert_eq!(
+        problems.len(),
+        1,
+        "publisher B has no earlier history and A is an owner: {problems:?}"
+    );
 }

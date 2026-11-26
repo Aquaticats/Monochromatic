@@ -22,13 +22,19 @@ use std::collections::HashSet;
 
 /// The decision types,
 /// sizes and the deadline.
-use crate::lean_identity::{Deadline, Identity};
+use crate::lean_identity::{
+    Deadline,
+    Identity,
+};
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
 /// Imports the names this file uses from `crate::lean_unit_reader`.
 use crate::lean_unit_reader::ProfileUnits;
 /// Imports the names this file uses from `crate::lean_unit_removal`.
-use crate::lean_unit_removal::{Planner, Removals};
+use crate::lean_unit_removal::{
+    Planner,
+    Removals,
+};
 
 /// The cap of one profile directory.
 #[derive(Clone, Copy, Debug)]
@@ -65,14 +71,21 @@ enum Entry {
 /// ```ts
 /// const olderFirst = (a: Sized, b: Sized): number => a.time - b.time;
 /// ```
-fn older_first(left: &(i64, u64, Entry), right: &(i64, u64, Entry)) -> std::cmp::Ordering {
+fn older_first(
+    left: &(i64, u64, Entry),
+    right: &(i64, u64, Entry),
+) -> std::cmp::Ordering {
     return left.0.cmp(&right.0);
 }
 
 /// Evicts the oldest units and incremental directories until the profile directory fits its cap.
 impl Planner for SizeCap {
     /// Decides which entries to evict.
-    fn plan(&self, found: &ProfileUnits, now: i64) -> Removals {
+    fn plan(
+        &self,
+        found: &ProfileUnits,
+        now: i64,
+    ) -> Removals {
         let mut seen: HashSet<Identity> = HashSet::new();
         let mut sized: Vec<(i64, u64, Entry)> = Vec::new();
         let mut total: u64 = 0;
@@ -102,11 +115,16 @@ impl Planner for SizeCap {
             }
             match entry {
                 Entry::Unit(index) => removals.units.push(found.units[index].clone()),
-                Entry::Incremental(index) => removals.incremental.push(found.incremental[index].clone()),
+                Entry::Incremental(index) => {
+                    removals.incremental.push(found.incremental[index].clone())
+                }
             }
             total = total.saturating_sub(bytes);
         }
-        removals.reason = format!("the profile directory held {over} bytes, over its cap of {} bytes; oldest first until under it", self.cap_bytes);
+        removals.reason = format!(
+            "the profile directory held {over} bytes, over its cap of {} bytes; oldest first until under it",
+            self.cap_bytes
+        );
         return removals;
     }
 }

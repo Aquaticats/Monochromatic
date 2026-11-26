@@ -45,11 +45,19 @@
 /// ```ts
 /// // OsString ~ string; Child ~ a Node ChildProcess handle; Arc<T> ~ a shared ref.
 /// ```
-use std::{ffi::OsString, os::unix::net::UnixStream, process::Child, sync::Arc};
+use std::{
+    ffi::OsString,
+    os::unix::net::UnixStream,
+    process::Child,
+    sync::Arc,
+};
 
 /// Context turns a failed startup step into an error that names the step,
 ///  so the process reports it and exits nonzero instead of panicking.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// Clipboard management globals are owned by this nested display,
 ///  never the host.
@@ -61,7 +69,9 @@ use crate::appearance_portal::AppearancePortal;
 
 /// The private session bus and the taskbar progress listener that reads it.
 use crate::{
-    input_pointer::HeldButtons, launcher_listen::LauncherLog, plasma_services::PlasmaServices,
+    input_pointer::HeldButtons,
+    launcher_listen::LauncherLog,
+    plasma_services::PlasmaServices,
     private_bus::PrivateBus,
 };
 
@@ -70,7 +80,11 @@ use crate::frame_pacing::FramePacing;
 
 /// The logical screen size and output scale,
 ///  and the globals that tell clients the scale.
-use crate::{render_backend::RenderBackend, screen::ScreenState, screen_geometry::ScreenGeometry};
+use crate::{
+    render_backend::RenderBackend,
+    screen::ScreenState,
+    screen_geometry::ScreenGeometry,
+};
 
 /// What:
 ///      A grouped `use` of Smithay items.
@@ -85,24 +99,58 @@ use crate::{render_backend::RenderBackend, screen::ScreenState, screen_geometry:
 /// import { Space, Window, Seat, ... } from "smithay";
 /// ```
 use smithay::{
-    backend::renderer::{damage::OutputDamageTracker, gles::GlesTexture},
-    desktop::{PopupManager, Space, Window},
-    input::{Seat, SeatState},
+    backend::renderer::{
+        damage::OutputDamageTracker,
+        gles::GlesTexture,
+    },
+    desktop::{
+        PopupManager,
+        Space,
+        Window,
+    },
+    input::{
+        Seat,
+        SeatState,
+    },
     output::Output,
     reexports::{
         calloop::{
-            generic::{Generic, NoIoDrop},
-            EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, Readiness,
+            EventLoop,
+            Interest,
+            LoopHandle,
+            LoopSignal,
+            Mode,
+            PostAction,
+            Readiness,
+            generic::{
+                Generic,
+                NoIoDrop,
+            },
         },
         wayland_server::{
-            backend::{ClientData, ClientId, DisconnectReason},
-            Display, DisplayHandle,
+            Display,
+            DisplayHandle,
+            backend::{
+                ClientData,
+                ClientId,
+                DisconnectReason,
+            },
         },
     },
-    utils::{Logical, Point},
+    utils::{
+        Logical,
+        Point,
+    },
     wayland::{
-        compositor::{CompositorClientState, CompositorState},
-        dmabuf::{DmabufFeedback, DmabufGlobal, DmabufState},
+        compositor::{
+            CompositorClientState,
+            CompositorState,
+        },
+        dmabuf::{
+            DmabufFeedback,
+            DmabufGlobal,
+            DmabufState,
+        },
         output::OutputManagerState,
         selection::data_device::DataDeviceState,
         shell::xdg::XdgShellState,
@@ -693,7 +741,8 @@ impl Compositor {
         let clipboard = ClipboardProtocols::new(&dh);
         // Register the fractional-scale and viewporter globals with the starting geometry.
         let screen = ScreenState::new(&dh, pieces.geometry);
-        let cursor_shape = smithay::wayland::cursor_shape::CursorShapeManagerState::new::<Self>(&dh);
+        let cursor_shape =
+            smithay::wayland::cursor_shape::CursorShapeManagerState::new::<Self>(&dh);
 
         // What:     `PopupManager::default()`. Builds an empty popup tracker.
         // Why:      Ready to track any popups the app opens.
@@ -809,7 +858,7 @@ impl Compositor {
             cursor_image: smithay::input::pointer::CursorImageStatus::default_named(),
             _cursor_shape: cursor_shape,
             repeat_info: (DEFAULT_REPEAT_RATE, DEFAULT_REPEAT_DELAY_MS),
-        })
+        });
     }
 
     /// Record the failure that ends the session and stop the event loop.
@@ -822,7 +871,10 @@ impl Compositor {
     /// Why:
     ///       Event-source callbacks cannot return an error,
     ///  and the first failure is the cause of any that follow it.
-    pub fn fail(&mut self, error: anyhow::Error) {
+    pub fn fail(
+        &mut self,
+        error: anyhow::Error,
+    ) {
         // What:     Keep the error when no earlier failure is stored,
         //           otherwise log it as a later consequence.
         // Why:      `run` returns the first failure,
@@ -911,12 +963,15 @@ impl Compositor {
         // });
         // ```
         handle
-            .insert_source(Generic::new(display, Interest::READ, Mode::Level), dispatch_display_clients)
+            .insert_source(
+                Generic::new(display, Interest::READ, Mode::Level),
+                dispatch_display_clients,
+            )
             .expect("failed to register the Wayland display source");
 
         // What:     `Ok(socket_name)`. Tail expression returning the owned name.
         // Why:      Hand the chosen socket name back to `new`.
-        return Ok(socket_name)
+        return Ok(socket_name);
     }
 
     /// Find the surface (and its position) under a point on the plane,
@@ -941,8 +996,10 @@ impl Compositor {
     pub fn surface_under(
         &self,
         pos: Point<f64, Logical>,
-    ) -> Option<(smithay::reexports::wayland_server::protocol::wl_surface::WlSurface, Point<f64, Logical>)>
-    {
+    ) -> Option<(
+        smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+        Point<f64, Logical>,
+    )> {
         // What:     `self.space.element_under(pos).and_then(|(window, location)| { ... })`.
         //           `element_under` returns `Option<(&Window, Point<i32, Logical>)>`.
         //           `.and_then(closure)` runs the closure only when present, and the
@@ -967,7 +1024,7 @@ impl Compositor {
             pos - location.to_f64(),
             smithay::desktop::WindowSurfaceType::ALL,
         )?;
-        return Some((surface, (point + location).to_f64()))
+        return Some((surface, (point + location).to_f64()));
     }
 }
 
@@ -987,7 +1044,11 @@ impl Compositor {
 /// Why:
 ///       Give each client a place to keep its compositor-side state.
 ///  A named function replaces the closure the socket source took.
-fn on_new_client(stream: UnixStream, _metadata: &mut (), state: &mut Compositor) {
+fn on_new_client(
+    stream: UnixStream,
+    _metadata: &mut (),
+    state: &mut Compositor,
+) {
     let inserted = state
         .display_handle
         .insert_client(stream, Arc::new(ClientState::default()));
@@ -1021,9 +1082,9 @@ fn dispatch_display_clients(
         return Err(std::io::Error::new(
             error.kind(),
             format!("dispatching Wayland client requests failed: {error}"),
-        ))
+        ));
     }
-    return Ok(PostAction::Continue)
+    return Ok(PostAction::Continue);
 }
 
 /// Per-client compositor-side state stored behind an `Arc` for each Wayland client.
@@ -1073,7 +1134,11 @@ impl ClientData for ClientState {
     ///  the id is ignored (underscore prefix).
     /// Why:
     ///       Nothing to do on connect.
-    fn initialized(&self, _client_id: ClientId) {}
+    fn initialized(
+        &self,
+        _client_id: ClientId,
+    ) {
+    }
 
     /// What:
     ///      `fn disconnected(&self, _client_id: ClientId, _reason:
@@ -1082,5 +1147,10 @@ impl ClientData for ClientState {
     /// Why:
     ///       Nothing to do on disconnect;
     ///  the exit-poll timer handles shutdown.
-    fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
+    fn disconnected(
+        &self,
+        _client_id: ClientId,
+        _reason: DisconnectReason,
+    ) {
+    }
 }

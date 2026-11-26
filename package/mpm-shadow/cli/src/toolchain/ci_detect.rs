@@ -87,12 +87,19 @@ const VENDOR_VARIABLES: [&str; 48] = [
 ];
 
 /// Whether the variable is present and not empty (JavaScript truthiness of a string).
-fn present(env: &EnvMap, name: &str) -> bool {
+fn present(
+    env: &EnvMap,
+    name: &str,
+) -> bool {
     return env.get(name).is_some();
 }
 
 /// Whether the variable is set to exactly this text.
-fn equals(env: &EnvMap, name: &str, expected: &str) -> bool {
+fn equals(
+    env: &EnvMap,
+    name: &str,
+    expected: &str,
+) -> bool {
     return env.get(name) == Some(expected);
 }
 
@@ -126,7 +133,10 @@ pub fn is_ci(env: &EnvMap) -> bool {
         }
     }
     // Vendors whose rule is a variable with a given value, or two variables together.
-    if equals(env, "CI_NAME", "codeship") || equals(env, "CI_NAME", "sourcehut") || equals(env, "CI", "woodpecker") {
+    if equals(env, "CI_NAME", "codeship")
+        || equals(env, "CI_NAME", "sourcehut")
+        || equals(env, "CI", "woodpecker")
+    {
         return true;
     }
     if present(env, "JENKINS_URL") && present(env, "BUILD_ID") {

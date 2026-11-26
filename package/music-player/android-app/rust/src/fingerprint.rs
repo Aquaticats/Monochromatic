@@ -45,7 +45,10 @@ use jni::EnvUnowned;
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it,
 /// as every entry point of this crate does.
-use crate::jni_call::{ReadJavaString, run_with_env};
+use crate::jni_call::{
+    ReadJavaString,
+    run_with_env,
+};
 
 /// What:
 ///      `use jni::objects::{JClass, JString};`.
@@ -64,7 +67,10 @@ use crate::jni_call::{ReadJavaString, run_with_env};
 /// ```ts
 /// // both are opaque host-runtime handles
 /// ```
-use jni::objects::{JClass, JString};
+use jni::objects::{
+    JClass,
+    JString,
+};
 
 /// What:
 ///      `use jni::sys::jlong;`.
@@ -164,7 +170,13 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeFin
     // let pathStr: string;
     // try { pathStr = env.getString(path); } catch { return 0n; }
     // ```
-    let Some(path_str) = run_with_env(&mut env, "nativeFingerprint path", ReadJavaString { text: &path }) else {
+    let Some(path_str) = run_with_env(
+        &mut env,
+        "nativeFingerprint path",
+        ReadJavaString {
+            text: &path,
+        },
+    ) else {
         return 0;
     };
     // What:     `let fingerprint = track_fingerprint(&path_str, size as u64, mtime_nanos as u64 as u128);`.
@@ -191,5 +203,5 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeFin
     // ```ts
     // return BigInt.asIntN(64, fingerprint);
     // ```
-    return fingerprint as jlong
+    return fingerprint as jlong;
 }

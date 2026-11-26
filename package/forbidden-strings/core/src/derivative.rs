@@ -45,7 +45,13 @@ use crate::ast::node::Node;
 ///   repeat,
 /// } from "crate/ast/smart";
 /// ```
-use crate::ast::smart::{alt, comp, concat, inter, repeat};
+use crate::ast::smart::{
+    alt,
+    comp,
+    concat,
+    inter,
+    repeat,
+};
 
 /// What:
 ///     Imports the boundary context used when a sequence steps past a nullable anchor.
@@ -76,7 +82,11 @@ use crate::nullable::nullable;
 
 /// The derivative of each part by one byte,
 /// in order.
-fn derivatives_of(parts: &[Node], byte: u8, ctx: Ctx) -> Vec<Node> {
+fn derivatives_of(
+    parts: &[Node],
+    byte: u8,
+    ctx: Ctx,
+) -> Vec<Node> {
     let mut derived: Vec<Node> = Vec::with_capacity(parts.len());
     for part in parts {
         derived.push(derivative(part, byte, ctx));
@@ -105,7 +115,11 @@ fn derivatives_of(parts: &[Node], byte: u8, ctx: Ctx) -> Vec<Node> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn derivative(node: &Node, byte: u8, ctx: Ctx) -> Node {
+pub fn derivative(
+    node: &Node,
+    byte: u8,
+    ctx: Ctx,
+) -> Node {
     // What: one arm per variant; recursion is structural over child nodes.
     // Why: the derivative is defined inductively on the regex shape.
     //
@@ -126,16 +140,20 @@ pub fn derivative(node: &Node, byte: u8, ctx: Ctx) -> Node {
             // // Same step as the Rust statement below, written with ordinary TS objects/functions.
             // ```
             if set.contains(byte) {
-                return Node::Empty
+                return Node::Empty;
             } else {
-                return Node::Fail
+                return Node::Fail;
             }
         }
         Node::Alt(parts) => return alt(derivatives_of(parts, byte, ctx)),
         Node::Inter(parts) => return inter(derivatives_of(parts, byte, ctx)),
         Node::Comp(inner) => return comp(derivative(inner, byte, ctx)),
         Node::Concat(parts) => return derivative_concat(parts, byte, ctx),
-        Node::Repeat { node: body, min, max } => return derivative_repeat(body, *min, *max, byte, ctx),
+        Node::Repeat {
+            node: body,
+            min,
+            max,
+        } => return derivative_repeat(body, *min, *max, byte, ctx),
     }
 }
 
@@ -165,7 +183,13 @@ pub fn derivative(node: &Node, byte: u8, ctx: Ctx) -> Node {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn derivative_repeat(node: &Node, min: usize, max: usize, byte: u8, ctx: Ctx) -> Node {
+fn derivative_repeat(
+    node: &Node,
+    min: usize,
+    max: usize,
+    byte: u8,
+    ctx: Ctx,
+) -> Node {
     // What: an exhausted repetition (no copies left) matches only the empty
     // string, whose derivative is `Fail`. Why: nothing can be consumed.
     //
@@ -200,9 +224,9 @@ fn derivative_repeat(node: &Node, min: usize, max: usize, byte: u8, ctx: Ctx) ->
         // ```ts
         // // Same step as the Rust statement below, written with ordinary TS objects/functions.
         // ```
-        return alt(vec![main, derivative(&dec, byte, ctx)])
+        return alt(vec![main, derivative(&dec, byte, ctx)]);
     } else {
-        return main
+        return main;
     }
 }
 
@@ -228,7 +252,11 @@ fn derivative_repeat(node: &Node, min: usize, max: usize, byte: u8, ctx: Ctx) ->
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn derivative_concat(parts: &[Node], byte: u8, ctx: Ctx) -> Node {
+fn derivative_concat(
+    parts: &[Node],
+    byte: u8,
+    ctx: Ctx,
+) -> Node {
     // What: accumulate one alternative per leading nullable factor; an index
     // loop is used because each step needs the tail slice `parts[i + 1..]`.
     // Why: lookahead into the remaining factors is the allowed counter-loop case.
@@ -262,7 +290,7 @@ fn derivative_concat(parts: &[Node], byte: u8, ctx: Ctx) -> Node {
             break;
         }
     }
-    return alt(branches)
+    return alt(branches);
 }
 
 /// What:

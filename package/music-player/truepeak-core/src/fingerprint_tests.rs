@@ -50,7 +50,7 @@ struct MaterialCase {
 fn long_path(length: usize) -> String {
     return std::iter::once('/')
         .chain((1..length).map(|index| return char::from(b'a' + ((index - 1) % 26) as u8)))
-        .collect()
+        .collect();
 }
 
 // The six material cases with their reference digests. Cases 1, 2, 4, 5, and 6 fit the Android
@@ -63,7 +63,12 @@ fn material_cases() -> Vec<MaterialCase> {
             mtime_nanos: 1_700_000_000_123_456_789,
             expected: 0x6a80_e982_cfb4_dab6,
         },
-        MaterialCase { path: String::new(), size: 0, mtime_nanos: 0, expected: 0x13d1_8443_ce11_969a },
+        MaterialCase {
+            path: String::new(),
+            size: 0,
+            mtime_nanos: 0,
+            expected: 0x13d1_8443_ce11_969a,
+        },
         MaterialCase {
             path: "/musique/été/chanson.ogg".to_string(),
             size: u64::MAX,
@@ -88,7 +93,7 @@ fn material_cases() -> Vec<MaterialCase> {
             mtime_nanos: 1_700_000_000_999_999_999,
             expected: 0x0362_1517_49ae_2a5e,
         },
-    ]
+    ];
 }
 
 // Each material case hashes to the reference digest; this pins the tag, the field order, the
@@ -114,9 +119,18 @@ fn material_cases_reach_the_vectorized_hash_paths() {
         .iter()
         .map(|case| return fingerprint_material(&case.path, case.size, case.mtime_nanos).len())
         .collect();
-    assert!(lengths.iter().any(|length| return *length > 240), "no material above 240 bytes: {lengths:?}");
-    assert!(lengths.iter().any(|length| return *length > 1024), "no material above 1024 bytes: {lengths:?}");
-    assert!(lengths.iter().any(|length| return *length <= 128), "no short material: {lengths:?}");
+    assert!(
+        lengths.iter().any(|length| return *length > 240),
+        "no material above 240 bytes: {lengths:?}"
+    );
+    assert!(
+        lengths.iter().any(|length| return *length > 1024),
+        "no material above 1024 bytes: {lengths:?}"
+    );
+    assert!(
+        lengths.iter().any(|length| return *length <= 128),
+        "no short material: {lengths:?}"
+    );
 }
 
 // The raw hash of inputs at every XXH3 length-class boundary matches the reference.
@@ -142,7 +156,9 @@ fn raw_xxh3_64_known_answers_match_the_reference() {
         (2048, 0xa5aa_5f57_cf12_9fab),
     ];
     for (length, digest) in expected {
-        let input: Vec<u8> = (0..length).map(|index| return ((index * 131 + 17) & 0xff) as u8).collect();
+        let input: Vec<u8> = (0..length)
+            .map(|index| return ((index * 131 + 17) & 0xff) as u8)
+            .collect();
         assert_eq!(XxHash3_64::oneshot(&input), digest, "raw length {length}");
     }
 }
@@ -152,17 +168,27 @@ fn raw_xxh3_64_known_answers_match_the_reference() {
 fn material_starts_with_the_domain_tag_and_has_the_documented_length() {
     let material = fingerprint_material("/music/invented/a.flac", 7, 9);
     assert!(material.starts_with(FINGERPRINT_DOMAIN_TAG));
-    assert_eq!(material.len(), FINGERPRINT_DOMAIN_TAG.len() + 8 + 22 + 8 + 16);
+    assert_eq!(
+        material.len(),
+        FINGERPRINT_DOMAIN_TAG.len() + 8 + 22 + 8 + 16
+    );
 }
 
 // The path length prefix, path, size, and mtime sit at their documented offsets, little-endian.
 #[test]
 fn material_fields_sit_at_their_documented_offsets() {
-    let material = fingerprint_material("ab", 0x0102_0304_0506_0708, 0x1112_1314_1516_1718_191a_1b1c_1d1e_1f20);
+    let material = fingerprint_material(
+        "ab",
+        0x0102_0304_0506_0708,
+        0x1112_1314_1516_1718_191a_1b1c_1d1e_1f20,
+    );
     let tag_end = FINGERPRINT_DOMAIN_TAG.len();
     assert_eq!(&material[tag_end..tag_end + 8], &2_u64.to_le_bytes());
     assert_eq!(&material[tag_end + 8..tag_end + 10], b"ab");
-    assert_eq!(&material[tag_end + 10..tag_end + 18], &0x0102_0304_0506_0708_u64.to_le_bytes());
+    assert_eq!(
+        &material[tag_end + 10..tag_end + 18],
+        &0x0102_0304_0506_0708_u64.to_le_bytes()
+    );
     assert_eq!(
         &material[tag_end + 18..],
         &0x1112_1314_1516_1718_191a_1b1c_1d1e_1f20_u128.to_le_bytes()
@@ -184,7 +210,8 @@ fn every_input_changes_the_key() {
 #[test]
 fn field_boundaries_are_unambiguous() {
     let mut seen: HashSet<Vec<u8>> = HashSet::new();
-    let trailing_size_bytes = String::from_utf8(vec![1, 0, 0, 0, 0, 0, 0, 0]).expect("ASCII control bytes are UTF-8");
+    let trailing_size_bytes =
+        String::from_utf8(vec![1, 0, 0, 0, 0, 0, 0, 0]).expect("ASCII control bytes are UTF-8");
     let cases: [(String, u64, u128); 4] = [
         (format!("a{trailing_size_bytes}"), 5, 6),
         ("a".to_string(), 1, 6),
@@ -192,7 +219,10 @@ fn field_boundaries_are_unambiguous() {
         ("\0".to_string(), 0, 0),
     ];
     for (path, size, mtime) in cases {
-        assert!(seen.insert(fingerprint_material(&path, size, mtime)), "duplicate material for {path:?}");
+        assert!(
+            seen.insert(fingerprint_material(&path, size, mtime)),
+            "duplicate material for {path:?}"
+        );
     }
 }
 
@@ -200,9 +230,27 @@ fn field_boundaries_are_unambiguous() {
 // and the explicit zero seed equals the shipped one. A positive control for the seed mutants.
 #[test]
 fn the_default_seed_is_zero() {
-    let material = fingerprint_material("/music/invented/a.flac", 12_345_678, 1_700_000_000_123_456_789);
-    assert_eq!(XxHash3_64::oneshot_with_seed(0, &material), track_fingerprint("/music/invented/a.flac", 12_345_678, 1_700_000_000_123_456_789));
-    assert_ne!(XxHash3_64::oneshot_with_seed(1, &material), track_fingerprint("/music/invented/a.flac", 12_345_678, 1_700_000_000_123_456_789));
+    let material = fingerprint_material(
+        "/music/invented/a.flac",
+        12_345_678,
+        1_700_000_000_123_456_789,
+    );
+    assert_eq!(
+        XxHash3_64::oneshot_with_seed(0, &material),
+        track_fingerprint(
+            "/music/invented/a.flac",
+            12_345_678,
+            1_700_000_000_123_456_789
+        )
+    );
+    assert_ne!(
+        XxHash3_64::oneshot_with_seed(1, &material),
+        track_fingerprint(
+            "/music/invented/a.flac",
+            12_345_678,
+            1_700_000_000_123_456_789
+        )
+    );
 }
 
 // The key is a full 64 bits: across many invented tracks, both halves vary (a truncation to 32
@@ -210,7 +258,17 @@ fn the_default_seed_is_zero() {
 #[test]
 fn the_key_uses_all_sixty_four_bits() {
     let high_halves: HashSet<u32> = (0..2000_u64)
-        .map(|index| return (track_fingerprint(&format!("/music/invented/{index}.flac"), index, u128::from(index)) >> 32) as u32)
+        .map(|index| {
+            return (track_fingerprint(
+                &format!("/music/invented/{index}.flac"),
+                index,
+                u128::from(index),
+            ) >> 32) as u32;
+        })
         .collect();
-    assert!(high_halves.len() > 1900, "high halves collapsed: {} distinct of 2000", high_halves.len());
+    assert!(
+        high_halves.len() > 1900,
+        "high halves collapsed: {} distinct of 2000",
+        high_halves.len()
+    );
 }

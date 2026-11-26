@@ -3,7 +3,10 @@
 
 /// `Value` is any JSON value;
 /// `json!` builds one from literal syntax.
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// What:
 ///  Set one nested member of a JSON object,
@@ -18,7 +21,11 @@ use serde_json::{Value, json};
 /// ```ts
 /// function setPath(target: Record<string, unknown>, path: string[], leaf: unknown): void
 /// ```
-fn set_path(target: &mut Value, path: &[&str], leaf: Value) {
+fn set_path(
+    target: &mut Value,
+    path: &[&str],
+    leaf: Value,
+) {
     // `split_first` returns the first name and the rest, or nothing for an empty path.
     let Some((first, rest)) = path.split_first() else {
         *target = leaf;
@@ -48,7 +55,10 @@ fn set_path(target: &mut Value, path: &[&str], leaf: Value) {
 /// ```ts
 /// function confinedSettings(server: string, settings?: unknown): unknown
 /// ```
-pub fn confined_settings(server: &str, settings: Option<&Value>) -> Option<Value> {
+pub fn confined_settings(
+    server: &str,
+    settings: Option<&Value>,
+) -> Option<Value> {
     // `cloned()` copies the borrowed settings into an owned value, when there are any.
     let mut result = settings.cloned();
     if server == "typescript-native" {

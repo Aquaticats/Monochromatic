@@ -13,17 +13,29 @@
 //!  it implements no screen reader and no event routing.
 
 /// Standard library items.
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{
+    Arc,
+    Mutex,
+    MutexGuard,
+    OnceLock,
+    PoisonError,
+};
 
 /// Error handling with context.
 use anyhow::Result;
 /// Structured logging.
 use tracing::info;
 /// The D-Bus client and server library.
-use zbus::{Connection, OwnedObjectPath};
+use zbus::{
+    Connection,
+    OwnedObjectPath,
+};
 
 /// Sibling modules of this crate.
-use crate::{bus_step_bound::build_bounded, private_bus::PrivateBus};
+use crate::{
+    bus_step_bound::build_bounded,
+    private_bus::PrivateBus,
+};
 
 /// Well-known name of the accessibility bus launcher.
 ///
@@ -131,7 +143,7 @@ const _: () = {
     impl BusLauncher {
         /// Return the accessibility bus address.
         fn get_address(&self) -> String {
-            return self.address.clone()
+            return self.address.clone();
         }
     }
 };
@@ -167,13 +179,13 @@ const _: () = {
         /// Accessibility is enabled.
         #[zbus(property)]
         fn is_enabled(&self) -> bool {
-            return true
+            return true;
         }
 
         /// A screen reader is running.
         #[zbus(property)]
         fn screen_reader_enabled(&self) -> bool {
-            return true
+            return true;
         }
     }
 };
@@ -213,11 +225,20 @@ const _: () = {
     #[zbus::interface(name = "org.a11y.atspi.Socket")]
     impl Registry {
         /// Remember the application and return the desktop root.
-        fn embed(&self, plug: (String, OwnedObjectPath)) -> (String, OwnedObjectPath) {
+        fn embed(
+            &self,
+            plug: (String, OwnedObjectPath),
+        ) -> (String, OwnedObjectPath) {
             let (bus_name, path) = plug;
             info!(%bus_name, path = %path.as_str(), "an application registered its accessibility root");
-            let mut applications = self.applications.lock().unwrap_or_else(PoisonError::into_inner);
-            let entry = Application { bus_name, path: path.as_str().to_string() };
+            let mut applications = self
+                .applications
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let entry = Application {
+                bus_name,
+                path: path.as_str().to_string(),
+            };
             if !applications.contains(&entry) {
                 applications.push(entry);
             }
@@ -229,7 +250,7 @@ const _: () = {
                 Some(name) => name,
                 None => REGISTRY_NAME.to_string(),
             };
-            return (owner, desktop)
+            return (owner, desktop);
         }
     }
 };
@@ -276,15 +297,30 @@ impl A11yService {
         let builder = zbus::connection::Builder::address(bus.address())
             .name(BUS_NAME)
             .name(REGISTRY_NAME)
-            .serve_at("/org/a11y/bus", BusLauncher { address: bus.address().to_string() })
+            .serve_at(
+                "/org/a11y/bus",
+                BusLauncher {
+                    address: bus.address().to_string(),
+                },
+            )
             .serve_at("/org/a11y/bus", Status)
-            .serve_at(ROOT_PATH, Registry { applications: Arc::clone(&applications), unique_name: Arc::clone(&unique_name) });
+            .serve_at(
+                ROOT_PATH,
+                Registry {
+                    applications: Arc::clone(&applications),
+                    unique_name: Arc::clone(&unique_name),
+                },
+            );
         let connection = build_bounded(builder, "starting the private accessibility bus services")?;
         if let Some(name) = connection.unique_name() {
             let _ = unique_name.set(name.as_str().to_string());
         }
         info!("started the private accessibility bus services");
-        return Ok(Self { connection, applications, _bus: bus })
+        return Ok(Self {
+            connection,
+            applications,
+            _bus: bus,
+        });
     }
 
     /// The registered applications,
@@ -301,8 +337,11 @@ impl A11yService {
     /// ```
     #[must_use]
     pub fn applications(&self) -> Vec<Application> {
-        let guard: MutexGuard<'_, Vec<Application>> = self.applications.lock().unwrap_or_else(PoisonError::into_inner);
-        return guard.clone()
+        let guard: MutexGuard<'_, Vec<Application>> = self
+            .applications
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        return guard.clone();
     }
 
     /// The connection to query applications with.
@@ -317,6 +356,6 @@ impl A11yService {
     /// connection(): Connection { return this.connection; }
     /// ```
     pub fn connection(&self) -> &Connection {
-        return &self.connection
+        return &self.connection;
     }
 }

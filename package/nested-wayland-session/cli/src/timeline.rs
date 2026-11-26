@@ -9,19 +9,35 @@
 //!  so the hosted client keeps being served while a key is held.
 
 /// Standard library items.
-use std::{collections::VecDeque, sync::mpsc::SyncSender, time::Duration};
+use std::{
+    collections::VecDeque,
+    sync::mpsc::SyncSender,
+    time::Duration,
+};
 
 /// Error handling with context.
 use anyhow::Result;
 /// Smithay compositor types.
-use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
+use smithay::reexports::calloop::timer::{
+    TimeoutAction,
+    Timer,
+};
 /// Structured logging.
-use tracing::{debug, warn};
+use tracing::{
+    debug,
+    warn,
+};
 
 /// Sibling modules of this crate.
 use crate::{
-    input, input_pointer, input_wheel,
-    protocol::{ButtonAction, PointerButton, Response},
+    input,
+    input_pointer,
+    input_wheel,
+    protocol::{
+        ButtonAction,
+        PointerButton,
+        Response,
+    },
     state::Compositor,
 };
 
@@ -120,7 +136,7 @@ impl Step {
     /// ```
     #[must_use]
     pub fn releases(&self) -> bool {
-        return matches!(self, Step::KeyUp(_) | Step::ButtonUp(_) | Step::ScrollStop)
+        return matches!(self, Step::KeyUp(_) | Step::ButtonUp(_) | Step::ScrollStop);
     }
 }
 
@@ -135,19 +151,35 @@ impl Step {
 /// ```ts
 /// function runStep(state: Compositor, step: Step): void { ... }
 /// ```
-fn run_step(state: &mut Compositor, step: &Step) -> Result<()> {
+fn run_step(
+    state: &mut Compositor,
+    step: &Step,
+) -> Result<()> {
     match step {
         Step::KeyDown(code) => input::send_key(state, *code, KeyState::Pressed),
         Step::KeyUp(code) => input::send_key(state, *code, KeyState::Released),
-        Step::MoveTo { x, y } => input_pointer::move_pointer(state, *x, *y)?,
+        Step::MoveTo {
+            x,
+            y,
+        } => input_pointer::move_pointer(state, *x, *y)?,
         Step::ButtonDown(button) => input_pointer::button(state, ButtonAction::Down, *button)?,
         Step::ButtonUp(button) => input_pointer::button(state, ButtonAction::Up, *button)?,
-        Step::Wheel { x, y, horizontal, vertical } => input_wheel::wheel(state, *x, *y, *horizontal, *vertical)?,
-        Step::Scroll { x, y, dx, dy } => input_wheel::scroll(state, *x, *y, *dx, *dy)?,
+        Step::Wheel {
+            x,
+            y,
+            horizontal,
+            vertical,
+        } => input_wheel::wheel(state, *x, *y, *horizontal, *vertical)?,
+        Step::Scroll {
+            x,
+            y,
+            dx,
+            dy,
+        } => input_wheel::scroll(state, *x, *y, *dx, *dy)?,
         Step::ScrollStop => input_wheel::scroll_stop(state)?,
         Step::Wait(_) => {}
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Run steps until the next wait,
@@ -166,10 +198,14 @@ fn run_step(state: &mut Compositor, step: &Step) -> Result<()> {
 /// ```ts
 /// function advance(state: Compositor, queue: Step[], reply: Reply): TimeoutAction { ... }
 /// ```
-fn advance(state: &mut Compositor, queue: &mut VecDeque<Step>, reply: &SyncSender<Response>) -> TimeoutAction {
+fn advance(
+    state: &mut Compositor,
+    queue: &mut VecDeque<Step>,
+    reply: &SyncSender<Response>,
+) -> TimeoutAction {
     while let Some(step) = queue.pop_front() {
         if let Step::Wait(millis) = step {
-            return TimeoutAction::ToDuration(Duration::from_millis(millis))
+            return TimeoutAction::ToDuration(Duration::from_millis(millis));
         }
         if let Err(error) = run_step(state, &step) {
             warn!("timed input step {step:?} failed: {error:#}");
@@ -182,12 +218,12 @@ fn advance(state: &mut Compositor, queue: &mut VecDeque<Step>, reply: &SyncSende
                 }
             }
             let _ = reply.send(Response::Err(format!("{error:#}")));
-            return TimeoutAction::Drop
+            return TimeoutAction::Drop;
         }
     }
     debug!("timed input sequence finished");
     let _ = reply.send(Response::Ok);
-    return TimeoutAction::Drop
+    return TimeoutAction::Drop;
 }
 
 /// Start a timed sequence and answer `reply` when it has finished.
@@ -203,7 +239,11 @@ fn advance(state: &mut Compositor, queue: &mut VecDeque<Step>, reply: &SyncSende
 /// ```ts
 /// function start(state: Compositor, steps: Step[], reply: (r: Response) => void): void { ... }
 /// ```
-pub fn start(state: &mut Compositor, steps: Vec<Step>, reply: SyncSender<Response>) {
+pub fn start(
+    state: &mut Compositor,
+    steps: Vec<Step>,
+    reply: SyncSender<Response>,
+) {
     let mut queue: VecDeque<Step> = steps.into();
     let callback_reply = reply.clone();
     #[cfg_attr(
@@ -213,11 +253,16 @@ pub fn start(state: &mut Compositor, steps: Vec<Step>, reply: SyncSender<Respons
             reason = "calloop's insert_source needs a callable that carries the step queue and the reply sender; see doc/closure-lint-suppressions.md"
         )
     )]
-    let inserted = state.loop_handle.insert_source(Timer::immediate(), move |_, _, event_state: &mut Compositor| {
-        return advance(event_state, &mut queue, &callback_reply)
-    });
+    let inserted = state.loop_handle.insert_source(
+        Timer::immediate(),
+        move |_, _, event_state: &mut Compositor| {
+            return advance(event_state, &mut queue, &callback_reply);
+        },
+    );
     if let Err(error) = inserted {
         warn!("scheduling a timed input sequence failed: {error}");
-        let _ = reply.send(Response::Err(format!("scheduling the input sequence failed: {error}")));
+        let _ = reply.send(Response::Err(format!(
+            "scheduling the input sequence failed: {error}"
+        )));
     }
 }

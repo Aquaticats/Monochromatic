@@ -25,7 +25,11 @@ use ide_app::syntax::SyntaxEngine;
 /// ```ts
 /// import fs from 'node:fs'; import { spawnSync } from 'node:child_process';
 /// ```
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Set in the child process,
 ///  which performs the check instead of starting another child.
@@ -54,7 +58,8 @@ fn a_user_helix_runtime_query_does_not_replace_the_bundled_one() {
         );
         return;
     }
-    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable configuration home");
+    let directory =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable configuration home");
     let queries = directory.path().join("helix/runtime/queries/sql");
     fs::create_dir_all(&queries).expect("user Helix query folder");
     fs::write(queries.join("highlights.scm"), "").expect("empty shadowing query");

@@ -21,7 +21,10 @@
 ///  the cache,
 ///  pending map,
 ///  and running totals live behind `RefCell`/`Cell` inside an `Rc`.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 /// What:
 ///  imports the hash-map container.
 /// Why:
@@ -32,7 +35,10 @@ use std::collections::HashMap;
 /// Why:
 ///  requests borrow a path;
 ///  the channel and cache own `PathBuf` keys.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  imports the reference-counted pointer.
 /// Why:
@@ -40,35 +46,45 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /// What:
-///  imports the GTK widget-extension traits (`set_paintable`).
+///  imports the picture widget.
 /// Why:
-///  a decoded texture is set on the requesting `Picture` via a prelude trait.
-use gtk4::prelude::*;
+///  a preview pane shows its thumbnail in a `Picture`.
+use gtk4::Picture;
 /// What:
 ///  imports the memory-format enum,
 ///  the CPU-memory texture,
 ///  and the base texture type.
 /// Why:
 ///  decoded RGBA pixels become a `MemoryTexture` upcast to `Texture` for the cache.
-use gtk4::gdk::{MemoryFormat, MemoryTexture, Texture};
+use gtk4::gdk::{
+    MemoryFormat,
+    MemoryTexture,
+    Texture,
+};
 /// What:
 ///  imports the glib byte-buffer and its module (`spawn_future_local`).
 /// Why:
 ///  pixels are wrapped in `glib::Bytes` for the texture,
 ///  and the drain runs on the main context.
-use gtk4::glib::{self, Bytes};
+use gtk4::glib::{
+    self,
+    Bytes,
+};
 /// What:
-///  imports the picture widget.
+///  imports the GTK widget-extension traits (`set_paintable`).
 /// Why:
-///  a preview pane shows its thumbnail in a `Picture`.
-use gtk4::Picture;
+///  a decoded texture is set on the requesting `Picture` via a prelude trait.
+use gtk4::prelude::*;
 
 /// What:
 ///  imports the thumbnail size and cache-byte-budget constants.
 /// Why:
 ///  decode scales to `THUMB_SIZE`;
 ///  eviction keeps the cache under `THUMB_CACHE_BYTES`.
-use crate::constants::{THUMB_CACHE_BYTES, THUMB_SIZE};
+use crate::constants::{
+    THUMB_CACHE_BYTES,
+    THUMB_SIZE,
+};
 
 /// What:
 ///  bytes per RGBA pixel.
@@ -172,7 +188,9 @@ impl Thumbnails {
                 deliver(&drain, &path, decoded);
             }
         });
-        return Self { inner }
+        return Self {
+            inner,
+        };
     }
 
     /// What:
@@ -184,7 +202,11 @@ impl Thumbnails {
     /// Why:
     ///  only the first requester of an uncached path enqueues a decode;
     ///  the rest ride along.
-    pub fn request(&self, path: &Path, picture: &Picture) {
+    pub fn request(
+        &self,
+        path: &Path,
+        picture: &Picture,
+    ) {
         if let Some(texture) = self.touch(path) {
             picture.set_paintable(Some(&texture));
             return;
@@ -202,13 +224,16 @@ impl Thumbnails {
     ///  bumping its last-use tick.
     /// Why:
     ///  keeps the most-recently-shown thumbnails out of the eviction victim set.
-    fn touch(&self, path: &Path) -> Option<Texture> {
+    fn touch(
+        &self,
+        path: &Path,
+    ) -> Option<Texture> {
         let mut cache = self.inner.cache.borrow_mut();
         let entry = cache.get_mut(path)?;
         let tick = self.inner.tick.get() + 1;
         self.inner.tick.set(tick);
         entry.used = tick;
-        return Some(entry.texture.clone())
+        return Some(entry.texture.clone());
     }
 }
 
@@ -224,9 +249,19 @@ pub fn is_image(path: &Path) -> bool {
             .map(str::to_ascii_lowercase)
             .as_deref(),
         Some(
-            "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "ico" | "tiff" | "tif" | "avif" | "qoi"
+            "png"
+                | "jpg"
+                | "jpeg"
+                | "gif"
+                | "webp"
+                | "bmp"
+                | "ico"
+                | "tiff"
+                | "tif"
+                | "avif"
+                | "qoi"
         )
-    )
+    );
 }
 
 /// What:
@@ -269,7 +304,7 @@ fn decode(path: &Path) -> Option<Decoded> {
         pixels: thumb.into_raw(),
         width,
         height,
-    })
+    });
 }
 
 /// What:
@@ -280,7 +315,11 @@ fn decode(path: &Path) -> Option<Decoded> {
 ///  and set it on every waiting picture.
 /// Why:
 ///  a failed decode still clears the pending requesters so they do not leak.
-fn deliver(inner: &Rc<ThumbInner>, path: &Path, decoded: Option<Decoded>) {
+fn deliver(
+    inner: &Rc<ThumbInner>,
+    path: &Path,
+    decoded: Option<Decoded>,
+) {
     let waiters = inner.pending.borrow_mut().remove(path).unwrap_or_default();
     let Some(pixels) = decoded else {
         tracing::warn!(path = %path.display(), "thumbnail decode failed");
@@ -306,7 +345,7 @@ fn deliver(inner: &Rc<ThumbInner>, path: &Path, decoded: Option<Decoded>) {
 ///  RGBA is four bytes per pixel;
 ///  this is what the budget counts.
 fn byte_cost(decoded: &Decoded) -> usize {
-    return decoded.width as usize * decoded.height as usize * RGBA_CHANNELS
+    return decoded.width as usize * decoded.height as usize * RGBA_CHANNELS;
 }
 
 /// What:
@@ -324,7 +363,7 @@ fn build_texture(decoded: &Decoded) -> Texture {
         &bytes,
         stride,
     )
-    .upcast::<Texture>()
+    .upcast::<Texture>();
 }
 
 /// What:
@@ -333,7 +372,12 @@ fn build_texture(decoded: &Decoded) -> Texture {
 ///       under its byte budget.
 /// Why:
 ///  keeps decoded-image memory bounded regardless of how many previews are opened.
-fn insert_evicting(inner: &Rc<ThumbInner>, path: &Path, texture: Texture, bytes: usize) {
+fn insert_evicting(
+    inner: &Rc<ThumbInner>,
+    path: &Path,
+    texture: Texture,
+    bytes: usize,
+) {
     let tick = inner.tick.get() + 1;
     inner.tick.set(tick);
     let replaced = inner.cache.borrow_mut().insert(
@@ -385,7 +429,9 @@ fn evict_to_budget(inner: &Rc<ThumbInner>) {
             break;
         };
         if let Some(removed) = inner.cache.borrow_mut().remove(&victim_path) {
-            inner.total_bytes.set(inner.total_bytes.get() - removed.bytes);
+            inner
+                .total_bytes
+                .set(inner.total_bytes.get() - removed.bytes);
         }
     }
 }

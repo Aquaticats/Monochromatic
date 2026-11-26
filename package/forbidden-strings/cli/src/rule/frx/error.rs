@@ -97,42 +97,52 @@ pub enum LoadError {
 ///  user-facing diagnostic.
 impl fmt::Display for LoadError {
     /// Writes a one-line reason that never contains rule text.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // Branch per variant; each interpolates only an opaque index, a config
         // flag letter, or the engine's own static reason.
         match self {
-            LoadError::NoRules => {
-                return write!(f, "no rules loaded")
-            }
-            LoadError::UnsupportedFlag { index, flag } => {
+            LoadError::NoRules => return write!(f, "no rules loaded"),
+            LoadError::UnsupportedFlag {
+                index,
+                flag,
+            } => {
                 return write!(
                     f,
                     "rule {index}: unsupported flag '{flag}'; only 'm' and 'x' are accepted as no-ops",
-                )
+                );
             }
-            LoadError::Compile { index, reason } => {
-                return write!(f, "rule {index}: {reason}")
-            }
-            LoadError::Precompiled { reason } => {
-                return write!(f, "precompiled ruleset failed to load: {reason}")
-            }
-            LoadError::NearHeader { line } => {
+            LoadError::Compile {
+                index,
+                reason,
+            } => return write!(f, "rule {index}: {reason}"),
+            LoadError::Precompiled {
+                reason,
+            } => return write!(f, "precompiled ruleset failed to load: {reason}"),
+            LoadError::NearHeader {
+                line,
+            } => {
                 return write!(
                     f,
                     "line {line}: line starts with '==>' but is not a strict '==> name <==' section header; reshape genuine content as '[=]=>'",
-                )
+                );
             }
-            LoadError::PreHeaderContent { line } => {
-                return write!(f, "line {line}: content before the first section header")
-            }
-            LoadError::EmptySection { line } => {
-                return write!(f, "line {line}: section header has no rule body")
-            }
-            LoadError::DuplicateName { first_line, line } => {
+            LoadError::PreHeaderContent {
+                line,
+            } => return write!(f, "line {line}: content before the first section header"),
+            LoadError::EmptySection {
+                line,
+            } => return write!(f, "line {line}: section header has no rule body"),
+            LoadError::DuplicateName {
+                first_line,
+                line,
+            } => {
                 return write!(
                     f,
                     "line {line}: duplicate section name first declared at line {first_line}",
-                )
+                );
             }
         }
     }

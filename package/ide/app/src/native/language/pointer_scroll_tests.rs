@@ -5,10 +5,24 @@
 //!  and a view that is still moving is not a rest.
 
 /// The rest time and the places it is kept for.
-use super::pointer::{REST, Rest, Spot, View};
+use super::pointer::{
+    REST,
+    Rest,
+    Spot,
+    View,
+};
 /// Fixtures and real window events.
 use super::test_support::{
-    LanguageReader, TEXT_TOP, caret_x, definitions, idle, move_to, point, popup, project, reader,
+    LanguageReader,
+    TEXT_TOP,
+    caret_x,
+    definitions,
+    idle,
+    move_to,
+    point,
+    popup,
+    project,
+    reader,
     ready,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
@@ -76,13 +90,19 @@ pub(super) fn resting_place_with(
 /// The line drawn under the window point `y`:
 ///  the point in the text is the distance below the top of the view
 ///  plus the offset that is drawn.
-pub(super) fn line_drawn_under(reader: &LanguageReader, y: f32) -> usize {
+pub(super) fn line_drawn_under(
+    reader: &LanguageReader,
+    y: f32,
+) -> usize {
     let text_y = y - TEXT_TOP + reader.window.get_drawn_offset();
     return reader.source.borrow().row_map.locate(text_y).line;
 }
 
 /// Wait for the hover popup and give its text.
-pub(super) fn wait_for_popup(reader: &LanguageReader, what: &str) -> String {
+pub(super) fn wait_for_popup(
+    reader: &LanguageReader,
+    what: &str,
+) -> String {
     let mut waiting = Waiting::language();
     while popup(reader).is_empty() {
         waiting.step(what);
@@ -92,7 +112,11 @@ pub(super) fn wait_for_popup(reader: &LanguageReader, what: &str) -> String {
 
 /// The hover popup of a request names the line under the pointer in the view that is drawn,
 ///  not the line the pointer was over when it last moved.
-pub(super) fn assert_names_line_drawn_under(reader: &LanguageReader, y: f32, text: &str) {
+pub(super) fn assert_names_line_drawn_under(
+    reader: &LanguageReader,
+    y: f32,
+    text: &str,
+) {
     let line = line_drawn_under(reader, y);
     assert!(
         line > 4,

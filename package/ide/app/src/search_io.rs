@@ -3,9 +3,18 @@
 /// Search record limits are shared with user-facing stream diagnostics.
 use crate::search::MAX_SEARCH_RECORD;
 /// I/O failures retain their context instead of becoming an empty result list.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Tokio's buffered reads can be cancelled while retaining already consumed bytes.
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
+use tokio::io::{
+    AsyncBufRead,
+    AsyncBufReadExt,
+    AsyncRead,
+    AsyncReadExt,
+};
 
 /// Bound diagnostic storage while continuing to drain the pipe so a child cannot block behind stderr.
 const MAX_DIAGNOSTIC_BYTES: usize = 64 * 1024;

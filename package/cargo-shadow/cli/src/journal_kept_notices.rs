@@ -18,10 +18,14 @@
 // import { Name } from './module.ts';
 // ```
 /// Imports `std::fs::{self, File, OpenOptions}` for this file.
-use std::fs::{self};
+use std::fs::{
+    self,
+};
 // Imports `std::io`.
 /// Imports `std::io` for this file.
-use std::io::{self};
+use std::io::{
+    self,
+};
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
 // Why:      Joined or stored paths are owned; paths passed in are borrowed.
@@ -31,13 +35,17 @@ use std::io::{self};
 // // TS has one type for this: string
 // ```
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, ...`.
 /// Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced}` for this file.
-use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
-
+use crate::journal::{
+    KEPT_FILES_WARNING_COUNT,
+    QUARANTINE_DIR,
+};
 
 /// What:
 /// `pub fn announce_kept_notice(notice: &str)` prints the warning about the kept files,
@@ -74,7 +82,9 @@ pub fn announce_kept_notice(notice: &str) {
 /// function isKeptBesideALockfile(name: string): boolean
 /// ```
 pub(crate) fn is_kept_beside_a_lockfile(name: &str) -> bool {
-    return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
+    return name.starts_with("Cargo.lock.displaced")
+        || name.starts_with("Cargo.lock.refused")
+        || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
 }
 
 /// What:
@@ -92,7 +102,10 @@ pub(crate) fn is_kept_beside_a_lockfile(name: &str) -> bool {
 /// ```ts
 /// export function announceKeptFilesFor(root: string, crateRoots: string[]): void
 /// ```
-pub fn announce_kept_files_for(root: &Path, crate_roots: &[String]) {
+pub fn announce_kept_files_for(
+    root: &Path,
+    crate_roots: &[String],
+) {
     if let Some(notice) = kept_folder_notice(root, crate_roots) {
         announce_kept_notice(&notice);
     }
@@ -119,7 +132,10 @@ pub fn announce_kept_files_for(root: &Path, crate_roots: &[String]) {
 /// ```ts
 /// function keptFolderNotice(root: string, crateRoots: string[]): string | undefined
 /// ```
-pub(crate) fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
+pub(crate) fn kept_folder_notice(
+    root: &Path,
+    crate_roots: &[String],
+) -> Option<String> {
     let directory: PathBuf = root.join(QUARANTINE_DIR);
     let mut central: usize = 0;
     let mut beside: usize = 0;
@@ -190,7 +206,9 @@ pub(crate) fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<
         if unlisted.is_empty() {
             return None;
         }
-        return Some(format!("cargo-shadow:{unknown} Nothing was deleted and cargo keeps working."));
+        return Some(format!(
+            "cargo-shadow:{unknown} Nothing was deleted and cargo keeps working."
+        ));
     }
     if count + unreadable <= KEPT_FILES_WARNING_COUNT {
         return Some(format!(
@@ -198,8 +216,18 @@ pub(crate) fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<
             directory.display()
         ));
     }
-    let unread: String = if unreadable == 0 { String::new() } else { format!(" ({unreadable} more could not be read)") };
-    let besides: String = if beside == 0 { String::new() } else { format!(" and {beside} more are kept beside the lockfiles of the crate roots (Cargo.lock.displaced*, Cargo.lock.refused*, .Cargo.lock.shadow-*.tmp)") };
+    let unread: String = if unreadable == 0 {
+        String::new()
+    } else {
+        format!(" ({unreadable} more could not be read)")
+    };
+    let besides: String = if beside == 0 {
+        String::new()
+    } else {
+        format!(
+            " and {beside} more are kept beside the lockfiles of the crate roots (Cargo.lock.displaced*, Cargo.lock.refused*, .Cargo.lock.shadow-*.tmp)"
+        )
+    };
     return Some(format!(
         "cargo-shadow: {} holds {central} files{besides}: {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review them when you can. Before you remove any of them, check that no program still has it open.{unknown}",
         directory.display()

@@ -2,7 +2,10 @@
 
 use super::*;
 use music_player::template_model::DEFAULT_TRACK_TEMPLATE;
-use music_player::track_supporting_line::{SupportingLine, supporting_line_from_template};
+use music_player::track_supporting_line::{
+    SupportingLine,
+    supporting_line_from_template,
+};
 
 #[test]
 fn track_fields_split_folder_file_stem_and_extension() {

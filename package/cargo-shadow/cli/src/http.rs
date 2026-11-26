@@ -51,7 +51,8 @@ use std::time::Duration;
 
 /// The user agent crates.io's data-access policy asks for:
 /// it names the tool and where to reach its owner.
-pub const USER_AGENT: &str = "monochromatic-cargo-shadow (https://github.com/Aquaticats/Monochromatic)";
+pub const USER_AGENT: &str =
+    "monochromatic-cargo-shadow (https://github.com/Aquaticats/Monochromatic)";
 
 /// The longest response body read,
 /// in bytes.
@@ -126,7 +127,10 @@ impl fmt::Display for RegistryError {
     /// ```ts
     /// toString(): string { return this.message; }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.message);
     }
 }
@@ -143,7 +147,10 @@ impl fmt::Display for RegistryError {
 /// ```
 pub trait TextFetcher {
     /// Fetches the body of `url` as text.
-    fn get(&self, url: &str) -> Result<String, RegistryError>;
+    fn get(
+        &self,
+        url: &str,
+    ) -> Result<String, RegistryError>;
 }
 
 /// What:
@@ -160,7 +167,10 @@ pub trait TextFetcher {
 /// ```
 pub trait DumpSource {
     /// Opens `url` for streaming.
-    fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError>;
+    fn open(
+        &self,
+        url: &str,
+    ) -> Result<Box<dyn Read>, RegistryError>;
 }
 
 /// The real network,
@@ -230,7 +240,10 @@ impl UreqFetcher {
             .timeout_global(Some(Duration::from_secs(DUMP_TIMEOUT_SECONDS)))
             .build()
             .into();
-        return UreqFetcher { agent, stream_agent };
+        return UreqFetcher {
+            agent,
+            stream_agent,
+        };
     }
 }
 
@@ -269,8 +282,15 @@ impl Default for UreqFetcher {
 /// ```ts
 /// const requestFailure = (url: string, error: Error) => new RegistryError(`${url}: ${error.message}`);
 /// ```
-fn request_failure(url: &str, error: &dyn std::fmt::Display) -> RegistryError {
-    return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
+fn request_failure(
+    url: &str,
+    error: &dyn std::fmt::Display,
+) -> RegistryError {
+    return RegistryError {
+        message: format!("{url}: {error}"),
+        status: None,
+        retry_after_seconds: 0,
+    };
 }
 
 /// What:
@@ -326,7 +346,10 @@ impl TextFetcher for UreqFetcher {
     /// ```ts
     /// get(url: string): string  // throws RegistryError
     /// ```
-    fn get(&self, url: &str) -> Result<String, RegistryError> {
+    fn get(
+        &self,
+        url: &str,
+    ) -> Result<String, RegistryError> {
         let mut response = match self.agent.get(url).call() {
             Ok(answer) => answer,
             Err(error) => return Err(request_failure(url, &error)),
@@ -345,7 +368,12 @@ impl TextFetcher for UreqFetcher {
                 retry_after_seconds: retry_after,
             });
         }
-        return match response.body_mut().with_config().limit(MAX_BODY_BYTES).read_to_string() {
+        return match response
+            .body_mut()
+            .with_config()
+            .limit(MAX_BODY_BYTES)
+            .read_to_string()
+        {
             Ok(text) => Ok(text),
             Err(error) => Err(request_failure(url, &error)),
         };
@@ -376,14 +404,21 @@ impl DumpSource for UreqFetcher {
     /// ```ts
     /// open(url: string): ReadableStream  // throws RegistryError
     /// ```
-    fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError> {
+    fn open(
+        &self,
+        url: &str,
+    ) -> Result<Box<dyn Read>, RegistryError> {
         let response = match self.stream_agent.get(url).call() {
             Ok(answer) => answer,
             Err(error) => return Err(request_failure(url, &error)),
         };
         let status: u16 = response.status().as_u16();
         if !(200..300).contains(&status) {
-            return Err(RegistryError { message: format!("{url} answered HTTP {status}"), status: Some(status), retry_after_seconds: 0 });
+            return Err(RegistryError {
+                message: format!("{url} answered HTTP {status}"),
+                status: Some(status),
+                retry_after_seconds: 0,
+            });
         }
         return Ok(Box::new(response.into_body().into_reader()));
     }

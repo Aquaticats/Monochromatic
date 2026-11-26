@@ -11,7 +11,9 @@ mod memory_fixture;
 ///  background reader,
 ///  and its matcher.
 use ide_app::{
-    directory_worker::DirectoryWorker, file_tree::FileTree, git_ignore::GlobalSource,
+    directory_worker::DirectoryWorker,
+    file_tree::FileTree,
+    git_ignore::GlobalSource,
     workspace::Workspace,
 };
 /// Fixture files are private;
@@ -19,12 +21,19 @@ use ide_app::{
 use std::{
     fs,
     path::Path,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Write a file,
 ///  creating its folders.
-fn put(root: &Path, name: &str, text: &str) {
+fn put(
+    root: &Path,
+    name: &str,
+    text: &str,
+) {
     let path = root.join(name);
     fs::create_dir_all(path.parent().expect("parent folder")).expect("fixture folder");
     fs::write(path, text).expect("fixture file");
@@ -57,7 +66,10 @@ fn open(folder: &Path) -> Session {
 /// A session reads a directory and applies the reply.
 impl Session {
     /// List one directory now and wait for its reply.
-    fn list(&mut self, directory: &Path) {
+    fn list(
+        &mut self,
+        directory: &Path,
+    ) {
         assert!(
             self.worker
                 .request(&mut self.tree, directory)
@@ -76,7 +88,10 @@ impl Session {
     }
 
     /// Expand a directory row and list it.
-    fn expand(&mut self, name: &str) {
+    fn expand(
+        &mut self,
+        name: &str,
+    ) {
         let path = self.root.join(name);
         self.tree.toggle(&path).expect("expand");
         self.list(&path);

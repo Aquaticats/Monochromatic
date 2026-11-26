@@ -1,7 +1,7 @@
 //! Controls for the raw difference reader and the worktree states.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{fixture, git, git_context, git_text, remove, repository, spawn_owned};
 
 /// Two NUL-separated entries read into their sides.
 #[test]
@@ -51,7 +51,7 @@ fn a_worktree_path_is_hashed_the_way_git_records_it() {
         let mut command = std::process::Command::new("/usr/bin/git");
         command.current_dir(repo.as_path()).args(["hash-object", "--stdin"]);
         command.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
-        let mut child = command.spawn().expect("hash-object");
+        let mut child = spawn_owned(&mut command).expect("hash-object");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"file.txt").expect("input");
         String::from_utf8(child.wait_with_output().expect("output").stdout).expect("text").trim().to_owned()
     };

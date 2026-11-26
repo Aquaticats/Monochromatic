@@ -9,18 +9,33 @@
 /// The state,
 ///  the request record,
 ///  and the steps of a tick.
-use super::{Language, guard, message, outcome, rest_step, surface, sync};
+use super::{
+    Language,
+    guard,
+    message,
+    outcome,
+    rest_step,
+    surface,
+    sync,
+};
 /// The window,
 ///  the source,
 ///  the navigation that opens other files,
 ///  and the source repaint.
 use crate::native::{
-    AppWindow, State,
-    navigation::{Navigation, feed_servers},
+    AppWindow,
+    State,
+    navigation::{
+        Navigation,
+        feed_servers,
+    },
     render,
 };
 /// The identity of the displayed text and the requests the worker takes.
-use ide_app::language::{identity::DocumentStamp, reply::PositionRequest};
+use ide_app::language::{
+    identity::DocumentStamp,
+    reply::PositionRequest,
+};
 /// What:
 ///  `Rc<RefCell<T>>` is the window's shared,
 ///  borrow-checked state.
@@ -33,7 +48,10 @@ use ide_app::language::{identity::DocumentStamp, reply::PositionRequest};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Turn language support off after the worker stopped,
@@ -85,7 +103,11 @@ pub(super) fn stop(
 /// ```ts
 /// function send(language: Language, slot: Pending | undefined, displayed: DocumentStamp): void
 /// ```
-fn send(language: &mut Language, hover: bool, displayed: DocumentStamp) -> anyhow::Result<()> {
+fn send(
+    language: &mut Language,
+    hover: bool,
+    displayed: DocumentStamp,
+) -> anyhow::Result<()> {
     if language.synced != Some(displayed) {
         return Ok(());
     }
@@ -171,7 +193,10 @@ fn cancel_stale(
 /// ```ts
 /// function replies(language: Language, displayed: DocumentStamp): void
 /// ```
-fn replies(language: &mut Language, displayed: DocumentStamp) -> anyhow::Result<()> {
+fn replies(
+    language: &mut Language,
+    displayed: DocumentStamp,
+) -> anyhow::Result<()> {
     loop {
         let Some(worker) = language.worker.as_mut() else {
             return Ok(());
@@ -312,7 +337,10 @@ fn snapshots(
 /// ```ts
 /// function relayWatching(language, navigation) { feedServers(navigation, worker?.wantsFileChanges() ? worker.fileChangeSender() : undefined); }
 /// ```
-fn relay_watching(language: &Language, navigation: &Rc<RefCell<Navigation>>) {
+fn relay_watching(
+    language: &Language,
+    navigation: &Rc<RefCell<Navigation>>,
+) {
     let mut feed = None;
     if let Some(worker) = language.worker.as_ref()
         && worker.wants_file_changes()

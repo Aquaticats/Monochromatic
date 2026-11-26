@@ -15,15 +15,18 @@
 
 /// Imports `decode_rule` from `crate::config_decode_rules`.
 use crate::config_decode_rules::decode_rule;
+/// Imports `ConfigDocument` from `crate::config_load`.
+use crate::config_load::ConfigDocument;
 /// Imports `Reader` from `crate::config_reader`.
 use crate::config_reader::Reader;
 /// Imports `Config`,
 /// `RuleConfig` from `crate::config_types`.
-use crate::config_types::{Config, RuleConfig};
+use crate::config_types::{
+    Config,
+    RuleConfig,
+};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
-/// Imports `ConfigDocument` from `crate::config_load`.
-use crate::config_load::ConfigDocument;
 /// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 
@@ -114,7 +117,11 @@ pub fn is_octal_mode(mode: &str) -> bool {
 /// ```ts
 /// function decodeConfig(document: ConfigDocument, scope: ConfigScope, displayPath: string): Config
 /// ```
-pub fn decode_config(document: &ConfigDocument, scope: ConfigScope, display_path: &str) -> Result<Config, Vec<Diagnostic>> {
+pub fn decode_config(
+    document: &ConfigDocument,
+    scope: ConfigScope,
+    display_path: &str,
+) -> Result<Config, Vec<Diagnostic>> {
     let mut reader = Reader::new(display_path, &document.locations);
     let mut rules: Vec<RuleConfig> = Vec::new();
     let mut schema: Option<String> = None;
@@ -138,7 +145,10 @@ pub fn decode_config(document: &ConfigDocument, scope: ConfigScope, display_path
     if !reader.errors.is_empty() {
         return Err(reader.errors);
     }
-    return Ok(Config { schema, rules });
+    return Ok(Config {
+        schema,
+        rules,
+    });
 }
 
 /// What:
@@ -151,14 +161,25 @@ pub fn decode_config(document: &ConfigDocument, scope: ConfigScope, display_path
 /// ```ts
 /// function checkScope(rule: RuleConfig, scope: ConfigScope, pointer: string): void
 /// ```
-fn check_scope(reader: &mut Reader, rule: &RuleConfig, scope: ConfigScope, pointer: &str) {
+fn check_scope(
+    reader: &mut Reader,
+    rule: &RuleConfig,
+    scope: ConfigScope,
+    pointer: &str,
+) {
     let is_user_kind = matches!(rule, RuleConfig::JetbrainsHarper { .. });
     if scope == ConfigScope::Repository && is_user_kind {
-        let message = format!("the kind {} writes outside the repository; put it in the per-user config", rule.kind());
+        let message = format!(
+            "the kind {} writes outside the repository; put it in the per-user config",
+            rule.kind()
+        );
         reader.error(pointer, &message);
     }
     if scope == ConfigScope::User && !is_user_kind {
-        let message = format!("the kind {} belongs in the repository config, not the per-user config", rule.kind());
+        let message = format!(
+            "the kind {} belongs in the repository config, not the per-user config",
+            rule.kind()
+        );
         reader.error(pointer, &message);
     }
 }

@@ -7,7 +7,10 @@
 ///  with the raw name last so equal-looking names keep one fixed order.
 use std::{
     cmp::Ordering,
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
 };
 
 /// One comparable piece of a name.
@@ -40,7 +43,9 @@ impl Piece {
     /// because digits always become a `Number`.
     fn rank(&self) -> char {
         return match self {
-            Piece::Number { .. } => '0',
+            Piece::Number {
+                ..
+            } => '0',
             Piece::Character(character) => *character,
         };
     }
@@ -51,14 +56,20 @@ impl Piece {
 impl Ord for Piece {
     /// Rank decides first;
     ///  only two numbers fall through to length and digits.
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> Ordering {
         let by_rank = self.rank().cmp(&other.rank());
         if by_rank != Ordering::Equal {
             return by_rank;
         }
         return match (self, other) {
             (
-                Piece::Number { length, digits },
+                Piece::Number {
+                    length,
+                    digits,
+                },
                 Piece::Number {
                     length: other_length,
                     digits: other_digits,
@@ -80,7 +91,10 @@ impl Ord for Piece {
 /// Ordering must agree with `Ord`.
 impl PartialOrd for Piece {
     /// Delegate to `cmp` so the two orders cannot disagree.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<Ordering> {
         return Some(self.cmp(other));
     }
 }

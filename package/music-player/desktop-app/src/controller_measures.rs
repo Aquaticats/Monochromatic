@@ -11,7 +11,10 @@
 //! so stale reports are dropped here.
 
 /// Imports the path types that name tracks and the opened folder.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the shared ownership type that the refresh tests use to share a cache.
 #[cfg(test)]
 use std::sync::Arc;
@@ -77,27 +80,58 @@ impl Controller {
     /// ```ts
     /// handleSweepReport(report: SweepReport): void { if (report.generation === this.analysisGeneration) this.emit(toUpdate(report)); }
     /// ```
-    pub(crate) fn handle_sweep_report(&mut self, report: SweepReport) {
+    pub(crate) fn handle_sweep_report(
+        &mut self,
+        report: SweepReport,
+    ) {
         match report {
-            SweepReport::Measures { generation, measures } => {
+            SweepReport::Measures {
+                generation,
+                measures,
+            } => {
                 if generation != self.analysis_generation {
-                    tracing::debug!(generation, current = self.analysis_generation, "dropped measures from a replaced queue");
+                    tracing::debug!(
+                        generation,
+                        current = self.analysis_generation,
+                        "dropped measures from a replaced queue"
+                    );
                     return;
                 }
                 self.forget_reports_of_decoded(&measures);
                 self.emit(Update::Measures(measures));
             }
-            SweepReport::Progress { generation, done, total } => {
+            SweepReport::Progress {
+                generation,
+                done,
+                total,
+            } => {
                 if generation != self.analysis_generation {
-                    tracing::debug!(generation, current = self.analysis_generation, "dropped progress from a replaced queue");
+                    tracing::debug!(
+                        generation,
+                        current = self.analysis_generation,
+                        "dropped progress from a replaced queue"
+                    );
                     return;
                 }
-                self.emit(Update::Analysis { done, total });
+                self.emit(Update::Analysis {
+                    done,
+                    total,
+                });
             }
-            SweepReport::RefreshDone { id, .. } => self.finish_refresh(id),
-            SweepReport::Unreadable { generation, files } => {
+            SweepReport::RefreshDone {
+                id,
+                ..
+            } => self.finish_refresh(id),
+            SweepReport::Unreadable {
+                generation,
+                files,
+            } => {
                 if generation != self.analysis_generation {
-                    tracing::debug!(generation, current = self.analysis_generation, "dropped unreadable files from a replaced queue");
+                    tracing::debug!(
+                        generation,
+                        current = self.analysis_generation,
+                        "dropped unreadable files from a replaced queue"
+                    );
                     return;
                 }
                 self.report_unplayable_once(files);
@@ -116,8 +150,15 @@ impl Controller {
     /// ```ts
     /// publishDecisionMeasure(path: string, decision: Decision): void { this.emit({ kind: "measures", measures: [[path, measureFromDecision(decision)]] }); }
     /// ```
-    pub(crate) fn publish_decision_measure(&self, path: &Path, decision: &Decision) {
-        self.emit(Update::Measures(vec![(path.to_path_buf(), measure_from_decision(decision))]));
+    pub(crate) fn publish_decision_measure(
+        &self,
+        path: &Path,
+        decision: &Decision,
+    ) {
+        self.emit(Update::Measures(vec![(
+            path.to_path_buf(),
+            measure_from_decision(decision),
+        )]));
     }
 
     /// What:
@@ -140,7 +181,10 @@ impl Controller {
     /// ```ts
     /// reportUnplayableOnce(files: string[]): void { const fresh = files.filter(f => reported.add(f)); if (fresh.length) emit({ kind: "unplayable", paths: fresh }); }
     /// ```
-    pub(crate) fn report_unplayable_once(&self, files: Vec<PathBuf>) {
+    pub(crate) fn report_unplayable_once(
+        &self,
+        files: Vec<PathBuf>,
+    ) {
         let fresh: Vec<PathBuf> = match self.reported_unplayable.lock() {
             Ok(mut reported) => {
                 let mut newly_reported: Vec<PathBuf> = Vec::new();
@@ -171,7 +215,10 @@ impl Controller {
     /// ```ts
     /// forgetReportsOfDecoded(measures: [string, TrackMeasure][]): void { for (const [p, m] of measures) if (m.peakDbtp !== null) reported.delete(p); }
     /// ```
-    fn forget_reports_of_decoded(&self, measures: &[(PathBuf, crate::track_measure::TrackMeasure)]) {
+    fn forget_reports_of_decoded(
+        &self,
+        measures: &[(PathBuf, crate::track_measure::TrackMeasure)],
+    ) {
         if let Ok(mut reported) = self.reported_unplayable.lock() {
             for (path, measure) in measures {
                 if measure.peak_dbtp.is_some() {

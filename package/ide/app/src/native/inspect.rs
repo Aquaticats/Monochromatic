@@ -39,14 +39,35 @@
 /// The parent's state,
 ///  the production setter,
 ///  and the production repaint.
-use super::{AppWindow, State, annotate, render};
+use super::{
+    AppWindow,
+    State,
+    annotate,
+    render,
+};
 /// A malformed inspection file stops startup with a message naming it.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// The snapshot records a language server would produce.
 use ide_app::language::{
-    diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup},
-    hints::{HintKind, HintsSnapshot, InlayHint},
-    identity::{DocumentStamp, ServerIdentity},
+    diagnostics::{
+        Diagnostic,
+        DiagnosticsSnapshot,
+        Freshness,
+        Severity,
+        SourceGroup,
+    },
+    hints::{
+        HintKind,
+        HintsSnapshot,
+        InlayHint,
+    },
+    identity::{
+        DocumentStamp,
+        ServerIdentity,
+    },
 };
 /// What:
 ///  `Deserialize` lets serde build a record from JSON.
@@ -59,7 +80,11 @@ use ide_app::language::{
 /// ```
 use serde::Deserialize;
 /// Timer callbacks and weak window references belong to the toolkit event loop.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    Timer,
+    TimerMode,
+};
 /// Shared UI state,
 ///  shared snapshot pointers,
 ///  and the clock delayed arrivals are measured on.
@@ -67,7 +92,10 @@ use std::{
     cell::RefCell,
     rc::Rc,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// One hint in the inspection file.
@@ -207,7 +235,10 @@ struct Records {
 }
 
 /// Orders hints by the character offset they are drawn before.
-fn by_position(left: &InlayHint, right: &InlayHint) -> std::cmp::Ordering {
+fn by_position(
+    left: &InlayHint,
+    right: &InlayHint,
+) -> std::cmp::Ordering {
     return left.position.cmp(&right.position);
 }
 
@@ -263,11 +294,18 @@ fn records(file: InspectionFile) -> Result<Records> {
             });
         }
     }
-    return Ok(Records { hints, groups });
+    return Ok(Records {
+        hints,
+        groups,
+    });
 }
 
 /// The records' hints as a snapshot of the text `stamp` that answers for all of its `lines`.
-fn hint_snapshot(records: &Records, stamp: DocumentStamp, lines: usize) -> Arc<HintsSnapshot> {
+fn hint_snapshot(
+    records: &Records,
+    stamp: DocumentStamp,
+    lines: usize,
+) -> Arc<HintsSnapshot> {
     return Arc::new(HintsSnapshot {
         stamp,
         first_line: 0,
@@ -277,7 +315,10 @@ fn hint_snapshot(records: &Records, stamp: DocumentStamp, lines: usize) -> Arc<H
 }
 
 /// The records' diagnostics as a snapshot of the text `stamp`.
-fn problem_snapshot(records: &Records, stamp: DocumentStamp) -> Arc<DiagnosticsSnapshot> {
+fn problem_snapshot(
+    records: &Records,
+    stamp: DocumentStamp,
+) -> Arc<DiagnosticsSnapshot> {
     return Arc::new(DiagnosticsSnapshot {
         stamp,
         groups: records.groups.clone(),
@@ -393,7 +434,10 @@ fn tick(
 /// ```ts
 /// function inject(window: AppWindow, state: Shared<State>): Timer | undefined;
 /// ```
-pub(super) fn inject(window: &AppWindow, state: &Rc<RefCell<State>>) -> Result<Option<Timer>> {
+pub(super) fn inject(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) -> Result<Option<Timer>> {
     // What: `var_os` reads the variable without requiring UTF-8; `let ... else` returns when it is unset.
     // Why: Without the variable the application behaves exactly as without this module.
     //

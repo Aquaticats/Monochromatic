@@ -53,7 +53,10 @@ const KANA_ROWS: [(&str, &str); 10] = [
     ("さ", "さしすせそサシスセソざじずぜぞザジズゼゾ"),
     ("た", "たちつてとタチツテトだぢづでどダヂヅデドっッ"),
     ("な", "なにぬねのナニヌネノ"),
-    ("は", "はひふへほハヒフヘホばびぶべぼバビブベボぱぴぷぺぽパピプペポ"),
+    (
+        "は",
+        "はひふへほハヒフヘホばびぶべぼバビブベボぱぴぷぺぽパピプペポ",
+    ),
     ("ま", "まみむめもマミムメモ"),
     ("や", "やゆよヤユヨゃゅょャュョ"),
     ("ら", "らりるれろラリルレロ"),
@@ -267,7 +270,10 @@ fn script_of_char(first: char) -> RailScript {
     if first.is_ascii_alphabetic() || ('À'..='ɏ').contains(&first) {
         return RailScript::Latin;
     }
-    if ('぀'..='ヿ').contains(&first) || ('一'..='鿿').contains(&first) || ('ｦ'..='ﾝ').contains(&first) {
+    if ('぀'..='ヿ').contains(&first)
+        || ('一'..='鿿').contains(&first)
+        || ('ｦ'..='ﾝ').contains(&first)
+    {
         return RailScript::Japanese;
     }
     if ('Ѐ'..='ӿ').contains(&first) {
@@ -341,9 +347,14 @@ fn uppercase_first(name: &str) -> String {
 ///   return name[0].toUpperCase();
 /// }
 /// ```
-fn cell_label_for(name: &str, script: RailScript) -> String {
+fn cell_label_for(
+    name: &str,
+    script: RailScript,
+) -> String {
     return match script {
-        RailScript::Latin | RailScript::Cyrillic | RailScript::Greek | RailScript::Hangul => uppercase_first(name),
+        RailScript::Latin | RailScript::Cyrillic | RailScript::Greek | RailScript::Hangul => {
+            uppercase_first(name)
+        }
         RailScript::Japanese => kana_row_label_for(name).unwrap_or(KANJI_LABEL).to_string(),
         RailScript::Other => script.label().to_string(),
     };
@@ -380,7 +391,10 @@ fn group_collation_key(group: &(String, Vec<String>)) -> String {
 /// ```ts
 /// // group by label in first-seen order, then sort labels by collationKey (stable)
 /// ```
-fn rail_section(script: RailScript, names: Vec<String>) -> RailSection {
+fn rail_section(
+    script: RailScript,
+    names: Vec<String>,
+) -> RailSection {
     let mut positions: HashMap<String, usize> = HashMap::new();
     let mut groups: Vec<(String, Vec<String>)> = Vec::new();
     for name in names {
@@ -397,7 +411,11 @@ fn rail_section(script: RailScript, names: Vec<String>) -> RailSection {
     let mut cells: Vec<RailCell> = Vec::with_capacity(groups.len());
     for (label, members) in groups {
         let key = format!("{}{label}", script.id());
-        cells.push(RailCell { key, label, names: members });
+        cells.push(RailCell {
+            key,
+            label,
+            names: members,
+        });
     }
     return RailSection {
         script,

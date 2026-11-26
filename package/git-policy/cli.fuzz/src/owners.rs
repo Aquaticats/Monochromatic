@@ -18,25 +18,29 @@
 //! // const { token, expected } = generatedCopyOwnerToken(data); expect(CopyOwner.fromToken(token)).toEqual(expected);
 //! ```
 
+/// The `/proc/<pid>/stat` reader under test.
+use git_policy_cli::process_identity::linux_identity_from_stat;
+/// The transaction owner record codec under test.
+use git_policy_cli::transaction_owner::{
+    TransactionOwner,
+    encode_transaction_owner,
+    parse_transaction_owner,
+};
 /// The file name suffixes and the readers of the owner token in a journal name and a temporary file name.
 use git_policy_cli::worktree_copy_journal::temporary_writer_token;
 /// The journal suffix,
 /// the temporary suffix and the journal name reader.
 use git_policy_cli::worktree_copy_journal_encoding_and_validation::{
-    JOURNAL_SUFFIX, TEMPORARY_SUFFIX, owner_token_of,
+    JOURNAL_SUFFIX,
+    TEMPORARY_SUFFIX,
+    owner_token_of,
 };
 /// The copy owner and its token codec under test.
 use git_policy_cli::worktree_copy_owner::CopyOwner;
-/// The path type the journal name reader takes.
-use std::path::Path;
 /// The one borrowed file-name type a path's last component is read as.
 use std::ffi::OsStr;
-/// The `/proc/<pid>/stat` reader under test.
-use git_policy_cli::process_identity::linux_identity_from_stat;
-/// The transaction owner record codec under test.
-use git_policy_cli::transaction_owner::{
-    TransactionOwner, encode_transaction_owner, parse_transaction_owner,
-};
+/// The path type the journal name reader takes.
+use std::path::Path;
 
 /// The largest integer JavaScript represents exactly.
 const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
@@ -77,7 +81,9 @@ pub struct Cursor<'a> {
 impl<'a> Cursor<'a> {
     /// A cursor over `data`.
     pub fn new(data: &'a [u8]) -> Self {
-        return Self { rest: data };
+        return Self {
+            rest: data,
+        };
     }
 
     /// The next byte,
@@ -100,7 +106,10 @@ impl<'a> Cursor<'a> {
 
     /// Text of up to seven pieces;
     /// `nonempty` adds a leading letter.
-    pub fn text(&mut self, nonempty: bool) -> String {
+    pub fn text(
+        &mut self,
+        nonempty: bool,
+    ) -> String {
         let mut text: String = String::from(if nonempty { "t" } else { "" });
         for _ in 0..self.byte() % 8 {
             text.push_str(PIECES[usize::from(self.byte()) % PIECES.len()]);
@@ -315,7 +324,10 @@ pub fn check_generated_copy_owner_token(data: &[u8]) {
 pub fn check_owner_file_names(name: &str) {
     // The journal reader takes a path, so the name it reads a token from is the last component: a trailing separator
     // names the component before it.
-    let component: &str = Path::new(name).file_name().and_then(OsStr::to_str).unwrap_or(name);
+    let component: &str = Path::new(name)
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or(name);
     if let Some(token) = owner_token_of(Path::new(name)) {
         assert!(component.ends_with(JOURNAL_SUFFIX), "{name}");
         assert!(!token.is_empty(), "{name}");

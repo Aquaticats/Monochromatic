@@ -15,17 +15,28 @@
 /// ```
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
-    delegate_compositor, delegate_shm,
+    delegate_compositor,
+    delegate_shm,
     reexports::wayland_server::{
-        protocol::{wl_buffer, wl_surface::WlSurface},
         Client,
+        protocol::{
+            wl_buffer,
+            wl_surface::WlSurface,
+        },
     },
     wayland::{
         buffer::BufferHandler,
         compositor::{
-            get_parent, is_sync_subsurface, CompositorClientState, CompositorHandler, CompositorState,
+            CompositorClientState,
+            CompositorHandler,
+            CompositorState,
+            get_parent,
+            is_sync_subsurface,
         },
-        shm::{ShmHandler, ShmState},
+        shm::{
+            ShmHandler,
+            ShmState,
+        },
     },
 };
 
@@ -40,7 +51,10 @@ use smithay::{
 /// ```ts
 /// import { ClientState, Compositor } from "../state";
 /// ```
-use crate::state::{ClientState, Compositor};
+use crate::state::{
+    ClientState,
+    Compositor,
+};
 
 /// Implement the wl_compositor handler (surface lifecycle and commits).
 ///
@@ -62,7 +76,7 @@ impl CompositorHandler for Compositor {
     fn compositor_state(&mut self) -> &mut CompositorState {
         // What:     `&mut self.compositor_state`. Mutable borrow (tail expression).
         // Why:      Return the state Smithay asked for.
-        return &mut self.compositor_state
+        return &mut self.compositor_state;
     }
 
     /// What:
@@ -80,13 +94,16 @@ impl CompositorHandler for Compositor {
     /// ```ts
     /// clientCompositorState(client) { return client.getData().compositorState; }
     /// ```
-    fn client_compositor_state<'a>(&self, client: &'a Client) -> &'a CompositorClientState {
+    fn client_compositor_state<'a>(
+        &self,
+        client: &'a Client,
+    ) -> &'a CompositorClientState {
         // What:     `&client.get_data::<ClientState>().unwrap().compositor_state`.
         //           `get_data::<ClientState>()` returns `Option<&ClientState>` (the
         //           data we inserted at connect); `.unwrap()` asserts it is present;
         //           then we borrow its `compositor_state` field.
         // Why:      Hand back this client's compositor sub-state.
-        return &client.get_data::<ClientState>().unwrap().compositor_state
+        return &client.get_data::<ClientState>().unwrap().compositor_state;
     }
 
     /// What:
@@ -98,7 +115,10 @@ impl CompositorHandler for Compositor {
     ///  send the initial configure,
     ///  and keep the
     ///           window's mapping fresh.
-    fn commit(&mut self, surface: &WlSurface) {
+    fn commit(
+        &mut self,
+        surface: &WlSurface,
+    ) {
         // What:     `on_commit_buffer_handler::<Self>(surface);`. Smithay helper that
         //           processes the just-attached buffer (including importing dmabuf).
         // Why:      Required so the renderer can later access the committed buffer.
@@ -170,7 +190,11 @@ impl BufferHandler for Compositor {
     ///       Smithay's renderer already drops the imported texture;
     ///  nothing extra
     ///           to do.
-    fn buffer_destroyed(&mut self, _buffer: &wl_buffer::WlBuffer) {}
+    fn buffer_destroyed(
+        &mut self,
+        _buffer: &wl_buffer::WlBuffer,
+    ) {
+    }
 }
 
 /// Implement the wl_shm handler (shared-memory buffer pool state).
@@ -190,7 +214,7 @@ impl ShmHandler for Compositor {
     fn shm_state(&self) -> &ShmState {
         // What:     `&self.shm_state`. Borrow the field (tail expression).
         // Why:      Return the shm state.
-        return &self.shm_state
+        return &self.shm_state;
     }
 }
 

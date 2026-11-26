@@ -4,9 +4,18 @@
 /// The state,
 ///  the request record,
 ///  and the places the step reads.
-use super::{Action, Language, Pending, pointer, surface};
+use super::{
+    Action,
+    Language,
+    Pending,
+    pointer,
+    surface,
+};
 /// The window and the source.
-use crate::native::{AppWindow, State};
+use crate::native::{
+    AppWindow,
+    State,
+};
 /// The identity of the displayed text.
 use ide_app::language::identity::DocumentStamp;
 /// What:
@@ -19,7 +28,10 @@ use ide_app::language::identity::DocumentStamp;
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Ask for hover information where the pointer has rested long enough.
@@ -51,12 +63,23 @@ pub(super) fn rest(
     let blocked = window.get_search_open()
         || matches!(
             language.shown,
-            surface::Shown::List { .. } | surface::Shown::Popup { note: true, .. }
+            surface::Shown::List { .. }
+                | surface::Shown::Popup {
+                    note: true,
+                    ..
+                }
         );
     if blocked {
         return;
     }
-    if language.rest.idle() && matches!(language.shown, surface::Shown::Popup { pointer: true, .. })
+    if language.rest.idle()
+        && matches!(
+            language.shown,
+            surface::Shown::Popup {
+                pointer: true,
+                ..
+            }
+        )
     {
         language.shown = surface::dismiss(
             window,

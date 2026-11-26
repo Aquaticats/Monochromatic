@@ -4,22 +4,38 @@
 
 /// Independent stream outcomes retain useful filename matches when content search fails.
 use crate::{
-    search::{SearchHit, SearchResults},
+    search::{
+        SearchHit,
+        SearchResults,
+    },
     search_cancel::SearchCancellation,
-    search_collect::{self, Stream},
+    search_collect::{
+        self,
+        Stream,
+    },
     search_io,
 };
 /// Diagnostics identify both the query and the failed subprocess operation.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Native project paths and stdio configuration never pass through shell interpolation.
 use std::{
     path::Path,
-    process::{ExitStatus, Stdio},
+    process::{
+        ExitStatus,
+        Stdio,
+    },
 };
 /// Child pipes and process lifetime use Tokio's cancellable I/O rather than blocking the native event loop.
 use tokio::{
     io::BufReader,
-    process::{Child, Command},
+    process::{
+        Child,
+        Command,
+    },
 };
 
 /// What:
@@ -53,7 +69,11 @@ pub(crate) const RIPGREP_SETTINGS: [&str; 6] = [
 
 /// Construct only the required search operation,
 ///  excluding inherited preprocessing or decompression commands.
-fn command(root: &Path, query: &str, stream: Stream) -> Command {
+fn command(
+    root: &Path,
+    query: &str,
+    stream: Stream,
+) -> Command {
     let mut command = Command::new("rg");
     command.current_dir(root);
     command.env_remove("RIPGREP_CONFIG_PATH");
@@ -269,5 +289,8 @@ pub(crate) async fn search(
         }
         Err(error) => Err(error),
     };
-    return Some(SearchResults { paths, contents });
+    return Some(SearchResults {
+        paths,
+        contents,
+    });
 }

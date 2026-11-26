@@ -88,7 +88,10 @@ use crate::parse::cursor::Cursor;
 /// ```ts
 /// import { EscapeResult, parse_escape } from "crate/parse/escape";
 /// ```
-use crate::parse::escape::{EscapeResult, parse_escape};
+use crate::parse::escape::{
+    EscapeResult,
+    parse_escape,
+};
 
 /// One element inside a character class.
 ///
@@ -218,7 +221,7 @@ pub fn parse_class(cur: &mut Cursor) -> Result<Node, CompileError> {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let final_set = if negated { set.negate() } else { set };
-    return Ok(class(final_set))
+    return Ok(class(final_set));
 }
 
 /// Reads one element (member or range) and folds it into `set`.
@@ -241,7 +244,11 @@ pub fn parse_class(cur: &mut Cursor) -> Result<Node, CompileError> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn read_class_element(cur: &mut Cursor, pos: usize, set: &mut ByteSet) -> Result<(), CompileError> {
+fn read_class_element(
+    cur: &mut Cursor,
+    pos: usize,
+    set: &mut ByteSet,
+) -> Result<(), CompileError> {
     // What: classify the next element. Why: ranges only apply to byte atoms.
     //
     // In TS you'd write (pseudocode):
@@ -263,7 +270,8 @@ fn read_class_element(cur: &mut Cursor, pos: usize, set: &mut ByteSet) -> Result
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    let is_range = cur.peek() == Some(b'-') && cur.peek_at(1).is_some() && cur.peek_at(1) != Some(b']');
+    let is_range =
+        cur.peek() == Some(b'-') && cur.peek_at(1).is_some() && cur.peek_at(1) != Some(b']');
     if is_range {
         cur.bump();
         match parse_class_atom(cur)? {
@@ -286,7 +294,7 @@ fn read_class_element(cur: &mut Cursor, pos: usize, set: &mut ByteSet) -> Result
     } else {
         set.insert(lo_b);
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Parses one class atom:
@@ -322,13 +330,15 @@ fn parse_class_atom(cur: &mut Cursor) -> Result<ClassAtom, CompileError> {
         match parse_escape(cur, true)? {
             EscapeResult::Byte(b) => return Ok(ClassAtom::Byte(b)),
             EscapeResult::Set(s) => return Ok(ClassAtom::Set(s)),
-            EscapeResult::Boundary => return Err(CompileError::Syntax {
-                pos: cur.pos(),
-                message: "\\b is not valid in a character class".to_string(),
-            }),
+            EscapeResult::Boundary => {
+                return Err(CompileError::Syntax {
+                    pos: cur.pos(),
+                    message: "\\b is not valid in a character class".to_string(),
+                });
+            }
         }
     } else {
         cur.bump();
-        return Ok(ClassAtom::Byte(p))
+        return Ok(ClassAtom::Byte(p));
     }
 }

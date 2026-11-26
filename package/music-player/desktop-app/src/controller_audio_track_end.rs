@@ -19,7 +19,10 @@
 //! ```
 
 /// Imports the duration and instant types that time the drain hold and the idle park.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the ring buffer trait that reads how many samples the output has not taken yet.
 use ringbuf::traits::Observer;
@@ -41,7 +44,6 @@ use crate::playback::frames_to_secs;
 
 /// Imports the conversion from samples to frames.
 use crate::playback_clock::frames_of_samples;
-
 
 /// What:
 ///      `impl Controller { ... }`.
@@ -112,7 +114,7 @@ impl Controller {
             Some(producer) => producer.occupied_len(),
             None => 0,
         };
-        return frames_of_samples(queued_samples, channels)
+        return frames_of_samples(queued_samples, channels);
     }
 
     /// What:
@@ -134,7 +136,7 @@ impl Controller {
             Some(spec) => spec.rate,
             None => 0,
         };
-        return self.clock.audible_secs(self.ring_queued_frames(), rate)
+        return self.clock.audible_secs(self.ring_queued_frames(), rate);
     }
 
     /// What:
@@ -147,12 +149,16 @@ impl Controller {
     /// ```ts
     /// recordPushed(samplesPushed: number): void { this.clock.recordPushed(framesOfSamples(samplesPushed, channels)); }
     /// ```
-    pub(crate) fn record_pushed(&mut self, samples_pushed: usize) {
+    pub(crate) fn record_pushed(
+        &mut self,
+        samples_pushed: usize,
+    ) {
         let channels = match self.spec.as_ref() {
             Some(spec) => spec.channels,
             None => 0,
         };
-        self.clock.record_pushed(frames_of_samples(samples_pushed, channels));
+        self.clock
+            .record_pushed(frames_of_samples(samples_pushed, channels));
     }
 
     /// What:
@@ -246,8 +252,12 @@ impl Controller {
             queued_frames = self.ring_queued_frames(),
             "the next track follows in the same stream"
         );
-        self.staged = Some(StagedTrack { path, spec, previous_spec });
-        return true
+        self.staged = Some(StagedTrack {
+            path,
+            spec,
+            previous_spec,
+        });
+        return true;
     }
 
     /// What:
@@ -286,7 +296,7 @@ impl Controller {
         tracing::info!(path = %staged.path.display(), "the next track is audible now");
         self.clock.cross_boundary();
         self.emit_now_playing(&staged.path, staged.spec.duration_secs);
-        return true
+        return true;
     }
 
     /// What:
@@ -323,7 +333,7 @@ impl Controller {
         self.prepare_peak_for_path(&path);
         self.source = Some(source);
         self.spec = Some(staged.previous_spec);
-        return true
+        return true;
     }
 
     /// What:
@@ -342,7 +352,7 @@ impl Controller {
         return match self.staged.as_ref() {
             Some(staged) => Some(staged.previous_spec),
             None => self.spec,
-        }
+        };
     }
 
     /// What:
@@ -367,7 +377,10 @@ impl Controller {
             Some(spec) => spec.rate,
             None => 0,
         };
-        return Duration::from_secs_f64(frames_to_secs(crate::output::FILL_FRAMES_FLOOR as u64, rate))
+        return Duration::from_secs_f64(frames_to_secs(
+            crate::output::FILL_FRAMES_FLOOR as u64,
+            rate,
+        ));
     }
 
     /// What:
@@ -384,11 +397,14 @@ impl Controller {
     /// ```ts
     /// idleParkTimeout(fallback: number): number { ... }
     /// ```
-    pub(crate) fn idle_park_timeout(&self, fallback: Duration) -> Duration {
+    pub(crate) fn idle_park_timeout(
+        &self,
+        fallback: Duration,
+    ) -> Duration {
         return match self.clock.drain_wait(Instant::now(), self.drain_hold()) {
             Some(left) => left.max(Duration::from_millis(1)).min(fallback),
             None => fallback,
-        }
+        };
     }
 
     /// What:
@@ -431,6 +447,6 @@ impl Controller {
         tracing::info!("the last frame of the track was consumed; starting the next track");
         self.clock.finish_drain();
         self.on_track_end();
-        return true
+        return true;
     }
 }

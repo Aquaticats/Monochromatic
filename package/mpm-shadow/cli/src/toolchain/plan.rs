@@ -17,7 +17,10 @@
 //! ```
 
 /// Imports the JSON value types (see `model.rs`).
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What:
 /// Imports the JSONC parser and the model types from the repository's `monochromatic-jsonc-edit` crate.
@@ -29,7 +32,12 @@ use serde_json::{Map, Value};
 /// ```ts
 /// import { parseJsonc, type JsoncValue, JsoncKind } from '@monochromatic-dev/jsonc-edit-core-ts';
 /// ```
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, parse_jsonc, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+    parse_jsonc,
+    units_to_string,
+};
 
 /// Imports `fs` from `std`.
 use std::fs;
@@ -39,7 +47,10 @@ use std::path::Path;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::model`.
-use super::model::{Declaration, decode_plan_entry};
+use super::model::{
+    Declaration,
+    decode_plan_entry,
+};
 
 /// The deepest nesting accepted in a plan or lock value;
 /// a real file nests four levels,
@@ -77,38 +88,56 @@ pub struct Plan {
 /// ```ts
 /// function toJson(value: JsoncValue, path: string, depth: number): unknown
 /// ```
-fn to_json(value: &JsoncValue, path: &str, depth: usize) -> Result<Value, String> {
+fn to_json(
+    value: &JsoncValue,
+    path: &str,
+    depth: usize,
+) -> Result<Value, String> {
     if depth > MAX_DEPTH {
         return Err(format!("{path} nests deeper than {MAX_DEPTH} levels"));
     }
     match &value.kind {
         JsoncKind::Null => return Ok(Value::Null),
-        JsoncKind::Boolean { value: flag } => return Ok(Value::Bool(*flag)),
-        JsoncKind::Number { raw, .. } => {
+        JsoncKind::Boolean {
+            value: flag,
+        } => return Ok(Value::Bool(*flag)),
+        JsoncKind::Number {
+            raw,
+            ..
+        } => {
             return match raw.parse::<serde_json::Number>() {
                 Ok(number) => Ok(Value::Number(number)),
                 Err(error) => Err(format!("{path} is not a usable number: {error}")),
             };
         }
-        JsoncKind::Text { units, .. } => {
+        JsoncKind::Text {
+            units,
+            ..
+        } => {
             return match units_to_string(units) {
                 Ok(text) => Ok(Value::String(text)),
                 Err(error) => Err(format!("{path} is not valid text: {error}")),
             };
         }
-        JsoncKind::Array { elements } => {
+        JsoncKind::Array {
+            elements,
+        } => {
             let mut items: Vec<Value> = Vec::new();
             for (index, element) in elements.iter().enumerate() {
                 items.push(to_json(element, &format!("{path}[{index}]"), depth + 1)?);
             }
             return Ok(Value::Array(items));
         }
-        JsoncKind::Record { entries } => {
+        JsoncKind::Record {
+            entries,
+        } => {
             let mut map: Map<String, Value> = Map::new();
             for entry in entries {
                 let key: String = match units_to_string(&entry.key.units) {
                     Ok(text) => text,
-                    Err(error) => return Err(format!("a key of {path} is not valid text: {error}")),
+                    Err(error) => {
+                        return Err(format!("a key of {path} is not valid text: {error}"));
+                    }
                 };
                 if map.contains_key(&key) {
                     return Err(format!("{path} has the key {key:?} twice"));
@@ -131,10 +160,17 @@ fn to_json(value: &JsoncValue, path: &str, depth: usize) -> Result<Value, String
 /// ```ts
 /// export function jsoncToValue(source: string, label: string): unknown
 /// ```
-pub fn jsonc_to_value(source: &str, label: &str) -> Result<Value, ToolchainError> {
+pub fn jsonc_to_value(
+    source: &str,
+    label: &str,
+) -> Result<Value, ToolchainError> {
     let parsed: JsoncValue = match parse_jsonc(source) {
         Ok(value) => value,
-        Err(error) => return Err(ToolchainError::config(format!("{label} is not valid JSONC: {error}"))),
+        Err(error) => {
+            return Err(ToolchainError::config(format!(
+                "{label} is not valid JSONC: {error}"
+            )));
+        }
     };
     return match to_json(&parsed, "$", 0) {
         Ok(value) => Ok(value),
@@ -155,10 +191,15 @@ pub fn jsonc_to_value(source: &str, label: &str) -> Result<Value, ToolchainError
 /// ```ts
 /// export function parsePlan(source: string, label: string): Plan
 /// ```
-pub fn parse_plan(source: &str, label: &str) -> Result<Plan, ToolchainError> {
+pub fn parse_plan(
+    source: &str,
+    label: &str,
+) -> Result<Plan, ToolchainError> {
     let value: Value = jsonc_to_value(source, label)?;
     let Some(root) = value.as_object() else {
-        return Err(ToolchainError::config(format!("{label} must hold a JSON object at its top level")));
+        return Err(ToolchainError::config(format!(
+            "{label} must hold a JSON object at its top level"
+        )));
     };
     for key in root.keys() {
         if key != "schemaVersion" && key != "tools" && key != "$schema" {
@@ -168,10 +209,14 @@ pub fn parse_plan(source: &str, label: &str) -> Result<Plan, ToolchainError> {
         }
     }
     if root.get("schemaVersion").and_then(Value::as_u64) != Some(1) {
-        return Err(ToolchainError::config(format!("{label}: $.schemaVersion must be 1")));
+        return Err(ToolchainError::config(format!(
+            "{label}: $.schemaVersion must be 1"
+        )));
     }
     let Some(tools_value) = root.get("tools").and_then(Value::as_object) else {
-        return Err(ToolchainError::config(format!("{label}: $.tools must be an object keyed by tool id")));
+        return Err(ToolchainError::config(format!(
+            "{label}: $.tools must be an object keyed by tool id"
+        )));
     };
     let mut tools: Vec<Declaration> = Vec::new();
     for (id, entry) in tools_value {
@@ -194,7 +239,9 @@ pub fn parse_plan(source: &str, label: &str) -> Result<Plan, ToolchainError> {
             seen.push((tool.id.as_str(), bin.as_str()));
         }
     }
-    return Ok(Plan { tools });
+    return Ok(Plan {
+        tools,
+    });
 }
 
 /// What:
@@ -211,7 +258,10 @@ pub fn read_plan(path: &Path) -> Result<Plan, ToolchainError> {
     let source: String = match fs::read_to_string(path) {
         Ok(text) => text,
         Err(error) => {
-            return Err(ToolchainError::config(format!("cannot read the plan {}: {error}", path.display())));
+            return Err(ToolchainError::config(format!(
+                "cannot read the plan {}: {error}",
+                path.display()
+            )));
         }
     };
     return parse_plan(&source, &path.display().to_string());

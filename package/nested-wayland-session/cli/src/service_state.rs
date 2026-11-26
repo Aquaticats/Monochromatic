@@ -3,7 +3,12 @@
 /// Imports `sync::{Arc, Mutex, MutexGuard, PoisonError}`,
 ///  `time::Instant` from `std`.
 use std::{
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        PoisonError,
+    },
     time::Instant,
 };
 
@@ -28,7 +33,10 @@ pub struct Shared<T> {
 impl<T> Clone for Shared<T> {
     /// Shares the store and copies the clock.
     fn clone(&self) -> Self {
-        return Self { inner: Arc::clone(&self.inner), start_time: self.start_time };
+        return Self {
+            inner: Arc::clone(&self.inner),
+            start_time: self.start_time,
+        };
     }
 }
 
@@ -38,8 +46,14 @@ impl<T> Clone for Shared<T> {
 impl<T> Shared<T> {
     /// Wraps a new store.
     #[must_use]
-    pub fn new(store: T, start_time: Instant) -> Self {
-        return Self { inner: Arc::new(Mutex::new(store)), start_time };
+    pub fn new(
+        store: T,
+        start_time: Instant,
+    ) -> Self {
+        return Self {
+            inner: Arc::new(Mutex::new(store)),
+            start_time,
+        };
     }
 
     /// Locks the store.

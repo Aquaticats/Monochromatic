@@ -3,7 +3,11 @@
 //!  how long,
 //!  and what stays untouched.
 
-use super::{CAUSE_LINE_BYTES, CAUSE_LINES, with_lines};
+use super::{
+    CAUSE_LINE_BYTES,
+    CAUSE_LINES,
+    with_lines,
+};
 
 #[test]
 fn a_reason_without_lines_is_unchanged() {

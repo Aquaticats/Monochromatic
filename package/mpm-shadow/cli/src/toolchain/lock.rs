@@ -22,14 +22,21 @@
 //! ```
 
 /// Imports the JSON value types (see `model.rs`).
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, decode_lock_entry, lock_entry_value};
+use super::model::{
+    LockedTool,
+    decode_lock_entry,
+    lock_entry_value,
+};
 /// Imports the one pretty-JSON renderer the lock and `bin` share.
 use super::model_encode::render_pretty_json;
 /// Imports the shared named helpers.
@@ -87,7 +94,10 @@ pub struct ParsedLock {
 impl Lock {
     /// The tool with this id,
     /// if the lock holds it.
-    pub fn tool(&self, id: &str) -> Option<&LockedTool> {
+    pub fn tool(
+        &self,
+        id: &str,
+    ) -> Option<&LockedTool> {
         return find_tool(&self.tools, id);
     }
 }
@@ -112,8 +122,14 @@ fn body_value(lock: &Lock) -> Map<String, Value> {
         tools.insert(tool.declaration.id.clone(), lock_entry_value(tool));
     }
     let mut body: Map<String, Value> = Map::new();
-    body.insert("schemaVersion".to_string(), Value::from(LOCK_SCHEMA_VERSION));
-    body.insert("generatedFrom".to_string(), Value::String(LOCK_GENERATED_FROM.to_string()));
+    body.insert(
+        "schemaVersion".to_string(),
+        Value::from(LOCK_SCHEMA_VERSION),
+    );
+    body.insert(
+        "generatedFrom".to_string(),
+        Value::String(LOCK_GENERATED_FROM.to_string()),
+    );
     body.insert("tools".to_string(), Value::Object(tools));
     return body;
 }
@@ -173,13 +189,22 @@ pub fn render_lock(lock: &Lock) -> String {
 /// ```ts
 /// export function parseLock(source: string, label: string): ParsedLock
 /// ```
-pub fn parse_lock(source: &str, label: &str) -> Result<ParsedLock, ToolchainError> {
+pub fn parse_lock(
+    source: &str,
+    label: &str,
+) -> Result<ParsedLock, ToolchainError> {
     let value: Value = match serde_json::from_str(source) {
         Ok(parsed) => parsed,
-        Err(error) => return Err(ToolchainError::config(format!("{label} is not valid JSON: {error}"))),
+        Err(error) => {
+            return Err(ToolchainError::config(format!(
+                "{label} is not valid JSON: {error}"
+            )));
+        }
     };
     let Some(root) = value.as_object() else {
-        return Err(ToolchainError::config(format!("{label} must hold a JSON object at its top level")));
+        return Err(ToolchainError::config(format!(
+            "{label} must hold a JSON object at its top level"
+        )));
     };
     for key in root.keys() {
         if !["schemaVersion", "generatedFrom", "tools", "digest"].contains(&key.as_str()) {
@@ -189,10 +214,14 @@ pub fn parse_lock(source: &str, label: &str) -> Result<ParsedLock, ToolchainErro
         }
     }
     if root.get("schemaVersion").and_then(Value::as_u64) != Some(LOCK_SCHEMA_VERSION) {
-        return Err(ToolchainError::config(format!("{label}: $.schemaVersion must be {LOCK_SCHEMA_VERSION}")));
+        return Err(ToolchainError::config(format!(
+            "{label}: $.schemaVersion must be {LOCK_SCHEMA_VERSION}"
+        )));
     }
     let Some(tools_value) = root.get("tools").and_then(Value::as_object) else {
-        return Err(ToolchainError::config(format!("{label}: $.tools must be an object keyed by tool id")));
+        return Err(ToolchainError::config(format!(
+            "{label}: $.tools must be an object keyed by tool id"
+        )));
     };
     let mut tools: Vec<LockedTool> = Vec::new();
     for (id, entry) in tools_value {
@@ -201,6 +230,14 @@ pub fn parse_lock(source: &str, label: &str) -> Result<ParsedLock, ToolchainErro
             Err(message) => return Err(ToolchainError::config(format!("{label}: {message}"))),
         }
     }
-    let recorded_digest: Option<String> = root.get("digest").and_then(Value::as_str).map(str::to_string);
-    return Ok(ParsedLock { lock: Lock { tools }, recorded_digest });
+    let recorded_digest: Option<String> = root
+        .get("digest")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    return Ok(ParsedLock {
+        lock: Lock {
+            tools,
+        },
+        recorded_digest,
+    });
 }

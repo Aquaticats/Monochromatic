@@ -12,6 +12,8 @@ mod limits;
 /// Load the sibling protocol implementation.
 mod protocol;
 
+/// Import the operating-system string type that carries an argument's raw bytes.
+use std::ffi::OsString;
 /// What:
 /// `use` imports a standard-library name;
 /// `::` separates module names.
@@ -22,8 +24,6 @@ mod protocol;
 use std::io;
 /// Import the trait that adds byte-writing methods to stdout and stderr.
 use std::io::Write;
-/// Import the operating-system string type that carries an argument's raw bytes.
-use std::ffi::OsString;
 /// Import owned paths,
 /// unlike borrowed `Path` references.
 use std::path::PathBuf;
@@ -77,7 +77,9 @@ fn run() -> io::Result<String> {
     // TypeScript equivalent: `const mode = args.next().value ?? throwError('...');`
     let Some(mode_argument) = arguments.next() else {
         // Return the argument diagnostic.
-        return Err(io::Error::other("Expected --hook or --initialize followed by the worker slice path."));
+        return Err(io::Error::other(
+            "Expected --hook or --initialize followed by the worker slice path.",
+        ));
     };
     // Require a decodable mode before reading the path it selects.
     let mode = argument_text(mode_argument)?;
@@ -94,7 +96,9 @@ fn run() -> io::Result<String> {
         // What: `Err` is the failure variant, paired with `Ok` for success.
         // Why: Reject accidental or unsupported arguments.
         // TypeScript equivalent: `throw new Error('Unexpected argument.');`
-        return Err(io::Error::other("Unexpected argument after the worker slice path."));
+        return Err(io::Error::other(
+            "Unexpected argument after the worker slice path.",
+        ));
     }
     // What: `PathBuf::from` owns the supplied path rather than borrowing its text.
     // Why: Filesystem helpers require a path value.

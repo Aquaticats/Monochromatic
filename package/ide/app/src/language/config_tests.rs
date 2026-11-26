@@ -3,12 +3,24 @@
 //!  availability,
 //!  and the launch seam.
 
-use super::{LanguageSetup, Languages, Unavailable, typescript};
-use crate::language::launch::{LaunchRequest, ServerLaunch, launch_directly};
+use super::{
+    LanguageSetup,
+    Languages,
+    Unavailable,
+    typescript,
+};
+use crate::language::launch::{
+    LaunchRequest,
+    ServerLaunch,
+    launch_directly,
+};
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A scripted language whose server program is `/bin/sh`,
@@ -36,7 +48,10 @@ fn project() -> (tempfile::TempDir, PathBuf) {
     return (directory, root);
 }
 
-fn install_typescript(root: &Path, version: &str) {
+fn install_typescript(
+    root: &Path,
+    version: &str,
+) {
     let package = root.join("node_modules/typescript");
     fs::create_dir_all(package.join("bin")).expect("package directory");
     fs::write(
@@ -58,7 +73,10 @@ fn scripted_setup() -> LanguageSetup {
 
 /// Server names Helix would start for a file,
 ///  read from the registry Helix itself uses.
-fn startable(languages: &Languages, file: &str) -> Vec<String> {
+fn startable(
+    languages: &Languages,
+    file: &str,
+) -> Vec<String> {
     let loader = languages.loader.load();
     let language = loader
         .language_for_filename(Path::new(file))

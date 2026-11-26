@@ -1,7 +1,14 @@
 //! The notice text and the lookup facts of every state.
 
-use super::{Failed, Provided, ToolchainState};
-use std::path::{Path, PathBuf};
+use super::{
+    Failed,
+    Provided,
+    ToolchainState,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn provided() -> ToolchainState {
     return ToolchainState::Provided(Provided {
@@ -75,8 +82,7 @@ fn a_failure_is_named_quoted_and_left_to_the_user_to_fix() {
 #[test]
 fn a_failure_that_stopped_the_run_points_at_the_run() {
     let state = ToolchainState::Failed(Failed {
-        message: "`mpm-shadow bin --json` did not finish within 10 s and was stopped"
-            .to_string(),
+        message: "`mpm-shadow bin --json` did not finish within 10 s and was stopped".to_string(),
     });
     let paragraphs = state.advisory(Path::new("/work/project"));
     assert_eq!(paragraphs.len(), 3);

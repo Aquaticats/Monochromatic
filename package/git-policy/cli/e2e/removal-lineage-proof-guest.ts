@@ -380,7 +380,7 @@ async function run(chosen: Options): Promise<void> {
     // a compile failure. One job and a swap file are what make the build fit.
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
-    'cargo build --release --tests --locked --jobs 1',
+    'cargo build --release --tests --locked --features test-only-switches --jobs 1',
   ].join('\n');
   guestStart({ chosen, script: build, log: 'removal-lineage-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'removal-lineage-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
@@ -414,13 +414,13 @@ async function run(chosen: Options): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion,
     // and the failure's own output is printed rather than the last forty lines of a passing run.
-    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level fail ' +
+    'if cargo nextest run --release --locked --features test-only-switches --lib --run-ignored all --no-capture --status-level fail ' +
       '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms) | test(the_removal_completion_guest_arms) | test(the_cancel_command_guest_arms) | test(the_removal_finish_pass_guest_arms)" ' +
       '> /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
     'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
     'tail --lines=120 /root/removal-lineage-arm.log',
     // The refusal arms run through the built wrapper's own `git worktree remove`, in the same log.
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level fail ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level fail ' +
       '--filterset "test(zfs_removal_refusal_guest)" >> /root/removal-lineage-arm.log 2>&1; then refusal=0; else refusal=$?; fi',
     'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
     'tail --lines=60 /root/removal-lineage-arm.log',

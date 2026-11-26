@@ -35,10 +35,17 @@
 // import { Name } from './module.ts';
 // ```
 /// Imports `std::fs::{self, File, OpenOptions}` for this file.
-use std::fs::{self, File, OpenOptions};
+use std::fs::{
+    self,
+    File,
+    OpenOptions,
+};
 // Imports `std::io`.
 /// Imports `std::io` for this file.
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 // Imports `std::os::unix::ffi::OsStrExt`.
 /// Imports `std::os::unix::ffi::OsStrExt` for this file.
 use std::os::unix::ffi::OsStrExt;
@@ -51,14 +58,23 @@ use std::os::unix::ffi::OsStrExt;
 // // TS has one type for this: string
 // ```
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 // Imports `std::sync::atomic::{AtomicU64, Ordering}`.
 /// Imports `std::sync::atomic::{AtomicU64, Ordering}` for this file.
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 // Imports `rustix::fs::{FlockOperation, flock}`.
 /// Imports `rustix::fs::{FlockOperation, flock}` for this file.
-use rustix::fs::{FlockOperation, flock};
+use rustix::fs::{
+    FlockOperation,
+    flock,
+};
 
 // Imports `crate::crates::LockSnapshot`.
 /// Imports `crate::crates::LockSnapshot` for this file.
@@ -77,7 +93,20 @@ use crate::bounded_run::RunScope;
 use crate::constants::LOCKFILE_NAME;
 // Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, ...`.
 /// Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced}` for this file.
-use crate::journal::{GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
+use crate::journal::{
+    GROUPS_FILE,
+    INDEX_FILE,
+    JOURNAL_DIR,
+    MANIFEST_INDEX_FILE,
+    OWNER_FILE,
+    READY_FILE,
+    WORKSPACE_LOCK,
+    atomic_write,
+    create_directories_synced,
+    make_durable,
+    sync_directory,
+    write_synced,
+};
 // Imports `crate::manifest_edit::ManifestEdit`.
 /// Imports `crate::manifest_edit::ManifestEdit` for this file.
 use crate::manifest_edit::ManifestEdit;
@@ -86,7 +115,11 @@ use crate::manifest_edit::ManifestEdit;
 use crate::journal_finish::FinishError;
 
 /// The notices about files a journal keeps beside the lockfiles (split out of the journal transaction module).
-pub(crate) use crate::journal_kept_notices::{announce_kept_notice, announce_kept_files_for, kept_folder_notice};
+pub(crate) use crate::journal_kept_notices::{
+    announce_kept_files_for,
+    announce_kept_notice,
+    kept_folder_notice,
+};
 
 /// The completion marker of a journal (split out of the journal transaction module).
 pub(crate) use crate::journal_done_marker::finish_journal;
@@ -208,7 +241,11 @@ fn journal_name() -> String {
         Err(_) => 0,
     };
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return format!("{nanos:040}-{}-{}", std::process::id(), JOURNAL_COUNTER.fetch_add(1, Ordering::Relaxed));
+    return format!(
+        "{nanos:040}-{}-{}",
+        std::process::id(),
+        JOURNAL_COUNTER.fetch_add(1, Ordering::Relaxed)
+    );
 }
 
 /// What:
@@ -221,7 +258,11 @@ fn journal_name() -> String {
 /// ```ts
 /// function writeReady(directory: string, listed: string[], manifests: boolean): void
 /// ```
-fn write_ready(directory: &Path, listed: &[String], manifests: bool) -> io::Result<()> {
+fn write_ready(
+    directory: &Path,
+    listed: &[String],
+    manifests: bool,
+) -> io::Result<()> {
     // `let mut`: a binding that may change.
     // Typed binding: `text: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
@@ -288,8 +329,6 @@ pub struct Transaction {
     scope: RunScope,
 }
 
-
-
 /// What:
 /// `pub fn try_lock(file: &File) -> io::Result<bool>` tries for the exclusive lock without waiting;
 /// `Ok(false)` means someone holds it.
@@ -353,7 +392,12 @@ pub fn take_workspace(root: &Path) -> io::Result<Result<File, String>> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&path`: lends the value without copying or giving it away.
     // Typed binding: `file: File`.
-    let file: File = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(&path)?;
+    let file: File = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&file`: lends the value without copying or giving it away.
     if try_lock(&file)? {
@@ -385,13 +429,20 @@ pub fn take_workspace(root: &Path) -> io::Result<Result<File, String>> {
     // value ?? fallback
     // ```
     // Typed binding: `holder: String`.
-    let holder: String = fs::read_to_string(&path).unwrap_or_default().trim().to_string();
+    let holder: String = fs::read_to_string(&path)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
     return Ok(Err(format!(
         "another cargo-shadow run (pid {}) is changing the lockfiles of this workspace; run the command again when it has finished",
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        if holder.is_empty() { "unknown".to_string() } else { holder }
+        if holder.is_empty() {
+            "unknown".to_string()
+        } else {
+            holder
+        }
     )));
 }
 
@@ -416,7 +467,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub(crate) fn begin_step_for_test(hook: Option<std::rc::Rc<dyn Fn(&str)>>) {
-    BEGIN_STEP.with(|slot| { *slot.borrow_mut() = hook; });
+    BEGIN_STEP.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What:
@@ -432,7 +485,9 @@ pub(crate) fn begin_step_for_test(hook: Option<std::rc::Rc<dyn Fn(&str)>>) {
 /// ```
 fn at_step(name: &str) {
     #[cfg(test)]
-    if let Some(hook) = BEGIN_STEP.with(|slot| { return slot.borrow().clone(); }) {
+    if let Some(hook) = BEGIN_STEP.with(|slot| {
+        return slot.borrow().clone();
+    }) {
         hook(name);
     }
     #[cfg(not(test))]
@@ -459,7 +514,11 @@ fn at_step(name: &str) {
 /// ```ts
 /// export function begin(root: string, snapshots: LockSnapshot[], expectsManifests: boolean): Transaction
 /// ```
-pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -> io::Result<Transaction> {
+pub fn begin(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+    expects_manifests: bool,
+) -> io::Result<Transaction> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `workspace: File`.
@@ -474,12 +533,16 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     let kept_notice: Option<String> = kept_folder_notice(root, &crate_roots);
     // A child of an earlier killed run may still be writing the files this transaction would snapshot:
     // starting now would let two runs mutate one workspace, so the transaction is refused.
-    let earlier: Vec<PathBuf> = match crate::journal_recover::list_journals(&root.join(JOURNAL_DIR)) {
+    let earlier: Vec<PathBuf> = match crate::journal_recover::list_journals(&root.join(JOURNAL_DIR))
+    {
         Ok(Some(listing)) => listing.open,
         // Only an absent journal directory is "no earlier journals"; an entry that vanished mid-listing is unknown (7b P1-2).
         Ok(None) => Vec::new(),
         Err(error) => {
-            return Err(io::Error::other(format!("the journals of {} could not be listed ({error}), so a surviving child of an earlier run cannot be ruled out; no transaction was started", root.display())));
+            return Err(io::Error::other(format!(
+                "the journals of {} could not be listed ({error}), so a surviving child of an earlier run cannot be ruled out; no transaction was started",
+                root.display()
+            )));
         }
     };
     for path in earlier {
@@ -502,7 +565,10 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         }
     }
     let Some(directory) = created else {
-        return Err(io::Error::other(format!("{} could not be given a new journal name; run the command again", journals.display())));
+        return Err(io::Error::other(format!(
+            "{} could not be given a new journal name; run the command again",
+            journals.display()
+        )));
     };
     at_step("directory");
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -520,9 +586,18 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         Ok(identity) => format!("boot {}\nmachine {}\n", identity.boot, identity.machine),
         Err(_) => String::new(),
     };
-    write_synced(&directory.join(crate::journal::VIEW_FILE), &format!("view {}\n{identity_text}", crate::control_group::view_of(&directory)?))?;
+    write_synced(
+        &directory.join(crate::journal::VIEW_FILE),
+        &format!(
+            "view {}\n{identity_text}",
+            crate::control_group::view_of(&directory)?
+        ),
+    )?;
     at_step("view");
-    write_synced(&directory.join(OWNER_FILE), &format!("v3\n{}\n", std::process::id()))?;
+    write_synced(
+        &directory.join(OWNER_FILE),
+        &format!("v3\n{}\n", std::process::id()),
+    )?;
     at_step("owner");
     let mut index: String = String::from("v2\n");
     let mut listed: Vec<String> = Vec::new();
@@ -545,14 +620,28 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     // The journal and then the name that lists it are made durable before any recorded child can start. A test replaces the result of
     // each barrier, so a failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
     #[cfg(test)]
-    let own_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalDirectorySync) { Err(io::Error::other("injected failure to make the journal directory durable")) } else { sync_directory(&directory) };
+    let own_barrier: io::Result<()> =
+        if crate::failpoints::fires(crate::failpoints::Point::JournalDirectorySync) {
+            Err(io::Error::other(
+                "injected failure to make the journal directory durable",
+            ))
+        } else {
+            sync_directory(&directory)
+        };
     #[cfg(not(test))]
     let own_barrier: io::Result<()> = sync_directory(&directory);
     own_barrier?;
     #[cfg(test)]
     crate::bounded_run::trace(format_args!("journal directory synced"));
     #[cfg(test)]
-    let parent_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) { Err(io::Error::other("injected failure to make the journal's name durable")) } else { sync_directory(&journals) };
+    let parent_barrier: io::Result<()> =
+        if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) {
+            Err(io::Error::other(
+                "injected failure to make the journal's name durable",
+            ))
+        } else {
+            sync_directory(&journals)
+        };
     #[cfg(not(test))]
     let parent_barrier: io::Result<()> = sync_directory(&journals);
     parent_barrier?;
@@ -656,21 +745,36 @@ impl Transaction {
     /// ```ts
     /// addManifests(edits: ManifestEdit[]): void
     /// ```
-    pub fn add_manifests(&self, edits: &[ManifestEdit]) -> io::Result<()> {
+    pub fn add_manifests(
+        &self,
+        edits: &[ManifestEdit],
+    ) -> io::Result<()> {
         if self.manifests_added.replace(true) {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
-            return Err(io::Error::other("the manifests of this transaction were journaled already; its recovery payload is not rewritten"));
+            return Err(io::Error::other(
+                "the manifests of this transaction were journaled already; its recovery payload is not rewritten",
+            ));
         }
         let mut index: String = String::from("v1\n");
         let mut listed: Vec<String> = self.listed.borrow().clone();
         for (position, edit) in edits.iter().enumerate() {
             if edit.crate_dir.contains('\n') || edit.crate_dir.contains('\t') {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the crate root {:?} contains a line feed or tab, which the journal cannot list", edit.crate_dir)));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "the crate root {:?} contains a line feed or tab, which the journal cannot list",
+                        edit.crate_dir
+                    ),
+                ));
             }
             let name: String = format!("m{position}.toml");
             write_synced(&self.directory.join(&name), &edit.before)?;
             listed.push(name);
-            index.push_str(&format!("{}\t{}\n", edit.crate_dir, encode_path(&edit.path)));
+            index.push_str(&format!(
+                "{}\t{}\n",
+                edit.crate_dir,
+                encode_path(&edit.path)
+            ));
         }
         index.push_str(&format!("end {}\n", edits.len()));
         atomic_write(&self.directory.join(MANIFEST_INDEX_FILE), &index)?;
@@ -736,14 +840,20 @@ impl Transaction {
     /// ```ts
     /// finishWith(durable: (path: string) => void): void
     /// ```
-    pub fn finish_with(self, durable: &dyn Fn(&Path) -> io::Result<()>) -> Result<(), FinishError> {
+    pub fn finish_with(
+        self,
+        durable: &dyn Fn(&Path) -> io::Result<()>,
+    ) -> Result<(), FinishError> {
         // Phase one: the outputs the run leaves are on disk before anything that could undo them goes.
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::FinishDurability) {
-            return Err(FinishError::outputs(io::Error::other("injected durability failure")));
+            return Err(FinishError::outputs(io::Error::other(
+                "injected durability failure",
+            )));
         }
         for crate_dir in &self.crate_dirs {
-            durable(&self.root.join(crate_dir).join(LOCKFILE_NAME)).map_err(FinishError::outputs)?;
+            durable(&self.root.join(crate_dir).join(LOCKFILE_NAME))
+                .map_err(FinishError::outputs)?;
         }
         for manifest in self.manifests.borrow().iter() {
             durable(manifest).map_err(FinishError::outputs)?;
@@ -751,7 +861,9 @@ impl Transaction {
         // Phase two: the completion marker is durable, or the command stops (round 7, 6b2 5).
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::FinishCompletion) {
-            return Err(FinishError::completion(io::Error::other("injected completion failure")));
+            return Err(FinishError::completion(io::Error::other(
+                "injected completion failure",
+            )));
         }
         // Phase three (inside the same function the recovery uses): only the removal of a journal that is already marked done is a warning.
         return finish_journal(&self.directory);

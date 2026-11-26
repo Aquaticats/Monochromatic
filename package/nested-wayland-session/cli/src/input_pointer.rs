@@ -9,18 +9,32 @@
 //! so a test can pause or move between the two.
 
 /// Application diagnostics describe a button that is already in the requested state.
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 
 /// Smithay's pointer events and the seat's serial counter.
 use smithay::{
     backend::input::ButtonState,
-    input::pointer::{ButtonEvent, MotionEvent},
-    utils::{Logical, Point, SERIAL_COUNTER},
+    input::pointer::{
+        ButtonEvent,
+        MotionEvent,
+    },
+    utils::{
+        Logical,
+        Point,
+        SERIAL_COUNTER,
+    },
 };
 
 /// Only the nested compositor's seat is touched.
 use crate::{
-    protocol::{ButtonAction, PointerButton},
+    protocol::{
+        ButtonAction,
+        PointerButton,
+    },
     state::Compositor,
 };
 
@@ -54,8 +68,11 @@ impl HeldButtons {
     /// Why:
     ///       `button down` on a held button and `button up` on a free one must answer `err`.
     #[must_use]
-    pub fn contains(&self, code: u32) -> bool {
-        return self.codes.contains(&code)
+    pub fn contains(
+        &self,
+        code: u32,
+    ) -> bool {
+        return self.codes.contains(&code);
     }
 
     /// Records a press,
@@ -65,7 +82,10 @@ impl HeldButtons {
     ///      `fn press(&mut self, code: u32)`.
     /// Why:
     ///       A second press of a held button must not add a duplicate entry.
-    fn press(&mut self, code: u32) {
+    fn press(
+        &mut self,
+        code: u32,
+    ) {
         if !self.contains(code) {
             self.codes.push(code);
         }
@@ -79,7 +99,10 @@ impl HeldButtons {
     /// Why:
     ///       Every path that releases a button goes through here,
     ///  so the record cannot claim a button is down after the seat released it.
-    pub fn release(&mut self, code: u32) {
+    pub fn release(
+        &mut self,
+        code: u32,
+    ) {
         let mut index = 0;
         while index < self.codes.len() {
             if self.codes[index] == code {
@@ -105,8 +128,15 @@ impl HeldButtons {
 /// ```ts
 /// pointer.motion(x, y); // no button, so no press and no release
 /// ```
-pub fn move_pointer(state: &mut Compositor, x: f64, y: f64) -> Result<()> {
-    let pointer = state.seat.get_pointer().context("nested seat has no pointer")?;
+pub fn move_pointer(
+    state: &mut Compositor,
+    x: f64,
+    y: f64,
+) -> Result<()> {
+    let pointer = state
+        .seat
+        .get_pointer()
+        .context("nested seat has no pointer")?;
     let location: Point<f64, Logical> = (x, y).into();
     let under = state.surface_under(location);
     let time = state.start_time.elapsed().as_millis() as u32;
@@ -121,7 +151,7 @@ pub fn move_pointer(state: &mut Compositor, x: f64, y: f64) -> Result<()> {
     );
     pointer.frame(state);
     tracing::debug!(x, y, "moved the nested pointer without a button");
-    return Ok(())
+    return Ok(());
 }
 
 /// Press or release a button at the pointer's current position.
@@ -139,7 +169,11 @@ pub fn move_pointer(state: &mut Compositor, x: f64, y: f64) -> Result<()> {
 /// ```ts
 /// function button(action, button) { if (held(button) === (action === "down")) throw ...; }
 /// ```
-pub fn button(state: &mut Compositor, action: ButtonAction, button: PointerButton) -> Result<()> {
+pub fn button(
+    state: &mut Compositor,
+    action: ButtonAction,
+    button: PointerButton,
+) -> Result<()> {
     let code = button.evdev_code();
     let held = state.held_pointer_buttons.contains(code);
     match (action, held) {
@@ -147,7 +181,10 @@ pub fn button(state: &mut Compositor, action: ButtonAction, button: PointerButto
         (ButtonAction::Up, false) => bail!("{} button is not down", button.name()),
         (ButtonAction::Down, false) | (ButtonAction::Up, true) => {}
     }
-    let pointer = state.seat.get_pointer().context("nested seat has no pointer")?;
+    let pointer = state
+        .seat
+        .get_pointer()
+        .context("nested seat has no pointer")?;
     let time = state.start_time.elapsed().as_millis() as u32;
     let button_state = match action {
         ButtonAction::Down => ButtonState::Pressed,
@@ -168,5 +205,5 @@ pub fn button(state: &mut Compositor, action: ButtonAction, button: PointerButto
         ButtonAction::Up => state.held_pointer_buttons.release(code),
     }
     tracing::debug!(code, ?action, "sent a nested pointer button event");
-    return Ok(())
+    return Ok(());
 }

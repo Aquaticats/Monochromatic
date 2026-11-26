@@ -29,7 +29,11 @@ use std::path::Path;
 ///  and snapshot types.
 /// Why:
 ///  reads are converted straight into these stack-agnostic values.
-use crate::types::{DirectorySnapshot, EntryKind, FileEntry};
+use crate::types::{
+    DirectorySnapshot,
+    EntryKind,
+    FileEntry,
+};
 
 /// What:
 ///  read `path` into a sorted `DirectorySnapshot` tagged with `generation`.
@@ -40,7 +44,10 @@ use crate::types::{DirectorySnapshot, EntryKind, FileEntry};
 ///  so one bad
 ///      child never fails the whole read;
 ///  only a failure to open the directory itself propagates.
-pub fn read_directory(path: &Path, generation: u64) -> io::Result<DirectorySnapshot> {
+pub fn read_directory(
+    path: &Path,
+    generation: u64,
+) -> io::Result<DirectorySnapshot> {
     let mut entries = Vec::new();
     for entry in fs::read_dir(path)? {
         match entry {
@@ -53,7 +60,7 @@ pub fn read_directory(path: &Path, generation: u64) -> io::Result<DirectorySnaps
         path: path.to_path_buf(),
         generation,
         entries,
-    })
+    });
 }
 
 /// What:
@@ -70,7 +77,7 @@ fn to_file_entry(entry: &fs::DirEntry) -> FileEntry {
         kind: entry.file_type().map(kind_of).unwrap_or(EntryKind::File),
         size: metadata.as_ref().map(fs::Metadata::len),
         modified: metadata.as_ref().and_then(modified_of),
-    }
+    };
 }
 
 /// What:
@@ -79,7 +86,7 @@ fn to_file_entry(entry: &fs::DirEntry) -> FileEntry {
 /// Why:
 ///  a named function lets `and_then` take it by path instead of through a closure.
 fn modified_of(metadata: &fs::Metadata) -> Option<std::time::SystemTime> {
-    return metadata.modified().ok()
+    return metadata.modified().ok();
 }
 
 /// What:
@@ -90,11 +97,11 @@ fn modified_of(metadata: &fs::Metadata) -> Option<std::time::SystemTime> {
 ///  an unresolved link stays its own kind.
 fn kind_of(file_type: fs::FileType) -> EntryKind {
     if file_type.is_symlink() {
-        return EntryKind::Symlink
+        return EntryKind::Symlink;
     } else if file_type.is_dir() {
-        return EntryKind::Directory
+        return EntryKind::Directory;
     } else {
-        return EntryKind::File
+        return EntryKind::File;
     }
 }
 
@@ -116,7 +123,10 @@ pub fn sort_entries(entries: &mut [FileEntry]) {
 /// Why:
 ///  a named comparator lets `sort_by` take it by path instead of through a closure;
 ///  the order is the one `sort_entries` documents.
-fn compare_entries(left: &FileEntry, right: &FileEntry) -> Ordering {
+fn compare_entries(
+    left: &FileEntry,
+    right: &FileEntry,
+) -> Ordering {
     match (is_dir(left), is_dir(right)) {
         (true, false) => return Ordering::Less,
         (false, true) => return Ordering::Greater,
@@ -130,5 +140,5 @@ fn compare_entries(left: &FileEntry, right: &FileEntry) -> Ordering {
 ///  true only for real directories;
 ///  symlinks and files share the second group.
 fn is_dir(entry: &FileEntry) -> bool {
-    return matches!(entry.kind, EntryKind::Directory)
+    return matches!(entry.kind, EntryKind::Directory);
 }

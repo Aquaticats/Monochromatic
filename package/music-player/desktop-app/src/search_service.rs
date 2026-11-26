@@ -29,29 +29,63 @@
 
 /// Imports the atomic flag,
 /// counters and their ordering that signal the worker threads.
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
 /// Imports the channel module that carries requests to the workers.
 use std::sync::mpsc;
 /// Imports the shared ownership,
 /// lock and poison types that guard the index.
-use std::sync::{Arc, Mutex, PoisonError, RwLock};
+use std::sync::{
+    Arc,
+    Mutex,
+    PoisonError,
+    RwLock,
+};
 /// Imports the thread module and handle that run and join the workers.
-use std::thread::{self, JoinHandle};
+use std::thread::{
+    self,
+    JoinHandle,
+};
 
 /// Imports the index that the service guards.
 use crate::search_index::SearchIndex;
 /// Imports the prepared batch and the function that prepares it.
-use crate::search_index_batch::{PreparedBatch, prepare_batch};
+use crate::search_index_batch::{
+    PreparedBatch,
+    prepare_batch,
+};
 /// Imports the search state that an answer carries.
 use crate::search_results::SearchState;
 /// Imports the stream thread's loop,
 /// request type and helpers.
-use crate::search_stream::{FLUSH_PATIENCE, StreamRequest, append_prepared_batch, reset_index, stream_loop};
+use crate::search_stream::{
+    FLUSH_PATIENCE,
+    StreamRequest,
+    append_prepared_batch,
+    reset_index,
+    stream_loop,
+};
 /// Imports the worker request and shared state and the lock helpers.
-use crate::search_worker::{Request, Shared, read_index, warm, work, write_when_free};
+use crate::search_worker::{
+    Request,
+    Shared,
+    read_index,
+    warm,
+    work,
+    write_when_free,
+};
 
 /// Re-exports the worker constants and the answer type that callers of the service use.
-pub use crate::search_worker::{REFRESH_INTERVAL, SearchAnswer, WARM_DELAY, WRITE_PATIENCE, WRITE_POLL};
+pub use crate::search_worker::{
+    REFRESH_INTERVAL,
+    SearchAnswer,
+    WARM_DELAY,
+    WRITE_PATIENCE,
+    WRITE_POLL,
+};
 
 /// What:
 ///      `pub struct SearchService`.
@@ -91,11 +125,13 @@ impl SearchService {
             stream,
         });
         let worker_shared: Arc<Shared> = Arc::clone(&shared);
-        let worker: JoinHandle<()> = thread::spawn(move || work(worker_shared, receiver, Box::new(deliver)));
+        let worker: JoinHandle<()> =
+            thread::spawn(move || work(worker_shared, receiver, Box::new(deliver)));
         let warmer_shared: Arc<Shared> = Arc::clone(&shared);
         let warmer: JoinHandle<()> = thread::spawn(move || warm(warmer_shared, warm_receiver));
         let streamer_shared: Arc<Shared> = Arc::clone(&shared);
-        let streamer: JoinHandle<()> = thread::spawn(move || stream_loop(streamer_shared, stream_receiver));
+        let streamer: JoinHandle<()> =
+            thread::spawn(move || stream_loop(streamer_shared, stream_receiver));
         return SearchService {
             shared,
             sequence: AtomicU64::new(0),
@@ -108,9 +144,15 @@ impl SearchService {
     /// Why:
     /// the answer arrives later through the callback;
     /// the number lets the receiver drop older answers.
-    pub fn query(&self, text: &str) -> u64 {
+    pub fn query(
+        &self,
+        text: &str,
+    ) -> u64 {
         let sequence: u64 = self.sequence.fetch_add(1, Ordering::AcqRel) + 1;
-        let _sent = self.shared.requests.send(Request::Query(sequence, text.to_string()));
+        let _sent = self
+            .shared
+            .requests
+            .send(Request::Query(sequence, text.to_string()));
         return sequence;
     }
 
@@ -119,7 +161,10 @@ impl SearchService {
     /// Why:
     /// tests and benchmarks need an answer without a worker round trip.
     #[must_use]
-    pub fn search_now(&self, text: &str) -> SearchState {
+    pub fn search_now(
+        &self,
+        text: &str,
+    ) -> SearchState {
         return read_index(&self.shared).search(text);
     }
 
@@ -137,7 +182,10 @@ impl SearchService {
     /// Why:
     /// see `begin_feed`.
     #[must_use]
-    pub fn feed_is_current(&self, epoch: u64) -> bool {
+    pub fn feed_is_current(
+        &self,
+        epoch: u64,
+    ) -> bool {
         return self.shared.feed_epoch.load(Ordering::Acquire) == epoch;
     }
 
@@ -149,8 +197,15 @@ impl SearchService {
     /// so results never vanish
     /// and reappear.
     /// The swap is one pointer move under the write lock.
-    pub fn install(&self, fresh: SearchIndex) -> u64 {
-        let _order = self.shared.append_order.lock().unwrap_or_else(PoisonError::into_inner);
+    pub fn install(
+        &self,
+        fresh: SearchIndex,
+    ) -> u64 {
+        let _order = self
+            .shared
+            .append_order
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let generation: u64 = self.shared.generation.fetch_add(1, Ordering::AcqRel) + 1;
         let mut replacement: SearchIndex = fresh;
         replacement.set_generation(generation);
@@ -194,7 +249,11 @@ impl SearchService {
     /// Why:
     /// a rescan that is not a pure append invalidates every position,
     /// so the old index is dropped.
-    pub fn reset(&self, expected_tracks: usize, expected_path_bytes: usize) -> u64 {
+    pub fn reset(
+        &self,
+        expected_tracks: usize,
+        expected_path_bytes: usize,
+    ) -> u64 {
         return reset_index(&self.shared, expected_tracks, expected_path_bytes);
     }
 
@@ -204,7 +263,11 @@ impl SearchService {
     /// Why:
     /// a feeder thread may outlive the library it was feeding,
     /// and its late batch must not land in the new one.
-    pub fn append_for<S: AsRef<str>>(&self, generation: u64, display_paths: &[S]) -> bool {
+    pub fn append_for<S: AsRef<str>>(
+        &self,
+        generation: u64,
+        display_paths: &[S],
+    ) -> bool {
         return append_prepared_batch(&self.shared, generation, prepare_batch(display_paths));
     }
 
@@ -212,7 +275,11 @@ impl SearchService {
     /// `append_prepared` adds an already prepared batch to library `generation`.
     /// Why:
     /// the feeder prepares batches on several threads and pushes them here in order.
-    pub(crate) fn append_prepared(&self, generation: u64, batch: PreparedBatch) -> bool {
+    pub(crate) fn append_prepared(
+        &self,
+        generation: u64,
+        batch: PreparedBatch,
+    ) -> bool {
         return append_prepared_batch(&self.shared, generation, batch);
     }
 
@@ -220,7 +287,10 @@ impl SearchService {
     /// `append_batch` adds tracks to the current library.
     /// Why:
     /// a scan that owns the library calls it once per batch.
-    pub fn append_batch<S: AsRef<str>>(&self, display_paths: &[S]) {
+    pub fn append_batch<S: AsRef<str>>(
+        &self,
+        display_paths: &[S],
+    ) {
         let generation: u64 = self.generation();
         self.append_for(generation, display_paths);
     }
@@ -237,8 +307,15 @@ impl SearchService {
     /// A batch that starts at position zero begins a new library and cancels any
     /// feed still running;
     /// a batch that does not continue the index is ignored by the stream thread.
-    pub fn stream_batch(&self, first_index: usize, names: Vec<String>) {
-        let _sent = self.shared.stream.send(StreamRequest::Batch(first_index, names));
+    pub fn stream_batch(
+        &self,
+        first_index: usize,
+        names: Vec<String>,
+    ) {
+        let _sent = self
+            .shared
+            .stream
+            .send(StreamRequest::Batch(first_index, names));
     }
 
     /// What:
@@ -262,7 +339,10 @@ impl SearchService {
     /// rebuild.
     /// Equality is checked at evenly spaced positions,
     /// which a wrong prefix or a different order would fail.
-    pub fn adopt_streamed(&self, names: &[String]) -> bool {
+    pub fn adopt_streamed(
+        &self,
+        names: &[String],
+    ) -> bool {
         self.stream_flush();
         let (same, generation): (bool, u64) = {
             let guard = read_index(&self.shared);
@@ -289,7 +369,10 @@ impl SearchService {
     /// `finish` marks the scan of library `generation` as complete and signals a refresh.
     /// Why:
     /// only a complete scan can support the statement that nothing matches (D69).
-    pub fn finish(&self, generation: u64) {
+    pub fn finish(
+        &self,
+        generation: u64,
+    ) {
         if self.generation() == generation {
             self.shared.complete.store(true, Ordering::Release);
             self.shared.signal_grew();
@@ -316,7 +399,8 @@ impl SearchService {
         let _worker_stop = self.shared.requests.send(Request::Stop);
         let _warmer_stop = self.shared.warm_signals.send(Request::Stop);
         let _streamer_stop = self.shared.stream.send(StreamRequest::Stop);
-        let running: Vec<JoinHandle<()>> = std::mem::take(&mut *self.threads.lock().unwrap_or_else(PoisonError::into_inner));
+        let running: Vec<JoinHandle<()>> =
+            std::mem::take(&mut *self.threads.lock().unwrap_or_else(PoisonError::into_inner));
         for handle in running {
             let _joined = handle.join();
         }

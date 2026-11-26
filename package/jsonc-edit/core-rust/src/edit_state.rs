@@ -87,7 +87,9 @@ pub struct JsoncEditState {
 ///  or a 513th container.
 pub fn parse_jsonc_edit(source: &str) -> Result<JsoncEditState, JsoncParseError> {
     let root = parse_jsonc(source)?;
-    return Ok(JsoncEditState { root });
+    return Ok(JsoncEditState {
+        root,
+    });
 }
 
 /// What:
@@ -103,7 +105,9 @@ pub fn parse_jsonc_edit(source: &str) -> Result<JsoncEditState, JsoncParseError>
 /// function jsoncStateFromValue(root: JsoncValue): JsoncEditState;
 /// ```
 pub fn jsonc_state_from_value(root: JsoncValue) -> JsoncEditState {
-    return JsoncEditState { root };
+    return JsoncEditState {
+        root,
+    };
 }
 
 /// What:

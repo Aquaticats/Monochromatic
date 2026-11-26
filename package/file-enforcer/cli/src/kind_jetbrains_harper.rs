@@ -18,17 +18,38 @@
 //! function jetbrainsHarperRule(settings: HarperPolicy): Rule
 //! ```
 
+/// Imports the JSON helpers from `crate::harper_json`.
+use crate::harper_json::{
+    disable_linters,
+    format_object,
+    parse_object,
+    scoped_config,
+    union_excludes,
+    with_schema_defaults,
+};
+/// Imports the XML helpers from `crate::harper_xml`.
+use crate::harper_xml::{
+    find_base_entry,
+    find_entry,
+    option_value,
+    parse,
+};
+/// Imports the entry edits from `crate::harper_xml_edit`.
+use crate::harper_xml_edit::{
+    ScopedUserEntry,
+    upsert_language_entry,
+    upsert_user_entry,
+};
 /// Imports `LANGUAGE_FILE`,
 /// `USER_FILE`,
 /// `jetbrains_config_directory`,
 /// `latest_options_directory` from `crate::jetbrains_discovery`.
-use crate::jetbrains_discovery::{LANGUAGE_FILE, USER_FILE, jetbrains_config_directory, latest_options_directory};
-/// Imports the JSON helpers from `crate::harper_json`.
-use crate::harper_json::{disable_linters, format_object, parse_object, scoped_config, union_excludes, with_schema_defaults};
-/// Imports the XML helpers from `crate::harper_xml`.
-use crate::harper_xml::{find_base_entry, find_entry, option_value, parse};
-/// Imports the entry edits from `crate::harper_xml_edit`.
-use crate::harper_xml_edit::{ScopedUserEntry, upsert_language_entry, upsert_user_entry};
+use crate::jetbrains_discovery::{
+    LANGUAGE_FILE,
+    USER_FILE,
+    jetbrains_config_directory,
+    latest_options_directory,
+};
 /// Imports `HarperScopedServer` from `monochromatic_file_enforcer::config_parts`.
 use monochromatic_file_enforcer::config_parts::HarperScopedServer;
 /// Imports `RuleConfig` from `monochromatic_file_enforcer::config_types`.
@@ -39,12 +60,20 @@ use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// `Rule`,
 /// `RuleBuilder`,
 /// `RulePlan` from `monochromatic_file_enforcer::rule`.
-use monochromatic_file_enforcer::rule::{Change, Rule, RuleBuilder, RulePlan};
+use monochromatic_file_enforcer::rule::{
+    Change,
+    Rule,
+    RuleBuilder,
+    RulePlan,
+};
 /// Imports `View` from `monochromatic_file_enforcer::view`.
 use monochromatic_file_enforcer::view::View;
 /// Imports `Map`,
 /// `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 /// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
 
@@ -83,7 +112,9 @@ impl JetbrainsHarperBuilder {
     /// A builder that honours the `XDG_CONFIG_HOME` the process was started with,
     /// as the retired TypeScript tool did.
     pub fn from_environment() -> JetbrainsHarperBuilder {
-        return JetbrainsHarperBuilder { xdg_config_home: std::env::var_os("XDG_CONFIG_HOME") };
+        return JetbrainsHarperBuilder {
+            xdg_config_home: std::env::var_os("XDG_CONFIG_HOME"),
+        };
     }
 }
 
@@ -91,9 +122,18 @@ impl JetbrainsHarperBuilder {
 impl RuleBuilder for JetbrainsHarperBuilder {
     /// Build the rule,
     /// or explain that the entry is another kind.
-    fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
+    fn build(
+        &self,
+        config: &RuleConfig,
+    ) -> Result<Box<dyn Rule>, Diagnostic> {
         match config {
-            RuleConfig::JetbrainsHarper { id, product_prefixes, disabled_linters, exclude_patterns, scoped_servers } => {
+            RuleConfig::JetbrainsHarper {
+                id,
+                product_prefixes,
+                disabled_linters,
+                exclude_patterns,
+                scoped_servers,
+            } => {
                 return Ok(Box::new(JetbrainsHarperRule {
                     id: id.clone(),
                     xdg_config_home: self.xdg_config_home.clone(),
@@ -104,7 +144,10 @@ impl RuleBuilder for JetbrainsHarperBuilder {
                 }));
             }
             other => {
-                let message = format!("the jetbrains-harper builder was given a rule of kind {}", other.kind());
+                let message = format!(
+                    "the jetbrains-harper builder was given a rule of kind {}",
+                    other.kind()
+                );
                 return Err(Diagnostic::new("kind-unknown", &message).with_rule(other.id()));
             }
         }
@@ -158,10 +201,19 @@ struct SettingsFiles {
 /// The `impl JetbrainsHarperRule` block.
 impl JetbrainsHarperRule {
     /// A plan that changes nothing and says why.
-    fn skip(&self, reason: &str) -> RulePlan {
-        let message = format!("rule {}: {reason}; the Harper policy was not applied", self.id);
+    fn skip(
+        &self,
+        reason: &str,
+    ) -> RulePlan {
+        let message = format!(
+            "rule {}: {reason}; the Harper policy was not applied",
+            self.id
+        );
         let warning = Diagnostic::new("jetbrains-harper-skipped", &message).with_rule(&self.id);
-        return RulePlan { changes: Vec::new(), warnings: vec![warning] };
+        return RulePlan {
+            changes: Vec::new(),
+            warnings: vec![warning],
+        };
     }
 
     /// The ids of the scoped servers,
@@ -184,14 +236,23 @@ impl JetbrainsHarperRule {
     /// ```ts
     /// readSettings(view: View, optionsDirectory: string): SettingsFiles | undefined
     /// ```
-    fn read_settings(&self, view: &mut View, options_directory: &str) -> Result<Option<SettingsFiles>, Diagnostic> {
+    fn read_settings(
+        &self,
+        view: &mut View,
+        options_directory: &str,
+    ) -> Result<Option<SettingsFiles>, Diagnostic> {
         let language_path = format!("{options_directory}/{LANGUAGE_FILE}");
         let user_path = format!("{options_directory}/{USER_FILE}");
         let language_text = view.read_text(&language_path)?;
         let user_text = view.read_text(&user_path)?;
         match (language_text, user_text) {
             (Some(language), Some(user)) => {
-                return Ok(Some(SettingsFiles { language_path, language_text: language, user_path, user_text: user }));
+                return Ok(Some(SettingsFiles {
+                    language_path,
+                    language_text: language,
+                    user_path,
+                    user_text: user,
+                }));
             }
             _ => return Ok(None),
         }
@@ -199,11 +260,20 @@ impl JetbrainsHarperRule {
 
     /// The base server's patched configuration,
     /// from the configuration the language settings file holds for it.
-    fn base_config(&self, settings: &SettingsFiles, key: &str) -> Result<Map<String, Value>, Diagnostic> {
+    fn base_config(
+        &self,
+        settings: &SettingsFiles,
+        key: &str,
+    ) -> Result<Map<String, Value>, Diagnostic> {
         let document = parse(&settings.language_path, &settings.language_text)?;
         let Some(entry) = find_entry(&document, key) else {
-            let message = format!("{}: no language server settings entry for the base server {key}", settings.language_path);
-            return Err(Diagnostic::new("harper-xml-invalid", &message).with_path(&settings.language_path).with_rule(&self.id));
+            let message = format!(
+                "{}: no language server settings entry for the base server {key}",
+                settings.language_path
+            );
+            return Err(Diagnostic::new("harper-xml-invalid", &message)
+                .with_path(&settings.language_path)
+                .with_rule(&self.id));
         };
         let existing = match option_value(&document, entry, "configurationContent") {
             Some(text) => text,
@@ -216,7 +286,11 @@ impl JetbrainsHarperRule {
     }
 
     /// The schema text shared by the base and scoped entries.
-    fn schema_text(&self, settings: &SettingsFiles, key: &str) -> Result<String, Diagnostic> {
+    fn schema_text(
+        &self,
+        settings: &SettingsFiles,
+        key: &str,
+    ) -> Result<String, Diagnostic> {
         let document = parse(&settings.language_path, &settings.language_text)?;
         let schema_text = match find_entry(&document, key) {
             Some(entry) => option_value(&document, entry, "configurationSchemaContent"),
@@ -226,18 +300,32 @@ impl JetbrainsHarperRule {
             Some(text) => text,
             None => "{\"properties\":{}}".to_string(),
         };
-        let schema = parse_object(&existing, "configurationSchemaContent", &settings.language_path)?;
+        let schema = parse_object(
+            &existing,
+            "configurationSchemaContent",
+            &settings.language_path,
+        )?;
         return Ok(format_object(with_schema_defaults(schema)));
     }
 
     /// The language settings file after the policy:
     /// the base entry patched,
     /// each scoped entry written.
-    fn updated_language(&self, settings: &SettingsFiles, key: &str) -> Result<String, Diagnostic> {
+    fn updated_language(
+        &self,
+        settings: &SettingsFiles,
+        key: &str,
+    ) -> Result<String, Diagnostic> {
         let base = self.base_config(settings, key)?;
         let schema = self.schema_text(settings, key)?;
         let path = settings.language_path.as_str();
-        let mut text = upsert_language_entry(path, &settings.language_text, key, &format_object(base.clone()), &schema)?;
+        let mut text = upsert_language_entry(
+            path,
+            &settings.language_text,
+            key,
+            &format_object(base.clone()),
+            &schema,
+        )?;
         for server in &self.scoped_servers {
             let config = format_object(scoped_config(&base, &server.disabled_linters));
             text = upsert_language_entry(path, &text, &server.id, &config, &schema)?;
@@ -248,7 +336,11 @@ impl JetbrainsHarperRule {
     /// The user-defined settings file after the policy:
     /// each scoped entry written,
     /// with options copied from the base server's entry.
-    fn updated_user(&self, settings: &SettingsFiles, key: &str) -> Result<String, Diagnostic> {
+    fn updated_user(
+        &self,
+        settings: &SettingsFiles,
+        key: &str,
+    ) -> Result<String, Diagnostic> {
         let document = parse(&settings.user_path, &settings.user_text)?;
         let mut copied: Vec<(String, String)> = Vec::new();
         if let Some(base) = find_entry(&document, key) {
@@ -295,30 +387,52 @@ impl Rule for JetbrainsHarperRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
-        let config_directory = match jetbrains_config_directory(view.root(), self.xdg_config_home.as_deref()) {
-            Ok(directory) => directory,
-            Err(reason) => return Ok(self.skip(&reason)),
-        };
-        let Some(options_directory) = latest_options_directory(view, &config_directory, &self.product_prefixes)? else {
-            let reason = format!("no installed product under {config_directory} starts with {:?}", self.product_prefixes);
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
+        let config_directory =
+            match jetbrains_config_directory(view.root(), self.xdg_config_home.as_deref()) {
+                Ok(directory) => directory,
+                Err(reason) => return Ok(self.skip(&reason)),
+            };
+        let Some(options_directory) =
+            latest_options_directory(view, &config_directory, &self.product_prefixes)?
+        else {
+            let reason = format!(
+                "no installed product under {config_directory} starts with {:?}",
+                self.product_prefixes
+            );
             return Ok(self.skip(&reason));
         };
         let Some(settings) = self.read_settings(view, &options_directory)? else {
-            return Ok(self.skip(&format!("{options_directory} lacks {LANGUAGE_FILE} or {USER_FILE}")));
+            return Ok(self.skip(&format!(
+                "{options_directory} lacks {LANGUAGE_FILE} or {USER_FILE}"
+            )));
         };
         let user_document = parse(&settings.user_path, &settings.user_text)?;
         let Some((_, key)) = find_base_entry(&user_document, &self.scoped_ids()) else {
-            return Ok(self.skip(&format!("{} holds no Harper base server", settings.user_path)));
+            return Ok(self.skip(&format!(
+                "{} holds no Harper base server",
+                settings.user_path
+            )));
         };
         let language = self.updated_language(&settings, &key)?;
         let user = self.updated_user(&settings, &key)?;
         let mut plan = RulePlan::default();
         if language != settings.language_text {
-            plan.changes.push(Change::Write { path: settings.language_path.clone(), content: language.into_bytes(), mode: None });
+            plan.changes.push(Change::Write {
+                path: settings.language_path.clone(),
+                content: language.into_bytes(),
+                mode: None,
+            });
         }
         if user != settings.user_text {
-            plan.changes.push(Change::Write { path: settings.user_path.clone(), content: user.into_bytes(), mode: None });
+            plan.changes.push(Change::Write {
+                path: settings.user_path.clone(),
+                content: user.into_bytes(),
+                mode: None,
+            });
         }
         return Ok(plan);
     }

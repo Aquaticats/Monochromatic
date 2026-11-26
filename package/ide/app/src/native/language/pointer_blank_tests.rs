@@ -8,19 +8,41 @@
 //!  In a view that stands still such a pointer asks nothing and closes a popup.
 
 /// The rest time and the places it is kept for.
-use super::pointer::{REST, Rest, Spot, View};
+use super::pointer::{
+    REST,
+    Rest,
+    Spot,
+    View,
+};
 /// The fixture of the scroll tests and its checks of the line a request names.
 use super::pointer_scroll_tests::{
-    ROW, TEXT, assert_names_line_drawn_under, line_drawn_under, long_text, resting_place,
-    resting_place_with, wait_for_popup,
+    ROW,
+    TEXT,
+    assert_names_line_drawn_under,
+    line_drawn_under,
+    long_text,
+    resting_place,
+    resting_place_with,
+    wait_for_popup,
 };
 /// Fixtures and real window events.
-use super::test_support::{LanguageReader, escape, idle, move_to, point, popup, rows};
+use super::test_support::{
+    LanguageReader,
+    escape,
+    idle,
+    move_to,
+    point,
+    popup,
+    rows,
+};
 /// Which text the displayed hint answer covers.
 use crate::native::annotate::displayed;
 /// The scrolls the toolkit reports to the change handler,
 ///  and the wait for the tile worker.
-use crate::native::overscan_tile_tests::{scroll_to, settle_tile};
+use crate::native::overscan_tile_tests::{
+    scroll_to,
+    settle_tile,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// The identity of the displayed text.
@@ -29,7 +51,10 @@ use ide_app::language::identity::DocumentStamp;
 use slint::platform::update_timers_and_animations;
 /// An external change of the displayed file,
 ///  and instants for a rest that began long ago.
-use std::{fs, time::Instant};
+use std::{
+    fs,
+    time::Instant,
+};
 
 /// A line of `long_text` with no character:
 ///  odd lines are blank.
@@ -47,7 +72,11 @@ const BLANK: usize = 5;
 /// ```ts
 /// function assertAnswerStays(reader: LanguageReader, y: number, text: string): void
 /// ```
-fn assert_answer_stays(reader: &LanguageReader, y: f32, text: &str) {
+fn assert_answer_stays(
+    reader: &LanguageReader,
+    y: f32,
+    text: &str,
+) {
     assert_names_line_drawn_under(reader, y, text);
     idle(2 * REST.as_millis() as u64);
     assert_eq!(

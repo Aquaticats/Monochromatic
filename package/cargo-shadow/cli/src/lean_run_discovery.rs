@@ -16,7 +16,13 @@
 //! ```
 
 /// Files and paths.
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// What:
 /// `pub fn target_directories(checkout: &Path) -> Vec<PathBuf>` lists the `target` directories of a checkout that exist:
@@ -34,9 +40,13 @@ pub fn target_directories(checkout: &Path) -> Vec<PathBuf> {
     if root.is_dir() {
         found.push(root);
     }
-    let Ok(categories) = fs::read_dir(checkout.join("package")) else { return found };
+    let Ok(categories) = fs::read_dir(checkout.join("package")) else {
+        return found;
+    };
     for category in categories.flatten() {
-        let Ok(names) = fs::read_dir(category.path()) else { continue };
+        let Ok(names) = fs::read_dir(category.path()) else {
+            continue;
+        };
         for name in names.flatten() {
             let target: PathBuf = name.path().join("target");
             if target.is_dir() {

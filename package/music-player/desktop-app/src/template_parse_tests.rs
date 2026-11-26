@@ -42,8 +42,21 @@ fn parse_keeps_where_each_formula_sits() {
             };
         })
         .collect();
-    assert_eq!(described, vec!["literal:a", "formula:1-10", "literal:b", "formula:11-15 open"]);
-    assert!(parsed.errors.iter().any(|error| return error.message.contains("no closing")));
+    assert_eq!(
+        described,
+        vec![
+            "literal:a",
+            "formula:1-10",
+            "literal:b",
+            "formula:11-15 open"
+        ]
+    );
+    assert!(
+        parsed
+            .errors
+            .iter()
+            .any(|error| return error.message.contains("no closing"))
+    );
 }
 
 // What: `fn parse_reports_an_unclosed_dollar_sign(...)` checks the mistake for a formula with no closing dollar sign.
@@ -55,10 +68,16 @@ fn parse_keeps_where_each_formula_sits() {
 // ```
 #[test]
 fn parse_reports_an_unclosed_dollar_sign() {
-    assert_eq!(parse_lines("$mi(title)"), vec!["formula: the $ at character 1 has no closing $"]);
+    assert_eq!(
+        parse_lines("$mi(title)"),
+        vec!["formula: the $ at character 1 has no closing $"]
+    );
     assert_eq!(
         parse_lines("a $mi(title) - text"),
-        vec!["formula: the $ at character 3 has no closing $", "formula: unexpected -"]
+        vec![
+            "formula: the $ at character 3 has no closing $",
+            "formula: unexpected -"
+        ]
     );
 }
 
@@ -74,16 +93,31 @@ fn parse_reports_missing_and_misplaced_values() {
     assert_eq!(parse_lines("$$"), vec!["formula: a value is missing"]);
     assert_eq!(
         parse_lines("$+$"),
-        vec!["formula: a value is missing before +", "formula: a value is missing"]
+        vec![
+            "formula: a value is missing before +",
+            "formula: a value is missing"
+        ]
     );
-    assert_eq!(parse_lines("$mi(title) mi(ext)$"), vec!["formula: unexpected mi"]);
+    assert_eq!(
+        parse_lines("$mi(title) mi(ext)$"),
+        vec!["formula: unexpected mi"]
+    );
     assert_eq!(
         parse_lines("$mi(,)$"),
-        vec!["formula: a value is missing before ,", "formula: a value is missing before )"]
+        vec![
+            "formula: a value is missing before ,",
+            "formula: a value is missing before )"
+        ]
     );
-    assert_eq!(parse_lines("$mi(len) = 275$"), vec!["formula: unexpected ="]);
+    assert_eq!(
+        parse_lines("$mi(len) = 275$"),
+        vec!["formula: unexpected ="]
+    );
     assert_eq!(parse_lines("$mi(len) > 1$"), vec!["formula: unexpected >"]);
-    assert_eq!(parse_lines("$mi(peak) != \"\"$"), vec!["formula: unexpected !="]);
+    assert_eq!(
+        parse_lines("$mi(peak) != \"\"$"),
+        vec!["formula: unexpected !="]
+    );
 }
 
 // What: `fn parse_reports_brackets_and_quotation_marks(...)` checks a missing closing bracket and an unclosed quotation mark.
@@ -95,10 +129,16 @@ fn parse_reports_missing_and_misplaced_values() {
 // ```
 #[test]
 fn parse_reports_brackets_and_quotation_marks() {
-    assert_eq!(parse_lines("$mi(title$"), vec!["mi: a closing bracket is missing"]);
+    assert_eq!(
+        parse_lines("$mi(title$"),
+        vec!["mi: a closing bracket is missing"]
+    );
     assert_eq!(
         parse_lines("$mi(\"title)$"),
-        vec!["mi: a closing bracket is missing", "text: a quotation mark is not closed"]
+        vec![
+            "mi: a closing bracket is missing",
+            "text: a quotation mark is not closed"
+        ]
     );
 }
 
@@ -111,9 +151,17 @@ fn parse_reports_brackets_and_quotation_marks() {
 // ```
 #[test]
 fn parse_stops_reading_calls_past_the_nesting_bound() {
-    let deep = format!("${}x{}$", "tc(up, ".repeat(DEEPEST_CALL + 1), ")".repeat(DEEPEST_CALL + 1));
+    let deep = format!(
+        "${}x{}$",
+        "tc(up, ".repeat(DEEPEST_CALL + 1),
+        ")".repeat(DEEPEST_CALL + 1)
+    );
     assert_eq!(parse_lines(&deep), vec!["tc: calls are nested too deeply"]);
-    let deepest = format!("${}x{}$", "tc(up, ".repeat(DEEPEST_CALL), ")".repeat(DEEPEST_CALL));
+    let deepest = format!(
+        "${}x{}$",
+        "tc(up, ".repeat(DEEPEST_CALL),
+        ")".repeat(DEEPEST_CALL)
+    );
     assert!(parse_lines(&deepest).is_empty());
 }
 

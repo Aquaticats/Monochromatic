@@ -134,7 +134,8 @@ pub fn encode_quoted(units: &[u16]) -> String {
             let next = units.get(cursor).copied().unwrap_or(0);
             if (0xDC00..=0xDFFF).contains(&next) {
                 cursor += 1;
-                let scalar = 0x1_0000 + ((u32::from(unit) - 0xD800) << 10) + (u32::from(next) - 0xDC00);
+                let scalar =
+                    0x1_0000 + ((u32::from(unit) - 0xD800) << 10) + (u32::from(next) - 0xDC00);
                 if let Some(character) = char::from_u32(scalar) {
                     output.push(character);
                     continue;

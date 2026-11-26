@@ -18,7 +18,11 @@
 /// ```ts
 /// import { leading, singleLine, trailing } from './comment';
 /// ```
-use crate::comment_merge::{leading, single_line, trailing};
+use crate::comment_merge::{
+    leading,
+    single_line,
+    trailing,
+};
 /// What:
 ///  Borrow parsed node and tagged value types.
 /// Why:
@@ -28,7 +32,10 @@ use crate::comment_merge::{leading, single_line, trailing};
 /// ```ts
 /// import type { JsoncValue, JsoncKind } from './value';
 /// ```
-use crate::value::{JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///  Serialize a whole JSONC document with its root-attached comment.
@@ -66,16 +73,31 @@ pub fn emit_jsonc_value(root: &JsoncValue) -> String {
 /// ```ts
 /// function emitBare(value: JsoncValue, depth: number, out: string[]): void;
 /// ```
-fn emit_bare(value: &JsoncValue, depth: usize, out: &mut String) {
-    if let JsoncKind::Text { raw, .. } = &value.kind {
+fn emit_bare(
+    value: &JsoncValue,
+    depth: usize,
+    out: &mut String,
+) {
+    if let JsoncKind::Text {
+        raw,
+        ..
+    } = &value.kind
+    {
         out.push_str(raw);
         return;
     }
-    if let JsoncKind::Number { raw, .. } = &value.kind {
+    if let JsoncKind::Number {
+        raw,
+        ..
+    } = &value.kind
+    {
         out.push_str(raw);
         return;
     }
-    if let JsoncKind::Boolean { value: boolean } = &value.kind {
+    if let JsoncKind::Boolean {
+        value: boolean,
+    } = &value.kind
+    {
         out.push_str(if *boolean { "true" } else { "false" });
         return;
     }
@@ -83,7 +105,10 @@ fn emit_bare(value: &JsoncValue, depth: usize, out: &mut String) {
         out.push_str("null");
         return;
     }
-    if let JsoncKind::Array { elements } = &value.kind {
+    if let JsoncKind::Array {
+        elements,
+    } = &value.kind
+    {
         if elements.is_empty() {
             out.push_str("[]");
             return;
@@ -98,14 +123,18 @@ fn emit_bare(value: &JsoncValue, depth: usize, out: &mut String) {
             // ```ts
             // if (comment !== undefined && !singleLine(comment)) output += leading(comment);
             // ```
-            if let Some(comment) = &element.comment && !single_line(comment) {
+            if let Some(comment) = &element.comment
+                && !single_line(comment)
+            {
                 out.push_str(&leading(comment, depth + 1));
             }
             out.push_str(&pad);
             emit_bare(element, depth + 1, out);
             out.push(',');
             // A single-line comment may follow the element's comma.
-            if let Some(comment) = &element.comment && single_line(comment) {
+            if let Some(comment) = &element.comment
+                && single_line(comment)
+            {
                 out.push(' ');
                 out.push_str(&trailing(comment));
             }
@@ -115,7 +144,10 @@ fn emit_bare(value: &JsoncValue, depth: usize, out: &mut String) {
         out.push(']');
         return;
     }
-    if let JsoncKind::Record { entries } = &value.kind {
+    if let JsoncKind::Record {
+        entries,
+    } = &value.kind
+    {
         if entries.is_empty() {
             out.push_str("{}");
             return;
@@ -130,7 +162,9 @@ fn emit_bare(value: &JsoncValue, depth: usize, out: &mut String) {
             out.push_str(&entry.key.raw);
             out.push(':');
             // A multi-line value comment must follow the colon so it cannot attach to the key.
-            if let Some(comment) = &entry.value.comment && !single_line(comment) {
+            if let Some(comment) = &entry.value.comment
+                && !single_line(comment)
+            {
                 out.push('\n');
                 out.push_str(&leading(comment, depth + 1));
                 out.push_str(&pad);
@@ -140,7 +174,9 @@ fn emit_bare(value: &JsoncValue, depth: usize, out: &mut String) {
             emit_bare(&entry.value, depth + 1, out);
             out.push(',');
             // Single-line value comments sit after the member's comma.
-            if let Some(comment) = &entry.value.comment && single_line(comment) {
+            if let Some(comment) = &entry.value.comment
+                && single_line(comment)
+            {
                 out.push(' ');
                 out.push_str(&trailing(comment));
             }

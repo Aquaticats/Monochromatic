@@ -18,18 +18,35 @@
 use std::ffi::OsString;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 use std::rc::Rc;
 use std::time::Duration;
 
-use rustix::process::{Pid, PidfdFlags, pidfd_open};
+use rustix::process::{
+    Pid,
+    PidfdFlags,
+    pidfd_open,
+};
 
-use crate::contain_counterexample_tests::wait_for_file;
 use crate::constants::INSTALL_FAILED_EXIT_CODE;
-use crate::control_group::{StartOf, missing_entry_verdict};
+use crate::contain_counterexample_tests::wait_for_file;
+use crate::control_group::{
+    StartOf,
+    missing_entry_verdict,
+};
 use crate::crates::LockSnapshot;
-use crate::journal::{begin, recover};
+use crate::journal::{
+    begin,
+    recover,
+};
 use crate::journal_support::journal_dirs;
 use crate::journal_transaction::begin_step_for_test;
 use crate::test_scratch::scratch;
@@ -48,7 +65,10 @@ const FIXTURE_STEP: &str = "CARGO_SHADOW_ROUND_THIRTEEN_FIXTURE_STEP";
 
 /// A judge that refuses the live lockfile,
 /// so that a recovery which goes ahead restores the snapshot.
-fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
+fn refusing(
+    _before: &[LockSnapshot],
+    _live: &[LockSnapshot],
+) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
 
@@ -70,9 +90,21 @@ fn live_lock(root: &Path) -> String {
 #[test]
 fn only_the_ended_process_number_shows_a_gone_process() {
     let pid: i32 = 4242;
-    assert_eq!(missing_entry_verdict(-1, pid, "r"), StartOf::Gone, "the sentinel of an ended process was not read as gone");
-    for (label, number) in [("the same number", i64::from(pid)), ("another positive id", i64::from(pid) + 1), ("a process this procfs does not show", 0), ("another negative number", -2)] {
-        assert!(matches!(missing_entry_verdict(number, pid, "r"), StartOf::Unknown(_)), "{label}: read as gone");
+    assert_eq!(
+        missing_entry_verdict(-1, pid, "r"),
+        StartOf::Gone,
+        "the sentinel of an ended process was not read as gone"
+    );
+    for (label, number) in [
+        ("the same number", i64::from(pid)),
+        ("another positive id", i64::from(pid) + 1),
+        ("a process this procfs does not show", 0),
+        ("another negative number", -2),
+    ] {
+        assert!(
+            matches!(missing_entry_verdict(number, pid, "r"), StartOf::Unknown(_)),
+            "{label}: read as gone"
+        );
     }
 }
 
@@ -84,21 +116,50 @@ fn only_the_ended_process_number_shows_a_gone_process() {
 /// and `-1` once the target has ended and been reaped.
 #[test]
 fn the_fdinfo_of_a_pidfd_says_minus_one_only_for_a_reaped_process() {
-    let mut child = Command::new("true").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts");
+    let mut child = Command::new("true")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("starts");
     let id: i32 = i32::try_from(child.id()).expect("a process id");
-    let pidfd = pidfd_open(Pid::from_raw(id).expect("a pid"), PidfdFlags::empty()).expect("a pidfd");
+    let pidfd =
+        pidfd_open(Pid::from_raw(id).expect("a pid"), PidfdFlags::empty()).expect("a pidfd");
     let number = |descriptor: &std::os::fd::OwnedFd| -> i64 {
         use std::os::fd::AsRawFd;
-        let info: String = fs::read_to_string(format!("/proc/self/fdinfo/{}", descriptor.as_raw_fd())).expect("the fdinfo");
-        return info.lines().find_map(|line| { return line.strip_prefix("Pid:"); }).expect("a Pid line").trim().parse::<i64>().expect("a number");
+        let info: String =
+            fs::read_to_string(format!("/proc/self/fdinfo/{}", descriptor.as_raw_fd()))
+                .expect("the fdinfo");
+        return info
+            .lines()
+            .find_map(|line| {
+                return line.strip_prefix("Pid:");
+            })
+            .expect("a Pid line")
+            .trim()
+            .parse::<i64>()
+            .expect("a number");
     };
-    crate::cgroup_test_support::wait_until("the process to end and wait for its reaping", &|| { return fs::read_to_string(format!("/proc/{id}/stat")).is_ok_and(|text| { return text.rsplit(')').next().is_some_and(|rest| { return rest.trim_start().starts_with('Z'); }); }); });
+    crate::cgroup_test_support::wait_until("the process to end and wait for its reaping", &|| {
+        return fs::read_to_string(format!("/proc/{id}/stat")).is_ok_and(|text| {
+            return text.rsplit(')').next().is_some_and(|rest| {
+                return rest.trim_start().starts_with('Z');
+            });
+        });
+    });
     let unreaped: i64 = number(&pidfd);
     let _ = child.wait();
     let reaped: i64 = number(&pidfd);
 
-    assert_eq!(unreaped, i64::from(id), "an unreaped zombie is still numbered");
-    assert_eq!(reaped, -1, "the sentinel of an ended process is not -1 on this kernel");
+    assert_eq!(
+        unreaped,
+        i64::from(id),
+        "an unreaped zombie is still numbered"
+    );
+    assert_eq!(
+        reaped, -1,
+        "the sentinel of an ended process is not -1 on this kernel"
+    );
 }
 
 /// The helper process of the preparation cut test:
@@ -120,7 +181,14 @@ fn wrapper_held_after_a_preparation_step_fixture() {
         }
     })));
     let root_again: PathBuf = PathBuf::from(std::env::var(FIXTURE_ROOT).expect("root"));
-    let _ = begin(&root_again, &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() }], false);
+    let _ = begin(
+        &root_again,
+        &[LockSnapshot {
+            crate_dir: CRATE_DIR.to_string(),
+            source: "original".to_string(),
+        }],
+        false,
+    );
 }
 
 /// Acceptance rows V3,
@@ -148,13 +216,23 @@ fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservative
     ] {
         let root = scratch();
         fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
-        fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
-        let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
-            .args(["--ignored", "--exact", "round_thirteen_tests::wrapper_held_after_a_preparation_step_fixture", "--nocapture"])
-            .env(FIXTURE_ROOT, root.path())
-            .env(FIXTURE_STEP, step)
-            .spawn()
-            .expect("the wrapper helper");
+        fs::write(
+            root.path().join(CRATE_DIR).join("Cargo.lock"),
+            LEFT_BY_THE_KILLED_RUN,
+        )
+        .expect("lock");
+        let mut wrapper: Child =
+            Command::new(std::env::current_exe().expect("this test executable"))
+                .args([
+                    "--ignored",
+                    "--exact",
+                    "round_thirteen_tests::wrapper_held_after_a_preparation_step_fixture",
+                    "--nocapture",
+                ])
+                .env(FIXTURE_ROOT, root.path())
+                .env(FIXTURE_STEP, step)
+                .spawn()
+                .expect("the wrapper helper");
         wait_for_file(&root.path().join("reached"));
         wrapper.kill().expect("kill the wrapper at the step");
         let _ = wrapper.wait();
@@ -164,19 +242,42 @@ fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservative
         let messages: Vec<String> = recover(root.path(), &refusing);
 
         assert_eq!(before, 1, "{step}: the cut left {before} journals");
-        assert_eq!(journal_dirs(root.path()).is_empty(), removed, "{step}: the journal's fate is not the conservative one: {messages:?}");
+        assert_eq!(
+            journal_dirs(root.path()).is_empty(),
+            removed,
+            "{step}: the journal's fate is not the conservative one: {messages:?}"
+        );
         // The kept journal is the partial journal itself with its recovery payload (fourth certification pass), not some other entry
         // of the journal directory: the same path stays, with the snapshot it took and, from the index cut on, the index.
         if !removed {
             let journal: &PathBuf = &before_dirs[0];
-            assert!(journal.exists(), "{step}: the partial journal {} is gone: {messages:?}", journal.display());
-            assert_eq!(fs::read_to_string(journal.join("0.lock")).expect("the snapshot"), "original", "{step}: the snapshot of the partial journal was lost or changed");
+            assert!(
+                journal.exists(),
+                "{step}: the partial journal {} is gone: {messages:?}",
+                journal.display()
+            );
+            assert_eq!(
+                fs::read_to_string(journal.join("0.lock")).expect("the snapshot"),
+                "original",
+                "{step}: the snapshot of the partial journal was lost or changed"
+            );
             if step == "index" {
-                assert!(journal.join("index.txt").exists(), "{step}: the index of the partial journal was lost");
+                assert!(
+                    journal.join("index.txt").exists(),
+                    "{step}: the index of the partial journal was lost"
+                );
             }
         }
-        let expected: &str = if restored { "original" } else { LEFT_BY_THE_KILLED_RUN };
-        assert_eq!(live_lock(root.path()), expected, "{step}: the live lockfile is not the expected one: {messages:?}");
+        let expected: &str = if restored {
+            "original"
+        } else {
+            LEFT_BY_THE_KILLED_RUN
+        };
+        assert_eq!(
+            live_lock(root.path()),
+            expected,
+            "{step}: the live lockfile is not the expected one: {messages:?}"
+        );
     }
 }
 
@@ -201,8 +302,20 @@ fn wrapper_held_between_launcher_spawn_and_record_fixture() {
     let home: PathBuf = root.join(CRATE_DIR);
     fs::create_dir_all(&home).expect("dir");
     fs::write(home.join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
-    let _transaction = begin(&root, &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() }], false).expect("begin");
-    let bound = crate::bounded_run::Bound { limit: Duration::from_secs(30), what: "the pending launcher".to_string(), rerun: "pending-launcher".to_string() };
+    let _transaction = begin(
+        &root,
+        &[LockSnapshot {
+            crate_dir: CRATE_DIR.to_string(),
+            source: "original".to_string(),
+        }],
+        false,
+    )
+    .expect("begin");
+    let bound = crate::bounded_run::Bound {
+        limit: Duration::from_secs(30),
+        what: "the pending launcher".to_string(),
+        rerun: "pending-launcher".to_string(),
+    };
     let _ = crate::bounded_run::output_within(&mut Command::new("true"), None, &bound);
 }
 
@@ -220,41 +333,91 @@ fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conse
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
-    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
+    fs::write(
+        root.path().join(CRATE_DIR).join("Cargo.lock"),
+        LEFT_BY_THE_KILLED_RUN,
+    )
+    .expect("lock");
     let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "round_thirteen_tests::wrapper_held_between_launcher_spawn_and_record_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "round_thirteen_tests::wrapper_held_between_launcher_spawn_and_record_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_ROOT, root.path())
         .spawn()
         .expect("the wrapper helper");
     wait_for_file(&root.path().join("launcher-pid"));
-    let launcher: i32 = fs::read_to_string(root.path().join("launcher-pid")).expect("the launcher's pid").trim().parse().expect("a pid");
-    wrapper.kill().expect("kill the wrapper inside the pending-launcher window");
+    let launcher: i32 = fs::read_to_string(root.path().join("launcher-pid"))
+        .expect("the launcher's pid")
+        .trim()
+        .parse()
+        .expect("a pid");
+    wrapper
+        .kill()
+        .expect("kill the wrapper inside the pending-launcher window");
     let _ = wrapper.wait();
     // The launcher is not left running: it is killed here, and the recovery is asked only after it is gone, so the refusal cannot
     // be about a live member.
-    let _ = Command::new("kill").arg("-9").arg(launcher.to_string()).status();
+    let _ = Command::new("kill")
+        .arg("-9")
+        .arg(launcher.to_string())
+        .status();
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    while std::path::Path::new(&format!("/proc/{launcher}")).exists() && std::time::Instant::now() < deadline {
+    while std::path::Path::new(&format!("/proc/{launcher}")).exists()
+        && std::time::Instant::now() < deadline
+    {
         std::thread::sleep(Duration::from_millis(20));
     }
 
     let journals: Vec<PathBuf> = journal_dirs(root.path());
-    assert_eq!(journals.len(), 1, "the cut did not leave exactly one journal: {journals:?}");
+    assert_eq!(
+        journals.len(),
+        1,
+        "the cut did not leave exactly one journal: {journals:?}"
+    );
     let journal: &PathBuf = &journals[0];
     let records: String = fs::read_to_string(journal.join("groups")).expect("the records");
-    assert!(records.lines().any(|line| { return line.starts_with("scope "); }), "the scope record is missing, so the window is not the one this test names: {records:?}");
-    assert!(!records.lines().any(|line| { return line.starts_with("launcher "); }), "the launcher record was appended, so the wrapper was not killed inside the window: {records:?}");
+    assert!(
+        records.lines().any(|line| {
+            return line.starts_with("scope ");
+        }),
+        "the scope record is missing, so the window is not the one this test names: {records:?}"
+    );
+    assert!(
+        !records.lines().any(|line| {
+            return line.starts_with("launcher ");
+        }),
+        "the launcher record was appended, so the wrapper was not killed inside the window: {records:?}"
+    );
 
     let messages: Vec<String> = recover(root.path(), &refusing);
 
-    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "the recovery restored a file: {messages:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        LEFT_BY_THE_KILLED_RUN,
+        "the recovery restored a file: {messages:?}"
+    );
     assert!(journal.exists(), "the journal was not kept: {messages:?}");
-    assert!(messages.iter().any(|message| { return message.contains("launcher may not have finished entering the scope"); }), "the refusal is not the pending launcher: {messages:?}");
+    assert!(
+        messages.iter().any(|message| {
+            return message.contains("launcher may not have finished entering the scope");
+        }),
+        "the refusal is not the pending launcher: {messages:?}"
+    );
 
     crate::acknowledge::acknowledge(journal).expect("acknowledge the uncertainty");
     let settled: Vec<String> = recover(root.path(), &refusing);
-    assert_eq!(live_lock(root.path()), "original", "the control: the acknowledged journal was not settled: {settled:?}");
-    assert!(journal_dirs(root.path()).is_empty(), "the control: the journal was not removed: {settled:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        "original",
+        "the control: the acknowledged journal was not settled: {settled:?}"
+    );
+    assert!(
+        journal_dirs(root.path()).is_empty(),
+        "the control: the journal was not removed: {settled:?}"
+    );
 }
 
 /// The fake cargo of the shim test:
@@ -313,8 +476,13 @@ fn shim_with_a_scope_that_cannot_be_stopped_fixture() {
     // The fault must have been reached: an armed fault that was never used is still armed here.
     let consumed: bool = !crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck);
     let root: PathBuf = PathBuf::from(root_text);
-    fs::write(root.join("shim-fault-armed"), armed.get().to_string()).expect("write whether the fault was armed");
-    fs::write(root.join("shim-fault-reached"), (armed.get() && consumed).to_string()).expect("write whether the fault was reached");
+    fs::write(root.join("shim-fault-armed"), armed.get().to_string())
+        .expect("write whether the fault was armed");
+    fs::write(
+        root.join("shim-fault-reached"),
+        (armed.get() && consumed).to_string(),
+    )
+    .expect("write whether the fault was reached");
     fs::write(root.join("shim-exit-code"), code.to_string()).expect("write the exit code");
 }
 
@@ -339,8 +507,16 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     let fake_directory: PathBuf = root.path().join("fake");
     fs::create_dir_all(&crate_root).expect("dir");
     fs::create_dir_all(&fake_directory).expect("dir");
-    fs::write(root.path().join("repository").join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
-    fs::write(crate_root.join("Cargo.toml"), "[package]\nname = \"y\"\nversion = \"0.1.0\"\n\n[workspace]\n").expect("manifest");
+    fs::write(
+        root.path().join("repository").join("rust-catalog.toml"),
+        "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n",
+    )
+    .expect("catalog");
+    fs::write(
+        crate_root.join("Cargo.toml"),
+        "[package]\nname = \"y\"\nversion = \"0.1.0\"\n\n[workspace]\n",
+    )
+    .expect("manifest");
     fs::write(crate_root.join("Cargo.lock"), "# stale\nversion = 4\n").expect("lock");
     let fake: PathBuf = fake_directory.join("cargo");
     fs::write(&fake, FAKE_CARGO).expect("fake cargo");
@@ -349,11 +525,23 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     let log: PathBuf = root.path().join("fake-cargo.log");
 
     let output = Command::new(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "round_thirteen_tests::shim_with_a_scope_that_cannot_be_stopped_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "round_thirteen_tests::shim_with_a_scope_that_cannot_be_stopped_fixture",
+            "--nocapture",
+        ])
         .current_dir(&crate_root)
         .env(FIXTURE_ROOT, root.path())
         // The fake cargo comes first; the rest of `PATH` keeps `systemd-run` reachable, so the run is contained in a scope.
-        .env("PATH", format!("{}:{}", fake_directory.display(), std::env::var("PATH").unwrap_or_default()))
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                fake_directory.display(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
         .env("CI", "")
         .env("FAKE_CARGO_LOG", &log)
         .env("FAKE_CARGO_SENTINEL", &sentinel)
@@ -363,23 +551,70 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     let said: String = String::from_utf8_lossy(&output.stderr).to_string();
 
     assert!(status.success(), "the helper failed: {status:?}: {said}");
-    let code: i32 = fs::read_to_string(root.path().join("shim-exit-code")).expect("the exit code").trim().parse::<i32>().expect("a number");
+    let code: i32 = fs::read_to_string(root.path().join("shim-exit-code"))
+        .expect("the exit code")
+        .trim()
+        .parse::<i32>()
+        .expect("a number");
     let calls: String = fs::read_to_string(&log).unwrap_or_default();
     let journals: Vec<PathBuf> = journal_dirs(&root.path().join("repository"));
     // The helper's run used a delegated scope (13 section 1): the journal's record names one, and the weaker path's notice is absent.
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
-    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the run could not show quiescence: {journals:?}");
-    crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
-    assert!(!said.contains("no delegated control group"), "the helper fell back to the weaker path: {said}");
+    assert!(
+        !journals[0].to_string_lossy().ends_with(".done"),
+        "the journal was marked done although the run could not show quiescence: {journals:?}"
+    );
+    crate::cgroup_test_support::assert_scope_record(
+        &journals[0].join("groups").display().to_string(),
+    );
+    assert!(
+        !said.contains("no delegated control group"),
+        "the helper fell back to the weaker path: {said}"
+    );
     // The intended containment fault was reached and is the refusal: the writers-may-remain refusal of a run that could not be shown
     // empty, not some other failure of the finishing.
-    assert_eq!(fs::read_to_string(root.path().join("shim-fault-armed")).expect("whether the fault was armed").trim(), "true", "the scope fault was never armed: {said}");
-    assert_eq!(fs::read_to_string(root.path().join("shim-fault-reached")).expect("whether the fault was reached").trim(), "true", "the scope fault was armed and not consumed: {said}");
-    assert!(said.contains("could not be stopped, so it may still write the lockfiles"), "the refusal is not the not-quiescent one: {said}");
-    assert_eq!(code, INSTALL_FAILED_EXIT_CODE, "the shim did not stop the command: {calls:?}");
-    assert!(!sentinel.exists(), "the user's command was started: {calls:?}");
-    assert!(!calls.lines().any(|line| { return line.starts_with("check"); }), "the user's command reached cargo: {calls:?}");
-    assert!(calls.lines().any(|line| { return line.starts_with("update"); }), "the install step never ran cargo update, so the schedule was not made: {calls:?}");
-    assert_eq!(fs::read_to_string(crate_root.join("Cargo.lock")).expect("lock"), "# satisfied\nversion = 4\n", "the lockfile cargo wrote was rolled back or replaced: {calls:?}");
+    assert_eq!(
+        fs::read_to_string(root.path().join("shim-fault-armed"))
+            .expect("whether the fault was armed")
+            .trim(),
+        "true",
+        "the scope fault was never armed: {said}"
+    );
+    assert_eq!(
+        fs::read_to_string(root.path().join("shim-fault-reached"))
+            .expect("whether the fault was reached")
+            .trim(),
+        "true",
+        "the scope fault was armed and not consumed: {said}"
+    );
+    assert!(
+        said.contains("could not be stopped, so it may still write the lockfiles"),
+        "the refusal is not the not-quiescent one: {said}"
+    );
+    assert_eq!(
+        code, INSTALL_FAILED_EXIT_CODE,
+        "the shim did not stop the command: {calls:?}"
+    );
+    assert!(
+        !sentinel.exists(),
+        "the user's command was started: {calls:?}"
+    );
+    assert!(
+        !calls.lines().any(|line| {
+            return line.starts_with("check");
+        }),
+        "the user's command reached cargo: {calls:?}"
+    );
+    assert!(
+        calls.lines().any(|line| {
+            return line.starts_with("update");
+        }),
+        "the install step never ran cargo update, so the schedule was not made: {calls:?}"
+    );
+    assert_eq!(
+        fs::read_to_string(crate_root.join("Cargo.lock")).expect("lock"),
+        "# satisfied\nversion = 4\n",
+        "the lockfile cargo wrote was rolled back or replaced: {calls:?}"
+    );
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
 }

@@ -13,19 +13,34 @@
 /// The store these methods extend,
 ///  its records,
 ///  and the hint label type.
-use super::{Annotations, Fitted, Held, Label, Placed};
+use super::{
+    Annotations,
+    Fitted,
+    Held,
+    Label,
+    Placed,
+};
 /// Hint rows are packed against the shaped code line.
 use crate::annotation_layout::pack;
 /// The displayed text and its line starts.
 use crate::document::Document;
 /// One accepted hint snapshot and the stamp of the text it describes.
-use crate::language::{hints::HintsSnapshot, identity::DocumentStamp};
+use crate::language::{
+    hints::HintsSnapshot,
+    identity::DocumentStamp,
+};
 /// The shaper that paints the source measures hint labels and their anchor positions.
 use crate::shaped_text::TextShaper;
 /// The assembled record of one line's rows,
 ///  the sizes that fit a message row to the text area,
 ///  and the one cap that cuts a message to its row limit.
-use crate::virtual_row::{Block, CONTINUATION_INDENT, MessageRow, ROW_TEXT, cap_message_rows};
+use crate::virtual_row::{
+    Block,
+    CONTINUATION_INDENT,
+    MessageRow,
+    ROW_TEXT,
+    cap_message_rows,
+};
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer.
 /// Why:
@@ -49,7 +64,10 @@ use helix_core::Rope;
 /// type Shared<T> = Readonly<T>;
 /// ```
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    collections::{
+        BTreeMap,
+        btree_map::Entry,
+    },
     ops::Range,
     sync::Arc,
     time::Instant,
@@ -190,7 +208,11 @@ impl Annotations {
     /// ```ts
     /// mergeLabels(text: Rope, snapshot: HintsSnapshot): void;
     /// ```
-    pub(super) fn merge_labels(&mut self, text: &Rope, snapshot: &HintsSnapshot) {
+    pub(super) fn merge_labels(
+        &mut self,
+        text: &Rope,
+        snapshot: &HintsSnapshot,
+    ) {
         if self.labelled != Some(snapshot.stamp) {
             self.labels.clear();
             self.placed.clear();
@@ -288,7 +310,12 @@ impl Annotations {
     /// ```ts
     /// hold(next: DocumentStamp, parts: Held[], until: number): void;
     /// ```
-    pub fn hold(&mut self, next: DocumentStamp, parts: Vec<Held>, until: Instant) {
+    pub fn hold(
+        &mut self,
+        next: DocumentStamp,
+        parts: Vec<Held>,
+        until: Instant,
+    ) {
         self.held = parts;
         self.held_for = Some(next);
         self.held_until = Some(until);
@@ -305,7 +332,10 @@ impl Annotations {
     /// ```ts
     /// expire(now: number): boolean;
     /// ```
-    pub fn expire(&mut self, now: Instant) -> bool {
+    pub fn expire(
+        &mut self,
+        now: Instant,
+    ) -> bool {
         // No deadline means nothing is due; otherwise the deadline must have passed.
         let due = match self.held_until {
             Some(until) => now >= until,
@@ -459,7 +489,13 @@ impl Annotations {
                             };
                             let (fitted, broken) = fit_messages(rows, widths, shaper, scale, limit);
                             self.work.broken += broken;
-                            self.wrapped.insert(line, Fitted { wrap, rows: fitted });
+                            self.wrapped.insert(
+                                line,
+                                Fitted {
+                                    wrap,
+                                    rows: fitted,
+                                },
+                            );
                         }
                         match self.wrapped.get(&line) {
                             Some(known) => known.rows.clone(),

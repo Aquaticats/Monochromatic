@@ -7,18 +7,31 @@
 /// Shipped window setup and the bounded wait shared with the watch tests.
 use super::watch_tests::open;
 /// The production window and the bounded wait for startup state.
-use super::{AppWindow, render};
+use super::{
+    AppWindow,
+    render,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Reading positions,
 ///  and the shipped write-wait intervals named in the measurement output.
 use ide_app::{
     document::ReadingPosition,
-    refresh_policy::{REREAD_GAP, WRITE_QUIET, WRITE_WAIT_LIMIT},
+    refresh_policy::{
+        REREAD_GAP,
+        WRITE_QUIET,
+        WRITE_WAIT_LIMIT,
+    },
 };
 /// Real headless timers drive the same refresh timers as the shipped event loop;
 /// `ComponentHandle` provides `hide` on the generated window.
-use slint::{ComponentHandle, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    platform::update_timers_and_animations,
+};
 /// What:
 ///  `OpenOptions` opens a file with chosen flags;
 ///  `Write` provides `write_all`;
@@ -36,10 +49,17 @@ use slint::{ComponentHandle, platform::update_timers_and_animations};
 /// const handle = openSync(path, 'w'); /* wait */ writeSync(handle, text); closeSync(handle);
 /// ```
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
     io::Write,
     path::Path,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Text on disk before each save,
@@ -59,7 +79,10 @@ pub(super) const NEW: &str = "I was a big cat, but now I am a human!\n";
 pub(super) const PAUSE: Duration = Duration::from_millis(40);
 
 /// Record the window's source text when it differs from every text recorded so far.
-fn note(window: &AppWindow, seen: &mut Vec<String>) {
+fn note(
+    window: &AppWindow,
+    seen: &mut Vec<String>,
+) {
     // What: `to_string` copies the toolkit string into an owned Rust `String`.
     // Why: The record outlives the next model update.
     //
@@ -75,7 +98,11 @@ fn note(window: &AppWindow, seen: &mut Vec<String>) {
 
 /// Run native timers for `span`,
 ///  recording every distinct source text the window shows.
-pub(super) fn watch_texts(window: &AppWindow, span: Duration, seen: &mut Vec<String>) {
+pub(super) fn watch_texts(
+    window: &AppWindow,
+    span: Duration,
+    seen: &mut Vec<String>,
+) {
     let start = Instant::now();
     // The time check comes first, so a stalled thread leaves the loop without running timers late.
     while start.elapsed() < span {
@@ -87,7 +114,11 @@ pub(super) fn watch_texts(window: &AppWindow, span: Duration, seen: &mut Vec<Str
 
 /// Run native timers until the window shows `target`,
 ///  recording every text shown on the way.
-pub(super) fn until_text(window: &AppWindow, target: &str, seen: &mut Vec<String>) {
+pub(super) fn until_text(
+    window: &AppWindow,
+    target: &str,
+    seen: &mut Vec<String>,
+) {
     let start = Instant::now();
     loop {
         update_timers_and_animations();
@@ -120,7 +151,10 @@ fn rest(window: &AppWindow) {
 /// This is setup,
 ///  so it waits with the 2 s bound;
 ///  the watch tests assert that a replace shows promptly.
-pub(super) fn baseline(window: &AppWindow, displayed: &Path) {
+pub(super) fn baseline(
+    window: &AppWindow,
+    displayed: &Path,
+) {
     for text in ["marker\n", OLD] {
         let staged = displayed.with_extension("tmp");
         fs::write(&staged, text).expect("staged baseline");
