@@ -7,7 +7,10 @@
 //!  and a note of the new size.
 
 /// The press that is mapped again once the layout changes.
-use crate::native::minimap::aim::{self, Press};
+use crate::native::minimap::aim::{
+    self,
+    Press,
+};
 /// A resize changes what a picture would be valid for.
 use crate::native::minimap::request::note;
 /// The drag that a press starts.
@@ -15,13 +18,22 @@ use crate::native::minimap::state::Drag;
 /// The window,
 ///  its state,
 ///  and the mapping of lines to pixels.
-use crate::native::{AppWindow, State, render::render, rows, viewport};
+use crate::native::{
+    AppWindow,
+    State,
+    render::render,
+    rows,
+    viewport,
+};
 /// The geometry of the minimap.
 use ide_app::minimap::Geometry;
 /// Weak handles of the window.
 use slint::ComponentHandle;
 /// Shared state and its cell.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Scroll the view to `offset`,
@@ -39,7 +51,11 @@ use std::{cell::RefCell, rc::Rc};
 /// ```ts
 /// function scrollTo(window: AppWindow, state: Shared<State>, offset: number): void;
 /// ```
-fn scroll_to(window: &AppWindow, state: &Rc<RefCell<State>>, offset: f32) {
+fn scroll_to(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    offset: f32,
+) {
     let height = window.get_viewport_height();
     let width = window.get_viewport_width();
     let before = -window.get_scroll_y();
@@ -75,13 +91,23 @@ fn scroll_to(window: &AppWindow, state: &Rc<RefCell<State>>, offset: f32) {
 /// ```ts
 /// function jump(window: AppWindow, state: Shared<State>, y: number, x: number, shift: boolean): number;
 /// ```
-fn jump(window: &AppWindow, state: &Rc<RefCell<State>>, y: f32, x: f32, shift: bool) -> f32 {
+fn jump(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    y: f32,
+    x: f32,
+    shift: bool,
+) -> f32 {
     let height = window.get_viewport_height();
     let width = window.get_viewport_width();
     let scale = window.window().scale_factor();
     let mut current = state.borrow_mut();
     let before = -window.get_scroll_y();
-    let press = Press { y, x, shift };
+    let press = Press {
+        y,
+        x,
+        shift,
+    };
     let share = aim::share(&Geometry::new(current.row_map.height(), height), before);
     let (target, offset) = aim::map(&mut current, press, before, scale, height);
     tracing::debug!(
@@ -106,7 +132,10 @@ fn jump(window: &AppWindow, state: &Rc<RefCell<State>>, y: f32, x: f32, shift: b
 /// drag,
 /// step,
 /// and size callbacks.
-pub(in crate::native) fn bind(window: &AppWindow, shared: &Rc<RefCell<State>>) {
+pub(in crate::native) fn bind(
+    window: &AppWindow,
+    shared: &Rc<RefCell<State>>,
+) {
     let press_state = Rc::clone(shared);
     let press_window = window.as_weak();
     window.on_minimap_press(move |y, x, shift, inside| {

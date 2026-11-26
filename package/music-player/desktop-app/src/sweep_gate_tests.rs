@@ -48,7 +48,10 @@ fn pausing_parks_a_worker_and_resuming_releases_it() {
     gate.set_paused(true);
     assert!(gate.is_paused());
     let answer = park_worker(&gate);
-    assert!(answer.recv_timeout(PARKED_WATCH).is_err(), "a paused gate admitted a worker");
+    assert!(
+        answer.recv_timeout(PARKED_WATCH).is_err(),
+        "a paused gate admitted a worker"
+    );
     gate.set_paused(false);
     assert_eq!(answer.recv_timeout(WAKE_WITHIN), Ok(Admission::Proceed));
     assert!(!gate.is_paused());

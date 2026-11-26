@@ -81,7 +81,10 @@ fn placement_failure(placement: Placement) -> &'static str {
 /// ```ts
 /// function primaryMessage(captures: string[], placement: Placement): string;
 /// ```
-pub fn primary_message(captures: &[String], placement: Placement) -> String {
+pub fn primary_message(
+    captures: &[String],
+    placement: Placement,
+) -> String {
     let failure: &str = placement_failure(placement);
     if captures.is_empty() {
         if failure.is_empty() {
@@ -127,7 +130,10 @@ fn suppression_attribute() -> String {
 /// ```ts
 /// function helpMessage(captures: string[], placement: Placement): string;
 /// ```
-pub fn help_message(captures: &[String], placement: Placement) -> String {
+pub fn help_message(
+    captures: &[String],
+    placement: Placement,
+) -> String {
     let attribute: String = suppression_attribute();
     if captures.is_empty() {
         return String::from(

@@ -11,7 +11,11 @@
 // What:     `use super::{...};` imports names from the parent module into the
 //           test module.
 // Why:      Tests call the debouncer without long `super::` prefixes.
-use super::{ProgressDebouncer, ProgressUpdateKind, PROGRESS_UPDATE_DEBOUNCE_INTERVAL};
+use super::{
+    PROGRESS_UPDATE_DEBOUNCE_INTERVAL,
+    ProgressDebouncer,
+    ProgressUpdateKind,
+};
 
 // What:     `use std::time::Duration;`. Import the time-span type for test
 //           timestamps.

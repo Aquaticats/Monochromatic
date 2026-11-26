@@ -13,8 +13,14 @@
 use monochromatic_xml_edit::parse_xml;
 
 use crate::invariants::{
-    assert_append_child, assert_outside_unchanged, assert_parse_or_reject, assert_remove_element, assert_self_consistent,
-    assert_set_attribute, assert_usable_rejection, has_unrepresentable,
+    assert_append_child,
+    assert_outside_unchanged,
+    assert_parse_or_reject,
+    assert_remove_element,
+    assert_self_consistent,
+    assert_set_attribute,
+    assert_usable_rejection,
+    has_unrepresentable,
 };
 
 /// A small document with a comment,
@@ -44,7 +50,11 @@ fn parse_or_reject_covers_both_outcomes() {
     assert!(assert_parse_or_reject(SAMPLE).is_some());
     assert!(assert_parse_or_reject("<a>").is_none());
     assert!(assert_parse_or_reject("").is_none());
-    assert!(has_unrepresentable("a\u{1}") && has_unrepresentable("\u{FFFF}") && !has_unrepresentable("\t\r\n\u{e9}"));
+    assert!(
+        has_unrepresentable("a\u{1}")
+            && has_unrepresentable("\u{FFFF}")
+            && !has_unrepresentable("\t\r\n\u{e9}")
+    );
 }
 
 /// Negative control:

@@ -17,7 +17,10 @@
 /// ```ts
 /// import type { JsoncComment, JsoncCommentKind } from './value';
 /// ```
-use crate::value::{JsoncComment, JsoncCommentKind};
+use crate::value::{
+    JsoncComment,
+    JsoncCommentKind,
+};
 
 /// What:
 ///  Merge one existing comment with incoming comments in source order.
@@ -28,7 +31,10 @@ use crate::value::{JsoncComment, JsoncCommentKind};
 /// ```ts
 /// function attach(existing: JsoncComment | undefined, additions: JsoncComment[]): JsoncComment | undefined;
 /// ```
-pub fn attach(existing: Option<JsoncComment>, additions: Vec<JsoncComment>) -> Option<JsoncComment> {
+pub fn attach(
+    existing: Option<JsoncComment>,
+    additions: Vec<JsoncComment>,
+) -> Option<JsoncComment> {
     // What: `Option` is a present/absent wrapper; a mutable local receives each merge.
     // Why: We keep input order without requiring a recursive fold.
     //
@@ -46,9 +52,16 @@ pub fn attach(existing: Option<JsoncComment>, additions: Vec<JsoncComment>) -> O
         // current = current ? merge(current, next) : next;
         // ```
         current = if let Some(previous) = current {
-            let kind = if previous.kind == next.kind { previous.kind } else { JsoncCommentKind::Mixed };
+            let kind = if previous.kind == next.kind {
+                previous.kind
+            } else {
+                JsoncCommentKind::Mixed
+            };
             // `Some` wraps a newly merged value so following iterations can attach again.
-            Some(JsoncComment { kind, text: format!("{}\n{}", previous.text, next.text) })
+            Some(JsoncComment {
+                kind,
+                text: format!("{}\n{}", previous.text, next.text),
+            })
         } else {
             Some(next)
         };
@@ -89,7 +102,10 @@ pub fn single_line(comment: &JsoncComment) -> bool {
 /// ```ts
 /// function leading(comment: JsoncComment, depth: number): string;
 /// ```
-pub fn leading(comment: &JsoncComment, depth: usize) -> String {
+pub fn leading(
+    comment: &JsoncComment,
+    depth: usize,
+) -> String {
     // What: `"  ".repeat` allocates a prefix for the current nesting level.
     // Why: Canonical output follows the existing two-space house style.
     //

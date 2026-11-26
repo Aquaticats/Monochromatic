@@ -9,7 +9,12 @@
 /// ```ts
 /// import { state, render } from '../native';
 /// ```
-use super::{AppWindow, State, render, rows};
+use super::{
+    AppWindow,
+    State,
+    render,
+    rows,
+};
 /// Worker creation failure must surface rather than silently disabling external refresh.
 use anyhow::Result;
 /// A dropped timer read counts as a write still in progress.
@@ -19,21 +24,37 @@ use ide_app::language::sync::DocumentReload;
 /// The quiet period a timer read requires before it accepts the file's bytes.
 use ide_app::refresh_policy::WRITE_QUIET;
 /// Background replies retain the file generation and source base revision.
-use ide_app::reload_worker::{ReloadReply, ReloadRequest, ReloadWorker, SyntaxReply};
+use ide_app::reload_worker::{
+    ReloadReply,
+    ReloadRequest,
+    ReloadWorker,
+    SyntaxReply,
+};
 /// Reset source classifications without mutating a snapshot shared with the previous frame.
 use ide_app::source_style::SourceStyles;
 /// Timer callbacks and weak window references belong to the toolkit event loop.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    Timer,
+    TimerMode,
+};
 /// Rc/RefCell stay UI-local;
 ///  Instant schedules reads without changing wall-clock state.
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Record a changed read diagnostic while retaining the last readable source.
-fn read_failed(window: &AppWindow, state: &Rc<RefCell<State>>, message: String) {
+fn read_failed(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    message: String,
+) {
     let mut current = state.borrow_mut();
     if current.file_error.as_ref() == Some(&message) {
         return;
@@ -46,7 +67,10 @@ fn read_failed(window: &AppWindow, state: &Rc<RefCell<State>>, message: String) 
 
 /// Accept classifications only for the installed source revision,
 ///  without hiding parser failures.
-pub(super) fn apply_syntax(current: &mut State, reply: SyntaxReply) -> bool {
+pub(super) fn apply_syntax(
+    current: &mut State,
+    reply: SyntaxReply,
+) -> bool {
     if reply.revision != current.document.revision() {
         tracing::debug!(
             revision = reply.revision,
@@ -76,7 +100,11 @@ pub(super) fn apply_syntax(current: &mut State, reply: SyntaxReply) -> bool {
 }
 
 /// Install a matching file/revision result using the current caret and selection.
-fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, reply: ReloadReply) {
+fn apply(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    reply: ReloadReply,
+) {
     if reply.generation != state.borrow().file_generation {
         tracing::debug!(
             generation = reply.generation,
@@ -163,7 +191,10 @@ fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, reply: ReloadReply) {
 /// or on the safety sweep.
 ///  Missing highlighting is requested again after the 100 ms reread gap.
 /// The returned timer owns the worker and must remain alive until the window closes.
-pub(super) fn bind(window: &AppWindow, shared: &Rc<RefCell<State>>) -> Result<Timer> {
+pub(super) fn bind(
+    window: &AppWindow,
+    shared: &Rc<RefCell<State>>,
+) -> Result<Timer> {
     let mut worker = ReloadWorker::new()?;
     let state = Rc::clone(shared);
     let weak = window.as_weak();

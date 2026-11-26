@@ -1,13 +1,24 @@
 //! Global shortcut capture and modal callbacks share the existing native navigation owner.
 
 /// One navigation owner supplies project scope and safe source opening.
-use super::super::{AppWindow, Navigation, State, open};
+use super::super::{
+    AppWindow,
+    Navigation,
+    State,
+    open,
+};
 /// Session transitions invalidate worker generations before changing presentation.
 use super::session;
 /// Weak windows avoid retaining an invisible native window after shutdown.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 /// Each callback clones UI-thread ownership rather than sharing mutable source with workers.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Bind once;
 ///  native input continues to its normal widget unless a completed double-Shift opens search.

@@ -23,7 +23,11 @@ use std::path::Path;
 use crate::constants::ALLOW_WIDE_VARIABLE;
 
 /// Imports the walk-start classifier and the words the refusal message uses for each case.
-use crate::walk_target::{WalkTarget, classify, phrase};
+use crate::walk_target::{
+    WalkTarget,
+    classify,
+    phrase,
+};
 
 /// What:
 /// `const VALUE_SHORT_LETTERS: &str = "..."` is a constant text slice with grep's one-letter flags that take a
@@ -177,7 +181,10 @@ pub fn describe_grep(arguments: &[String]) -> GrepDescription {
     if !pattern_from_flag && !operands.is_empty() {
         operands.remove(0);
     }
-    return GrepDescription { recursive, operands };
+    return GrepDescription {
+        recursive,
+        operands,
+    };
 }
 
 /// What:

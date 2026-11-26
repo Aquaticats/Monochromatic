@@ -19,7 +19,10 @@
 /// ```ts
 /// // both are just `string` in TS
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `const AUDIO_EXTENSIONS: &[&str] = &[ ... ];`.
@@ -183,7 +186,9 @@ pub(crate) fn is_audio_file(path: &Path) -> bool {
         // ```ts
         // return AUDIO_EXTENSIONS.includes(ext.toLowerCase());
         // ```
-        Some(ext) => return AUDIO_EXTENSIONS.contains(&ext.to_string_lossy().to_lowercase().as_str()),
+        Some(ext) => {
+            return AUDIO_EXTENSIONS.contains(&ext.to_string_lossy().to_lowercase().as_str());
+        }
         // What:     `None => false`. No extension (extensionless name or a dotfile):
         //           not recognised as audio.
         // Why:      Skip extensionless and hidden files.
@@ -221,7 +226,10 @@ pub(crate) fn is_audio_file(path: &Path) -> bool {
 ///   return Math.max(-1, Math.min(1, sample * gain));
 /// }
 /// ```
-pub(crate) fn process_sample(sample: f32, gain: f32) -> f32 {
+pub(crate) fn process_sample(
+    sample: f32,
+    gain: f32,
+) -> f32 {
     // What:     `(sample * gain).clamp(-1.0, 1.0)`. Multiply the raw sample by the
     //           combined gain, then `f32::clamp` pins the result into `-1.0..=1.0`
     //           (returns the bound when outside, else the value unchanged). No
@@ -237,7 +245,7 @@ pub(crate) fn process_sample(sample: f32, gain: f32) -> f32 {
     // ```ts
     // return Math.max(-1, Math.min(1, sample * gain));
     // ```
-    return (sample * gain).clamp(-1.0, 1.0)
+    return (sample * gain).clamp(-1.0, 1.0);
 }
 
 /// What:
@@ -261,7 +269,10 @@ pub(crate) fn process_sample(sample: f32, gain: f32) -> f32 {
 ///   return frames / rate;
 /// }
 /// ```
-pub(crate) fn frames_to_secs(frames: u64, rate: u32) -> f64 {
+pub(crate) fn frames_to_secs(
+    frames: u64,
+    rate: u32,
+) -> f64 {
     // What:     `if rate == 0 { return 0.0; }`. Early return guarding the divide.
     // Why:      An unknown rate has no meaningful position; avoid dividing by zero.
     //
@@ -280,7 +291,7 @@ pub(crate) fn frames_to_secs(frames: u64, rate: u32) -> f64 {
     // ```ts
     // return frames / rate;
     // ```
-    return frames as f64 / rate as f64
+    return frames as f64 / rate as f64;
 }
 
 /// What:
@@ -381,7 +392,7 @@ pub(crate) fn expand_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     // ```ts
     // return out;
     // ```
-    return out
+    return out;
 }
 
 /// What:
@@ -413,7 +424,11 @@ fn collect_dir_files(root: &Path) -> Vec<PathBuf> {
     //           function `ignore_batch` as the callback of a caller that wants no progress reports.
     // Why:      The streaming walk (which also reports batches, for Search while the scan runs) and this plain walk
     //           must list the same tracks in the same order, so they share one implementation.
-    return crate::scan_stream::scan_streaming(root, usize::MAX, &mut crate::scan_stream::ignore_batch);
+    return crate::scan_stream::scan_streaming(
+        root,
+        usize::MAX,
+        &mut crate::scan_stream::ignore_batch,
+    );
 }
 
 /// What:

@@ -10,7 +10,10 @@ use super::*;
 
 // What:     `use std::time::{Duration, Instant};`. Fixed clock values for deterministic tests.
 // Why:      Cadence depends only on the gaps between instants.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 #[test]
 fn record_short_counts_callbacks_and_silent_frames() {
@@ -117,7 +120,10 @@ fn reporter_announces_buffer_sizes_once_then_stays_silent_without_underruns() {
         ..MeterSnapshot::default()
     };
     let announced = reporter.take_change(start, || return quiet_buffers);
-    assert_eq!(announced.map(|change| return change.last_buffer_frames), Some(4096));
+    assert_eq!(
+        announced.map(|change| return change.last_buffer_frames),
+        Some(4096)
+    );
     let result = reporter.take_change(start + REPORT_INTERVAL, || return quiet_buffers);
     assert!(result.is_none());
 }

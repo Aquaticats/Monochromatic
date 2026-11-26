@@ -20,6 +20,19 @@
 /// ```
 use crate::comment_merge::attach;
 /// What:
+///  Import JSON value,
+///  key,
+///  member,
+///  and parse-error types.
+/// Why:
+///  Completed frame values move into their parent without decoding again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { JsoncEntry, JsoncKey, JsoncValue, JsoncParseError, JsoncKind } from './value';
+/// ```
+use crate::error::JsoncParseError;
+/// What:
 ///  Import the source-borrowing scanner and same-line trivia result.
 /// Why:
 ///  Parser phases share one byte cursor.
@@ -40,19 +53,6 @@ use crate::scan::Scanner;
 /// ```
 use crate::span::SpanRecorder;
 /// What:
-///  Import JSON value,
-///  key,
-///  member,
-///  and parse-error types.
-/// Why:
-///  Completed frame values move into their parent without decoding again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import type { JsoncEntry, JsoncKey, JsoncValue, JsoncParseError, JsoncKind } from './value';
-/// ```
-use crate::error::JsoncParseError;
-/// What:
 ///      Import the document model types the parser builds.
 /// Why:
 ///       Completed frames move into their parents,
@@ -62,7 +62,13 @@ use crate::error::JsoncParseError;
 /// ```ts
 /// import type { JsoncComment, JsoncEntry, JsoncKey, JsoncKind, JsoncValue } from './value';
 /// ```
-use crate::value::{JsoncComment, JsoncEntry, JsoncKey, JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncComment,
+    JsoncEntry,
+    JsoncKey,
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///  Maximum number of simultaneously open JSONC containers.
@@ -254,7 +260,14 @@ impl Frame {
         // return frame.phase;
         // ```
         return match self {
-            Frame::Array { phase, .. } | Frame::Record { phase, .. } => *phase,
+            Frame::Array {
+                phase,
+                ..
+            }
+            | Frame::Record {
+                phase,
+                ..
+            } => *phase,
         };
     }
 
@@ -267,9 +280,19 @@ impl Frame {
     /// ```ts
     /// frame.phase = next;
     /// ```
-    fn set_phase(&mut self, next: Phase) {
+    fn set_phase(
+        &mut self,
+        next: Phase,
+    ) {
         match self {
-            Frame::Array { phase, .. } | Frame::Record { phase, .. } => *phase = next,
+            Frame::Array {
+                phase,
+                ..
+            }
+            | Frame::Record {
+                phase,
+                ..
+            } => *phase = next,
         }
     }
 
@@ -283,7 +306,14 @@ impl Frame {
     /// return frame.kind === 'array' ? ']'.charCodeAt(0) : '}'.charCodeAt(0);
     /// ```
     fn close_byte(&self) -> u8 {
-        return if let Frame::Array { .. } = self { b']' } else { b'}' };
+        return if let Frame::Array {
+            ..
+        } = self
+        {
+            b']'
+        } else {
+            b'}'
+        };
     }
 }
 
@@ -296,7 +326,10 @@ impl Frame {
 /// ```ts
 /// function prepend(node: JsoncValue, leading: JsoncComment[]): JsoncValue;
 /// ```
-fn prepend(node: &mut JsoncValue, leading: Vec<JsoncComment>) {
+fn prepend(
+    node: &mut JsoncValue,
+    leading: Vec<JsoncComment>,
+) {
     // What: `take()` moves the existing optional comment out and leaves absence behind.
     // Why: JsoncComment merging can take ownership without duplicating a potentially long body.
     //
@@ -322,17 +355,32 @@ fn prepend(node: &mut JsoncValue, leading: Vec<JsoncComment>) {
 /// ```ts
 /// function attachLast(frame: Frame, comments: JsoncComment[]): void;
 /// ```
-fn attach_last(frame: &mut Frame, comments: Vec<JsoncComment>) {
+fn attach_last(
+    frame: &mut Frame,
+    comments: Vec<JsoncComment>,
+) {
     if comments.is_empty() {
         return;
     }
-    if let Frame::Array { elements, .. } = frame {
-        let Some(last) = elements.last_mut() else { unreachable!("separator requires array element"); };
+    if let Frame::Array {
+        elements,
+        ..
+    } = frame
+    {
+        let Some(last) = elements.last_mut() else {
+            unreachable!("separator requires array element");
+        };
         last.comment = attach(last.comment.take(), comments);
         return;
     }
-    if let Frame::Record { entries, .. } = frame {
-        let Some(last) = entries.last_mut() else { unreachable!("separator requires record member"); };
+    if let Frame::Record {
+        entries,
+        ..
+    } = frame
+    {
+        let Some(last) = entries.last_mut() else {
+            unreachable!("separator requires record member");
+        };
         last.value.comment = attach(last.value.comment.take(), comments);
     }
 }
@@ -346,7 +394,10 @@ fn attach_last(frame: &mut Frame, comments: Vec<JsoncComment>) {
 /// ```ts
 /// function finish(frame: Frame, beforeClose: JsoncComment[]): JsoncValue;
 /// ```
-fn finish(frame: Frame, before_close: Vec<JsoncComment>) -> JsoncValue {
+fn finish(
+    frame: Frame,
+    before_close: Vec<JsoncComment>,
+) -> JsoncValue {
     // What: `match` consumes one frame variant and moves its owned children.
     // Why: Closure never re-parses or clones nested values.
     //
@@ -355,16 +406,33 @@ fn finish(frame: Frame, before_close: Vec<JsoncComment>) -> JsoncValue {
     // if (frame.kind === 'array') return { kind: 'array', elements: frame.elements };
     // ```
     let (mut node, leading) = match frame {
-        Frame::Array { mut elements, leading, .. } => {
+        Frame::Array {
+            mut elements,
+            leading,
+            ..
+        } => {
             let own = if let Some(last) = elements.last_mut() {
                 last.comment = attach(last.comment.take(), before_close);
                 None
             } else {
                 attach(None, before_close)
             };
-            (JsoncValue { kind: JsoncKind::Array { elements }, comment: own }, leading)
+            (
+                JsoncValue {
+                    kind: JsoncKind::Array {
+                        elements,
+                    },
+                    comment: own,
+                },
+                leading,
+            )
         }
-        Frame::Record { mut entries, leading, pending_key, .. } => {
+        Frame::Record {
+            mut entries,
+            leading,
+            pending_key,
+            ..
+        } => {
             if pending_key.is_some() {
                 unreachable!("closing record with pending key");
             }
@@ -374,7 +442,15 @@ fn finish(frame: Frame, before_close: Vec<JsoncComment>) -> JsoncValue {
             } else {
                 attach(None, before_close)
             };
-            (JsoncValue { kind: JsoncKind::Record { entries }, comment: own }, leading)
+            (
+                JsoncValue {
+                    kind: JsoncKind::Record {
+                        entries,
+                    },
+                    comment: own,
+                },
+                leading,
+            )
         }
     };
     prepend(&mut node, leading);
@@ -407,16 +483,28 @@ fn begin_value(
         // The container's slot is reserved before its children, so spans stay in document pre-order.
         scanner.spans.container_start(value_start);
         if scanner.consume(b'{') {
-            frames.push(Frame::Record { entries: Vec::new(), leading, pending_key: None, phase: Phase::ItemOrClose });
+            frames.push(Frame::Record {
+                entries: Vec::new(),
+                leading,
+                pending_key: None,
+                phase: Phase::ItemOrClose,
+            });
         } else {
             scanner.consume(b'[');
-            frames.push(Frame::Array { elements: Vec::new(), leading, phase: Phase::ItemOrClose });
+            frames.push(Frame::Array {
+                elements: Vec::new(),
+                leading,
+                phase: Phase::ItemOrClose,
+            });
         }
         return Ok(());
     }
     let kind = if scanner.byte() == Some(b'"') {
         let (units, raw) = scanner.string()?;
-        JsoncKind::Text { units, raw }
+        JsoncKind::Text {
+            units,
+            raw,
+        }
     } else {
         // What: An absent byte gets an invalid-number sentinel, not a false numeric match.
         // Why: EOF should produce the ordinary expected-value error.
@@ -428,13 +516,20 @@ fn begin_value(
         let first = scanner.byte().unwrap_or(0);
         if first == b'-' || first.is_ascii_digit() {
             let (raw, identity) = scanner.number()?;
-            JsoncKind::Number { raw, identity }
+            JsoncKind::Number {
+                raw,
+                identity,
+            }
         } else if scanner.source[scanner.offset..].starts_with("true") {
             scanner.offset += 4;
-            JsoncKind::Boolean { value: true }
+            JsoncKind::Boolean {
+                value: true,
+            }
         } else if scanner.source[scanner.offset..].starts_with("false") {
             scanner.offset += 5;
-            JsoncKind::Boolean { value: false }
+            JsoncKind::Boolean {
+                value: false,
+            }
         } else if scanner.source[scanner.offset..].starts_with("null") {
             scanner.offset += 4;
             JsoncKind::Null
@@ -451,7 +546,10 @@ fn begin_value(
     // ```ts
     // delivered = { kind, comment: merge(leading) };
     // ```
-    *delivered = Some(JsoncValue { kind, comment: attach(None, leading) });
+    *delivered = Some(JsoncValue {
+        kind,
+        comment: attach(None, leading),
+    });
     return Ok(());
 }
 
@@ -464,20 +562,44 @@ fn begin_value(
 /// ```ts
 /// function receiveChild(parent: Frame, child: JsoncValue, scanner: Scanner): void;
 /// ```
-fn receive_child(scanner: &mut Scanner<'_>, frames: &mut [Frame], mut child: JsoncValue) -> Result<(), JsoncParseError> {
+fn receive_child(
+    scanner: &mut Scanner<'_>,
+    frames: &mut [Frame],
+    mut child: JsoncValue,
+) -> Result<(), JsoncParseError> {
     let trailing = scanner.capture_trailing()?;
     child.comment = attach(child.comment, trailing.comments);
-    let Some(parent) = frames.last_mut() else { unreachable!("child without parent"); };
+    let Some(parent) = frames.last_mut() else {
+        unreachable!("child without parent");
+    };
     if parent.phase() != Phase::AwaitingChild {
         return Err(scanner.error("unexpected completed JSONC value"));
     }
-    if let Frame::Array { elements, .. } = parent {
+    if let Frame::Array {
+        elements,
+        ..
+    } = parent
+    {
         elements.push(child);
-    } else if let Frame::Record { entries, pending_key, .. } = parent {
-        let Some(key) = pending_key.take() else { unreachable!("record value without key"); };
-        entries.push(JsoncEntry { key, value: child });
+    } else if let Frame::Record {
+        entries,
+        pending_key,
+        ..
+    } = parent
+    {
+        let Some(key) = pending_key.take() else {
+            unreachable!("record value without key");
+        };
+        entries.push(JsoncEntry {
+            key,
+            value: child,
+        });
     }
-    parent.set_phase(if trailing.comma { Phase::ItemOrClose } else { Phase::SeparatorOrClose });
+    parent.set_phase(if trailing.comma {
+        Phase::ItemOrClose
+    } else {
+        Phase::SeparatorOrClose
+    });
     return Ok(());
 }
 
@@ -521,7 +643,9 @@ pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
 ///
 /// # Errors
 /// Malformed syntax or a 513th open container returns a byte-positioned parse error.
-pub fn parse_document<'a>(mut scanner: Scanner<'a>) -> Result<(JsoncValue, SpanRecorder<'a>), JsoncParseError> {
+pub fn parse_document<'a>(
+    mut scanner: Scanner<'a>
+) -> Result<(JsoncValue, SpanRecorder<'a>), JsoncParseError> {
     let source = scanner.source;
     // What: `?` returns a scanner error early; a successful result owns ordered comments.
     // Why: Malformed leading trivia cannot silently disappear.
@@ -560,7 +684,9 @@ pub fn parse_document<'a>(mut scanner: Scanner<'a>) -> Result<(JsoncValue, SpanR
         }
         let before = scanner.trivia()?;
         if phase == Phase::SeparatorOrClose {
-            let Some(top) = frames.last_mut() else { unreachable!("separator without frame"); };
+            let Some(top) = frames.last_mut() else {
+                unreachable!("separator without frame");
+            };
             attach_last(top, before);
             if scanner.consume(b',') {
                 top.set_phase(Phase::ItemOrClose);
@@ -570,23 +696,34 @@ pub fn parse_document<'a>(mut scanner: Scanner<'a>) -> Result<(JsoncValue, SpanR
                 let closer = top.close_byte();
                 scanner.consume(closer);
                 scanner.spans.container_end(scanner.offset);
-                let Some(done) = frames.pop() else { unreachable!("close without frame"); };
+                let Some(done) = frames.pop() else {
+                    unreachable!("close without frame");
+                };
                 delivered = Some(finish(done, Vec::new()));
                 continue;
             }
             return Err(scanner.error("expected comma or container close"));
         }
-        let Some(top) = frames.last() else { unreachable!("item without frame"); };
+        let Some(top) = frames.last() else {
+            unreachable!("item without frame");
+        };
         if scanner.byte() == Some(top.close_byte()) {
             let closer = top.close_byte();
             scanner.consume(closer);
             scanner.spans.container_end(scanner.offset);
-            let Some(done) = frames.pop() else { unreachable!("close without frame"); };
+            let Some(done) = frames.pop() else {
+                unreachable!("close without frame");
+            };
             delivered = Some(finish(done, before));
             continue;
         }
-        if let Some(Frame::Array { .. }) = frames.last() {
-            let Some(array_frame) = frames.last_mut() else { unreachable!("array frame disappeared"); };
+        if let Some(Frame::Array {
+            ..
+        }) = frames.last()
+        {
+            let Some(array_frame) = frames.last_mut() else {
+                unreachable!("array frame disappeared");
+            };
             array_frame.set_phase(Phase::AwaitingChild);
             begin_value(&mut scanner, before, &mut frames, &mut delivered)?;
             continue;
@@ -602,8 +739,17 @@ pub fn parse_document<'a>(mut scanner: Scanner<'a>) -> Result<(JsoncValue, SpanR
             return Err(scanner.error("expected colon after JSONC key"));
         }
         let before_value = scanner.trivia()?;
-        let key = JsoncKey { units, raw, comment: attach(attach(None, before), before_colon) };
-        let Some(Frame::Record { pending_key, phase: record_phase, .. }) = frames.last_mut() else {
+        let key = JsoncKey {
+            units,
+            raw,
+            comment: attach(attach(None, before), before_colon),
+        };
+        let Some(Frame::Record {
+            pending_key,
+            phase: record_phase,
+            ..
+        }) = frames.last_mut()
+        else {
             unreachable!("record frame disappeared");
         };
         *pending_key = Some(key);

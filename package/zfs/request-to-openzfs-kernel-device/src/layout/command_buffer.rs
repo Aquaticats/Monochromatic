@@ -31,7 +31,10 @@ use super::zfs_cmd_t::ZfsCmd;
 /// The formatting traits the diagnostics implement.
 use std::fmt;
 /// The deref traits that expose the struct over the words.
-use std::ops::{Deref, DerefMut};
+use std::ops::{
+    Deref,
+    DerefMut,
+};
 
 /// Bytes a command buffer holds when a caller asks for no size:
 /// the mirrored struct rounded up to the next power of two,
@@ -82,7 +85,10 @@ pub struct CommandBufferSize {
 /// How the value prints to a person.
 impl fmt::Display for CommandBufferSize {
     /// Shows the buffer size rather than its words.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(
             formatter,
             "a command buffer of {} bytes exceeds the {} byte maximum",
@@ -186,7 +192,10 @@ impl Default for CommandBuffer {
 /// How the value prints in a debug dump.
 impl fmt::Debug for CommandBuffer {
     /// Shows the buffer size rather than its words.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return formatter
             .debug_struct("CommandBuffer")
             .field("bytes", &self.len())

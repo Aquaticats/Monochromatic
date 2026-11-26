@@ -71,7 +71,10 @@ use std::fs;
 /// ```ts
 /// import { Path } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
@@ -97,7 +100,10 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { CargoOutcome, CargoRunner } from 'crate/cargo_run';
 /// ```
-use crate::cargo_run::{CargoOutcome, CargoRunner};
+use crate::cargo_run::{
+    CargoOutcome,
+    CargoRunner,
+};
 /// What:
 /// `use crate::checks::{CheckOutcome, check_release_age, check_trust};` imports `CheckOutcome`,
 /// `check_release_age`,
@@ -128,7 +134,10 @@ use crate::checks::CheckOutcome;
 /// ```ts
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
-use crate::crates::{LockSnapshot, read_locks};
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
 /// What:
 /// `use crate::install::{LockBaseFactory, policy_findings};` imports `policy_findings` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -138,7 +147,10 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { policy_findings } from 'crate/install';
 /// ```
-use crate::install::{LockBaseFactory, PolicyJudge};
+use crate::install::{
+    LockBaseFactory,
+    PolicyJudge,
+};
 /// What:
 /// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
@@ -156,21 +168,30 @@ use crate::install::{LockBaseFactory, PolicyJudge};
 /// ```ts
 /// import { addManifests, begin, finish, processExists, recover, restoreIfUnchanged, runRecording } from 'crate/journal';
 /// ```
-use crate::journal::{begin, recover_report, restore_if_unchanged, run_recording, Transaction};
+use crate::journal::{
+    Transaction,
+    begin,
+    recover_report,
+    restore_if_unchanged,
+    run_recording,
+};
 
-/// Imports `crate::journal_finish::FinishError` for this file.
-use crate::journal_finish::{FinishError, settle_finish};
 /// Imports `Claim`,
 /// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
-/// Imports the manifest transaction that `--breaking` needs:
-/// cargo rewrites `Cargo.toml` as well as the lockfile.
-use crate::manifest_edit::{ManifestEdit, restore_manifests, snapshot_manifests};
-/// Imports the manifest list of a `cargo metadata` answer.
-use crate::stamp::manifests_from_metadata;
 /// Imports the keep rule of a rollback and the quarantine directory,
 /// where the files a rollback displaces are kept.
-use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
+use crate::journal::{
+    KeepAs,
+    QUARANTINE_DIR,
+    ReplaceOutcome,
+    replace_keeping,
+};
+/// Imports `crate::journal_finish::FinishError` for this file.
+use crate::journal_finish::{
+    FinishError,
+    settle_finish,
+};
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
 /// `added_versions`,
@@ -187,7 +208,21 @@ use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
 /// ```ts
 /// import { LockedVersion, added_versions, parse_registry_versions, registry_versions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
+use crate::lockfile::{
+    LockedVersion,
+    added_versions,
+    parse_registry_versions,
+    registry_versions,
+};
+/// Imports the manifest transaction that `--breaking` needs:
+/// cargo rewrites `Cargo.toml` as well as the lockfile.
+use crate::manifest_edit::{
+    ManifestEdit,
+    restore_manifests,
+    snapshot_manifests,
+};
+/// Imports the manifest list of a `cargo metadata` answer.
+use crate::stamp::manifests_from_metadata;
 /// Imports the verification an install runs on the lockfiles it leaves.
 use crate::update_verify::verify_update;
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
@@ -229,7 +264,10 @@ use crate::registry::Registry;
 /// ```ts
 /// import { matches_pattern, parse_selector } from 'crate/selectors';
 /// ```
-use crate::selectors::{matches_pattern, parse_selector};
+use crate::selectors::{
+    matches_pattern,
+    parse_selector,
+};
 /// What:
 /// `use crate::set_aside::{SetAsideRequest, set_aside_until_clean};` imports `SetAsideRequest`,
 /// `set_aside_until_clean` from another module of this crate so this file can name them unqualified.
@@ -241,7 +279,10 @@ use crate::selectors::{matches_pattern, parse_selector};
 /// ```ts
 /// import { SetAsideRequest, set_aside_until_clean } from 'crate/set_aside';
 /// ```
-use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
+use crate::set_aside::{
+    SetAsideRequest,
+    set_aside_until_clean,
+};
 /// What:
 /// `use crate::tighten::{Syncer, raise_floors, raised_names};` imports `Syncer`,
 /// `raise_floors`,
@@ -255,7 +296,11 @@ use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
 /// ```ts
 /// import { Syncer, raise_floors, raised_names } from 'crate/tighten';
 /// ```
-use crate::tighten::{Syncer, raise_floors, raised_names};
+use crate::tighten::{
+    Syncer,
+    raise_floors,
+    raised_names,
+};
 /// What:
 /// `use crate::time_text::publish_time_cutoff;` imports `publish_time_cutoff` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -266,6 +311,13 @@ use crate::tighten::{Syncer, raise_floors, raised_names};
 /// import { publish_time_cutoff } from 'crate/time_text';
 /// ```
 use crate::time_text::publish_time_cutoff;
+/// The three small wordings of a cargo update:
+/// the two option tests and the raised-floor warning line.
+use crate::update_argument_and_warning_text::{
+    is_breaking_option,
+    is_precise_option,
+    raised_floor_warning,
+};
 /// What:
 /// `use crate::update_resolve::resolve_all;` imports the resolution of every crate root of a full update.
 /// Why:
@@ -276,14 +328,15 @@ use crate::time_text::publish_time_cutoff;
 /// import { resolveAll } from 'crate/update_resolve';
 /// ```
 use crate::update_resolve::resolve_all;
-/// The three small wordings of a cargo update:
-/// the two option tests and the raised-floor warning line.
-use crate::update_argument_and_warning_text::{is_breaking_option, is_precise_option, raised_floor_warning};
 /// Imports the file-system error module (the result type of the recorded calls).
 use std::io;
 
 /// The work values of the update (split out of the update module).
-pub(crate) use crate::update_recorded_work::{SyncChain, CargoRun, ManifestsThenCargo};
+pub(crate) use crate::update_recorded_work::{
+    CargoRun,
+    ManifestsThenCargo,
+    SyncChain,
+};
 
 /// Which procedure the update runs.
 pub enum UpdateKind<'a> {
@@ -401,7 +454,10 @@ impl fmt::Display for UpdateError {
     /// ```ts
     /// toString(): string { return this.kind === "cargo" ? this.cargoMessage() : this.message; }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
         // Why:      The message of an `UpdateError` differs for a cargo failure (command, output, remedies) and for the catch-all, and the compiler checks both are covered.
         //
@@ -410,7 +466,11 @@ impl fmt::Display for UpdateError {
         // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
         // ```
         match self {
-            UpdateError::Cargo { crate_dir, command, output } => {
+            UpdateError::Cargo {
+                crate_dir,
+                command,
+                output,
+            } => {
                 // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
                 // Why:      A failed write into the formatter ends the message and is reported to the caller of `fmt`.
                 // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
@@ -428,24 +488,41 @@ impl fmt::Display for UpdateError {
                 // console.error(text);   // eprintln!
                 // [a, b]            // vec![a, b]
                 // ```
-                writeln!(formatter, "`{command}` failed in {crate_dir}; every lockfile this run changed was put back (a file another process wrote meanwhile is kept and named in the warnings).")?;
+                writeln!(
+                    formatter,
+                    "`{command}` failed in {crate_dir}; every lockfile this run changed was put back (a file another process wrote meanwhile is kept and named in the warnings)."
+                )?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
                 writeln!(formatter, "Cargo output:\n{}", output.trim())?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "Fix the cause cargo names. When it is that no release old enough satisfies a requirement,")?;
+                writeln!(
+                    formatter,
+                    "Fix the cause cargo names. When it is that no release old enough satisfies a requirement,"
+                )?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "either wait, add the crate to minimumReleaseAgeExclude in rust-catalog.toml,")?;
+                writeln!(
+                    formatter,
+                    "either wait, add the crate to minimumReleaseAgeExclude in rust-catalog.toml,"
+                )?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "or set minimumReleaseAgeStrict = false to fall back to a younger release.")?;
+                writeln!(
+                    formatter,
+                    "or set minimumReleaseAgeStrict = false to fall back to a younger release."
+                )?;
                 // Macro `write!`: builds or prints text (or a list) from a template.
-                return write!(formatter, "When cargo says `-Z` needs the nightly channel, set RUSTUP_TOOLCHAIN to the nightly toolchain.lock.json pins.");
+                return write!(
+                    formatter,
+                    "When cargo says `-Z` needs the nightly channel, set RUSTUP_TOOLCHAIN to the nightly toolchain.lock.json pins."
+                );
             }
             // Macro `write!`: builds or prints text (or a list) from a template.
-            UpdateError::Other { message } => return write!(formatter, "{message}"),
+            UpdateError::Other {
+                message,
+            } => return write!(formatter, "{message}"),
         }
     }
 }
@@ -464,7 +541,11 @@ impl fmt::Display for UpdateError {
 /// ```ts
 /// async function runOrFail(args): Promise<CargoOutcome>  // throws
 /// ```
-pub(crate) fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Result<CargoOutcome, UpdateError> {
+pub(crate) fn run_or_fail(
+    request: &UpdateRequest,
+    crate_dir: &str,
+    args: &[String],
+) -> Result<CargoOutcome, UpdateError> {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      `outcome` is declared as `CargoOutcome`; only the lines after it turn a non-zero exit into an `UpdateError::Cargo`, so the type states what the runner returned.
     //
@@ -516,7 +597,11 @@ pub(crate) fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[Stri
         // String(value)  // JS strings are always owned values
         // ```
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
+        return Err(UpdateError::Cargo {
+            crate_dir: crate_dir.to_string(),
+            command: format!("cargo {}", args.join(" ")),
+            output: outcome.output,
+        });
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(outcome);
@@ -532,7 +617,10 @@ pub(crate) fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[Stri
 /// ```ts
 /// const matchesAnyPattern = (patterns: string[], name: string) => patterns.some((p) => matchesPattern(p, name));
 /// ```
-fn matches_any_pattern(patterns: &[String], name: &str) -> bool {
+fn matches_any_pattern(
+    patterns: &[String],
+    name: &str,
+) -> bool {
     for pattern in patterns {
         if matches_pattern(pattern, name) {
             return true;
@@ -554,7 +642,10 @@ fn matches_any_pattern(patterns: &[String], name: &str) -> bool {
 /// ```ts
 /// export function excludedUpdateSpecs({ lock, selectors }): string[]
 /// ```
-pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<String>, String> {
+pub fn excluded_update_specs(
+    lock: &str,
+    selectors: &[String],
+) -> Result<Vec<String>, String> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      `excluded_update_specs` collects the name-only patterns one selector at a time.
     //
@@ -621,8 +712,6 @@ pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<Str
     return Ok(specs);
 }
 
-
-
 /// What:
 /// `fn sources_of(snapshots) -> Vec<String>` copies the lockfile texts out of snapshots;
 /// `.clone()` makes an independent copy of owned text.
@@ -658,7 +747,9 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
 /// const other = (message: string) => new UpdateError(message)
 /// ```
 pub(crate) fn other(message: String) -> UpdateError {
-    return UpdateError::Other { message };
+    return UpdateError::Other {
+        message,
+    };
 }
 
 /// What:
@@ -690,7 +781,10 @@ pub(crate) fn other_text(error: impl fmt::Display) -> UpdateError {
 /// ```ts
 /// function syncRecording(request: UpdateRequest, edits: ManifestEdit[]): Result<string, string>  // throws if recording fails
 /// ```
-fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Result<String, String>> {
+fn sync_recording(
+    request: &UpdateRequest,
+    edits: &RefCell<Vec<ManifestEdit>>,
+) -> io::Result<Result<String, String>> {
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `let mut`: a binding that may change.
     // Typed binding: `run: Box<dyn FnOnce() -> io::Result<Result<...`.
@@ -702,9 +796,15 @@ fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -
     // function f(registry: Registry) { ... }  // an interface type
     // ```
     // Constructor `Box::new(`: an empty owned collection or a boxed value.
-    let mut chain: SyncChain = SyncChain::Sync { request };
+    let mut chain: SyncChain = SyncChain::Sync {
+        request,
+    };
     for crate_dir in request.crate_dirs {
-        chain = SyncChain::Around { crate_dir, edits, inner: Box::new(chain) };
+        chain = SyncChain::Around {
+            crate_dir,
+            edits,
+            inner: Box::new(chain),
+        };
     }
     return crate::file_owner::RecordedWork::run(chain);
 }
@@ -722,24 +822,39 @@ fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -
 /// ```ts
 /// async function workspaceManifests(request, crateDir): Promise<string[]>  // throws when metadata fails
 /// ```
-fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<PathBuf>, UpdateError> {
+fn workspace_manifests(
+    request: &UpdateRequest,
+    crate_dir: &str,
+) -> Result<Vec<PathBuf>, UpdateError> {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `let mut`: a binding that may change.
     // Typed binding: `args: Vec<String>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let mut args: Vec<String> = vec!["metadata".to_string(), "--no-deps".to_string(), "--format-version".to_string(), "1".to_string()];
+    let mut args: Vec<String> = vec![
+        "metadata".to_string(),
+        "--no-deps".to_string(),
+        "--format-version".to_string(),
+        "1".to_string(),
+    ];
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     args.extend(request.forward.iter().cloned());
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&request.root.join`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `outcome: CargoOutcome`.
-    let outcome: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &args).map_err(other)?;
+    let outcome: CargoOutcome = request
+        .runner
+        .run(&request.root.join(crate_dir), &args)
+        .map_err(other)?;
     if !outcome.ok {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
+        return Err(UpdateError::Cargo {
+            crate_dir: crate_dir.to_string(),
+            command: format!("cargo {}", args.join(" ")),
+            output: outcome.output,
+        });
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome.stdout`: lends the value without copying or giving it away.
@@ -763,7 +878,14 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
 /// ```ts
 /// async function runUpdate(args): Promise<UpdateReport>
 /// ```
-fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>, edits: &RefCell<Vec<ManifestEdit>>, transaction: &Transaction) -> Result<UpdateReport, UpdateError> {
+fn run_update(
+    request: &UpdateRequest,
+    kind: &UpdateKind,
+    before: &[LockSnapshot],
+    produced: &RefCell<Vec<LockSnapshot>>,
+    edits: &RefCell<Vec<ManifestEdit>>,
+    transaction: &Transaction,
+) -> Result<UpdateReport, UpdateError> {
     // Borrow `&Settings`: lends the value without copying or giving it away.
     // Typed binding: `settings: &Settings`.
     let settings: &Settings = request.settings;
@@ -776,7 +898,11 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // ```
     // Typed binding: `cutoff: String`.
     // Constructor `String::new()`: an empty owned collection or a boxed value.
-    let cutoff: String = if settings.minimum_release_age == 0 { String::new() } else { publish_time_cutoff(request.now, settings.minimum_release_age) };
+    let cutoff: String = if settings.minimum_release_age == 0 {
+        String::new()
+    } else {
+        publish_time_cutoff(request.now, settings.minimum_release_age)
+    };
     // `let mut`: a binding that may change.
     // Typed binding: `fell_back: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -789,7 +915,9 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&cutoff`: lends the value without copying or giving it away.
         UpdateKind::Full => fell_back = resolve_all(request, &cutoff, produced)?,
-        UpdateKind::Targeted { cargo_args } => {
+        UpdateKind::Targeted {
+            cargo_args,
+        } => {
             // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
             // Why:      `args` starts as a copy of the user's cargo arguments so forwarded options can be appended without changing the caller's slice.
             //
@@ -807,7 +935,10 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             set_aside_allowed = !cargo_args.iter().map(String::as_str).any(is_precise_option);
             // Review finding (`--breaking` edits outside the transaction): cargo's breaking update rewrites the requirements in the
             // manifests, so their text is taken before the run and restored with the lockfiles when the update is not kept.
-            let breaking: bool = cargo_args.iter().map(String::as_str).any(is_breaking_option);
+            let breaking: bool = cargo_args
+                .iter()
+                .map(String::as_str)
+                .any(is_breaking_option);
             if breaking {
                 for crate_dir in request.crate_dirs {
                     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -826,15 +957,30 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     snapshot_manifests(crate_dir, &paths, edits).map_err(other_text)?;
                 }
                 // Delegated pick (2026-11-03): the manifests are journaled, so a killed run is recovered for them too.
-                transaction.add_manifests(&edits.borrow()).map_err(other_text)?;
+                transaction
+                    .add_manifests(&edits.borrow())
+                    .map_err(other_text)?;
             }
             for crate_dir in request.crate_dirs {
                 // Both the lockfile and the manifests of this root are attributed by the evidence in `file_owner.rs`, whether the
                 // call succeeds or fails; the manifests of other roots are never claimed by this call.
-                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, ManifestsThenCargo { cargo: CargoRun { request, crate_dir, args: &args }, edits })
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // `.map_err(...)`: converts the callee's error into this function's error type.
-                .map_err(other_text)?;
+                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) =
+                    run_recording(
+                        request.root,
+                        crate_dir,
+                        produced,
+                        ManifestsThenCargo {
+                            cargo: CargoRun {
+                                request,
+                                crate_dir,
+                                args: &args,
+                            },
+                            edits,
+                        },
+                    )
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // `.map_err(...)`: converts the callee's error into this function's error type.
+                    .map_err(other_text)?;
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 ran.map_err(other_text)??;
             }
@@ -869,7 +1015,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `after_snapshots: Vec<LockSnapshot>`.
-    let after_snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(other_text)?;
+    let after_snapshots: Vec<LockSnapshot> =
+        read_locks(request.root, request.crate_dirs).map_err(other_text)?;
     // Borrow `&after_snapshots`: lends the value without copying or giving it away.
     // Typed binding: `after: Vec<String>`.
     let after: Vec<String> = sources_of(&after_snapshots);
@@ -924,12 +1071,21 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         pruned = result.removed;
     }
     // `--breaking` is `pnpm update --latest`: the new range goes into the catalog entry and the sync renders it (tighten.rs).
-    if keep && let UpdateKind::Targeted { cargo_args } = kind && cargo_args.iter().map(String::as_str).any(is_breaking_option) {
+    if keep
+        && let UpdateKind::Targeted {
+            cargo_args,
+        } = kind
+        && cargo_args
+            .iter()
+            .map(String::as_str)
+            .any(is_breaking_option)
+    {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&before_sources`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `before_versions: Vec<LockedVersion>`.
-        let before_versions: Vec<LockedVersion> = registry_versions(&before_sources).map_err(other)?;
+        let before_versions: Vec<LockedVersion> =
+            registry_versions(&before_sources).map_err(other)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&after`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -944,17 +1100,25 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&source`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        let (raised_source, changes) = raise_floors(&source, &after_versions, &raised_names(&before_versions, &after_versions)).map_err(other)?;
+        let (raised_source, changes) = raise_floors(
+            &source,
+            &after_versions,
+            &raised_names(&before_versions, &after_versions),
+        )
+        .map_err(other)?;
         if !changes.is_empty() {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // Borrow `&raised_source`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            let catalog_keep: KeepAs = KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".catalog.displaced");
+            let catalog_keep: KeepAs =
+                KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".catalog.displaced");
             // Review finding (2c 6): the catalog is replaced only while it still holds the text that was read, never over another
             // writer's edit.
-            let raised: ReplaceOutcome = replace_keeping(request.catalog_path, &source, &raised_source, &catalog_keep).map_err(other_text)?;
+            let raised: ReplaceOutcome =
+                replace_keeping(request.catalog_path, &source, &raised_source, &catalog_keep)
+                    .map_err(other_text)?;
             // Macro `matches!`: builds or prints text (or a list) from a template.
             if !matches!(raised, ReplaceOutcome::Replaced(_)) {
                 // Macro `format!`: builds or prints text (or a list) from a template.
@@ -975,7 +1139,9 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     Ok(answer) => answer,
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
                     // Macro `format!`: builds or prints text (or a list) from a template.
-                    Err(error) => Err(format!("the manifests could not be recorded around the sync ({error})")),
+                    Err(error) => Err(format!(
+                        "the manifests could not be recorded around the sync ({error})"
+                    )),
                 }
             } else {
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -1000,7 +1166,13 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                         // Borrow `&raised_source`: lends the value without copying or giving it away.
                         // `.map_err(...)`: converts the callee's error into this function's error type.
                         // Typed binding: `back: ReplaceOutcome`.
-                        let back: ReplaceOutcome = replace_keeping(request.catalog_path, &raised_source, &source, &catalog_keep).map_err(other_text)?;
+                        let back: ReplaceOutcome = replace_keeping(
+                            request.catalog_path,
+                            &raised_source,
+                            &source,
+                            &catalog_keep,
+                        )
+                        .map_err(other_text)?;
                         // Macro `matches!`: builds or prints text (or a list) from a template.
                         if !matches!(back, ReplaceOutcome::Replaced(_)) {
                             // Macro `format!`: builds or prints text (or a list) from a template.
@@ -1016,7 +1188,15 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.to_vec()`: copies the slice into a new owned `Vec`.
-    return Ok(UpdateReport { crate_dirs: request.crate_dirs.to_vec(), added, problems, warnings, fell_back, written: keep, pruned });
+    return Ok(UpdateReport {
+        crate_dirs: request.crate_dirs.to_vec(),
+        added,
+        problems,
+        warnings,
+        fell_back,
+        written: keep,
+        pruned,
+    });
 }
 
 /// What:
@@ -1035,9 +1215,19 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
 /// ```ts
 /// export async function updateRustLockfiles(args): Promise<UpdateReport>
 /// ```
-pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Result<UpdateReport, UpdateError> {
+pub fn update_rust_lockfiles(
+    request: &UpdateRequest,
+    kind: &UpdateKind,
+) -> Result<UpdateReport, UpdateError> {
     // Typed binding: `recovered: Vec<String>`.
-    let recovery = recover_report(request.root, &PolicyJudge { settings: request.settings, registry: request.registry, now: request.now });
+    let recovery = recover_report(
+        request.root,
+        &PolicyJudge {
+            settings: request.settings,
+            registry: request.registry,
+            now: request.now,
+        },
+    );
     let mandatory_recovery_failure: bool = recovery.mandatory_failure;
     let recovered: Vec<String> = recovery.messages;
     // Borrow `&recovered`: lends the value without copying or giving it away.
@@ -1055,7 +1245,8 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `before: Vec<LockSnapshot>`.
-    let before: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(other_text)?;
+    let before: Vec<LockSnapshot> =
+        read_locks(request.root, request.crate_dirs).map_err(other_text)?;
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
     // Borrow `&before`: lends the value without copying or giving it away.
@@ -1077,10 +1268,13 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     let edits: RefCell<Vec<ManifestEdit>> = RefCell::new(Vec::new());
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<UpdateReport, UpdateError>`.
-    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced, &edits, &transaction);
+    let outcome: Result<UpdateReport, UpdateError> =
+        run_update(request, kind, &before, &produced, &edits, &transaction);
     // See `install_rust_lockfiles`: writers that may remain forbid both the rollback and the acceptance (round 6, 5c N2).
     if transaction.writers_may_remain() {
-        return Err(other_text("a process started by cargo could not be stopped, so it may still write the lockfiles and manifests; they were not rolled back or accepted, the journal of this run was kept and the next run settles it"));
+        return Err(other_text(
+            "a process started by cargo could not be stopped, so it may still write the lockfiles and manifests; they were not rolled back or accepted, the journal of this run was kept and the next run settles it",
+        ));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
@@ -1099,12 +1293,16 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        let (lock_warnings, lock_failure) = restore_if_unchanged(request.root, &before, &produced.borrow());
+        let (lock_warnings, lock_failure) =
+            restore_if_unchanged(request.root, &before, &produced.borrow());
         restore_warnings = lock_warnings;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&edits`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        let (manifest_warnings, manifest_failure) = restore_manifests(&edits, &KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".manifest.displaced"));
+        let (manifest_warnings, manifest_failure) = restore_manifests(
+            &edits,
+            &KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".manifest.displaced"),
+        );
         restore_warnings.extend(manifest_warnings);
         // `Some`: the present or the absent value of an `Option`.
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.

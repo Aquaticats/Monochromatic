@@ -15,7 +15,10 @@
 /// Lowercase hexadecimal spelling shared with the path components.
 use crate::bytes_as_lowercase_hex::push_lowercase_hex_byte;
 /// Directories and paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Start of every scope the watcher creates.
 const SCOPE_PREFIX: &str = "wg-quicker-update-";
@@ -33,7 +36,19 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 /// The unit types a cgroup name can end in.
 /// A dot that would be the last separator of such a suffix is escaped,
 /// so the name the scope itself gets never repeats it.
-const UNIT_TYPE_SUFFIXES: &[&str] = &["service", "socket", "device", "mount", "automount", "swap", "target", "path", "timer", "slice", "scope"];
+const UNIT_TYPE_SUFFIXES: &[&str] = &[
+    "service",
+    "socket",
+    "device",
+    "mount",
+    "automount",
+    "swap",
+    "target",
+    "path",
+    "timer",
+    "slice",
+    "scope",
+];
 
 /// Appends one byte of a path to `escaped` as `systemd-escape --path` writes it:
 /// a slash becomes a dash,
@@ -44,7 +59,11 @@ const UNIT_TYPE_SUFFIXES: &[&str] = &["service", "socket", "device", "mount", "a
 /// and every other byte,
 /// the dash and the backslash included,
 /// becomes `\xNN` in lowercase hex.
-fn push_escaped(escaped: &mut String, byte: u8, first: bool) {
+fn push_escaped(
+    escaped: &mut String,
+    byte: u8,
+    first: bool,
+) {
     match byte {
         b'/' => escaped.push('-'),
         b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b':' | b'_' => escaped.push(char::from(byte)),
@@ -81,7 +100,10 @@ fn fingerprint(text: &str) -> u64 {
 /// Cuts `escaped` to at most `limit` bytes without ending inside a four-byte `\xNN` escape.
 /// The text is plain ASCII,
 /// because every other byte was escaped.
-fn cut_before_partial_escape(escaped: &str, limit: usize) -> &str {
+fn cut_before_partial_escape(
+    escaped: &str,
+    limit: usize,
+) -> &str {
     let mut end = limit.min(escaped.len());
     if let Some(position) = escaped[..end].rfind('\\')
         && end - position < 4
@@ -94,9 +116,14 @@ fn cut_before_partial_escape(escaped: &str, limit: usize) -> &str {
 /// The part of an origin's cgroup path that the name spells:
 /// what lies below `user@<uid>.service`,
 /// or the whole path without its leading slash for a cgroup outside the manager's subtree.
-fn origin_relative(origin: &str, uid: u32) -> &str {
+fn origin_relative(
+    origin: &str,
+    uid: u32,
+) -> &str {
     let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/");
-    return origin.strip_prefix(prefix.as_str()).unwrap_or(origin.trim_start_matches('/'));
+    return origin
+        .strip_prefix(prefix.as_str())
+        .unwrap_or(origin.trim_start_matches('/'));
 }
 
 /// Escapes the dot of a trailing unit-type suffix as `\x2e`,
@@ -116,13 +143,19 @@ fn escape_trailing_unit_suffix(escaped: &mut String) {
 
 /// The unit name made from an escaped origin path,
 /// cut and hashed when it would pass the unit name limit.
-fn name_from_escaped(escaped: &str, relative: &str) -> String {
+fn name_from_escaped(
+    escaped: &str,
+    relative: &str,
+) -> String {
     let plain = format!("{SCOPE_PREFIX}{escaped}{SCOPE_SUFFIX}");
     if plain.len() <= UNIT_NAME_MAX_BYTES {
         return plain;
     }
     let kept = cut_before_partial_escape(escaped, KEPT_BYTES_BEFORE_HASH);
-    return format!("{SCOPE_PREFIX}{kept}-{:016x}{SCOPE_SUFFIX}", fingerprint(relative));
+    return format!(
+        "{SCOPE_PREFIX}{kept}-{:016x}{SCOPE_SUFFIX}",
+        fingerprint(relative)
+    );
 }
 
 /// The name of the scope that holds the moved processes of `origin`,
@@ -133,7 +166,10 @@ fn name_from_escaped(escaped: &str, relative: &str) -> String {
 /// gives `wg-quicker-update-app.slice-claude\x2dcode\x2dbash.scope`,
 /// and `/.../app.slice/run-p1-i2.scope` gives
 /// `wg-quicker-update-app.slice-run\x2dp1\x2di2\x2escope.scope`.
-pub fn origin_scope_name(origin: &str, uid: u32) -> String {
+pub fn origin_scope_name(
+    origin: &str,
+    uid: u32,
+) -> String {
     let relative = origin_relative(origin, uid);
     let mut escaped = escape_unit_name(relative);
     escape_trailing_unit_suffix(&mut escaped);
@@ -146,7 +182,10 @@ pub fn origin_scope_name(origin: &str, uid: u32) -> String {
 /// so an origin that is a unit itself got two of them.
 /// A scope still running under such a name holds processes of this origin,
 /// and the origin's later processes join it instead of making a second scope with the same cap.
-pub fn legacy_origin_scope_names(origin: &str, uid: u32) -> Vec<String> {
+pub fn legacy_origin_scope_names(
+    origin: &str,
+    uid: u32,
+) -> Vec<String> {
     let relative = origin_relative(origin, uid);
     let escaped = escape_unit_name(relative);
     let earlier = name_from_escaped(&escaped, relative);
@@ -159,7 +198,10 @@ pub fn legacy_origin_scope_names(origin: &str, uid: u32) -> Vec<String> {
 /// Every name the scope of `origin` may run under right now,
 /// the current spelling first,
 /// so the scope that exists is found before a new one is created.
-pub fn origin_scope_names(origin: &str, uid: u32) -> Vec<String> {
+pub fn origin_scope_names(
+    origin: &str,
+    uid: u32,
+) -> Vec<String> {
     let mut names = vec![origin_scope_name(origin, uid)];
     names.extend(legacy_origin_scope_names(origin, uid));
     return names;
@@ -167,12 +209,23 @@ pub fn origin_scope_names(origin: &str, uid: u32) -> Vec<String> {
 
 /// The cgroup path of a scope below `slice`,
 /// as `/proc/<pid>/cgroup` spells it.
-pub fn scope_cgroup_path(uid: u32, slice: &str, scope_name: &str) -> String {
-    return format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/{slice}/{scope_name}");
+pub fn scope_cgroup_path(
+    uid: u32,
+    slice: &str,
+    scope_name: &str,
+) -> String {
+    return format!(
+        "/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/{slice}/{scope_name}"
+    );
 }
 
 /// The directory of a scope in the cgroup filesystem rooted at `cgroup_root`.
 /// It exists while the scope is active.
-pub fn scope_cgroup_directory(cgroup_root: &Path, uid: u32, slice: &str, scope_name: &str) -> PathBuf {
+pub fn scope_cgroup_directory(
+    cgroup_root: &Path,
+    uid: u32,
+    slice: &str,
+    scope_name: &str,
+) -> PathBuf {
     return cgroup_root.join(scope_cgroup_path(uid, slice, scope_name).trim_start_matches('/'));
 }

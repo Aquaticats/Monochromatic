@@ -2,12 +2,32 @@
 //!  state by state,
 //!  without a server process.
 
-use super::{SOURCE, Trouble, lines, with_notice};
+use super::{
+    SOURCE,
+    Trouble,
+    lines,
+    with_notice,
+};
 use crate::language::{
-    diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup},
-    identity::{DocumentStamp, ServerIdentity},
+    diagnostics::{
+        Diagnostic,
+        DiagnosticsSnapshot,
+        Freshness,
+        Severity,
+        SourceGroup,
+    },
+    identity::{
+        DocumentStamp,
+        ServerIdentity,
+    },
     reply::RequestFailure,
-    status::{DocumentState, Features, LanguageStatus, ServerState, ServerStatus},
+    status::{
+        DocumentState,
+        Features,
+        LanguageStatus,
+        ServerState,
+        ServerStatus,
+    },
 };
 use std::path::PathBuf;
 
@@ -24,7 +44,10 @@ fn identity(name: &str) -> ServerIdentity {
 }
 
 /// Whether some line contains every one of the texts.
-fn has_line_with(lines: &[String], needles: &[&str]) -> bool {
+fn has_line_with(
+    lines: &[String],
+    needles: &[&str],
+) -> bool {
     for line in lines {
         let mut contains_all = true;
         for needle in needles {
@@ -40,7 +63,10 @@ fn has_line_with(lines: &[String], needles: &[&str]) -> bool {
 }
 
 /// Whether some line begins with the text.
-fn has_line_starting(lines: &[String], prefix: &str) -> bool {
+fn has_line_starting(
+    lines: &[String],
+    prefix: &str,
+) -> bool {
     for line in lines {
         if line.starts_with(prefix) {
             return true;
@@ -49,7 +75,11 @@ fn has_line_starting(lines: &[String], prefix: &str) -> bool {
     return false;
 }
 
-fn row(name: &str, state: ServerState, features: Option<Features>) -> ServerStatus {
+fn row(
+    name: &str,
+    state: ServerState,
+    features: Option<Features>,
+) -> ServerStatus {
     return ServerStatus {
         server: identity(name),
         state,
@@ -159,7 +189,9 @@ fn a_reason_that_ends_with_server_lines_gets_no_period_added() {
     let shown = lines(
         &status(vec![row(
             "rust-analyzer",
-            ServerState::FailedToStart { reason },
+            ServerState::FailedToStart {
+                reason,
+            },
             None,
         )]),
         &[],
@@ -381,10 +413,7 @@ fn the_toolchain_failure_comes_before_the_reasons_of_the_servers_that_do_not_wor
         .find("the toolchain lookup said:")
         .expect("the lookup's words");
     assert!(lookup < reason, "{message}");
-    assert!(
-        message.contains("mpm-shadow bin --json"),
-        "{message}"
-    );
+    assert!(message.contains("mpm-shadow bin --json"), "{message}");
 }
 
 #[test]

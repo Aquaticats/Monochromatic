@@ -13,7 +13,10 @@ use music_player::command::PlaybackMode;
 use music_player::keymap::ShortcutAction;
 
 use super::*;
-use crate::ui_keys_actions::{next_mode, seek_target};
+use crate::ui_keys_actions::{
+    next_mode,
+    seek_target,
+};
 
 /// What:
 /// `input(key)` builds a plain key press with no modifiers.
@@ -31,8 +34,16 @@ fn input(key: &str) -> KeyInput {
 
 /// What:
 /// `context_on(route, zone)` builds the context of a page with a focus zone.
-fn context_on(route: Route, zone: FocusZone) -> KeyContext {
-    return KeyContext { route, zone, picker_overlay: false, popup_open: false };
+fn context_on(
+    route: Route,
+    zone: FocusZone,
+) -> KeyContext {
+    return KeyContext {
+        route,
+        zone,
+        picker_overlay: false,
+        popup_open: false,
+    };
 }
 
 #[test]
@@ -61,7 +72,9 @@ fn slint_special_keys_map_to_the_names_the_classifier_reads() {
 
 #[test]
 fn modifier_keys_are_recognised_and_only_shift_keys_are_shift() {
-    for text in ["\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}"] {
+    for text in [
+        "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}",
+    ] {
         assert!(is_modifier_key(text), "{text:?}");
     }
     assert!(!is_modifier_key("a"));
@@ -74,9 +87,25 @@ fn modifier_keys_are_recognised_and_only_shift_keys_are_shift() {
 #[test]
 fn the_apple_map_swaps_control_and_meta_because_slint_does() {
     let flags = held_modifiers(true, false, true, false, true);
-    assert_eq!(flags, HeldModifiers { ctrl: false, meta: true, alt: true, shift: false });
+    assert_eq!(
+        flags,
+        HeldModifiers {
+            ctrl: false,
+            meta: true,
+            alt: true,
+            shift: false
+        }
+    );
     let plain = held_modifiers(true, false, true, false, false);
-    assert_eq!(plain, HeldModifiers { ctrl: true, meta: false, alt: true, shift: false });
+    assert_eq!(
+        plain,
+        HeldModifiers {
+            ctrl: true,
+            meta: false,
+            alt: true,
+            shift: false
+        }
+    );
 }
 
 #[test]
@@ -89,8 +118,20 @@ fn routes_map_to_the_classifier_routes() {
 
 #[test]
 fn the_request_carries_the_zone_the_route_and_the_popup_state() {
-    let context = KeyContext { route: Route::Search, zone: FocusZone::TextField, picker_overlay: true, popup_open: true };
-    let request = request_for(&KeyInput { in_popup: true, ..input("a") }, &context, KeyboardPlatform::Mac);
+    let context = KeyContext {
+        route: Route::Search,
+        zone: FocusZone::TextField,
+        picker_overlay: true,
+        popup_open: true,
+    };
+    let request = request_for(
+        &KeyInput {
+            in_popup: true,
+            ..input("a")
+        },
+        &context,
+        KeyboardPlatform::Mac,
+    );
     assert_eq!(request.zone, FocusZone::TextField);
     assert_eq!(request.route, KeyRoute::Search);
     assert!(request.in_popup);
@@ -101,9 +142,17 @@ fn the_request_carries_the_zone_the_route_and_the_popup_state() {
 
 #[test]
 fn space_toggles_playback_on_the_player_route_and_is_left_to_the_search_field() {
-    let on_player = request_for(&input(" "), &context_on(Route::Player, FocusZone::Surface), KeyboardPlatform::WindowsLinux);
+    let on_player = request_for(
+        &input(" "),
+        &context_on(Route::Player, FocusZone::Surface),
+        KeyboardPlatform::WindowsLinux,
+    );
     assert_eq!(shortcut_action(&on_player), ShortcutAction::Toggle);
-    let in_search = request_for(&input(" "), &context_on(Route::Search, FocusZone::TextField), KeyboardPlatform::WindowsLinux);
+    let in_search = request_for(
+        &input(" "),
+        &context_on(Route::Search, FocusZone::TextField),
+        KeyboardPlatform::WindowsLinux,
+    );
     assert_eq!(shortcut_action(&in_search), ShortcutAction::Owner);
 }
 
@@ -115,7 +164,15 @@ fn next_mode_cycles_through_all_four_modes() {
         seen.push(mode);
         mode = next_mode(mode);
     }
-    assert_eq!(seen, vec![PlaybackMode::Repeat, PlaybackMode::InOrder, PlaybackMode::ShufflePage, PlaybackMode::ShuffleAll]);
+    assert_eq!(
+        seen,
+        vec![
+            PlaybackMode::Repeat,
+            PlaybackMode::InOrder,
+            PlaybackMode::ShufflePage,
+            PlaybackMode::ShuffleAll
+        ]
+    );
     assert_eq!(mode, PlaybackMode::Repeat);
 }
 

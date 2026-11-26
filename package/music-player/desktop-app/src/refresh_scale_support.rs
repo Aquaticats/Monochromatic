@@ -12,7 +12,10 @@
 //!           against the comparison the planner searches with.
 
 /// Imports the path types that the generated library uses.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the name comparison whose order the generated library follows.
 use crate::natural_order::natural_cmp;
@@ -50,7 +53,9 @@ pub(crate) fn million_library() -> Vec<PathBuf> {
         }
     }
     loose.sort_by(|left, right| return walk_cmp(Path::new(ROOT), left, right));
-    groups.sort_by(|left, right| return natural_cmp(&left.0, &right.0).then_with(|| return left.0.cmp(&right.0)));
+    groups.sort_by(|left, right| {
+        return natural_cmp(&left.0, &right.0).then_with(|| return left.0.cmp(&right.0));
+    });
     let mut ordered: Vec<PathBuf> = loose;
     for (_folder, mut members) in groups {
         members.sort_by(|left, right| return walk_cmp(Path::new(ROOT), left, right));
@@ -58,7 +63,12 @@ pub(crate) fn million_library() -> Vec<PathBuf> {
     }
     assert_eq!(ordered.len(), library.names.len(), "no track was lost");
     let root: &Path = Path::new(ROOT);
-    let misplaced: Option<usize> = ordered.windows(2).position(|pair| return walk_cmp(root, &pair[0], &pair[1]) != std::cmp::Ordering::Less);
-    assert_eq!(misplaced, None, "every track sorts strictly before the next in the walk's order");
+    let misplaced: Option<usize> = ordered
+        .windows(2)
+        .position(|pair| return walk_cmp(root, &pair[0], &pair[1]) != std::cmp::Ordering::Less);
+    assert_eq!(
+        misplaced, None,
+        "every track sorts strictly before the next in the walk's order"
+    );
     return ordered;
 }

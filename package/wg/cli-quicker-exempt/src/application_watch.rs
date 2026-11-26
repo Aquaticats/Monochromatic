@@ -1,44 +1,85 @@
 //! Watches user application cgroups and retains marker links for selected named and executable-owned targets.
 
-/// Target discovery across named app-slice services and executable-owned processes.
-use crate::application_targets::{scan_application_targets, ScanRoots};
 /// Which marks stay attached after one scan,
 /// and what to say about a name that holds no program of its application.
-use crate::application_marks::{decide_marks, reports_that_still_apply};
-/// Process events and the update traffic policy.
-use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
-/// Delivery of failures after startup.
-use crate::runtime_report::RuntimeReporter;
-/// The one-time sweep of the scopes of the earlier design,
-/// and the pass over the origin scopes that must run before the first adoption.
-use crate::leftover_sweep::{describe_sweep, spawn_sweep, SweepSetup};
-/// The pass over the origin scopes that must run before the first adoption.
-use crate::origin_scope_sweep::stop_empty_origin_scopes_now;
+use crate::application_marks::{
+    decide_marks,
+    reports_that_still_apply,
+};
+/// Target discovery across named app-slice services and executable-owned processes.
+use crate::application_targets::{
+    ScanRoots,
+    scan_application_targets,
+};
 /// The guard of the manager's bus name.
 use crate::impostor_guard;
+/// The one-time sweep of the scopes of the earlier design,
+/// and the pass over the origin scopes that must run before the first adoption.
+use crate::leftover_sweep::{
+    SweepSetup,
+    describe_sweep,
+    spawn_sweep,
+};
 /// Non-panicking bounded log.
-use crate::log_line::{log_line, sanitize};
-/// Shutdown signal descriptors.
-use crate::signal_descriptor::{consume_signal, create_signal_fd, SignalPending};
+use crate::log_line::{
+    log_line,
+    sanitize,
+};
+/// The pass over the origin scopes that must run before the first adoption.
+use crate::origin_scope_sweep::stop_empty_origin_scopes_now;
+/// Process events and the update traffic policy.
+use crate::process_events::{
+    drain_exec_events,
+    subscribe,
+    unsubscribe,
+};
 /// Policy engine and its seams.
-use crate::routing_support::{StopCheck, SystemClock};
+use crate::routing_support::{
+    StopCheck,
+    SystemClock,
+};
+/// Delivery of failures after startup.
+use crate::runtime_report::RuntimeReporter;
+/// Shutdown signal descriptors.
+use crate::signal_descriptor::{
+    SignalPending,
+    consume_signal,
+    create_signal_fd,
+};
+/// The words of the policy.
+use crate::update_report::{
+    Outcome,
+    POLICY_PROCESS_WATCH,
+    describe_outcome,
+    policy_failure,
+};
 /// Policy engine.
 use crate::update_routing::UpdateRouting;
-/// The words of the policy.
-use crate::update_report::{describe_outcome, policy_failure, Outcome, POLICY_PROCESS_WATCH};
-/// Timing of the process scan.
-use std::time::{Duration, Instant};
 /// Cgroup paths of the marks the watcher holds.
 use std::path::PathBuf;
+/// Timing of the process scan.
+use std::time::{
+    Duration,
+    Instant,
+};
 /// The directory notification and the marker links retained for each target.
 #[path = "watch_support.rs"]
 mod watch_support;
-/// The items of that module the watcher uses.
-use watch_support::{attach_target, create_inotify, drain_inotify, is_attached, ActiveAttachment};
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    OwnedFd,
+};
+/// The items of that module the watcher uses.
+use watch_support::{
+    ActiveAttachment,
+    attach_target,
+    create_inotify,
+    drain_inotify,
+    is_attached,
+};
 
 /// Who the failure reporter notifies.
 #[derive(Clone, Copy)]
@@ -108,8 +149,12 @@ const OVERRUN_RESCAN_SPACING: Duration = Duration::from_secs(1);
 /// Reports whether a full process scan is due:
 /// always after the scan interval,
 /// and after a drop of process events once the spacing since the last scan has passed.
-pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
-    return since_last_scan >= FULL_SCAN_INTERVAL || (overrun_pending && since_last_scan >= OVERRUN_RESCAN_SPACING);
+pub fn rescan_due(
+    overrun_pending: bool,
+    since_last_scan: Duration,
+) -> bool {
+    return since_last_scan >= FULL_SCAN_INTERVAL
+        || (overrun_pending && since_last_scan >= OVERRUN_RESCAN_SPACING);
 }
 
 /// Reconciles discovered targets,
@@ -124,12 +169,19 @@ fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
     let scan = scan_application_targets(&watch.roots)?;
     // The cgroups whose mark the watcher holds now,
     // and which of them stay after this scan reported what it found.
-    let attached: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
+    let attached: Vec<PathBuf> = watch
+        .active
+        .iter()
+        .map(|attachment| return attachment.path.clone())
+        .collect();
     let decision = decide_marks(&attached, &scan, &watch.reported_without_application);
     // A released mark is detached by dropping its links,
     // which is what the kernel unregisters the hooks with.
-    watch.active.retain(|attachment| return decision.keep.contains(&attachment.path));
-    watch.reported_without_application = reports_that_still_apply(&watch.reported_without_application, &scan);
+    watch
+        .active
+        .retain(|attachment| return decision.keep.contains(&attachment.path));
+    watch.reported_without_application =
+        reports_that_still_apply(&watch.reported_without_application, &scan);
     for target in &scan.targets {
         if is_attached(&watch.active, target) {
             continue;
@@ -139,7 +191,11 @@ fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
         }
     }
     // The cgroup paths of the marks the watcher holds.
-    let marked: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
+    let marked: Vec<PathBuf> = watch
+        .active
+        .iter()
+        .map(|attachment| return attachment.path.clone())
+        .collect();
     watch.routing.note_marked(&marked);
     for cgroup in decision.report {
         watch.reported_without_application.push(cgroup.clone());
@@ -174,7 +230,9 @@ pub fn prepare_application_watch(
     let mut reporter = RuntimeReporter::new(identity.uid, identity.gid);
     reporter.begin_startup();
     if let Err(error) = routing.ensure_slice(roots.app_slice) {
-        log_line(&policy_failure(&format!("the updates slice cannot be created: {error}")));
+        log_line(&policy_failure(&format!(
+            "the updates slice cannot be created: {error}"
+        )));
     }
     // The origin scopes are stopped before anything is adopted:
     // a process joining one is a process this watcher just moved there,
@@ -218,7 +276,12 @@ pub fn prepare_application_watch(
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
     reconcile(&mut watch)?;
-    let outcomes = watch.routing.rescan_with(&SystemClock, &SignalPending { signals: &watch.signals });
+    let outcomes = watch.routing.rescan_with(
+        &SystemClock,
+        &SignalPending {
+            signals: &watch.signals,
+        },
+    );
     report_outcomes(&mut watch.reporter, &outcomes);
     return Ok(watch);
 }
@@ -228,7 +291,10 @@ pub fn prepare_application_watch(
 /// by its kind,
 /// so a person sees it,
 /// and a successful move to the log.
-fn report_outcomes(reporter: &mut RuntimeReporter, outcomes: &[Outcome]) {
+fn report_outcomes(
+    reporter: &mut RuntimeReporter,
+    outcomes: &[Outcome],
+) {
     for outcome in outcomes {
         let Some(line) = describe_outcome(outcome) else {
             continue;
@@ -259,7 +325,9 @@ fn stop_process_events(watch: &mut ApplicationWatch<'_>) {
     if let Some(socket) = watch.events.take()
         && let Err(error) = unsubscribe(&socket)
     {
-        log_line(&format!("the process-event subscription could not be ended: {error}"));
+        log_line(&format!(
+            "the process-event subscription could not be ended: {error}"
+        ));
     }
 }
 
@@ -277,11 +345,20 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
     match drain_result {
         Some(Ok(batch)) => {
             if batch.overrun {
-                watch.reporter.report_failure("process events dropped", &policy_failure("the kernel dropped process events; every process is rescanned now"));
+                watch.reporter.report_failure(
+                    "process events dropped",
+                    &policy_failure(
+                        "the kernel dropped process events; every process is rescanned now",
+                    ),
+                );
                 watch.rescan_pending = true;
             }
             for pid in batch.pids {
-                if (SignalPending { signals: &watch.signals }).stop_requested() {
+                if (SignalPending {
+                    signals: &watch.signals,
+                })
+                .stop_requested()
+                {
                     return;
                 }
                 let outcome = watch.routing.consider(pid);
@@ -300,7 +377,12 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
         None => {}
     }
     if rescan_due(watch.rescan_pending, watch.last_full_scan.elapsed()) {
-        let outcomes = watch.routing.rescan_with(&SystemClock, &SignalPending { signals: &watch.signals });
+        let outcomes = watch.routing.rescan_with(
+            &SystemClock,
+            &SignalPending {
+                signals: &watch.signals,
+            },
+        );
         report_outcomes(&mut watch.reporter, &outcomes);
         watch.last_full_scan = Instant::now();
         watch.rescan_pending = false;
@@ -321,7 +403,10 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
     let identity = watch.identity;
     match impostor_guard::spawn(identity.uid, identity.gid) {
         Ok(guard) => {
-            log_line(&format!("wg-quicker-exempt: guarding {} on the user's session bus", impostor_guard::MANAGER_BUS_NAME));
+            log_line(&format!(
+                "wg-quicker-exempt: guarding {} on the user's session bus",
+                impostor_guard::MANAGER_BUS_NAME
+            ));
             // Held by the watch until the watcher ends, and closed with the process if it is killed:
             // the guard ends when its input closes, so no guard outlives its watcher.
             watch.guard = Some(guard);

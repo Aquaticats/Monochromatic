@@ -232,7 +232,10 @@ impl XmlDocument {
     /// ```ts
     /// private data(id: XmlElementId): ElementData | undefined { return this.elements[id]; }
     /// ```
-    pub(crate) fn data(&self, id: XmlElementId) -> Option<&ElementData> {
+    pub(crate) fn data(
+        &self,
+        id: XmlElementId,
+    ) -> Option<&ElementData> {
         return self.elements.get(id.0);
     }
 
@@ -246,7 +249,10 @@ impl XmlDocument {
     /// ```ts
     /// name(id: XmlElementId): string | undefined;
     /// ```
-    pub fn name(&self, id: XmlElementId) -> Option<&str> {
+    pub fn name(
+        &self,
+        id: XmlElementId,
+    ) -> Option<&str> {
         let data: &ElementData = self.data(id)?;
         return Some(&self.source[data.name.start..data.name.end]);
     }
@@ -261,7 +267,10 @@ impl XmlDocument {
     /// ```ts
     /// parent(id: XmlElementId): XmlElementId | undefined;
     /// ```
-    pub fn parent(&self, id: XmlElementId) -> Option<XmlElementId> {
+    pub fn parent(
+        &self,
+        id: XmlElementId,
+    ) -> Option<XmlElementId> {
         let data: &ElementData = self.data(id)?;
         return data.parent;
     }
@@ -276,7 +285,10 @@ impl XmlDocument {
     /// ```ts
     /// children(id: XmlElementId): XmlElementId[];
     /// ```
-    pub fn children(&self, id: XmlElementId) -> &[XmlElementId] {
+    pub fn children(
+        &self,
+        id: XmlElementId,
+    ) -> &[XmlElementId] {
         if let Some(data) = self.data(id) {
             return &data.children;
         }
@@ -293,10 +305,20 @@ impl XmlDocument {
     /// ```ts
     /// span(id: XmlElementId): XmlSpan | undefined;
     /// ```
-    pub fn span(&self, id: XmlElementId) -> Option<XmlSpan> {
+    pub fn span(
+        &self,
+        id: XmlElementId,
+    ) -> Option<XmlSpan> {
         let data: &ElementData = self.data(id)?;
-        let end: usize = if let Some(end_tag) = data.end_tag { end_tag.end } else { data.start_tag.end };
-        return Some(XmlSpan { start: data.start_tag.start, end });
+        let end: usize = if let Some(end_tag) = data.end_tag {
+            end_tag.end
+        } else {
+            data.start_tag.end
+        };
+        return Some(XmlSpan {
+            start: data.start_tag.start,
+            end,
+        });
     }
 
     /// What:
@@ -309,7 +331,10 @@ impl XmlDocument {
     /// ```ts
     /// elementSource(id: XmlElementId): string | undefined;
     /// ```
-    pub fn element_source(&self, id: XmlElementId) -> Option<&str> {
+    pub fn element_source(
+        &self,
+        id: XmlElementId,
+    ) -> Option<&str> {
         let span: XmlSpan = self.span(id)?;
         return Some(&self.source[span.start..span.end]);
     }

@@ -3,7 +3,10 @@
 //!  digest checks,
 //!  and the messages for damage and absence.
 
-use super::{EmbeddedFile, EmbeddedRuntime};
+use super::{
+    EmbeddedFile,
+    EmbeddedRuntime,
+};
 use crate::content_digest::fnv1a;
 
 /// An intact table,

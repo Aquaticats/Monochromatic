@@ -5,10 +5,16 @@
 /// The key orders names exactly as the tree shows them.
 use ide_app::name_order::name_key;
 /// Native names include bytes that are not text.
-use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
+};
 
 /// Orders two names by their keys.
-fn by_name_key(left: &OsString, right: &OsString) -> std::cmp::Ordering {
+fn by_name_key(
+    left: &OsString,
+    right: &OsString,
+) -> std::cmp::Ordering {
     return name_key(left).cmp(&name_key(right));
 }
 

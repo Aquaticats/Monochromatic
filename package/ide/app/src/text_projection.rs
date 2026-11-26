@@ -11,7 +11,11 @@
 /// ```ts
 /// import { RopeSlice, nextGraphemeBoundary } from 'helix-core';
 /// ```
-use helix_core::{Rope, RopeSlice, graphemes::next_grapheme_boundary};
+use helix_core::{
+    Rope,
+    RopeSlice,
+    graphemes::next_grapheme_boundary,
+};
 
 /// What:
 ///  Longest line,
@@ -72,7 +76,10 @@ pub struct Projection {
 /// ```ts
 /// function caretStops(source: string, visible: number): number[];
 /// ```
-fn caret_stops(source: &str, visible: usize) -> Vec<usize> {
+fn caret_stops(
+    source: &str,
+    visible: usize,
+) -> Vec<usize> {
     return caret_stops_visiting(source, visible, IgnoreVisit);
 }
 
@@ -89,7 +96,11 @@ fn caret_stops(source: &str, visible: usize) -> Vec<usize> {
 /// ```
 trait StopVisitor {
     /// Look at the rope view and the position before the lookup.
-    fn visit(&mut self, slice: RopeSlice<'_>, position: usize);
+    fn visit(
+        &mut self,
+        slice: RopeSlice<'_>,
+        position: usize,
+    );
 }
 
 /// The visitor that looks at nothing,
@@ -99,7 +110,12 @@ struct IgnoreVisit;
 /// Looking at nothing is the whole job of this visitor.
 impl StopVisitor for IgnoreVisit {
     /// Ignore the lookup.
-    fn visit(&mut self, _slice: RopeSlice<'_>, _position: usize) {}
+    fn visit(
+        &mut self,
+        _slice: RopeSlice<'_>,
+        _position: usize,
+    ) {
+    }
 }
 
 /// What:
@@ -114,7 +130,11 @@ impl StopVisitor for IgnoreVisit {
 /// ```ts
 /// function caretStopsVisiting(source: string, visible: number, visitor: StopVisitor): number[];
 /// ```
-fn caret_stops_visiting(source: &str, visible: usize, mut visitor: impl StopVisitor) -> Vec<usize> {
+fn caret_stops_visiting(
+    source: &str,
+    visible: usize,
+    mut visitor: impl StopVisitor,
+) -> Vec<usize> {
     // What: `RopeSlice::from` views the borrowed string as rope text without copying it; a long line is copied
     //       into a rope first, which keeps it in chunks.
     // Why: Helix's grapheme functions take rope views, and the same functions move the keyboard caret.

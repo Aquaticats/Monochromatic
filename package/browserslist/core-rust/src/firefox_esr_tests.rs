@@ -22,11 +22,26 @@ fn accepts_the_published_shape() {
 #[test]
 fn rejects_other_shapes() {
     for raw in [
-        "", "esr", "153esr", "153.6esr", "153.6.0", "153.6.0ESR", "153.6.0.1esr", "153.6.0 esr", "1a.6.0esr",
-        "153..0esr", "-1.6.0esr", "153.6.0esr\n", "99999999999999999999999.0.0esr", "153.6.0b3",
+        "",
+        "esr",
+        "153esr",
+        "153.6esr",
+        "153.6.0",
+        "153.6.0ESR",
+        "153.6.0.1esr",
+        "153.6.0 esr",
+        "1a.6.0esr",
+        "153..0esr",
+        "-1.6.0esr",
+        "153.6.0esr\n",
+        "99999999999999999999999.0.0esr",
+        "153.6.0b3",
     ] {
         let message = parse_esr_major(raw).expect_err("rejected").to_string();
-        assert!(message.contains("<major>.<minor>.<patch>esr"), "{raw:?}: {message}");
+        assert!(
+            message.contains("<major>.<minor>.<patch>esr"),
+            "{raw:?}: {message}"
+        );
         assert!(message.contains(&format!("{raw:?}")), "{raw:?}: {message}");
     }
 }

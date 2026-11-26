@@ -19,7 +19,12 @@
 /// `DataLock`,
 /// `DataSource`,
 /// `render_browserslistrc` from `monochromatic_browserslist`.
-use monochromatic_browserslist::{BrowserslistError, DataLock, DataSource, render_browserslistrc};
+use monochromatic_browserslist::{
+    BrowserslistError,
+    DataLock,
+    DataSource,
+    render_browserslistrc,
+};
 /// Imports `RuleConfig` from `monochromatic_file_enforcer::config_types`.
 use monochromatic_file_enforcer::config_types::RuleConfig;
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
@@ -28,7 +33,12 @@ use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// `Rule`,
 /// `RuleBuilder`,
 /// `RulePlan` from `monochromatic_file_enforcer::rule`.
-use monochromatic_file_enforcer::rule::{Change, Rule, RuleBuilder, RulePlan};
+use monochromatic_file_enforcer::rule::{
+    Change,
+    Rule,
+    RuleBuilder,
+    RulePlan,
+};
 /// Imports `View` from `monochromatic_file_enforcer::view`.
 use monochromatic_file_enforcer::view::View;
 /// Imports `Arc` from `std::sync`.
@@ -49,7 +59,11 @@ use std::sync::Arc;
 /// ```
 pub trait TargetRenderer: Send + Sync {
     /// Render the resolved targets as the exact text of the output file.
-    fn render(&self, config_text: &str, lock_text: &str) -> Result<String, BrowserslistError>;
+    fn render(
+        &self,
+        config_text: &str,
+        lock_text: &str,
+    ) -> Result<String, BrowserslistError>;
 }
 
 /// What:
@@ -70,7 +84,11 @@ impl TargetRenderer for PinnedCacheRenderer {
     /// Parse the lock,
     /// open the user cache,
     /// and render.
-    fn render(&self, config_text: &str, lock_text: &str) -> Result<String, BrowserslistError> {
+    fn render(
+        &self,
+        config_text: &str,
+        lock_text: &str,
+    ) -> Result<String, BrowserslistError> {
         let lock = DataLock::from_json(lock_text)?;
         let source = DataSource::user_default()?;
         return render_browserslistrc(config_text, &lock, &source);
@@ -97,13 +115,17 @@ impl BrowserslistBuilder {
     /// The builder the command line registers:
     /// pinned data from the user cache.
     pub fn production() -> BrowserslistBuilder {
-        return BrowserslistBuilder { renderer: Arc::new(PinnedCacheRenderer) };
+        return BrowserslistBuilder {
+            renderer: Arc::new(PinnedCacheRenderer),
+        };
     }
 
     /// A builder over another renderer,
     /// for tests and for tools that bring their own data.
     pub fn with_renderer(renderer: Arc<dyn TargetRenderer>) -> BrowserslistBuilder {
-        return BrowserslistBuilder { renderer };
+        return BrowserslistBuilder {
+            renderer,
+        };
     }
 }
 
@@ -111,9 +133,18 @@ impl BrowserslistBuilder {
 impl RuleBuilder for BrowserslistBuilder {
     /// Build the rule,
     /// or explain that the entry is another kind.
-    fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
+    fn build(
+        &self,
+        config: &RuleConfig,
+    ) -> Result<Box<dyn Rule>, Diagnostic> {
         match config {
-            RuleConfig::Browserslist { id, source, output, lock, environment } => {
+            RuleConfig::Browserslist {
+                id,
+                source,
+                output,
+                lock,
+                environment,
+            } => {
                 return Ok(Box::new(BrowserslistRule {
                     id: id.clone(),
                     source: source.clone(),
@@ -124,7 +155,10 @@ impl RuleBuilder for BrowserslistBuilder {
                 }));
             }
             other => {
-                let message = format!("the browserslist builder was given a rule of kind {}", other.kind());
+                let message = format!(
+                    "the browserslist builder was given a rule of kind {}",
+                    other.kind()
+                );
                 return Err(Diagnostic::new("kind-unknown", &message).with_rule(other.id()));
             }
         }
@@ -170,30 +204,59 @@ pub struct BrowserslistRule {
 /// ```ts
 /// function diagnose(error: BrowserslistError, rule: BrowserslistRule): Diagnostic
 /// ```
-fn diagnose(error: &BrowserslistError, rule: &BrowserslistRule) -> Diagnostic {
+fn diagnose(
+    error: &BrowserslistError,
+    rule: &BrowserslistRule,
+) -> Diagnostic {
     let message = format!("rule {}: {error}", rule.id);
     let environment = rule.environment.as_deref().unwrap_or("none");
     match error {
-        BrowserslistError::NotImplemented { .. } => {
+        BrowserslistError::NotImplemented {
+            ..
+        } => {
             let hint = format!(
                 "only the query lines listed in package/browserslist/core-rust/README.md are supported; edit {} (environment: {environment})",
                 rule.source
             );
-            return Diagnostic::new("browserslist-not-implemented", &message).with_hint(&hint).with_path(&rule.source).with_rule(&rule.id);
+            return Diagnostic::new("browserslist-not-implemented", &message)
+                .with_hint(&hint)
+                .with_path(&rule.source)
+                .with_rule(&rule.id);
         }
-        BrowserslistError::Browserslist { .. } => {
-            return Diagnostic::new("browserslist-query-failed", &message).with_path(&rule.source).with_rule(&rule.id);
+        BrowserslistError::Browserslist {
+            ..
+        } => {
+            return Diagnostic::new("browserslist-query-failed", &message)
+                .with_path(&rule.source)
+                .with_rule(&rule.id);
         }
-        BrowserslistError::Network { .. } => {
+        BrowserslistError::Network {
+            ..
+        } => {
             let hint = "the pinned tarballs are fetched once into the user cache; connect to the network and rerun";
-            return Diagnostic::new("browserslist-fetch-failed", &message).with_hint(hint).with_path(&rule.lock).with_rule(&rule.id);
+            return Diagnostic::new("browserslist-fetch-failed", &message)
+                .with_hint(hint)
+                .with_path(&rule.lock)
+                .with_rule(&rule.id);
         }
-        BrowserslistError::Integrity { .. } => {
+        BrowserslistError::Integrity {
+            ..
+        } => {
             let hint = "the downloaded bytes do not match the lock; rerun, or regenerate the lock with the browserslist update task";
-            return Diagnostic::new("browserslist-integrity-mismatch", &message).with_hint(hint).with_path(&rule.lock).with_rule(&rule.id);
+            return Diagnostic::new("browserslist-integrity-mismatch", &message)
+                .with_hint(hint)
+                .with_path(&rule.lock)
+                .with_rule(&rule.id);
         }
-        BrowserslistError::Data { .. } | BrowserslistError::Io { .. } => {
-            return Diagnostic::new("browserslist-data-failed", &message).with_path(&rule.lock).with_rule(&rule.id);
+        BrowserslistError::Data {
+            ..
+        }
+        | BrowserslistError::Io {
+            ..
+        } => {
+            return Diagnostic::new("browserslist-data-failed", &message)
+                .with_path(&rule.lock)
+                .with_rule(&rule.id);
         }
     }
 }
@@ -212,12 +275,19 @@ impl BrowserslistRule {
     /// ```ts
     /// requireText(view: View, path: string, what: string): string
     /// ```
-    fn require_text(&self, view: &mut View, path: &str, what: &str) -> Result<String, Diagnostic> {
+    fn require_text(
+        &self,
+        view: &mut View,
+        path: &str,
+        what: &str,
+    ) -> Result<String, Diagnostic> {
         match view.read_text(path)? {
             Some(text) => return Ok(text),
             None => {
                 let message = format!("rule {}: the {what} {path} does not exist", self.id);
-                return Err(Diagnostic::new("browserslist-input-missing", &message).with_path(path).with_rule(&self.id));
+                return Err(Diagnostic::new("browserslist-input-missing", &message)
+                    .with_path(path)
+                    .with_rule(&self.id));
             }
         }
     }
@@ -246,15 +316,25 @@ impl Rule for BrowserslistRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let config_text = self.require_text(view, &self.source, "query file")?;
         let lock_text = self.require_text(view, &self.lock, "data lock")?;
         let rendered = match self.renderer.render(&config_text, &lock_text) {
             Ok(text) => text,
             Err(error) => return Err(diagnose(&error, self)),
         };
-        let change = Change::Write { path: self.output.clone(), content: rendered.into_bytes(), mode: None };
-        return Ok(RulePlan { changes: vec![change], warnings: Vec::new() });
+        let change = Change::Write {
+            path: self.output.clone(),
+            content: rendered.into_bytes(),
+            mode: None,
+        };
+        return Ok(RulePlan {
+            changes: vec![change],
+            warnings: Vec::new(),
+        });
     }
 }
 

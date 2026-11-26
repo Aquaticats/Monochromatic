@@ -33,7 +33,13 @@
 ///   word_set,
 /// } from "crate/charset";
 /// ```
-use crate::charset::{ByteSet, digit_set, singleton, space_set, word_set};
+use crate::charset::{
+    ByteSet,
+    digit_set,
+    singleton,
+    space_set,
+    word_set,
+};
 
 /// What:
 ///     Imports the node algebra produced by an atom-position escape.
@@ -173,7 +179,10 @@ pub enum EscapeResult {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn parse_escape(cur: &mut Cursor, in_class: bool) -> Result<EscapeResult, CompileError> {
+pub fn parse_escape(
+    cur: &mut Cursor,
+    in_class: bool,
+) -> Result<EscapeResult, CompileError> {
     let pos = cur.pos();
     cur.bump();
     // What: read the escaped byte; a dangling backslash is an error.
@@ -200,10 +209,11 @@ pub fn parse_escape(cur: &mut Cursor, in_class: bool) -> Result<EscapeResult, Co
             if in_class {
                 return Err(CompileError::Syntax {
                     pos,
-                    message: "\\b (word boundary) is not allowed inside a character class".to_string(),
-                })
+                    message: "\\b (word boundary) is not allowed inside a character class"
+                        .to_string(),
+                });
             } else {
-                return Ok(EscapeResult::Boundary)
+                return Ok(EscapeResult::Boundary);
             }
         }
         b'd' => return Ok(EscapeResult::Set(digit_set())),
@@ -222,10 +232,12 @@ pub fn parse_escape(cur: &mut Cursor, in_class: bool) -> Result<EscapeResult, Co
         // // Same step as the Rust statement below, written with ordinary TS objects/functions.
         // ```
         byte if byte.is_ascii_whitespace() => return Ok(EscapeResult::Byte(byte)),
-        _ => return Err(CompileError::Syntax {
-            pos,
-            message: format!("unsupported escape \\{}", e as char),
-        }),
+        _ => {
+            return Err(CompileError::Syntax {
+                pos,
+                message: format!("unsupported escape \\{}", e as char),
+            });
+        }
     }
 }
 

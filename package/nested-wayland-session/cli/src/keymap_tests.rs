@@ -7,7 +7,11 @@
 // describe("keymap", () => { /* cases below */ });
 // ```
 
-use super::{char_to_key, named_key, LEFT_SHIFT};
+use super::{
+    LEFT_SHIFT,
+    char_to_key,
+    named_key,
+};
 
 #[test]
 fn letters_share_a_code_and_case_sets_shift() {

@@ -3,10 +3,16 @@
 /// Parent state owns the document and the currently displayed tile;
 ///  `rows` holds the map-based scroll rules.
 use super::{
-    AppWindow, State, gpu_tile,
+    AppWindow,
+    State,
+    gpu_tile,
     minimap::forget_unless,
-    render, rows,
-    tile::{self, TileBounds},
+    render,
+    rows,
+    tile::{
+        self,
+        TileBounds,
+    },
     wheel,
 };
 /// The side of a soft-wrap offset a position is read on.
@@ -34,7 +40,11 @@ use ide_app::wrap::has_wrap_width;
 use slint::ComponentHandle;
 /// Checked shared ownership remains confined to the UI thread,
 /// and the system clock times the scroll steps.
-use std::{cell::RefCell, rc::Rc, time::Instant};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Instant,
+};
 
 /// What:
 ///  The materialized tile spans this many view heights:
@@ -95,7 +105,12 @@ const TILE_SPARE_LINES: usize = 2;
 /// ```ts
 /// function holds(current: State, bounds: TileBounds, view: number, height: number): boolean;
 /// ```
-pub(super) fn holds(current: &State, bounds: TileBounds, view: f32, height: f32) -> bool {
+pub(super) fn holds(
+    current: &State,
+    bounds: TileBounds,
+    view: f32,
+    height: f32,
+) -> bool {
     let lines = current.document.text().len_lines();
     let edge = recenter_edge(bounds.width, current.scale, height);
     let end = (bounds.first + bounds.count).min(lines);
@@ -130,7 +145,11 @@ pub(super) fn holds(current: &State, bounds: TileBounds, view: f32, height: f32)
 ///   return Math.min(RECENTER_EDGE_VIEWS * height, (tileCap(width, scale) - height) / 2 - 2 * CODE_ROW);
 /// }
 /// ```
-fn recenter_edge(width: f32, scale: f32, height: f32) -> f32 {
+fn recenter_edge(
+    width: f32,
+    scale: f32,
+    height: f32,
+) -> f32 {
     let room = (render::tile_cap(width, scale, height) - height) / 2.0 - 2.0 * CODE_ROW;
     return (RECENTER_EDGE_VIEWS * height).min(room);
 }
@@ -149,7 +168,11 @@ fn recenter_edge(width: f32, scale: f32, height: f32) -> f32 {
 /// ```ts
 /// function tileEdges(current: State, bounds: TileBounds, end: number): [top: number, bottom: number];
 /// ```
-pub(super) fn tile_edges(current: &State, bounds: TileBounds, end: usize) -> (f32, f32) {
+pub(super) fn tile_edges(
+    current: &State,
+    bounds: TileBounds,
+    end: usize,
+) -> (f32, f32) {
     let first_top = current.row_map.block_top(bounds.first);
     return match bounds.clip {
         Some(clip) => (first_top + clip.top, first_top + clip.bottom),
@@ -254,7 +277,11 @@ pub(super) fn wrap_width(viewport_width: f32) -> Option<f32> {
 /// ```ts
 /// function noteView(current: State, offset: number, viewportWidth: number): [width: number, view: number];
 /// ```
-pub(super) fn note_view(current: &mut State, offset: f32, viewport_width: f32) -> (f32, f32) {
+pub(super) fn note_view(
+    current: &mut State,
+    offset: f32,
+    viewport_width: f32,
+) -> (f32, f32) {
     // What: The map names the line at the view's top edge; `as usize` truncates a non-negative float to an
     //       address-sized index (sibling `u32`).
     // Why: Row indices address rope lines, whose interfaces use `usize`. Every line takes at least one code
@@ -307,7 +334,12 @@ pub(super) fn note_view(current: &mut State, offset: f32, viewport_width: f32) -
 /// ```ts
 /// function place(current: State, offset: number, width: number, height: number): boolean;
 /// ```
-pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, height: f32) -> bool {
+pub(super) fn place(
+    current: &mut State,
+    offset: f32,
+    viewport_width: f32,
+    height: f32,
+) -> bool {
     // A placement ends any wheel ease the window was following: the view is set, not eased.
     wheel::release(current);
     // Any placement supersedes a scroll re-center still waiting for the worker; `place_scrolled` sets it again.
@@ -348,7 +380,12 @@ pub(super) fn place(current: &mut State, offset: f32, viewport_width: f32, heigh
 /// ```ts
 /// function requestWindow(current: State, view: number, width: number, height: number): void;
 /// ```
-pub(super) fn request_window(current: &mut State, view: f32, width: f32, height: f32) {
+pub(super) fn request_window(
+    current: &mut State,
+    view: f32,
+    width: f32,
+    height: f32,
+) {
     let tile_start = view + height * 0.5 - height * TILE_VIEWS * 0.5;
     let tile_end = view + height * 0.5 + height * TILE_VIEWS * 0.5;
     let first = current.row_map.line_at(tile_start.max(0.0));
@@ -376,7 +413,11 @@ pub(super) fn request_window(current: &mut State, view: f32, width: f32, height:
 /// ```ts
 /// function clipFor(current: State, band: [top: number, bottom: number], view: number): Clip | undefined;
 /// ```
-fn clip_for(current: &State, band: (f32, f32), view: f32) -> Option<Clip> {
+fn clip_for(
+    current: &State,
+    band: (f32, f32),
+    view: f32,
+) -> Option<Clip> {
     let lines = current.document.text().len_lines();
     let end = (current.first + current.count).min(lines);
     let first_top = current.row_map.block_top(current.first);
@@ -441,7 +482,10 @@ pub(super) fn place_scrolled(
 
 /// Retain pixel scrolling;
 ///  update the raster only at viewport tile boundaries and when the wrap width changes.
-pub(super) fn bind_viewport(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
+pub(super) fn bind_viewport(
+    owner: &AppWindow,
+    shared: &Rc<RefCell<State>>,
+) {
     // The code view is drawn on the GPU, by the window's one rendering notifier.
     gpu_tile::bind(owner, &shared.borrow().gpu);
     // What: `Rc::clone` copies the pointer to the shared state; `as_weak` does not keep the window alive.
@@ -538,7 +582,12 @@ pub(super) fn bind_viewport(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
 /// ```ts
 /// function rowsDown(current: State, position: number, affinity: ReadingAffinity, scale: number): number;
 /// ```
-fn rows_down(current: &mut State, position: usize, affinity: ReadingAffinity, scale: f32) -> usize {
+fn rows_down(
+    current: &mut State,
+    position: usize,
+    affinity: ReadingAffinity,
+    scale: f32,
+) -> usize {
     let line = current
         .document
         .text()
@@ -580,7 +629,11 @@ fn rows_down(current: &mut State, position: usize, affinity: ReadingAffinity, sc
 /// ```ts
 /// function follow(window: AppWindow, state: Shared<State>, paged: number): void;
 /// ```
-pub(super) fn follow(window: &AppWindow, state: &Rc<RefCell<State>>, paged: f32) {
+pub(super) fn follow(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    paged: f32,
+) {
     let height = window.get_viewport_height();
     let width = window.get_viewport_width();
     let before = -window.get_scroll_y();
@@ -613,7 +666,12 @@ pub(super) fn follow(window: &AppWindow, state: &Rc<RefCell<State>>, paged: f32)
 /// Offsets are assigned directly,
 ///  like other programmatic reveals;
 ///  native wheel easing is unaffected.
-pub(super) fn reveal(window: &AppWindow, state: &Rc<RefCell<State>>, start: usize, end: usize) {
+pub(super) fn reveal(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    start: usize,
+    end: usize,
+) {
     let height = window.get_viewport_height();
     let width = window.get_viewport_width();
     let before = -window.get_scroll_y();

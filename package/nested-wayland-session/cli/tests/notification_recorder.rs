@@ -8,7 +8,8 @@ use std::process::Command;
 ///  and the recorder returns the command's exit status.
 #[test]
 fn a_notification_sent_by_the_command_is_logged_and_the_exit_status_is_kept() {
-    let directory = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("nws-recorder-{}", std::process::id()));
+    let directory = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("nws-recorder-{}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("make the scratch folder");
     let log = directory.join("log.txt");
     let status = Command::new(env!("CARGO_BIN_EXE_monochromatic-nested-wayland-session-notification-recorder"))
@@ -28,7 +29,11 @@ fn a_notification_sent_by_the_command_is_logged_and_the_exit_status_is_kept() {
         .env_remove("DBUS_SESSION_BUS_ADDRESS")
         .status()
         .expect("run the recorder");
-    assert_eq!(status.code(), Some(7), "the command's exit status is the recorder's");
+    assert_eq!(
+        status.code(),
+        Some(7),
+        "the command's exit status is the recorder's"
+    );
     let text = std::fs::read_to_string(&log).expect("the log file exists");
     assert!(text.starts_with("1 "), "one record: {text}");
     assert!(text.contains("Daily%20update%20needs%20a%20look"), "{text}");
@@ -39,12 +44,21 @@ fn a_notification_sent_by_the_command_is_logged_and_the_exit_status_is_kept() {
 /// A missing `--log` or command is refused before any bus starts.
 #[test]
 fn a_missing_log_or_command_is_a_usage_error() {
-    for arguments in [vec!["--", "true"], vec!["--log", "x"], vec!["--log", "x", "--"]] {
-        let output = Command::new(env!("CARGO_BIN_EXE_monochromatic-nested-wayland-session-notification-recorder"))
-            .args(&arguments)
-            .output()
-            .expect("run the recorder");
+    for arguments in [
+        vec!["--", "true"],
+        vec!["--log", "x"],
+        vec!["--log", "x", "--"],
+    ] {
+        let output = Command::new(env!(
+            "CARGO_BIN_EXE_monochromatic-nested-wayland-session-notification-recorder"
+        ))
+        .args(&arguments)
+        .output()
+        .expect("run the recorder");
         assert!(!output.status.success(), "{arguments:?}");
-        assert!(String::from_utf8_lossy(&output.stderr).contains("usage:"), "{arguments:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("usage:"),
+            "{arguments:?}"
+        );
     }
 }

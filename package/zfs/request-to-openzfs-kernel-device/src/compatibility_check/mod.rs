@@ -73,12 +73,18 @@
 //! if (!verdict.compatible) rawRequestsDisabled(verdict.refusal);
 //! ```
 
-/// The step a refusal names.
-mod refusal;
 /// The one bounded read of a file root controls.
 mod bounded_read;
 /// The type information's header and its sections.
 mod btf_header;
+/// The one adapter that reads the two files with `btf-rs` 2.0.1.
+mod btf_rs_declaration;
+/// The entry point the root-run handler calls.
+mod check_module_layout;
+/// The walk that compares the module's declaration with the expectation.
+mod comparison;
+/// The request numbers compared with the module's `enum zfs_ioc`.
+mod comparison_requests;
 /// The reader-neutral declaration everything after it reads.
 mod declaration;
 /// The layout this crate's type compiles.
@@ -87,25 +93,45 @@ mod expectations;
 mod expected_requests;
 /// The one difference value both walks return.
 mod mismatch;
-/// The walk that compares the module's declaration with the expectation.
-mod comparison;
-/// The request numbers compared with the module's `enum zfs_ioc`.
-mod comparison_requests;
-/// The one adapter that reads the two files with `btf-rs` 2.0.1.
-mod btf_rs_declaration;
-/// The entry point the root-run handler calls.
-mod check_module_layout;
+/// The step a refusal names.
+mod refusal;
 
-/// The step a refusal names,
-/// its file and its detail.
-pub use refusal::{Refusal, Step};
 /// The page,
 /// base and module bounds one read accepts.
-pub use bounded_read::{BASE_BTF_BOUND, IDENTITY_FILE_BOUND, MODULE_BTF_BOUND};
+pub use bounded_read::{
+    BASE_BTF_BOUND,
+    IDENTITY_FILE_BOUND,
+    MODULE_BTF_BOUND,
+};
 /// The entry point,
 /// the two files it reads and what a pass reports.
-pub use check_module_layout::{Compatible, LayoutRequest, check_module_layout};
+pub use check_module_layout::{
+    Compatible,
+    LayoutRequest,
+    check_module_layout,
+};
+/// The step a refusal names,
+/// its file and its detail.
+pub use refusal::{
+    Refusal,
+    Step,
+};
 
+/// The approved module's declaration,
+/// written as data a test can move one field in.
+#[cfg(test)]
+mod approved_module_fixture;
+/// The approved module's member tables,
+/// and the one change a control makes in them.
+#[cfg(test)]
+mod approved_module_member_fixture;
+/// The pair that types and names one member from a base file.
+#[cfg(test)]
+mod base_file_fixture;
+/// The BTF bytes one test starts from,
+/// built by a writer of this folder's own.
+#[cfg(test)]
+mod blob_fixture;
 /// The bounded read's own decisions.
 #[cfg(test)]
 #[path = "bounded_read_tests.rs"]
@@ -118,10 +144,6 @@ mod btf_header_tests;
 #[cfg(test)]
 #[path = "btf_rs_declaration_tests.rs"]
 mod btf_rs_declaration_tests;
-/// The expectation table's own checks.
-#[cfg(test)]
-#[path = "expectations_tests.rs"]
-mod expectations_tests;
 /// The comparison's decisions and refusals.
 #[cfg(test)]
 #[path = "comparison_tests.rs"]
@@ -130,27 +152,16 @@ mod comparison_tests;
 #[cfg(test)]
 #[path = "declaration_contract_tests.rs"]
 mod declaration_contract_tests;
+/// The expectation table's own checks.
+#[cfg(test)]
+#[path = "expectations_tests.rs"]
+mod expectations_tests;
+/// The gate's one live arm in the throwaway guest.
+#[cfg(test)]
+#[path = "live_gate_tests.rs"]
+mod live_gate_tests;
 /// The entry point's files,
 /// bounds and pass.
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
-/// The BTF bytes one test starts from,
-/// built by a writer of this folder's own.
-#[cfg(test)]
-mod blob_fixture;
-/// The approved module's member tables,
-/// and the one change a control makes in them.
-#[cfg(test)]
-mod approved_module_member_fixture;
-/// The approved module's declaration,
-/// written as data a test can move one field in.
-#[cfg(test)]
-mod approved_module_fixture;
-/// The pair that types and names one member from a base file.
-#[cfg(test)]
-mod base_file_fixture;
-/// The gate's one live arm in the throwaway guest.
-#[cfg(test)]
-#[path = "live_gate_tests.rs"]
-mod live_gate_tests;

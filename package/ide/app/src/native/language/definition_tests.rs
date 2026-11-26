@@ -2,17 +2,38 @@
 
 /// Fixtures and real key and pointer events.
 use super::test_support::{
-    LanguageReader, address, caret, caret_x, click, control_click, definition, definitions, escape,
-    head, location, point, project, reader, ready,
+    LanguageReader,
+    address,
+    caret,
+    caret_x,
+    click,
+    control_click,
+    definition,
+    definitions,
+    escape,
+    head,
+    location,
+    point,
+    project,
+    reader,
+    ready,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Key events for the list and a tree-row lookup shared with the navigation tests.
-use crate::native::{find_tests::key, navigation_tests::row};
+use crate::native::{
+    find_tests::key,
+    navigation_tests::row,
+};
 /// Toolkit models,
 ///  encoded keys,
 ///  and window handles.
-use slint::{LogicalPosition, Model, SharedString, platform::Key};
+use slint::{
+    LogicalPosition,
+    Model,
+    SharedString,
+    platform::Key,
+};
 
 /// One hundred and twenty lines of 13 characters plus a newline:
 ///  `line 007 word`.
@@ -25,18 +46,27 @@ fn numbered() -> String {
 }
 
 /// Character offset of `column` on `line` of `numbered()`.
-fn at(line: usize, column: usize) -> usize {
+fn at(
+    line: usize,
+    column: usize,
+) -> usize {
     return line * 14 + column;
 }
 
 /// The label of list row `index`.
-fn label(reader: &LanguageReader, index: usize) -> String {
+fn label(
+    reader: &LanguageReader,
+    index: usize,
+) -> String {
     let rows = reader.window.get_references_entries();
     return rows.row_data(index).expect("list row").label.to_string();
 }
 
 /// Tree badge of the row labelled `name`.
-fn badge(reader: &LanguageReader, name: &str) -> String {
+fn badge(
+    reader: &LanguageReader,
+    name: &str,
+) -> String {
     let index = row(&reader.window, name).expect("tree row") as usize;
     let rows = reader.window.get_tree_entries();
     return rows

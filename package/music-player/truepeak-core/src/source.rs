@@ -137,7 +137,7 @@ impl AudioSpec {
         // ```ts
         // return Number.isFinite(this.durationSecs) && this.durationSecs > 0;
         // ```
-        return self.duration_secs.is_finite() && self.duration_secs > 0.0
+        return self.duration_secs.is_finite() && self.duration_secs > 0.0;
     }
 }
 
@@ -236,7 +236,10 @@ pub trait TruePeakSource: Send {
     /// ```ts
     /// seekToFrame(frame: number): void; // exact landing; throws on seek error
     /// ```
-    fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError>;
+    fn seek_to_frame(
+        &mut self,
+        frame: u64,
+    ) -> Result<(), TruePeakError>;
 }
 
 /// What:

@@ -42,7 +42,10 @@ use std::collections::HashSet;
 /// borrowed and owned.
 /// Why:
 ///       The sweep hands owned paths to its reports and borrows them while it decodes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `use std::sync::Arc;`.
@@ -50,14 +53,20 @@ use std::path::{Path, PathBuf};
 /// Why:
 ///       Every worker reads the same track list,
 /// cursor and snapshot.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// What:
 ///      `use std::sync::atomic::{AtomicUsize, Ordering};`.
 ///  The shared cursor and visit counter.
 /// Why:
 ///       Workers claim tracks and count visits without a lock.
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// What:
 ///      `use std::thread;` and `use std::time::{Duration, Instant};`.
@@ -66,7 +75,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 ///       Progress is reported at most every quarter second so the window is not flooded.
 use std::thread;
 /// Imports the duration and instant types that time the sweep's progress reports.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///      `use crate::measure_peek::peek_measures;` and `use crate::peakcache::{self, CacheHandle};`.
@@ -76,21 +88,31 @@ use std::time::{Duration, Instant};
 /// and its fingerprints come from the peak cache module.
 use crate::measure_peek::peek_measures;
 /// Imports the peak cache module and its handle that the sweep reads and writes.
-use crate::peakcache::{self, CacheHandle};
+use crate::peakcache::{
+    self,
+    CacheHandle,
+};
 
 /// What:
 ///      `use crate::sweep_gate::{Admission, SweepGate};`.
 ///  The pause gate and its answer.
 /// Why:
 ///       Each worker passes the gate before it claims a track (D107).
-use crate::sweep_gate::{Admission, SweepGate};
+use crate::sweep_gate::{
+    Admission,
+    SweepGate,
+};
 
 /// What:
 ///      `use crate::sweep_report::{SweepJob, SweepReport, SweepSink};`.
 ///  The job the controller starts and the reports the sweep sends back.
 /// Why:
 ///       One job description keeps the spawn signature small.
-use crate::sweep_report::{SweepJob, SweepReport, SweepSink};
+use crate::sweep_report::{
+    SweepJob,
+    SweepReport,
+    SweepSink,
+};
 
 /// What:
 ///      `use crate::track_measure::{TrackMeasure, measure_from_decision};`.
@@ -100,7 +122,10 @@ use crate::sweep_report::{SweepJob, SweepReport, SweepSink};
 /// and the window needs its length and peak.
 use crate::duration_probe::probe_duration_secs;
 /// Imports the conversions from a decision or a duration to a track measure.
-use crate::track_measure::{measure_from_decision, measure_from_duration};
+use crate::track_measure::{
+    measure_from_decision,
+    measure_from_duration,
+};
 
 /// What:
 ///      `use crate::truepeak::resolve_full;`.
@@ -170,12 +195,16 @@ pub(crate) fn spawn_queue_measurement(job: SweepJob) {
                 reason = "std::panic::catch_unwind takes only a callable that passes no argument to its body, so the job the sweep runs must be captured; catch_unwind is the only way to turn a panic of the sweep into a value"
             )
         )]
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return run_sweep(job)));
+        let outcome =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return run_sweep(job)));
         if outcome.is_err() {
             tracing::error!(generation, "the sweep coordinator panicked");
         }
         if let Some(id) = refresh_id {
-            sink(SweepReport::RefreshDone { generation, id });
+            sink(SweepReport::RefreshDone {
+                generation,
+                id,
+            });
         }
     });
 }
@@ -288,7 +317,11 @@ fn run_sweep(job: SweepJob) {
         cursor: AtomicUsize::new(0),
         visited: AtomicUsize::new(0),
         cache: job.cache.clone(),
-        known: if job.listed { HashSet::new() } else { job.cache.known_fingerprints() },
+        known: if job.listed {
+            HashSet::new()
+        } else {
+            job.cache.known_fingerprints()
+        },
         sink: Arc::clone(&job.sink),
         generation: job.generation,
         gate: Arc::clone(&job.gate),
@@ -315,7 +348,12 @@ fn run_sweep(job: SweepJob) {
     // const workers = workerCount(total);
     // ```
     let workers = worker_count(total);
-    tracing::info!(tracks = total, workers, generation = job.generation, "warming sweep started");
+    tracing::info!(
+        tracks = total,
+        workers,
+        generation = job.generation,
+        "warming sweep started"
+    );
     // What:     The loop below starts `workers` threads, each with its own clone of the shared state, and keeps
     //           their join handles.
     // Why:      Every worker shares the same `SweepShared`.
@@ -366,7 +404,10 @@ fn run_sweep(job: SweepJob) {
 /// ```ts
 /// function reportPeekedMeasures(job: SweepJob): void { for (const chunk of chunks(job.tracks)) job.sink(peekMeasures(chunk)); }
 /// ```
-fn report_peeked_measures(tracks: &[PathBuf], job: &SweepJob) {
+fn report_peeked_measures(
+    tracks: &[PathBuf],
+    job: &SweepJob,
+) {
     for chunk in tracks.chunks(MEASURE_REPORT_CHUNK) {
         let measures = peek_measures(chunk, &job.cache);
         (job.sink)(SweepReport::Measures {
@@ -386,14 +427,16 @@ fn report_peeked_measures(tracks: &[PathBuf], job: &SweepJob) {
 /// ```ts
 /// const reportProgress = (shared: SweepShared, done: number) => shared.sink({ kind: "progress", done, total: shared.tracks.length });
 /// ```
-fn report_progress(shared: &SweepShared, done: usize) {
+fn report_progress(
+    shared: &SweepShared,
+    done: usize,
+) {
     (shared.sink)(SweepReport::Progress {
         generation: shared.generation,
         done,
         total: shared.tracks.len(),
     });
 }
-
 
 /// What:
 ///      `#[cfg(target_os = "linux")] fn lower_current_thread_to_idle()`.
@@ -446,7 +489,8 @@ fn lower_current_thread_to_idle() {
     // ```ts
     // const result = schedSetscheduler(0, SCHED_IDLE, param);
     // ```
-    let result = unsafe { libc::syscall(libc::SYS_sched_setscheduler, 0, libc::SCHED_IDLE, &param) };
+    let result =
+        unsafe { libc::syscall(libc::SYS_sched_setscheduler, 0, libc::SCHED_IDLE, &param) };
     // What:     `if result != 0 { eprintln!(...); }`. On failure, log and carry on.
     // Why:      Best-effort: a failure just means the sweep runs at normal priority, which
     //           is still correct, only less polite. Never abort the sweep.
@@ -511,7 +555,9 @@ fn lower_current_thread_to_idle() {
     // if (result !== 0) console.error("music-player: could not lower sweep thread");
     // ```
     if result != 0 {
-        tracing::warn!("could not lower sweep thread to background QoS; running at normal priority");
+        tracing::warn!(
+            "could not lower sweep thread to background QoS; running at normal priority"
+        );
     }
 }
 
@@ -550,7 +596,9 @@ fn lower_current_thread_to_idle() {
     /// import { GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_IDLE } from "windows";
     /// ```
     use windows::Win32::System::Threading::{
-        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_IDLE,
+        GetCurrentThread,
+        SetThreadPriority,
+        THREAD_PRIORITY_IDLE,
     };
     // What:     `let handle = unsafe { GetCurrentThread() };`. Get a PSEUDO-HANDLE to the
     //           current thread: a special constant that always means "this thread" and never
@@ -648,7 +696,7 @@ fn worker_count(track_count: usize) -> usize {
     // ```ts
     // return Math.min(cores, trackCount);
     // ```
-    return cores.min(track_count)
+    return cores.min(track_count);
 }
 
 /// What:
@@ -686,7 +734,10 @@ fn run_worker(shared: Arc<SweepShared>) {
         // Why:      D107: a pause stops new claims, a track already claimed finishes, and a resume wakes parked
         //           workers. Closing the gate at shutdown releases them so the sweep's joins cannot hang.
         if shared.gate.admit() == Admission::Stop {
-            tracing::info!(generation = shared.generation, "warming worker stops: the sweep gate is closed");
+            tracing::info!(
+                generation = shared.generation,
+                "warming worker stops: the sweep gate is closed"
+            );
             break;
         }
         // What:     claim the next index; stop when the cursor is past the end.
@@ -729,7 +780,10 @@ fn run_worker(shared: Arc<SweepShared>) {
 /// ```ts
 /// function measureOne(path: string, shared: SweepShared): void { ... }
 /// ```
-fn measure_one(path: &Path, shared: &SweepShared) {
+fn measure_one(
+    path: &Path,
+    shared: &SweepShared,
+) {
     // What:     `let Some(key) = peakcache::fingerprint(path) else { ... };`. Key the track.
     // Why:      A file without a fingerprint cannot be cached, so there is nothing to store.
     //
@@ -789,7 +843,10 @@ fn measure_one(path: &Path, shared: &SweepShared) {
             }
             (shared.sink)(SweepReport::Measures {
                 generation: shared.generation,
-                measures: vec![(path.to_path_buf(), measure_from_duration(probe_duration_secs(path)))],
+                measures: vec![(
+                    path.to_path_buf(),
+                    measure_from_duration(probe_duration_secs(path)),
+                )],
             });
             return;
         }
@@ -815,7 +872,10 @@ fn measure_one(path: &Path, shared: &SweepShared) {
 /// ```ts
 /// function alreadyExact(shared: SweepShared, key: bigint): boolean { return shared.listed ? cache.get(key)?.kind !== "probe" && cache.get(key) !== null : shared.known.has(key); }
 /// ```
-fn already_exact(shared: &SweepShared, key: u64) -> bool {
+fn already_exact(
+    shared: &SweepShared,
+    key: u64,
+) -> bool {
     if shared.listed {
         return match shared.cache.get(key) {
             Some(decision) => decision.kind != DecisionKind::ProbeEstimate,
@@ -839,7 +899,10 @@ fn already_exact(shared: &SweepShared, key: u64) -> bool {
 /// ```ts
 /// function claim(shared: SweepShared, key: bigint): boolean { if (shared.claims.has(key)) return false; shared.claims.add(key); return true; }
 /// ```
-fn claim(shared: &SweepShared, key: u64) -> bool {
+fn claim(
+    shared: &SweepShared,
+    key: u64,
+) -> bool {
     return match shared.claims.lock() {
         Ok(mut claims) => claims.insert(key),
         Err(_poisoned) => true,
@@ -857,7 +920,10 @@ fn claim(shared: &SweepShared, key: u64) -> bool {
 /// ```ts
 /// function releaseClaim(shared: SweepShared, key: bigint): void { shared.claims.delete(key); }
 /// ```
-fn release_claim(shared: &SweepShared, key: u64) {
+fn release_claim(
+    shared: &SweepShared,
+    key: u64,
+) {
     if let Ok(mut claims) = shared.claims.lock() {
         claims.remove(&key);
     }
@@ -885,8 +951,15 @@ fn report_unreadable(shared: &SweepShared) {
         return;
     }
     let files: Vec<PathBuf> = std::mem::take(&mut *failed);
-    tracing::info!(files = files.len(), generation = shared.generation, "the sweep could not decode some files");
-    (shared.sink)(SweepReport::Unreadable { generation: shared.generation, files });
+    tracing::info!(
+        files = files.len(),
+        generation = shared.generation,
+        "the sweep could not decode some files"
+    );
+    (shared.sink)(SweepReport::Unreadable {
+        generation: shared.generation,
+        files,
+    });
 }
 
 /// What:

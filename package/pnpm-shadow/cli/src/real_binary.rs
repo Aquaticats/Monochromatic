@@ -33,7 +33,10 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the check that tells a shadow,
 /// of any version,
@@ -102,7 +105,11 @@ fn is_executable_file(path: &Path) -> bool {
 /// ```ts
 /// export function findInPath(name: string, pathVariable: string, skip: string[]): string | undefined
 /// ```
-pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf> {
+pub fn find_in_path(
+    name: &str,
+    path_variable: &str,
+    skip: &[PathBuf],
+) -> Option<PathBuf> {
     for directory in path_variable.split(':') {
         // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
         if directory.is_empty() {

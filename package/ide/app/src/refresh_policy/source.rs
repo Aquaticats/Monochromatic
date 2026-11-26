@@ -1,7 +1,13 @@
 //! Decide when the displayed file is reread.
 
 /// Intervals shared with the directory schedule.
-use super::{REREAD_GAP, SAFETY_SWEEP, UNWATCHED_SOURCE_POLL, WRITE_QUIET, WRITE_WAIT_LIMIT};
+use super::{
+    REREAD_GAP,
+    SAFETY_SWEEP,
+    UNWATCHED_SOURCE_POLL,
+    WRITE_QUIET,
+    WRITE_WAIT_LIMIT,
+};
 /// Notifications classify a change as finished or still being written.
 use crate::change_watch::SourceChange;
 /// What:
@@ -57,7 +63,10 @@ pub struct SourceRefresh {
 ///  so tests choose it.
 impl SourceRefresh {
     /// Record whether the displayed file's directory currently has a live watch.
-    pub fn set_watched(&mut self, watched: bool) {
+    pub fn set_watched(
+        &mut self,
+        watched: bool,
+    ) {
         if self.watched != watched {
             tracing::debug!(watched, "displayed-file refresh mode changed");
         }
@@ -66,7 +75,10 @@ impl SourceRefresh {
 
     /// Record whether the displayed file lies outside the project,
     ///  where nothing is watched on purpose.
-    pub fn set_outside_project(&mut self, outside: bool) {
+    pub fn set_outside_project(
+        &mut self,
+        outside: bool,
+    ) {
         if self.outside_project != outside {
             tracing::debug!(outside, "displayed file moved across the project boundary");
         }
@@ -95,7 +107,11 @@ impl SourceRefresh {
     ///  so delete then rewrite waits for the write.
     /// A reread keeps whatever write is already pending:
     ///  an unfinished write still waits.
-    pub fn changed(&mut self, change: SourceChange, now: Instant) {
+    pub fn changed(
+        &mut self,
+        change: SourceChange,
+        now: Instant,
+    ) {
         let first = self.pending_since.is_none();
         if first {
             self.pending_since = Some(now);
@@ -136,7 +152,11 @@ impl SourceRefresh {
     ///  `highlight_missing` says the displayed revision has no accepted highlighting.
     /// While an unfinished write is waiting,
     ///  neither highlighting nor the timer starts a read.
-    pub fn due(&self, now: Instant, highlight_missing: bool) -> bool {
+    pub fn due(
+        &self,
+        now: Instant,
+        highlight_missing: bool,
+    ) -> bool {
         // What: `let ... else` binds `Some(last)` or returns early when there was no read yet.
         // Why: The first read happens immediately, as it did under polling.
         //
@@ -187,7 +207,10 @@ impl SourceRefresh {
     /// A read was admitted:
     ///  clear pending notifications;
     ///  later ones schedule another read.
-    pub fn requested(&mut self, now: Instant) {
+    pub fn requested(
+        &mut self,
+        now: Instant,
+    ) {
         self.last_request = Some(now);
         self.pending_since = None;
         self.unsettled_at = None;

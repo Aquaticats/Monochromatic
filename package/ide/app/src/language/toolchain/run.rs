@@ -15,10 +15,16 @@
 /// ```
 use std::{
     io::Read,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Most bytes read from one stream of the run.
@@ -90,7 +96,10 @@ fn collect(
 /// ```ts
 /// async function runBounded(command: Command, limitMs: number): Promise<Completed> // rejects on timeout
 /// ```
-pub fn run_bounded(mut command: Command, limit: Duration) -> Result<Completed, String> {
+pub fn run_bounded(
+    mut command: Command,
+    limit: Duration,
+) -> Result<Completed, String> {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

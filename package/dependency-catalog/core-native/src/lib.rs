@@ -102,15 +102,33 @@ pub use crate::catalog::parse_catalog;
 /// Imports `crate::change::Change`.
 pub use crate::change::Change;
 /// Imports `crate::check::{DriftReport, check}`.
-pub use crate::check::{DriftReport, check};
+pub use crate::check::{
+    DriftReport,
+    check,
+};
 /// Imports `crate::crate_info::ManifestFile`.
 pub use crate::crate_info::ManifestFile;
 /// Imports `crate::error::{CatalogIssue, Error, SyncIssue}`.
-pub use crate::error::{CatalogIssue, Error, SyncIssue};
+pub use crate::error::{
+    CatalogIssue,
+    Error,
+    SyncIssue,
+};
 /// Imports `crate::sync::{FileResult, SyncInput, SyncOutput, sync}`.
-pub use crate::sync::{FileResult, SyncInput, SyncOutput, sync};
+pub use crate::sync::{
+    FileResult,
+    SyncInput,
+    SyncOutput,
+    sync,
+};
 /// Imports `crate::types::{CatalogDocument, Entry, EntryMap, Settings, TrustPolicy}`.
-pub use crate::types::{CatalogDocument, Entry, EntryMap, Settings, TrustPolicy};
+pub use crate::types::{
+    CatalogDocument,
+    Entry,
+    EntryMap,
+    Settings,
+    TrustPolicy,
+};
 
 /// Unit tests of `catalog`.
 #[cfg(test)]

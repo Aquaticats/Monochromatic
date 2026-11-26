@@ -8,9 +8,15 @@ use crate::real_binary::find_in_path;
 use crate::test_scratch::scratch;
 
 /// Imports the owner-only and executable mode helpers.
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{
+    PermissionsExt,
+    symlink,
+};
 /// Imports the path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The program name the tests look for.
 const NAME: &str = "pnpm";
@@ -22,7 +28,10 @@ const EXECUTABLE_MODE: u32 = 0o755;
 const PLAIN_MODE: u32 = 0o644;
 
 /// Writes a file named `NAME` in `directory` with the given mode and returns its path.
-fn write_program(directory: &Path, mode: u32) -> PathBuf {
+fn write_program(
+    directory: &Path,
+    mode: u32,
+) -> PathBuf {
     let path: PathBuf = directory.join(NAME);
     std::fs::write(&path, "#!/bin/sh\n").expect("write the program");
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).expect("set the mode");
@@ -69,7 +78,8 @@ fn a_candidate_that_resolves_to_the_shadow_is_skipped_under_any_name() {
     let real_directory = scratch();
     let shadow: PathBuf = shadow_directory.path().join("pnpm-shadow");
     std::fs::write(&shadow, "#!/bin/sh\n").expect("write the shadow");
-    std::fs::set_permissions(&shadow, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    std::fs::set_permissions(&shadow, std::fs::Permissions::from_mode(EXECUTABLE_MODE))
+        .expect("set the mode");
     symlink(&shadow, link_directory.path().join(NAME)).expect("link the shadow as pnpm");
     let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
     let resolved_shadow: PathBuf = std::fs::canonicalize(&shadow).expect("resolve the shadow");
@@ -107,7 +117,11 @@ fn every_resolved_path_in_the_skip_list_is_skipped_not_only_the_first() {
 
     let found = find_in_path(
         NAME,
-        &path_value(&[launcher_directory.path(), tried_directory.path(), real_directory.path()]),
+        &path_value(&[
+            launcher_directory.path(),
+            tried_directory.path(),
+            real_directory.path(),
+        ]),
         &skip,
     );
 

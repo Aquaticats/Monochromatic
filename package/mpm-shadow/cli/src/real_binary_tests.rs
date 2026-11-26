@@ -26,7 +26,10 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `fn write_tool(directory: &Path, name: &str, mode: u32)` declares a helper writing a one-line script named
@@ -41,9 +44,14 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function writeTool(directory: string, name: string, mode: number): void
 /// ```
-fn write_tool(directory: &Path, name: &str, mode: u32) {
+fn write_tool(
+    directory: &Path,
+    name: &str,
+    mode: u32,
+) {
     fs::write(directory.join(name), "#!/bin/sh\n").expect("write the fixture tool");
-    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(mode)).expect("set the fixture mode");
+    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(mode))
+        .expect("set the fixture mode");
 }
 
 /// The first executable in PATH order is returned.
@@ -56,7 +64,10 @@ fn finds_the_first_executable_in_path_order() {
     let path_variable: String = format!("{}:{}", first.path().display(), second.path().display());
 
     // `Some(first.path().join("mpm"))` is the present case of `Option` wrapping the expected path.
-    assert_eq!(find_in_path("mpm", &path_variable, Path::new("/nowhere")), Some(first.path().join("mpm")));
+    assert_eq!(
+        find_in_path("mpm", &path_variable, Path::new("/nowhere")),
+        Some(first.path().join("mpm"))
+    );
 }
 
 /// A file without an execute bit is not a candidate.
@@ -68,7 +79,10 @@ fn skips_files_that_are_not_executable() {
     write_tool(second.path(), "mpm", 0o755);
     let path_variable: String = format!("{}:{}", first.path().display(), second.path().display());
 
-    assert_eq!(find_in_path("mpm", &path_variable, Path::new("/nowhere")), Some(second.path().join("mpm")));
+    assert_eq!(
+        find_in_path("mpm", &path_variable, Path::new("/nowhere")),
+        Some(second.path().join("mpm"))
+    );
 }
 
 /// Any candidate that resolves to the shadow itself is skipped,
@@ -81,13 +95,29 @@ fn skips_every_link_that_resolves_to_the_shadow() {
     let real = scratch();
     write_tool(shadow_home.path(), "mpm-shadow", 0o755);
     write_tool(real.path(), "mpm", 0o755);
-    std::os::unix::fs::symlink(shadow_home.path().join("mpm-shadow"), first_links.path().join("mpm")).expect("link");
-    std::os::unix::fs::symlink(shadow_home.path().join("mpm-shadow"), second_links.path().join("mpm")).expect("link");
-    let skip: PathBuf = fs::canonicalize(shadow_home.path().join("mpm-shadow")).expect("resolve the shadow");
-    let path_variable: String =
-        format!("{}:{}:{}", first_links.path().display(), second_links.path().display(), real.path().display());
+    std::os::unix::fs::symlink(
+        shadow_home.path().join("mpm-shadow"),
+        first_links.path().join("mpm"),
+    )
+    .expect("link");
+    std::os::unix::fs::symlink(
+        shadow_home.path().join("mpm-shadow"),
+        second_links.path().join("mpm"),
+    )
+    .expect("link");
+    let skip: PathBuf =
+        fs::canonicalize(shadow_home.path().join("mpm-shadow")).expect("resolve the shadow");
+    let path_variable: String = format!(
+        "{}:{}:{}",
+        first_links.path().display(),
+        second_links.path().display(),
+        real.path().display()
+    );
 
-    assert_eq!(find_in_path("mpm", &path_variable, &skip), Some(real.path().join("mpm")));
+    assert_eq!(
+        find_in_path("mpm", &path_variable, &skip),
+        Some(real.path().join("mpm"))
+    );
 }
 
 /// Nothing runnable on PATH gives `None`;
@@ -96,15 +126,27 @@ fn skips_every_link_that_resolves_to_the_shadow() {
 fn returns_none_when_nothing_is_found() {
     let empty = scratch();
     let path_variable: String = format!(":{}", empty.path().display());
-    assert_eq!(find_in_path("mpm", &path_variable, Path::new("/nowhere")), None);
+    assert_eq!(
+        find_in_path("mpm", &path_variable, Path::new("/nowhere")),
+        None
+    );
 }
 
 /// A launcher the way `install` makes one:
 /// an executable,
 /// a `.launch` record beside it naming the binary it starts,
 /// and an `mpm` link to it in `links`.
-fn write_launcher(directory: &Path, record_real: &Path, write_record_file: bool, record_text: Option<&str>) -> PathBuf {
-    use crate::toolchain::launcher::{LaunchRecord, record_path, render_record};
+fn write_launcher(
+    directory: &Path,
+    record_real: &Path,
+    write_record_file: bool,
+    record_text: Option<&str>,
+) -> PathBuf {
+    use crate::toolchain::launcher::{
+        LaunchRecord,
+        record_path,
+        render_record,
+    };
     use crate::toolchain::scope::ScopeKind;
     let launchers: PathBuf = directory.join("launchers");
     fs::create_dir_all(&launchers).expect("make the launcher directory");
@@ -117,7 +159,9 @@ fn write_launcher(directory: &Path, record_real: &Path, write_record_file: bool,
             real: record_real.to_path_buf(),
             scope: ScopeKind::Repo,
         };
-        let text: String = record_text.map(str::to_string).unwrap_or_else(|| return render_record(&record));
+        let text: String = record_text
+            .map(str::to_string)
+            .unwrap_or_else(|| return render_record(&record));
         fs::write(record_path(&launcher), text).expect("write the record");
     }
     let links: PathBuf = directory.join("links");
@@ -137,44 +181,71 @@ struct LauncherFixture {
     links: PathBuf,
 }
 
-fn launcher_fixture(record_names_the_running_binary: bool, write_record_file: bool, record_text: Option<&str>) -> LauncherFixture {
+fn launcher_fixture(
+    record_names_the_running_binary: bool,
+    write_record_file: bool,
+    record_text: Option<&str>,
+) -> LauncherFixture {
     let directory = scratch();
     let running_dir: PathBuf = directory.path().join("running");
     fs::create_dir_all(&running_dir).expect("make the running directory");
     write_tool(&running_dir, "mpm-shadow", 0o755);
-    let running: PathBuf = fs::canonicalize(running_dir.join("mpm-shadow")).expect("resolve the running binary");
+    let running: PathBuf =
+        fs::canonicalize(running_dir.join("mpm-shadow")).expect("resolve the running binary");
     let other_dir: PathBuf = directory.path().join("other");
     fs::create_dir_all(&other_dir).expect("make the other directory");
     write_tool(&other_dir, "mpm-shadow", 0o755);
-    let named: PathBuf = if record_names_the_running_binary { running.clone() } else { other_dir.join("mpm-shadow") };
+    let named: PathBuf = if record_names_the_running_binary {
+        running.clone()
+    } else {
+        other_dir.join("mpm-shadow")
+    };
     let links: PathBuf = write_launcher(directory.path(), &named, write_record_file, record_text);
     let real_dir: PathBuf = directory.path().join("real");
     fs::create_dir_all(&real_dir).expect("make the real mpm directory");
     write_tool(&real_dir, "mpm", 0o755);
     let path_variable: String = format!("{}:{}", links.display(), real_dir.display());
-    return LauncherFixture { path_variable, running, real_mpm: real_dir.join("mpm"), links, _directory: directory };
+    return LauncherFixture {
+        path_variable,
+        running,
+        real_mpm: real_dir.join("mpm"),
+        links,
+        _directory: directory,
+    };
 }
 
 #[test]
 fn skips_the_launcher_of_the_running_binary_because_it_starts_this_shadow_again() {
     let fixture = launcher_fixture(true, true, None);
-    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.real_mpm.clone()));
+    assert_eq!(
+        find_in_path("mpm", &fixture.path_variable, &fixture.running),
+        Some(fixture.real_mpm.clone())
+    );
 }
 
 #[test]
 fn a_launcher_of_another_binary_is_not_skipped() {
     let fixture = launcher_fixture(false, true, None);
-    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.links.join("mpm")));
+    assert_eq!(
+        find_in_path("mpm", &fixture.path_variable, &fixture.running),
+        Some(fixture.links.join("mpm"))
+    );
 }
 
 #[test]
 fn an_executable_with_no_record_beside_it_is_not_a_launcher_and_is_not_skipped() {
     let fixture = launcher_fixture(true, false, None);
-    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.links.join("mpm")));
+    assert_eq!(
+        find_in_path("mpm", &fixture.path_variable, &fixture.running),
+        Some(fixture.links.join("mpm"))
+    );
 }
 
 #[test]
 fn an_unreadable_record_does_not_make_an_executable_a_launcher() {
     let fixture = launcher_fixture(true, true, Some("not json"));
-    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.links.join("mpm")));
+    assert_eq!(
+        find_in_path("mpm", &fixture.path_variable, &fixture.running),
+        Some(fixture.links.join("mpm"))
+    );
 }

@@ -56,16 +56,23 @@ pub(super) fn split<'a>(
             continue;
         };
         if !allowed.contains(&name) {
-            return Err(format!("{verb} does not take {name}=; its options are {}", allowed.join(", ")))
+            return Err(format!(
+                "{verb} does not take {name}=; its options are {}",
+                allowed.join(", ")
+            ));
         }
         for (existing, _) in &pairs {
             if *existing == name {
-                return Err(format!("{verb} option {name}= was given twice"))
+                return Err(format!("{verb} option {name}= was given twice"));
             }
         }
         pairs.push((name, value));
     }
-    return Ok(Options { verb, positional, pairs })
+    return Ok(Options {
+        verb,
+        positional,
+        pairs,
+    });
 }
 
 /// Typed readers for the options a command accepted.
@@ -82,7 +89,12 @@ impl Options<'_> {
     /// ```ts
     /// number(name: string, fallback: number, range: [number, number]): number { ... }
     /// ```
-    pub(super) fn number(&self, name: &str, default: u64, range: (u64, u64)) -> Result<u64, String> {
+    pub(super) fn number(
+        &self,
+        name: &str,
+        default: u64,
+        range: (u64, u64),
+    ) -> Result<u64, String> {
         let mut found = None;
         for (key, value) in &self.pairs {
             if *key == name {
@@ -91,14 +103,20 @@ impl Options<'_> {
             }
         }
         let Some(value) = found else {
-            return Ok(default)
+            return Ok(default);
         };
         let verb = self.verb;
-        let parsed = result_or_text(value.parse::<u64>(), format_args!("{verb} {name}= is not a whole number: {value}"))?;
+        let parsed = result_or_text(
+            value.parse::<u64>(),
+            format_args!("{verb} {name}= is not a whole number: {value}"),
+        )?;
         if parsed < range.0 || parsed > range.1 {
-            return Err(format!("{verb} {name}= must be from {} to {}, got: {parsed}", range.0, range.1))
+            return Err(format!(
+                "{verb} {name}= must be from {} to {}, got: {parsed}",
+                range.0, range.1
+            ));
         }
-        return Ok(parsed)
+        return Ok(parsed);
     }
 
     /// Read the `mods=` option as a validated modifier chord,
@@ -123,11 +141,11 @@ impl Options<'_> {
             }
         }
         let Some(value) = found else {
-            return Ok(String::new())
+            return Ok(String::new());
         };
         if let Err(message) = parse_chord(value) {
-            return Err(format!("{} mods= {message}", self.verb))
+            return Err(format!("{} mods= {message}", self.verb));
         }
-        return Ok((*value).to_string())
+        return Ok((*value).to_string());
     }
 }

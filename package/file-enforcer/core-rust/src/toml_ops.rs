@@ -21,7 +21,12 @@ use crate::value_eval::Evaluated;
 /// `DocumentMut`,
 /// `Item`,
 /// `Value` from `toml_edit`.
-use toml_edit::{Array, DocumentMut, Item, Value};
+use toml_edit::{
+    Array,
+    DocumentMut,
+    Item,
+    Value,
+};
 
 /// What:
 ///  Look up a key path as an item,
@@ -35,7 +40,10 @@ use toml_edit::{Array, DocumentMut, Item, Value};
 /// ```ts
 /// function lookup(doc: TomlDocument, path: string[]): Item | undefined
 /// ```
-pub fn lookup<'a>(document: &'a DocumentMut, path: &[String]) -> Option<&'a Item> {
+pub fn lookup<'a>(
+    document: &'a DocumentMut,
+    path: &[String],
+) -> Option<&'a Item> {
     let mut current: &Item = document.as_item();
     for key in path {
         current = current.get(key.as_str())?;
@@ -52,19 +60,28 @@ pub fn lookup<'a>(document: &'a DocumentMut, path: &[String]) -> Option<&'a Item
 /// ```ts
 /// function itemMatches(item: Item, wanted: Evaluated): boolean
 /// ```
-fn item_matches(item: &Item, wanted: &Evaluated) -> bool {
-    let Some(value) = item.as_value() else { return false };
+fn item_matches(
+    item: &Item,
+    wanted: &Evaluated,
+) -> bool {
+    let Some(value) = item.as_value() else {
+        return false;
+    };
     match wanted {
         Evaluated::Text(text) => return value.as_str() == Some(text.as_str()),
         Evaluated::Bool(flag) => return value.as_bool() == Some(*flag),
         Evaluated::Integer(number) => return value.as_integer() == Some(*number),
         Evaluated::List(items) => {
-            let Some(array) = value.as_array() else { return false };
+            let Some(array) = value.as_array() else {
+                return false;
+            };
             if array.len() != items.len() {
                 return false;
             }
             for (position, expected) in items.iter().enumerate() {
-                let Some(element) = array.get(position) else { return false };
+                let Some(element) = array.get(position) else {
+                    return false;
+                };
                 if !item_matches(&Item::Value(element.clone()), expected) {
                     return false;
                 }
@@ -110,11 +127,18 @@ fn to_toml_value(wanted: &Evaluated) -> Value {
 /// ```ts
 /// function setKey(doc: TomlDocument, guard: string[], path: string[], wanted: Evaluated): boolean
 /// ```
-pub fn set_key(document: &mut DocumentMut, guard: &[String], path: &[String], wanted: &Evaluated) -> bool {
+pub fn set_key(
+    document: &mut DocumentMut,
+    guard: &[String],
+    path: &[String],
+    wanted: &Evaluated,
+) -> bool {
     if !guard.is_empty() && lookup(document, guard).is_none() {
         return false;
     }
-    let Some((last, parents)) = path.split_last() else { return false };
+    let Some((last, parents)) = path.split_last() else {
+        return false;
+    };
     if let Some(existing) = lookup(document, path)
         && item_matches(existing, wanted)
     {
@@ -122,7 +146,9 @@ pub fn set_key(document: &mut DocumentMut, guard: &[String], path: &[String], wa
     }
     let mut current: &mut Item = document.as_item_mut();
     for key in parents {
-        let Some(next) = current.get_mut(key.as_str()) else { return false };
+        let Some(next) = current.get_mut(key.as_str()) else {
+            return false;
+        };
         current = next;
     }
     let new_value = to_toml_value(wanted);
@@ -152,7 +178,10 @@ pub fn set_key(document: &mut DocumentMut, guard: &[String], path: &[String], wa
 /// ```ts
 /// function appendBlock(text: string, block: string): string
 /// ```
-pub fn append_block(text: &str, block: &str) -> String {
+pub fn append_block(
+    text: &str,
+    block: &str,
+) -> String {
     let mut result = text.to_string();
     if !result.is_empty() && !result.ends_with('\n') {
         result.push('\n');

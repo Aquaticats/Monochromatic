@@ -80,7 +80,10 @@ pub fn chunk_rows(rows: &Range<usize>) -> Vec<Range<usize>> {
 /// ```ts
 /// function textureRows(width: number, limit: number): number;
 /// ```
-pub fn texture_rows(width: u32, limit: u32) -> u32 {
+pub fn texture_rows(
+    width: u32,
+    limit: u32,
+) -> u32 {
     let by_bytes = MAX_RASTER_BYTES / 4 / u64::from(width.max(1));
     return u64::from(limit).min(by_bytes).min(u64::from(u32::MAX)) as u32;
 }
@@ -106,7 +109,11 @@ pub fn texture_rows(width: u32, limit: u32) -> u32 {
 /// ```ts
 /// function textureRuns(heights: number[], width: number, limit: number): [number, number][];
 /// ```
-pub fn texture_runs(heights: &[u32], width: u32, limit: u32) -> Vec<Range<usize>> {
+pub fn texture_runs(
+    heights: &[u32],
+    width: u32,
+    limit: u32,
+) -> Vec<Range<usize>> {
     let most = u64::from(texture_rows(width, limit));
     let mut runs = Vec::new();
     let mut start = 0;
@@ -212,21 +219,37 @@ impl Heading {
     /// follow(from: number, step: number): Heading;
     /// ```
     #[must_use]
-    pub fn follow(self, from: f32, step: f32) -> Self {
+    pub fn follow(
+        self,
+        from: f32,
+        step: f32,
+    ) -> Self {
         let moved = from - self.at();
         if moved.abs() < step {
             return self;
         }
         if moved > 0.0 {
-            return Self::Down { at: from };
+            return Self::Down {
+                at: from,
+            };
         }
-        return Self::Up { at: from };
+        return Self::Up {
+            at: from,
+        };
     }
 
     /// The position of the top of the track where the heading was decided.
     fn at(self) -> f32 {
         return match self {
-            Self::Still { at } | Self::Down { at } | Self::Up { at } => at,
+            Self::Still {
+                at,
+            }
+            | Self::Down {
+                at,
+            }
+            | Self::Up {
+                at,
+            } => at,
         };
     }
 
@@ -244,9 +267,15 @@ impl Heading {
     #[must_use]
     pub fn margins(self) -> (usize, usize) {
         return match self {
-            Self::Still { .. } => (1, 1),
-            Self::Down { .. } => (1, LEAD),
-            Self::Up { .. } => (LEAD, 1),
+            Self::Still {
+                ..
+            } => (1, 1),
+            Self::Down {
+                ..
+            } => (1, LEAD),
+            Self::Up {
+                ..
+            } => (LEAD, 1),
         };
     }
 }
@@ -261,7 +290,10 @@ impl Heading {
 /// ```ts
 /// function bandCount(height: number, step: number): number;
 /// ```
-pub fn band_count(height: f32, step: f32) -> usize {
+pub fn band_count(
+    height: f32,
+    step: f32,
+) -> usize {
     if height <= 0.0 || step <= 0.0 {
         return 0;
     }
@@ -282,7 +314,11 @@ pub fn band_count(height: f32, step: f32) -> usize {
 /// ```ts
 /// function mostBands(limit: number, scale: number, ratio: number): number;
 /// ```
-pub fn most_bands(limit: u32, scale: f32, ratio: f64) -> usize {
+pub fn most_bands(
+    limit: u32,
+    scale: f32,
+    ratio: f64,
+) -> usize {
     let rows = f64::from(BAND) * f64::from(scale.max(MIN_SCALE)) * ratio;
     return ((f64::from(limit) / rows).floor() as usize).max(1);
 }
@@ -298,7 +334,11 @@ pub fn most_bands(limit: u32, scale: f32, ratio: f64) -> usize {
 /// ```ts
 /// function pictureRows(height: number, scale: number, ratio: number): number;
 /// ```
-pub fn picture_rows(height: f32, scale: f32, ratio: f64) -> usize {
+pub fn picture_rows(
+    height: f32,
+    scale: f32,
+    ratio: f64,
+) -> usize {
     return ((f64::from(height) * f64::from(scale) * ratio) - 1e-3)
         .ceil()
         .max(0.0) as usize;
@@ -316,7 +356,12 @@ pub fn picture_rows(height: f32, scale: f32, ratio: f64) -> usize {
 /// ```ts
 /// function sliceRows(window: [number, number], height: number, scale: number, ratio: number): [number, number];
 /// ```
-pub fn slice_rows(window: &Range<usize>, height: f32, scale: f32, ratio: f64) -> Range<usize> {
+pub fn slice_rows(
+    window: &Range<usize>,
+    height: f32,
+    scale: f32,
+    ratio: f64,
+) -> Range<usize> {
     let total = picture_rows(height, scale, ratio);
     let per_band = f64::from(BAND) * f64::from(scale.max(MIN_SCALE)) * ratio;
     let start = ((window.start as f64 * per_band).round() as usize).min(total);

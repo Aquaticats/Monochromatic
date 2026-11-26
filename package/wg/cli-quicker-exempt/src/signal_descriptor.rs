@@ -7,7 +7,11 @@ use crate::routing_support::StopCheck;
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 
 /// Tells a long pass that a shutdown signal is waiting.
 pub struct SignalPending<'a> {
@@ -54,20 +58,13 @@ pub fn create_signal_fd() -> io::Result<OwnedFd> {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: blocks selected signals in dedicated watcher process before child threads exist.
-    let mask_result = unsafe {
-        libc::pthread_sigmask(libc::SIG_BLOCK, &mask, std::ptr::null_mut())
-    };
+    let mask_result =
+        unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &mask, std::ptr::null_mut()) };
     if mask_result != 0 {
         return Err(io::Error::from_raw_os_error(mask_result));
     }
     // SAFETY: signalfd copies mask during call and returns newly owned descriptor.
-    let raw = unsafe {
-        libc::signalfd(
-            -1,
-            &mask,
-            libc::SFD_CLOEXEC | libc::SFD_NONBLOCK,
-        )
-    };
+    let raw = unsafe { libc::signalfd(-1, &mask, libc::SFD_CLOEXEC | libc::SFD_NONBLOCK) };
     return owned_descriptor(raw);
 }
 

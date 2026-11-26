@@ -22,12 +22,21 @@ use super::ZfsDevice;
 use super::fixture::Fixture;
 use super::fixture_pool::FixturePool;
 use super::fixture_reply::{
-    cli_value, expected_source, listing_names, property_source, property_str, property_u64,
+    cli_value,
+    expected_source,
+    listing_names,
+    property_source,
+    property_str,
+    property_u64,
 };
 use super::listed_object::ListedObject;
 use super::read_reply::ReadAttempt;
 use crate::nvlist::NvList;
-use crate::requests::{INITIAL_REPLY_SIZE, Request, objset_stats};
+use crate::requests::{
+    INITIAL_REPLY_SIZE,
+    Request,
+    objset_stats,
+};
 
 /// The bytes each padding property's value holds,
 /// so the count that outgrows
@@ -205,7 +214,11 @@ fn the_granted_delegations_are_what_the_fixture_set() {
 ///
 /// When `granted` has no `key` at all,
 /// or the names under it are not `wanted`.
-fn assert_permissions(granted: &NvList, key: &str, wanted: &[&str]) -> Vec<String> {
+fn assert_permissions(
+    granted: &NvList,
+    key: &str,
+    wanted: &[&str],
+) -> Vec<String> {
     let list: &NvList = granted.get_list(key).unwrap_or_else(|| {
         panic!("the reply carries no {key} grant: {granted:?}");
     });
@@ -245,7 +258,10 @@ fn a_reply_past_the_initial_buffer_is_read_after_one_growth() {
     let first: ReadAttempt = device
         .attempt_read(&mut request)
         .expect("the first read is answered");
-    let ReadAttempt::NeedsBiggerReply { requested } = first else {
+    let ReadAttempt::NeedsBiggerReply {
+        requested,
+    } = first
+    else {
         panic!("the property list is past the initial buffer");
     };
     assert!(requested > INITIAL_REPLY_SIZE as u64);
@@ -256,7 +272,10 @@ fn a_reply_past_the_initial_buffer_is_read_after_one_growth() {
     let second: ReadAttempt = device
         .attempt_read(&mut request)
         .expect("the grown read is answered");
-    let ReadAttempt::Reply { list: fitting } = second else {
+    let ReadAttempt::Reply {
+        list: fitting,
+    } = second
+    else {
         panic!("the grown buffer holds the reply");
     };
     assert!(fitting.get_list("monochromatic:pad0").is_some());

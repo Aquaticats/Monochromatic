@@ -21,7 +21,11 @@
 /// ```ts
 /// import { decodeQuoted, encodeQuoted, unitsToString } from './textUnits';
 /// ```
-use crate::text_units::{decode_quoted, encode_quoted, units_to_string};
+use crate::text_units::{
+    decode_quoted,
+    encode_quoted,
+    units_to_string,
+};
 
 /// Check that ordinary text and JSON escapes decode to the expected UTF-16 code units.
 #[test]
@@ -57,9 +61,19 @@ fn rejects_malformed_quoted_tokens() {
     // ```ts
     // const invalid = ['"abc', '"abc"x', '"\\uZZZZ"'];
     // ```
-    let invalid = [r#""abc"#, r#""abc"x"#, r#""\uZZZZ""#, r#""\u00""#, "abc\"", r#""\q""#];
+    let invalid = [
+        r#""abc"#,
+        r#""abc"x"#,
+        r#""\uZZZZ""#,
+        r#""\u00""#,
+        "abc\"",
+        r#""\q""#,
+    ];
     for raw in invalid {
-        assert!(decode_quoted(raw).is_err(), "accepted malformed token {raw}");
+        assert!(
+            decode_quoted(raw).is_err(),
+            "accepted malformed token {raw}"
+        );
     }
 }
 
@@ -68,15 +82,24 @@ fn rejects_malformed_quoted_tokens() {
 #[test]
 fn converts_units_to_rust_text_only_when_valid() {
     // Ordinary text converts directly.
-    assert_eq!(units_to_string(&[97, 98]).expect("valid units convert"), "ab");
+    assert_eq!(
+        units_to_string(&[97, 98]).expect("valid units convert"),
+        "ab"
+    );
     // A surrogate pair converts to the scalar it encodes.
     assert_eq!(
         units_to_string(&[0xD83D, 0xDE00]).expect("paired surrogates convert"),
         "😀"
     );
     // A lone surrogate has no UTF-8 encoding, so the conversion must fail rather than substitute.
-    assert!(units_to_string(&[0xD800]).is_err(), "lone surrogate converted");
-    assert!(units_to_string(&[0xDC00]).is_err(), "lone low surrogate converted");
+    assert!(
+        units_to_string(&[0xD800]).is_err(),
+        "lone surrogate converted"
+    );
+    assert!(
+        units_to_string(&[0xDC00]).is_err(),
+        "lone low surrogate converted"
+    );
 }
 
 /// Check that encoding produces a legal JSON literal that decodes back to the same units.
@@ -99,7 +122,10 @@ fn encodes_and_decodes_the_same_units() {
     ];
     for units in cases {
         let encoded = encode_quoted(units);
-        assert!(encoded.starts_with('"') && encoded.ends_with('"'), "unquoted literal {encoded}");
+        assert!(
+            encoded.starts_with('"') && encoded.ends_with('"'),
+            "unquoted literal {encoded}"
+        );
         let decoded = decode_quoted(&encoded).expect("encoded literal must decode");
         assert_eq!(decoded, units, "round trip changed units for {encoded}");
     }

@@ -66,17 +66,29 @@ pub mod scale;
 /// import { SeatHandler, OutputHandler, ... } from "smithay";
 /// ```
 use smithay::{
-    delegate_data_device, delegate_output, delegate_seat,
-    input::{Seat, SeatHandler, SeatState},
-    reexports::wayland_server::{protocol::wl_surface::WlSurface, Resource},
+    delegate_data_device,
+    delegate_output,
+    delegate_seat,
+    input::{
+        Seat,
+        SeatHandler,
+        SeatState,
+    },
+    reexports::wayland_server::{
+        Resource,
+        protocol::wl_surface::WlSurface,
+    },
     wayland::{
         output::OutputHandler,
         selection::{
-            data_device::{
-                set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, DataDeviceState,
-                ServerDndGrabHandler,
-            },
             SelectionHandler,
+            data_device::{
+                ClientDndGrabHandler,
+                DataDeviceHandler,
+                DataDeviceState,
+                ServerDndGrabHandler,
+                set_data_device_focus,
+            },
         },
     },
 };
@@ -97,7 +109,11 @@ use smithay::{
 /// ```ts
 /// // fs.writeSync(fd, bytes); then close(fd).
 /// ```
-use std::{fs::File, io::Write, os::fd::OwnedFd};
+use std::{
+    fs::File,
+    io::Write,
+    os::fd::OwnedFd,
+};
 
 /// What:
 ///      `use tracing::{info, warn};`.
@@ -107,7 +123,10 @@ use std::{fs::File, io::Write, os::fd::OwnedFd};
 ///  data request,
 ///  finish,
 ///  cancel).
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// What:
 ///      `use crate::state::Compositor;`.
@@ -157,7 +176,7 @@ impl SeatHandler for Compositor {
     fn seat_state(&mut self) -> &mut SeatState<Compositor> {
         // What:     `&mut self.seat_state`. A mutable borrow of the field (tail expr).
         // Why:      Return the seat state Smithay asked for.
-        return &mut self.seat_state
+        return &mut self.seat_state;
     }
 
     /// What:
@@ -190,7 +209,11 @@ impl SeatHandler for Compositor {
     /// Why:
     ///       Keep the data device's focus in sync so clipboard offers reach the
     ///           focused client.
-    fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&WlSurface>) {
+    fn focus_changed(
+        &mut self,
+        seat: &Seat<Self>,
+        focused: Option<&WlSurface>,
+    ) {
         // What:     `let dh = &self.display_handle;`. Borrow the display handle.
         // Why:      Needed to resolve a surface to its client below.
         let dh = &self.display_handle;
@@ -276,7 +299,7 @@ impl DataDeviceHandler for Compositor {
     fn data_device_state(&self) -> &DataDeviceState {
         // What:     `&self.data_device_state`. Borrow the field (tail expression).
         // Why:      Hand Smithay the state.
-        return &self.data_device_state
+        return &self.data_device_state;
     }
 }
 
@@ -315,7 +338,12 @@ impl ServerDndGrabHandler for Compositor {
     ///           unused.
     /// Why:
     ///       Write the pending uri-list bytes so the app's inbound reader receives them.
-    fn send(&mut self, mime_type: String, fd: OwnedFd, _seat: Seat<Self>) {
+    fn send(
+        &mut self,
+        mime_type: String,
+        fd: OwnedFd,
+        _seat: Seat<Self>,
+    ) {
         // What:     `info!(...)`. Note which mime type the app asked for.
         // Why:      Confirm the app reached the receive step of the drop.
         info!("drop-file: app requested drag data for mime {mime_type}");
@@ -349,7 +377,10 @@ impl ServerDndGrabHandler for Compositor {
     ///           app (a validated drop).
     /// Why:
     ///       Marks that the app accepted the offer and the drop is proceeding.
-    fn dropped(&mut self, _seat: Seat<Self>) {
+    fn dropped(
+        &mut self,
+        _seat: Seat<Self>,
+    ) {
         // What:     `info!(...)`. Log the validated drop.
         // Why:      Distinguish a real drop from a cancellation.
         info!("drop-file: server drag dropped onto the app (accepted)");
@@ -360,7 +391,10 @@ impl ServerDndGrabHandler for Compositor {
     ///  The app finished with the offer.
     /// Why:
     ///       Clear the pending payload now that the transfer is complete.
-    fn finished(&mut self, _seat: Seat<Self>) {
+    fn finished(
+        &mut self,
+        _seat: Seat<Self>,
+    ) {
         // What:     `info!(...)` then `self.pending_dnd_uri_list = None;`. Log and clear.
         // Why:      Release the payload so a later drag starts clean.
         info!("drop-file: app finished the drag; clearing the pending uri-list");
@@ -374,7 +408,10 @@ impl ServerDndGrabHandler for Compositor {
     /// Why:
     ///       Surface the failure loudly (this is the exact symptom being diagnosed) and
     ///           clear the payload.
-    fn cancelled(&mut self, _seat: Seat<Self>) {
+    fn cancelled(
+        &mut self,
+        _seat: Seat<Self>,
+    ) {
         // What:     `warn!(...)` then clear. A cancellation is the "drop did not register"
         //           case.
         // Why:      Make an unaccepted drop obvious in the log.

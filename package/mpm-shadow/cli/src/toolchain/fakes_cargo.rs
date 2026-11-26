@@ -3,7 +3,10 @@
 //! and a helper that finishes an install by hand.
 
 /// Imports `Path` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `read_recorded_installs` from `super::cargo_record`.
 use super::cargo_record::read_recorded_installs;
@@ -13,7 +16,12 @@ use super::fakes::write_executable;
 use super::runner::RunRequest;
 
 /// Writes cargo's record for a finished install under `root` and an executable stand-in for each of `bins`.
-pub(crate) fn finish_install(root: &Path, crate_name: &str, version: &str, bins: &[&str]) {
+pub(crate) fn finish_install(
+    root: &Path,
+    crate_name: &str,
+    version: &str,
+    bins: &[&str],
+) {
     for bin in bins {
         write_executable(&root.join("bin").join(bin));
     }
@@ -34,7 +42,11 @@ pub(crate) fn finish_install(root: &Path, crate_name: &str, version: &str, bins:
 pub(crate) fn fake_binstall(bins: &'static [&'static str]) -> Box<dyn Fn(&RunRequest)> {
     return Box::new(move |request: &RunRequest| {
         let argument_after = |flag: &str| -> String {
-            let position: usize = request.args.iter().position(|argument| return argument == flag).expect("the flag is passed");
+            let position: usize = request
+                .args
+                .iter()
+                .position(|argument| return argument == flag)
+                .expect("the flag is passed");
             return request.args[position + 1].clone();
         };
         let root: PathBuf = PathBuf::from(argument_after("--root"));
@@ -55,19 +67,32 @@ pub(crate) fn fake_binstall(bins: &'static [&'static str]) -> Box<dyn Fn(&RunReq
 pub(crate) fn fake_uninstall() -> Box<dyn Fn(&RunRequest)> {
     return Box::new(move |request: &RunRequest| {
         let argument_after = |flag: &str| -> String {
-            let position: usize = request.args.iter().position(|argument| return argument == flag).expect("the flag is passed");
+            let position: usize = request
+                .args
+                .iter()
+                .position(|argument| return argument == flag)
+                .expect("the flag is passed");
             return request.args[position + 1].clone();
         };
         let root: PathBuf = PathBuf::from(argument_after("--root"));
         let bin: String = argument_after("--bin");
-        std::fs::remove_file(root.join("bin").join(&bin)).expect("cargo removes the bin it records");
+        std::fs::remove_file(root.join("bin").join(&bin))
+            .expect("cargo removes the bin it records");
         let mut record: String = String::from("[v1]\n");
         for install in read_recorded_installs(&root) {
-            let kept: Vec<String> = install.bins.iter().filter(|name| return **name != bin).cloned().collect();
+            let kept: Vec<String> = install
+                .bins
+                .iter()
+                .filter(|name| return **name != bin)
+                .cloned()
+                .collect();
             if kept.is_empty() {
                 continue;
             }
-            let quoted: Vec<String> = kept.iter().map(|name| return format!("\"{name}\"")).collect();
+            let quoted: Vec<String> = kept
+                .iter()
+                .map(|name| return format!("\"{name}\""))
+                .collect();
             record.push_str(&format!(
                 "\"{} {} (registry+https://example.invalid/index)\" = [{}]\n",
                 install.crate_name,

@@ -34,11 +34,23 @@ fn regex_line_passes_body_and_drops_noop_flags() {
 fn bad_flag_fails_closed_with_index() {
     // First rule good, second carries an unsupported `i`, so index 1 hard-errors.
     let err = parse_patterns("/good/\n/other/i").expect_err("bad flag");
-    assert_eq!(err, LoadError::UnsupportedFlag { index: 1, flag: 'i' });
+    assert_eq!(
+        err,
+        LoadError::UnsupportedFlag {
+            index: 1,
+            flag: 'i'
+        }
+    );
 
     // `m`/`x` before a bad letter still report the first offender.
     let mixed = parse_patterns("/p/mxs").expect_err("bad flag after noops");
-    assert_eq!(mixed, LoadError::UnsupportedFlag { index: 0, flag: 's' });
+    assert_eq!(
+        mixed,
+        LoadError::UnsupportedFlag {
+            index: 0,
+            flag: 's'
+        }
+    );
 }
 
 #[test]
@@ -68,7 +80,10 @@ fn leading_bom_is_stripped() {
     assert_eq!(strip_bom("plain"), "plain");
     assert_eq!(strip_bom("\u{FEFF}x"), "x");
     // A BOM followed only by a comment still yields no rules.
-    assert_eq!(parse_patterns("\u{FEFF}# c").expect_err("bom comment"), LoadError::NoRules);
+    assert_eq!(
+        parse_patterns("\u{FEFF}# c").expect_err("bom comment"),
+        LoadError::NoRules
+    );
 }
 
 #[test]
@@ -103,8 +118,7 @@ fn bom_then_header_is_tail_format() {
 fn legacy_first_line_starting_with_equals_routes_to_legacy() {
     // A first line starting with `=` is not a strict header, so the whole file
     // parses byte-for-byte as legacy: two lines yield two literal rules.
-    let patterns =
-        parse_patterns("=legacy-literal\nother-legacy\n").expect("legacy routed");
+    let patterns = parse_patterns("=legacy-literal\nother-legacy\n").expect("legacy routed");
     assert_eq!(patterns.len(), 2);
     let set = RegexSet::new(&patterns).expect("compile legacy");
     assert!(set.is_match(b"x =legacy-literal y"));
@@ -118,7 +132,10 @@ fn tail_format_multiple_sections_parse_in_file_order() {
     // in file order, projected to the unchanged `Vec<String>` shape.
     let patterns = parse_patterns("==> qqq-first <==\n/foo[0-9]/\n==> qqq-second <==\nabcdefgh\n")
         .expect("two tail sections");
-    assert_eq!(patterns, vec!["foo[0-9]".to_string(), "abcdefgh".to_string()]);
+    assert_eq!(
+        patterns,
+        vec!["foo[0-9]".to_string(), "abcdefgh".to_string()]
+    );
 }
 
 #[test]
@@ -126,22 +143,47 @@ fn tail_format_duplicate_name_fails_closed_end_to_end() {
     // Name uniqueness is enforced over the whole loaded input at the public entry.
     let err = parse_patterns("==> qqq-same <==\naaaa\n==> qqq-same <==\nbbbb\n")
         .expect_err("duplicate name through public entry");
-    assert_eq!(err, LoadError::DuplicateName { first_line: 1, line: 3 });
+    assert_eq!(
+        err,
+        LoadError::DuplicateName {
+            first_line: 1,
+            line: 3
+        }
+    );
 }
 
 #[test]
 fn source_format_matches_the_autodetection_parse_rules_uses() {
-    use super::{source_format, strip_source_bom, SourceFormat};
+    use super::{
+        SourceFormat,
+        source_format,
+        strip_source_bom,
+    };
     assert_eq!(source_format(""), SourceFormat::Empty);
-    assert_eq!(source_format("# only a comment\n\n   \n"), SourceFormat::Empty);
-    assert_eq!(source_format("# header\n==> qqq-a <==\nAAAA_LONG_ENOUGH\n"), SourceFormat::Tail);
+    assert_eq!(
+        source_format("# only a comment\n\n   \n"),
+        SourceFormat::Empty
+    );
+    assert_eq!(
+        source_format("# header\n==> qqq-a <==\nAAAA_LONG_ENOUGH\n"),
+        SourceFormat::Tail
+    );
     assert_eq!(source_format("AAAA_LONG_ENOUGH\n"), SourceFormat::Legacy);
     // The decision is made on the first significant line, so a later header does not make a legacy source tail.
-    assert_eq!(source_format("AAAA_LONG_ENOUGH\n==> qqq-a <==\n"), SourceFormat::Legacy);
+    assert_eq!(
+        source_format("AAAA_LONG_ENOUGH\n==> qqq-a <==\n"),
+        SourceFormat::Legacy
+    );
     // A near-header is not a strict header, so it does not select the tail path either.
-    assert_eq!(source_format("==>qqq-a<==\nAAAA_LONG_ENOUGH\n"), SourceFormat::Legacy);
+    assert_eq!(
+        source_format("==>qqq-a<==\nAAAA_LONG_ENOUGH\n"),
+        SourceFormat::Legacy
+    );
     // A BOM is stripped before the decision, exactly as parse_rules strips it.
-    assert_eq!(source_format("\u{feff}==> qqq-a <==\nAAAA_LONG_ENOUGH\n"), SourceFormat::Tail);
+    assert_eq!(
+        source_format("\u{feff}==> qqq-a <==\nAAAA_LONG_ENOUGH\n"),
+        SourceFormat::Tail
+    );
     assert_eq!(strip_source_bom("\u{feff}abc"), "abc");
     assert_eq!(strip_source_bom("abc"), "abc");
 }

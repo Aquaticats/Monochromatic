@@ -18,22 +18,41 @@
 /// Imports the walker that honors `.gitignore`,
 /// its entry and error types,
 /// and the answer a visitor gives after each entry.
-use ignore::{DirEntry, Error as WalkError, ParallelVisitor, ParallelVisitorBuilder, WalkBuilder, WalkState};
+use ignore::{
+    DirEntry,
+    Error as WalkError,
+    ParallelVisitor,
+    ParallelVisitorBuilder,
+    WalkBuilder,
+    WalkState,
+};
 
 /// Imports the rule:
 /// one function for any manifest name,
 /// one for a name alone,
 /// and the finding type.
-use monochromatic_catalog_specifier::{Finding, check_manifest, check_manifest_path};
+use monochromatic_catalog_specifier::{
+    Finding,
+    check_manifest,
+    check_manifest_path,
+};
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the lock that lets several walker threads add to one report.
 use std::sync::Mutex;
 
 /// Imports the fixed values.
-use crate::constants::{MANIFEST_NAMES, READ_MANIFEST_NAME, SKIPPED_DIRECTORIES, WORKSPACE_MARKER};
+use crate::constants::{
+    MANIFEST_NAMES,
+    READ_MANIFEST_NAME,
+    SKIPPED_DIRECTORIES,
+    WORKSPACE_MARKER,
+};
 
 /// What:
 /// `pub struct ScanReport { ... }` is a record type with three fields,
@@ -139,7 +158,10 @@ fn is_skipped_directory(entry: &DirEntry) -> bool {
 /// ```ts
 /// function relativePathText(root: string, path: string): string { return relative(root, path); }
 /// ```
-fn relative_path_text(root: &Path, path: &Path) -> String {
+fn relative_path_text(
+    root: &Path,
+    path: &Path,
+) -> String {
     // `strip_prefix` returns a `Result`; on `Err` (the path is not under the root) the full path is used.
     let relative: &Path = match path.strip_prefix(root) {
         Ok(stripped) => stripped,
@@ -164,12 +186,21 @@ fn relative_path_text(root: &Path, path: &Path) -> String {
 /// ```ts
 /// function checkWalkResult(root: string, result: DirEntry | Error): ScanReport
 /// ```
-fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanReport {
-    let mut report: ScanReport = ScanReport { manifests_checked: 0, findings: Vec::new(), notes: Vec::new() };
+fn check_walk_result(
+    root: &Path,
+    result: Result<DirEntry, WalkError>,
+) -> ScanReport {
+    let mut report: ScanReport = ScanReport {
+        manifests_checked: 0,
+        findings: Vec::new(),
+        notes: Vec::new(),
+    };
     let entry: DirEntry = match result {
         Ok(found) => found,
         Err(error) => {
-            report.notes.push(format!("could not read part of the tree: {error}"));
+            report
+                .notes
+                .push(format!("could not read part of the tree: {error}"));
             return report;
         }
     };
@@ -201,7 +232,9 @@ fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanRe
             report.findings.extend(check_manifest(&relative, &bytes));
         }
         Err(error) => {
-            report.notes.push(format!("could not read {relative}: {error}"));
+            report
+                .notes
+                .push(format!("could not read {relative}: {error}"));
         }
     }
     return report;
@@ -214,7 +247,10 @@ fn is_not_skipped_directory(entry: &DirEntry) -> bool {
 }
 
 /// Orders two findings by the path of the manifest they belong to.
-fn compare_by_path(left: &Finding, right: &Finding) -> std::cmp::Ordering {
+fn compare_by_path(
+    left: &Finding,
+    right: &Finding,
+) -> std::cmp::Ordering {
     return left.path.cmp(&right.path);
 }
 
@@ -231,7 +267,10 @@ struct ManifestCollector<'scan> {
 impl<'scan> ParallelVisitorBuilder<'scan> for ManifestCollector<'scan> {
     /// One visitor for one walker thread.
     fn build(&mut self) -> Box<dyn ParallelVisitor + 'scan> {
-        return Box::new(ManifestVisitor { root: self.root, shared: self.shared });
+        return Box::new(ManifestVisitor {
+            root: self.root,
+            shared: self.shared,
+        });
     }
 }
 
@@ -246,7 +285,10 @@ struct ManifestVisitor<'scan> {
 /// Lets the walker hand each entry its thread walks to this visitor.
 impl ParallelVisitor for ManifestVisitor<'_> {
     /// Checks one walk result and adds what it found to the shared report.
-    fn visit(&mut self, result: Result<DirEntry, WalkError>) -> WalkState {
+    fn visit(
+        &mut self,
+        result: Result<DirEntry, WalkError>,
+    ) -> WalkState {
         let partial: ScanReport = check_walk_result(self.root, result);
         // A poisoned lock means another thread panicked while holding it; the report is still the best
         // available, so the guard is taken from the error.
@@ -285,8 +327,11 @@ pub fn scan_workspace(root: &Path) -> ScanReport {
     // What:     `Mutex<ScanReport>` is a value only one thread may touch at a time (a TS value behind a lock; sibling:
     //           `RwLock`, which lets many readers in). Walker threads add to it by locking it for the short merge.
     // Why:      The walker calls the visitor from several threads, and they all append to one report.
-    let shared: Mutex<ScanReport> =
-        Mutex::new(ScanReport { manifests_checked: 0, findings: Vec::new(), notes: Vec::new() });
+    let shared: Mutex<ScanReport> = Mutex::new(ScanReport {
+        manifests_checked: 0,
+        findings: Vec::new(),
+        notes: Vec::new(),
+    });
 
     // The builder starts at `root`. `hidden(false)` also visits dot-directories (a tracked `.config/package.json`
     // is still a manifest). `require_git(false)` honors `.gitignore` even when the workspace is not a git checkout.
@@ -299,7 +344,10 @@ pub fn scan_workspace(root: &Path) -> ScanReport {
 
     // The walker asks the collector for one visitor per walker thread. Each visitor borrows `root` and `shared`,
     // which outlive the call, so no `Arc` is needed.
-    let mut collector: ManifestCollector<'_> = ManifestCollector { root, shared: &shared };
+    let mut collector: ManifestCollector<'_> = ManifestCollector {
+        root,
+        shared: &shared,
+    };
     builder.build_parallel().visit(&mut collector);
 
     let mut report: ScanReport = match shared.into_inner() {

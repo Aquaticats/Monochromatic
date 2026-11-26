@@ -35,7 +35,12 @@ use std::collections::HashSet;
 /// ```ts
 /// import { isNameChar, isNameStartChar, isXmlChar, isXmlSpace } from './chars';
 /// ```
-use crate::chars::{is_name_char, is_name_start_char, is_xml_char, is_xml_space};
+use crate::chars::{
+    is_name_char,
+    is_name_start_char,
+    is_xml_char,
+    is_xml_space,
+};
 /// What:
 /// Import the attribute decoder.
 /// Why:
@@ -55,7 +60,10 @@ use crate::coding::decode_attribute_value;
 /// ```ts
 /// import type { AttributeData, XmlSpan } from './document';
 /// ```
-use crate::document::{AttributeData, XmlSpan};
+use crate::document::{
+    AttributeData,
+    XmlSpan,
+};
 /// What:
 /// Import the parse failure type.
 /// Why:
@@ -126,7 +134,11 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// fail(offset: number, message: string): XmlParseError;
     /// ```
-    pub fn fail(&self, offset: usize, message: &str) -> XmlParseError {
+    pub fn fail(
+        &self,
+        offset: usize,
+        message: &str,
+    ) -> XmlParseError {
         return XmlParseError::at(self.source, offset, message);
     }
 
@@ -139,7 +151,10 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// startsWith(prefix: string): boolean { return this.source.startsWith(prefix, this.offset); }
     /// ```
-    pub fn starts_with(&self, prefix: &str) -> bool {
+    pub fn starts_with(
+        &self,
+        prefix: &str,
+    ) -> bool {
         return self.source[self.offset..].starts_with(prefix);
     }
 
@@ -153,7 +168,10 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// peek(ahead = 0): number | undefined;
     /// ```
-    pub fn peek(&self, ahead: usize) -> Option<u8> {
+    pub fn peek(
+        &self,
+        ahead: usize,
+    ) -> Option<u8> {
         return self.source.as_bytes().get(self.offset + ahead).copied();
     }
 
@@ -187,11 +205,18 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// scanName(what: string): Span;
     /// ```
-    pub fn scan_name(&mut self, what: &str) -> Result<XmlSpan, XmlParseError> {
+    pub fn scan_name(
+        &mut self,
+        what: &str,
+    ) -> Result<XmlSpan, XmlParseError> {
         let start: usize = self.offset;
         let mut end: usize = start;
         for (index, character) in self.source[start..].char_indices() {
-            let allowed: bool = if index == 0 { is_name_start_char(character) } else { is_name_char(character) };
+            let allowed: bool = if index == 0 {
+                is_name_start_char(character)
+            } else {
+                is_name_char(character)
+            };
             if !allowed {
                 break;
             }
@@ -201,7 +226,10 @@ impl<'a> Scanner<'a> {
             return Err(self.fail(start, &format!("expected {what} here")));
         }
         self.offset = end;
-        return Ok(XmlSpan { start, end });
+        return Ok(XmlSpan {
+            start,
+            end,
+        });
     }
 
     /// What:
@@ -216,10 +244,17 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// checkChars(start: number, end: number): void;
     /// ```
-    fn check_characters(&self, start: usize, end: usize) -> Result<(), XmlParseError> {
+    fn check_characters(
+        &self,
+        start: usize,
+        end: usize,
+    ) -> Result<(), XmlParseError> {
         for (index, character) in self.source[start..end].char_indices() {
             if !is_xml_char(character) {
-                let message: String = format!("U+{:04X} is not a character XML 1.0 allows", u32::from(character));
+                let message: String = format!(
+                    "U+{:04X} is not a character XML 1.0 allows",
+                    u32::from(character)
+                );
                 return Err(self.fail(start + index, &message));
             }
         }
@@ -252,7 +287,10 @@ impl<'a> Scanner<'a> {
         }
         self.check_characters(body_start, body_end)?;
         self.offset = body_end + 3;
-        return Ok(XmlSpan { start, end: self.offset });
+        return Ok(XmlSpan {
+            start,
+            end: self.offset,
+        });
     }
 
     /// What:
@@ -270,7 +308,10 @@ impl<'a> Scanner<'a> {
         self.offset += 2;
         let target: XmlSpan = self.scan_name("a processing instruction target")?;
         if self.source[target.start..target.end].eq_ignore_ascii_case("xml") {
-            return Err(self.fail(start, "an XML declaration is only allowed at the very start of the document"));
+            return Err(self.fail(
+                start,
+                "an XML declaration is only allowed at the very start of the document",
+            ));
         }
         let Some(length) = self.source[self.offset..].find("?>") else {
             return Err(self.fail(start, "this processing instruction is never closed with ?>"));
@@ -278,7 +319,10 @@ impl<'a> Scanner<'a> {
         let body_end: usize = self.offset + length;
         self.check_characters(self.offset, body_end)?;
         self.offset = body_end + 2;
-        return Ok(XmlSpan { start, end: self.offset });
+        return Ok(XmlSpan {
+            start,
+            end: self.offset,
+        });
     }
 
     /// What:
@@ -300,7 +344,16 @@ impl<'a> Scanner<'a> {
         let content_end: usize = content_start + length;
         self.check_characters(content_start, content_end)?;
         self.offset = content_end + 3;
-        return Ok((XmlSpan { start, end: self.offset }, XmlSpan { start: content_start, end: content_end }));
+        return Ok((
+            XmlSpan {
+                start,
+                end: self.offset,
+            },
+            XmlSpan {
+                start: content_start,
+                end: content_end,
+            },
+        ));
     }
 
     /// What:
@@ -327,15 +380,26 @@ impl<'a> Scanner<'a> {
         let quote: char = char::from(quote_byte);
         let value_start: usize = self.offset + 1;
         let Some(length) = self.source[value_start..].find(quote) else {
-            return Err(self.fail(self.offset, "this attribute value is never closed with its quote"));
+            return Err(self.fail(
+                self.offset,
+                "this attribute value is never closed with its quote",
+            ));
         };
-        let value: XmlSpan = XmlSpan { start: value_start, end: value_start + length };
+        let value: XmlSpan = XmlSpan {
+            start: value_start,
+            end: value_start + length,
+        };
         let decoded: String = match decode_attribute_value(&self.source[value.start..value.end]) {
             Ok(text) => text,
             Err(error) => return Err(self.fail(value.start + error.offset, &error.message)),
         };
         self.offset = value.end + 1;
-        return Ok(AttributeData { name, value, quote, decoded });
+        return Ok(AttributeData {
+            name,
+            value,
+            quote,
+            decoded,
+        });
     }
 
     /// What:
@@ -367,7 +431,8 @@ impl<'a> Scanner<'a> {
             let attribute: AttributeData = self.scan_attribute()?;
             let attribute_name: &str = &self.source[attribute.name.start..attribute.name.end];
             if !seen.insert(attribute_name) {
-                let message: String = format!("attribute {attribute_name:?} appears twice in this tag");
+                let message: String =
+                    format!("attribute {attribute_name:?} appears twice in this tag");
                 return Err(self.fail(attribute.name.start, &message));
             }
             attributes.push(attribute);
@@ -375,11 +440,19 @@ impl<'a> Scanner<'a> {
         let self_closing: bool = self.peek(0) == Some(b'/');
         if self_closing {
             if self.peek(1) != Some(b'>') {
-                return Err(self.fail(self.offset, "expected > right after / in an empty-element tag"));
+                return Err(self.fail(
+                    self.offset,
+                    "expected > right after / in an empty-element tag",
+                ));
             }
             self.offset += 1;
         }
         self.offset += 1;
-        return Ok(StartTag { name, attributes, self_closing, end: self.offset });
+        return Ok(StartTag {
+            name,
+            attributes,
+            self_closing,
+            end: self.offset,
+        });
     }
 }

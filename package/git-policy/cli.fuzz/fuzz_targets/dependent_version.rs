@@ -19,7 +19,11 @@
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
 use git_policy_cli_fuzz::dependent_version::{
-    check_generated_manifest, check_imports, check_version_edit, generated_manifest, import_view,
+    check_generated_manifest,
+    check_imports,
+    check_version_edit,
+    generated_manifest,
+    import_view,
     version_edit_view,
 };
 use libfuzzer_sys::fuzz_target;

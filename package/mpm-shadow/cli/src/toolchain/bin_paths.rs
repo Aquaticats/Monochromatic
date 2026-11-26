@@ -27,7 +27,10 @@
 //! ```
 
 /// Imports what this module uses from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
@@ -40,7 +43,10 @@ use super::model_encode::render_pretty_json;
 /// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope};
+use super::scope::{
+    EnvMap,
+    Scope,
+};
 
 /// What:
 /// The `bin --json` document shape:
@@ -83,7 +89,11 @@ pub(super) fn document_fields(
 /// ```ts
 /// export function binPathsOutput(plan, scope, env): BinPathsOutput  // throws on a duplicate bin name
 /// ```
-pub fn bin_paths_output(plan: &Plan, scope: &Scope, env: &EnvMap) -> Result<Value, ToolchainError> {
+pub fn bin_paths_output(
+    plan: &Plan,
+    scope: &Scope,
+    env: &EnvMap,
+) -> Result<Value, ToolchainError> {
     let mut names: Vec<&str> = Vec::new();
     for tool in &plan.tools {
         for name in &tool.bins {
@@ -105,7 +115,10 @@ pub fn bin_paths_output(plan: &Plan, scope: &Scope, env: &EnvMap) -> Result<Valu
     for name in names {
         let link: PathBuf = scope.exposure_dir.join(name);
         if link.exists() {
-            bins.insert(name.to_string(), Value::String(link.to_string_lossy().to_string()));
+            bins.insert(
+                name.to_string(),
+                Value::String(link.to_string_lossy().to_string()),
+            );
         }
     }
     let mut document: Map<String, Value> = Map::new();

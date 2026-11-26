@@ -6,12 +6,22 @@ mod memory_fixture;
 
 /// Application consumers share the same read/diff and bounded worker APIs.
 use ide_app::{
-    document::{Document, ReadingPosition},
+    document::{
+        Document,
+        ReadingPosition,
+    },
     file_reload::read_reload,
-    reload_worker::{ReloadReply, ReloadRequest, ReloadWorker},
+    reload_worker::{
+        ReloadReply,
+        ReloadRequest,
+        ReloadWorker,
+    },
 };
 /// Bound worker waits instead of hanging an unattended regression run.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Longest wait for one reply:
 ///  a hang detector,

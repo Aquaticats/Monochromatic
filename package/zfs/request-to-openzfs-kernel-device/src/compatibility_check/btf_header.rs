@@ -41,7 +41,11 @@
 //! ```
 
 /// The step vocabulary and the refusal builders.
-use super::refusal::{Refusal, Step, refusal_at};
+use super::refusal::{
+    Refusal,
+    Step,
+    refusal_at,
+};
 /// The borrowed path type the refusal names.
 use std::path::Path;
 
@@ -123,7 +127,10 @@ enum Which {
 ///
 /// # Errors
 /// A refusal at the header step naming the file and the check that failed.
-pub fn read_sections(bytes: &[u8], path: &Path) -> Result<Sections, Refusal> {
+pub fn read_sections(
+    bytes: &[u8],
+    path: &Path,
+) -> Result<Sections, Refusal> {
     let step: Step = Step::Header;
     if bytes.len() < OLDEST_HEADER_BYTES {
         return Err(refusal_at(
@@ -172,14 +179,19 @@ pub fn read_sections(bytes: &[u8], path: &Path) -> Result<Sections, Refusal> {
     }
     let places: Vec<Placed> = places_of(bytes, header_bytes);
     check_sections(bytes, header_bytes, &places, path, step)?;
-    return Ok(Sections { header_bytes });
+    return Ok(Sections {
+        header_bytes,
+    });
 }
 
 /// Refuse a file whose first two bytes are not the magic in this target's byte order.
 ///
 /// # Errors
 /// A refusal naming whether the file is the other byte order or no type information at all.
-fn check_magic(bytes: &[u8], path: &Path) -> Result<(), Refusal> {
+fn check_magic(
+    bytes: &[u8],
+    path: &Path,
+) -> Result<(), Refusal> {
     let step: Step = Step::Header;
     let little: u16 = u16::from_le_bytes([bytes[0], bytes[1]]);
     if little == MAGIC {
@@ -202,7 +214,10 @@ fn check_magic(bytes: &[u8], path: &Path) -> Result<(), Refusal> {
 
 /// The sections the header names,
 /// each with the offset it was given.
-fn places_of(bytes: &[u8], header_bytes: usize) -> Vec<Placed> {
+fn places_of(
+    bytes: &[u8],
+    header_bytes: usize,
+) -> Vec<Placed> {
     let mut places: Vec<Placed> = Vec::<Placed>::with_capacity(SECTION_COUNT);
     places.push(Placed {
         which: Which::Types,
@@ -333,7 +348,10 @@ fn place_of<'a>(
 }
 
 /// One little-endian 32-bit field of the header.
-fn read_u32(bytes: &[u8], at: usize) -> u32 {
+fn read_u32(
+    bytes: &[u8],
+    at: usize,
+) -> u32 {
     let mut field: [u8; 4] = [0; 4];
     field.copy_from_slice(&bytes[at..at + 4]);
     return u32::from_le_bytes(field);

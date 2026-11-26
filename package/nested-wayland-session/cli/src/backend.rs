@@ -31,12 +31,21 @@
 /// ```
 use smithay::{
     backend::{
-        renderer::{gles::GlesRenderer, ImportEgl},
-        winit::{self, WinitEventLoop},
+        renderer::{
+            ImportEgl,
+            gles::GlesRenderer,
+        },
+        winit::{
+            self,
+            WinitEventLoop,
+        },
     },
     reexports::{
         wayland_server::DisplayHandle,
-        winit::{dpi::PhysicalSize, window::WindowAttributes},
+        winit::{
+            dpi::PhysicalSize,
+            window::WindowAttributes,
+        },
     },
 };
 
@@ -73,8 +82,14 @@ use tracing::info;
 /// import { BackendPieces } from "./state";
 /// ```
 use crate::{
-    backend_parts::{build_dmabuf, build_output},
-    backend_select::{nested_failure_message, ParentEnvironment},
+    backend_parts::{
+        build_dmabuf,
+        build_output,
+    },
+    backend_select::{
+        ParentEnvironment,
+        nested_failure_message,
+    },
     cli::Config,
     render_backend::RenderBackend,
     screen_geometry::ScreenGeometry,
@@ -154,7 +169,10 @@ pub fn init_backend(
     // ```
     let attributes = WindowAttributes::default()
         .with_title("nested-wayland-session")
-        .with_inner_size(PhysicalSize::new(physical_width as u32, physical_height as u32));
+        .with_inner_size(PhysicalSize::new(
+            physical_width as u32,
+            physical_height as u32,
+        ));
 
     // What:     `let (mut backend, winit) = winit::init_from_attributes::<GlesRenderer>(
     //           attributes).map_err(...)?;`. Creates the backend + event loop. The
@@ -166,7 +184,10 @@ pub fn init_backend(
     let (mut backend, winit) = match winit::init_from_attributes::<GlesRenderer>(attributes) {
         Ok(pair) => pair,
         Err(err) => {
-            return Err(anyhow::anyhow!(nested_failure_message(&err.to_string(), ParentEnvironment::from_process())))
+            return Err(anyhow::anyhow!(nested_failure_message(
+                &err.to_string(),
+                ParentEnvironment::from_process()
+            )));
         }
     };
 
@@ -193,7 +214,8 @@ pub fn init_backend(
     //           renderer's EGL display and creates the dmabuf v4 (or v3) global.
     // Why:      dmabuf v4 feedback needs the render node's device id so the client allocates
     //           buffers on the right GPU.
-    let (dmabuf_state, dmabuf_global, dmabuf_feedback) = build_dmabuf(display_handle, backend.renderer())?;
+    let (dmabuf_state, dmabuf_global, dmabuf_feedback) =
+        build_dmabuf(display_handle, backend.renderer())?;
 
     // What:     `if backend.renderer().bind_wl_display(display_handle).is_ok() { ... }`.
     //           `bind_wl_display` (from `ImportEgl`, enabled by `use_system_lib`) sets up
@@ -219,5 +241,5 @@ pub fn init_backend(
             geometry,
         },
         winit,
-    ))
+    ));
 }

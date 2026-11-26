@@ -80,7 +80,10 @@ pub use generators::GeneratedDocument;
 /// export { assertCanonicalStability, assertCommentsPreserved, assertDepthBound, assertTreesEqual } from './invariants';
 /// ```
 pub use invariants::{
-    assert_canonical_stability, assert_comments_preserved, assert_depth_bound, assert_trees_equal,
+    assert_canonical_stability,
+    assert_comments_preserved,
+    assert_depth_bound,
+    assert_trees_equal,
     collect_comments,
 };
 
@@ -94,7 +97,10 @@ pub use invariants::{
 /// ```ts
 /// export { assertSpansConsistent, assertSpansMatch } from './spanInvariants';
 /// ```
-pub use span_invariants::{assert_spans_consistent, assert_spans_match};
+pub use span_invariants::{
+    assert_spans_consistent,
+    assert_spans_match,
+};
 
 /// What:
 ///      Re-export address selection.

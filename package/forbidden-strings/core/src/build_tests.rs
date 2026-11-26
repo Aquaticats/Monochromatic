@@ -10,11 +10,16 @@
 // });
 // ```
 
-use super::{build_rule, build_seedless_union, route_rule, starts_with_line_anchor};
+use super::{
+    build_rule,
+    build_seedless_union,
+    route_rule,
+    starts_with_line_anchor,
+};
 use crate::parse::parse;
 
 fn node(pattern: &str) -> crate::ast::node::Node {
-    return parse(pattern).expect("test pattern parses")
+    return parse(pattern).expect("test pattern parses");
 }
 
 #[test]
@@ -65,7 +70,8 @@ fn weak_inner_literal_folds_to_an_unanchored_seed() {
 
 #[test]
 fn build_rule_flags_seedless_and_reference_nodes() {
-    let akia = build_rule(node("AKIA[A-Z2-7]{16}")).expect("build a rule for a leading-literal pattern");
+    let akia =
+        build_rule(node("AKIA[A-Z2-7]{16}")).expect("build a rule for a leading-literal pattern");
     assert!(!akia.seedless);
     // What:    had a leading seed.
     // Why:     The nearby assertion or value needs this note so the test records the exact
@@ -77,7 +83,8 @@ fn build_rule_flags_seedless_and_reference_nodes() {
     // ```
     assert!(akia.reference_node.is_none());
 
-    let inner = build_rule(node("[a-z]{3}adafruit[a-z]{3}")).expect("build a rule for an inner-literal pattern");
+    let inner = build_rule(node("[a-z]{3}adafruit[a-z]{3}"))
+        .expect("build a rule for an inner-literal pattern");
     assert!(!inner.seedless);
     // What:    had an inner seed (not seedless).
     // Why:     The nearby assertion or value needs this note so the test records the exact

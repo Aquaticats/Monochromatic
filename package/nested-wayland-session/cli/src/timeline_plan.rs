@@ -2,8 +2,15 @@
 
 /// Sibling modules of this crate.
 use crate::{
-    key_chord::{parse_chord, Chord},
-    protocol::{Command, KeyAction, PointerButton},
+    key_chord::{
+        Chord,
+        parse_chord,
+    },
+    protocol::{
+        Command,
+        KeyAction,
+        PointerButton,
+    },
     timeline::Step,
 };
 
@@ -24,7 +31,10 @@ use crate::{
 /// ```ts
 /// function pushKeyDowns(steps: Step[], keys: number[]): void { for (const key of keys) steps.push(keyDown(key)); }
 /// ```
-fn push_key_downs(steps: &mut Vec<Step>, keys: &[u32]) {
+fn push_key_downs(
+    steps: &mut Vec<Step>,
+    keys: &[u32],
+) {
     for code in keys {
         steps.push(Step::KeyDown(*code));
     }
@@ -43,7 +53,10 @@ fn push_key_downs(steps: &mut Vec<Step>, keys: &[u32]) {
 /// ```ts
 /// function pushKeyUps(steps: Step[], keys: number[]): void { for (const key of [...keys].reverse()) steps.push(keyUp(key)); }
 /// ```
-fn push_key_ups(steps: &mut Vec<Step>, keys: &[u32]) {
+fn push_key_ups(
+    steps: &mut Vec<Step>,
+    keys: &[u32],
+) {
     for code in keys.iter().rev() {
         steps.push(Step::KeyUp(*code));
     }
@@ -59,16 +72,19 @@ fn push_key_ups(steps: &mut Vec<Step>, keys: &[u32]) {
 /// ```ts
 /// function withModifiers(modifiers: string, inner: Step[]): Step[] { ... }
 /// ```
-fn with_modifiers(modifiers: &str, inner: Vec<Step>) -> Result<Vec<Step>, String> {
+fn with_modifiers(
+    modifiers: &str,
+    inner: Vec<Step>,
+) -> Result<Vec<Step>, String> {
     if modifiers.is_empty() {
-        return Ok(inner)
+        return Ok(inner);
     }
     let chord = parse_chord(modifiers)?;
     let mut steps: Vec<Step> = Vec::new();
     push_key_downs(&mut steps, &chord.keys);
     steps.extend(inner);
     push_key_ups(&mut steps, &chord.keys);
-    return Ok(steps)
+    return Ok(steps);
 }
 
 /// The steps of a key held for a duration.
@@ -84,12 +100,15 @@ fn with_modifiers(modifiers: &str, inner: Vec<Step>) -> Result<Vec<Step>, String
 /// function holdSteps(chord: Chord, millis: number): Step[] { ... }
 /// ```
 #[must_use]
-pub fn hold_steps(chord: &Chord, millis: u64) -> Vec<Step> {
+pub fn hold_steps(
+    chord: &Chord,
+    millis: u64,
+) -> Vec<Step> {
     let mut steps: Vec<Step> = Vec::new();
     push_key_downs(&mut steps, &chord.keys);
     steps.push(Step::Wait(millis));
     push_key_ups(&mut steps, &chord.keys);
-    return steps
+    return steps;
 }
 
 /// The steps of `count` presses of a button at a point.
@@ -103,8 +122,17 @@ pub fn hold_steps(chord: &Chord, millis: u64) -> Vec<Step> {
 /// ```ts
 /// function clickSteps(x: number, y: number, button: PointerButton, count: number, intervalMs: number): Step[] { ... }
 /// ```
-fn click_steps(x: f64, y: f64, button: PointerButton, count: u32, interval_ms: u64) -> Vec<Step> {
-    let mut steps = vec![Step::MoveTo { x, y }];
+fn click_steps(
+    x: f64,
+    y: f64,
+    button: PointerButton,
+    count: u32,
+    interval_ms: u64,
+) -> Vec<Step> {
+    let mut steps = vec![Step::MoveTo {
+        x,
+        y,
+    }];
     for index in 0..count {
         if index > 0 {
             steps.push(Step::Wait(interval_ms));
@@ -112,7 +140,7 @@ fn click_steps(x: f64, y: f64, button: PointerButton, count: u32, interval_ms: u
         steps.push(Step::ButtonDown(button));
         steps.push(Step::ButtonUp(button));
     }
-    return steps
+    return steps;
 }
 
 /// The steps of a drag with intermediate motion.
@@ -130,8 +158,20 @@ fn click_steps(x: f64, y: f64, button: PointerButton, count: u32, interval_ms: u
 /// ```ts
 /// function dragSteps(from: Point, to: Point, button: PointerButton, steps: number, stepMs: number): Step[] { ... }
 /// ```
-fn drag_steps(from: (f64, f64), to: (f64, f64), button: PointerButton, steps: u32, step_ms: u64) -> Vec<Step> {
-    let mut sequence = vec![Step::MoveTo { x: from.0, y: from.1 }, Step::ButtonDown(button)];
+fn drag_steps(
+    from: (f64, f64),
+    to: (f64, f64),
+    button: PointerButton,
+    steps: u32,
+    step_ms: u64,
+) -> Vec<Step> {
+    let mut sequence = vec![
+        Step::MoveTo {
+            x: from.0,
+            y: from.1,
+        },
+        Step::ButtonDown(button),
+    ];
     for index in 1..=steps {
         let fraction = f64::from(index) / f64::from(steps);
         sequence.push(Step::Wait(step_ms));
@@ -142,7 +182,7 @@ fn drag_steps(from: (f64, f64), to: (f64, f64), button: PointerButton, steps: u3
     }
     sequence.push(Step::Wait(step_ms));
     sequence.push(Step::ButtonUp(button));
-    return sequence
+    return sequence;
 }
 
 /// The steps of a touchpad scroll split into events.
@@ -158,16 +198,28 @@ fn drag_steps(from: (f64, f64), to: (f64, f64), button: PointerButton, steps: u3
 /// ```ts
 /// function scrollSteps(x: number, y: number, dx: number, dy: number, steps: number, stepMs: number): Step[] { ... }
 /// ```
-fn scroll_steps(x: f64, y: f64, dx: f64, dy: f64, steps: u32, step_ms: u64) -> Vec<Step> {
+fn scroll_steps(
+    x: f64,
+    y: f64,
+    dx: f64,
+    dy: f64,
+    steps: u32,
+    step_ms: u64,
+) -> Vec<Step> {
     let mut sequence = Vec::new();
     for index in 0..steps {
         if index > 0 {
             sequence.push(Step::Wait(step_ms));
         }
-        sequence.push(Step::Scroll { x, y, dx: dx / f64::from(steps), dy: dy / f64::from(steps) });
+        sequence.push(Step::Scroll {
+            x,
+            y,
+            dx: dx / f64::from(steps),
+            dy: dy / f64::from(steps),
+        });
     }
     sequence.push(Step::ScrollStop);
-    return sequence
+    return sequence;
 }
 
 /// Plan a command that takes time or holds modifier keys.
@@ -186,24 +238,69 @@ fn scroll_steps(x: f64, y: f64, dx: f64, dy: f64, steps: u32, step_ms: u64) -> V
 #[must_use]
 pub fn plan(command: &Command) -> Option<Result<Vec<Step>, String>> {
     match command {
-        Command::Key { name, action: KeyAction::Hold { millis } } => {
-            match parse_chord(name) {
-                Ok(chord) => return Some(Ok(hold_steps(&chord, *millis))),
-                Err(message) => return Some(Err(message)),
-            }
+        Command::Key {
+            name,
+            action: KeyAction::Hold {
+                millis,
+            },
+        } => match parse_chord(name) {
+            Ok(chord) => return Some(Ok(hold_steps(&chord, *millis))),
+            Err(message) => return Some(Err(message)),
+        },
+        Command::Click {
+            x,
+            y,
+            button,
+            count,
+            interval_ms,
+            modifiers,
+        } if *count > 1 || !modifiers.is_empty() => {
+            return Some(with_modifiers(
+                modifiers,
+                click_steps(*x, *y, *button, *count, *interval_ms),
+            ));
         }
-        Command::Click { x, y, button, count, interval_ms, modifiers } if *count > 1 || !modifiers.is_empty() => {
-            return Some(with_modifiers(modifiers, click_steps(*x, *y, *button, *count, *interval_ms)))
+        Command::Drag {
+            from,
+            to,
+            button,
+            steps,
+            step_ms,
+            modifiers,
+        } => {
+            return Some(with_modifiers(
+                modifiers,
+                drag_steps(*from, *to, *button, *steps, *step_ms),
+            ));
         }
-        Command::Drag { from, to, button, steps, step_ms, modifiers } => {
-            return Some(with_modifiers(modifiers, drag_steps(*from, *to, *button, *steps, *step_ms)))
+        Command::Scroll {
+            x,
+            y,
+            dx,
+            dy,
+            steps,
+            step_ms,
+            modifiers,
+        } => {
+            return Some(with_modifiers(
+                modifiers,
+                scroll_steps(*x, *y, *dx, *dy, *steps, *step_ms),
+            ));
         }
-        Command::Scroll { x, y, dx, dy, steps, step_ms, modifiers } => {
-            return Some(with_modifiers(modifiers, scroll_steps(*x, *y, *dx, *dy, *steps, *step_ms)))
-        }
-        Command::Wheel { x, y, horizontal, vertical, modifiers } if !modifiers.is_empty() => {
-            let wheel = vec![Step::Wheel { x: *x, y: *y, horizontal: *horizontal, vertical: *vertical }];
-            return Some(with_modifiers(modifiers, wheel))
+        Command::Wheel {
+            x,
+            y,
+            horizontal,
+            vertical,
+            modifiers,
+        } if !modifiers.is_empty() => {
+            let wheel = vec![Step::Wheel {
+                x: *x,
+                y: *y,
+                horizontal: *horizontal,
+                vertical: *vertical,
+            }];
+            return Some(with_modifiers(modifiers, wheel));
         }
         _ => return None,
     }

@@ -12,22 +12,26 @@
 #![no_main]
 
 /// What:
-/// Import the harness macro.
-/// Why:
-/// Every target in this sidecar is a libFuzzer entry point.
-use libfuzzer_sys::fuzz_target;
-/// What:
 /// Import the byte-budget reader.
 /// Why:
 /// Both the mutation and the input pair come from fuzzer bytes.
 use arbitrary::Unstructured;
+/// What:
+/// Import the harness macro.
+/// Why:
+/// Every target in this sidecar is a libFuzzer entry point.
+use libfuzzer_sys::fuzz_target;
 /// What:
 /// Import the generated document,
 /// the mutation helper and the outcome check.
 /// Why:
 /// Near-valid input reaches
 /// rejection paths that unrelated bytes almost never do.
-use xml_edit_fuzz::{GeneratedDocument, generators::mutated, invariants::assert_parse_or_reject};
+use xml_edit_fuzz::{
+    GeneratedDocument,
+    generators::mutated,
+    invariants::assert_parse_or_reject,
+};
 
 fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
     let (document, noise) = input;

@@ -6,13 +6,22 @@
 /// The tile scene that is drawn into a texture,
 ///  the scenes of a stack,
 ///  and the uses a texture of the tile has.
-use super::{Inner, TileScene, TileStack};
+use super::{
+    Inner,
+    TileScene,
+    TileStack,
+};
 /// Slint's own wgpu types,
 /// the ones the window's device is made of.
 use slint::wgpu_30::wgpu;
 /// Vello's renderer and its settings.
 use vello::{
-    AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, peniko::Color as VelloColor,
+    AaConfig,
+    AaSupport,
+    RenderParams,
+    Renderer,
+    RendererOptions,
+    peniko::Color as VelloColor,
 };
 
 /// What:
@@ -105,7 +114,7 @@ pub(super) fn read_texture(
 /// function renderScene(scene: TileScene): Pixels;
 /// ```
 pub(in crate::native) fn render_scene(
-    scene: &TileScene,
+    scene: &TileScene
 ) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
     return render_scenes(&[scene]);
 }
@@ -124,7 +133,7 @@ pub(in crate::native) fn render_scene(
 /// function renderStack(stack: TileStack): Pixels;
 /// ```
 pub(in crate::native) fn render_stack(
-    stack: &TileStack,
+    stack: &TileStack
 ) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
     let mut scenes = Vec::with_capacity(stack.textures.len());
     for texture in &stack.textures {

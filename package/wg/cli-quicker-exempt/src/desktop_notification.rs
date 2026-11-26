@@ -6,21 +6,37 @@
 //! and every notification expires after the interval.
 
 /// Non-panicking log and escaping.
-use crate::log_line::{escape_markup, log_line, sanitize};
+use crate::log_line::{
+    escape_markup,
+    log_line,
+    sanitize,
+};
 /// The channel trait,
 /// the cause normalizer
 /// and the bounds shared with the reporter.
-use crate::report_cause::{normalized_cause, without_held_suffix};
+use crate::report_cause::{
+    normalized_cause,
+    without_held_suffix,
+};
 /// The channel trait and the bounds shared with the reporter.
-use crate::runtime_report::{ReportChannel, MAX_CAUSES_PER_KIND, MAX_REMEMBERED_KINDS};
+use crate::runtime_report::{
+    MAX_CAUSES_PER_KIND,
+    MAX_REMEMBERED_KINDS,
+    ReportChannel,
+};
 /// The client run as the watched user.
 use crate::user_client::UserClient;
 /// Replacement ids of the notifications shown.
 use std::collections::HashMap;
-/// Queue to the notification worker.
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
 /// Shared handles of the worker.
 use std::sync::Mutex;
+/// Queue to the notification worker.
+use std::sync::mpsc::{
+    Receiver,
+    SyncSender,
+    TrySendError,
+    sync_channel,
+};
 /// The notification worker.
 use std::thread::JoinHandle;
 
@@ -35,7 +51,12 @@ pub const NOTIFICATION_EXPIRY_MS: i32 = 600_000;
 /// `replaces_id` is the notification a new one replaces,
 /// zero for none,
 /// and `expiry_ms` how long it stays.
-pub fn notification_arguments(summary: &str, body: &str, replaces_id: u32, expiry_ms: i32) -> Vec<String> {
+pub fn notification_arguments(
+    summary: &str,
+    body: &str,
+    replaces_id: u32,
+    expiry_ms: i32,
+) -> Vec<String> {
     let mut arguments: Vec<String> = Vec::new();
     for argument in [
         "--user",
@@ -75,7 +96,10 @@ pub fn parse_notification_id(output: &str) -> Option<u32> {
 /// and a repeat of one cause replaces its earlier notification.
 /// A line that follows held-back repeats carries a note with their count,
 /// which is not part of its cause.
-pub fn report_identity(kind: &str, line: &str) -> String {
+pub fn report_identity(
+    kind: &str,
+    line: &str,
+) -> String {
     return format!("{kind}\u{0}{}", normalized_cause(without_held_suffix(line)));
 }
 
@@ -100,15 +124,27 @@ pub struct DesktopChannel {
 }
 
 /// Worker that sends the notifications.
-fn notification_worker(receiver: Receiver<Notification>, client: UserClient, uid: u32, gid: u32) {
+fn notification_worker(
+    receiver: Receiver<Notification>,
+    client: UserClient,
+    uid: u32,
+    gid: u32,
+) {
     let mut shown: HashMap<String, u32> = HashMap::new();
     while let Ok(notification) = receiver.recv() {
         let replaces_id = shown.get(&notification.identity).copied().unwrap_or(0);
-        let arguments = notification_arguments("wg-quicker: update traffic policy not in force", &notification.line, replaces_id, NOTIFICATION_EXPIRY_MS);
+        let arguments = notification_arguments(
+            "wg-quicker: update traffic policy not in force",
+            &notification.line,
+            replaces_id,
+            NOTIFICATION_EXPIRY_MS,
+        );
         match client.run(uid, gid, &arguments) {
             Ok(output) => {
                 if let Some(id) = parse_notification_id(&output) {
-                    if shown.len() >= MAX_REMEMBERED_KINDS * MAX_CAUSES_PER_KIND && !shown.contains_key(&notification.identity) {
+                    if shown.len() >= MAX_REMEMBERED_KINDS * MAX_CAUSES_PER_KIND
+                        && !shown.contains_key(&notification.identity)
+                    {
                         shown.clear();
                     }
                     shown.insert(notification.identity, id);
@@ -127,7 +163,11 @@ fn notification_worker(receiver: Receiver<Notification>, client: UserClient, uid
 /// Construction and delivery of notifications.
 impl DesktopChannel {
     /// Starts the worker for the given user.
-    pub fn new(client: UserClient, uid: u32, gid: u32) -> DesktopChannel {
+    pub fn new(
+        client: UserClient,
+        uid: u32,
+        gid: u32,
+    ) -> DesktopChannel {
         let (sender, receiver) = sync_channel(NOTIFICATION_QUEUE);
         let started = std::thread::Builder::new()
             .name("wg-quicker-notify".to_string())
@@ -154,17 +194,26 @@ impl ReportChannel for DesktopChannel {
 
     /// Queues the line for the worker,
     /// and refuses it when the queue is full or the worker is gone.
-    fn deliver(&self, kind: &str, line: &str) -> Result<(), String> {
+    fn deliver(
+        &self,
+        kind: &str,
+        line: &str,
+    ) -> Result<(), String> {
         let Ok(guard) = self.sender.lock() else {
             return Err("the notification queue is unavailable".to_string());
         };
         let Some(sender) = guard.as_ref() else {
             return Err("the notification worker is not running".to_string());
         };
-        return match sender.try_send(Notification { identity: report_identity(kind, line), line: line.to_string() }) {
+        return match sender.try_send(Notification {
+            identity: report_identity(kind, line),
+            line: line.to_string(),
+        }) {
             Ok(()) => Ok(()),
             Err(TrySendError::Full(_dropped)) => Err("the notification queue is full".to_string()),
-            Err(TrySendError::Disconnected(_dropped)) => Err("the notification worker stopped".to_string()),
+            Err(TrySendError::Disconnected(_dropped)) => {
+                Err("the notification worker stopped".to_string())
+            }
         };
     }
 

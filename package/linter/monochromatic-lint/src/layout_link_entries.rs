@@ -81,12 +81,13 @@ pub struct LinkRead {
 /// ```ts
 /// function entryFinding(entry: Path, message: string): LayoutFinding;
 /// ```
-fn entry_finding(entry: &Path, message: String) -> LayoutFinding {
+fn entry_finding(entry: &Path, base: &Path, message: String) -> LayoutFinding {
     return LayoutFinding {
         file: entry.to_path_buf(),
         line: 0,
         message,
         help: None,
+        key: format!("link {}", shown(entry, base)),
     };
 }
 
@@ -138,12 +139,14 @@ fn check_entry(
     let Ok(kind) = std::fs::symlink_metadata(entry) else {
         return Err(entry_finding(
             entry,
+            base,
             format!("{shown_entry} cannot be read."),
         ));
     };
     if !kind.file_type().is_symlink() {
         return Err(entry_finding(
             entry,
+            base,
             format!(
                 "{shown_entry} is not a symbolic link; a uses folder holds only links to the folders the code uses."
             ),
@@ -156,6 +159,7 @@ fn check_entry(
     let Ok(canonical) = std::fs::canonicalize(entry) else {
         return Err(entry_finding(
             entry,
+            base,
             format!(
                 "{shown_entry} is a broken link: it points to {written}, which does not exist."
             ),
@@ -164,6 +168,7 @@ fn check_entry(
     if !canonical.is_dir() {
         return Err(entry_finding(
             entry,
+            base,
             format!(
                 "{shown_entry} points to {written}, which is a file; a link must point to a folder."
             ),
@@ -172,6 +177,7 @@ fn check_entry(
     let Some(target) = source_folders.get(&canonical) else {
         return Err(entry_finding(
             entry,
+            base,
             format!(
                 "{shown_entry} points to {written}, which is not a source folder of this package (a folder holding a module file of its production code)."
             ),
@@ -180,6 +186,7 @@ fn check_entry(
     if target == folder {
         return Err(entry_finding(
             entry,
+            base,
             format!(
                 "{shown_entry} points to the folder it is in; a folder does not link to itself."
             ),
@@ -196,6 +203,7 @@ fn check_entry(
     if wanted != named {
         return Err(entry_finding(
             entry,
+            base,
             format!(
                 "{shown_entry} points to the folder {wanted}, so the link must be named {wanted}."
             ),
@@ -230,6 +238,7 @@ pub fn read_links(
         Err(error) => {
             read.findings.push(entry_finding(
                 &uses,
+                base,
                 format!("{} cannot be read: {error}.", shown(&uses, base)),
             ));
             return read;
@@ -238,6 +247,7 @@ pub fn read_links(
     if !kind.is_dir() {
         read.findings.push(entry_finding(
             &uses,
+            base,
             format!(
                 "{} must be a folder of links, not a file or a link.",
                 shown(&uses, base)
@@ -248,6 +258,7 @@ pub fn read_links(
     let Ok(listing) = std::fs::read_dir(&uses) else {
         read.findings.push(entry_finding(
             &uses,
+            base,
             format!("{} cannot be listed.", shown(&uses, base)),
         ));
         return read;

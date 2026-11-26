@@ -22,7 +22,11 @@ use crate::normalize::normalize;
 use crate::port::class_end;
 
 /// Imports the operand-wrapping and top-level-split helpers.
-use crate::atomwrap::{split_top_level, wrap_alternation, wrap_operand};
+use crate::atomwrap::{
+    split_top_level,
+    wrap_alternation,
+    wrap_operand,
+};
 
 /// Imports the escape and verbose-whitespace rewrite pass.
 use crate::escapefix::fix_escapes;
@@ -158,7 +162,11 @@ fn faithful_port(pattern: &str) -> String {
         .enumerate()
         .map(|(index, operand)| {
             let raw_body = dialect_body(operand);
-            let body = if index == 0 { strip_leading_redundant(&raw_body) } else { raw_body };
+            let body = if index == 0 {
+                strip_leading_redundant(&raw_body)
+            } else {
+                raw_body
+            };
             return wrap_operand(&body);
         })
         .collect();
@@ -297,7 +305,9 @@ fn has_unbounded_quant(s: &str) -> bool {
                 let body = &s[i + 1..i + rel];
                 if body.len() >= 2
                     && body.ends_with(',')
-                    && body[..body.len() - 1].bytes().all(|x| return x.is_ascii_digit())
+                    && body[..body.len() - 1]
+                        .bytes()
+                        .all(|x| return x.is_ascii_digit())
                 {
                     return true;
                 }
@@ -380,7 +390,11 @@ pub(crate) struct Ported {
 ///  and records every change category.
 /// Why:
 ///  one place produces both the output line and the review classification.
-fn classify(line_no: usize, pattern: &str, flags: &str) -> Ported {
+fn classify(
+    line_no: usize,
+    pattern: &str,
+    flags: &str,
+) -> Ported {
     let (ported, reshape) = port_pattern(pattern);
     return Ported {
         line: line_no,

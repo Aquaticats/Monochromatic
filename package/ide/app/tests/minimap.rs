@@ -11,11 +11,24 @@
 use ide_app::line_rows::LineRows;
 /// The geometry and its constants.
 use ide_app::minimap::{
-    BAND, Geometry, Heading, LEAD, MIN_BOX, NARROWEST, Target, WIDTH, band_count, text_span,
-    text_x, width_for,
+    BAND,
+    Geometry,
+    Heading,
+    LEAD,
+    MIN_BOX,
+    NARROWEST,
+    Target,
+    WIDTH,
+    band_count,
+    text_span,
+    text_x,
+    width_for,
 };
 /// The vertical mapping the minimap shows.
-use ide_app::row_map::{CODE_ROW, RowMap};
+use ide_app::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// The width of an unwrapped raster.
 use ide_app::shaped_text::UNWRAPPED_RASTER_WIDTH;
 
@@ -189,14 +202,38 @@ fn a_position_names_the_visual_row_it_shows_and_the_row_names_its_position_back(
     let map = RowMap::new(100, &[(5, 48.0)]).with_rows(&rows);
     let geometry = Geometry::new(map.height(), 1000.0);
     for target in [
-        Target { line: 0, row: 0 },
-        Target { line: 4, row: 0 },
-        Target { line: 5, row: 0 },
-        Target { line: 10, row: 0 },
-        Target { line: 10, row: 1 },
-        Target { line: 10, row: 2 },
-        Target { line: 40, row: 1 },
-        Target { line: 99, row: 0 },
+        Target {
+            line: 0,
+            row: 0,
+        },
+        Target {
+            line: 4,
+            row: 0,
+        },
+        Target {
+            line: 5,
+            row: 0,
+        },
+        Target {
+            line: 10,
+            row: 0,
+        },
+        Target {
+            line: 10,
+            row: 1,
+        },
+        Target {
+            line: 10,
+            row: 2,
+        },
+        Target {
+            line: 40,
+            row: 1,
+        },
+        Target {
+            line: 99,
+            row: 0,
+        },
     ] {
         // The middle of the row's pixels, which are CODE_ROW over six tall.
         let y = geometry.y_of_row(&map, target, 0.0) + 0.5;
@@ -206,14 +243,26 @@ fn a_position_names_the_visual_row_it_shows_and_the_row_names_its_position_back(
     let in_block = geometry.y_of(map.block_top(5) + 10.0, 0.0);
     assert_eq!(
         geometry.target(&map, in_block, 0.0),
-        Target { line: 5, row: 0 }
+        Target {
+            line: 5,
+            row: 0
+        }
     );
     // Both ends.
     assert_eq!(
         geometry.target(&map, -10.0, 0.0),
-        Target { line: 0, row: 0 }
+        Target {
+            line: 0,
+            row: 0
+        }
     );
-    assert_eq!(geometry.target(&map, 1e6, 0.0), Target { line: 99, row: 0 });
+    assert_eq!(
+        geometry.target(&map, 1e6, 0.0),
+        Target {
+            line: 99,
+            row: 0
+        }
+    );
 }
 
 /// In a long text a position names a row of the part of the picture that is in view:
@@ -334,12 +383,33 @@ fn the_window_of_a_fling_reaches_ahead_on_the_side_it_heads_toward() {
     let offset = geometry.max_offset() * 0.4;
     let still = geometry.bands_for(offset, step, usize::MAX);
     assert_eq!(
-        geometry.bands_toward(offset, step, usize::MAX, Heading::Still { at: 7.0 }),
+        geometry.bands_toward(
+            offset,
+            step,
+            usize::MAX,
+            Heading::Still {
+                at: 7.0
+            }
+        ),
         still,
         "a view at rest keeps one band on each side"
     );
-    let down = geometry.bands_toward(offset, step, usize::MAX, Heading::Down { at: 0.0 });
-    let up = geometry.bands_toward(offset, step, usize::MAX, Heading::Up { at: 0.0 });
+    let down = geometry.bands_toward(
+        offset,
+        step,
+        usize::MAX,
+        Heading::Down {
+            at: 0.0,
+        },
+    );
+    let up = geometry.bands_toward(
+        offset,
+        step,
+        usize::MAX,
+        Heading::Up {
+            at: 0.0,
+        },
+    );
     assert_eq!(
         down.start, still.start,
         "heading down keeps one band behind"
@@ -361,13 +431,29 @@ fn the_window_of_a_fling_reaches_ahead_on_the_side_it_heads_toward() {
         geometry.max_offset(),
         step,
         usize::MAX,
-        Heading::Down { at: 0.0 },
+        Heading::Down {
+            at: 0.0,
+        },
     );
     assert_eq!(last.end, total);
-    let first = geometry.bands_toward(0.0, step, usize::MAX, Heading::Up { at: 0.0 });
+    let first = geometry.bands_toward(
+        0.0,
+        step,
+        usize::MAX,
+        Heading::Up {
+            at: 0.0,
+        },
+    );
     assert_eq!(first.start, 0);
     // A cap on the bands still wins over the lead.
-    let capped = geometry.bands_toward(offset, step, 3, Heading::Down { at: 0.0 });
+    let capped = geometry.bands_toward(
+        offset,
+        step,
+        3,
+        Heading::Down {
+            at: 0.0,
+        },
+    );
     assert!(capped.len() <= 3, "{} bands past the cap", capped.len());
 }
 
@@ -377,7 +463,9 @@ fn the_window_of_a_fling_reaches_ahead_on_the_side_it_heads_toward() {
 #[test]
 fn a_heading_follows_the_track_by_whole_bands() {
     let step = BAND;
-    let still = Heading::Still { at: 1_000.0 };
+    let still = Heading::Still {
+        at: 1_000.0,
+    };
     assert_eq!(
         still.follow(1_000.0 + step - 1.0, step),
         still,
@@ -385,7 +473,12 @@ fn a_heading_follows_the_track_by_whole_bands() {
     );
     assert_eq!(still.follow(1_000.0 - step + 1.0, step), still);
     let down = still.follow(1_000.0 + step, step);
-    assert_eq!(down, Heading::Down { at: 1_000.0 + step });
+    assert_eq!(
+        down,
+        Heading::Down {
+            at: 1_000.0 + step
+        }
+    );
     // A creep back within a band keeps the heading and the place where it was decided.
     assert_eq!(down.follow(1_000.0 + step - 100.0, step), down);
     assert_eq!(down.follow(1_000.0 + 2.0 * step - 1.0, step), down);
@@ -397,10 +490,27 @@ fn a_heading_follows_the_track_by_whole_bands() {
         }
     );
     // A whole band back turns it.
-    assert_eq!(down.follow(1_000.0, step), Heading::Up { at: 1_000.0 });
-    assert_eq!(Heading::Still { at: 0.0 }.margins(), (1, 1));
+    assert_eq!(
+        down.follow(1_000.0, step),
+        Heading::Up {
+            at: 1_000.0
+        }
+    );
+    assert_eq!(
+        Heading::Still {
+            at: 0.0
+        }
+        .margins(),
+        (1, 1)
+    );
     assert_eq!(down.margins(), (1, LEAD));
-    assert_eq!(Heading::Up { at: 0.0 }.margins(), (LEAD, 1));
+    assert_eq!(
+        Heading::Up {
+            at: 0.0
+        }
+        .margins(),
+        (LEAD, 1)
+    );
 }
 
 /// The picture is the text's whole width shrunk to the minimap's,

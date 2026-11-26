@@ -1,7 +1,11 @@
 //! Decide which shown directory the single directory reader lists next.
 
 /// Intervals shared with the source schedule.
-use super::{REREAD_GAP, SAFETY_SWEEP, UNWATCHED_DIRECTORY_POLL};
+use super::{
+    REREAD_GAP,
+    SAFETY_SWEEP,
+    UNWATCHED_DIRECTORY_POLL,
+};
 /// What:
 ///  `BTreeSet<PathBuf>` is an ordered set of owned paths and `BTreeMap<PathBuf, Instant>` an ordered
 ///       map from path to time (`HashMap` is the unordered sibling);
@@ -15,7 +19,10 @@ use super::{REREAD_GAP, SAFETY_SWEEP, UNWATCHED_DIRECTORY_POLL};
 /// const changed = new Set<string>(); const started = new Map<string, number>();
 /// ```
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::PathBuf,
     time::Instant,
 };
@@ -101,7 +108,10 @@ fn first_ready(
 ///  and the current time.
 impl DirectoryRefresh {
     /// A notification or a newly established watch made this directory's listing stale.
-    pub fn changed(&mut self, path: PathBuf) {
+    pub fn changed(
+        &mut self,
+        path: PathBuf,
+    ) {
         self.changed.insert(path);
     }
 
@@ -109,7 +119,10 @@ impl DirectoryRefresh {
     ///  an error,
     ///  or a lost watch:
     ///  every shown directory is stale.
-    pub fn changed_all(&mut self, shown: &[PathBuf]) {
+    pub fn changed_all(
+        &mut self,
+        shown: &[PathBuf],
+    ) {
         for path in shown {
             self.changed.insert(path.clone());
         }
@@ -117,7 +130,11 @@ impl DirectoryRefresh {
 
     /// Start a safety sweep when one is due;
     ///  true tells the caller to retry failed watches too.
-    pub fn start_sweep_if_due(&mut self, shown: &[PathBuf], now: Instant) -> bool {
+    pub fn start_sweep_if_due(
+        &mut self,
+        shown: &[PathBuf],
+        now: Instant,
+    ) -> bool {
         // What: `let ... else` binds the last start time or starts the clock on the first call.
         // Why: Startup already lists everything shown, so the first sweep waits one full interval.
         //

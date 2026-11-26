@@ -15,7 +15,9 @@ fn current_json_round_trip_preserves_fields() {
         track_rows_template: Some("$mi(title)$".to_string()),
         playing_template: None,
         auto_play_on_select: true,
-        text_sizes: TextSizes::default().with(TextElement::TrackTitle, 18).with(TextElement::PaneTitle, 26),
+        text_sizes: TextSizes::default()
+            .with(TextElement::TrackTitle, 18)
+            .with(TextElement::PaneTitle, 26),
     };
     let json = serde_json::to_string(&original).expect("current session should serialize");
     let restored = Session::from_json(&json).expect("serialized session should parse");
@@ -46,9 +48,7 @@ fn every_legacy_combination_migrates() {
         ("All", true, PlaybackMode::Repeat),
     ];
     for (shuffle, repeat_track, expected) in cases {
-        let json = format!(
-            "{{\"shuffle\":\"{shuffle}\",\"repeat_track\":{repeat_track}}}"
-        );
+        let json = format!("{{\"shuffle\":\"{shuffle}\",\"repeat_track\":{repeat_track}}}");
         assert_eq!(
             Session::from_json(&json)
                 .expect("legacy session should parse")
@@ -106,7 +106,6 @@ fn old_track_list_format_keeps_settings() {
     assert_eq!(parsed.playback_mode, PlaybackMode::ShuffleAll);
 }
 
-
 /// A session file written before the page style was removed still loads,
 /// and the key is not written again (VD7).
 #[test]
@@ -116,8 +115,12 @@ fn the_removed_page_control_style_key_is_ignored_on_read_and_absent_from_new_wri
     assert_eq!(loaded.source_root, Some(PathBuf::from("/music")));
     assert!((loaded.volume - 0.5).abs() < f32::EPSILON);
     let written = serde_json::to_string(&loaded).expect("the session serializes");
-    assert!(!written.contains("page_control_style"), "new writes drop the key: {written}");
-    let unknown_style = Session::from_json(r#"{"page_control_style":7,"volume":0.25}"#).expect("any value of the old key is ignored");
+    assert!(
+        !written.contains("page_control_style"),
+        "new writes drop the key: {written}"
+    );
+    let unknown_style = Session::from_json(r#"{"page_control_style":7,"volume":0.25}"#)
+        .expect("any value of the old key is ignored");
     assert!((unknown_style.volume - 0.25).abs() < f32::EPSILON);
 }
 
@@ -140,7 +143,11 @@ fn scratch_file(test: &str) -> PathBuf {
 #[test]
 fn auto_play_on_select_is_on_by_default() {
     assert!(Session::default().auto_play_on_select);
-    assert!(Session::from_json("{}").expect("empty object parses").auto_play_on_select);
+    assert!(
+        Session::from_json("{}")
+            .expect("empty object parses")
+            .auto_play_on_select
+    );
 }
 
 /// A file written before the setting existed reads on and keeps its other values.
@@ -158,17 +165,33 @@ fn a_file_without_the_field_reads_on_and_still_loads() {
 /// in the current JSON and through a real file.
 #[test]
 fn auto_play_on_select_round_trips_through_json_and_a_file() {
-    let on = Session { auto_play_on_select: true, ..Session::default() };
+    let on = Session {
+        auto_play_on_select: true,
+        ..Session::default()
+    };
     let json = serde_json::to_string(&on).expect("the session serializes");
     assert!(json.contains("\"auto_play_on_select\":true"), "{json}");
-    assert!(Session::from_json(&json).expect("it parses").auto_play_on_select);
+    assert!(
+        Session::from_json(&json)
+            .expect("it parses")
+            .auto_play_on_select
+    );
 
     let path = scratch_file("round_trip");
-    assert!(Session::load_at(&path).auto_play_on_select, "no file reads on");
+    assert!(
+        Session::load_at(&path).auto_play_on_select,
+        "no file reads on"
+    );
     Session::save_auto_play_on_select_at(&path, false).expect("the setting is saved off");
-    assert!(!Session::load_at(&path).auto_play_on_select, "the saved off reads off");
+    assert!(
+        !Session::load_at(&path).auto_play_on_select,
+        "the saved off reads off"
+    );
     Session::save_auto_play_on_select_at(&path, true).expect("the setting is saved again");
-    assert!(Session::load_at(&path).auto_play_on_select, "the saved on reads on");
+    assert!(
+        Session::load_at(&path).auto_play_on_select,
+        "the saved on reads on"
+    );
 }
 
 /// Saving the setting leaves the playback fields and the templates of an existing file as they were.
@@ -196,14 +219,24 @@ fn saving_the_setting_keeps_the_rest_of_an_existing_file() {
 #[test]
 fn the_migration_rewrite_keeps_the_setting() {
     let path = scratch_file("migration");
-    std::fs::write(&path, r#"{"shuffle":"All","repeat_track":false,"auto_play_on_select":true}"#)
-        .expect("the legacy file is written");
+    std::fs::write(
+        &path,
+        r#"{"shuffle":"All","repeat_track":false,"auto_play_on_select":true}"#,
+    )
+    .expect("the legacy file is written");
     let loaded = Session::load_at(&path);
     assert_eq!(loaded.playback_mode, PlaybackMode::ShuffleAll);
     assert!(loaded.auto_play_on_select);
     let rewritten = Session::load_at(&path);
-    assert!(rewritten.auto_play_on_select, "the rewrite did not drop the setting");
-    assert!(std::fs::read_to_string(&path).expect("the file exists").contains("\"playback_mode\""));
+    assert!(
+        rewritten.auto_play_on_select,
+        "the rewrite did not drop the setting"
+    );
+    assert!(
+        std::fs::read_to_string(&path)
+            .expect("the file exists")
+            .contains("\"playback_mode\"")
+    );
 }
 
 /// The entry points the window and the shutdown use read and write the session file of the config home (D129).
@@ -212,13 +245,25 @@ fn the_migration_rewrite_keeps_the_setting() {
 fn the_real_entry_points_read_and_write_the_session_file_of_the_config_home() {
     let path = use_disposable_config_home("entry_points");
     assert!(Session::load_auto_play_on_select(), "no file means on");
-    let before = Session { position_secs: 5.0, ..Session::default() };
+    let before = Session {
+        position_secs: 5.0,
+        ..Session::default()
+    };
     before.save().expect("the first save writes the file");
     assert!(path.exists(), "the file is in the config home");
-    assert!(Session::load_auto_play_on_select(), "a file saved by the first run holds the default, on");
+    assert!(
+        Session::load_auto_play_on_select(),
+        "a file saved by the first run holds the default, on"
+    );
     Session::save_auto_play_on_select(false).expect("turning the setting off saves");
-    assert!(!Session::load_auto_play_on_select(), "the saved setting loads back");
-    assert!((Session::load().position_secs - 5.0).abs() < f64::EPSILON, "saving the setting keeps the other fields");
+    assert!(
+        !Session::load_auto_play_on_select(),
+        "the saved setting loads back"
+    );
+    assert!(
+        (Session::load().position_secs - 5.0).abs() < f64::EPSILON,
+        "saving the setting keeps the other fields"
+    );
     Session::save_auto_play_on_select(true).expect("turning the setting on saves");
     assert!(Session::load_auto_play_on_select(), "and it loads back on");
 }
@@ -232,8 +277,14 @@ fn the_real_entry_points_read_and_write_the_session_file_of_the_config_home() {
 struct LogSink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl std::io::Write for LogSink {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().expect("the log buffer lock is not poisoned").extend_from_slice(bytes);
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .expect("the log buffer lock is not poisoned")
+            .extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
@@ -258,8 +309,13 @@ fn logged_by<T>(action: impl FnOnce() -> T) -> (T, String) {
         .with_writer(move || return LogSink(std::sync::Arc::clone(&writer)))
         .finish();
     let result = tracing::subscriber::with_default(subscriber, action);
-    let text = String::from_utf8(buffer.lock().expect("the log buffer lock is not poisoned").clone())
-        .expect("the log is UTF-8");
+    let text = String::from_utf8(
+        buffer
+            .lock()
+            .expect("the log buffer lock is not poisoned")
+            .clone(),
+    )
+    .expect("the log is UTF-8");
     return (result, text);
 }
 
@@ -270,12 +326,19 @@ fn logged_by<T>(action: impl FnOnce() -> T) -> (T, String) {
 #[test]
 fn a_truncated_session_file_loads_as_defaults_and_is_logged_with_its_path() {
     let path = scratch_file("truncated");
-    std::fs::write(&path, r#"{"source_root":"/music","volume":0."#).expect("the truncated file is written");
+    std::fs::write(&path, r#"{"source_root":"/music","volume":0."#)
+        .expect("the truncated file is written");
     let (loaded, log) = logged_by(|| return Session::load_at(&path));
     assert_eq!(loaded, Session::default());
     assert!(log.contains("WARN"), "a warning is logged: {log}");
-    assert!(log.contains("EOF while parsing"), "the parse error is in the log: {log}");
-    assert!(log.contains("session.json"), "the path is in the log: {log}");
+    assert!(
+        log.contains("EOF while parsing"),
+        "the parse error is in the log: {log}"
+    );
+    assert!(
+        log.contains("session.json"),
+        "the path is in the log: {log}"
+    );
 }
 
 /// A session path that cannot be read as a file loads as defaults and is reported with the read error.
@@ -285,11 +348,15 @@ fn an_unreadable_session_path_loads_as_defaults_and_is_logged_with_the_read_erro
     std::fs::create_dir(&path).expect("a directory stands where the file would be");
     // Linux reports reading a directory as `IsADirectory`; Windows reports `PermissionDenied` ("Access is denied.").
     // The expected text is the platform's own error for the same read, so the check holds on both.
-    let read_error = std::fs::read_to_string(&path).expect_err("a directory cannot be read as a file");
+    let read_error =
+        std::fs::read_to_string(&path).expect_err("a directory cannot be read as a file");
     let (loaded, log) = logged_by(|| return Session::load_at(&path));
     assert_eq!(loaded, Session::default());
     assert!(log.contains("WARN"), "a warning is logged: {log}");
-    assert!(log.contains(&format!("{read_error:?}")), "the read error {read_error:?} is in the log: {log}");
+    assert!(
+        log.contains(&format!("{read_error:?}")),
+        "the read error {read_error:?} is in the log: {log}"
+    );
 }
 
 /// A missing file is a first run,
@@ -313,18 +380,36 @@ fn a_missing_session_file_loads_as_defaults_without_a_warning() {
 fn a_save_replaces_the_session_file_by_rename_and_leaves_no_temporary_file() {
     use std::os::unix::fs::MetadataExt;
     let path = scratch_file("atomic");
-    Session::default().save_at(&path).expect("the first save writes the file");
+    Session::default()
+        .save_at(&path)
+        .expect("the first save writes the file");
     let before = std::fs::metadata(&path).expect("the file exists").ino();
-    let second = Session { position_secs: 7.5, ..Session::default() };
-    second.save_at(&path).expect("the second save replaces the file");
+    let second = Session {
+        position_secs: 7.5,
+        ..Session::default()
+    };
+    second
+        .save_at(&path)
+        .expect("the second save replaces the file");
     let after = std::fs::metadata(&path).expect("the file exists").ino();
-    assert_ne!(before, after, "the second save wrote a new file and renamed it over the old one");
-    assert_eq!(Session::load_at(&path), second, "the replaced file is the complete second session");
+    assert_ne!(
+        before, after,
+        "the second save wrote a new file and renamed it over the old one"
+    );
+    assert_eq!(
+        Session::load_at(&path),
+        second,
+        "the replaced file is the complete second session"
+    );
     let names: Vec<_> = std::fs::read_dir(path.parent().expect("the file has a directory"))
         .expect("the directory lists")
         .map(|entry| return entry.expect("an entry reads").file_name())
         .collect();
-    assert_eq!(names, vec![std::ffi::OsString::from("session.json")], "no temporary file is left behind");
+    assert_eq!(
+        names,
+        vec![std::ffi::OsString::from("session.json")],
+        "no temporary file is left behind"
+    );
 }
 
 /// A temporary file left by an earlier interrupted save is replaced,
@@ -334,11 +419,20 @@ fn a_save_replaces_the_session_file_by_rename_and_leaves_no_temporary_file() {
 fn a_stale_temporary_file_from_an_interrupted_save_does_not_block_the_next_save() {
     let path = scratch_file("stale_temporary");
     let directory = path.parent().expect("the file has a directory");
-    std::fs::write(directory.join("session.json.tmp"), "{\"half\":").expect("the stale temporary file is written");
-    let session = Session { volume: 0.25, ..Session::default() };
-    session.save_at(&path).expect("the save replaces the stale temporary file");
+    std::fs::write(directory.join("session.json.tmp"), "{\"half\":")
+        .expect("the stale temporary file is written");
+    let session = Session {
+        volume: 0.25,
+        ..Session::default()
+    };
+    session
+        .save_at(&path)
+        .expect("the save replaces the stale temporary file");
     assert_eq!(Session::load_at(&path), session);
-    assert!(!directory.join("session.json.tmp").exists(), "the temporary file was renamed away");
+    assert!(
+        !directory.join("session.json.tmp").exists(),
+        "the temporary file was renamed away"
+    );
 }
 
 /// A save that cannot finish leaves the previous complete file in place.
@@ -346,16 +440,29 @@ fn a_stale_temporary_file_from_an_interrupted_save_does_not_block_the_next_save(
 #[test]
 fn a_save_that_fails_leaves_the_previous_file_whole() {
     let path = scratch_file("failed_save");
-    let first = Session { position_secs: 3.0, ..Session::default() };
-    first.save_at(&path).expect("the first save writes the file");
+    let first = Session {
+        position_secs: 3.0,
+        ..Session::default()
+    };
+    first
+        .save_at(&path)
+        .expect("the first save writes the file");
     // A directory where the temporary file would go makes the write step fail before the rename.
     let directory = path.parent().expect("the file has a directory");
-    std::fs::create_dir(directory.join("session.json.tmp")).expect("a directory blocks the temporary file");
-    let error = Session { position_secs: 9.0, ..Session::default() }
-        .save_at(&path)
-        .expect_err("the save cannot create its temporary file");
+    std::fs::create_dir(directory.join("session.json.tmp"))
+        .expect("a directory blocks the temporary file");
+    let error = Session {
+        position_secs: 9.0,
+        ..Session::default()
+    }
+    .save_at(&path)
+    .expect_err("the save cannot create its temporary file");
     assert!(!error.to_string().is_empty());
-    assert_eq!(Session::load_at(&path), first, "the previous session is still the complete file");
+    assert_eq!(
+        Session::load_at(&path),
+        first,
+        "the previous session is still the complete file"
+    );
 }
 
 /// What:
@@ -369,7 +476,10 @@ fn sizes_of(session: &Session) -> [u16; 4] {
 #[test]
 fn text_sizes_are_the_old_sizes_by_default() {
     assert_eq!(sizes_of(&Session::default()), [20, 20, 14, 14]);
-    assert_eq!(sizes_of(&Session::from_json("{}").expect("empty object parses")), [20, 20, 14, 14]);
+    assert_eq!(
+        sizes_of(&Session::from_json("{}").expect("empty object parses")),
+        [20, 20, 14, 14]
+    );
 }
 
 /// The four sizes are written as four flat keys,
@@ -403,8 +513,13 @@ fn text_sizes_round_trip_through_json_under_four_flat_keys() {
 #[test]
 fn text_sizes_round_trip_through_a_file() {
     let path = scratch_file("text_sizes_round_trip");
-    assert!(Session::load_at(&path).text_sizes.is_default(), "no file reads the defaults");
-    let sizes = TextSizes::default().with(TextElement::FolderName, 17).with(TextElement::TrackTitle, 22);
+    assert!(
+        Session::load_at(&path).text_sizes.is_default(),
+        "no file reads the defaults"
+    );
+    let sizes = TextSizes::default()
+        .with(TextElement::FolderName, 17)
+        .with(TextElement::TrackTitle, 22);
     Session::save_text_sizes_at(&path, sizes).expect("the sizes are saved");
     assert_eq!(Session::load_at(&path).text_sizes, sizes);
     Session::save_text_sizes_at(&path, TextSizes::default()).expect("the defaults are saved");
@@ -458,7 +573,10 @@ fn an_old_file_without_the_sizes_loads_and_keeps_its_fields() {
     assert_eq!(loaded.playback_mode, PlaybackMode::ShuffleAll);
     assert_eq!(loaded.track_rows_template.as_deref(), Some("$mi(title)$"));
     assert!(loaded.auto_play_on_select);
-    assert!(!log.contains("WARN"), "an old file is no corruption and logs no warning: {log}");
+    assert!(
+        !log.contains("WARN"),
+        "an old file is no corruption and logs no warning: {log}"
+    );
 }
 
 /// One field present and the other three missing:
@@ -484,14 +602,23 @@ fn a_missing_size_field_never_resets_the_other_fields() {
 #[test]
 fn a_corrupt_size_falls_back_alone_and_is_logged() {
     let text = r#"{"volume":0.5,"playback_mode":"repeat","text_size_pane_title_px":"huge","text_size_group_heading_px":99,"text_size_folder_name_px":-3,"text_size_track_title_px":21}"#;
-    let (loaded, log) = logged_by(|| return Session::from_json(text).expect("a corrupt size never fails the whole file"));
+    let (loaded, log) = logged_by(|| {
+        return Session::from_json(text).expect("a corrupt size never fails the whole file");
+    });
     assert_eq!(sizes_of(&loaded), [20, 20, 14, 21]);
     assert!((loaded.volume - 0.5).abs() < f32::EPSILON);
     assert_eq!(loaded.playback_mode, PlaybackMode::Repeat);
-    for key in ["text_size_pane_title_px", "text_size_group_heading_px", "text_size_folder_name_px"] {
+    for key in [
+        "text_size_pane_title_px",
+        "text_size_group_heading_px",
+        "text_size_folder_name_px",
+    ] {
         assert!(log.contains(key), "{key} is named in the log: {log}");
     }
-    assert!(!log.contains("text_size_track_title_px"), "the good field is not reported: {log}");
+    assert!(
+        !log.contains("text_size_track_title_px"),
+        "the good field is not reported: {log}"
+    );
     assert!(log.contains("WARN"), "a warning is logged: {log}");
 }
 
@@ -500,7 +627,10 @@ fn a_corrupt_size_falls_back_alone_and_is_logged() {
 #[test]
 fn the_limits_load_and_one_past_each_limit_falls_back() {
     let edges = r#"{"text_size_pane_title_px":10,"text_size_group_heading_px":32,"text_size_folder_name_px":9,"text_size_track_title_px":33}"#;
-    assert_eq!(sizes_of(&Session::from_json(edges).expect("the file parses")), [10, 32, 14, 14]);
+    assert_eq!(
+        sizes_of(&Session::from_json(edges).expect("the file parses")),
+        [10, 32, 14, 14]
+    );
 }
 
 /// A corrupt size in a file on disk loads through the real read path without resetting the playback fields.
@@ -522,11 +652,26 @@ fn a_corrupt_size_in_a_file_on_disk_keeps_the_playback_fields() {
 #[test]
 fn the_real_entry_points_read_and_write_the_sizes_of_the_config_home() {
     let path = use_disposable_config_home("text_size_entry_points");
-    assert!(Session::load_text_sizes().is_default(), "no file means the defaults");
-    Session { position_secs: 6.0, ..Session::default() }.save().expect("the first save writes the file");
+    assert!(
+        Session::load_text_sizes().is_default(),
+        "no file means the defaults"
+    );
+    Session {
+        position_secs: 6.0,
+        ..Session::default()
+    }
+    .save()
+    .expect("the first save writes the file");
     assert!(path.exists(), "the file is in the config home");
     let sizes = TextSizes::default().with(TextElement::TrackTitle, 30);
     Session::save_text_sizes(sizes).expect("saving the sizes writes the file");
-    assert_eq!(Session::load_text_sizes(), sizes, "the saved sizes load back");
-    assert!((Session::load().position_secs - 6.0).abs() < f64::EPSILON, "saving the sizes keeps the other fields");
+    assert_eq!(
+        Session::load_text_sizes(),
+        sizes,
+        "the saved sizes load back"
+    );
+    assert!(
+        (Session::load().position_secs - 6.0).abs() < f64::EPSILON,
+        "saving the sizes keeps the other fields"
+    );
 }

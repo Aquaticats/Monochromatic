@@ -12,8 +12,14 @@
 
 use libfuzzer_sys::fuzz_target;
 
-use forbidden_strings::fuzz_api::{load_from_text, scan_file};
-use forbidden_strings_fuzz::generators::{redacted_fingerprint, RuleFileAndContent};
+use forbidden_strings::fuzz_api::{
+    load_from_text,
+    scan_file,
+};
+use forbidden_strings_fuzz::generators::{
+    RuleFileAndContent,
+    redacted_fingerprint,
+};
 
 // The fixed path handed to `scan_file`.
 const PATH: &str = "fuzz.txt";
@@ -28,18 +34,48 @@ fn run_loader_contract_battery() {
     ONCE.call_once(|| {
         // Accepted forms.
         assert!(load_from_text("abc").is_ok(), "a bare literal must load");
-        assert!(load_from_text("/abc/").is_ok(), "an empty flag run must load");
-        assert!(load_from_text("/abc/m").is_ok(), "'m' must be an accepted no-op");
-        assert!(load_from_text("/abc/x").is_ok(), "'x' must be an accepted no-op");
-        assert!(load_from_text("/abc/mx").is_ok(), "'m' and 'x' must be accepted no-ops");
+        assert!(
+            load_from_text("/abc/").is_ok(),
+            "an empty flag run must load"
+        );
+        assert!(
+            load_from_text("/abc/m").is_ok(),
+            "'m' must be an accepted no-op"
+        );
+        assert!(
+            load_from_text("/abc/x").is_ok(),
+            "'x' must be an accepted no-op"
+        );
+        assert!(
+            load_from_text("/abc/mx").is_ok(),
+            "'m' and 'x' must be accepted no-ops"
+        );
         // Rejected forms: any other flag letter is a hard, fail-closed load error.
-        assert!(load_from_text("/abc/i").is_err(), "'i' must be a hard load error");
-        assert!(load_from_text("/abc/s").is_err(), "'s' must be a hard load error");
-        assert!(load_from_text("/abc/g").is_err(), "'g' must be a hard load error");
+        assert!(
+            load_from_text("/abc/i").is_err(),
+            "'i' must be a hard load error"
+        );
+        assert!(
+            load_from_text("/abc/s").is_err(),
+            "'s' must be a hard load error"
+        );
+        assert!(
+            load_from_text("/abc/g").is_err(),
+            "'g' must be a hard load error"
+        );
         // No-rule forms.
-        assert!(load_from_text("").is_err(), "an empty source loads no rules");
-        assert!(load_from_text("# comment").is_err(), "a comment-only source loads no rules");
-        assert!(load_from_text("   ").is_err(), "a whitespace-only source loads no rules");
+        assert!(
+            load_from_text("").is_err(),
+            "an empty source loads no rules"
+        );
+        assert!(
+            load_from_text("# comment").is_err(),
+            "a comment-only source loads no rules"
+        );
+        assert!(
+            load_from_text("   ").is_err(),
+            "a whitespace-only source loads no rules"
+        );
     });
 }
 
@@ -48,7 +84,7 @@ fn run_loader_contract_battery() {
 //        multiset) must match across orderings. The fail-closed `engine error` line has
 //        no position and is dropped.
 fn position_key(hit: &str) -> Option<String> {
-    return hit.rfind(" rule=").map(|pos| return hit[..pos].to_string())
+    return hit.rfind(" rule=").map(|pos| return hit[..pos].to_string());
 }
 
 fuzz_target!(|input: RuleFileAndContent| {
@@ -83,13 +119,19 @@ fuzz_target!(|input: RuleFileAndContent| {
             continue;
         }
         let Some(key) = position_key(hit) else {
-            panic!("finding missing ' rule=' ({})", redacted_fingerprint(content));
+            panic!(
+                "finding missing ' rule=' ({})",
+                redacted_fingerprint(content)
+            );
         };
         let Some(colon_pos) = key.rfind(':') else {
             panic!("finding missing ':' ({})", redacted_fingerprint(content));
         };
         let Ok(line) = key[colon_pos + 1..].parse::<usize>() else {
-            panic!("finding line not numeric ({})", redacted_fingerprint(content));
+            panic!(
+                "finding line not numeric ({})",
+                redacted_fingerprint(content)
+            );
         };
         assert!(
             line >= 1 && line <= max_line,
@@ -106,9 +148,14 @@ fuzz_target!(|input: RuleFileAndContent| {
     let reversed_source = input.rules.render_reversed();
     if let Ok(loaded_rev) = load_from_text(&reversed_source) {
         let hits_rev = scan_file(PATH, content, &loaded_rev);
-        let mut keys: Vec<String> = hits.iter().filter_map(|hit| return position_key(hit)).collect();
-        let mut keys_rev: Vec<String> =
-            hits_rev.iter().filter_map(|hit| return position_key(hit)).collect();
+        let mut keys: Vec<String> = hits
+            .iter()
+            .filter_map(|hit| return position_key(hit))
+            .collect();
+        let mut keys_rev: Vec<String> = hits_rev
+            .iter()
+            .filter_map(|hit| return position_key(hit))
+            .collect();
         keys.sort();
         keys_rev.sort();
         assert_eq!(

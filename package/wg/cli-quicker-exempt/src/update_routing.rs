@@ -12,38 +12,72 @@
 
 /// Slice and cgroup names,
 /// and the cgroups that carry the mark themselves.
-use crate::application_targets::{is_in_updates_slice, is_unconditionally_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
+use crate::application_targets::{
+    TOOLCHAIN_UPDATES_SLICE,
+    is_in_updates_slice,
+    is_unconditionally_marked_cgroup,
+};
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
-use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_start_time};
+use crate::process_info::{
+    list_pids,
+    read_own_pid_namespace,
+    read_process,
+    read_start_time,
+};
 /// Collecting and checking the group of a matched process.
 #[path = "routing_group.rs"]
 mod routing_group;
-/// The functions of that module the engine calls.
-use routing_group::{collect_group, recheck_group};
-/// The seam to the service manager.
-use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, ADOPTION_DEFERRED};
 /// When this pass may spend another move.
-use crate::pass_gate::{PassGate, BLOCK_AFTER_TIMEOUT};
-/// The scope of each origin.
-use crate::scope_naming::{origin_scope_name, scope_cgroup_path};
-/// What is known about the scopes in use.
-use crate::scope_registry::ScopeRegistry;
-/// Classification of processes.
-use crate::update_entry_points::classify;
+use crate::pass_gate::{
+    BLOCK_AFTER_TIMEOUT,
+    PassGate,
+};
 /// Clock,
 /// stop check,
 /// retry wait
 /// and manager reach.
-use crate::routing_support::{adoptable_cgroup, retry_backoff, Clock, StopCheck};
+use crate::routing_support::{
+    Clock,
+    StopCheck,
+    adoptable_cgroup,
+    retry_backoff,
+};
 /// Clock and stop check for the test-only rescan.
 #[cfg(test)]
-use crate::routing_support::{NeverStop, SystemClock};
+use crate::routing_support::{
+    NeverStop,
+    SystemClock,
+};
+/// The seam to the service manager.
+use crate::scope_adoption::{
+    ADOPTION_DEFERRED,
+    AdoptError,
+    AdoptRequest,
+    Adopter,
+};
+/// The scope of each origin.
+use crate::scope_naming::{
+    origin_scope_name,
+    scope_cgroup_path,
+};
+/// What is known about the scopes in use.
+use crate::scope_registry::ScopeRegistry;
+/// Classification of processes.
+use crate::update_entry_points::classify;
 /// Outcomes and their wording.
 use crate::update_report::Outcome;
+/// The functions of that module the engine calls.
+use routing_group::{
+    collect_group,
+    recheck_group,
+};
 /// Tracking of processes already handled.
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 /// Fake procfs roots in tests.
 use std::path::PathBuf;
 /// Instants of the pass and of retries.
@@ -132,7 +166,10 @@ impl UpdateRouting {
 
     /// Records the cgroups the watcher holds the mark on,
     /// which is what the process watch treats as covered.
-    pub fn note_marked(&mut self, marked: &[PathBuf]) {
+    pub fn note_marked(
+        &mut self,
+        marked: &[PathBuf],
+    ) {
         self.marked = marked.to_vec();
     }
 
@@ -141,7 +178,10 @@ impl UpdateRouting {
     /// or a cgroup below one,
     /// or a name that needs no evidence,
     /// because a Pi agent's unit and the updates slice are marked whoever filled them.
-    fn is_covered(&self, cgroup: &str) -> bool {
+    fn is_covered(
+        &self,
+        cgroup: &str,
+    ) -> bool {
         if is_unconditionally_marked_cgroup(cgroup, self.setup.uid) {
             return true;
         }
@@ -157,8 +197,15 @@ impl UpdateRouting {
 
     /// Makes sure the updates slice exists below the user's `app.slice`,
     /// so the watcher can attach the mark to it before any process is moved.
-    pub fn ensure_slice(&self, app_slice: &std::path::Path) -> std::io::Result<()> {
-        return self.setup.adopter.ensure_slice(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &app_slice.join(TOOLCHAIN_UPDATES_SLICE));
+    pub fn ensure_slice(
+        &self,
+        app_slice: &std::path::Path,
+    ) -> std::io::Result<()> {
+        return self.setup.adopter.ensure_slice(
+            self.setup.uid,
+            TOOLCHAIN_UPDATES_SLICE,
+            &app_slice.join(TOOLCHAIN_UPDATES_SLICE),
+        );
     }
 
     /// Starts a pass now:
@@ -168,24 +215,39 @@ impl UpdateRouting {
     }
 
     /// Starts a pass at `now`.
-    pub fn begin_pass_at(&mut self, now: Instant) {
+    pub fn begin_pass_at(
+        &mut self,
+        now: Instant,
+    ) {
         self.gate.begin(now);
     }
 
     /// Records the report of a process that could not be inspected,
     /// once per process.
-    fn unreadable(&mut self, pid: i32, error: &std::io::Error) -> Outcome {
+    fn unreadable(
+        &mut self,
+        pid: i32,
+        error: &std::io::Error,
+    ) -> Outcome {
         let Some(start_time) = read_start_time(&self.setup.proc_root, pid) else {
             return Outcome::Ignored;
         };
         if !self.handled.insert((pid, start_time)) {
             return Outcome::Ignored;
         }
-        return Outcome::Unreadable { pid, error: error.to_string() };
+        return Outcome::Unreadable {
+            pid,
+            error: error.to_string(),
+        };
     }
 
     /// Records a failed move and builds its outcome.
-    fn register_failure(&mut self, key: (i32, u64), now: Instant, error: String) -> Outcome {
+    fn register_failure(
+        &mut self,
+        key: (i32, u64),
+        now: Instant,
+        error: String,
+    ) -> Outcome {
         self.gate.note_failed_attempt();
         let earlier = match self.failures.get(&key) {
             Some(failure) => failure.attempts,
@@ -193,24 +255,47 @@ impl UpdateRouting {
         };
         let attempt = earlier + 1;
         let retry_in = retry_backoff(attempt);
-        self.failures.insert(key, Failure { attempts: attempt, retry_at: now + retry_in });
-        return Outcome::Failed { pid: key.0, error, attempt, retry_in };
+        self.failures.insert(
+            key,
+            Failure {
+                attempts: attempt,
+                retry_at: now + retry_in,
+            },
+        );
+        return Outcome::Failed {
+            pid: key.0,
+            error,
+            attempt,
+            retry_in,
+        };
     }
 
     /// Considers one process at the current time.
-    pub fn consider(&mut self, pid: i32) -> Outcome {
+    pub fn consider(
+        &mut self,
+        pid: i32,
+    ) -> Outcome {
         return self.consider_at(pid, Instant::now());
     }
 
     /// Considers one process at `now`.
-    pub fn consider_at(&mut self, pid: i32, now: Instant) -> Outcome {
+    pub fn consider_at(
+        &mut self,
+        pid: i32,
+        now: Instant,
+    ) -> Outcome {
         return self.consider_with(pid, now, &mut nothing);
     }
 
     /// Considers one process at `now`,
     /// calling `before_move` after the group is collected and before it is checked again,
     /// the seam where a test swaps a process for a pid-reusing one.
-    pub fn consider_with(&mut self, pid: i32, now: Instant, before_move: &mut dyn FnMut()) -> Outcome {
+    pub fn consider_with(
+        &mut self,
+        pid: i32,
+        now: Instant,
+        before_move: &mut dyn FnMut(),
+    ) -> Outcome {
         let info = match read_process(&self.setup.proc_root, pid, self.setup.uid) {
             Ok(Some(info)) => info,
             Ok(None) => return Outcome::Ignored,
@@ -237,7 +322,9 @@ impl UpdateRouting {
                 self.handled.insert(key);
                 return Outcome::Skipped {
                     pid,
-                    why: format!("it runs in another pid namespace ({theirs}), such as a container or a sandbox, which this policy does not enter"),
+                    why: format!(
+                        "it runs in another pid namespace ({theirs}), such as a container or a sandbox, which this policy does not enter"
+                    ),
                 };
             }
             (Some(_own), None) => {
@@ -253,14 +340,22 @@ impl UpdateRouting {
         // which is how a service's main process, and every Pi process in its unit, is covered.
         if self.is_covered(&info.cgroup) {
             self.handled.insert(key);
-            return Outcome::Covered { pid };
+            return Outcome::Covered {
+                pid,
+            };
         }
         if let Err(why) = adoptable_cgroup(&info.cgroup, self.setup.uid) {
             self.handled.insert(key);
-            return Outcome::Skipped { pid, why };
+            return Outcome::Skipped {
+                pid,
+                why,
+            };
         }
         if let Some(why) = self.gate.postponement(now) {
-            return Outcome::Deferred { pid, why };
+            return Outcome::Deferred {
+                pid,
+                why,
+            };
         }
         let (group, unreadable) = match collect_group(&self.setup, &info) {
             Ok(collected) => collected,
@@ -274,15 +369,26 @@ impl UpdateRouting {
         }
         // The origin's scope may be running under an earlier spelling of its name,
         // and its later processes join it there instead of one more scope with the same cap.
-        let scope_name = match self.setup.adopter.existing_scope_name(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &info.cgroup) {
+        let scope_name = match self.setup.adopter.existing_scope_name(
+            self.setup.uid,
+            TOOLCHAIN_UPDATES_SLICE,
+            &info.cgroup,
+        ) {
             Some(name) => name,
             None => origin_scope_name(&info.cgroup, self.setup.uid),
         };
         let destination = scope_cgroup_path(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &scope_name);
-        let limits = match read_inherited_limits(&self.setup.cgroup_root, &info.cgroup, &destination) {
+        let limits = match read_inherited_limits(
+            &self.setup.cgroup_root,
+            &info.cgroup,
+            &destination,
+        ) {
             Ok(limits) => limits,
             Err(error) => {
-                let text = format!("the limits of {} could not be read, and a process is never moved without them: {error}", info.cgroup);
+                let text = format!(
+                    "the limits of {} could not be read, and a process is never moved without them: {error}",
+                    info.cgroup
+                );
                 return self.register_failure(key, now, text);
             }
         };
@@ -302,12 +408,28 @@ impl UpdateRouting {
                 self.failures.remove(&key);
                 self.member_vanishes.remove(&key);
                 // A join that finds the manager hung pauses the moves like a hung move does.
-                if self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits, now) {
+                if self.scopes.note_joined(
+                    &self.setup,
+                    TOOLCHAIN_UPDATES_SLICE,
+                    &info.cgroup,
+                    &scope_name,
+                    &joined,
+                    &limits,
+                    now,
+                ) {
                     self.gate.block(now);
                 }
-                Outcome::Adopted { pid, reason, count: pids.len(), left_behind: unreadable + dropped }
+                Outcome::Adopted {
+                    pid,
+                    reason,
+                    count: pids.len(),
+                    left_behind: unreadable + dropped,
+                }
             }
-            Err(AdoptError::Deferred) => Outcome::Deferred { pid, why: ADOPTION_DEFERRED },
+            Err(AdoptError::Deferred) => Outcome::Deferred {
+                pid,
+                why: ADOPTION_DEFERRED,
+            },
             Err(AdoptError::Vanished | AdoptError::ScopeGone) => {
                 self.failures.remove(&key);
                 self.member_vanishes.remove(&key);
@@ -337,7 +459,10 @@ impl UpdateRouting {
     }
 
     /// Forgets the handled and failed processes whose pids are no longer listed.
-    fn forget_exited(&mut self, listed: &[i32]) {
+    fn forget_exited(
+        &mut self,
+        listed: &[i32],
+    ) {
         let alive: HashSet<i32> = listed.iter().copied().collect();
         let mut kept_handled: HashSet<(i32, u64)> = HashSet::new();
         for key in &self.handled {
@@ -373,11 +498,19 @@ impl UpdateRouting {
     /// and stops early when `stop` asks to,
     /// so a shutdown signal is not left waiting behind a long pass.
     /// Processes that need no report are left out of the result.
-    pub fn rescan_with(&mut self, clock: &dyn Clock, stop: &dyn StopCheck) -> Vec<Outcome> {
+    pub fn rescan_with(
+        &mut self,
+        clock: &dyn Clock,
+        stop: &dyn StopCheck,
+    ) -> Vec<Outcome> {
         self.begin_pass_at(clock.now());
         let pids = match list_pids(&self.setup.proc_root) {
             Ok(pids) => pids,
-            Err(error) => return vec![Outcome::ScanFailed { error: error.to_string() }],
+            Err(error) => {
+                return vec![Outcome::ScanFailed {
+                    error: error.to_string(),
+                }];
+            }
         };
         let mut outcomes: Vec<Outcome> = Vec::new();
         for pid in &pids {
@@ -393,7 +526,9 @@ impl UpdateRouting {
         // Following the origins asks the manager too: not while its calls are paused,
         // for at most a budget, and a call that times out pauses the moves.
         if !self.gate.is_blocked(clock.now()) {
-            let followed = self.scopes.follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE, clock);
+            let followed = self
+                .scopes
+                .follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE, clock);
             if followed.timed_out {
                 self.gate.block(clock.now());
             }

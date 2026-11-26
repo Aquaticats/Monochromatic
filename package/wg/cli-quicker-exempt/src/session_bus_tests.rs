@@ -8,18 +8,35 @@
 //! A fake bus daemon is a real Unix socket server in the test process,
 //! so the client meets an answer a server wrote.
 
-/// The client under test.
-use crate::session_bus::{BusConnection, SessionBusError};
 /// The message layout the fake daemon answers with.
-use crate::dbus_wire::{Argument, decode_message, encode_reply, encode_signal};
+use crate::dbus_wire::{
+    Argument,
+    decode_message,
+    encode_reply,
+    encode_signal,
+};
+/// The client under test.
+use crate::session_bus::{
+    BusConnection,
+    SessionBusError,
+};
 /// Reading and writing the fake daemon's socket.
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 /// The fake daemon's socket.
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
 /// The server thread's life.
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -92,7 +109,10 @@ fn socket_directory(name: &str) -> PathBuf {
     let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
     let base = match runtime {
         Some(directory) => directory,
-        None => PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| return "/nonexistent".into())).join("temp/agent"),
+        None => {
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| return "/nonexistent".into()))
+                .join("temp/agent")
+        }
     };
     return base.join(format!("wg-bus-{}-{name}", std::process::id()));
 }
@@ -101,7 +121,10 @@ fn socket_directory(name: &str) -> PathBuf {
 /// `AddMatch`,
 /// `GetNameOwner`
 /// and `GetConnectionUnixProcessID`.
-fn fake_bus(name: &str, owner: Owner) -> FakeBus {
+fn fake_bus(
+    name: &str,
+    owner: Owner,
+) -> FakeBus {
     let base = socket_directory(name);
     let _removed = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).expect("make the fixture directory");
@@ -129,42 +152,74 @@ fn fake_bus(name: &str, owner: Owner) -> FakeBus {
                             continue;
                         }
                         while let Some(bytes) = read_message(&mut stream) {
-                            let Ok(message) = decode_message(&bytes) else { break };
+                            let Ok(message) = decode_message(&bytes) else {
+                                break;
+                            };
                             let member = message.member.clone().unwrap_or_default();
-                            recorded.lock().map(|mut calls| return calls.push(member.clone())).ok();
+                            recorded
+                                .lock()
+                                .map(|mut calls| return calls.push(member.clone()))
+                                .ok();
                             let serial = message.serial;
                             let reply = match member.as_str() {
                                 "Hello" => encode_reply(serial, None),
                                 "AddMatch" => encode_reply(serial, None),
                                 "GetNameOwner" => match owner {
-                                    Owner::Held => crate::dbus_wire::encode_text_return(serial, OWNER_UNIQUE),
-                                    Owner::Nobody => crate::dbus_wire::encode_error(serial, "org.freedesktop.DBus.Error.NameHasNoOwner", "The name is not owned."),
+                                    Owner::Held => {
+                                        crate::dbus_wire::encode_text_return(serial, OWNER_UNIQUE)
+                                    }
+                                    Owner::Nobody => crate::dbus_wire::encode_error(
+                                        serial,
+                                        "org.freedesktop.DBus.Error.NameHasNoOwner",
+                                        "The name is not owned.",
+                                    ),
                                 },
-                                "GetConnectionUnixProcessID" => crate::dbus_wire::encode_number_return(serial, OWNER_PID),
+                                "GetConnectionUnixProcessID" => {
+                                    crate::dbus_wire::encode_number_return(serial, OWNER_PID)
+                                }
                                 _ => encode_reply(serial, None),
                             };
                             let _wrote_reply = stream.write_all(&reply);
                             if member == "AddMatch" {
                                 // The change the guard waits for arrives right after the rule is added and answered.
-                                let signal = encode_signal(1, "NameOwnerChanged", &[Argument::Text(HELD_NAME.to_string()), Argument::Text(String::new()), Argument::Text(OWNER_UNIQUE.to_string())]);
+                                let signal = encode_signal(
+                                    1,
+                                    "NameOwnerChanged",
+                                    &[
+                                        Argument::Text(HELD_NAME.to_string()),
+                                        Argument::Text(String::new()),
+                                        Argument::Text(OWNER_UNIQUE.to_string()),
+                                    ],
+                                );
                                 let _wrote_signal = stream.write_all(&signal);
                             }
                         }
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(2)),
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(2))
+                    }
                     Err(_other) => break,
                 }
             }
         })
         .expect("start the fake bus");
-    return FakeBus { socket, received, stop, thread: Some(thread) };
+    return FakeBus {
+        socket,
+        received,
+        stop,
+        thread: Some(thread),
+    };
 }
 
 /// Stopping the fake bus.
 impl FakeBus {
     /// The members the fake daemon answered.
     fn received(&self) -> Vec<String> {
-        return self.received.lock().map(|calls| return calls.clone()).unwrap_or_default();
+        return self
+            .received
+            .lock()
+            .map(|calls| return calls.clone())
+            .unwrap_or_default();
     }
 }
 
@@ -186,19 +241,41 @@ impl Drop for FakeBus {
 #[test]
 fn the_owner_of_a_name_is_found_through_the_bus() {
     let bus = fake_bus("held", Owner::Held);
-    let mut connection = BusConnection::connect(&bus.socket, Duration::from_secs(1), "type='signal',member='NameOwnerChanged'").expect("the bus answers");
-    assert_eq!(connection.call_owner(HELD_NAME).expect("the bus answers"), Some(OWNER_UNIQUE.to_string()));
-    assert_eq!(connection.call_owner_pid(OWNER_UNIQUE).expect("the bus answers"), i32::try_from(OWNER_PID).unwrap_or(0));
+    let mut connection = BusConnection::connect(
+        &bus.socket,
+        Duration::from_secs(1),
+        "type='signal',member='NameOwnerChanged'",
+    )
+    .expect("the bus answers");
+    assert_eq!(
+        connection.call_owner(HELD_NAME).expect("the bus answers"),
+        Some(OWNER_UNIQUE.to_string())
+    );
+    assert_eq!(
+        connection
+            .call_owner_pid(OWNER_UNIQUE)
+            .expect("the bus answers"),
+        i32::try_from(OWNER_PID).unwrap_or(0)
+    );
     assert!(bus.received().iter().any(|member| return member == "Hello"));
-    assert!(bus.received().iter().any(|member| return member == "AddMatch"));
+    assert!(
+        bus.received()
+            .iter()
+            .any(|member| return member == "AddMatch")
+    );
 }
 
 /// A name nobody holds is no owner and not a failure.
 #[test]
 fn a_name_without_an_owner_is_no_owner() {
     let bus = fake_bus("nobody", Owner::Nobody);
-    let mut connection = BusConnection::connect(&bus.socket, Duration::from_secs(1), "type='signal'").expect("the bus answers");
-    assert_eq!(connection.call_owner(HELD_NAME).expect("the bus answers"), None);
+    let mut connection =
+        BusConnection::connect(&bus.socket, Duration::from_secs(1), "type='signal'")
+            .expect("the bus answers");
+    assert_eq!(
+        connection.call_owner(HELD_NAME).expect("the bus answers"),
+        None
+    );
 }
 
 /// The event that makes the guard act at once is the daemon's signal,
@@ -207,8 +284,13 @@ fn a_name_without_an_owner_is_no_owner() {
 #[test]
 fn the_change_of_an_owner_arrives_as_a_signal() {
     let bus = fake_bus("signal", Owner::Held);
-    let mut connection = BusConnection::connect(&bus.socket, Duration::from_secs(1), "type='signal'").expect("the bus answers");
-    let signal = connection.next_signal().expect("the bus answers").expect("the change arrives");
+    let mut connection =
+        BusConnection::connect(&bus.socket, Duration::from_secs(1), "type='signal'")
+            .expect("the bus answers");
+    let signal = connection
+        .next_signal()
+        .expect("the bus answers")
+        .expect("the change arrives");
     assert_eq!(signal.kind, crate::dbus_wire::SIGNAL);
     assert_eq!(signal.member.as_deref(), Some("NameOwnerChanged"));
     assert_eq!(signal.first_text().as_deref(), Some(HELD_NAME));
@@ -218,7 +300,11 @@ fn the_change_of_an_owner_arrives_as_a_signal() {
 /// never a silent no-owner.
 #[test]
 fn a_missing_bus_socket_is_a_failure() {
-    let text = match BusConnection::connect(&socket_directory("missing").join("bus"), Duration::from_millis(200), "type='signal'") {
+    let text = match BusConnection::connect(
+        &socket_directory("missing").join("bus"),
+        Duration::from_millis(200),
+        "type='signal'",
+    ) {
         Err(SessionBusError::Failed(text)) => text,
         Err(other) => panic!("not a failure: {other}"),
         Ok(_connection) => panic!("a socket that does not exist accepted a connection"),
@@ -284,11 +370,17 @@ fn noise_bus(name: &str) -> FakeBus {
                             continue;
                         }
                         while let Some(bytes) = read_message(&mut stream) {
-                            let Ok(message) = decode_message(&bytes) else { break };
+                            let Ok(message) = decode_message(&bytes) else {
+                                break;
+                            };
                             let member = message.member.clone().unwrap_or_default();
-                            recorded.lock().map(|mut calls| return calls.push(member.clone())).ok();
+                            recorded
+                                .lock()
+                                .map(|mut calls| return calls.push(member.clone()))
+                                .ok();
                             if member == "Hello" || member == "AddMatch" {
-                                let _answered = stream.write_all(&encode_reply(message.serial, None));
+                                let _answered =
+                                    stream.write_all(&encode_reply(message.serial, None));
                                 continue;
                             }
                             // Answer with a reply to another serial, again and again,
@@ -303,13 +395,20 @@ fn noise_bus(name: &str) -> FakeBus {
                             }
                         }
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(2)),
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(2))
+                    }
                     Err(_other) => break,
                 }
             }
         })
         .expect("start the fake bus");
-    return FakeBus { socket, received, stop, thread: Some(thread) };
+    return FakeBus {
+        socket,
+        received,
+        stop,
+        thread: Some(thread),
+    };
 }
 
 /// A call answers at its deadline even when the daemon keeps sending other messages.
@@ -323,7 +422,9 @@ fn noise_bus(name: &str) -> FakeBus {
 #[test]
 fn a_call_answers_at_its_deadline_while_the_daemon_sends_other_messages() {
     let bus = noise_bus("noise-call");
-    let mut connection = BusConnection::connect(&bus.socket, Duration::from_millis(200), "type='signal'").expect("the bus answers");
+    let mut connection =
+        BusConnection::connect(&bus.socket, Duration::from_millis(200), "type='signal'")
+            .expect("the bus answers");
     // The call runs in a thread of its own,
     // so this test fails instead of hanging when the call never answers.
     let (sender, receiver) = std::sync::mpsc::channel();
@@ -331,7 +432,9 @@ fn a_call_answers_at_its_deadline_while_the_daemon_sends_other_messages() {
         let answer = connection.call_owner(HELD_NAME);
         sender.send(answer).ok();
     });
-    let answer = receiver.recv_timeout(Duration::from_secs(10)).expect("the call answered within ten seconds");
+    let answer = receiver
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the call answered within ten seconds");
     worker.join().ok();
     let refusal = answer.expect_err("noise is not an answer");
     assert!(matches!(refusal, SessionBusError::TimedOut(_)), "{refusal}");
@@ -343,7 +446,9 @@ fn a_call_answers_at_its_deadline_while_the_daemon_sends_other_messages() {
 #[test]
 fn the_wait_for_a_change_answers_at_its_deadline() {
     let bus = noise_bus("noise-signal");
-    let mut connection = BusConnection::connect(&bus.socket, Duration::from_millis(200), "type='signal'").expect("the bus answers");
+    let mut connection =
+        BusConnection::connect(&bus.socket, Duration::from_millis(200), "type='signal'")
+            .expect("the bus answers");
     let (sender, receiver) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
         // A call first, which leaves the daemon sending its noise,
@@ -351,7 +456,9 @@ fn the_wait_for_a_change_answers_at_its_deadline() {
         let _first = connection.call_owner(HELD_NAME);
         sender.send(connection.next_signal()).ok();
     });
-    let answer = receiver.recv_timeout(Duration::from_secs(10)).expect("the wait answered within ten seconds");
+    let answer = receiver
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the wait answered within ten seconds");
     worker.join().ok();
     // The wait's own answer to a deadline that passed with nothing to read is `None`,
     // which is what the guard's poll reads as "no change".

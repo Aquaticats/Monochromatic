@@ -198,7 +198,10 @@ async function buildImage(): Promise<void> {
       'COPY cargo-config /work/.cargo',
       `ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_INCREMENTAL=0`,
       'WORKDIR /work/package/git-policy/cli',
-      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "monochromatic-git-policy-cli"]',
+      // The scenarios arm the service's own fault points and the phase markers, so this build carries the test-only
+      // switches; it is the image's test executable and never an installed one
+      // (doc/decision/cli-git-test-only-switches-compiled-out-of-release.md).
+      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--features", "test-only-switches", "--bin", "monochromatic-git-policy-cli"]',
       '',
       `FROM ${endToEndBase.id}`,
       'RUN ["mkdir", "--parents", "/opt/native/bin"]',

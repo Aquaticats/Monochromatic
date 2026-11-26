@@ -14,7 +14,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
-use git_policy_cli_fuzz::content::{check_generated_listings, check_stage_records};
+use git_policy_cli_fuzz::content::{
+    check_generated_listings,
+    check_stage_records,
+};
 use libfuzzer_sys::fuzz_target;
 
 // Run both views of every input: the bytes as a listing, and listings built from them.

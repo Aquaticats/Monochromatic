@@ -11,9 +11,18 @@
 /// ```
 use std::{
     collections::BTreeMap,
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Import the percentage that means the full range is available.
@@ -64,19 +73,29 @@ fn read_frequency(path: &Path) -> io::Result<u64> {
     // return parseNonnegativeInteger(text.trim());
     return text.trim().parse::<u64>().map_err(|error| {
         // Report a malformed kernel value with its source.
-        return io::Error::new(io::ErrorKind::InvalidData, format!("parse {}: {error}", path.display()));
+        return io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("parse {}: {error}", path.display()),
+        );
     });
 }
 
 /// Write an existing ceiling attribute, preserving write failures for the caller.
-fn write_ceiling(policy: &Path, ceiling: u64) -> io::Result<()> {
+fn write_ceiling(
+    policy: &Path,
+    ceiling: u64,
+) -> io::Result<()> {
     // Borrow the computed path when opening it so it can also appear in the diagnostic.
     let path = policy.join(CEILING);
     // Open the existing attribute. A disappeared policy cannot be recreated from here.
-    let mut file = OpenOptions::new().write(true).truncate(true).open(&path).map_err(|error| {
-        // Keep the operating-system error and identify the policy.
-        return io::Error::new(error.kind(), format!("open {}: {error}", path.display()));
-    })?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&path)
+        .map_err(|error| {
+            // Keep the operating-system error and identify the policy.
+            return io::Error::new(error.kind(), format!("open {}: {error}", path.display()));
+        })?;
     // What
     // `write!` writes formatted text to the existing file and returns its I/O result.
     // Why
@@ -85,7 +104,10 @@ fn write_ceiling(policy: &Path, ceiling: u64) -> io::Result<()> {
     // writeToOpenFile(file, String(ceiling));
     return write!(file, "{ceiling}").map_err(|error| {
         // Report which ceiling the kernel rejected.
-        return io::Error::new(error.kind(), format!("write {ceiling} to {}: {error}", path.display()));
+        return io::Error::new(
+            error.kind(),
+            format!("write {ceiling} to {}: {error}", path.display()),
+        );
     });
 }
 
@@ -102,9 +124,13 @@ fn limit_policy(
     let maximum = read_frequency(&policy.join(HARDWARE_MAX))?;
     if floor > maximum {
         // Refuse inconsistent bounds in this policy and let others proceed.
-        return Err(io::Error::new(io::ErrorKind::InvalidData, format!(
-            "{} has a frequency floor above its hardware maximum", policy.display()
-        )));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "{} has a frequency floor above its hardware maximum",
+                policy.display()
+            ),
+        ));
     }
     // Widen the percentage to the frequency type before interpolation.
     let span = maximum - floor;
@@ -118,12 +144,17 @@ fn limit_policy(
     // Unchanged requests need no write. Check the effective maximum for a recreated policy.
     // TypeScript pseudocode
     // if (requested.get(policy) === ceiling && readFrequency(join(policy, CEILING)) <= ceiling) return;
-    if requested.get(policy) == Some(&ceiling) && read_frequency(&policy.join(CEILING))? <= ceiling {
+    if requested.get(policy) == Some(&ceiling) && read_frequency(&policy.join(CEILING))? <= ceiling
+    {
         // The prior request still keeps this policy within the desired range.
         return Ok(());
     }
     // A marker created before the write survives termination between these operations.
-    OpenOptions::new().write(true).create(true).truncate(false).open(marker)?;
+    OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(marker)?;
     // Keep the marker even if sysfs accepts only part of the multi-policy operation.
     write_ceiling(policy, ceiling)?;
     // What
@@ -183,16 +214,20 @@ pub fn limit_all(
     }
     if !found {
         // A successful command must have at least one policy it can control.
-        return Err(io::Error::new(io::ErrorKind::NotFound, format!(
-            "no CPUFreq policies found in {}", root.display()
-        )));
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("no CPUFreq policies found in {}", root.display()),
+        ));
     }
     // Propagate all failed policy operations to the daemon's diagnostics.
     return finish(&errors);
 }
 
 /// Release the userspace request for one policy and retire its marker on success.
-fn release_policy(policy: &Path, marker: &Path) -> io::Result<()> {
+fn release_policy(
+    policy: &Path,
+    marker: &Path,
+) -> io::Result<()> {
     // What
     // `try_exists` distinguishes absence from a filesystem error.
     // Why
@@ -210,7 +245,10 @@ fn release_policy(policy: &Path, marker: &Path) -> io::Result<()> {
 }
 
 /// Release only journaled policies, leaving failed releases pending for a retry.
-pub fn release_all(root: &Path, runtime: &Path) -> io::Result<()> {
+pub fn release_all(
+    root: &Path,
+    runtime: &Path,
+) -> io::Result<()> {
     // An untouched runtime has no policy markers to release.
     let entries = match fs::read_dir(runtime.join(LIMITED)) {
         Ok(value) => value,

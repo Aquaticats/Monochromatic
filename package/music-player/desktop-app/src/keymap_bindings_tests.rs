@@ -12,7 +12,11 @@
 //! and a wrong row would otherwise stay silent until a person pressed that key.
 
 use super::*;
-use crate::keymap::{FocusZone, KeyRoute, shortcut_action};
+use crate::keymap::{
+    FocusZone,
+    KeyRoute,
+    shortcut_action,
+};
 
 /// What:
 /// `request_for_row` builds a key press that satisfies the row's modifiers,
@@ -20,19 +24,27 @@ use crate::keymap::{FocusZone, KeyRoute, shortcut_action};
 /// platform and scope.
 /// Why:
 /// each row must classify to its own action when pressed where it applies.
-fn request_for_row(binding: &Binding, platform: KeyboardPlatform, key: &str) -> ShortcutRequest {
+fn request_for_row(
+    binding: &Binding,
+    platform: KeyboardPlatform,
+    key: &str,
+) -> ShortcutRequest {
     let held = binding.required(platform);
     let (route, zone, in_popup, picker_overlay) = match binding.scope {
         Scope::Anywhere | Scope::PlayerPage | Scope::PlaybackArea | Scope::SpaceZones => {
             (KeyRoute::Player, FocusZone::Surface, false, false)
         }
-        Scope::ListZone | Scope::TrackList => (KeyRoute::Player, FocusZone::TrackList, false, false),
+        Scope::ListZone | Scope::TrackList => {
+            (KeyRoute::Player, FocusZone::TrackList, false, false)
+        }
         Scope::FolderList => (KeyRoute::Player, FocusZone::FolderList, false, false),
         Scope::Popup => (KeyRoute::Player, FocusZone::Surface, true, false),
         Scope::PickerOverlay => (KeyRoute::Player, FocusZone::Surface, false, true),
         Scope::SearchPage => (KeyRoute::Search, FocusZone::Button, false, false),
         Scope::SearchField => (KeyRoute::Search, FocusZone::TextField, false, false),
-        Scope::SettingsIdle | Scope::EditorOrSettings => (KeyRoute::Settings, FocusZone::SettingsList, false, false),
+        Scope::SettingsIdle | Scope::EditorOrSettings => {
+            (KeyRoute::Settings, FocusZone::SettingsList, false, false)
+        }
         Scope::SettingsField => (KeyRoute::Settings, FocusZone::TextField, false, false),
         Scope::EditorPage => (KeyRoute::EditorPage, FocusZone::TextField, false, false),
         Scope::LicensesPage => (KeyRoute::Licenses, FocusZone::Button, false, false),
@@ -78,7 +90,11 @@ fn every_row_with_a_letter_key_also_matches_the_capital_letter() {
     for binding in BINDINGS.iter() {
         for key in binding.keys {
             if key.chars().count() == 1 && key.chars().all(char::is_alphabetic) {
-                assert!(binding.matches_key(&key.to_uppercase()), "{:?} with {key:?}", binding.action);
+                assert!(
+                    binding.matches_key(&key.to_uppercase()),
+                    "{:?} with {key:?}",
+                    binding.action
+                );
             }
         }
     }
@@ -86,7 +102,10 @@ fn every_row_with_a_letter_key_also_matches_the_capital_letter() {
 
 #[test]
 fn a_row_does_not_match_with_an_extra_or_missing_modifier() {
-    for binding in BINDINGS.iter().filter(|row| return row.scope != Scope::Popup && !row.menu) {
+    for binding in BINDINGS
+        .iter()
+        .filter(|row| return row.scope != Scope::Popup && !row.menu)
+    {
         let platform = KeyboardPlatform::WindowsLinux;
         if !binding.applies_on(platform) {
             continue;
@@ -95,10 +114,26 @@ fn a_row_does_not_match_with_an_extra_or_missing_modifier() {
             continue;
         };
         let exact = request_for_row(binding, platform, key);
-        let with_meta = ShortcutRequest { meta: !exact.meta, ..exact.clone() };
-        assert_ne!(shortcut_action(&with_meta), binding.action, "{:?} with Meta toggled", binding.action);
-        let with_alt = ShortcutRequest { alt: !exact.alt, ..exact.clone() };
-        assert_ne!(shortcut_action(&with_alt), binding.action, "{:?} with Alt toggled", binding.action);
+        let with_meta = ShortcutRequest {
+            meta: !exact.meta,
+            ..exact.clone()
+        };
+        assert_ne!(
+            shortcut_action(&with_meta),
+            binding.action,
+            "{:?} with Meta toggled",
+            binding.action
+        );
+        let with_alt = ShortcutRequest {
+            alt: !exact.alt,
+            ..exact.clone()
+        };
+        assert_ne!(
+            shortcut_action(&with_alt),
+            binding.action,
+            "{:?} with Alt toggled",
+            binding.action
+        );
     }
 }
 
@@ -140,14 +175,18 @@ fn every_action_a_control_or_a_menu_row_shows_has_a_chord_text_on_both_maps() {
     ];
     for action in actions {
         for platform in KeyboardPlatform::ALL {
-            assert!(!shortcut_text(action, platform).is_empty(), "{action:?} on {platform:?}");
+            assert!(
+                !shortcut_text(action, platform).is_empty(),
+                "{action:?} on {platform:?}"
+            );
         }
     }
 }
 
 #[test]
 fn chord_texts_match_the_decision_on_windows_and_linux() {
-    let text = |action: ShortcutAction| return shortcut_text(action, KeyboardPlatform::WindowsLinux);
+    let text =
+        |action: ShortcutAction| return shortcut_text(action, KeyboardPlatform::WindowsLinux);
     assert_eq!(text(ShortcutAction::Search), "Ctrl+F");
     assert_eq!(text(ShortcutAction::Picker), "Ctrl+O");
     assert_eq!(text(ShortcutAction::Settings), "Ctrl+Alt+S");
@@ -190,8 +229,14 @@ fn chord_texts_use_the_command_and_option_glyphs_on_the_mac_map() {
 
 #[test]
 fn an_action_without_a_row_has_an_empty_text() {
-    assert_eq!(shortcut_text(ShortcutAction::Owner, KeyboardPlatform::WindowsLinux), "");
-    assert_eq!(shortcut_text(ShortcutAction::ListLetter('a'), KeyboardPlatform::Mac), "");
+    assert_eq!(
+        shortcut_text(ShortcutAction::Owner, KeyboardPlatform::WindowsLinux),
+        ""
+    );
+    assert_eq!(
+        shortcut_text(ShortcutAction::ListLetter('a'), KeyboardPlatform::Mac),
+        ""
+    );
 }
 
 #[test]
@@ -208,12 +253,22 @@ fn key_labels_read_like_the_keycaps() {
 #[test]
 fn the_held_set_is_empty_only_without_modifiers() {
     assert!(HeldModifiers::default().is_empty());
-    assert!(!HeldModifiers { alt: true, ..HeldModifiers::default() }.is_empty());
+    assert!(
+        !HeldModifiers {
+            alt: true,
+            ..HeldModifiers::default()
+        }
+        .is_empty()
+    );
 }
 
 #[test]
 fn rows_marked_for_the_open_menu_are_the_menu_navigation_and_the_row_chords() {
-    let menu_actions: Vec<ShortcutAction> = BINDINGS.iter().filter(|row| return row.menu).map(|row| return row.action).collect();
+    let menu_actions: Vec<ShortcutAction> = BINDINGS
+        .iter()
+        .filter(|row| return row.menu)
+        .map(|row| return row.action)
+        .collect();
     assert_eq!(
         menu_actions,
         vec![

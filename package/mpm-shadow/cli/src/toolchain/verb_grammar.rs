@@ -15,7 +15,11 @@
 //! ```
 
 /// Imports the `clap` types for describing arguments and commands.
-use clap::{Arg, ArgAction, Command};
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+};
 
 /// The `--global` flag every toolchain verb accepts:
 /// act on the machine-global plan and lock.

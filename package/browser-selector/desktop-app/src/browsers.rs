@@ -1,7 +1,12 @@
 //! Discovers registered browsers and sends the target to the selected launcher.
 
 /// Imports containers, native paths, and the direct process launcher.
-use std::{collections::BTreeMap, ffi::OsString, path::PathBuf, process::Command};
+use std::{
+    collections::BTreeMap,
+    ffi::OsString,
+    path::PathBuf,
+    process::Command,
+};
 
 /// Imports the extension methods GIO adds to registered applications.
 use gio::prelude::AppInfoExt;
@@ -38,7 +43,10 @@ enum Launch {
     /// Run the desktop entry through GIO using its ordinary behavior.
     Desktop(gio::AppInfo),
     /// Pass the profile and target as individual arguments to a supported native executable.
-    Profile { launcher: ProfileLauncher, profile: profiles::Profile },
+    Profile {
+        launcher: ProfileLauncher,
+        profile: profiles::Profile,
+    },
 }
 
 /// What: The row label and its launch operation stay coupled as one record.
@@ -63,14 +71,23 @@ impl Choice {
     /// ```ts
     /// choice.open(uri);
     /// ```
-    pub(crate) fn open(&self, uri: &str) -> anyhow::Result<()> {
+    pub(crate) fn open(
+        &self,
+        uri: &str,
+    ) -> anyhow::Result<()> {
         // Each branch attaches the target after routing to a specific installed browser.
         match &self.launch {
             Launch::Desktop(app) => {
                 app.launch_uris(&[uri], gio::AppLaunchContext::NONE)?;
             }
-            Launch::Profile { launcher, profile } => {
-                anyhow::ensure!(profile.directory.is_dir(), "The profile directory is no longer available.");
+            Launch::Profile {
+                launcher,
+                profile,
+            } => {
+                anyhow::ensure!(
+                    profile.directory.is_dir(),
+                    "The profile directory is no longer available."
+                );
                 // Preserve wrapper arguments before appending the browser's profile flags and target.
                 Command::new(&launcher.program)
                     .args(&launcher.fixed_arguments)
@@ -91,7 +108,10 @@ impl Choice {
 /// function isFirefox(id: string): boolean;
 /// ```
 fn is_firefox(id: &str) -> bool {
-    return matches!(id, "firefox.desktop" | "firefox-esr.desktop" | "firefox-developer-edition.desktop");
+    return matches!(
+        id,
+        "firefox.desktop" | "firefox-esr.desktop" | "firefox-developer-edition.desktop"
+    );
 }
 
 /// What: Splits a desktop command with one terminal URL field into an executable and fixed arguments.
@@ -109,12 +129,18 @@ fn profile_launcher(app: &gio::AppInfo) -> Option<ProfileLauncher> {
         return None;
     }
     // Other field codes need GIO expansion and remain available on the plain browser row.
-    if arguments.iter().any(|argument| return argument.as_encoded_bytes().contains(&b'%')) {
+    if arguments
+        .iter()
+        .any(|argument| return argument.as_encoded_bytes().contains(&b'%'))
+    {
         return None;
     }
     let program = gio::glib::find_program_in_path(arguments.first()?)?;
     let fixed_arguments = arguments.split_off(1);
-    return Some(ProfileLauncher { program, fixed_arguments });
+    return Some(ProfileLauncher {
+        program,
+        fixed_arguments,
+    });
 }
 
 /// What: Reads web scheme handlers and adds profile rows for the supported native launchers.
@@ -128,7 +154,9 @@ pub(crate) fn discover() -> Vec<Choice> {
     let mut browsers = BTreeMap::new();
     for scheme in ["x-scheme-handler/http", "x-scheme-handler/https"] {
         for app in gio::AppInfo::all_for_type(scheme) {
-            let Some(id) = app.id() else { continue; };
+            let Some(id) = app.id() else {
+                continue;
+            };
             if id == SELECTOR_ID || !app.should_show() || !app.supports_uris() {
                 continue;
             }
@@ -139,31 +167,53 @@ pub(crate) fn discover() -> Vec<Choice> {
     // Remember which Firefox installs have straightforward profile-capable launchers.
     let mut firefox = BTreeMap::new();
     for (id, app) in &browsers {
-        if is_firefox(id) && let Some(launcher) = profile_launcher(app) && launcher.fixed_arguments.is_empty() {
+        if is_firefox(id)
+            && let Some(launcher) = profile_launcher(app)
+            && launcher.fixed_arguments.is_empty()
+        {
             firefox.insert(id.clone(), launcher);
         }
     }
-    let firefox_profiles = if firefox.is_empty() { Vec::new() } else { profiles::firefox_profiles() };
+    let firefox_profiles = if firefox.is_empty() {
+        Vec::new()
+    } else {
+        profiles::firefox_profiles()
+    };
 
     let mut choices = Vec::new();
     for (id, app) in browsers {
         let name = app.display_name().to_string();
         if let Some(launcher) = firefox.get(&id) {
-            for profile in profiles::profiles_for_firefox(&firefox_profiles, &launcher.program, firefox.len() == 1) {
+            for profile in profiles::profiles_for_firefox(
+                &firefox_profiles,
+                &launcher.program,
+                firefox.len() == 1,
+            ) {
                 choices.push(Choice {
                     label: format!("{name} · {}", profile.name),
-                    launch: Launch::Profile { launcher: launcher.clone(), profile },
+                    launch: Launch::Profile {
+                        launcher: launcher.clone(),
+                        profile,
+                    },
                 });
             }
-        } else if id == "helium.desktop" && let Some(launcher) = profile_launcher(&app) {
+        } else if id == "helium.desktop"
+            && let Some(launcher) = profile_launcher(&app)
+        {
             for profile in profiles::helium_profiles(&profiles::helium_root()) {
                 choices.push(Choice {
                     label: format!("{name} · {}", profile.name),
-                    launch: Launch::Profile { launcher: launcher.clone(), profile },
+                    launch: Launch::Profile {
+                        launcher: launcher.clone(),
+                        profile,
+                    },
                 });
             }
         }
-        choices.push(Choice { label: name, launch: Launch::Desktop(app) });
+        choices.push(Choice {
+            label: name,
+            launch: Launch::Desktop(app),
+        });
     }
     choices.sort_by_cached_key(|choice| return choice.label.to_lowercase());
     return choices;
@@ -188,9 +238,13 @@ mod tests {
             Some("Wrapped browser"),
             gio::AppInfoCreateFlags::SUPPORTS_URIS,
         )?;
-        let launcher = profile_launcher(&application).ok_or_else(|| anyhow::anyhow!("Expected a profile launcher"))?;
+        let launcher = profile_launcher(&application)
+            .ok_or_else(|| anyhow::anyhow!("Expected a profile launcher"))?;
         assert_eq!(launcher.program, std::path::Path::new("/usr/bin/env"));
-        assert_eq!(launcher.fixed_arguments, ["wrapper script.ts", "fixed argument"]);
+        assert_eq!(
+            launcher.fixed_arguments,
+            ["wrapper script.ts", "fixed argument"]
+        );
         return Ok(());
     }
 }

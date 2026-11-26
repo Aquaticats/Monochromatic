@@ -16,7 +16,12 @@
 /// The device,
 /// the textures,
 /// and the outcome the window applies.
-use super::{Inner, Outcome, StackTexture, Target};
+use super::{
+    Inner,
+    Outcome,
+    StackTexture,
+    Target,
+};
 /// The markup's record of one texture of the tile.
 use crate::native::ui::SourceSlice;
 /// The scenes of the stack.
@@ -38,7 +43,10 @@ impl Inner {
     /// ```ts
     /// function tileTexturesFit(stack: TileStack): boolean;
     /// ```
-    fn tile_textures_fit(&self, stack: &TileStack) -> bool {
+    fn tile_textures_fit(
+        &self,
+        stack: &TileStack,
+    ) -> bool {
         if self.tile.len() != stack.textures.len() {
             return false;
         }
@@ -107,7 +115,10 @@ impl Inner {
 
     /// Whether some scene of `stack` cannot be a texture of a device whose side is at most `limit`,
     ///  or the stack has none.
-    fn oversize(stack: &TileStack, limit: u32) -> bool {
+    fn oversize(
+        stack: &TileStack,
+        limit: u32,
+    ) -> bool {
         let mut oversize = stack.textures.is_empty();
         for scene in &stack.textures {
             oversize |= scene.width == 0
@@ -169,7 +180,10 @@ impl Inner {
     /// ```ts
     /// function prepareTile(stack: TileStack): Outcome;
     /// ```
-    pub(super) fn prepare_tile(&mut self, stack: &TileStack) -> Outcome {
+    pub(super) fn prepare_tile(
+        &mut self,
+        stack: &TileStack,
+    ) -> Outcome {
         let mut outcome = Outcome::default();
         let Some((device, _)) = self.device.clone() else {
             return outcome;
@@ -198,7 +212,11 @@ impl Inner {
     /// ```ts
     /// function drawTile(stack: TileStack, outcome: Outcome): void;
     /// ```
-    pub(super) fn draw_tile(&mut self, stack: &TileStack, outcome: &mut Outcome) {
+    pub(super) fn draw_tile(
+        &mut self,
+        stack: &TileStack,
+        outcome: &mut Outcome,
+    ) {
         let Some((device, queue)) = self.device.clone() else {
             return;
         };

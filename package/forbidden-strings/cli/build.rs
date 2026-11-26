@@ -37,7 +37,11 @@
 use forbidden_regex::RegexSet;
 
 /// Imports the environment and filesystem std pieces the build step reads and writes.
-use std::{env, fs, path::Path};
+use std::{
+    env,
+    fs,
+    path::Path,
+};
 
 /// Registers the redacted load-error type shared with the runtime frx compiler.
 ///
@@ -101,8 +105,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/rule/frx/escape.rs");
     println!("cargo:rerun-if-changed=src/rule/frx/error.rs");
 
-    let manifest_dir =
-        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR set by cargo");
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR set by cargo");
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR set by cargo");
 
     let ported_path = Path::new(&manifest_dir).join("data/builtin-rules.txt");
@@ -113,8 +116,10 @@ fn main() {
     // set in one pass. `Display` on either error carries no rule text.
     let rules = format::parse_rules(&ported)
         .unwrap_or_else(|error| panic!("parse builtin baseline: {error}"));
-    let patterns: Vec<String> =
-        rules.iter().map(|rule| return rule.pattern.clone()).collect();
+    let patterns: Vec<String> = rules
+        .iter()
+        .map(|rule| return rule.pattern.clone())
+        .collect();
     let set = RegexSet::new(&patterns)
         .unwrap_or_else(|error| panic!("compile builtin baseline: {error}"));
     let bytes = set

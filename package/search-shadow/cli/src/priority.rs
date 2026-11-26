@@ -73,7 +73,8 @@ pub fn lower_disk_priority() -> bool {
     // ```ts
     // const priorityValue = (IOPRIO_CLASS_BEST_EFFORT << IOPRIO_CLASS_SHIFT) | LOWEST_BEST_EFFORT_LEVEL;
     // ```
-    let priority_value: libc::c_long = (IOPRIO_CLASS_BEST_EFFORT << IOPRIO_CLASS_SHIFT) | LOWEST_BEST_EFFORT_LEVEL;
+    let priority_value: libc::c_long =
+        (IOPRIO_CLASS_BEST_EFFORT << IOPRIO_CLASS_SHIFT) | LOWEST_BEST_EFFORT_LEVEL;
 
     // What:     `unsafe { ... }` is a block inside which the compiler stops checking memory safety for the calls it
     // contains, because it cannot see inside C code. `libc::syscall(libc::SYS_ioprio_set, a, b, c)` asks the
@@ -90,7 +91,12 @@ pub fn lower_disk_priority() -> bool {
     // const result = nativeSyscall('ioprio_set', IOPRIO_WHO_PROCESS, THIS_PROCESS, priorityValue);
     // ```
     let result: libc::c_long = unsafe {
-        libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PROCESS, THIS_PROCESS, priority_value)
+        libc::syscall(
+            libc::SYS_ioprio_set,
+            IOPRIO_WHO_PROCESS,
+            THIS_PROCESS,
+            priority_value,
+        )
     };
 
     // What:     `result == 0` is true when the kernel accepted the new priority.

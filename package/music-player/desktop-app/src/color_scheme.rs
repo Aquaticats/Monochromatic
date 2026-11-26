@@ -66,7 +66,10 @@ impl fmt::Display for ColorSchemeError {
     /// Writes the sentence that names the rejected value and the accepted ones.
     /// Why:
     /// The startup message and the log show this text.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             Self::Unknown(value) => formatter.write_str(&format!(
                 "{COLOR_SCHEME_ENV} must be light or dark, or unset to follow the system; it was {value:?}."

@@ -229,21 +229,21 @@ fn mount_a_tmpfs_at(target: &std::path::Path) -> std::fs::File {
 }
 
 /// Whether this run is the inner half of a private user and mount namespace.
-#[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, under `unshare`")]
 fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
     if std::env::var_os(variable).is_some() {
         return true;
     }
-    let done = std::process::Command::new("unshare")
-        .args(["--user", "--map-root-user", "--mount", "--propagation", "private"])
-        .arg(std::env::current_exe().expect("this test binary"))
-        .args(["--exact", test, "--nocapture"])
-        .env(variable, "1")
-        .output()
-        .expect("the inner half runs");
-    let said: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
-    assert!(done.status.success(), "the inner half failed:\n{said}");
-    assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
+    // The inner half is this test binary in a mount namespace of its own, and its pass is this control's assertion.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(variable, std::ffi::OsStr::new("1"))];
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: test,
+        environment: environment.as_slice(),
+        running_program: Some(crate::child_test_process::ProgramRunningTheTest {
+            program: "unshare",
+            arguments_before_the_test_binary: &["--user", "--map-root-user", "--mount", "--propagation", "private"],
+        }),
+        ..crate::child_test_process::ChildTest::default()
+    });
     return false;
 }
 

@@ -13,25 +13,47 @@
 
 /// Error context for the v4 feedback build,
 /// and the result type of `build_dmabuf`.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// The output and dmabuf types,
 /// the EGL device query,
 /// and the renderer traits both builders use.
 use smithay::{
     backend::{
         egl::EGLDevice,
-        renderer::{gles::GlesRenderer, ImportDma},
+        renderer::{
+            ImportDma,
+            gles::GlesRenderer,
+        },
     },
-    output::{Mode, Output, PhysicalProperties, Subpixel},
+    output::{
+        Mode,
+        Output,
+        PhysicalProperties,
+        Subpixel,
+    },
     reexports::wayland_server::DisplayHandle,
     utils::Transform,
-    wayland::dmabuf::{DmabufFeedback, DmabufFeedbackBuilder, DmabufGlobal, DmabufState},
+    wayland::dmabuf::{
+        DmabufFeedback,
+        DmabufFeedbackBuilder,
+        DmabufGlobal,
+        DmabufState,
+    },
 };
 /// Report the dmabuf version advertised and the fallback to version 3.
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// The nominal refresh rate and the geometry the output is built from.
-use crate::{backend::OUTPUT_REFRESH_MHZ, screen_geometry::ScreenGeometry};
+use crate::{
+    backend::OUTPUT_REFRESH_MHZ,
+    screen_geometry::ScreenGeometry,
+};
 
 /// Build the nested output for `geometry` and register its `wl_output` global.
 ///
@@ -40,7 +62,10 @@ use crate::{backend::OUTPUT_REFRESH_MHZ, screen_geometry::ScreenGeometry};
 ///  The mode is the physical size (logical size times scale) at the nominal refresh rate.
 /// Why:
 ///       One construction for both backends keeps clients and captures identical across modes.
-pub fn build_output(display_handle: &DisplayHandle, geometry: ScreenGeometry) -> Output {
+pub fn build_output(
+    display_handle: &DisplayHandle,
+    geometry: ScreenGeometry,
+) -> Output {
     let (physical_width, physical_height) = geometry.physical_size();
 
     // What:     `let mode = Mode { size: (config.width, config.height).into(), refresh:
@@ -91,7 +116,7 @@ pub fn build_output(display_handle: &DisplayHandle, geometry: ScreenGeometry) ->
     // Why:      Clients pick the preferred mode when choosing a size.
     output.set_preferred(mode);
 
-    return output
+    return output;
 }
 
 /// Create the `zwp_linux_dmabuf_v1` global from what `renderer` can import.
@@ -178,8 +203,8 @@ pub fn build_dmabuf(
             // What:     `let global = dmabuf_state.create_global::<Compositor>(
             //           display_handle, formats);`. Registers the dmabuf global at v3.
             // Why:      Still let the client import GPU buffers, just without feedback.
-            let global = dmabuf_state
-                .create_global::<crate::state::Compositor>(display_handle, formats);
+            let global =
+                dmabuf_state.create_global::<crate::state::Compositor>(display_handle, formats);
 
             // What:     `(global, None)`. No feedback in the v3 path.
             // Why:      Signal v3 was used.
@@ -187,5 +212,5 @@ pub fn build_dmabuf(
         }
     };
 
-    return Ok((dmabuf_state, dmabuf_global, dmabuf_feedback))
+    return Ok((dmabuf_state, dmabuf_global, dmabuf_feedback));
 }

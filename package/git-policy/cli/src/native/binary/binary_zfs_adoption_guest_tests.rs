@@ -297,18 +297,6 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
 /// The environment variable that makes one process of this test the writer a kill leaves half done.
 const KILLED_CHILD_VARIABLE: &str = "CLI_GIT_ZFS_STAGING_KILLED_CHILD";
 
-/// The test binary this run is,
-/// which the killed-writer arm starts as its own child.
-/// Why:
-///  The child must run this file's own staging steps and then die,
-///  and only the running binary runs them;
-///  the ban on `current_exe` guards the wrapper starting itself,
-///  and this starts the test harness.
-#[allow(clippy::disallowed_methods, reason = "starts this test binary (libtest), not the wrapper; the ban on `current_exe` guards the wrapper's own start")]
-fn this_test_binary() -> PathBuf {
-    return std::env::current_exe().expect("this test's own executable");
-}
-
 /// The one staging name the killed writer uses,
 /// which is a form the store's own removal knows.
 const KILLED_STAGING_NAME: &str = ".fedcba9876543210fedcba9876543210";
@@ -412,13 +400,15 @@ fn a_killed_writer_between_its_bytes_and_its_link_leaves_no_record() {
     let fixture: Fixture = create_fixture();
     write_store(&fixture);
     let store_path: &Path = Path::new(SLOT_IDENTITY_STORE_PATH);
-    let child: std::process::ExitStatus = std::process::Command::new(this_test_binary())
-        .arg("--exact")
-        .arg("zfs_adoption_guest::the_staging_writer_that_is_killed_before_its_link")
-        .arg("--nocapture")
-        .env(KILLED_CHILD_VARIABLE, store_path)
-        .status()
-        .expect("the child starts");
+    // The writer kills itself, so this asks for the raw ending and judges the signal rather than a passing test.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(KILLED_CHILD_VARIABLE, store_path.as_os_str())];
+    let child: std::process::ExitStatus = super::child_test_process::finished(super::child_test_process::ChildTest {
+        exact_test: "zfs_adoption_guest::the_staging_writer_that_is_killed_before_its_link",
+        environment: environment.as_slice(),
+        ..super::child_test_process::ChildTest::default()
+    })
+    .expect("the killed writer ends within the deadline")
+    .status;
     use std::os::unix::process::ExitStatusExt as _;
     assert_eq!(child.signal(), Some(libc::SIGKILL), "the writer died by the signal the arm sent it");
     let mut entries: Vec<String> = std::fs::read_dir(store_path).expect("the store folder lists").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).collect();

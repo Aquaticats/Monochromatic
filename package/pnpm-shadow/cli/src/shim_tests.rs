@@ -1,10 +1,17 @@
 //! The unit tests of the child launch,
 //! the exit-status mapping and the warning that precedes pnpm.
 
-/// Imports the functions under test.
-use crate::shim::{exit_code_of, run_program, warn_about_workspace};
 /// Imports the constants the expectations derive from.
-use crate::constants::{SIGNAL_EXIT_CODE_OFFSET, WORKSPACE_MARKER};
+use crate::constants::{
+    SIGNAL_EXIT_CODE_OFFSET,
+    WORKSPACE_MARKER,
+};
+/// Imports the functions under test.
+use crate::shim::{
+    exit_code_of,
+    run_program,
+    warn_about_workspace,
+};
 /// Imports the scratch directories.
 use crate::test_scratch::scratch;
 
@@ -25,7 +32,11 @@ const DISTINCT_EXIT_CODE: i32 = 7;
 
 /// Runs `sh -c <script>` and returns its raw status.
 fn shell_status(script: &str) -> std::process::ExitStatus {
-    return Command::new("sh").arg("-c").arg(script).status().expect("start sh");
+    return Command::new("sh")
+        .arg("-c")
+        .arg(script)
+        .status()
+        .expect("start sh");
 }
 
 #[test]
@@ -39,12 +50,18 @@ fn a_normal_exit_passes_its_code_through() {
 fn death_by_signal_becomes_the_shell_convention() {
     let status = shell_status("kill -TERM $$");
 
-    assert_eq!(exit_code_of(status), SIGNAL_EXIT_CODE_OFFSET + SIGTERM_NUMBER);
+    assert_eq!(
+        exit_code_of(status),
+        SIGNAL_EXIT_CODE_OFFSET + SIGTERM_NUMBER
+    );
 }
 
 #[test]
 fn run_program_returns_the_childs_code_with_the_arguments_untouched() {
-    let arguments: Vec<OsString> = vec![OsString::from("-c"), OsString::from(format!("exit {DISTINCT_EXIT_CODE}"))];
+    let arguments: Vec<OsString> = vec![
+        OsString::from("-c"),
+        OsString::from(format!("exit {DISTINCT_EXIT_CODE}")),
+    ];
 
     let code = run_program(Path::new("/bin/sh"), &arguments, None).expect("sh runs");
 
@@ -61,7 +78,8 @@ fn run_program_reports_a_program_that_cannot_start() {
 #[test]
 fn the_warning_names_a_violating_manifest_of_the_workspace_that_holds_the_directory() {
     let workspace = scratch();
-    std::fs::write(workspace.path().join(WORKSPACE_MARKER), "packages: []\n").expect("write the marker");
+    std::fs::write(workspace.path().join(WORKSPACE_MARKER), "packages: []\n")
+        .expect("write the marker");
     std::fs::create_dir_all(workspace.path().join("a")).expect("make a directory");
     std::fs::write(
         workspace.path().join("a/package.json"),
@@ -80,9 +98,13 @@ fn the_warning_names_a_violating_manifest_of_the_workspace_that_holds_the_direct
 #[test]
 fn a_clean_workspace_and_a_directory_outside_any_workspace_write_nothing() {
     let workspace = scratch();
-    std::fs::write(workspace.path().join(WORKSPACE_MARKER), "packages: []\n").expect("write the marker");
-    std::fs::write(workspace.path().join("package.json"), r#"{ "dependencies": { "x": "catalog:" } }"#)
-        .expect("write the manifest");
+    std::fs::write(workspace.path().join(WORKSPACE_MARKER), "packages: []\n")
+        .expect("write the marker");
+    std::fs::write(
+        workspace.path().join("package.json"),
+        r#"{ "dependencies": { "x": "catalog:" } }"#,
+    )
+    .expect("write the manifest");
     let mut clean_sink: Vec<u8> = Vec::new();
     let mut outside_sink: Vec<u8> = Vec::new();
 

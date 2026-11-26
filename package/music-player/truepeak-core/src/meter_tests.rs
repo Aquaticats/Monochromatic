@@ -25,7 +25,10 @@ fn detects_inter_sample_peak_above_samples() {
     // Mono. Window reaches [0.0, 0.9, 0.9, 0.0]; the 0.9..0.9 segment peaks at ~1.0125.
     let samples = [0.0_f32, 0.9, 0.9, 0.0];
     let peak = true_peak_interleaved(&samples, 1);
-    assert!(peak > 0.9, "inter-sample peak should exceed the 0.9 samples, got {peak}");
+    assert!(
+        peak > 0.9,
+        "inter-sample peak should exceed the 0.9 samples, got {peak}"
+    );
     assert!((peak - 1.0125).abs() < 1e-3, "expected ~1.0125, got {peak}");
 }
 
@@ -48,7 +51,10 @@ fn zero_channels_is_zero_peak() {
 fn peak_is_at_least_max_sample() {
     let samples = [0.1_f32, -0.7, 0.3, 0.6, -0.2, 0.4];
     let peak = true_peak_interleaved(&samples, 2);
-    assert!(peak >= 0.7 - EPS, "peak {peak} should be at least the 0.7 sample magnitude");
+    assert!(
+        peak >= 0.7 - EPS,
+        "peak {peak} should be at least the 0.7 sample magnitude"
+    );
 }
 
 // The channel cursor must persist across feed calls, so splitting a stereo stream at a
@@ -60,7 +66,7 @@ fn channel_routing_survives_mid_frame_chunk_split() {
         .flat_map(|frame| {
             let left = if frame % 2 == 0 { 0.9 } else { 0.1 };
             let right = if frame % 2 == 0 { -0.2 } else { 0.5 };
-            return [left, right]
+            return [left, right];
         })
         .collect();
 
@@ -73,7 +79,10 @@ fn channel_routing_survives_mid_frame_chunk_split() {
     }
     let split = meter.peak();
 
-    assert!((whole - split).abs() < EPS, "whole {whole} vs mid-frame split {split}");
+    assert!(
+        (whole - split).abs() < EPS,
+        "whole {whole} vs mid-frame split {split}"
+    );
 }
 
 // take_peak reads and resets the running max while keeping the window continuous, so the

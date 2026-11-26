@@ -5,7 +5,10 @@
 use crate::native::minimap::aim::Aim;
 /// The key the newest request and the picture on screen are valid for,
 ///  and the worker the window starts on first use.
-use crate::native::minimap_worker::{Key, MinimapWorker};
+use crate::native::minimap_worker::{
+    Key,
+    MinimapWorker,
+};
 /// Which way the view is heading.
 use ide_app::minimap::Heading;
 /// The three timers the state owns:
@@ -122,7 +125,9 @@ impl MinimapState {
             last_post: None,
             noted: None,
             shown: None,
-            heading: Heading::Still { at: 0.0 },
+            heading: Heading::Still {
+                at: 0.0,
+            },
             next_id: 0,
             shown_id: 0,
             awaited: 0,

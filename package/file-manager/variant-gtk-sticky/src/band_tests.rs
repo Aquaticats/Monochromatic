@@ -5,19 +5,32 @@
 
 use file_manager::types::PaneId;
 
-use crate::band::{Band, band_for, overlap_count, positions, root_pinned, row_y, sticky_y};
 use crate::band::Placement;
+use crate::band::{
+    Band,
+    band_for,
+    overlap_count,
+    positions,
+    root_pinned,
+    row_y,
+    sticky_y,
+};
 
 const PANE_HEIGHT: f64 = 520.0;
 const STRIDE: f64 = 532.0;
 
-fn place(id: u64, column: usize, row: usize, parent: Option<u64>) -> Placement {
+fn place(
+    id: u64,
+    column: usize,
+    row: usize,
+    parent: Option<u64>,
+) -> Placement {
     return Placement {
         id: PaneId(id),
         column,
         row,
         parent: parent.map(PaneId),
-    }
+    };
 }
 
 /// The grown tree:
@@ -34,7 +47,7 @@ fn grown_tree() -> Vec<Placement> {
         place(3, 1, 3, Some(0)),
         place(4, 2, 1, Some(2)),
         place(5, 2, 2, Some(2)),
-    ]
+    ];
 }
 
 #[test]
@@ -48,7 +61,13 @@ fn leaf_band_is_one_pane_tall_and_never_travels() {
     let tree = grown_tree();
     let leaf = tree[1];
     let band = band_for(leaf, &tree);
-    assert_eq!(band, Band { top: 0.0, height: PANE_HEIGHT });
+    assert_eq!(
+        band,
+        Band {
+            top: 0.0,
+            height: PANE_HEIGHT
+        }
+    );
     assert_eq!(sticky_y(band, 0.0), 0.0);
     assert_eq!(sticky_y(band, 10_000.0), 0.0);
 }
@@ -58,7 +77,13 @@ fn parent_band_stretches_to_deepest_direct_child_bottom() {
     let tree = grown_tree();
     // Root's direct children sit at rows 0, 1, 3: band spans rows 0..3 plus one pane height.
     let band = band_for(tree[0], &tree);
-    assert_eq!(band, Band { top: 0.0, height: 3.0 * STRIDE + PANE_HEIGHT });
+    assert_eq!(
+        band,
+        Band {
+            top: 0.0,
+            height: 3.0 * STRIDE + PANE_HEIGHT
+        }
+    );
 }
 
 #[test]
@@ -66,7 +91,13 @@ fn band_ignores_grandchildren() {
     let tree = grown_tree();
     // b's direct children x, y sit at rows 1, 2; c's row 3 must not stretch b's band.
     let band = band_for(tree[2], &tree);
-    assert_eq!(band, Band { top: STRIDE, height: STRIDE + PANE_HEIGHT });
+    assert_eq!(
+        band,
+        Band {
+            top: STRIDE,
+            height: STRIDE + PANE_HEIGHT
+        }
+    );
 }
 
 #[test]
@@ -89,7 +120,11 @@ fn no_pane_pair_overlaps_at_any_scroll() {
     // sample must report zero intersecting pairs.
     let mut scroll = 0.0;
     while scroll < 6.0 * STRIDE {
-        assert_eq!(overlap_count(&tree, scroll), 0, "overlap at scroll {scroll}");
+        assert_eq!(
+            overlap_count(&tree, scroll),
+            0,
+            "overlap at scroll {scroll}"
+        );
         scroll += 37.0;
     }
 }

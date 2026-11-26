@@ -9,7 +9,10 @@
 // });
 // ```
 
-use super::{GROUP_DFA_CAP, group_seedless};
+use super::{
+    GROUP_DFA_CAP,
+    group_seedless,
+};
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
 use crate::build::build_engine;
@@ -19,7 +22,7 @@ use crate::error::CompileError;
 use crate::parse::parse;
 
 fn node(pattern: &str) -> Node {
-    return parse(pattern).expect("test pattern parses")
+    return parse(pattern).expect("test pattern parses");
 }
 
 /// Groups test nodes the way a ruleset does,
@@ -38,7 +41,7 @@ fn grouped_with_own_engines(nodes: &[Node]) -> Vec<Engine> {
         .map(|node| return build_engine(node.clone()).expect("a test rule builds its own engine"))
         .collect();
     let fallbacks: Vec<&Engine> = per_rule.iter().collect();
-    return group_seedless(nodes, &fallbacks)
+    return group_seedless(nodes, &fallbacks);
 }
 
 #[test]
@@ -86,7 +89,11 @@ fn a_single_member_groups_and_matches() {
     assert!(!engines.is_empty());
     let sixteen = b"ABCDEFGH23456777";
     assert!(engines.iter().any(|engine| return engine.is_match(sixteen)));
-    assert!(!engines.iter().any(|engine| return engine.is_match(b"ABCDEFGH")));
+    assert!(
+        !engines
+            .iter()
+            .any(|engine| return engine.is_match(b"ABCDEFGH"))
+    );
 }
 
 #[test]
@@ -102,13 +109,22 @@ fn a_group_above_the_state_cap_still_covers_its_rule() {
     let nodes = vec![node("[0-9].{11}")];
     let wrapped = concat(vec![Node::Top, nodes[0].clone()]);
     assert!(
-        matches!(build_dfa_within(wrapped, GROUP_DFA_CAP), Err(CompileError::StateCap { .. })),
+        matches!(
+            build_dfa_within(wrapped, GROUP_DFA_CAP),
+            Err(CompileError::StateCap { .. })
+        ),
         "the pattern must exceed the group state cap for this case to cover the fallback",
     );
     let engines = grouped_with_own_engines(&nodes);
-    assert_eq!(engines.len(), 1, "an over-cap rule keeps one engine of its own");
+    assert_eq!(
+        engines.len(),
+        1,
+        "an over-cap rule keeps one engine of its own"
+    );
     assert!(
-        engines.iter().any(|engine| return engine.is_match(b"id 123456789012 ok")),
+        engines
+            .iter()
+            .any(|engine| return engine.is_match(b"id 123456789012 ok")),
         "the over-cap rule must still match the line it matched before",
     );
 }

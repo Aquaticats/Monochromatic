@@ -1,33 +1,62 @@
 // Round-trip and adversarial tests for literal escaping into the verbose dialect.
 
-use super::{escape_literal, literal_pattern};
+use super::{
+    escape_literal,
+    literal_pattern,
+};
 use forbidden_regex::RegexSet;
 
 // Compiles one escaped literal into a single-rule set.
 fn compiled(literal: &str) -> RegexSet {
     let pattern = escape_literal(literal);
-    return RegexSet::new(std::slice::from_ref(&pattern)).expect("escaped literal must compile")
+    return RegexSet::new(std::slice::from_ref(&pattern)).expect("escaped literal must compile");
 }
 
 // Compiles one boundary-gated literal into a single-rule set.
 fn compiled_bounded(literal: &str) -> RegexSet {
     let pattern = literal_pattern(literal);
-    return RegexSet::new(std::slice::from_ref(&pattern)).expect("bounded literal must compile")
+    return RegexSet::new(std::slice::from_ref(&pattern)).expect("bounded literal must compile");
 }
 
 // Asserts the escaped literal matches itself and the same bytes embedded in noise.
 fn assert_round_trips(literal: &str) {
     let set = compiled(literal);
-    assert!(set.is_match(literal.as_bytes()), "did not match literal {literal:?}");
+    assert!(
+        set.is_match(literal.as_bytes()),
+        "did not match literal {literal:?}"
+    );
     let embedded = format!("xy{literal}z9");
-    assert!(set.is_match(embedded.as_bytes()), "did not match embedded {literal:?}");
+    assert!(
+        set.is_match(embedded.as_bytes()),
+        "did not match embedded {literal:?}"
+    );
 }
 
 #[test]
 fn metacharacter_literals_round_trip() {
     for literal in [
-        "a.b", "a*b", "a+b", "a?b", "a|b", "a^b", "a$b", "a[b", "a]b", "a(b", "a)b", "a{b",
-        "a}b", "a&b", "a~b", "a-b", "a/b", "(?:group)", "[class]", "{2,5}", ".*+?", "a.b.c",
+        "a.b",
+        "a*b",
+        "a+b",
+        "a?b",
+        "a|b",
+        "a^b",
+        "a$b",
+        "a[b",
+        "a]b",
+        "a(b",
+        "a)b",
+        "a{b",
+        "a}b",
+        "a&b",
+        "a~b",
+        "a-b",
+        "a/b",
+        "(?:group)",
+        "[class]",
+        "{2,5}",
+        ".*+?",
+        "a.b.c",
     ] {
         assert_round_trips(literal);
     }
@@ -119,7 +148,15 @@ fn embedded_newline_round_trips() {
 
 #[test]
 fn quotes_and_punctuation_pass_through() {
-    for literal in ["key=\"value\"", "it's", "a,b;c:d", "<tag>", "@user", "a`b`c", "50%off"] {
+    for literal in [
+        "key=\"value\"",
+        "it's",
+        "a,b;c:d",
+        "<tag>",
+        "@user",
+        "a`b`c",
+        "50%off",
+    ] {
         assert_round_trips(literal);
     }
 }

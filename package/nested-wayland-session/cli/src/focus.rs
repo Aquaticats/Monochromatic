@@ -12,13 +12,19 @@
 use smithay::{
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
-        wayland_server::{protocol::wl_surface::WlSurface, Resource},
+        wayland_server::{
+            Resource,
+            protocol::wl_surface::WlSurface,
+        },
     },
     utils::SERIAL_COUNTER,
     wayland::shell::xdg::ToplevelState,
 };
 /// Structured logging.
-use tracing::{debug, info};
+use tracing::{
+    debug,
+    info,
+};
 
 /// Sibling modules of this crate.
 use crate::state::Compositor;
@@ -37,7 +43,10 @@ use crate::state::Compositor;
 /// ```ts
 /// function promote(order: Surface[], surface: Surface): void { order.splice(order.indexOf(surface), 1); order.unshift(surface); }
 /// ```
-pub fn promote<T: PartialEq>(order: &mut Vec<T>, item: T) {
+pub fn promote<T: PartialEq>(
+    order: &mut Vec<T>,
+    item: T,
+) {
     let mut index = 0;
     while index < order.len() {
         if order[index] == item {
@@ -61,7 +70,7 @@ pub fn promote<T: PartialEq>(order: &mut Vec<T>, item: T) {
 /// const isActivated = (pending: ToplevelState): boolean => pending.states.has("activated");
 /// ```
 fn is_activated(pending: &mut ToplevelState) -> bool {
-    return pending.states.contains(xdg_toplevel::State::Activated)
+    return pending.states.contains(xdg_toplevel::State::Activated);
 }
 
 /// Sets the activated flag on a toplevel's pending state.
@@ -106,7 +115,10 @@ fn mark_deactivated(pending: &mut ToplevelState) {
 /// ```ts
 /// function applyActivation(state: Compositor, active?: Surface): void { ... }
 /// ```
-fn apply_activation(state: &mut Compositor, active: Option<&WlSurface>) {
+fn apply_activation(
+    state: &mut Compositor,
+    active: Option<&WlSurface>,
+) {
     for window in state.space.elements() {
         let Some(toplevel) = window.toplevel() else {
             continue;
@@ -136,14 +148,20 @@ fn apply_activation(state: &mut Compositor, active: Option<&WlSurface>) {
 /// ```ts
 /// function focusSurface(state: Compositor, surface: Surface): void { ... }
 /// ```
-pub fn focus_surface(state: &mut Compositor, surface: WlSurface) {
+pub fn focus_surface(
+    state: &mut Compositor,
+    surface: WlSurface,
+) {
     promote(&mut state.focus_order, surface.clone());
     apply_activation(state, Some(&surface));
     let Some(keyboard) = state.seat.get_keyboard() else {
         return;
     };
     keyboard.set_focus(state, Some(surface), SERIAL_COUNTER.next_serial());
-    info!("keyboard focus moved to a toplevel; {} toplevels in the focus order", state.focus_order.len());
+    info!(
+        "keyboard focus moved to a toplevel; {} toplevels in the focus order",
+        state.focus_order.len()
+    );
 }
 
 /// Handle a toplevel that was destroyed or whose client disconnected.
@@ -160,7 +178,10 @@ pub fn focus_surface(state: &mut Compositor, surface: WlSurface) {
 /// ```ts
 /// function toplevelGone(state: Compositor, gone: Surface): void { ... }
 /// ```
-pub fn toplevel_gone(state: &mut Compositor, gone: &WlSurface) {
+pub fn toplevel_gone(
+    state: &mut Compositor,
+    gone: &WlSurface,
+) {
     let mut index = 0;
     while index < state.focus_order.len() {
         let entry = &state.focus_order[index];
@@ -195,11 +216,15 @@ pub fn toplevel_gone(state: &mut Compositor, gone: &WlSurface) {
     }
     match state.focus_order.first().cloned() {
         Some(next) => {
-            info!("the focused toplevel went away; focus returns to the most recently focused remaining toplevel");
+            info!(
+                "the focused toplevel went away; focus returns to the most recently focused remaining toplevel"
+            );
             focus_surface(state, next);
         }
         None => {
-            info!("the focused toplevel went away and no toplevel remains; clearing keyboard focus");
+            info!(
+                "the focused toplevel went away and no toplevel remains; clearing keyboard focus"
+            );
             keyboard.set_focus(state, None, SERIAL_COUNTER.next_serial());
         }
     }

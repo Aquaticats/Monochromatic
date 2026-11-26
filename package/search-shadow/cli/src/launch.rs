@@ -58,7 +58,12 @@ use std::path::Path;
 use std::process::Command;
 
 /// Imports the check of the chosen program and the arrival marker of its start.
-use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
+use crate::shadow_identity::{
+    StartMode,
+    Vetted,
+    mark_start,
+    vet,
+};
 
 /// What:
 /// `pub fn replace_process(program: &Path, arguments: &[OsString]) -> io::Error` declares a public function.
@@ -78,7 +83,10 @@ use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
 ///   // Not possible in Node; the nearest idea is: spawn the program, then exit with its code.
 /// }
 /// ```
-pub fn replace_process(program: &Path, arguments: &[OsString]) -> io::Error {
+pub fn replace_process(
+    program: &Path,
+    arguments: &[OsString],
+) -> io::Error {
     // What:     `vet(program)` opens the chosen program and refuses it when it is a shadow or leads to one;
     // `vetted.command()` then builds the command that starts the very file that was checked.
     // Why:      A path can be made to name a shadow between the lookup and the start (`shadow_identity.rs`).

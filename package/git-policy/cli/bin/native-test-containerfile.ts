@@ -39,6 +39,13 @@ export const runArguments = [
   'run',
   '--offline',
   '--locked',
+  // The controls arm their own test-only variables, so the suite runs a build that reads them: a build without this
+  // feature holds no read of any `CLI_GIT_TEST_ONLY_*` variable at all
+  // (doc/decision/cli-git-test-only-switches-compiled-out-of-release.md). The Clippy step below keeps its own compile
+  // without the feature, so the release's shape is the one it lints, and the build layers here carry the feature so the
+  // run recompiles nothing.
+  '--features',
+  'test-only-switches',
   '--all-targets',
   '--no-fail-fast',
   // A control that needs btrfs prints one line naming itself and the filesystem it found, then passes; that line is

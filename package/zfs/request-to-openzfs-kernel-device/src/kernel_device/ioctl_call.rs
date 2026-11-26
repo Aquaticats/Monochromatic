@@ -21,7 +21,10 @@ use std::os::fd::RawFd;
 /// Yields the error number the call failed with,
 /// or `None` when the kernel
 /// accepted the request.
-pub(crate) fn perform(descriptor: RawFd, request: &mut Request) -> Option<i32> {
+pub(crate) fn perform(
+    descriptor: RawFd,
+    request: &mut Request,
+) -> Option<i32> {
     let code: libc::c_ulong = request.operation().code() as libc::c_ulong;
     let address: *mut libc::c_void = request.command_abi_address() as *mut libc::c_void;
     // SAFETY: the descriptor is the open `/dev/zfs` handle the caller owns and

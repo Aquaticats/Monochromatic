@@ -15,22 +15,52 @@
 /// Import the generators and invariants under control,
 ///  and the tables they draw from.
 use super::{
-    CLEAN_DELETES, FrontierSeen, IGNORED_AND_TRACKED, INDEX_DIFFERS, LINKED_WORKTREE,
-    MAX_CONTROL_ARGUMENTS, MODE_BYTES, Mode, OPERATION_WAITS, REMOTE_GUESS, SEQUENCER_WAITS,
-    SEPARATOR_MARK, STAGED_WORK, STASH_HELD, UNTRACKED_AND_TRACKED, WORKTREE_DIRTY, WORKTREE_WORK,
-    check_control_removal, check_frontier, check_separator, control_arguments, removed_tokens,
+    CLEAN_DELETES,
+    FrontierSeen,
+    IGNORED_AND_TRACKED,
+    INDEX_DIFFERS,
+    LINKED_WORKTREE,
+    MAX_CONTROL_ARGUMENTS,
+    MODE_BYTES,
+    Mode,
+    OPERATION_WAITS,
+    REMOTE_GUESS,
+    SEPARATOR_MARK,
+    SEQUENCER_WAITS,
+    STAGED_WORK,
+    STASH_HELD,
+    UNTRACKED_AND_TRACKED,
+    WORKTREE_DIRTY,
+    WORKTREE_WORK,
+    check_control_removal,
+    check_frontier,
+    check_separator,
+    control_arguments,
+    removed_tokens,
     separated_arguments,
 };
 use crate::arguments::arguments_from_bytes;
-use crate::control_tables::{CONTROL_TOKENS, WRAPPER_SPELLINGS};
+use crate::control_tables::{
+    CONTROL_TOKENS,
+    WRAPPER_SPELLINGS,
+};
 use git_policy_cli::policy_registry::POLICY_REGISTRY;
-use git_policy_cli::wrapper_controls::{CONTROL_SPELLINGS, control_meaning, is_escaped};
+use git_policy_cli::wrapper_controls::{
+    CONTROL_SPELLINGS,
+    control_meaning,
+    is_escaped,
+};
 use git_policy_cli::wrapper_invocation::{
-    RegionReading, StrippedInvocation, strip_wrapper_controls,
+    RegionReading,
+    StrippedInvocation,
+    strip_wrapper_controls,
 };
 use std::ffi::OsString;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Build owned arguments from text.
 fn text(values: &[&str]) -> Vec<OsString> {
@@ -377,14 +407,22 @@ fn generated_arguments_reach_every_frontier_ending() {
             LINKED_WORKTREE,
             FrontierSeen::Forwarded,
         ),
-        (vec!["worktree", "add", "x"], LINKED_WORKTREE, FrontierSeen::Forwarded),
+        (
+            vec!["worktree", "add", "x"],
+            LINKED_WORKTREE,
+            FrontierSeen::Forwarded,
+        ),
         (vec!["worktree", "add", "x"], 0, FrontierSeen::Forwarded),
         (
             vec!["worktree", "add", "--no-worktree-copy", "x"],
             LINKED_WORKTREE,
             FrontierSeen::Forwarded,
         ),
-        (vec!["worktree", "list"], LINKED_WORKTREE, FrontierSeen::Forwarded),
+        (
+            vec!["worktree", "list"],
+            LINKED_WORKTREE,
+            FrontierSeen::Forwarded,
+        ),
         (vec!["st"], LINKED_WORKTREE, FrontierSeen::Forwarded),
         (vec!["st"], 0, FrontierSeen::Forwarded),
         (vec!["status"], LINKED_WORKTREE, FrontierSeen::Forwarded),
@@ -541,15 +579,24 @@ fn every_seed_spells_its_scenario() {
         // The bytes the table asks for, which is the one encoding of the answers and the arguments.
         let written: Vec<u8> = seed.bytes();
         if bytes != written {
-            drifting.push(format!("{}: bytes {bytes:02x?}, expected {written:02x?}", seed.name));
+            drifting.push(format!(
+                "{}: bytes {bytes:02x?}, expected {written:02x?}",
+                seed.name
+            ));
         }
         // The frontier view's own reading: the answers' width off the front, then the arguments at NUL.
         let Some((heads, arguments)) = bytes.split_at_checked(MODE_BYTES) else {
-            drifting.push(format!("{}: shorter than the {MODE_BYTES} bytes a mode takes", seed.name));
+            drifting.push(format!(
+                "{}: shorter than the {MODE_BYTES} bytes a mode takes",
+                seed.name
+            ));
             continue;
         };
         let Ok(answers): Result<[u8; MODE_BYTES], _> = heads.try_into() else {
-            drifting.push(format!("{}: does not hold the {MODE_BYTES} bytes a mode takes", seed.name));
+            drifting.push(format!(
+                "{}: does not hold the {MODE_BYTES} bytes a mode takes",
+                seed.name
+            ));
             continue;
         };
         let mode: Mode = Mode::from_le_bytes(answers);
@@ -587,10 +634,12 @@ fn every_seed_spells_its_scenario() {
         if raw.as_slice() != seed.arguments {
             drifting.push(format!(
                 "{}: arguments {readable:?}, expected {:?}",
-                seed.name,
-                seed.arguments
+                seed.name, seed.arguments
             ));
         }
     }
-    assert!(drifting.is_empty(), "seeds that do not spell their names: {drifting:#?}");
+    assert!(
+        drifting.is_empty(),
+        "seeds that do not spell their names: {drifting:#?}"
+    );
 }

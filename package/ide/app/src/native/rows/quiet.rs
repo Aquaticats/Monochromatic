@@ -8,7 +8,10 @@ use crate::native::State;
 #[cfg(test)]
 use std::cell::Cell;
 /// `Duration` and `Instant` time the quiet that scrolling must be followed by.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  How long the view must have stood still before a change of rows may move the scroll offset.

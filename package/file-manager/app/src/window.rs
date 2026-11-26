@@ -10,7 +10,10 @@ use gtk4::prelude::*;
 ///  imports the concrete GTK application and window types.
 /// Why:
 ///  named explicitly so window construction reads without a glob import.
-use gtk4::{Application, ApplicationWindow};
+use gtk4::{
+    Application,
+    ApplicationWindow,
+};
 
 /// What:
 ///  imports the owned path type.
@@ -24,7 +27,11 @@ use std::path::PathBuf;
 ///  the window is sized from a single source of truth,
 ///  and the test hooks are gated on env.
 use crate::constants::{
-    AUTOPREVIEW_ENV, AUTOSPAWN_ENV, DEFAULT_HEIGHT, DEFAULT_WIDTH, START_DIR_ENV,
+    AUTOPREVIEW_ENV,
+    AUTOSPAWN_ENV,
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    START_DIR_ENV,
 };
 /// What:
 ///  imports the pane-strip controller.
@@ -62,7 +69,7 @@ pub(crate) fn build_window(app: &Application) -> StripController {
     crate::dnd::install_drop_target(&window);
     window.present();
     tracing::info!(path = %start.display(), "presented top-level window");
-    return controller
+    return controller;
 }
 
 /// What:

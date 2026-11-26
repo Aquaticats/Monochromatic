@@ -7,7 +7,13 @@
 // In TS you'd write (pseudocode):
 //   for (const testCase of expected.cases) expect(resolve(testCase.config, data)).toEqual(testCase.npm.result);
 
-use monochromatic_browserslist::{BrowserData, BrowserslistError, DataFiles, DataLock, resolve_config_text};
+use monochromatic_browserslist::{
+    BrowserData,
+    BrowserslistError,
+    DataFiles,
+    DataLock,
+    resolve_config_text,
+};
 use serde_json::Value;
 
 // The named exception for Node.js pre-releases: npm browserslist selects only `node 27.0.0-alpha.0.0.0` once
@@ -21,8 +27,10 @@ const EXPECTED: &str = include_str!("../conformance/expected.json");
 // The repository-root lock, read at run time: it sits outside this package, so a packaged copy of the tests
 // cannot embed it, and the tests fail with the path named when it is missing.
 fn lock_text() -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../browserslist-data.lock.json");
-    return std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read the lock {}: {error}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../browserslist-data.lock.json");
+    return std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read the lock {}: {error}", path.display()));
 }
 // The fixture data files regenerated together with `expected.json`.
 const AGENTS_JS: &str = include_str!("../fixtures/data/agents.js.txt");
@@ -36,7 +44,10 @@ fn expected() -> Value {
 }
 
 // Build data from the fixtures with a chosen ESR value and an optional Node.js version override.
-fn data_with(firefox_esr: &str, node_versions: Option<Vec<String>>) -> BrowserData {
+fn data_with(
+    firefox_esr: &str,
+    node_versions: Option<Vec<String>>,
+) -> BrowserData {
     let mut data = BrowserData::from_files(DataFiles {
         agents_js: AGENTS_JS,
         browsers_js: BROWSERS_JS,
@@ -62,7 +73,11 @@ fn strings(value: &Value) -> Vec<String> {
 }
 
 // Check one case against the Rust resolver; the error names the case and what differed.
-fn check_case(case: &Value, locked_esr: &str, npm_esr: &str) -> Result<(), String> {
+fn check_case(
+    case: &Value,
+    locked_esr: &str,
+    npm_esr: &str,
+) -> Result<(), String> {
     let name = case["name"].as_str().expect("name");
     let config = case["config"].as_str().expect("config");
     let supported = case["supported"].as_bool().expect("supported");
@@ -71,8 +86,12 @@ fn check_case(case: &Value, locked_esr: &str, npm_esr: &str) -> Result<(), Strin
     let outcome = resolve_config_text(config, &data);
     if !supported {
         return match outcome {
-            Err(BrowserslistError::NotImplemented { .. }) => Ok(()),
-            other => Err(format!("{name}: expected a not-implemented refusal, got {other:?}")),
+            Err(BrowserslistError::NotImplemented {
+                ..
+            }) => Ok(()),
+            other => Err(format!(
+                "{name}: expected a not-implemented refusal, got {other:?}"
+            )),
         };
     }
     let locked_major = locked_esr.split('.').next().expect("a major");
@@ -81,14 +100,22 @@ fn check_case(case: &Value, locked_esr: &str, npm_esr: &str) -> Result<(), Strin
         let wanted = message.as_str().expect("message");
         return match outcome {
             Err(error) if error.to_string() == wanted => Ok(()),
-            other => Err(format!("{name}: expected the npm error {wanted:?}, got {other:?}")),
+            other => Err(format!(
+                "{name}: expected the npm error {wanted:?}, got {other:?}"
+            )),
         };
     }
     // Two named exceptions, both decided by the user: the ESR entry is compared against the locked Mozilla value, not
     // npm's constant, and the reference is npm run with pre-release Node.js versions removed (see PRERELEASE_EXCEPTION).
     let wanted: Vec<String> = strings(&case["npmPrereleaseFiltered"]["result"])
         .into_iter()
-        .map(|entry| return if entry == npm_esr { esr_entry.clone() } else { entry })
+        .map(|entry| {
+            return if entry == npm_esr {
+                esr_entry.clone()
+            } else {
+                entry
+            };
+        })
         .collect();
     return match outcome {
         Ok(actual) if actual == wanted => Ok(()),
@@ -102,8 +129,14 @@ fn expected_json_matches_the_lock() {
     let document = expected();
     let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     assert_eq!(document["browserslist"], "4.29.5");
-    assert_eq!(document["caniuseLite"].as_str(), Some(lock.caniuse_lite.version.as_str()));
-    assert_eq!(document["nodeReleases"].as_str(), Some(lock.node_releases.version.as_str()));
+    assert_eq!(
+        document["caniuseLite"].as_str(),
+        Some(lock.caniuse_lite.version.as_str())
+    );
+    assert_eq!(
+        document["nodeReleases"].as_str(),
+        Some(lock.node_releases.version.as_str())
+    );
 }
 
 // Every case, over the seven lines together and each alone, node variants, and the refusals.
@@ -126,9 +159,18 @@ fn every_case_conforms() {
 fn cases_cover_results_errors_and_refusals() {
     let document = expected();
     let cases = document["cases"].as_array().expect("cases");
-    let supported_results = cases.iter().filter(|case| return case["supported"] == true && case["npm"].get("result").is_some()).count();
-    let supported_errors = cases.iter().filter(|case| return case["supported"] == true && case["npm"].get("error").is_some()).count();
-    let refusals = cases.iter().filter(|case| return case["supported"] == false).count();
+    let supported_results = cases
+        .iter()
+        .filter(|case| return case["supported"] == true && case["npm"].get("result").is_some())
+        .count();
+    let supported_errors = cases
+        .iter()
+        .filter(|case| return case["supported"] == true && case["npm"].get("error").is_some())
+        .count();
+    let refusals = cases
+        .iter()
+        .filter(|case| return case["supported"] == false)
+        .count();
     assert!(supported_results >= 15);
     assert!(supported_errors >= 2);
     assert!(refusals >= 25);
@@ -169,7 +211,9 @@ fn exception_cases(document: &Value) -> Vec<&Value> {
         .as_array()
         .expect("cases")
         .iter()
-        .filter(|case| return case["supported"] == true && case["npm"] != case["npmPrereleaseFiltered"])
+        .filter(|case| {
+            return case["supported"] == true && case["npm"] != case["npmPrereleaseFiltered"];
+        })
         .collect();
 }
 
@@ -178,22 +222,47 @@ fn exception_cases(document: &Value) -> Vec<&Value> {
 fn node_prerelease_exception_is_exactly_the_alpha() {
     let document = expected();
     let exceptions = exception_cases(&document);
-    assert!(!exceptions.is_empty(), "no case exercises the {PRERELEASE_EXCEPTION} exception");
+    assert!(
+        !exceptions.is_empty(),
+        "no case exercises the {PRERELEASE_EXCEPTION} exception"
+    );
     for case in &exceptions {
         let name = case["name"].as_str().expect("name");
         let plain = strings(&case["npm"]["result"]);
         let filtered = strings(&case["npmPrereleaseFiltered"]["result"]);
         // Everything that is not a node entry is identical.
         let others = |list: &[String]| -> Vec<String> {
-            return list.iter().filter(|entry| return !entry.starts_with("node ")).cloned().collect();
+            return list
+                .iter()
+                .filter(|entry| return !entry.starts_with("node "))
+                .cloned()
+                .collect();
         };
-        assert_eq!(others(&plain), others(&filtered), "{name}: only node entries may differ");
+        assert_eq!(
+            others(&plain),
+            others(&filtered),
+            "{name}: only node entries may differ"
+        );
         // Plain npm selected a pre-release, and the filtered reference selected none.
-        assert!(plain.iter().any(|entry| return entry.starts_with("node ") && entry.contains('-')), "{name}");
-        assert!(!filtered.iter().any(|entry| return entry.contains('-')), "{name}");
+        assert!(
+            plain
+                .iter()
+                .any(|entry| return entry.starts_with("node ") && entry.contains('-')),
+            "{name}"
+        );
+        assert!(
+            !filtered.iter().any(|entry| return entry.contains('-')),
+            "{name}"
+        );
     }
-    let named: Vec<&str> = exceptions.iter().map(|case| return case["name"].as_str().expect("name")).collect();
-    assert!(named.contains(&"node major with a pre-release newest major"), "{named:?}");
+    let named: Vec<&str> = exceptions
+        .iter()
+        .map(|case| return case["name"].as_str().expect("name"))
+        .collect();
+    assert!(
+        named.contains(&"node major with a pre-release newest major"),
+        "{named:?}"
+    );
 }
 
 // Every other supported case equals plain npm, apart from the ESR entry: the exception does not widen.
@@ -205,16 +274,29 @@ fn every_other_case_equals_plain_npm() {
     let locked_major = lock.firefox_esr.split('.').next().expect("a major");
     for case in document["cases"].as_array().expect("cases") {
         let plain = &case["npm"];
-        if case["supported"] != true || plain.get("result").is_none() || case["npm"] != case["npmPrereleaseFiltered"] {
+        if case["supported"] != true
+            || plain.get("result").is_none()
+            || case["npm"] != case["npmPrereleaseFiltered"]
+        {
             continue;
         }
         let name = case["name"].as_str().expect("name");
         let wanted: Vec<String> = strings(&plain["result"])
             .into_iter()
-            .map(|entry| return if entry == npm_esr { format!("firefox {locked_major}") } else { entry })
+            .map(|entry| {
+                return if entry == npm_esr {
+                    format!("firefox {locked_major}")
+                } else {
+                    entry
+                };
+            })
             .collect();
         let data = data_with(&lock.firefox_esr, case.get("nodeVersions").map(strings));
-        assert_eq!(resolve_config_text(case["config"].as_str().expect("config"), &data).ok(), Some(wanted), "{name}");
+        assert_eq!(
+            resolve_config_text(case["config"].as_str().expect("config"), &data).ok(),
+            Some(wanted),
+            "{name}"
+        );
     }
 }
 
@@ -225,6 +307,7 @@ fn control_ours_differs_from_plain_npm_for_the_exception() {
     let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let case = exception_cases(&document)[0];
     let data = data_with(&lock.firefox_esr, case.get("nodeVersions").map(strings));
-    let ours = resolve_config_text(case["config"].as_str().expect("config"), &data).expect("resolves");
+    let ours =
+        resolve_config_text(case["config"].as_str().expect("config"), &data).expect("resolves");
     assert_ne!(ours, strings(&case["npm"]["result"]));
 }

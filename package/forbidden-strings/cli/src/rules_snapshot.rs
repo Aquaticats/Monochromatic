@@ -20,7 +20,12 @@
 /// and parses it,
 /// so the joined text keeps one format
 /// and a compile failure can be re-diagnosed file by file.
-use crate::rule::frx::{parse_runtime_rules, source_format, strip_source_bom, SourceFormat};
+use crate::rule::frx::{
+    SourceFormat,
+    parse_runtime_rules,
+    source_format,
+    strip_source_bom,
+};
 /// One entry of the rules list,
 /// a path and whether the file may be absent.
 use crate::rules_list::RulesEntry;
@@ -28,12 +33,18 @@ use crate::rules_list::RulesEntry;
 use crate::runtime_matcher::RuntimeRules;
 /// Builds the errors that name a file,
 /// and the `Result` every step returns.
-use anyhow::{anyhow, Result};
+use anyhow::{
+    Result,
+    anyhow,
+};
 /// Remembers which file declared each rule,
 /// so a duplicate names both files.
 use std::collections::HashMap;
 /// Borrowed and owned paths of the rules files read.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A file that was present when read.
 struct Present {
@@ -115,14 +126,20 @@ fn holds_what_was_read(entry: &ReadEntry) -> bool {
 /// ```
 #[cfg(unix)]
 fn read_rules_file(path: &Path) -> std::io::Result<Vec<u8>> {
+    /// `Read` adds `read_to_end` to the opened file.
+    use std::io::Read as _;
     /// `OpenOptionsExt` adds `custom_flags`,
     /// the open flags the standard library has no setting for.
     use std::os::unix::fs::OpenOptionsExt as _;
-    /// `Read` adds `read_to_end` to the opened file.
-    use std::io::Read as _;
-    let mut opened: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(path)?;
+    let mut opened: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC)
+        .open(path)?;
     if !opened.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, refused_for_not_being_plain()));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            refused_for_not_being_plain(),
+        ));
     }
     let mut bytes: Vec<u8> = Vec::new();
     opened.read_to_end(&mut bytes)?;
@@ -147,7 +164,10 @@ fn refused_for_not_being_plain() -> &'static str {
 #[cfg(not(unix))]
 fn read_rules_file(path: &Path) -> std::io::Result<Vec<u8>> {
     if !std::fs::metadata(path)?.is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, refused_for_not_being_plain()));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            refused_for_not_being_plain(),
+        ));
     }
     return std::fs::read(path);
 }
@@ -195,17 +215,28 @@ impl RulesSnapshot {
                     };
                     read_entries.push(ReadEntry {
                         path: entry.path.clone(),
-                        present: Some(Present { bytes, text }),
+                        present: Some(Present {
+                            bytes,
+                            text,
+                        }),
                     });
                 }
                 Err(error) if entry.optional && error.kind() == std::io::ErrorKind::NotFound => {
-                    read_entries.push(ReadEntry { path: entry.path.clone(), present: None });
+                    read_entries.push(ReadEntry {
+                        path: entry.path.clone(),
+                        present: None,
+                    });
                 }
-                Err(error) => return Err(anyhow!("read rules {}: {}", entry.path.display(), error)),
+                Err(error) => {
+                    return Err(anyhow!("read rules {}: {}", entry.path.display(), error));
+                }
             }
         }
         let text: String = join(&present_files(&read_entries))?;
-        return Ok(Self { entries: read_entries, text });
+        return Ok(Self {
+            entries: read_entries,
+            text,
+        });
     }
 
     /// The joined text the scanner compiles and the cache key covers.
@@ -246,8 +277,7 @@ impl RulesSnapshot {
         if !self.is_empty() {
             return Ok(());
         }
-        let listed: Vec<String> =
-            self.entries.iter().map(path_text_of).collect();
+        let listed: Vec<String> = self.entries.iter().map(path_text_of).collect();
         return Err(anyhow!(
             "rules {}: no rules loaded, because every entry is optional and none of those files exists",
             listed.join(", "),

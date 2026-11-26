@@ -5,10 +5,22 @@
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use super::{CHECK_RELATIVE_PATH, IDENTITY_RELATIVE_PATH, LinkVerdict, repository_link_verdict, under_repository_link};
+use super::{
+    CHECK_RELATIVE_PATH,
+    IDENTITY_RELATIVE_PATH,
+    LinkVerdict,
+    repository_link_verdict,
+    under_repository_link,
+};
 
 /// A disposable home with the repository's link path inside it.
 struct Home {
@@ -17,7 +29,9 @@ struct Home {
 
 impl Home {
     fn new() -> Home {
-        return Home { directory: crate::test_scratch::scratch() };
+        return Home {
+            directory: crate::test_scratch::scratch(),
+        };
     }
 
     fn path(&self) -> &Path {
@@ -45,7 +59,10 @@ impl Home {
     }
 
     /// Installs a check program that runs `body` with a shell.
-    fn install_check(&self, body: &str) -> PathBuf {
+    fn install_check(
+        &self,
+        body: &str,
+    ) -> PathBuf {
         let program: PathBuf = self.path().join(CHECK_RELATIVE_PATH);
         fs::create_dir_all(program.parent().expect("parent")).expect("install folder");
         fs::write(program.as_path(), format!("#!/bin/sh\n{body}\n")).expect("check program");
@@ -67,7 +84,14 @@ const DEADLINE: Duration = Duration::from_secs(5);
 fn without_an_identity_file_nothing_is_asked() {
     let home = Home::new();
     home.install_check(&format!("touch {}", home.started_marker().display()));
-    assert_eq!(repository_link_verdict(home.path(), home.link().join("toolchain.lock.json").as_path(), DEADLINE), LinkVerdict::NotConfigured);
+    assert_eq!(
+        repository_link_verdict(
+            home.path(),
+            home.link().join("toolchain.lock.json").as_path(),
+            DEADLINE
+        ),
+        LinkVerdict::NotConfigured
+    );
     assert!(!home.started_marker().exists(), "the check was started");
 }
 
@@ -77,7 +101,14 @@ fn a_path_elsewhere_is_not_asked_about() {
     let home = Home::new();
     home.record_identity();
     home.install_check(&format!("touch {}", home.started_marker().display()));
-    assert_eq!(repository_link_verdict(home.path(), home.path().join("elsewhere/toolchain.lock.json").as_path(), DEADLINE), LinkVerdict::NotConfigured);
+    assert_eq!(
+        repository_link_verdict(
+            home.path(),
+            home.path().join("elsewhere/toolchain.lock.json").as_path(),
+            DEADLINE
+        ),
+        LinkVerdict::NotConfigured
+    );
     assert!(!home.started_marker().exists(), "the check was started");
 }
 
@@ -87,7 +118,10 @@ fn a_check_that_exits_zero_is_ready() {
     let home = Home::new();
     home.record_identity();
     home.install_check("echo the repository is ready");
-    assert_eq!(repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE), LinkVerdict::Ready);
+    assert_eq!(
+        repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE),
+        LinkVerdict::Ready
+    );
 }
 
 /// The check's own message is the verdict when it says no,
@@ -97,9 +131,21 @@ fn a_check_that_fails_gives_its_message() {
     let home = Home::new();
     home.record_identity();
     home.install_check("echo \"the 860 drive is not mounted yet (home $HOME)\" >&2\nexit 75");
-    let verdict: LinkVerdict = repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE);
-    let LinkVerdict::NotReady { message } = verdict else { panic!("not ready expected, got {verdict:?}") };
-    assert_eq!(message, format!("the 860 drive is not mounted yet (home {})", home.path().display()));
+    let verdict: LinkVerdict =
+        repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE);
+    let LinkVerdict::NotReady {
+        message,
+    } = verdict
+    else {
+        panic!("not ready expected, got {verdict:?}")
+    };
+    assert_eq!(
+        message,
+        format!(
+            "the 860 drive is not mounted yet (home {})",
+            home.path().display()
+        )
+    );
 }
 
 /// A check program that is not installed is told apart from a check that says no.
@@ -107,8 +153,12 @@ fn a_check_that_fails_gives_its_message() {
 fn a_missing_check_program_is_unavailable() {
     let home = Home::new();
     home.record_identity();
-    let verdict: LinkVerdict = repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE);
-    assert!(matches!(verdict, LinkVerdict::CheckUnavailable { .. }), "{verdict:?}");
+    let verdict: LinkVerdict =
+        repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE);
+    assert!(
+        matches!(verdict, LinkVerdict::CheckUnavailable { .. }),
+        "{verdict:?}"
+    );
 }
 
 /// A check that never answers is killed at the deadline and the verdict says so.
@@ -118,10 +168,23 @@ fn a_check_that_hangs_is_given_up_on_at_the_deadline() {
     home.record_identity();
     home.install_check("exec sleep 30");
     let started = Instant::now();
-    let verdict: LinkVerdict = repository_link_verdict(home.path(), home.link().join("x").as_path(), Duration::from_millis(300));
-    let LinkVerdict::NotReady { message } = verdict else { panic!("not ready expected, got {verdict:?}") };
+    let verdict: LinkVerdict = repository_link_verdict(
+        home.path(),
+        home.link().join("x").as_path(),
+        Duration::from_millis(300),
+    );
+    let LinkVerdict::NotReady {
+        message,
+    } = verdict
+    else {
+        panic!("not ready expected, got {verdict:?}")
+    };
     assert!(message.contains("did not answer"), "{message}");
-    assert!(started.elapsed() < Duration::from_secs(5), "the wait took {:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the wait took {:?}",
+        started.elapsed()
+    );
 }
 
 /// Every spelling of the repository is under it,
@@ -135,13 +198,26 @@ fn every_spelling_of_the_repository_is_under_it_and_no_neighbour_is() {
     for under in [
         home.link(),
         home.link().join("toolchain.lock.json"),
-        home.path().join("drive/repository/Monochromatic/.cache/launchers"),
+        home.path()
+            .join("drive/repository/Monochromatic/.cache/launchers"),
         alias.join("Monochromatic/.cache"),
     ] {
-        assert!(under_repository_link(home.path(), under.as_path()), "{} is under the repository", under.display());
+        assert!(
+            under_repository_link(home.path(), under.as_path()),
+            "{} is under the repository",
+            under.display()
+        );
     }
-    for outside in [home.path().join("Monochromatic2"), home.path().join("elsewhere"), PathBuf::from("/usr/bin")] {
-        assert!(!under_repository_link(home.path(), outside.as_path()), "{} is not under it", outside.display());
+    for outside in [
+        home.path().join("Monochromatic2"),
+        home.path().join("elsewhere"),
+        PathBuf::from("/usr/bin"),
+    ] {
+        assert!(
+            !under_repository_link(home.path(), outside.as_path()),
+            "{} is not under it",
+            outside.display()
+        );
     }
 }
 
@@ -151,9 +227,15 @@ fn every_spelling_of_the_repository_is_under_it_and_no_neighbour_is() {
 fn a_ready_answer_is_not_asked_for_again() {
     let home = Home::new();
     home.record_identity();
-    home.install_check(&format!("echo started >> {}", home.started_marker().display()));
+    home.install_check(&format!(
+        "echo started >> {}",
+        home.started_marker().display()
+    ));
     for _ in 0..3 {
-        assert_eq!(repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE), LinkVerdict::Ready);
+        assert_eq!(
+            repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE),
+            LinkVerdict::Ready
+        );
     }
     let starts: String = fs::read_to_string(home.started_marker()).expect("the marker");
     assert_eq!(starts.lines().count(), 1, "{starts}");

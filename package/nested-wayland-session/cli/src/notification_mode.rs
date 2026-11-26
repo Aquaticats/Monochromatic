@@ -31,7 +31,9 @@ impl NotificationMode {
             "none" => Ok(Self::None),
             "freedesktop" => Ok(Self::Freedesktop),
             "kde" => Ok(Self::Kde),
-            other => anyhow::bail!("--notifications must be none, freedesktop, or kde, got: {other}"),
+            other => {
+                anyhow::bail!("--notifications must be none, freedesktop, or kde, got: {other}")
+            }
         };
     }
 

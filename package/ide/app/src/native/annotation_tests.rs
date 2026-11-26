@@ -9,25 +9,58 @@
 //!  and stale snapshots paint nothing while their space is held.
 
 /// The production setter and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// Anchor and head of the reading selection.
 use super::caret_tests::position;
 /// The complete reader fixture and its key helpers.
-use super::find_tests::{Reader, chord, key, reader, status_for, type_text};
+use super::find_tests::{
+    Reader,
+    chord,
+    key,
+    reader,
+    status_for,
+    type_text,
+};
 /// Bounded waits and tree-row lookup shared with the navigation tests.
 use super::navigation_tests::row;
 /// The production window.
-use super::{AppWindow, render};
+use super::{
+    AppWindow,
+    render,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Snapshot records exactly as the Language module builds them.
 use ide_app::language::{
-    diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup},
-    hints::{HintKind, HintsSnapshot, InlayHint},
-    identity::{DocumentStamp, ServerIdentity},
+    diagnostics::{
+        Diagnostic,
+        DiagnosticsSnapshot,
+        Freshness,
+        Severity,
+        SourceGroup,
+    },
+    hints::{
+        HintKind,
+        HintsSnapshot,
+        InlayHint,
+    },
+    identity::{
+        DocumentStamp,
+        ServerIdentity,
+    },
 };
 /// One line's block of virtual rows and the heights it is built from.
-use ide_app::virtual_row::{BLOCK_GAP, Block, ROW_HEIGHT};
+use ide_app::virtual_row::{
+    BLOCK_GAP,
+    Block,
+    ROW_HEIGHT,
+};
 /// What:
 ///  Window events as a seat delivers them,
 ///  and a point in logical window pixels.
@@ -41,8 +74,14 @@ use ide_app::virtual_row::{BLOCK_GAP, Block, ROW_HEIGHT};
 /// import { LogicalPosition, Model, PointerEventButton, WindowEvent, Key } from 'slint';
 /// ```
 use slint::{
-    ComponentHandle, LogicalPosition, Model,
-    platform::{Key, PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    Model,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// What:
 ///  Disposable fixtures,
@@ -55,7 +94,11 @@ use slint::{
 /// ```ts
 /// import { mkdtempSync } from 'node:fs';
 /// ```
-use std::{fs, sync::Arc, time::Duration};
+use std::{
+    fs,
+    sync::Arc,
+    time::Duration,
+};
 
 /// Where source text starts in the window,
 ///  derived in `sidebar_tests` from the tree,
@@ -104,7 +147,10 @@ pub(super) fn problem(
 }
 
 /// One hint at `position`.
-pub(super) fn hint(position: usize, label: &str) -> InlayHint {
+pub(super) fn hint(
+    position: usize,
+    label: &str,
+) -> InlayHint {
     return InlayHint {
         position,
         label: label.to_string(),
@@ -140,7 +186,7 @@ pub(super) fn hint(position: usize, label: &str) -> InlayHint {
 /// function snapshots(stamp: DocumentStamp): [HintsSnapshot, DiagnosticsSnapshot];
 /// ```
 pub(super) fn snapshots(
-    stamp: DocumentStamp,
+    stamp: DocumentStamp
 ) -> (Option<Arc<HintsSnapshot>>, Option<Arc<DiagnosticsSnapshot>>) {
     // Line starts: 0, 24, 42, 55. Line 1: tab(24) l e t space 猫(29) space =(31) space e(33) U+0301 space !(36) =(37) space x(39) ;(40).
     let hints = HintsSnapshot {
@@ -202,7 +248,11 @@ pub(super) fn annotate(reader: &Reader) {
 /// ```ts
 /// function point(reader: Reader, line: number, x: number): LogicalPosition;
 /// ```
-pub(super) fn point(reader: &Reader, line: usize, x: f32) -> LogicalPosition {
+pub(super) fn point(
+    reader: &Reader,
+    line: usize,
+    x: f32,
+) -> LogicalPosition {
     let top = reader.source.borrow().row_map.code_top(line);
     return LogicalPosition::new(
         TEXT_LEFT + x,
@@ -220,7 +270,12 @@ pub(super) fn point(reader: &Reader, line: usize, x: f32) -> LogicalPosition {
 /// ```ts
 /// function above(reader: Reader, line: number, x: number, rise: number): LogicalPosition;
 /// ```
-pub(super) fn above(reader: &Reader, line: usize, x: f32, rise: f32) -> LogicalPosition {
+pub(super) fn above(
+    reader: &Reader,
+    line: usize,
+    x: f32,
+    rise: f32,
+) -> LogicalPosition {
     let top = reader.source.borrow().row_map.code_top(line);
     return LogicalPosition::new(
         TEXT_LEFT + x,
@@ -231,7 +286,10 @@ pub(super) fn above(reader: &Reader, line: usize, x: f32, rise: f32) -> LogicalP
 /// The block of virtual rows above `line`,
 ///  or nothing;
 ///  `Option<Arc<Block>>` is a shared block or nothing.
-pub(super) fn block(reader: &Reader, line: usize) -> Option<Arc<Block>> {
+pub(super) fn block(
+    reader: &Reader,
+    line: usize,
+) -> Option<Arc<Block>> {
     let source = reader.source.borrow();
     for candidate in &source.blocks {
         if candidate.line == line {
@@ -289,16 +347,20 @@ fn code_tops(reader: &Reader) -> Vec<f32> {
 ///  move to `target`,
 ///  release,
 ///  and return the caret and selection end.
-fn drag_to(reader: &Reader, start: LogicalPosition, target: LogicalPosition) -> (usize, usize) {
+fn drag_to(
+    reader: &Reader,
+    start: LogicalPosition,
+    target: LogicalPosition,
+) -> (usize, usize) {
     let window = &reader.window;
     click(window, point(reader, 1, 300.0));
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position: start,
         button: PointerEventButton::Left,
     });
-    window
-        .window()
-        .dispatch_event(WindowEvent::PointerMoved { position: target });
+    window.window().dispatch_event(WindowEvent::PointerMoved {
+        position: target,
+    });
     window
         .window()
         .dispatch_event(WindowEvent::PointerReleased {
@@ -310,7 +372,11 @@ fn drag_to(reader: &Reader, start: LogicalPosition, target: LogicalPosition) -> 
 
 /// Hand a hints snapshot to the store the way the poll does,
 ///  returning whether it was accepted.
-fn accept_hints(reader: &Reader, stamp: DocumentStamp, snapshot: Arc<HintsSnapshot>) -> bool {
+fn accept_hints(
+    reader: &Reader,
+    stamp: DocumentStamp,
+    snapshot: Arc<HintsSnapshot>,
+) -> bool {
     let mut source = reader.source.borrow_mut();
     let text = source.document.text().clone();
     return source.annotations.accept_hints(stamp, &text, snapshot);
@@ -331,7 +397,10 @@ fn accept_diagnostics(
 }
 
 /// One complete left click at a window point.
-pub(super) fn click(window: &AppWindow, position: LogicalPosition) {
+pub(super) fn click(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position,
         button: PointerEventButton::Left,

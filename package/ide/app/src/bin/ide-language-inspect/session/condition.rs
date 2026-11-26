@@ -24,7 +24,10 @@ use ide_app::language::status::ServerState;
 /// ```
 pub(super) trait Condition {
     /// Whether the session is in the state the step waits for.
-    fn holds(&self, session: &Session) -> bool;
+    fn holds(
+        &self,
+        session: &Session,
+    ) -> bool;
 }
 
 /// The last server answered the request with this number.
@@ -36,7 +39,10 @@ pub(super) struct Answered {
 /// The condition reads the polled session.
 impl Condition for Answered {
     /// The last server answered the request.
-    fn holds(&self, session: &Session) -> bool {
+    fn holds(
+        &self,
+        session: &Session,
+    ) -> bool {
         for reply in session.replies.iter() {
             if reply.request == self.request && reply.remaining == 0 {
                 return true;
@@ -52,7 +58,10 @@ pub(super) struct ServerReady;
 /// The condition reads the polled session.
 impl Condition for ServerReady {
     /// Some server is ready.
-    fn holds(&self, session: &Session) -> bool {
+    fn holds(
+        &self,
+        session: &Session,
+    ) -> bool {
         for row in session.status.servers.iter() {
             if row.state == ServerState::Ready {
                 return true;
@@ -73,7 +82,10 @@ pub(super) struct HintsEnough {
 /// The condition reads the polled session.
 impl Condition for HintsEnough {
     /// Enough hints are held for the displayed revision.
-    fn holds(&self, session: &Session) -> bool {
+    fn holds(
+        &self,
+        session: &Session,
+    ) -> bool {
         return match session.hints.as_ref() {
             Some(hints) => hints.stamp == self.stamp && hints.hints.len() >= self.least,
             None => false,
@@ -95,7 +107,10 @@ pub(super) struct DiagnosticsWithin {
 /// The condition reads the polled session.
 impl Condition for DiagnosticsWithin {
     /// The diagnostics count is within the bounds.
-    fn holds(&self, session: &Session) -> bool {
+    fn holds(
+        &self,
+        session: &Session,
+    ) -> bool {
         let Some(found) = session.diagnostics.as_ref() else {
             return false;
         };
@@ -114,7 +129,10 @@ pub(super) struct Never;
 /// The condition reads the polled session.
 impl Condition for Never {
     /// Never holds.
-    fn holds(&self, _session: &Session) -> bool {
+    fn holds(
+        &self,
+        _session: &Session,
+    ) -> bool {
         return false;
     }
 }
@@ -128,7 +146,10 @@ pub(super) struct FoldersWatched {
 /// The condition reads the polled session.
 impl Condition for FoldersWatched {
     /// Enough folders are watched.
-    fn holds(&self, session: &Session) -> bool {
+    fn holds(
+        &self,
+        session: &Session,
+    ) -> bool {
         return match session.watcher.as_ref() {
             Some(watcher) => watcher.server_folders() >= self.minimum,
             None => false,

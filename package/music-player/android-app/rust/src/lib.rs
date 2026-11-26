@@ -34,6 +34,20 @@
 //! fixed-width integers/floats and an opaque Java-string handle.
 
 /// What:
+///      `mod bench;` declares the decode-benchmark submodule (the sibling file
+///           `bench.rs`).
+///  `mod NAME;` pulls that file in as a private child module.
+/// Why:
+///       `benchmark_decode` was split out of this file to keep it under the
+///           max-lines budget;
+///  the JNI benchmark exports below call `bench::...`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as bench from "./bench";
+/// ```
+mod bench;
+/// What:
 ///      `mod decode;` declares a child module named `decode` and tells the
 ///           compiler its code lives in the sibling file `decode.rs`.
 ///  A "module" is
@@ -119,6 +133,36 @@ mod error;
 /// ```
 mod fingerprint;
 /// What:
+///      `mod jni_call;` declares the JNI environment helper submodule (the sibling file
+///           `jni_call.rs`).
+/// Why:
+///       jni 0.22 only lends an `Env` inside a closure;
+///  the helper keeps that closure plumbing and the failure logging in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as jniCall from "./jni_call";
+/// ```
+mod jni_call;
+/// What:
+///      `mod logging;` declares the logcat subscriber submodule (the sibling file
+///           `logging.rs`).
+///  It installs the `tracing` -> Android logcat sink once,
+///  guarded by a
+///           `OnceLock`,
+///  so every `tracing` event from this crate and `truepeak-core` reaches
+///           logcat (stderr does not on Android).
+/// Why:
+///       Keep the subscriber setup out of this file;
+///  the JNI create entries call
+///           `logging::init()` once at startup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as logging from "./logging";
+/// ```
+mod logging;
+/// What:
 ///      `mod opus;` declares a LOCAL child module named `opus` (`opus.rs`),
 ///           our own Opus glue.
 ///  Note:
@@ -149,20 +193,16 @@ mod opus;
 /// ```
 mod output;
 /// What:
-///      `mod truepeak;` declares the `truepeak` child module (`truepeak.rs`),
-///  the
-///           shared-source adapter and the `resolve_current`/`resolve_full` resolvers plus
-///           the re-exported `true_peak_interleaved` helper.
+///      `mod peak_cache;` declares the peek and invalidate JNI entries (`peak_cache.rs`).
 /// Why:
-///       `service.rs` drives `truepeak::resolve_current`/`resolve_full`,
-///  and the synthetic
-///           JNI entry below calls `truepeak::true_peak_interleaved(...)`.
+///       Keeps the per-track peak reads out of the service module,
+/// which is near its line budget.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import * as truepeak from "./truepeak";
+/// import * as peakCache from "./peak_cache";
 /// ```
-mod truepeak;
+mod peak_cache;
 /// What:
 ///      `mod service;` declares the native true-peak service submodule (the sibling file
 ///           `service.rs`).
@@ -180,60 +220,20 @@ mod truepeak;
 /// ```
 mod service;
 /// What:
-///      `mod peak_cache;` declares the peek and invalidate JNI entries (`peak_cache.rs`).
+///      `mod truepeak;` declares the `truepeak` child module (`truepeak.rs`),
+///  the
+///           shared-source adapter and the `resolve_current`/`resolve_full` resolvers plus
+///           the re-exported `true_peak_interleaved` helper.
 /// Why:
-///       Keeps the per-track peak reads out of the service module,
-/// which is near its line budget.
+///       `service.rs` drives `truepeak::resolve_current`/`resolve_full`,
+///  and the synthetic
+///           JNI entry below calls `truepeak::true_peak_interleaved(...)`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import * as peakCache from "./peak_cache";
+/// import * as truepeak from "./truepeak";
 /// ```
-mod peak_cache;
-/// What:
-///      `mod bench;` declares the decode-benchmark submodule (the sibling file
-///           `bench.rs`).
-///  `mod NAME;` pulls that file in as a private child module.
-/// Why:
-///       `benchmark_decode` was split out of this file to keep it under the
-///           max-lines budget;
-///  the JNI benchmark exports below call `bench::...`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as bench from "./bench";
-/// ```
-mod bench;
-/// What:
-///      `mod logging;` declares the logcat subscriber submodule (the sibling file
-///           `logging.rs`).
-///  It installs the `tracing` -> Android logcat sink once,
-///  guarded by a
-///           `OnceLock`,
-///  so every `tracing` event from this crate and `truepeak-core` reaches
-///           logcat (stderr does not on Android).
-/// Why:
-///       Keep the subscriber setup out of this file;
-///  the JNI create entries call
-///           `logging::init()` once at startup.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as logging from "./logging";
-/// ```
-mod logging;
-/// What:
-///      `mod jni_call;` declares the JNI environment helper submodule (the sibling file
-///           `jni_call.rs`).
-/// Why:
-///       jni 0.22 only lends an `Env` inside a closure;
-///  the helper keeps that closure plumbing and the failure logging in one place.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as jniCall from "./jni_call";
-/// ```
-mod jni_call;
+mod truepeak;
 
 /// What:
 ///      `use std::os::fd::RawFd;` imports the Unix raw-file-descriptor type.
@@ -274,6 +274,33 @@ use std::os::fd::RawFd;
 /// ```
 use std::path::Path;
 
+/// Runs a body with the call's `Env`,
+/// catching a panic and logging it,
+/// as every entry point of this crate does.
+use crate::jni_call::{
+    ArrayLength,
+    CopyArrayRegion,
+    ReadJavaString,
+    run_with_env,
+};
+/// What:
+///      `use jni::EnvUnowned;` imports the per-call interface pointer the JVM hands
+///           every native method (jni 0.22 renamed the former `EnvUnowned` argument type).
+///  `EnvUnowned<'local>` is the raw argument;
+///  the JNI calls (read a string,
+///  copy an array,
+///  throw) live on the `Env` that `jni_call::run_with_env` lends inside a closure.
+///  It is valid only for the
+///           duration of one native call and only on the calling thread.
+/// Why:
+///       The string and array entry points pass it to `run_with_env` to pull a
+///           Rust string or float slice out of the JVM handles.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EnvUnowned = RuntimeContext; // per-call handle to talk to the host runtime
+/// ```
+use jni::EnvUnowned;
 /// What:
 ///      `use jni::objects::{JClass, JString};` imports two handle types from the
 ///           `jni` crate.
@@ -295,7 +322,11 @@ use std::path::Path;
 /// type JClass = OpaqueHandle;  // the calling class object
 /// type JString = OpaqueHandle; // a Java string handle, convert before use
 /// ```
-use jni::objects::{JClass, JFloatArray, JString};
+use jni::objects::{
+    JClass,
+    JFloatArray,
+    JString,
+};
 /// What:
 ///      `use jni::sys::{jboolean, jdouble, jfloat, jint, jlong};` imports the
 ///           JVM's fixed-width primitive types as Rust aliases.
@@ -326,29 +357,13 @@ use jni::objects::{JClass, JFloatArray, JString};
 /// type jfloat = number;   // 32-bit float
 /// type jboolean = boolean; // a Rust bool since jni 0.22 (one byte on the wire, 0 or 1)
 /// ```
-use jni::sys::{jboolean, jdouble, jfloat, jint, jlong};
-/// What:
-///      `use jni::EnvUnowned;` imports the per-call interface pointer the JVM hands
-///           every native method (jni 0.22 renamed the former `EnvUnowned` argument type).
-///  `EnvUnowned<'local>` is the raw argument;
-///  the JNI calls (read a string,
-///  copy an array,
-///  throw) live on the `Env` that `jni_call::run_with_env` lends inside a closure.
-///  It is valid only for the
-///           duration of one native call and only on the calling thread.
-/// Why:
-///       The string and array entry points pass it to `run_with_env` to pull a
-///           Rust string or float slice out of the JVM handles.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type EnvUnowned = RuntimeContext; // per-call handle to talk to the host runtime
-/// ```
-use jni::EnvUnowned;
-/// Runs a body with the call's `Env`,
-/// catching a panic and logging it,
-/// as every entry point of this crate does.
-use crate::jni_call::{ArrayLength, CopyArrayRegion, ReadJavaString, run_with_env};
+use jni::sys::{
+    jboolean,
+    jdouble,
+    jfloat,
+    jint,
+    jlong,
+};
 
 // What:     `#[unsafe(no_mangle)]` is an ATTRIBUTE (a compiler annotation, written
 //           `#[...]`) telling the compiler "do NOT rename this function's symbol".
@@ -411,7 +426,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativePin
     // ```ts
     // return 42;
     // ```
-    return 42
+    return 42;
 }
 
 // What:     `#[unsafe(no_mangle)]` again: keep the symbol name unmangled so the JVM finds it.
@@ -439,7 +454,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativePin
 /// ```ts
 /// export function nativeOpusSelfTest(_env: EnvUnowned, _class: JClass): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOpusSelfTest<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOpusSelfTest<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
 ) -> jint {
@@ -513,7 +530,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOpu
 /// ```ts
 /// export function nativeSymphoniaSelfTest(_env: EnvUnowned, _class: JClass): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeSymphoniaSelfTest<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeSymphoniaSelfTest<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
 ) -> jint {
@@ -552,7 +571,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeSym
     // ```ts
     // return 1;
     // ```
-    return 1
+    return 1;
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -585,7 +604,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeSym
 /// ```ts
 /// export function nativeDecodeBenchmark(env: EnvUnowned, _class: JClass, path: JString): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDecodeBenchmark<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDecodeBenchmark<
+    'local,
+>(
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     path: JString<'local>,
@@ -617,7 +638,13 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
     // let pathStr: string;
     // try { pathStr = env.getString(path); } catch { return -1.0; }
     // ```
-    let Some(path_str) = run_with_env(&mut env, "nativeDecodeBenchmark path", ReadJavaString { text: &path }) else {
+    let Some(path_str) = run_with_env(
+        &mut env,
+        "nativeDecodeBenchmark path",
+        ReadJavaString {
+            text: &path,
+        },
+    ) else {
         // What:     The `else` arm `return -1.0` exits the whole function with the
         //           "-1 bad path string" sentinel; `run_with_env` already logged the cause.
         // Why:      If the JVM string could not be read, report the bad-path code.
@@ -673,7 +700,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
     // ```ts
     // return benchmarkDecode(source);
     // ```
-    return bench::benchmark_decode(source)
+    return bench::benchmark_decode(source);
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -708,7 +735,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
 /// ```ts
 /// export function nativeDecodeFdBenchmark(_env: EnvUnowned, _class: JClass, fd: number): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDecodeFdBenchmark<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDecodeFdBenchmark<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     fd: jint,
@@ -769,7 +798,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
     // ```ts
     // return benchmarkDecode(source);
     // ```
-    return bench::benchmark_decode(source)
+    return bench::benchmark_decode(source);
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name unmangled so the JVM finds it.
@@ -812,7 +841,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
 /// ```ts
 /// export function nativeTruePeakSynthetic(env, _class, samples: number[], channels: number): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTruePeakSynthetic<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTruePeakSynthetic<
+    'local,
+>(
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     samples: JFloatArray<'local>,
@@ -841,7 +872,13 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // const len = samples.length;
     // ```
-    let Some(len) = run_with_env(&mut env, "nativeTruePeakSynthetic length", ArrayLength { array: &samples }) else {
+    let Some(len) = run_with_env(
+        &mut env,
+        "nativeTruePeakSynthetic length",
+        ArrayLength {
+            array: &samples,
+        },
+    ) else {
         return -1.0;
     };
     // What:     `if len == 0 { return 0.0; }`. An empty array measures as silence.
@@ -873,7 +910,11 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // // copy samples[0..len] into buf
     // ```
-    let copied = run_with_env(&mut env, "nativeTruePeakSynthetic copy", CopyArrayRegion::new(&samples, &mut buf));
+    let copied = run_with_env(
+        &mut env,
+        "nativeTruePeakSynthetic copy",
+        CopyArrayRegion::new(&samples, &mut buf),
+    );
     if copied.is_none() {
         return -1.0;
     }
@@ -888,7 +929,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // return truePeakInterleaved(buf, channels);
     // ```
-    return truepeak::true_peak_interleaved(&buf, channels as usize)
+    return truepeak::true_peak_interleaved(&buf, channels as usize);
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -917,7 +958,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
 /// ```ts
 /// export function nativeOutputLatencyProbe(_env: EnvUnowned, _class: JClass): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOutputLatencyProbe<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOutputLatencyProbe<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
 ) -> jdouble {
@@ -936,7 +979,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOut
     // const ms = output.measureOutputLatencyMs(); // number | null
     // return ms ?? -1.0;
     // ```
-    return output::measure_output_latency_ms().unwrap_or(-1.0)
+    return output::measure_output_latency_ms().unwrap_or(-1.0);
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -967,7 +1010,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeOut
 /// ```ts
 /// export function nativeEngineCreate(_env: EnvUnowned, _class: JClass): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineCreate<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineCreate<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
 ) -> jlong {
@@ -1012,7 +1057,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
         Ok(engine_value) => {
             let handle = Box::into_raw(Box::new(engine_value)) as jlong;
             tracing::info!(handle, "engine created");
-            return handle
+            return handle;
         }
         // What:     `Err(_) => 0`. Failure variant, error discarded; yield the handle
         //           value `0`, which the contract treats as "no engine".
@@ -1024,7 +1069,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
         // ```
         Err(error) => {
             tracing::error!(cause = %error, "could not create engine (worker spawn failed)");
-            return 0
+            return 0;
         }
     }
 }
@@ -1148,7 +1193,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
         // ```
         Err(error) => {
             tracing::warn!(cause = %error, "engine load failed");
-            return -2
+            return -2;
         }
     }
 }
@@ -1349,7 +1394,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineSetVolume(_env, _class, handle: number, volume: number): void { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineSetVolume<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineSetVolume<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1407,7 +1454,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineSetNormalizationGain(_env, _class, handle: number, gain: number): void { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineSetNormalizationGain<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineSetNormalizationGain<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1462,7 +1511,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEnginePositionSec(_env: EnvUnowned, _class: JClass, handle: number): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEnginePositionSec<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEnginePositionSec<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1497,7 +1548,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
     // ```ts
     // return engineRef.positionSec();
     // ```
-    return engine_ref.position_sec()
+    return engine_ref.position_sec();
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -1519,7 +1570,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineDurationSec(_env: EnvUnowned, _class: JClass, handle: number): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineDurationSec<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineDurationSec<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1552,7 +1605,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
     // ```ts
     // return engineRef.durationSec();
     // ```
-    return engine_ref.duration_sec()
+    return engine_ref.duration_sec();
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -1575,7 +1628,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineIsPlaying(_env: EnvUnowned, _class: JClass, handle: number): boolean { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineIsPlaying<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineIsPlaying<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1611,7 +1666,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
     // ```ts
     // return engineRef.isPlaying();
     // ```
-    return engine_ref.is_playing()
+    return engine_ref.is_playing();
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -1632,7 +1687,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineIsEnded(_env: EnvUnowned, _class: JClass, handle: number): boolean { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineIsEnded<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineIsEnded<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1665,7 +1722,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
     // ```ts
     // return engineRef.isEnded();
     // ```
-    return engine_ref.is_ended()
+    return engine_ref.is_ended();
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -1690,7 +1747,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineFailedLoad(_env: EnvUnowned, _class: JClass, handle: number): number { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineFailedLoad<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineFailedLoad<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1722,7 +1781,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
     // ```ts
     // return engineRef.failedLoad();
     // ```
-    return engine_ref.failed_load() as jlong
+    return engine_ref.failed_load() as jlong;
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -1745,7 +1804,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEnginePlayWhenReady(_env: EnvUnowned, _class: JClass, handle: number): boolean { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEnginePlayWhenReady<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEnginePlayWhenReady<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -1778,7 +1839,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
     // ```ts
     // return engineRef.playWhenReady();
     // ```
-    return engine_ref.play_when_ready()
+    return engine_ref.play_when_ready();
 }
 
 // What:     `#[unsafe(no_mangle)]`: keep the symbol name for JVM lookup.
@@ -1804,7 +1865,9 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// ```ts
 /// export function nativeEngineRelease(_env: EnvUnowned, _class: JClass, handle: number): void { ... }
 /// ```
-pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineRelease<'local>(
+pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEngineRelease<
+    'local,
+>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,

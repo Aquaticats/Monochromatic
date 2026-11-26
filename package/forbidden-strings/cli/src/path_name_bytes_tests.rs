@@ -10,15 +10,25 @@
 
 /// Import the pure production policy helpers,
 ///  not a second normalization implementation.
-use super::{normalize_bytes, count_prefix_parts, safe_component};
+use super::{
+    count_prefix_parts,
+    normalize_bytes,
+    safe_component,
+};
 
 /// Windows separators normalize only under Windows semantics;
 ///  native Unix backslashes remain filename bytes.
 #[test]
 fn target_separator_semantics_are_explicit() {
     // Borrow literal byte slices; compare the owned Vec output to independently written expected bytes.
-    assert_eq!(normalize_bytes(b"C:\\folder\\file", true), b"C:/folder/file");
-    assert_eq!(normalize_bytes(b"C:\\folder\\file", false), b"C:\\folder\\file");
+    assert_eq!(
+        normalize_bytes(b"C:\\folder\\file", true),
+        b"C:/folder/file"
+    );
+    assert_eq!(
+        normalize_bytes(b"C:\\folder\\file", false),
+        b"C:\\folder\\file"
+    );
     assert_eq!(normalize_bytes(b"C:folder\\file", true), b"C:/folder/file");
     assert_eq!(normalize_bytes(b"C:/folder/file", true), b"C:/folder/file");
     assert_eq!(normalize_bytes(b"C:", true), b"C:");
@@ -59,7 +69,10 @@ fn prefix_parts_count_navigation_spellings_and_device_markers() {
 #[test]
 fn display_encoding_keeps_adversarial_native_bytes_distinct() {
     assert_eq!(safe_component(b"\xff\xfe"), "\\xff\\xfe");
-    assert_eq!(safe_component(b"a:b\\c\t\0\x7f"), "a\\x3ab\\\\c\\u{9}\\u{0}\\u{7f}");
+    assert_eq!(
+        safe_component(b"a:b\\c\t\0\x7f"),
+        "a\\x3ab\\\\c\\u{9}\\u{0}\\u{7f}"
+    );
     // as_bytes lends UTF-8 bytes without allocating another String.
     assert_eq!(safe_component("é".as_bytes()), "é");
     assert_eq!(safe_component(b""), "");

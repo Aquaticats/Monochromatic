@@ -135,8 +135,13 @@ use std::time::Duration;
 /// } from "ndk/audio";
 /// ```
 use ndk::audio::{
-    AudioCallbackResult, AudioDirection, AudioFormat, AudioPerformanceMode, AudioStream,
-    AudioStreamBuilder, Clockid,
+    AudioCallbackResult,
+    AudioDirection,
+    AudioFormat,
+    AudioPerformanceMode,
+    AudioStream,
+    AudioStreamBuilder,
+    Clockid,
 };
 
 /// What:
@@ -422,7 +427,7 @@ pub fn measure_output_latency_ms() -> Option<f64> {
     // ```ts
     // return latency;
     // ```
-    return latency
+    return latency;
 }
 
 /// What:
@@ -552,7 +557,7 @@ fn silent_callback(
     // ```ts
     // return "continue";
     // ```
-    return AudioCallbackResult::Continue
+    return AudioCallbackResult::Continue;
 }
 
 /// What:
@@ -580,7 +585,10 @@ fn silent_callback(
 /// ```ts
 /// function readLatencyMs(stream: AudioStream, rate: number): number | null { ... }
 /// ```
-fn read_latency_ms(stream: &AudioStream, rate: i32) -> Option<f64> {
+fn read_latency_ms(
+    stream: &AudioStream,
+    rate: i32,
+) -> Option<f64> {
     // What:     `if rate <= 0 { return None; }`. Guard clause. If the sample rate
     //           is zero or negative the division below would be meaningless (or a
     //           divide-by-zero), so we bail. `return None;` is an EARLY return of
@@ -666,5 +674,5 @@ fn read_latency_ms(stream: &AudioStream, rate: i32) -> Option<f64> {
     // ```ts
     // return (buffered / rate) * MILLIS_PER_SEC;
     // ```
-    return Some((buffered as f64) / (rate as f64) * MILLIS_PER_SEC)
+    return Some((buffered as f64) / (rate as f64) * MILLIS_PER_SEC);
 }

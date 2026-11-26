@@ -22,15 +22,34 @@
 //! `~/.local` or `~/.cargo`.
 
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::os::unix::fs::{
+    PermissionsExt,
+    symlink,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 use mpm_shadow::toolchain::archive_staging::COMPLETE_MARKER;
 use mpm_shadow::toolchain::cargo_installs::older_lock_message_for;
-use mpm_shadow::toolchain::launcher_current_link::{MissingProgram, missing_program_advice};
-use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
-use mpm_shadow::toolchain::scope::{LOCK_FILE_NAME, PLAN_FILE_NAME, ScopeKind};
+use mpm_shadow::toolchain::launcher_current_link::{
+    MissingProgram,
+    missing_program_advice,
+};
+use mpm_shadow::toolchain::lock::{
+    parse_lock,
+    render_lock,
+};
+use mpm_shadow::toolchain::scope::{
+    LOCK_FILE_NAME,
+    PLAN_FILE_NAME,
+    ScopeKind,
+};
 
 /// The tool the fixture locks:
 /// a crate of this repository,
@@ -93,8 +112,11 @@ struct Home {
 
 impl Home {
     fn new() -> Home {
-        let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
-        let home = Home { directory };
+        let directory =
+            tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+        let home = Home {
+            directory,
+        };
         fs::create_dir_all(home.config_dir()).expect("make the config directory");
         fs::create_dir_all(home.bin_dir()).expect("make the fixture's PATH directory");
         fs::write(home.config_dir().join(PLAN_FILE_NAME), PLAN).expect("write the global plan");
@@ -102,7 +124,11 @@ impl Home {
         fs::write(home.lock_file(), render_lock(&unsigned.lock)).expect("write the global lock");
         home.install_demo_tool();
         write_program(&home.bin_dir().join("mpm"), REAL_MPM);
-        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), home.bin_dir().join("mpm-shadow")).expect("expose the shadow as mpm-shadow");
+        fs::copy(
+            env!("CARGO_BIN_EXE_mpm-shadow"),
+            home.bin_dir().join("mpm-shadow"),
+        )
+        .expect("expose the shadow as mpm-shadow");
         return home;
     }
 
@@ -114,13 +140,26 @@ impl Home {
 
     /// `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain`.
     fn config_dir(&self) -> PathBuf {
-        return self.directory.path().join("home").join(".config").join("monochromatic-dev").join("toolchain");
+        return self
+            .directory
+            .path()
+            .join("home")
+            .join(".config")
+            .join("monochromatic-dev")
+            .join("toolchain");
     }
 
     /// The machine-global toolchain root,
     /// `<data home>/monochromatic-dev/toolchain-global`.
     fn toolchain_root(&self) -> PathBuf {
-        return self.directory.path().join("home").join(".local").join("share").join("monochromatic-dev").join("toolchain-global");
+        return self
+            .directory
+            .path()
+            .join("home")
+            .join(".local")
+            .join("share")
+            .join("monochromatic-dev")
+            .join("toolchain-global");
     }
 
     fn lock_file(&self) -> PathBuf {
@@ -138,7 +177,10 @@ impl Home {
     /// Puts `INSTALLED` in the global toolchain root as a finished cargo install,
     /// the way `install` records one.
     fn install_demo_tool(&self) {
-        let crate_dir = self.toolchain_root().join("cargo").join("monochromatic-demo-tool");
+        let crate_dir = self
+            .toolchain_root()
+            .join("cargo")
+            .join("monochromatic-demo-tool");
         let version_dir = crate_dir.join(INSTALLED);
         fs::create_dir_all(version_dir.join("bin")).expect("make the install");
         write_program(&version_dir.join("bin").join("tool"), "#!/bin/sh\nexit 0\n");
@@ -153,34 +195,50 @@ impl Home {
     /// Runs `program` the way a person in this home would:
     /// no other environment,
     /// and a `PATH` of the fixture's own directory plus the system ones.
-    fn run(&self, program: &Path, arguments: &[&str]) -> Output {
+    fn run(
+        &self,
+        program: &Path,
+        arguments: &[&str],
+    ) -> Output {
         return Command::new(program)
             .args(arguments)
             .current_dir(self.lonely_dir())
             .env_clear()
             .env("HOME", self.directory.path().join("home"))
-            .env("PATH", format!("{}:/usr/bin:/bin", self.bin_dir().display()))
+            .env(
+                "PATH",
+                format!("{}:/usr/bin:/bin", self.bin_dir().display()),
+            )
             .output()
             .expect("run the program");
     }
 
     /// Runs one printed command line through a shell,
     /// so the command is read exactly as the warning printed it.
-    fn run_text(&self, line: &str) -> Output {
+    fn run_text(
+        &self,
+        line: &str,
+    ) -> Output {
         return Command::new("/bin/sh")
             .arg("-c")
             .arg(line)
             .current_dir(self.lonely_dir())
             .env_clear()
             .env("HOME", self.directory.path().join("home"))
-            .env("PATH", format!("{}:/usr/bin:/bin", self.bin_dir().display()))
+            .env(
+                "PATH",
+                format!("{}:/usr/bin:/bin", self.bin_dir().display()),
+            )
             .output()
             .expect("run the printed command");
     }
 }
 
 /// Writes `program` with the executable bit set.
-fn write_program(path: &Path, program: &str) {
+fn write_program(
+    path: &Path,
+    program: &str,
+) {
     fs::write(path, program).expect("write the program");
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod");
 }
@@ -207,11 +265,20 @@ fn printed_command(warning: &str) -> String {
 fn the_command_the_older_lock_warning_prints_reaches_the_shadow_and_moves_the_global_lock() {
     let home = Home::new();
     let before = fs::read_to_string(home.lock_file()).expect("read the global lock");
-    let warned = home.run(Path::new(env!("CARGO_BIN_EXE_mpm-shadow")), &["bin", "--global"]);
+    let warned = home.run(
+        Path::new(env!("CARGO_BIN_EXE_mpm-shadow")),
+        &["bin", "--global"],
+    );
     assert_eq!(warned.status.code(), Some(0), "{}", text(&warned.stderr));
     let warning = text(&warned.stderr);
-    assert!(warning.contains(TOOL_ID), "the warning names the pinned tool: {warning}");
-    assert!(warning.contains(LOCKED) && warning.contains(INSTALLED), "the warning names both versions: {warning}");
+    assert!(
+        warning.contains(TOOL_ID),
+        "the warning names the pinned tool: {warning}"
+    );
+    assert!(
+        warning.contains(LOCKED) && warning.contains(INSTALLED),
+        "the warning names both versions: {warning}"
+    );
     let remedy = printed_command(&warning);
 
     let ran = home.run_text(&remedy);
@@ -238,8 +305,14 @@ fn the_command_the_older_lock_warning_prints_reaches_the_shadow_and_moves_the_gl
     let lock: serde_json::Value = serde_json::from_str(&after).expect("the lock is JSON");
     let bins = &lock["tools"][TOOL_ID]["bins"];
     assert_eq!(bins[0], "tool", "{after}");
-    assert_eq!(bins[1], ADDED_BIN, "the lock took the plan's new bin: {after}");
-    assert_eq!(lock["tools"][TOOL_ID]["version"], LOCKED, "the pin did not move: {after}");
+    assert_eq!(
+        bins[1], ADDED_BIN,
+        "the lock took the plan's new bin: {after}"
+    );
+    assert_eq!(
+        lock["tools"][TOOL_ID]["version"], LOCKED,
+        "the pin did not move: {after}"
+    );
 }
 
 /// The bin the fixture's demo tool declares.
@@ -301,11 +374,15 @@ impl Machine {
     /// The machine with both plans,
     /// both locks and every installed copy in place.
     fn new() -> Machine {
-        let machine = Machine { directory: tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root") };
+        let machine = Machine {
+            directory: tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR"))
+                .expect("make a fixture root"),
+        };
         fs::create_dir_all(machine.global_config()).expect("make the global config directory");
         fs::create_dir_all(machine.repo()).expect("make the worktree");
         machine.write_global_plan(LOCKED);
-        fs::write(machine.global_lock_file(), demo_tool_lock(LOCKED, LOCKED)).expect("write the global lock");
+        fs::write(machine.global_lock_file(), demo_tool_lock(LOCKED, LOCKED))
+            .expect("write the global lock");
         machine.write_repo_plan_and_lock();
         machine.install_demo_tool();
         machine.install_shadow();
@@ -329,7 +406,11 @@ impl Machine {
     }
 
     fn global_config(&self) -> PathBuf {
-        return self.home().join(".config").join("monochromatic-dev").join("toolchain");
+        return self
+            .home()
+            .join(".config")
+            .join("monochromatic-dev")
+            .join("toolchain");
     }
 
     fn global_lock_file(&self) -> PathBuf {
@@ -339,7 +420,12 @@ impl Machine {
     /// `<data home>/monochromatic-dev/toolchain-global`,
     /// which both scopes' tools share.
     fn global_root(&self) -> PathBuf {
-        return self.home().join(".local").join("share").join("monochromatic-dev").join("toolchain-global");
+        return self
+            .home()
+            .join(".local")
+            .join("share")
+            .join("monochromatic-dev")
+            .join("toolchain-global");
     }
 
     /// The machine-global exposure farm:
@@ -353,7 +439,12 @@ impl Machine {
     fn shadow_program(&self) -> PathBuf {
         let version: &str = env!("CARGO_PKG_VERSION");
         let folder: String = format!("monochromatic-mpm-shadow-{version}-x86_64-unknown-linux-gnu");
-        return self.global_root().join(SHADOW_ID).join(version).join(folder).join(SHADOW_PROGRAM);
+        return self
+            .global_root()
+            .join(SHADOW_ID)
+            .join(version)
+            .join(folder)
+            .join(SHADOW_PROGRAM);
     }
 
     /// What:
@@ -369,34 +460,63 @@ impl Machine {
         let version: &str = env!("CARGO_PKG_VERSION");
         let version_dir: PathBuf = self.global_root().join(SHADOW_ID).join(version);
         let program: PathBuf = self.shadow_program();
-        fs::create_dir_all(program.parent().expect("a parent")).expect("make the version directory");
-        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &program).expect("copy the shadow into the install");
-        fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
-        fs::write(version_dir.join(COMPLETE_MARKER), format!("{version}\n")).expect("mark the install finished");
-        let folder: String = program.parent().expect("a parent").file_name().expect("a folder name").to_string_lossy().to_string();
-        symlink(format!("{folder}/{SHADOW_PROGRAM}"), version_dir.join(SHADOW_PROGRAM)).expect("link the program beside its folder");
+        fs::create_dir_all(program.parent().expect("a parent"))
+            .expect("make the version directory");
+        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &program)
+            .expect("copy the shadow into the install");
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o755))
+            .expect("make it executable");
+        fs::write(version_dir.join(COMPLETE_MARKER), format!("{version}\n"))
+            .expect("mark the install finished");
+        let folder: String = program
+            .parent()
+            .expect("a parent")
+            .file_name()
+            .expect("a folder name")
+            .to_string_lossy()
+            .to_string();
+        symlink(
+            format!("{folder}/{SHADOW_PROGRAM}"),
+            version_dir.join(SHADOW_PROGRAM),
+        )
+        .expect("link the program beside its folder");
         symlink(version, self.global_root().join(SHADOW_ID).join("current")).expect("link current");
     }
 
     /// Puts the demo tool in the machine-global toolchain root at `INSTALLED`,
     /// the way `cargo binstall` records one.
     fn install_demo_tool(&self) {
-        let version_dir: PathBuf = self.global_root().join("cargo").join(DEMO_CRATE).join(INSTALLED);
+        let version_dir: PathBuf = self
+            .global_root()
+            .join("cargo")
+            .join(DEMO_CRATE)
+            .join(INSTALLED);
         let program: PathBuf = version_dir.join("bin").join(DEMO_BIN);
         fs::create_dir_all(program.parent().expect("a parent")).expect("make the install");
         fs::write(&program, "#!/bin/sh\necho the demo tool ran\n").expect("write the program");
-        fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o755))
+            .expect("make it executable");
         fs::write(
             version_dir.join(".crates.toml"),
             format!("[v1]\n\"{DEMO_CRATE} {INSTALLED} (registry+https://example.invalid/index)\" = [\"{DEMO_BIN}\"]\n"),
         )
         .expect("write cargo's record");
-        symlink(INSTALLED, self.global_root().join("cargo").join(DEMO_CRATE).join("current")).expect("link current");
+        symlink(
+            INSTALLED,
+            self.global_root()
+                .join("cargo")
+                .join(DEMO_CRATE)
+                .join("current"),
+        )
+        .expect("link current");
     }
 
     /// The machine-global plan,
     /// asking for the demo tool at `request`.
-    fn write_global_plan(&self, request: &str) {
+    fn write_global_plan(
+        &self,
+        request: &str,
+    ) {
         let plan: String = format!(
             "{{\n  \"schemaVersion\": 1,\n  \"tools\": {{\n    \"{TOOL_ID}\": {{\n      \"request\": \"cargo:{DEMO_CRATE}@{request}\",\n      \"route\": \"cargo-binstall\",\n      \"manager\": \"cargo\",\n      \"packageId\": \"{DEMO_CRATE}\",\n      \"bins\": [\"{DEMO_BIN}\"]\n    }}\n  }}\n}}\n"
         );
@@ -415,25 +535,40 @@ impl Machine {
         let row: String = format!(
             "\"{SHADOW_ID}\":{{\"request\":\"github:Aquaticats/Monochromatic@latest\",\"version\":\"{version}\",\"route\":\"archive\",\"bins\":[\"mpm-shadow\"],\"os\":[\"linux\"],\"env\":{{}},\"options\":{{\"tagPrefix\":\"monochromatic-mpm-shadow-v\"}},\"artifacts\":{{}}}}"
         );
-        fs::write(self.repo().join(LOCK_FILE_NAME), lock_with(&row)).expect("write the worktree's lock");
+        fs::write(self.repo().join(LOCK_FILE_NAME), lock_with(&row))
+            .expect("write the worktree's lock");
     }
 
     /// The `PATH` a fresh shell in the fixture has:
     /// the scope's own directories first,
     /// then the system programs.
-    fn path(&self, place: Place) -> String {
+    fn path(
+        &self,
+        place: Place,
+    ) -> String {
         let directories: Vec<PathBuf> = match place {
             Place::Global => vec![self.farm(), self.home().join(".local").join("bin")],
-            Place::Repo => vec![self.repo().join(".cache").join("toolchain-bin"), self.repo().join(SHADOW_LINK_DIR)],
+            Place::Repo => vec![
+                self.repo().join(".cache").join("toolchain-bin"),
+                self.repo().join(SHADOW_LINK_DIR),
+            ],
         };
-        let joined: Vec<String> = directories.iter().map(|directory| return directory.display().to_string()).collect();
+        let joined: Vec<String> = directories
+            .iter()
+            .map(|directory| return directory.display().to_string())
+            .collect();
         return format!("{}:{SYSTEM_PATH}", joined.join(":"));
     }
 
     /// Runs `program` the way a person in this home would:
     /// no other environment,
     /// and the `PATH` of the scope the command belongs to.
-    fn run(&self, program: &Path, arguments: &[&str], place: Place) -> Output {
+    fn run(
+        &self,
+        program: &Path,
+        arguments: &[&str],
+        place: Place,
+    ) -> Output {
         return Command::new(program)
             .args(arguments)
             .current_dir(self.elsewhere())
@@ -446,7 +581,11 @@ impl Machine {
 
     /// Runs one command line through a shell,
     /// so the fixture reads it exactly as a sentence printed it.
-    fn shell(&self, line: &str, place: Place) -> Output {
+    fn shell(
+        &self,
+        line: &str,
+        place: Place,
+    ) -> Output {
         return Command::new("/bin/sh")
             .arg("-c")
             .arg(line)
@@ -468,7 +607,11 @@ impl Machine {
     /// Runs the worktree's install,
     /// which links `mpm` and the farm of that tree.
     fn install_repo(&self) -> Output {
-        let program: PathBuf = self.global_root().join(SHADOW_ID).join("current").join(SHADOW_PROGRAM);
+        let program: PathBuf = self
+            .global_root()
+            .join(SHADOW_ID)
+            .join("current")
+            .join(SHADOW_PROGRAM);
         return Command::new(&program)
             .args(["install"])
             .current_dir(self.repo())
@@ -494,7 +637,10 @@ fn lock_with(row: &str) -> String {
 
 /// The machine-global lock row for the demo tool:
 /// the plan asks `request` and the lock names `version`.
-fn demo_tool_lock(request: &str, version: &str) -> String {
+fn demo_tool_lock(
+    request: &str,
+    version: &str,
+) -> String {
     let row: String = format!(
         "\"{TOOL_ID}\":{{\"request\":\"cargo:{DEMO_CRATE}@{request}\",\"version\":\"{version}\",\"route\":\"cargo-binstall\",\"manager\":\"cargo\",\"packageId\":\"{DEMO_CRATE}\",\"bins\":[\"{DEMO_BIN}\"],\"env\":{{}},\"options\":{{}},\"artifacts\":{{}}}}"
     );
@@ -515,7 +661,10 @@ fn command_program(command: &str) -> &str {
 /// before the command it tells a person to run,
 /// so the program is what identifies the command,
 /// and a sentence that names a different program than the one expected fails here.
-fn command_naming(sentence: &str, program: &str) -> String {
+fn command_naming(
+    sentence: &str,
+    program: &str,
+) -> String {
     let mut rest: &str = sentence;
     while let Some(open) = rest.find('`') {
         let after: &str = &rest[open + 1..];
@@ -536,9 +685,19 @@ fn command_naming(sentence: &str, program: &str) -> String {
 fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
     let machine = Machine::new();
     let installed = machine.install_global();
-    assert_eq!(installed.status.code(), Some(0), "the machine-global install failed:\n{}", text(&installed.stderr));
+    assert_eq!(
+        installed.status.code(),
+        Some(0),
+        "the machine-global install failed:\n{}",
+        text(&installed.stderr)
+    );
     let linked = machine.install_repo();
-    assert_eq!(linked.status.code(), Some(0), "the worktree's install failed:\n{}", text(&linked.stderr));
+    assert_eq!(
+        linked.status.code(),
+        Some(0),
+        "the worktree's install failed:\n{}",
+        text(&linked.stderr)
+    );
 
     let global_lock: PathBuf = machine.global_lock_file();
     let missing_global: PathBuf = machine.farm().join("nothing-here");
@@ -554,7 +713,11 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
     ];
     for sentence in &global_sentences {
         let command: String = command_naming(sentence, SHADOW_PROGRAM);
-        assert_eq!(command_program(&command), SHADOW_PROGRAM, "the sentence starts its command with the program it needs: {sentence}");
+        assert_eq!(
+            command_program(&command),
+            SHADOW_PROGRAM,
+            "the sentence starts its command with the program it needs: {sentence}"
+        );
         let found = machine.shell(&format!("command -v {SHADOW_PROGRAM}"), Place::Global);
         assert!(
             found.status.success(),
@@ -563,7 +726,11 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
     }
 
     let repo_lock: PathBuf = machine.repo().join(LOCK_FILE_NAME);
-    let missing_repo: PathBuf = machine.repo().join(".cache").join("toolchain-bin").join("nothing-here");
+    let missing_repo: PathBuf = machine
+        .repo()
+        .join(".cache")
+        .join("toolchain-bin")
+        .join("nothing-here");
     let repo_sentences: [String; 2] = [
         older_lock_message_for(ScopeKind::Repo, TOOL_ID, LOCKED, INSTALLED, &repo_lock),
         missing_program_advice(MissingProgram {
@@ -576,9 +743,16 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
     ];
     for sentence in &repo_sentences {
         let command: String = command_naming(sentence, SHIM_PROGRAM);
-        assert_eq!(command_program(&command), SHIM_PROGRAM, "the sentence starts its command with the program it needs: {sentence}");
+        assert_eq!(
+            command_program(&command),
+            SHIM_PROGRAM,
+            "the sentence starts its command with the program it needs: {sentence}"
+        );
         let found = machine.shell(&format!("command -v {SHIM_PROGRAM}"), Place::Repo);
-        assert!(found.status.success(), "the worktree's install puts `{SHIM_PROGRAM}` on that worktree's PATH: {sentence}");
+        assert!(
+            found.status.success(),
+            "the worktree's install puts `{SHIM_PROGRAM}` on that worktree's PATH: {sentence}"
+        );
     }
 }
 
@@ -586,7 +760,12 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
 fn the_global_remedy_runs_as_printed_and_clears_the_warning() {
     let machine = Machine::new();
     let installed = machine.install_global();
-    assert_eq!(installed.status.code(), Some(0), "the machine-global install failed:\n{}", text(&installed.stderr));
+    assert_eq!(
+        installed.status.code(),
+        Some(0),
+        "the machine-global install failed:\n{}",
+        text(&installed.stderr)
+    );
     let program: PathBuf = machine.farm().join(SHADOW_PROGRAM);
     assert!(
         program.exists(),
@@ -597,11 +776,23 @@ fn the_global_remedy_runs_as_printed_and_clears_the_warning() {
     // The plan now asks for the version that runs, which is the state the warning's own command repairs.
     machine.write_global_plan(INSTALLED);
     let before = machine.shell(DEMO_BIN, Place::Global);
-    assert_eq!(before.status.code(), Some(0), "the demo tool runs:\n{}", text(&before.stderr));
+    assert_eq!(
+        before.status.code(),
+        Some(0),
+        "the demo tool runs:\n{}",
+        text(&before.stderr)
+    );
     let warning: String = text(&before.stderr);
-    assert!(warning.contains(TOOL_ID) && warning.contains(LOCKED) && warning.contains(INSTALLED), "{warning}");
+    assert!(
+        warning.contains(TOOL_ID) && warning.contains(LOCKED) && warning.contains(INSTALLED),
+        "{warning}"
+    );
     let remedy: String = printed_command(&warning);
-    assert_eq!(remedy, format!("{SHADOW_PROGRAM} update -g {TOOL_ID}"), "the sentence names the shadow and the verb that moves one row");
+    assert_eq!(
+        remedy,
+        format!("{SHADOW_PROGRAM} update -g {TOOL_ID}"),
+        "the sentence names the shadow and the verb that moves one row"
+    );
 
     let ran = machine.shell(&remedy, Place::Global);
     assert_eq!(
@@ -612,13 +803,32 @@ fn the_global_remedy_runs_as_printed_and_clears_the_warning() {
         text(&ran.stderr)
     );
 
-    let lock: String = fs::read_to_string(machine.global_lock_file()).expect("read the global lock");
+    let lock: String =
+        fs::read_to_string(machine.global_lock_file()).expect("read the global lock");
     let parsed = parse_lock(&lock, "the lock the remedy wrote").expect("the lock parses");
-    let tool = parsed.lock.tool(TOOL_ID).expect("the lock still holds the tool");
-    assert_eq!(tool.version, INSTALLED, "the lock now names the version that runs: {lock}");
-    assert_eq!(tool.declaration.request.range, INSTALLED, "and the request that asks for it: {lock}");
+    let tool = parsed
+        .lock
+        .tool(TOOL_ID)
+        .expect("the lock still holds the tool");
+    assert_eq!(
+        tool.version, INSTALLED,
+        "the lock now names the version that runs: {lock}"
+    );
+    assert_eq!(
+        tool.declaration.request.range, INSTALLED,
+        "and the request that asks for it: {lock}"
+    );
 
     let after = machine.shell(DEMO_BIN, Place::Global);
-    assert_eq!(after.status.code(), Some(0), "the demo tool still runs:\n{}", text(&after.stderr));
-    assert_eq!(text(&after.stderr), "", "the older-lock warning is gone, because the lock names the version that runs");
+    assert_eq!(
+        after.status.code(),
+        Some(0),
+        "the demo tool still runs:\n{}",
+        text(&after.stderr)
+    );
+    assert_eq!(
+        text(&after.stderr),
+        "",
+        "the older-lock warning is gone, because the lock names the version that runs"
+    );
 }

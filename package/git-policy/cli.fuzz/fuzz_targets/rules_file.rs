@@ -12,7 +12,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
-use git_policy_cli_fuzz::content::{check_rules_file_value, generated_rules_file};
+use git_policy_cli_fuzz::content::{
+    check_rules_file_value,
+    generated_rules_file,
+};
 use libfuzzer_sys::fuzz_target;
 
 // Text inputs are checked as written; every input also builds a value from path words.

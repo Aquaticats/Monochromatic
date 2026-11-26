@@ -1,6 +1,8 @@
 //! Clipboard management stays on the nested seat,
 //!  without a host clipboard bridge.
 
+/// Protocol callbacks operate on the compositor's existing owning state.
+use crate::state::Compositor;
 /// What:
 ///  Import Smithay's existing protocol states and dispatch macros.
 /// Why:
@@ -11,12 +13,17 @@
 /// import { WlrDataControl, ExtDataControl } from 'smithay/selection';
 /// ```
 use smithay::{
-    delegate_data_control, delegate_ext_data_control,
-    reexports::wayland_server::{Client, DisplayHandle},
-    wayland::selection::{ext_data_control, wlr_data_control},
+    delegate_data_control,
+    delegate_ext_data_control,
+    reexports::wayland_server::{
+        Client,
+        DisplayHandle,
+    },
+    wayland::selection::{
+        ext_data_control,
+        wlr_data_control,
+    },
 };
-/// Protocol callbacks operate on the compositor's existing owning state.
-use crate::state::Compositor;
 
 /// Own both protocol globals for this nested Wayland display.
 pub struct ClipboardProtocols {
@@ -41,7 +48,7 @@ pub struct ClipboardProtocols {
 /// const allowEveryClient = (_client: Client): boolean => true;
 /// ```
 fn allow_every_client(_client: &Client) -> bool {
-    return true
+    return true;
 }
 
 /// Construct both clipboard-manager globals together so neither exists without the other.
@@ -57,14 +64,21 @@ impl ClipboardProtocols {
         // const wlr = new WlrDataControl(display, undefined, client => true);
         // ```
         let wlr = wlr_data_control::DataControlState::new::<Compositor, _>(
-            display, None, allow_every_client,
+            display,
+            None,
+            allow_every_client,
         );
         // Enable the successor protocol with identical nested-only permissions.
         let ext = ext_data_control::DataControlState::new::<Compositor, _>(
-            display, None, allow_every_client,
+            display,
+            None,
+            allow_every_client,
         );
         tracing::info!("nested clipboard protocols ready: wlr-data-control and ext-data-control");
-        return Self { wlr, ext };
+        return Self {
+            wlr,
+            ext,
+        };
     }
 }
 

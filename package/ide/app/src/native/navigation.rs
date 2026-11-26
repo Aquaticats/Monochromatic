@@ -3,7 +3,10 @@
 //!  and successful-file navigation.
 
 /// One source owner and one native window remain independent of background filesystem reads.
-use super::{AppWindow, State};
+use super::{
+    AppWindow,
+    State,
+};
 /// Startup failures must not silently disable project navigation.
 use anyhow::Result;
 /// Reuse filesystem-free tree state,
@@ -13,20 +16,31 @@ use ide_app::{
     change_watch::ChangeWatcher,
     directory_worker::DirectoryWorker,
     file_open::FileOpener,
-    file_tree::{FileTree, TreeRow},
+    file_tree::{
+        FileTree,
+        TreeRow,
+    },
     recent::RecentFiles,
     refresh_policy::DirectoryRefresh,
     workspace::Workspace,
 };
 /// Weak window handles and a retained timer bind worker results to the native event loop.
-use slint::{ComponentHandle, SharedString, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    SharedString,
+    Timer,
+    TimerMode,
+};
 /// UI-thread shared state is separate from worker-owned snapshots and native path identities.
 use std::{
     cell::RefCell,
     collections::BTreeSet,
     path::PathBuf,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Click,

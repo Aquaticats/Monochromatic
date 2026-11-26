@@ -36,7 +36,10 @@ fn notes_and_row_count_keep_the_study_copy() {
     assert_eq!(TEMPLATE_PREVIEW_ROW_COUNT, 2);
     assert_eq!(TEMPLATE_LIBRARY_NOTE, "From your library.");
     assert_eq!(TEMPLATE_KEPT_NOTE, "Rows keep the last valid template.");
-    assert_eq!(TEMPLATE_SAMPLE_NOTE, "Your library has no tracks yet. These are sample values.");
+    assert_eq!(
+        TEMPLATE_SAMPLE_NOTE,
+        "Your library has no tracks yet. These are sample values."
+    );
 }
 
 // What: `fn clamp_offset_keeps_the_caret_inside_the_text(...)` checks the clamp at both ends and across a surrogate pair.
@@ -81,9 +84,18 @@ fn inside_formula_follows_the_formula_spans() {
 #[test]
 fn track_source_picks_the_track_rows_or_the_playing_track() {
     let track = crate::template_fixtures::another_xronixle();
-    assert_eq!(track_source(TemplateKind::TrackRows, &track).field_text("track"), None);
-    assert_eq!(track_source(TemplateKind::PlayingTrack, &track).field_text("track"), Some(String::from("1")));
-    assert_eq!(track_source(TemplateKind::TrackRows, &track).field_text("title"), Some(String::from("Another Xronixle")));
+    assert_eq!(
+        track_source(TemplateKind::TrackRows, &track).field_text("track"),
+        None
+    );
+    assert_eq!(
+        track_source(TemplateKind::PlayingTrack, &track).field_text("track"),
+        Some(String::from("1"))
+    );
+    assert_eq!(
+        track_source(TemplateKind::TrackRows, &track).field_text("title"),
+        Some(String::from("Another Xronixle"))
+    );
 }
 
 // What: `fn evaluate_for_applies_the_kind_fields(...)` checks that the playing track's field refuses on the track rows.

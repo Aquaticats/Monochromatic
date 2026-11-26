@@ -22,7 +22,10 @@
 
 /// Re-exports the request types,
 /// so callers keep importing them from `model`.
-pub use super::request::{Origin, Request};
+pub use super::request::{
+    Origin,
+    Request,
+};
 
 /// What:
 /// The install route of one tool:
@@ -343,24 +346,33 @@ impl LockedTool {
     /// its observation) asks for the same text,
     /// never for the release the channel resolved to.
     pub fn rustup_channel(&self) -> &str {
-        return self.declaration.package_id.as_deref().unwrap_or(&self.version);
+        return self
+            .declaration
+            .package_id
+            .as_deref()
+            .unwrap_or(&self.version);
     }
 }
 
 //endregion Declaration and lock entry
-
 
 /// Re-exports the decoding functions,
 /// so callers keep importing them from `model`.
 pub use super::model_decode_support::DecodeResult;
 
 /// Re-exports the decoders.
-pub use super::model_decode::{decode_lock_entry, decode_plan_entry, is_sha256_hex};
+pub use super::model_decode::{
+    decode_lock_entry,
+    decode_plan_entry,
+    is_sha256_hex,
+};
 
 /// Re-exports the encoding functions,
 /// so callers keep importing them from `model`.
-pub use super::model_encode::{lock_entry_value, request_value};
-
+pub use super::model_encode::{
+    lock_entry_value,
+    request_value,
+};
 
 //region Version placeholder
 
@@ -384,7 +396,10 @@ pub const VERSION_PLACEHOLDER: &str = "{version}";
 /// ```ts
 /// export function expandVersion(declaration: Declaration, version: string): Declaration
 /// ```
-pub fn expand_version(declaration: &Declaration, version: &str) -> Declaration {
+pub fn expand_version(
+    declaration: &Declaration,
+    version: &str,
+) -> Declaration {
     let mut expanded: Declaration = declaration.clone();
     if let Some(text) = &declaration.package_id {
         expanded.package_id = Some(text.replace(VERSION_PLACEHOLDER, version));

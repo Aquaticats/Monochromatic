@@ -11,9 +11,12 @@
 // What:     `use super::*;` imports everything from the parent module into the test scope.
 // Why:      Tests need the entry types, `track_title_for`, and `track_list_entries`.
 use super::*;
-use crate::folder_index::{UNFILED_FOLDER_NAME, folder_index};
-use crate::track::Track;
+use crate::folder_index::{
+    UNFILED_FOLDER_NAME,
+    folder_index,
+};
 use crate::template_model::DEFAULT_TRACK_TEMPLATE;
+use crate::track::Track;
 use crate::track_supporting_line::supporting_line_from_template;
 
 // What:     `fn track(display_path: &str) -> Track` test helper: builds a fixture track whose URI is
@@ -49,9 +52,13 @@ fn no_line(_fields: &TrackFields) -> Option<String> {
 fn rows(entries: &[TrackListEntry]) -> Vec<&TrackRowModel> {
     return entries
         .iter()
-        .filter_map(|entry| return match entry {
-            TrackListEntry::RowEntry(row) => Some(row),
-            TrackListEntry::HeaderEntry { .. } => None,
+        .filter_map(|entry| {
+            return match entry {
+                TrackListEntry::RowEntry(row) => Some(row),
+                TrackListEntry::HeaderEntry {
+                    ..
+                } => None,
+            };
         })
         .collect();
 }
@@ -68,7 +75,11 @@ fn only_row(entries: &[TrackListEntry]) -> &TrackRowModel {
 // What:     `fn plain_row(index_in_library: usize, title: &str, is_current: bool) -> TrackListEntry`
 //           test helper: builds an expected row entry whose supporting line is absent.
 // Why:      Most expected rows carry no supporting line, so this keeps the expectations short.
-fn plain_row(index_in_library: usize, title: &str, is_current: bool) -> TrackListEntry {
+fn plain_row(
+    index_in_library: usize,
+    title: &str,
+    is_current: bool,
+) -> TrackListEntry {
     return TrackListEntry::RowEntry(TrackRowModel {
         index_in_library,
         title: title.to_string(),
@@ -81,7 +92,10 @@ fn plain_row(index_in_library: usize, title: &str, is_current: bool) -> TrackLis
 // Why:      Only the last extension is dropped, so `.v2` survives in the title.
 #[test]
 fn title_drops_only_the_last_extension() {
-    assert_eq!(track_title_for("Camellia/Album/01 Song.v2.flac"), "01 Song.v2");
+    assert_eq!(
+        track_title_for("Camellia/Album/01 Song.v2.flac"),
+        "01 Song.v2"
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -89,7 +103,10 @@ fn title_drops_only_the_last_extension() {
 #[test]
 fn title_drops_each_kind_of_extension() {
     let paths = ["a.mp3", "b.m4a", "c.opus", "d.ogg"];
-    let titles: Vec<String> = paths.iter().map(|path| return track_title_for(path)).collect();
+    let titles: Vec<String> = paths
+        .iter()
+        .map(|path| return track_title_for(path))
+        .collect();
     assert_eq!(titles, vec!["a", "b", "c", "d"]);
 }
 
@@ -147,7 +164,10 @@ fn current_flag_marks_only_the_matching_index() {
         track("Camellia/c.flac"),
     ]);
     let entries = track_list_entries(&folder, Some(1), &HashMap::new(), &no_line);
-    let flags: Vec<bool> = rows(&entries).iter().map(|row| return row.is_current).collect();
+    let flags: Vec<bool> = rows(&entries)
+        .iter()
+        .map(|row| return row.is_current)
+        .collect();
     assert_eq!(flags, vec![false, true, false]);
 }
 
@@ -157,7 +177,10 @@ fn current_flag_marks_only_the_matching_index() {
 fn current_index_outside_folder_marks_no_row() {
     let folder = only_folder(vec![track("Camellia/a.flac"), track("Camellia/b.flac")]);
     let entries = track_list_entries(&folder, Some(99), &HashMap::new(), &no_line);
-    let flags: Vec<bool> = rows(&entries).iter().map(|row| return row.is_current).collect();
+    let flags: Vec<bool> = rows(&entries)
+        .iter()
+        .map(|row| return row.is_current)
+        .collect();
     assert_eq!(flags, vec![false, false]);
 }
 
@@ -223,7 +246,10 @@ fn custom_template_shows_folder_and_file_name() {
     let folder = only_folder(vec![track("Camellia/Album/01 Song.flac")]);
     let folder_and_file = supporting_line_from_template("$mi(folder)$ / $mi(file)$");
     let entries = track_list_entries(&folder, None, &HashMap::new(), &folder_and_file);
-    assert_eq!(only_row(&entries).supporting_line.as_deref(), Some("Album / 01 Song"));
+    assert_eq!(
+        only_row(&entries).supporting_line.as_deref(),
+        Some("Album / 01 Song")
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -233,7 +259,10 @@ fn custom_template_trims_blank_from_unknown_field() {
     let folder = only_folder(vec![track("Camellia/01 Song.flac")]);
     let trailing_blank = supporting_line_from_template("$mi(file)$ $mi(peak)$");
     let entries = track_list_entries(&folder, None, &HashMap::new(), &trailing_blank);
-    assert_eq!(only_row(&entries).supporting_line.as_deref(), Some("01 Song"));
+    assert_eq!(
+        only_row(&entries).supporting_line.as_deref(),
+        Some("01 Song")
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -264,7 +293,10 @@ fn nested_folder_field_shows_innermost_name() {
     let folder = only_folder(vec![track("Camellia/Album/Disc 1/03 X.flac")]);
     let folder_field = supporting_line_from_template("$mi(folder)$");
     let entries = track_list_entries(&folder, None, &HashMap::new(), &folder_field);
-    assert_eq!(only_row(&entries).supporting_line.as_deref(), Some("Disc 1"));
+    assert_eq!(
+        only_row(&entries).supporting_line.as_deref(),
+        Some("Disc 1")
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -276,7 +308,10 @@ fn empty_folder_gives_empty_list() {
         items: Vec::new(),
         track_count: 0,
     };
-    assert_eq!(track_list_entries(&folder, None, &HashMap::new(), &no_line), Vec::<TrackListEntry>::new());
+    assert_eq!(
+        track_list_entries(&folder, None, &HashMap::new(), &no_line),
+        Vec::<TrackListEntry>::new()
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -320,7 +355,10 @@ fn exact_measure_reaches_the_supporting_line_fields() {
     let measures = HashMap::from([("Song.flac".to_string(), measure)]);
     let line = |fields: &TrackFields| return Some(format!("{:?}|{:?}", fields.len, fields.peak));
     let entries = track_list_entries(&folder, None, &measures, &line);
-    assert_eq!(supporting_text(&entries), Some("Some(20.0)|Some(\"\u{2212}21.1 dBTP\")".to_string()));
+    assert_eq!(
+        supporting_text(&entries),
+        Some("Some(20.0)|Some(\"\u{2212}21.1 dBTP\")".to_string())
+    );
 }
 
 // What:     `#[test] fn sampled_measure_gives_length_without_peak()` checks that a sampled peak is left out of the row.
@@ -336,21 +374,30 @@ fn sampled_measure_gives_length_without_peak() {
     let measures = HashMap::from([("Song.flac".to_string(), measure)]);
     let line = |fields: &TrackFields| return Some(format!("{:?}|{:?}", fields.len, fields.peak));
     let entries = track_list_entries(&folder, None, &measures, &line);
-    assert_eq!(supporting_text(&entries), Some("Some(20.0)|None".to_string()));
+    assert_eq!(
+        supporting_text(&entries),
+        Some("Some(20.0)|None".to_string())
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      The deck names the innermost folder that holds a nested track.
 #[test]
 fn deck_folder_names_the_innermost_directory() {
-    assert_eq!(deck_folder_label("Camellia/Live/Ghost.flac", "Camellia"), "Live");
+    assert_eq!(
+        deck_folder_label("Camellia/Live/Ghost.flac", "Camellia"),
+        "Live"
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      A track directly under the page folder names that folder.
 #[test]
 fn deck_folder_of_a_direct_child_is_its_folder() {
-    assert_eq!(deck_folder_label("Camellia/Ghost.flac", "Camellia"), "Camellia");
+    assert_eq!(
+        deck_folder_label("Camellia/Ghost.flac", "Camellia"),
+        "Camellia"
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.

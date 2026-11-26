@@ -31,20 +31,29 @@
 use std::cmp::Ordering;
 /// Imports `BTreeMap`
 /// and `BTreeSet` from `std::collections`.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `ErrorKind` from `std::io`.
 use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `serde_json::Value`,
 /// the shape a lock's text is read as when only a few fields matter.
 use serde_json::Value;
 
 /// Imports what this module uses from `crate::constants`.
-use crate::constants::{OWN_CRATE_PREFIX, OWN_REPOSITORY_SOURCE};
+use crate::constants::{
+    OWN_CRATE_PREFIX,
+    OWN_REPOSITORY_SOURCE,
+};
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
@@ -57,13 +66,26 @@ use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{find_bin_under, tool_directory, tool_downloads_dir, tool_install_dir};
+use super::layout::{
+    find_bin_under,
+    tool_directory,
+    tool_downloads_dir,
+    tool_install_dir,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Request, Route};
+use super::model::{
+    LockedTool,
+    Request,
+    Route,
+};
 /// Imports `PresentVersion` from `super::prune_cargo`.
 use super::prune_cargo::PresentVersion;
 /// Imports the name checks from `super::segment`.
-use super::segment::{check_bin_name, check_tool_id, check_version};
+use super::segment::{
+    check_bin_name,
+    check_tool_id,
+    check_version,
+};
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -77,8 +99,12 @@ fn starts_with_own_crate_prefix(prefix: &str) -> bool {
 /// (GitHub owner and repository names are case-insensitive,
 /// and the names are ASCII),
 /// and the prefix starts with `monochromatic-`.
-fn names_own_releases(request_source: &str, tag_prefix: Option<&str>) -> bool {
-    return request_source.eq_ignore_ascii_case(OWN_REPOSITORY_SOURCE) && tag_prefix.is_some_and(starts_with_own_crate_prefix);
+fn names_own_releases(
+    request_source: &str,
+    tag_prefix: Option<&str>,
+) -> bool {
+    return request_source.eq_ignore_ascii_case(OWN_REPOSITORY_SOURCE)
+        && tag_prefix.is_some_and(starts_with_own_crate_prefix);
 }
 
 /// What:
@@ -103,12 +129,18 @@ pub fn is_published_archive(tool: &LockedTool) -> bool {
     if tool.declaration.route != Route::Archive {
         return false;
     }
-    return names_own_releases(&tool.declaration.request.source, tool.declaration.options.tag_prefix.as_deref());
+    return names_own_releases(
+        &tool.declaration.request.source,
+        tool.declaration.options.tag_prefix.as_deref(),
+    );
 }
 
 /// `<toolchain root>/<tool id>/current`;
 /// refuses an id that is not one plain directory name.
-pub fn current_link_of(toolchain_root: &Path, id: &str) -> Result<PathBuf, ToolchainError> {
+pub fn current_link_of(
+    toolchain_root: &Path,
+    id: &str,
+) -> Result<PathBuf, ToolchainError> {
     return Ok(tool_directory(toolchain_root, id)?.join(CURRENT_LINK_NAME));
 }
 
@@ -142,7 +174,10 @@ pub fn first_bin_of_tool(tool: &LockedTool) -> &str {
 /// ```ts
 /// export function isFinished(versionDir: string, firstBin: string): boolean
 /// ```
-pub fn is_finished(version_dir: &Path, first_bin: &str) -> bool {
+pub fn is_finished(
+    version_dir: &Path,
+    first_bin: &str,
+) -> bool {
     if !has_complete_marker(version_dir) {
         return false;
     }
@@ -150,14 +185,20 @@ pub fn is_finished(version_dir: &Path, first_bin: &str) -> bool {
 }
 
 /// Orders two version names newest first.
-fn newest_first<T: AsRef<str>>(left: &T, right: &T) -> Ordering {
+fn newest_first<T: AsRef<str>>(
+    left: &T,
+    right: &T,
+) -> Ordering {
     return compare_versions(right.as_ref(), left.as_ref());
 }
 
 /// Every version directory of the tool (a plain directory that is not `current`,
 /// not hidden),
 /// newest first.
-pub fn version_names(toolchain_root: &Path, id: &str) -> Vec<String> {
+pub fn version_names(
+    toolchain_root: &Path,
+    id: &str,
+) -> Vec<String> {
     // An id that is not one plain directory name is refused where the plan and the lock are decoded; for any other
     // value there is no directory to list, and listing none is the safe answer.
     let Ok(directory) = tool_directory(toolchain_root, id) else {
@@ -182,7 +223,11 @@ pub fn version_names(toolchain_root: &Path, id: &str) -> Vec<String> {
 }
 
 /// The newest version of the tool whose install finished.
-pub fn newest_installed_archive(toolchain_root: &Path, id: &str, first_bin: &str) -> Option<String> {
+pub fn newest_installed_archive(
+    toolchain_root: &Path,
+    id: &str,
+    first_bin: &str,
+) -> Option<String> {
     for name in version_names(toolchain_root, id) {
         // A listed name is a plain directory name, so the path is always built.
         if let Ok(directory) = tool_install_dir(toolchain_root, id, &name)
@@ -196,7 +241,10 @@ pub fn newest_installed_archive(toolchain_root: &Path, id: &str, first_bin: &str
 
 /// The version the tool's `current` link names (the link's target is the version directory's name),
 /// or `None` when there is no link.
-pub fn running_version_archive(toolchain_root: &Path, id: &str) -> Option<String> {
+pub fn running_version_archive(
+    toolchain_root: &Path,
+    id: &str,
+) -> Option<String> {
     let target: PathBuf = fs::read_link(current_link_of(toolchain_root, id).ok()?).ok()?;
     let name: String = file_name_text(&target);
     if name.is_empty() {
@@ -216,7 +264,11 @@ pub fn running_version_archive(toolchain_root: &Path, id: &str) -> Option<String
 /// ```ts
 /// export function pointCurrentAtNewestArchive(root: string, id: string, firstBin: string): string | undefined
 /// ```
-pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bin: &str) -> Result<Option<String>, ToolchainError> {
+pub fn point_current_at_newest_archive(
+    toolchain_root: &Path,
+    id: &str,
+    first_bin: &str,
+) -> Result<Option<String>, ToolchainError> {
     let Some(newest) = newest_installed_archive(toolchain_root, id, first_bin) else {
         return Ok(None);
     };
@@ -240,13 +292,20 @@ pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bi
 /// ```ts
 /// export function removeDownloads(root: string, id: string, version: string): void
 /// ```
-pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Result<(), ToolchainError> {
+pub fn remove_downloads(
+    toolchain_root: &Path,
+    id: &str,
+    version: &str,
+) -> Result<(), ToolchainError> {
     let directory: PathBuf = tool_downloads_dir(toolchain_root, id, version)?;
     match fs::remove_dir_all(&directory) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
         Err(error) => {
-            return Err(ToolchainError::failure(format!("cannot remove the superseded downloads {}: {error}", directory.display())));
+            return Err(ToolchainError::failure(format!(
+                "cannot remove the superseded downloads {}: {error}",
+                directory.display()
+            )));
         }
     }
     if let Some(tool_downloads) = directory.parent() {
@@ -268,7 +327,11 @@ pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Resul
 /// ```ts
 /// export function removeOlderArchives(root: string, id: string, firstBin: string): string[]
 /// ```
-pub fn remove_older_archives(toolchain_root: &Path, id: &str, first_bin: &str) -> Result<Vec<PathBuf>, ToolchainError> {
+pub fn remove_older_archives(
+    toolchain_root: &Path,
+    id: &str,
+    first_bin: &str,
+) -> Result<Vec<PathBuf>, ToolchainError> {
     let Some(newest) = newest_installed_archive(toolchain_root, id, first_bin) else {
         return Ok(Vec::new());
     };
@@ -279,7 +342,10 @@ pub fn remove_older_archives(toolchain_root: &Path, id: &str, first_bin: &str) -
         }
         let directory: PathBuf = tool_install_dir(toolchain_root, id, &name)?;
         if let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+            return Err(ToolchainError::failure(format!(
+                "cannot remove the superseded {}: {error}",
+                directory.display()
+            )));
         }
         remove_downloads(toolchain_root, id, &name)?;
         removed.push(directory);
@@ -328,7 +394,10 @@ fn first_bin_of(entry: &Value) -> Option<&str> {
 /// ```ts
 /// export function namedArchives(lockText: string, origin: string): Map<string, NamedArchive>  // throws
 /// ```
-pub fn named_archives(lock_text: &str, origin: &str) -> Result<BTreeMap<String, NamedArchive>, ToolchainError> {
+pub fn named_archives(
+    lock_text: &str,
+    origin: &str,
+) -> Result<BTreeMap<String, NamedArchive>, ToolchainError> {
     let mut named: BTreeMap<String, NamedArchive> = BTreeMap::new();
     let Ok(lock) = serde_json::from_str::<Value>(lock_text) else {
         return Ok(named);
@@ -340,7 +409,11 @@ pub fn named_archives(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
         if entry.get("route").and_then(Value::as_str) != Some("archive") {
             continue;
         }
-        let source: String = match entry.get("request").and_then(Value::as_str).map(Request::parse) {
+        let source: String = match entry
+            .get("request")
+            .and_then(Value::as_str)
+            .map(Request::parse)
+        {
             Some(Ok(request)) => request.source,
             _ => String::new(),
         };
@@ -353,7 +426,11 @@ pub fn named_archives(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
         }
         // A tool that declares no bin finishes on its marker alone; its first bin is the empty name.
         let first_bin: &str = first_bin_of(entry).unwrap_or("");
-        let bin_check: Result<(), String> = if first_bin.is_empty() { Ok(()) } else { check_bin_name(first_bin) };
+        let bin_check: Result<(), String> = if first_bin.is_empty() {
+            Ok(())
+        } else {
+            check_bin_name(first_bin)
+        };
         for checked in [check_tool_id(id), check_version(version), bin_check] {
             if let Err(message) = checked {
                 return Err(ToolchainError::failure(format!(
@@ -380,7 +457,10 @@ pub fn named_archives(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
 /// ```ts
 /// export function presentArchiveVersions(root: string, named: Map<string, NamedArchive>): Map<string, PresentVersion[]>
 /// ```
-pub fn present_archive_versions(toolchain_root: &Path, named: &BTreeMap<String, NamedArchive>) -> BTreeMap<String, Vec<PresentVersion>> {
+pub fn present_archive_versions(
+    toolchain_root: &Path,
+    named: &BTreeMap<String, NamedArchive>,
+) -> BTreeMap<String, Vec<PresentVersion>> {
     let mut present: BTreeMap<String, Vec<PresentVersion>> = BTreeMap::new();
     for (id, archive) in named {
         let mut found: Vec<PresentVersion> = Vec::new();
@@ -389,7 +469,10 @@ pub fn present_archive_versions(toolchain_root: &Path, named: &BTreeMap<String, 
                 continue;
             };
             let finished: bool = is_finished(&directory, &archive.first_bin);
-            found.push(PresentVersion { version, finished });
+            found.push(PresentVersion {
+                version,
+                finished,
+            });
         }
         if !found.is_empty() {
             present.insert(id.clone(), found);
@@ -411,7 +494,9 @@ pub fn present_archive_versions(toolchain_root: &Path, named: &BTreeMap<String, 
 /// ```ts
 /// export function planArchivePrune(present: Map<string, PresentVersion[]>): [string, string][]
 /// ```
-pub fn plan_archive_prune(present: &BTreeMap<String, Vec<PresentVersion>>) -> Vec<(String, String)> {
+pub fn plan_archive_prune(
+    present: &BTreeMap<String, Vec<PresentVersion>>
+) -> Vec<(String, String)> {
     let mut removals: Vec<(String, String)> = Vec::new();
     for (id, versions) in present {
         let mut newest: Option<&str> = None;

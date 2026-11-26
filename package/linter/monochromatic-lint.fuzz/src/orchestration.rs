@@ -24,22 +24,47 @@
 ///  planning and per-source pipeline.
 use monochromatic_lint::{
     config_lookup::ConfigurationSource,
-    config_match::{FileConfiguration, PreparedConfiguration, prepare_configuration},
+    config_match::{
+        FileConfiguration,
+        PreparedConfiguration,
+        prepare_configuration,
+    },
     configuration::parse_configuration,
-    diagnostic::{Diagnostic, Span},
+    diagnostic::{
+        Diagnostic,
+        Span,
+    },
     directive_options::DirectiveOptions,
-    edits::{Edit, Fix, apply_fixes},
+    edits::{
+        Edit,
+        Fix,
+        FixClass,
+        FixScope,
+        apply_fixes,
+    },
     markdown_rule_settings::markdown_rule_settings,
-    processors::{VirtualSource, extract},
-    run_file::{SourceOutcome, process_source},
+    processors::{
+        VirtualSource,
+        extract,
+    },
+    run_file::{
+        SourceOutcome,
+        process_source,
+    },
     run_lfs::LfsRepos,
     run_paths::Language,
-    run_plan::{FilePlan, RootRules},
+    run_plan::{
+        FilePlan,
+        RootRules,
+    },
     rust_rule_settings::rust_rule_settings,
 };
 /// Import native paths and shared ownership for the prepared configuration.
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -249,7 +274,10 @@ pub fn plan(name: &str) -> FilePlan {
     let resolved: FileConfiguration = config
         .resolve(Path::new(name))
         .expect("fixed configuration resolves");
-    let FileConfiguration::Configured { rules } = resolved else {
+    let FileConfiguration::Configured {
+        rules,
+    } = resolved
+    else {
         panic!("every fuzz host is configured");
     };
     let root: RootRules = if language == Language::Rust {
@@ -269,6 +297,21 @@ pub fn plan(name: &str) -> FilePlan {
         config,
         root,
         directives: DirectiveOptions::default(),
+        // What:     `fix_scope: FixScope::WhitespaceAndContent` is the plan field that says
+        //           which classes of fix this run may apply. `FixScope` has two values,
+        //           `WhitespaceOnly` (the default, plain `--fix`) and `WhitespaceAndContent`
+        //           (`--fix-content`, and the in-process and control entries of the linter).
+        // Why:      This target applies fixes and asserts their results, so it needs content
+        //           fixes: the `grouped.rs` and `suppressed.md` cases carry only content rules,
+        //           and `WhitespaceOnly` withholds those fixes before the loop sees them.
+        // Gotcha:   A withheld fix still reports its finding, so a whitespace-only plan would
+        //           keep every expected code while leaving the host unfixed and nothing refused.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // fixScope: 'whitespace-and-content',
+        // ```
+        fix_scope: FixScope::WhitespaceAndContent,
     };
 }
 
@@ -282,7 +325,11 @@ pub fn plan(name: &str) -> FilePlan {
 /// ```ts
 /// function assertHostFinding(finding: Diagnostic, name: string, source: string): void;
 /// ```
-fn assert_host_finding(finding: &Diagnostic, name: &str, source: &str) {
+fn assert_host_finding(
+    finding: &Diagnostic,
+    name: &str,
+    source: &str,
+) {
     assert_eq!(finding.filename, name, "{}", finding.code);
     assert!(!finding.labels.is_empty(), "{}", finding.code);
     for label in &finding.labels {
@@ -316,7 +363,10 @@ fn assert_host_finding(finding: &Diagnostic, name: &str, source: &str) {
 /// ```ts
 /// function assertApplies(source: string, fix: Fix): string | undefined;
 /// ```
-fn assert_applies(source: &str, fix: &Fix) -> Option<String> {
+fn assert_applies(
+    source: &str,
+    fix: &Fix,
+) -> Option<String> {
     match apply_fixes(source, std::slice::from_ref(fix)) {
         Ok(applied) => return Some(applied.source),
         Err(error) => {
@@ -338,7 +388,10 @@ fn assert_applies(source: &str, fix: &Fix) -> Option<String> {
 /// ```ts
 /// function checkHost(name: string, source: string): string[];
 /// ```
-pub fn check_host(name: &str, source: &str) -> Vec<String> {
+pub fn check_host(
+    name: &str,
+    source: &str,
+) -> Vec<String> {
     let planned: FilePlan = plan(name);
     let lfs: LfsRepos = LfsRepos::new();
     let lint: SourceOutcome = process_source(&planned, source, false, &lfs, None);
@@ -442,7 +495,11 @@ pub enum EditReach {
 /// ```ts
 /// function checkAdversarialEdits(name: string, source: string, data: Uint8Array): EditReach;
 /// ```
-pub fn check_adversarial_edits(name: &str, source: &str, data: &[u8]) -> EditReach {
+pub fn check_adversarial_edits(
+    name: &str,
+    source: &str,
+    data: &[u8],
+) -> EditReach {
     let planned: FilePlan = plan(name);
     let Ok(inputs): Result<Vec<VirtualSource>, _> = extract(
         String::from(name),
@@ -471,7 +528,20 @@ pub fn check_adversarial_edits(name: &str, source: &str, data: &[u8]) -> EditRea
             replacement: String::from(replacement),
         });
     }
-    let Ok(projected): Result<Fix, _> = input.project_fix(&Fix { edits }) else {
+    let Ok(projected): Result<Fix, _> = input.project_fix(&Fix {
+        // What:     `class: FixClass::Content` labels this group as one that may add,
+        //           remove or rewrite a token. `FixClass` has two values, `Whitespace`
+        //           (only line breaks and the spaces around them) and `Content`.
+        // Why:      The generator replaces arbitrary byte ranges with arbitrary text,
+        //           so the group can change a token; `Whitespace` would be a false claim.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // class: 'content',
+        // ```
+        class: FixClass::Content,
+        edits,
+    }) else {
         return EditReach::Refused;
     };
     for edit in &projected.edits {

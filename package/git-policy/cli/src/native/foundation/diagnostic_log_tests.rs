@@ -94,24 +94,23 @@ fn child_stderr(verbose: bool) -> String {
         "{}::child_prints_a_debug_and_a_warning_line_naming_a_remote",
         module.split_once("::").map_or(module, |(_, rest)| return rest)
     );
-    let mut command: std::process::Command = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"));
-    command
-        .args(["--exact", path.as_str(), "--nocapture", "--test-threads=1"])
-        .env(CHILD_VARIABLE, "1")
-        .env_remove("MONOCHROMATIC_WARN")
-        .stdin(std::process::Stdio::null());
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> = vec![(CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
     if verbose {
-        command.env("MONOCHROMATIC_VERBOSE", "true");
-    } else {
-        command.env_remove("MONOCHROMATIC_VERBOSE");
+        environment.push(("MONOCHROMATIC_VERBOSE", std::ffi::OsStr::new("true")));
     }
-    let output: std::process::Output = command.output().expect("the child test runs");
-    let said: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    let heard: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(output.status.success(), "the child failed:\n{said}\n{heard}");
-    // A name that matches no test would end with success and run nothing.
-    assert!(said.contains("running 1 test") && said.contains("1 passed"), "the child ran no test named {path}:\n{said}\n{heard}");
-    return heard;
+    // The warning switch is never inherited, and neither is the verbose one in the arm that must run without it.
+    let mut cleared: Vec<&str> = vec!["MONOCHROMATIC_WARN"];
+    if !verbose {
+        cleared.push("MONOCHROMATIC_VERBOSE");
+    }
+    // The child's pass is this control's assertion; what this reads is its standard error.
+    let output: std::process::Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: path.as_str(),
+        environment: environment.as_slice(),
+        cleared_environment: cleared.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
+    return String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
 }
 
 /// With the verbose switch on,

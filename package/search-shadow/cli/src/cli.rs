@@ -25,16 +25,25 @@
 /// ```ts
 /// import { Argument, Command } from 'commander';
 /// ```
-use clap::{Arg, Command};
+use clap::{
+    Arg,
+    Command,
+};
 
 /// Imports the process-environment module (to find this executable).
 use std::env;
 
 /// Imports `Path` (a borrowed read-only path) and `PathBuf` (the owned one).
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the shadowed tool names and the exit code for a bad command line.
-use crate::constants::{SHADOWED_NAMES, USAGE_EXIT_CODE};
+use crate::constants::{
+    SHADOWED_NAMES,
+    USAGE_EXIT_CODE,
+};
 
 /// Imports the function that creates the shadow links.
 use crate::link::link_shadows;
@@ -69,7 +78,9 @@ pub fn build_command() -> Command {
     // ```ts
     // const versionText = `${pkg.version}, a shadow of ${shadowed}`;
     // ```
-    let version_text: &'static str = Box::leak(format!("{}, a shadow of {shadowed}", env!("CARGO_PKG_VERSION")).into_boxed_str());
+    let version_text: &'static str = Box::leak(
+        format!("{}, a shadow of {shadowed}", env!("CARGO_PKG_VERSION")).into_boxed_str(),
+    );
     let link_command: Command = Command::new("link")
         .about("Create a shadow link for every shadowed tool whose real binary is on PATH in DIRECTORY; put DIRECTORY first on PATH to activate them")
         .arg(
@@ -178,10 +189,16 @@ fn link_into(directory: &str) -> i32 {
             // for (const left of leftAlone) console.error(`left ${left} alone: not a search-shadow link`);
             // ```
             for link in &report.left_alone {
-                eprintln!("search-shadow: left {} alone, it is not a search-shadow link", link.display());
+                eprintln!(
+                    "search-shadow: left {} alone, it is not a search-shadow link",
+                    link.display()
+                );
             }
             if !report.skipped.is_empty() {
-                println!("skipped, no real tool on PATH: {}", report.skipped.join(", "));
+                println!(
+                    "skipped, no real tool on PATH: {}",
+                    report.skipped.join(", ")
+                );
             }
             return 0;
         }

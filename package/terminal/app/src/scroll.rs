@@ -173,7 +173,7 @@ pub fn map_pixel_scroll(
         pixel_scroll: clamped_pixel_scroll,
         whole_row_offset,
         fractional_px,
-    }
+    };
 }
 
 /// What:

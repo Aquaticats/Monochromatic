@@ -14,7 +14,13 @@
 ///  imports the number reader and the text functions that `tf` and `tc` call.
 /// Why:
 ///  Each function keeps its rule in its own module.
-use crate::template_format::{as_number, capitalize_first_unit, format_seconds, keep_code_points, unknown_format_letter};
+use crate::template_format::{
+    as_number,
+    capitalize_first_unit,
+    format_seconds,
+    keep_code_points,
+    unknown_format_letter,
+};
 /// What:
 ///  imports the function table,
 ///  the field and result types,
@@ -22,13 +28,25 @@ use crate::template_format::{as_number, capitalize_first_unit, format_seconds, k
 /// Why:
 ///  Evaluation reads each of them.
 use crate::template_model::{
-    FunctionName, TemplateError, TemplateField, TemplateFunction, TemplateResult, TemplateTrack, template_function,
+    FunctionName,
+    TemplateError,
+    TemplateField,
+    TemplateFunction,
+    TemplateResult,
+    TemplateTrack,
+    template_function,
 };
 /// What:
 ///  imports the formula tree types and the template splitter.
 /// Why:
 ///  Evaluation walks the parsed parts in order.
-use crate::template_parse::{CallNode, FormulaNode, ParsedTemplate, TemplatePart, parse_template};
+use crate::template_parse::{
+    CallNode,
+    FormulaNode,
+    ParsedTemplate,
+    TemplatePart,
+    parse_template,
+};
 
 /// What:
 ///  `struct TemplateEvaluation` evaluates formula trees for one track and one allowed field set,
@@ -72,7 +90,10 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// function evaluate(node: FormulaNode): string { ... }
     /// ```
-    fn evaluate(&mut self, node: &FormulaNode) -> String {
+    fn evaluate(
+        &mut self,
+        node: &FormulaNode,
+    ) -> String {
         return match node {
             FormulaNode::Text(value) | FormulaNode::Word(value) => value.clone(),
             FormulaNode::Join(operands) => self.evaluate_join(operands),
@@ -90,7 +111,10 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// const text = operands.map(evaluate).join("");
     /// ```
-    fn evaluate_join(&mut self, operands: &[FormulaNode]) -> String {
+    fn evaluate_join(
+        &mut self,
+        operands: &[FormulaNode],
+    ) -> String {
         let mut output = String::new();
         for operand in operands {
             output.push_str(&self.evaluate(operand));
@@ -108,7 +132,10 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// function evaluateCall(node: CallNode): string { ... }
     /// ```
-    fn evaluate_call(&mut self, call: &CallNode) -> String {
+    fn evaluate_call(
+        &mut self,
+        call: &CallNode,
+    ) -> String {
         let Some(definition) = template_function(&call.name) else {
             self.errors.push(TemplateError {
                 subject: call.name.clone(),
@@ -117,7 +144,8 @@ impl TemplateEvaluation<'_> {
             });
             return String::new();
         };
-        if call.parameters.len() < definition.minimum || call.parameters.len() > definition.maximum {
+        if call.parameters.len() < definition.minimum || call.parameters.len() > definition.maximum
+        {
             self.errors.push(TemplateError {
                 subject: call.name.clone(),
                 message: arity_message(&definition),
@@ -146,7 +174,11 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// function evaluateMi(node: CallNode, values: string[]): string { ... }
     /// ```
-    fn evaluate_mi(&mut self, call: &CallNode, values: &[String]) -> String {
+    fn evaluate_mi(
+        &mut self,
+        call: &CallNode,
+        values: &[String],
+    ) -> String {
         let mode = values.first().map_or("", String::as_str);
         let mut known: bool = false;
         for field in self.allowed {
@@ -178,7 +210,11 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// function evaluateTf(node: CallNode, values: string[]): string { ... }
     /// ```
-    fn evaluate_tf(&mut self, call: &CallNode, values: &[String]) -> String {
+    fn evaluate_tf(
+        &mut self,
+        call: &CallNode,
+        values: &[String],
+    ) -> String {
         let raw = values.first().map_or("", String::as_str);
         let format = values.get(1).map_or("m:ss", String::as_str);
         // The format is checked even when the track has no duration, so a typo in it never hides behind an empty field.
@@ -214,7 +250,11 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// function evaluateTc(node: CallNode, values: string[]): string { ... }
     /// ```
-    fn evaluate_tc(&mut self, call: &CallNode, values: &[String]) -> String {
+    fn evaluate_tc(
+        &mut self,
+        call: &CallNode,
+        values: &[String],
+    ) -> String {
         let mode = values.first().map_or("", String::as_str);
         let text = values.get(1).map_or("", String::as_str);
         return match mode {
@@ -243,7 +283,12 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// const length = values.length === 3 ? asNumber(values[2]) : undefined;
     /// ```
-    fn evaluate_cut(&mut self, call: &CallNode, text: &str, raw_length: Option<&String>) -> String {
+    fn evaluate_cut(
+        &mut self,
+        call: &CallNode,
+        text: &str,
+        raw_length: Option<&String>,
+    ) -> String {
         let length = match raw_length {
             Some(raw) => as_number(raw),
             None => None,
@@ -271,7 +316,10 @@ impl TemplateEvaluation<'_> {
     /// ```ts
     /// const output = parts.map(part => part.kind === "literal" ? part.value : evaluate(part.tree)).join("");
     /// ```
-    fn evaluate_parts(&mut self, parts: &[TemplatePart]) -> String {
+    fn evaluate_parts(
+        &mut self,
+        parts: &[TemplatePart],
+    ) -> String {
         let mut output = String::new();
         for part in parts {
             match part {
@@ -299,7 +347,11 @@ fn arity_message(definition: &TemplateFunction) -> String {
     } else {
         format!("{} or {}", definition.minimum, definition.maximum)
     };
-    let unit = if definition.maximum == 1 { "value" } else { "values" };
+    let unit = if definition.maximum == 1 {
+        "value"
+    } else {
+        "values"
+    };
     return format!("takes {range} {unit}, as in {}", definition.signature);
 }
 
@@ -314,7 +366,11 @@ fn arity_message(definition: &TemplateFunction) -> String {
 /// ```ts
 /// function evaluateTemplate(text: string, track: TemplateTrack, fields = trackFields): TemplateResult { ... }
 /// ```
-pub fn evaluate_template(text: &str, track: &dyn TemplateTrack, fields: &[TemplateField]) -> TemplateResult {
+pub fn evaluate_template(
+    text: &str,
+    track: &dyn TemplateTrack,
+    fields: &[TemplateField],
+) -> TemplateResult {
     return evaluate_parsed_template(&parse_template(text), track, fields);
 }
 
@@ -333,7 +389,11 @@ pub fn evaluate_template(text: &str, track: &dyn TemplateTrack, fields: &[Templa
 /// ```ts
 /// function evaluateParsedTemplate(parsed: ParsedTemplate, track: TemplateTrack, fields = trackFields): TemplateResult { ... }
 /// ```
-pub fn evaluate_parsed_template(parsed: &ParsedTemplate, track: &dyn TemplateTrack, fields: &[TemplateField]) -> TemplateResult {
+pub fn evaluate_parsed_template(
+    parsed: &ParsedTemplate,
+    track: &dyn TemplateTrack,
+    fields: &[TemplateField],
+) -> TemplateResult {
     if !parsed.errors.is_empty() {
         return TemplateResult::Refused(parsed.errors.clone());
     }

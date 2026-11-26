@@ -38,13 +38,27 @@
 
 /// The frames a window asked for,
 ///  and a frame drawn into pixels.
-use super::gpu_snapshot::{install_gpu_platform, snapshot, take_frame_wanted};
+use super::gpu_snapshot::{
+    install_gpu_platform,
+    snapshot,
+    take_frame_wanted,
+};
 /// The window handle,
 ///  the stages of a frame,
 ///  and the models a repeater shows.
-use slint::{Color, ComponentHandle, Model, ModelRc, RenderingState, VecModel};
+use slint::{
+    Color,
+    ComponentHandle,
+    Model,
+    ModelRc,
+    RenderingState,
+    VecModel,
+};
 /// Shared ownership on the window thread.
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::Cell,
+    rc::Rc,
+};
 
 /// The markup of the probe:
 ///  one full-window rectangle for each color of the list.
@@ -133,7 +147,10 @@ fn center(window: &Probe) -> (u8, u8, u8) {
 /// ```ts
 /// function observe(change: Change, place: Place): Seen;
 /// ```
-fn observe(change: Change, place: Place) -> Seen {
+fn observe(
+    change: Change,
+    place: Place,
+) -> Seen {
     install_gpu_platform();
     let window = Probe::new().expect("probe window");
     let blue = Color::from_rgb_u8(0, 0, 255);

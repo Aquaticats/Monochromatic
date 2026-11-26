@@ -11,34 +11,65 @@
 
 /// The marks that become underlines,
 /// laid out against the frame's rows.
-use ide_app::annotation::{Mark, Visible};
+use ide_app::annotation::{
+    Mark,
+    Visible,
+};
 /// Underline runs,
 /// with their inks.
-use ide_app::annotation_layout::{AnnotationColors, lay_out};
+use ide_app::annotation_layout::{
+    AnnotationColors,
+    lay_out,
+};
 /// Palette of the paint tests.
 use ide_app::code_colors::CodeColors;
 /// Canonical source of the lines under test and the position that selects a range.
-use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    Document,
+    ReadingAffinity,
+    ReadingPosition,
+};
 /// The severity that picks an underline's line style.
 use ide_app::language::diagnostics::Severity;
 /// The visual row counts and the map built from them.
 use ide_app::line_rows::LineRows;
 /// The vertical mapping under test.
-use ide_app::row_map::{CODE_ROW, Place, RowMap};
+use ide_app::row_map::{
+    CODE_ROW,
+    Place,
+    RowMap,
+};
 /// Shaper,
 /// viewport,
 /// the clip of a very tall line,
 /// and the device's texture size and the stack's rows.
-use ide_app::shaped_text::{Clip, TextShaper, Viewport, stack_fits, stack_rows, texture_dimension};
+use ide_app::shaped_text::{
+    Clip,
+    TextShaper,
+    Viewport,
+    stack_fits,
+    stack_rows,
+    texture_dimension,
+};
 /// What a tile draws,
 /// read as data.
 use ide_app::tile_scene::{
-    paint_stack, paint_tile,
-    read::{center_y, drawn_runs, drawn_strokes},
+    paint_stack,
+    paint_tile,
+    read::{
+        center_y,
+        drawn_runs,
+        drawn_strokes,
+    },
     tile_items,
 };
 /// The wrap indicator chain.
-use ide_app::wrap_sign::{SIGN_PAIRS, Sign, SignCoverage, choose_sign};
+use ide_app::wrap_sign::{
+    SIGN_PAIRS,
+    Sign,
+    SignCoverage,
+    choose_sign,
+};
 
 /// Which symbols the fonts of a test show.
 enum Coverage {
@@ -64,7 +95,10 @@ enum Coverage {
 }
 
 impl SignCoverage for Coverage {
-    fn can_display(&mut self, character: char) -> bool {
+    fn can_display(
+        &mut self,
+        character: char,
+    ) -> bool {
         return match self {
             Coverage::All => true,
             Coverage::Without(lacking) => character != *lacking,
@@ -233,7 +267,11 @@ fn a_million_lines_stay_cheap() {
 
 /// A viewport of `count` lines from `first`,
 /// wrapped at `wrap` logical pixels.
-fn viewport(first: usize, count: usize, wrap: f32) -> Viewport {
+fn viewport(
+    first: usize,
+    count: usize,
+    wrap: f32,
+) -> Viewport {
     return Viewport {
         first,
         count,

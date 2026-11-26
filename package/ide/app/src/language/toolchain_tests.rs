@@ -3,12 +3,34 @@
 //!  and the retry rule.
 
 use super::{
-    ARGUMENTS, COMMAND_LINE, Failed, PLAN_FILE, PROGRAM, Provided, RETRY_AFTER, Runner, TIME_LIMIT,
-    ToolchainRequest, ToolchainState,
-    command::{Completed, Invocation, RunFailure},
-    due, entry_point, resolve_disabled, resolve_with,
+    ARGUMENTS,
+    COMMAND_LINE,
+    Failed,
+    PLAN_FILE,
+    PROGRAM,
+    Provided,
+    RETRY_AFTER,
+    Runner,
+    TIME_LIMIT,
+    ToolchainRequest,
+    ToolchainState,
+    command::{
+        Completed,
+        Invocation,
+        RunFailure,
+    },
+    due,
+    entry_point,
+    resolve_disabled,
+    resolve_with,
 };
-use std::{cell::RefCell, fs, path::Path, path::PathBuf, time::Duration};
+use std::{
+    cell::RefCell,
+    fs,
+    path::Path,
+    path::PathBuf,
+    time::Duration,
+};
 
 fn request(root: &Path) -> ToolchainRequest {
     return ToolchainRequest {
@@ -18,7 +40,10 @@ fn request(root: &Path) -> ToolchainRequest {
     };
 }
 
-fn done(stdout: &str, stderr: &str) -> Result<Completed, RunFailure> {
+fn done(
+    stdout: &str,
+    stderr: &str,
+) -> Result<Completed, RunFailure> {
     return Ok(Completed {
         success: true,
         status: "exit status: 0".to_string(),
@@ -45,7 +70,11 @@ struct Double {
 }
 
 impl Runner for Double {
-    fn run(&self, invocation: &Invocation, limit: Duration) -> Result<Completed, RunFailure> {
+    fn run(
+        &self,
+        invocation: &Invocation,
+        limit: Duration,
+    ) -> Result<Completed, RunFailure> {
         self.seen.borrow_mut().push((invocation.clone(), limit));
         return self.answer.clone();
     }
@@ -62,7 +91,10 @@ fn worktree(root: &Path) -> PathBuf {
 }
 
 /// The pinned answer of `doc/planning/mpm-toolchain-migration.md`.
-fn answer(dirs: &[&str], bins: &[(&str, &str)]) -> String {
+fn answer(
+    dirs: &[&str],
+    bins: &[(&str, &str)],
+) -> String {
     let listed: Vec<String> = dirs.iter().map(|dir| format!("{dir:?}")).collect();
     let links: Vec<String> = bins
         .iter()
@@ -84,7 +116,10 @@ fn program_of(root: &Path) -> PathBuf {
 
 /// The two arguments of the lookup.
 fn lookup_arguments() -> Vec<String> {
-    return ARGUMENTS.iter().map(|argument| return (*argument).to_string()).collect();
+    return ARGUMENTS
+        .iter()
+        .map(|argument| return (*argument).to_string())
+        .collect();
 }
 
 /// Run resolution and return the state with every invocation and limit the double saw.
@@ -236,7 +271,10 @@ fn a_failed_run_quotes_the_lookup() {
     let stderr = "mpm-shadow: toolchain.lock.json is unreadable
 ";
     let (state, _) = resolve(&root, exited(stderr));
-    let ToolchainState::Failed(Failed { message }) = state else {
+    let ToolchainState::Failed(Failed {
+        message,
+    }) = state
+    else {
         panic!("not failed: {state:?}");
     };
     assert!(
@@ -297,7 +335,9 @@ fn a_worktree_without_the_installed_program_fails_with_the_install_remedy_and_ru
         panic!("not failed: {state:?}");
     };
     assert!(
-        failed.message.starts_with(&format!("`{COMMAND_LINE}` cannot run: ")),
+        failed
+            .message
+            .starts_with(&format!("`{COMMAND_LINE}` cannot run: ")),
         "{}",
         failed.message
     );

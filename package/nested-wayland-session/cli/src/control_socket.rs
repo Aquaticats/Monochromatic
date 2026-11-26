@@ -8,15 +8,27 @@
 ///  restricted to owner-only access,
 ///  then renamed to the requested path.
 use std::{
-    fs::{DirBuilder, File},
+    fs::{
+        DirBuilder,
+        File,
+    },
     io::ErrorKind,
     os::unix::{
-        fs::{DirBuilderExt, PermissionsExt},
+        fs::{
+            DirBuilderExt,
+            PermissionsExt,
+        },
         io::AsRawFd,
         net::UnixListener,
     },
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU32, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU32,
+        Ordering,
+    },
 };
 
 /// The error channel the binding steps report through.
@@ -26,7 +38,10 @@ use anyhow::Result;
 use crate::lazy_error_text::with_message;
 
 /// The log line that makes the address discoverable.
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// Mode of the control socket file:
 ///  read and write for the owner,
@@ -117,17 +132,23 @@ impl Staging {
                 }
             }
         }
-        anyhow::bail!("no unused staging directory name was found in {}", parent.display())
+        anyhow::bail!(
+            "no unused staging directory name was found in {}",
+            parent.display()
+        )
     }
 
     /// Path of the socket file inside the directory.
     fn socket_path(&self) -> PathBuf {
-        return self.directory.join(STAGED_NAME)
+        return self.directory.join(STAGED_NAME);
     }
 
     /// Path through the open descriptor that always fits a Unix socket address.
     fn descriptor_socket_path(&self) -> PathBuf {
-        return PathBuf::from(format!("/proc/self/fd/{}/{STAGED_NAME}", self.handle.as_raw_fd()))
+        return PathBuf::from(format!(
+            "/proc/self/fd/{}/{STAGED_NAME}",
+            self.handle.as_raw_fd()
+        ));
     }
 }
 
@@ -140,10 +161,16 @@ impl Drop for Staging {
         if let Err(error) = std::fs::remove_file(self.socket_path())
             && error.kind() != ErrorKind::NotFound
         {
-            warn!("removing the staged control socket in {} failed: {error}", self.directory.display());
+            warn!(
+                "removing the staged control socket in {} failed: {error}",
+                self.directory.display()
+            );
         }
         if let Err(error) = std::fs::remove_dir(&self.directory) {
-            warn!("removing the staging directory {} failed: {error}", self.directory.display());
+            warn!(
+                "removing the staging directory {} failed: {error}",
+                self.directory.display()
+            );
         }
     }
 }
@@ -189,7 +216,10 @@ pub fn bind_listener(path: &Path) -> Result<UnixListener> {
     // Why:      A leftover socket file from a previous run is replaced by the new one.
     if path.exists() {
         let removed = std::fs::remove_file(path);
-        with_message(removed, format_args!("removing stale control socket {}", path.display()))?;
+        with_message(
+            removed,
+            format_args!("removing stale control socket {}", path.display()),
+        )?;
     }
 
     // What:     The directory that will hold the socket,
@@ -199,27 +229,44 @@ pub fn bind_listener(path: &Path) -> Result<UnixListener> {
         Some(directory) if !directory.as_os_str().is_empty() => directory,
         _ => Path::new("."),
     };
-    let staging = with_message(Staging::create(parent), format_args!("binding control socket {}", path.display()))?;
+    let staging = with_message(
+        Staging::create(parent),
+        format_args!("binding control socket {}", path.display()),
+    )?;
 
     // What:     Bind at the staged path,
     //           and again through the directory descriptor when the staged path is too long.
     // Why:      The staged path is longer than `path`,
     //           so a path that just fits a socket address needs the descriptor form.
     let bound = match UnixListener::bind(staging.socket_path()) {
-        Err(error) if error.kind() == ErrorKind::InvalidInput => UnixListener::bind(staging.descriptor_socket_path()),
+        Err(error) if error.kind() == ErrorKind::InvalidInput => {
+            UnixListener::bind(staging.descriptor_socket_path())
+        }
         outcome => outcome,
     };
-    let listener = with_message(bound, format_args!("binding control socket {}", path.display()))?;
+    let listener = with_message(
+        bound,
+        format_args!("binding control socket {}", path.display()),
+    )?;
 
     // What:     Set the socket file to the owner-only mode.
     // Why:      The directory keeps the socket unreachable until this and the rename are done.
-    let restricted_socket = std::fs::set_permissions(staging.socket_path(), std::fs::Permissions::from_mode(SOCKET_MODE));
-    with_message(restricted_socket, format_args!("restricting control socket {} to its owner", path.display()))?;
+    let restricted_socket = std::fs::set_permissions(
+        staging.socket_path(),
+        std::fs::Permissions::from_mode(SOCKET_MODE),
+    );
+    with_message(
+        restricted_socket,
+        format_args!("restricting control socket {} to its owner", path.display()),
+    )?;
 
     // What:     Move the socket to the requested path.
     // Why:      The rename is atomic and keeps the mode and the listening state.
     let moved = std::fs::rename(staging.socket_path(), path);
-    with_message(moved, format_args!("moving the bound control socket to {}", path.display()))?;
+    with_message(
+        moved,
+        format_args!("moving the bound control socket to {}", path.display()),
+    )?;
 
     // What:     `info!(...)`. Log where the control socket lives.
     // Why:      Make the address discoverable.
@@ -227,7 +274,7 @@ pub fn bind_listener(path: &Path) -> Result<UnixListener> {
 
     // What:     `Ok(listener)`. Return the bound listener.
     // Why:      Hand it to the control thread.
-    return Ok(listener)
+    return Ok(listener);
 }
 
 /// Unit tests for the socket modes and the staging directory.

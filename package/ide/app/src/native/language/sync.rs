@@ -11,9 +11,15 @@
 //!  a request for text it does not hold.
 
 /// The language state and the surface helper that reads the displayed stamp.
-use super::{Language, surface::displayed};
+use super::{
+    Language,
+    surface::displayed,
+};
 /// The window reports the scroll offset and the viewport height.
-use crate::native::{AppWindow, State};
+use crate::native::{
+    AppWindow,
+    State,
+};
 /// What:
 ///  `anyhow::Result<bool>` is "told the worker" (true),
 ///  "try again" (false),
@@ -29,7 +35,10 @@ use crate::native::{AppWindow, State};
 use anyhow::Result;
 /// Commands and the identities they carry.
 use ide_app::language::{
-    hints::{HintWindow, request_lines},
+    hints::{
+        HintWindow,
+        request_lines,
+    },
     identity::DocumentStamp,
     sync::DocumentOpen,
 };
@@ -50,7 +59,10 @@ use ide_app::row_map::CODE_ROW;
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// How long the visible lines must stay the same before hints are asked for them.
@@ -95,7 +107,10 @@ pub(super) struct HintLines {
 /// ```ts
 /// function update(language: Language, source: Shared<State>): boolean
 /// ```
-pub(super) fn update(language: &mut Language, source: &Rc<RefCell<State>>) -> Result<bool> {
+pub(super) fn update(
+    language: &mut Language,
+    source: &Rc<RefCell<State>>,
+) -> Result<bool> {
     // `let Some(worker) = ... else` leaves when language support is off.
     let Some(worker) = language.worker.as_mut() else {
         return Ok(false);

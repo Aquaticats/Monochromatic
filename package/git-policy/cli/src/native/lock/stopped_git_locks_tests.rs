@@ -61,7 +61,10 @@ fn ledger_of(repo: &Repo) -> LockLedger {
 /// a short-lived process,
 /// recorded while it ran and reaped.
 fn ended_member() -> TreeMember {
-    let mut child: Child = Command::new("sleep").arg("0.3").spawn().expect("start sleep");
+    let mut command: Command = Command::new("sleep");
+    command.arg("0.3");
+    // Owned, so even this short-lived stand-in is the test thread's if an assertion unwinds before it is reaped.
+    let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("start sleep");
     let member: TreeMember = crate::process_tree::member_of(i32::try_from(child.id()).expect("pid")).expect("a running process");
     child.wait().expect("reap sleep");
     return member;

@@ -201,14 +201,19 @@ fn install(ansi: Option<bool>) {
 /// ```ts
 /// function installWith(writer: MakeWriter, ansi?: boolean): boolean { return buildSubscriber(filter(process.env.RUST_LOG), writer, ansi).tryInit(); }
 /// ```
-pub(crate) fn install_with<W>(writer: W, ansi: Option<bool>) -> bool
+pub(crate) fn install_with<W>(
+    writer: W,
+    ansi: Option<bool>,
+) -> bool
 where
     W: for<'writer> tracing_subscriber::fmt::MakeWriter<'writer> + Send + Sync + 'static,
 {
     // The level filter from RUST_LOG, or the default when the variable is unset, empty or malformed.
     let env_filter: EnvFilter = filter(std::env::var("RUST_LOG").ok().as_deref());
     // A fmt subscriber writing to `writer`.
-    let builder = tracing_subscriber::fmt().with_env_filter(env_filter).with_writer(writer);
+    let builder = tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_writer(writer);
     // `.finish()` returns the subscriber; `try_init` installs it together with the `log` bridge.
     let subscriber = match ansi {
         Some(colors) => builder.with_ansi(colors).finish(),

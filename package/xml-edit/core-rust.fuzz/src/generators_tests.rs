@@ -9,14 +9,20 @@
 //! describe('generators', () => { /* validity sweep, mutation */ });
 //! ```
 
-use arbitrary::{Arbitrary, Unstructured};
+use arbitrary::{
+    Arbitrary,
+    Unstructured,
+};
 use monochromatic_xml_edit::parse_xml;
 
-use crate::generators::mutated;
 use crate::GeneratedDocument;
+use crate::generators::mutated;
 
 /// Build a deterministic byte pattern of the given length from a seed.
-fn pattern(seed: u32, length: usize) -> Vec<u8> {
+fn pattern(
+    seed: u32,
+    length: usize,
+) -> Vec<u8> {
     let mut state: u32 = seed.wrapping_mul(2_654_435_761).wrapping_add(12_345);
     let mut bytes: Vec<u8> = Vec::with_capacity(length);
     for _ in 0..length {
@@ -35,10 +41,17 @@ fn generated_documents_are_well_formed() {
         let mut unstructured: Unstructured<'_> = Unstructured::new(&bytes);
         if let Ok(document) = GeneratedDocument::arbitrary(&mut unstructured) {
             generated += 1;
-            assert!(parse_xml(&document.source).is_ok(), "seed {seed} produced {:?}", document.source);
+            assert!(
+                parse_xml(&document.source).is_ok(),
+                "seed {seed} produced {:?}",
+                document.source
+            );
         }
     }
-    assert!(generated > 1_500, "only {generated} documents were generated");
+    assert!(
+        generated > 1_500,
+        "only {generated} documents were generated"
+    );
 }
 
 /// Check the sweep reaches the constructs the grammar cares about.
@@ -52,8 +65,22 @@ fn the_sweep_reaches_every_construct() {
             combined.push_str(&document.source);
         }
     }
-    for needle in ["\u{FEFF}", "<?xml", "<![CDATA[", "<!--", "&#10;", "\r\n", "\t", "'single'", " />", "ns:item"] {
-        assert!(combined.contains(needle), "generator never produced {needle:?}");
+    for needle in [
+        "\u{FEFF}",
+        "<?xml",
+        "<![CDATA[",
+        "<!--",
+        "&#10;",
+        "\r\n",
+        "\t",
+        "'single'",
+        " />",
+        "ns:item",
+    ] {
+        assert!(
+            combined.contains(needle),
+            "generator never produced {needle:?}"
+        );
     }
 }
 

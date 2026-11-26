@@ -13,21 +13,44 @@
 
 /// Real key events through the window,
 ///  shared with the find tests.
-use super::find_tests::{chord, key, type_text};
+use super::find_tests::{
+    chord,
+    key,
+    type_text,
+};
 /// Bounded waits and tree-row lookup shared with the navigation tests.
 use super::navigation_tests::row;
 /// The source-empty reader and the double-Shift opener of the search tests.
-use super::search_tests::{Reader, open, reader};
+use super::search_tests::{
+    Reader,
+    open,
+    reader,
+};
 /// Rendered frames and single pixels,
 ///  shared with the sidebar paint tests.
-use super::sidebar_paint_tests::{frame, pixel};
+use super::sidebar_paint_tests::{
+    frame,
+    pixel,
+};
 /// Pointer helpers that dispatch real window events.
-use super::sidebar_tests::{motion, press, release, resize, settle};
+use super::sidebar_tests::{
+    motion,
+    press,
+    release,
+    resize,
+    settle,
+};
 /// The scheme switch the desktop-settings watcher makes,
 ///  and color bytes.
-use super::theme_tests::{rgba, switch};
+use super::theme_tests::{
+    rgba,
+    switch,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// What:
 ///  `ColorScheme` is the toolkit's scheme enum (`Unknown`,
 ///  `Dark`,
@@ -51,8 +74,13 @@ use slint::private_unstable_api::re_exports::ColorScheme;
 ///  key names,
 ///  and the left pointer button for a held press.
 use slint::{
-    ComponentHandle, Rgba8Pixel, SharedPixelBuffer,
-    platform::{Key, PointerEventButton},
+    ComponentHandle,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    platform::{
+        Key,
+        PointerEventButton,
+    },
 };
 /// Fixture files are written into a disposable project directory.
 use std::fs;

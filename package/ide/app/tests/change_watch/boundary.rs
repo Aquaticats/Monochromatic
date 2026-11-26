@@ -4,7 +4,15 @@
 /// Waits,
 ///  kernel probes,
 ///  and fixture helpers shared by this crate.
-use super::support::{Arrival, kernel_watches, quiet, set, settle, start, watching};
+use super::support::{
+    Arrival,
+    kernel_watches,
+    quiet,
+    set,
+    settle,
+    start,
+    watching,
+};
 /// What:
 ///  notify's event constructors build a synthetic event exactly like the inotify backend's.
 /// Why:
@@ -16,8 +24,12 @@ use super::support::{Arrival, kernel_watches, quiet, set, settle, start, watchin
 /// const event = new NotifyEvent({ kind: 'modify-data', paths: [outside] });
 /// ```
 use notify::{
-    Event, EventKind,
-    event::{DataChange, ModifyKind},
+    Event,
+    EventKind,
+    event::{
+        DataChange,
+        ModifyKind,
+    },
 };
 /// What:
 ///  `std::os::unix::fs::symlink` creates a symbolic link (siblings:
@@ -34,7 +46,10 @@ use notify::{
 use std::{
     fs,
     os::unix::fs::symlink,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Folders outside the root,
@@ -44,7 +59,8 @@ use std::{
 #[test]
 fn folders_outside_the_root_are_never_watched_or_reported() {
     let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
-    let elsewhere = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable outside folder");
+    let elsewhere =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable outside folder");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let outside = elsewhere
@@ -103,7 +119,8 @@ fn folders_outside_the_root_are_never_watched_or_reported() {
 #[test]
 fn events_naming_paths_outside_the_root_are_ignored() {
     let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
-    let elsewhere = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable outside folder");
+    let elsewhere =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable outside folder");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let outside = elsewhere
@@ -161,7 +178,8 @@ fn dropping_the_watcher_removes_its_kernel_watches() {
 #[test]
 fn a_displayed_file_outside_the_root_is_not_watched_and_not_a_failure() {
     let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
-    let elsewhere = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable outside folder");
+    let elsewhere =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable outside folder");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let outside = elsewhere

@@ -32,7 +32,10 @@
 /// from a `format_args!` value.
 use crate::lazy_error_text::ExplainedError;
 /// Imports `fs` and `File` to open and list the object files.
-use std::fs::{self, File};
+use std::fs::{
+    self,
+    File,
+};
 // Imports `std::io::Read`.
 /// Imports `Read`,
 /// which adds `read_to_end` to the zlib decoder.
@@ -50,14 +53,21 @@ use std::os::unix::fs::FileExt;
 // // TS has one type for this: string
 // ```
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `flate2::read::ZlibDecoder`.
 /// Imports the zlib decoder that reads a loose object header.
-use flate2::{Decompress, FlushDecompress, Status};
+use flate2::{
+    Decompress,
+    FlushDecompress,
+    Status,
+};
 
 /// The check that a commit stored in a pack file is a commit (split out of the git objects module).
-pub(crate) use crate::git_objects_packed_commit::{packed_commit};
+pub(crate) use crate::git_objects_packed_commit::packed_commit;
 
 /// The object name length of a SHA-1 repository,
 /// in hexadecimal digits.
@@ -183,7 +193,11 @@ fn hex_to_bytes(hex: &str) -> Option<[u8; OBJECT_NAME_BYTES]> {
 /// ```ts
 /// const readAt = (file: number, offset: number, length: number): Buffer => ...
 /// ```
-pub(crate) fn read_at(file: &File, offset: u64, length: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_at(
+    file: &File,
+    offset: u64,
+    length: usize,
+) -> std::io::Result<Vec<u8>> {
     // `let mut`: a binding that may change.
     // Typed binding: `bytes: Vec<u8>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
@@ -199,7 +213,10 @@ pub(crate) fn read_at(file: &File, offset: u64, length: usize) -> std::io::Resul
 /// `fn fanout_entry(fanout: &[u8], position: usize) -> u64` reads one four-byte entry of a pack index fan-out table.
 /// Why:
 /// A function replaces the closure that captured the table.
-pub(crate) fn fanout_entry(fanout: &[u8], position: usize) -> u64 {
+pub(crate) fn fanout_entry(
+    fanout: &[u8],
+    position: usize,
+) -> u64 {
     return big_endian(&fanout[position * 4..position * 4 + 4]);
 }
 
@@ -250,7 +267,10 @@ pub(crate) fn big_endian(bytes: &[u8]) -> u64 {
 /// ```ts
 /// function packOffset(index: number, name: Uint8Array): number | undefined
 /// ```
-pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u64>, String> {
+pub(crate) fn pack_offset(
+    index: &File,
+    name: &[u8; OBJECT_NAME_BYTES],
+) -> Result<Option<u64>, String> {
     // Closure `|error: std::io::Error|`: an anonymous function, like a TS arrow function.
     // Macro `format!`: builds or prints text (or a list) from a template.
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -268,7 +288,8 @@ pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Resul
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `fanout: Vec<u8>`.
-    let fanout: Vec<u8> = read_at(index, fanout_start, FANOUT_ENTRIES * 4).map_err(index_failure)?;
+    let fanout: Vec<u8> =
+        read_at(index, fanout_start, FANOUT_ENTRIES * 4).map_err(index_failure)?;
     // Closure `|position: usize|`: an anonymous function, like a TS arrow function.
     // Borrow `&fanout`: lends the value without copying or giving it away.
     // Typed binding: `total: u64`.
@@ -284,7 +305,11 @@ pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Resul
     // ```
     // `let mut`: a binding that may change.
     // Typed binding: `low: u64`.
-    let mut low: u64 = if first_byte == 0 { 0 } else { fanout_entry(&fanout, first_byte - 1) };
+    let mut low: u64 = if first_byte == 0 {
+        0
+    } else {
+        fanout_entry(&fanout, first_byte - 1)
+    };
     // `let mut`: a binding that may change.
     // Typed binding: `high: u64`.
     let mut high: u64 = fanout_entry(&fanout, first_byte);
@@ -298,7 +323,12 @@ pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Resul
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `found: Vec<u8>`.
         // Cast `as u64`: converts between numeric types.
-        let found: Vec<u8> = read_at(index, names_start + middle * OBJECT_NAME_BYTES as u64, OBJECT_NAME_BYTES).map_err(index_failure)?;
+        let found: Vec<u8> = read_at(
+            index,
+            names_start + middle * OBJECT_NAME_BYTES as u64,
+            OBJECT_NAME_BYTES,
+        )
+        .map_err(index_failure)?;
         // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
         // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
         //
@@ -315,7 +345,9 @@ pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Resul
                 // Borrow `&read_at`: lends the value without copying or giving it away.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 // Typed binding: `small: u64`.
-                let small: u64 = big_endian(&read_at(index, offsets_start + middle * 4, 4).map_err(index_failure)?);
+                let small: u64 = big_endian(
+                    &read_at(index, offsets_start + middle * 4, 4).map_err(index_failure)?,
+                );
                 if small & 0x8000_0000 == 0 {
                     // `Ok(...)`: builds the success or the failure variant of a `Result`.
                     // `Some`: the present or the absent value of an `Option`.
@@ -326,7 +358,8 @@ pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Resul
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 // Typed binding: `large: Vec<u8>`.
-                let large: Vec<u8> = read_at(index, large_start + (small & 0x7fff_ffff) * 8, 8).map_err(index_failure)?;
+                let large: Vec<u8> = read_at(index, large_start + (small & 0x7fff_ffff) * 8, 8)
+                    .map_err(index_failure)?;
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 // `Some`: the present or the absent value of an `Option`.
                 // Borrow `&large`: lends the value without copying or giving it away.
@@ -370,14 +403,25 @@ pub(crate) const PACK_HEADER_BYTES: usize = 12;
 pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
     // Opened without waiting and without following a final link: a path swapped for a FIFO after any earlier check cannot block
     // the open, and the descriptor that was opened is the one inspected (round 6, 5a F7).
-    let flags: i32 = (rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::NOFOLLOW).bits().try_into().unwrap_or(0);
-    let file: File = std::os::unix::fs::OpenOptionsExt::custom_flags(std::fs::OpenOptions::new().read(true), flags).open(path).described(format_args!("{} cannot be read", path.display()))?;
+    let flags: i32 = (rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::NOFOLLOW)
+        .bits()
+        .try_into()
+        .unwrap_or(0);
+    let file: File = std::os::unix::fs::OpenOptionsExt::custom_flags(
+        std::fs::OpenOptions::new().read(true),
+        flags,
+    )
+    .open(path)
+    .described(format_args!("{} cannot be read", path.display()))?;
     let is_file: bool = match file.metadata() {
         Ok(metadata) => metadata.file_type().is_file(),
         Err(_) => false,
     };
     if !is_file {
-        return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
+        return Err(format!(
+            "{} is not a regular file, so only Git reads it",
+            path.display()
+        ));
     }
     return Ok(file);
 }
@@ -395,13 +439,20 @@ pub(crate) fn looks_like_commit(body: &[u8]) -> bool {
     // Git's `parse_commit_buffer` (commit.c): the tree line must be followed by at least one more byte, and so must every
     // parent line (`tail <= bufptr + entry_len + 1` is an error). Mirrored exactly, never loosened (round 6, 5a F3 A).
     let tree_entry: usize = "tree ".len() + OBJECT_NAME_DIGITS;
-    if body.len() <= tree_entry + 1 || !body.starts_with(b"tree ") || !is_object_name(&body[5..tree_entry]) || body[tree_entry] != b'\n' {
+    if body.len() <= tree_entry + 1
+        || !body.starts_with(b"tree ")
+        || !is_object_name(&body[5..tree_entry])
+        || body[tree_entry] != b'\n'
+    {
         return false;
     }
     let parent_entry: usize = "parent ".len() + OBJECT_NAME_DIGITS;
     let mut position: usize = tree_entry + 1;
     while position + parent_entry < body.len() && body[position..].starts_with(b"parent ") {
-        if body.len() <= position + parent_entry + 1 || !is_object_name(&body[position + 7..position + parent_entry]) || body[position + parent_entry] != b'\n' {
+        if body.len() <= position + parent_entry + 1
+            || !is_object_name(&body[position + 7..position + parent_entry])
+            || body[position + parent_entry] != b'\n'
+        {
             return false;
         }
         position += parent_entry + 1;
@@ -422,7 +473,11 @@ pub(crate) fn looks_like_commit(body: &[u8]) -> bool {
 /// ```ts
 /// function inflateComplete(source: Readable, outputLimit: number, inputLimit: number): Buffer  // throws unless the stream ended
 /// ```
-pub(crate) fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64) -> Result<(Vec<u8>, u64), String> {
+pub(crate) fn inflate_complete(
+    mut source: impl Read,
+    output_limit: usize,
+    input_limit: u64,
+) -> Result<(Vec<u8>, u64), String> {
     // `let mut`: a binding that may change.
     // Typed binding: `inflater: Decompress`.
     let mut inflater: Decompress = Decompress::new(true);
@@ -463,7 +518,9 @@ pub(crate) fn inflate_complete(mut source: impl Read, output_limit: usize, input
             // Borrow `&mut input`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            available = source.read(&mut input).described(format_args!("an object could not be read"))?;
+            available = source
+                .read(&mut input)
+                .described(format_args!("an object could not be read"))?;
             used = 0;
             // Cast `as u64`: converts between numeric types.
             read_total += available as u64;
@@ -484,7 +541,9 @@ pub(crate) fn inflate_complete(mut source: impl Read, output_limit: usize, input
         // Borrow `&input`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let status = inflater.decompress(&input[used..available], &mut chunk, FlushDecompress::None).described(format_args!("an object is not a valid zlib stream"))?;
+        let status = inflater
+            .decompress(&input[used..available], &mut chunk, FlushDecompress::None)
+            .described(format_args!("an object is not a valid zlib stream"))?;
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         used += usize::try_from(inflater.total_in() - before_in).unwrap_or(0);
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -528,7 +587,10 @@ pub(crate) fn inflate_complete(mut source: impl Read, output_limit: usize, input
 /// ```
 fn canonical_size(text: &str) -> Option<usize> {
     // Closure `|byte|`: an anonymous function, like a TS arrow function.
-    if text.is_empty() || !text.bytes().all(is_digit_byte) || (text.len() > 1 && text.starts_with('0')) {
+    if text.is_empty()
+        || !text.bytes().all(is_digit_byte)
+        || (text.len() > 1 && text.starts_with('0'))
+    {
         // `None`: the present or the absent value of an `Option`.
         return None;
     }
@@ -552,7 +614,10 @@ fn canonical_size(text: &str) -> Option<usize> {
 /// ```ts
 /// function looseCommit(path: string): void  // throws when the object is not a whole commit
 /// ```
-fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), String> {
+fn loose_commit(
+    path: &Path,
+    name: &[u8; OBJECT_NAME_BYTES],
+) -> Result<(), String> {
     let file: File = open_regular(path)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|message|`: an anonymous function, like a TS arrow function.
@@ -560,8 +625,16 @@ fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), Strin
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `inflated: Vec<u8>`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let length: u64 = file.metadata().described(format_args!("{} cannot be inspected", path.display()))?.len();
-    let (inflated, consumed): (Vec<u8>, u64) = inflate_complete(file, usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX), MAX_COMMIT_BYTES).described(format_args!("{}", path.display()))?;
+    let length: u64 = file
+        .metadata()
+        .described(format_args!("{} cannot be inspected", path.display()))?
+        .len();
+    let (inflated, consumed): (Vec<u8>, u64) = inflate_complete(
+        file,
+        usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX),
+        MAX_COMMIT_BYTES,
+    )
+    .described(format_args!("{}", path.display()))?;
     let mut header_end: Option<usize> = None;
     for (position, byte) in inflated.iter().enumerate() {
         if *byte == 0 {
@@ -574,7 +647,10 @@ fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), Strin
     };
     let header: String = String::from_utf8_lossy(&inflated[..end]).to_string();
     let Some((kind, size)) = header.split_once(' ') else {
-        return Err(format!("{} has the object header {header:?}", path.display()));
+        return Err(format!(
+            "{} has the object header {header:?}",
+            path.display()
+        ));
     };
     if kind != "commit" {
         return Err(format!("{} is a {kind}, not a commit", path.display()));
@@ -586,10 +662,16 @@ fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), Strin
     }
     // Git rejects bytes after the end of a loose object's stream ("garbage at end of loose object") and checks the signature.
     if consumed != length {
-        return Err(format!("{} has bytes after its compressed stream, which only Git judges", path.display()));
+        return Err(format!(
+            "{} has bytes after its compressed stream, which only Git judges",
+            path.display()
+        ));
     }
     if crate::git_sha1::object_name("commit", body) != *name {
-        return Err(format!("{} does not hash to its own name, which only Git judges", path.display()));
+        return Err(format!(
+            "{} does not hash to its own name, which only Git judges",
+            path.display()
+        ));
     }
     return Ok(());
 }
@@ -652,19 +734,26 @@ fn replace_refs_in_use(common_dir: &Path) -> Result<bool, String> {
 /// ```ts
 /// export function confirmCommit(commonDir: string, object: string): void  // throws when the object is not seen to be a commit
 /// ```
-pub fn confirm_commit(common_dir: &Path, object: &str) -> Result<(), String> {
+pub fn confirm_commit(
+    common_dir: &Path,
+    object: &str,
+) -> Result<(), String> {
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     let Some(name) = hex_to_bytes(object) else {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{object:?} is not an object name of a SHA-1 repository"));
+        return Err(format!(
+            "{object:?} is not an object name of a SHA-1 repository"
+        ));
     };
     for unsupported in ["objects/info/alternates", "info/grafts"] {
         if common_dir.join(unsupported).exists() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("the repository has {unsupported}, which only Git applies"));
+            return Err(format!(
+                "the repository has {unsupported}, which only Git applies"
+            ));
         }
     }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -688,5 +777,7 @@ pub fn confirm_commit(common_dir: &Path, object: &str) -> Result<(), String> {
     }
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(format!("{object} was not seen as a commit in the object files"));
+    return Err(format!(
+        "{object} was not seen as a commit in the object files"
+    ));
 }

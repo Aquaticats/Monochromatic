@@ -14,8 +14,12 @@ use super::*;
 // ```ts
 // const copyOf = (state: FirstRunState, folderName: string | null) => firstRunCopy(state, folderName);
 // ```
-fn copy_of(state: FirstRunState, folder_name: Option<&str>) -> FirstRunCopy {
-    return first_run_copy(state, folder_name).expect("copy for a state with a non-blank folder name");
+fn copy_of(
+    state: FirstRunState,
+    folder_name: Option<&str>,
+) -> FirstRunCopy {
+    return first_run_copy(state, folder_name)
+        .expect("copy for a state with a non-blank folder name");
 }
 
 // What:     `#[test] fn declined_title_is_exact()` checks the declined headline word for word.
@@ -161,7 +165,10 @@ fn folder_name_is_ignored_by_other_states() {
 fn no_state_offers_analysis_choice() {
     for state in FirstRunState::ALL {
         let copy = copy_of(state, Some("Albums"));
-        let labels = copy.primary_action.into_iter().chain(copy.secondary_actions.iter().copied());
+        let labels = copy
+            .primary_action
+            .into_iter()
+            .chain(copy.secondary_actions.iter().copied());
         for label in labels {
             assert!(
                 !label.to_lowercase().contains("analys"),
@@ -209,7 +216,10 @@ fn analysis_explanation_is_exact() {
 // Why:      The start with no folder open is shown only on desktop, so its copy is pinned here.
 #[test]
 fn no_folder_open_title_is_exact() {
-    assert_eq!(copy_of(FirstRunState::NoFolderOpen, None).title, "No folder is open");
+    assert_eq!(
+        copy_of(FirstRunState::NoFolderOpen, None).title,
+        "No folder is open"
+    );
 }
 
 // What:     `#[test] fn no_folder_open_offers_open_folder_then_settings()` checks the filled and outlined actions.
@@ -226,7 +236,10 @@ fn no_folder_open_offers_open_folder_then_settings() {
 // Why:      No folder exists in this state, so a supplied name must not leak into the copy.
 #[test]
 fn no_folder_open_ignores_a_folder_name() {
-    assert_eq!(copy_of(FirstRunState::NoFolderOpen, Some("Albums")).title, "No folder is open");
+    assert_eq!(
+        copy_of(FirstRunState::NoFolderOpen, Some("Albums")).title,
+        "No folder is open"
+    );
 }
 
 // What:     `#[test] fn the_folder_name_sits_on_its_own_line_so_a_hyphenated_name_is_never_split_by_the_headline()`.
@@ -234,7 +247,10 @@ fn no_folder_open_ignores_a_folder_name() {
 #[test]
 fn the_folder_name_sits_on_its_own_line_so_a_hyphenated_name_is_never_split_by_the_headline() {
     let title = copy_of(FirstRunState::FolderNoAudio, Some("lib-noaudio")).title;
-    assert_eq!(title.lines().collect::<Vec<_>>(), ["No audio found in", "lib-noaudio"]);
+    assert_eq!(
+        title.lines().collect::<Vec<_>>(),
+        ["No audio found in", "lib-noaudio"]
+    );
 }
 
 // What:     `#[test] fn reading_says_the_library_is_being_read_and_names_no_folder()`.
@@ -243,10 +259,17 @@ fn the_folder_name_sits_on_its_own_line_so_a_hyphenated_name_is_never_split_by_t
 fn reading_says_the_library_is_being_read_and_names_no_folder() {
     let copy = copy_of(FirstRunState::Reading, None);
     assert_eq!(copy.title, "Reading your library");
-    assert_eq!(copy.primary_action, None, "nothing is wrong, so there is no action to take");
+    assert_eq!(
+        copy.primary_action, None,
+        "nothing is wrong, so there is no action to take"
+    );
     assert_eq!(copy.secondary_actions, [SETTINGS_LABEL]);
     assert!(!copy.explains_analysis);
-    assert_eq!(copy_of(FirstRunState::Reading, Some("Albums")), copy, "the copy takes no folder name");
+    assert_eq!(
+        copy_of(FirstRunState::Reading, Some("Albums")),
+        copy,
+        "the copy takes no folder name"
+    );
 }
 
 // What:     `#[test] fn no_copy_uses_the_jargon_the_polish_review_found()`.

@@ -4,7 +4,10 @@
 //!  and applying what a pass measured.
 
 /// Starting the worker and its poll when a pass is posted.
-use super::{start_poll, warm};
+use super::{
+    start_poll,
+    warm,
+};
 /// Applying a pass renders again when a count changed.
 use crate::native::render::render;
 /// The vertical mapping's side of the window:
@@ -13,16 +16,27 @@ use crate::native::rows;
 /// What a background measurement is valid for,
 ///  what it is given,
 ///  and what it produced.
-use crate::native::tile_pass::{PassJob, PassKey, PassOutput};
+use crate::native::tile_pass::{
+    PassJob,
+    PassKey,
+    PassOutput,
+};
 /// Parent state and the window.
-use crate::native::{AppWindow, State};
+use crate::native::{
+    AppWindow,
+    State,
+};
 /// A wrap width must be a positive number of pixels.
 use ide_app::wrap::has_wrap_width;
 /// The window's display scale for the measurement key.
 use slint::ComponentHandle;
 /// The shared window state,
 ///  and the snapshots a pass job owns.
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::Arc,
+};
 
 /// What:
 ///  What the measurements of the window's text at its current scale and wrap width are valid for.
@@ -34,7 +48,10 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 /// ```ts
 /// function currentKey(current: State, scale: number): PassKey;
 /// ```
-pub(in crate::native) fn current_key(current: &State, scale: f32) -> PassKey {
+pub(in crate::native) fn current_key(
+    current: &State,
+    scale: f32,
+) -> PassKey {
     let wrap = if has_wrap_width(current.width) {
         current.width.to_bits()
     } else {
@@ -125,7 +142,11 @@ pub(in crate::native) fn sync_pass(
 /// ```ts
 /// function applyPass(window: AppWindow, state: Shared<State>, output: PassOutput): void;
 /// ```
-pub(super) fn apply_pass(window: &AppWindow, state: &Rc<RefCell<State>>, output: PassOutput) {
+pub(super) fn apply_pass(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    output: PassOutput,
+) {
     let factor = window.window().scale_factor();
     let mut current = state.borrow_mut();
     if output.key != current_key(&current, factor) {

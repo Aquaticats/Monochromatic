@@ -11,30 +11,19 @@
 /// The route override and the route types of the test-only override.
 #[cfg(test)]
 use crate::bounded_run::ROUTE_OVERRIDE;
-/// The settings and the detection of the route.
-use crate::control_group_route_discovery::{RouteSettings, detect_route};
 /// The refusal text and the default discovery that the cache uses.
 use crate::bounded_run::reason_of;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/// The settings and the detection of the route.
+use crate::control_group_route_discovery::{
+    RouteSettings,
+    detect_route,
+};
 
 /// Imports the control group pieces for this file.
-use crate::control_group::{GroupUnavailable, Route};
+use crate::control_group::{
+    GroupUnavailable,
+    Route,
+};
 
 /// The answer of the manager,
 /// kept for the life of the process.
@@ -60,7 +49,9 @@ impl RouteCache {
     /// static new(): RouteCache
     /// ```
     pub(crate) const fn new() -> RouteCache {
-        return RouteCache { slot: std::sync::Mutex::new(None) };
+        return RouteCache {
+            slot: std::sync::Mutex::new(None),
+        };
     }
 
     /// What:
@@ -75,7 +66,10 @@ impl RouteCache {
     /// ```ts
     /// getOrDiscover(discover: () => Route): Route  // throws GroupUnavailable
     /// ```
-    pub(crate) fn get_or_discover(&self, discover: &dyn Fn() -> Result<Route, GroupUnavailable>) -> Result<Route, GroupUnavailable> {
+    pub(crate) fn get_or_discover(
+        &self,
+        discover: &dyn Fn() -> Result<Route, GroupUnavailable>,
+    ) -> Result<Route, GroupUnavailable> {
         if let Ok(held) = self.slot.try_lock()
             && let Some(answer) = held.as_ref()
         {
@@ -103,7 +97,10 @@ impl RouteCache {
     /// holdForTest<T>(work: () => T): T
     /// ```
     #[cfg(test)]
-    pub(crate) fn hold_for_test<T>(&self, work: impl FnOnce() -> T) -> T {
+    pub(crate) fn hold_for_test<T>(
+        &self,
+        work: impl FnOnce() -> T,
+    ) -> T {
         let guard = self.slot.lock();
         let result: T = work();
         drop(guard);
@@ -144,7 +141,11 @@ pub(crate) fn find_route() -> Result<Route, GroupUnavailable> {
 /// ```
 #[cfg(test)]
 pub(crate) fn find_route() -> Result<Route, GroupUnavailable> {
-    let settings: RouteSettings = ROUTE_OVERRIDE.with(|slot| { return slot.borrow().clone(); }).unwrap_or_default();
+    let settings: RouteSettings = ROUTE_OVERRIDE
+        .with(|slot| {
+            return slot.borrow().clone();
+        })
+        .unwrap_or_default();
     return detect_route(&settings);
 }
 
@@ -161,7 +162,9 @@ pub(crate) fn find_route() -> Result<Route, GroupUnavailable> {
 /// ```
 #[cfg(test)]
 pub(crate) fn use_route_settings_for_test(settings: Option<RouteSettings>) {
-    ROUTE_OVERRIDE.with(|slot| { *slot.borrow_mut() = settings; });
+    ROUTE_OVERRIDE.with(|slot| {
+        *slot.borrow_mut() = settings;
+    });
 }
 
 /// What:

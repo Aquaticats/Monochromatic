@@ -42,12 +42,27 @@
 
 /// Files,
 /// paths and child processes.
-use std::{fs, path::{Path, PathBuf}, process::Command, time::Duration};
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::Command,
+    time::Duration,
+};
 
 /// Imports the names this file uses from `crate::bounded_run`.
-use crate::bounded_run::{Bound, RunError, output_within};
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    output_within,
+};
 /// Imports the names this file uses from `crate::lean_policy`.
-use crate::lean_policy::{PAUSE_BETWEEN_PASSES_SECONDS, RUN_DEADLINE_SECONDS};
+use crate::lean_policy::{
+    PAUSE_BETWEEN_PASSES_SECONDS,
+    RUN_DEADLINE_SECONDS,
+};
 
 /// The service unit's file name.
 pub const SERVICE_NAME: &str = "cargo-shadow-lean.service";
@@ -79,7 +94,10 @@ pub const RUNTIME_SLACK_SECONDS: u64 = 1_800;
 /// ```ts
 /// export const renderService = (repository: string, binary: string): string
 /// ```
-pub fn render_service(repository: &Path, binary: &Path) -> String {
+pub fn render_service(
+    repository: &Path,
+    binary: &Path,
+) -> String {
     return format!(
         "# Keeps the build folders lean continuously: every pass of `cargo-shadow lean run` ends on its own deadline,\n\
          # and the next one starts {pause} s later, for as long as the user manager runs.\n\
@@ -127,11 +145,28 @@ pub fn render_service(repository: &Path, binary: &Path) -> String {
 /// function systemctl(args: string[]): string  // throws
 /// ```
 fn systemctl(arguments: &[&str]) -> Result<String, String> {
-    let bound: Bound = Bound { limit: SYSTEMCTL_LIMIT, what: format!("systemctl --user {}", arguments.join(" ")), rerun: String::from("cargo-shadow lean service-install") };
-    return match output_within(Command::new("systemctl").arg("--user").args(arguments), None, &bound) {
-        Ok(output) if output.status.success() => Ok(String::from_utf8_lossy(&output.stdout).to_string()),
+    let bound: Bound = Bound {
+        limit: SYSTEMCTL_LIMIT,
+        what: format!("systemctl --user {}", arguments.join(" ")),
+        rerun: String::from("cargo-shadow lean service-install"),
+    };
+    return match output_within(
+        Command::new("systemctl").arg("--user").args(arguments),
+        None,
+        &bound,
+    ) {
+        Ok(output) if output.status.success() => {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        }
         Ok(output) => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
-        Err(RunError::TimedOut { what, limit, .. }) => Err(format!("{what} did not answer within {} s", limit.as_secs())),
+        Err(RunError::TimedOut {
+            what,
+            limit,
+            ..
+        }) => Err(format!(
+            "{what} did not answer within {} s",
+            limit.as_secs()
+        )),
         Err(other) => Err(format!("{other:?}")),
     };
 }
@@ -170,8 +205,12 @@ pub(crate) fn absent_unit(reason: &str) -> bool {
 fn stop_old_timer() -> Result<String, String> {
     return match systemctl(&["disable", "--now", TIMER_NAME]) {
         Ok(_) => Ok(format!("stopped and disabled {TIMER_NAME}")),
-        Err(reason) if absent_unit(&reason) => Ok(format!("{TIMER_NAME} was not enabled in the user manager, so there was nothing to stop")),
-        Err(reason) => Err(format!("could not stop {TIMER_NAME}, so the daily pass would still run: {reason}")),
+        Err(reason) if absent_unit(&reason) => Ok(format!(
+            "{TIMER_NAME} was not enabled in the user manager, so there was nothing to stop"
+        )),
+        Err(reason) => Err(format!(
+            "could not stop {TIMER_NAME}, so the daily pass would still run: {reason}"
+        )),
     };
 }
 
@@ -190,9 +229,17 @@ fn stop_old_timer() -> Result<String, String> {
 /// ```ts
 /// export function installService(repository: string, binary: string, unitDirectory: string, enable: boolean): string[]  // throws
 /// ```
-pub fn install_service(repository: &Path, binary: &Path, unit_directory: &Path, enable: bool) -> Result<Vec<String>, String> {
+pub fn install_service(
+    repository: &Path,
+    binary: &Path,
+    unit_directory: &Path,
+    enable: bool,
+) -> Result<Vec<String>, String> {
     if !binary.is_file() {
-        return Err(format!("{} does not exist; run `mise run toolchain:install` first so the installed cargo-shadow is linked there", binary.display()));
+        return Err(format!(
+            "{} does not exist; run `mise run toolchain:install` first so the installed cargo-shadow is linked there",
+            binary.display()
+        ));
     }
     if let Err(error) = fs::create_dir_all(unit_directory) {
         return Err(format!("{}: {error}", unit_directory.display()));
@@ -211,7 +258,10 @@ pub fn install_service(repository: &Path, binary: &Path, unit_directory: &Path, 
     }
     lines.push(format!("wrote {}", service.display()));
     match fs::remove_file(&timer) {
-        Ok(()) => lines.push(format!("removed {}, the once-a-day timer; the run is continuous now", timer.display())),
+        Ok(()) => lines.push(format!(
+            "removed {}, the once-a-day timer; the run is continuous now",
+            timer.display()
+        )),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("{}: {error}", timer.display())),
     }
@@ -223,7 +273,9 @@ pub fn install_service(repository: &Path, binary: &Path, unit_directory: &Path, 
             let answer: &str = state.trim();
             lines.push(format!("{SERVICE_NAME} is {answer}"));
             if answer == "active" {
-                lines.push(String::from("a pass that is running now ends first; the next pass starts under this file"));
+                lines.push(String::from(
+                    "a pass that is running now ends first; the next pass starts under this file",
+                ));
             }
         }
     } else {

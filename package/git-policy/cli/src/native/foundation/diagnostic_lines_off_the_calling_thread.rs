@@ -33,6 +33,13 @@
 //!  for the lines it handed over,
 //!  because `std::process::exit` ends the thread where it stands
 //!  and the last lines of a refusal are the whole of what a person gets.
+//!  A process whose process limit refuses that thread writes every line where it is said instead,
+//!  and says once which limit refused it:
+//! a commit at its process limit failed on 2026-11-25 saying nothing at all,
+//!  because its refusal waited in a queue that no thread would ever write (issue 6476).
+//!  That answer is the queue's own (`lines_written_by_a_thread.rs`), because the service's log lines
+//!  meet the same refusal from the same limit;
+//!  this file asks for it, and names what its lines are for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -154,9 +161,10 @@ static THE_POLICY: QueuePolicy = QueuePolicy {
     callers_wait_for_their_line: true,
     retries_on_a_tick: true,
     ends_when_the_stream_is_gone: true,
-    // A refusal leaves every line of this process unwritten, which is the one state this file cannot report on the stream
-    //  it cannot reach, so it is not reported at all.
-    thread_refused: None,
+    // The refusal is said on this command's own standard error, which is the stream the refused thread would have written to:
+    //  a commit at its process limit failed on 2026-11-25 saying nothing at all (issue 6476), so the answer a refusal needs
+    //  is the lines themselves rather than a line about them.
+    refused_thread_purpose: Some("write this command's own lines"),
     tag: TAG,
 };
 

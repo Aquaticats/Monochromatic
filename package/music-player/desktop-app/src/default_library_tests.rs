@@ -13,7 +13,10 @@ fn scratch_home(tag: &str) -> PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| return elapsed.as_nanos());
-    let home: PathBuf = crate::test_scratch::scratch_root().join(format!("music-player-home-{}-{nanos}-{tag}", std::process::id()));
+    let home: PathBuf = crate::test_scratch::scratch_root().join(format!(
+        "music-player-home-{}-{nanos}-{tag}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&home).expect("the scratch home is created");
     return home;
 }
@@ -30,7 +33,10 @@ fn the_home_music_folder_is_found_when_nothing_else_is_set() {
 #[test]
 fn a_home_without_a_music_folder_gives_none() {
     let home = scratch_home("no-music");
-    assert_eq!(first_existing_dir([None, Some(home_music_folder(&home))].into_iter()), None);
+    assert_eq!(
+        first_existing_dir([None, Some(home_music_folder(&home))].into_iter()),
+        None
+    );
     std::fs::remove_dir_all(&home).ok();
 }
 
@@ -39,7 +45,10 @@ fn a_set_but_missing_folder_is_skipped_for_the_next_candidate() {
     let home = scratch_home("skip-missing");
     std::fs::create_dir_all(home_music_folder(&home)).expect("the Music folder is created");
     let missing = home.join("Gone");
-    assert_eq!(first_existing_dir([Some(missing), Some(home_music_folder(&home))].into_iter()), Some(home.join("Music")));
+    assert_eq!(
+        first_existing_dir([Some(missing), Some(home_music_folder(&home))].into_iter()),
+        Some(home.join("Music"))
+    );
     std::fs::remove_dir_all(&home).ok();
 }
 
@@ -63,6 +72,9 @@ fn an_earlier_folder_wins_and_later_candidates_are_not_computed() {
 fn a_file_named_music_is_not_a_folder() {
     let home = scratch_home("file");
     std::fs::write(home_music_folder(&home), b"x").expect("the file is written");
-    assert_eq!(first_existing_dir([Some(home_music_folder(&home))].into_iter()), None);
+    assert_eq!(
+        first_existing_dir([Some(home_music_folder(&home))].into_iter()),
+        None
+    );
     std::fs::remove_dir_all(&home).ok();
 }

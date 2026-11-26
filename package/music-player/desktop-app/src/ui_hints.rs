@@ -18,22 +18,45 @@
 /// Imports the cell that holds the hint state between ticks.
 use std::cell::Cell;
 /// Imports the duration and instant types that time the hold delay.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the hint state,
 /// its targets and the badge text.
-use music_player::key_hints::{HintTarget, KeyHints, badge_text};
+use music_player::key_hints::{
+    HintTarget,
+    KeyHints,
+    badge_text,
+};
 /// Imports the keyboard platform and the shortcut action that the texts describe.
-use music_player::keymap::{KeyboardPlatform, ShortcutAction};
+use music_player::keymap::{
+    KeyboardPlatform,
+    ShortcutAction,
+};
 /// Imports the held modifiers and the shortcut text lookup.
-use music_player::keymap_bindings::{HeldModifiers, shortcut_text};
+use music_player::keymap_bindings::{
+    HeldModifiers,
+    shortcut_text,
+};
 /// Imports the component handle,
 /// the timer and its mode that run the hold delay.
-use slint::{ComponentHandle, SharedString, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    SharedString,
+    Timer,
+    TimerMode,
+};
 
 /// Imports the window and the generated badge,
 /// key and text globals that hold the hints.
-use crate::{AppWindow, KeyBadges, Keys, ShortcutTexts};
+use crate::{
+    AppWindow,
+    KeyBadges,
+    Keys,
+    ShortcutTexts,
+};
 
 thread_local! {
     /// What:
@@ -98,7 +121,11 @@ pub(crate) fn now_ms() -> u64 {
 /// ```ts
 /// const badge = (target: HintTarget, platform: KeyboardPlatform, visible: HeldModifiers | null): string => badgeText(target, platform, visible);
 /// ```
-fn badge(target: HintTarget, platform: KeyboardPlatform, visible: Option<HeldModifiers>) -> SharedString {
+fn badge(
+    target: HintTarget,
+    platform: KeyboardPlatform,
+    visible: Option<HeldModifiers>,
+) -> SharedString {
     return badge_text(target, platform, visible).as_str().into();
 }
 
@@ -107,7 +134,10 @@ fn badge(target: HintTarget, platform: KeyboardPlatform, visible: Option<HeldMod
 /// Why:
 /// one value feeds every control's badge,
 /// and an empty text draws none.
-fn badges_of(platform: KeyboardPlatform, visible: Option<HeldModifiers>) -> KeyBadges {
+fn badges_of(
+    platform: KeyboardPlatform,
+    visible: Option<HeldModifiers>,
+) -> KeyBadges {
     return KeyBadges {
         search: badge(HintTarget::Search, platform, visible),
         settings: badge(HintTarget::Settings, platform, visible),
@@ -152,7 +182,9 @@ fn hold_timer() -> &'static Timer {
 /// so the window never disagrees with the state.
 fn refresh(window: &AppWindow) {
     let visible = HINTS.get().visible();
-    window.global::<Keys>().set_badges(badges_of(crate::ui_keys::platform(), visible));
+    window
+        .global::<Keys>()
+        .set_badges(badges_of(crate::ui_keys::platform(), visible));
     tracing::debug!(visible = ?visible, "key hint badges updated");
     crate::ui_state_log::emit(window, "badges");
 }
@@ -170,14 +202,18 @@ fn schedule(window: &AppWindow) {
         return;
     };
     let weak = window.as_weak();
-    timer.start(TimerMode::SingleShot, Duration::from_millis(wait_ms.max(1)), move || {
-        let Some(strong) = weak.upgrade() else {
-            return;
-        };
-        HINTS.set(HINTS.get().on_tick(now_ms()));
-        refresh(&strong);
-        schedule(&strong);
-    });
+    timer.start(
+        TimerMode::SingleShot,
+        Duration::from_millis(wait_ms.max(1)),
+        move || {
+            let Some(strong) = weak.upgrade() else {
+                return;
+            };
+            HINTS.set(HINTS.get().on_tick(now_ms()));
+            refresh(&strong);
+            schedule(&strong);
+        },
+    );
 }
 
 /// What:
@@ -186,7 +222,10 @@ fn schedule(window: &AppWindow) {
 /// every key press and release carries the full held set,
 /// so a stale set (a release missed while the window had no
 /// focus) is corrected by the next key event.
-pub(crate) fn modifiers_changed(window: &AppWindow, held: HeldModifiers) {
+pub(crate) fn modifiers_changed(
+    window: &AppWindow,
+    held: HeldModifiers,
+) {
     let before = HINTS.get();
     let after = before.on_modifiers(held, now_ms());
     if after == before {
@@ -206,7 +245,10 @@ pub(crate) fn modifiers_changed(window: &AppWindow, held: HeldModifiers) {
 /// ```ts
 /// const shortcut = (action: ShortcutAction, platform: KeyboardPlatform): string => shortcutText(action, platform);
 /// ```
-fn shortcut(action: ShortcutAction, platform: KeyboardPlatform) -> SharedString {
+fn shortcut(
+    action: ShortcutAction,
+    platform: KeyboardPlatform,
+) -> SharedString {
     return shortcut_text(action, platform).as_str().into();
 }
 
@@ -244,5 +286,7 @@ fn texts_of(platform: KeyboardPlatform) -> ShortcutTexts {
 /// the tooltips read them,
 /// and they never change while the program runs.
 pub(crate) fn install_texts(window: &AppWindow) {
-    window.global::<Keys>().set_texts(texts_of(crate::ui_keys::platform()));
+    window
+        .global::<Keys>()
+        .set_texts(texts_of(crate::ui_keys::platform()));
 }

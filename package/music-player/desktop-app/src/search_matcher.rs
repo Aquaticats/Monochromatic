@@ -291,7 +291,10 @@ pub fn search_terms(query: &str) -> Vec<String> {
 /// ```ts
 /// const isWordStart = (s: string, i: number) => i === 0 || WORD_SEPARATORS.has(s[i - 1]);
 /// ```
-fn is_word_start(normalized: &[char], index: usize) -> bool {
+fn is_word_start(
+    normalized: &[char],
+    index: usize,
+) -> bool {
     return index == 0 || WORD_SEPARATORS.contains(&normalized[index - 1]);
 }
 
@@ -308,7 +311,10 @@ fn is_word_start(normalized: &[char], index: usize) -> bool {
 /// ```ts
 /// function wordStartOccurrences(s: string, term: string): number[] { /* every indexOf hit that isWordStart */ }
 /// ```
-fn word_start_occurrences(normalized: &[char], term: &[char]) -> Vec<usize> {
+fn word_start_occurrences(
+    normalized: &[char],
+    term: &[char],
+) -> Vec<usize> {
     let mut occurrences: Vec<usize> = Vec::new();
     if term.is_empty() || term.len() > normalized.len() {
         return occurrences;
@@ -363,7 +369,10 @@ pub fn to_offset(index: usize) -> i32 {
 /// ```ts
 /// const byStartThenEnd = (left: Range, right: Range): number => left.start - right.start || left.end - right.end;
 /// ```
-fn by_start_then_end(left: &SearchHighlight, right: &SearchHighlight) -> std::cmp::Ordering {
+fn by_start_then_end(
+    left: &SearchHighlight,
+    right: &SearchHighlight,
+) -> std::cmp::Ordering {
     return (left.start, left.end).cmp(&(right.start, right.end));
 }
 
@@ -412,7 +421,10 @@ fn merge_overlapping(ranges: Vec<SearchHighlight>) -> Vec<SearchHighlight> {
 /// ```ts
 /// function highlightRanges(text: string, query: string): Range[] { /* word-start hits, mapped back */ }
 /// ```
-pub fn highlight_ranges(text: &str, query: &str) -> Vec<SearchHighlight> {
+pub fn highlight_ranges(
+    text: &str,
+    query: &str,
+) -> Vec<SearchHighlight> {
     return highlight_ranges_for_terms(text, &search_terms(query));
 }
 
@@ -427,7 +439,10 @@ pub fn highlight_ranges(text: &str, query: &str) -> Vec<SearchHighlight> {
 /// ```ts
 /// function highlightRangesForTerms(text: string, terms: string[]): Range[] { /* word-start hits, mapped back */ }
 /// ```
-pub fn highlight_ranges_for_terms(text: &str, terms: &[String]) -> Vec<SearchHighlight> {
+pub fn highlight_ranges_for_terms(
+    text: &str,
+    terms: &[String],
+) -> Vec<SearchHighlight> {
     if terms.is_empty() {
         return Vec::new();
     }
@@ -459,7 +474,10 @@ pub fn highlight_ranges_for_terms(text: &str, terms: &[String]) -> Vec<SearchHig
 /// ```ts
 /// function matchTier(name: string, terms: string[]): number | null { /* 0, 1, 2, or null */ }
 /// ```
-pub fn match_tier(normalized_name: &str, terms: &[String]) -> Option<i32> {
+pub fn match_tier(
+    normalized_name: &str,
+    terms: &[String],
+) -> Option<i32> {
     if terms.is_empty() {
         return None;
     }

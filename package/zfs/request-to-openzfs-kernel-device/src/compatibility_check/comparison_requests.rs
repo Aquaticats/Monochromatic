@@ -16,12 +16,19 @@
 //! compareRequests(zfsIocId); // throws Mismatch at the first difference
 //! ```
 
+/// The reader-neutral declaration the walk reads.
+use super::declaration::{
+    Declaration,
+    DeclaredType,
+};
+/// The expectation's request table and the enumeration's name and width.
+use super::expected_requests::{
+    REQUEST_ENUM,
+    REQUEST_ENUM_BYTES,
+    expected_enumerators,
+};
 /// The one difference value this walk returns.
 use super::mismatch::Mismatch;
-/// The expectation's request table and the enumeration's name and width.
-use super::expected_requests::{REQUEST_ENUM, REQUEST_ENUM_BYTES, expected_enumerators};
-/// The reader-neutral declaration the walk reads.
-use super::declaration::{DeclaredType, Declaration};
 /// The step one difference is reported as.
 use super::refusal::Step;
 
@@ -46,7 +53,11 @@ pub(super) fn compare_requests(module: &dyn Declaration) -> Result<(), Mismatch>
             ),
         });
     }
-    let Some(DeclaredType::Enumeration { values, .. }) = module.declared(id) else {
+    let Some(DeclaredType::Enumeration {
+        values,
+        ..
+    }) = module.declared(id)
+    else {
         return Err(Mismatch {
             step: Step::Enum,
             detail: format!("{REQUEST_ENUM}'s values could not be read"),

@@ -6,7 +6,10 @@ mod memory_fixture;
 
 /// The public worker API owns cancellation and background directory validation.
 use ide_app::{
-    search_worker::{SearchReply, SearchWorker},
+    search_worker::{
+        SearchReply,
+        SearchWorker,
+    },
     workspace::Workspace,
 };
 /// Native symlink fixtures stay within a disposable parent directory.
@@ -15,7 +18,10 @@ use std::{
     os::unix::fs::symlink,
     path::PathBuf,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Wait only for the newest scoped reply with a bounded failure deadline.

@@ -33,7 +33,11 @@ use super::escape::literal_pattern;
 /// Imports the tail-format detector,
 ///  parser,
 ///  and the shared parsed-rule type.
-use super::sections::{detect_tail_format, parse_sections, ParsedRule};
+use super::sections::{
+    ParsedRule,
+    detect_tail_format,
+    parse_sections,
+};
 
 /// The UTF-8 byte-order-mark code point,
 ///  stripped from the start of a source.
@@ -163,7 +167,10 @@ pub(super) fn significant_line_rule(
         // a literal that merely happens to contain slashes.
         if flags.chars().all(is_lowercase_flag) {
             if let Some(flag) = first_bad_flag(flags) {
-                return Err(LoadError::UnsupportedFlag { index, flag });
+                return Err(LoadError::UnsupportedFlag {
+                    index,
+                    flag,
+                });
             }
             return Ok(SignificantRule {
                 pattern: trimmed[1..last].to_string(),
@@ -174,7 +181,7 @@ pub(super) fn significant_line_rule(
     return Ok(SignificantRule {
         pattern: literal_pattern(trimmed),
         literal: Some(trimmed.as_bytes().to_vec()),
-    })
+    });
 }
 
 /// Projects classified significant rule to engine-ready pattern for format tests.
@@ -183,7 +190,7 @@ pub(super) fn significant_line_pattern(
     line: &str,
     index: usize,
 ) -> Result<String, LoadError> {
-    return significant_line_rule(line, index).map(|rule| return rule.pattern)
+    return significant_line_rule(line, index).map(|rule| return rule.pattern);
 }
 
 /// Parses a legacy line-based source into unnamed,

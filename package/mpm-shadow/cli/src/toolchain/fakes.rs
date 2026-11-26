@@ -13,9 +13,17 @@ use std::path::Path;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
 /// Imports what this module uses from `super::http`.
-use super::http::{HttpError, HttpGet, HttpResponse};
+use super::http::{
+    HttpError,
+    HttpGet,
+    HttpResponse,
+};
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest, Runner};
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+    Runner,
+};
 
 /// What:
 /// A `Runner` that starts nothing:
@@ -54,35 +62,84 @@ impl FakeRunner {
     /// Runs `effect` (for example,
     /// creating the files a real tool would create) whenever a request whose line starts
     /// with `prefix` arrives.
-    pub(crate) fn on(&self, prefix: &str, effect: Box<dyn Fn(&RunRequest)>) {
+    pub(crate) fn on(
+        &self,
+        prefix: &str,
+        effect: Box<dyn Fn(&RunRequest)>,
+    ) {
         self.effects.borrow_mut().push((prefix.to_string(), effect));
     }
 
     /// Answers requests whose line starts with `prefix` with this stdout and exit code.
-    pub(crate) fn answer(&self, prefix: &str, stdout: &str, code: i32) {
-        self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code }));
+    pub(crate) fn answer(
+        &self,
+        prefix: &str,
+        stdout: &str,
+        code: i32,
+    ) {
+        self.rules.borrow_mut().push((
+            prefix.to_string(),
+            RunOutcome {
+                stdout: stdout.to_string(),
+                stderr: String::new(),
+                code,
+            },
+        ));
     }
 
     /// Answers requests whose line starts with `prefix` with this stdout and exit code,
     /// but only after a request whose line starts with `trigger` was received
     /// (a listing that shows a package only once `add` ran).
-    pub(crate) fn answer_after(&self, trigger: &str, prefix: &str, stdout: &str, code: i32) {
-        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code };
-        self.after_rules.borrow_mut().push((trigger.to_string(), prefix.to_string(), outcome));
+    pub(crate) fn answer_after(
+        &self,
+        trigger: &str,
+        prefix: &str,
+        stdout: &str,
+        code: i32,
+    ) {
+        let outcome: RunOutcome = RunOutcome {
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+            code,
+        };
+        self.after_rules
+            .borrow_mut()
+            .push((trigger.to_string(), prefix.to_string(), outcome));
     }
 
     /// Answers requests whose line starts with `prefix` with both streams and this exit code.
     ///
     /// Why:
     /// A listing that fails still prints something, and a test must prove which stream is read.
-    pub(crate) fn answer_streams(&self, prefix: &str, stdout: &str, stderr: &str, code: i32) {
-        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: stderr.to_string(), code };
+    pub(crate) fn answer_streams(
+        &self,
+        prefix: &str,
+        stdout: &str,
+        stderr: &str,
+        code: i32,
+    ) {
+        let outcome: RunOutcome = RunOutcome {
+            stdout: stdout.to_string(),
+            stderr: stderr.to_string(),
+            code,
+        };
         self.rules.borrow_mut().push((prefix.to_string(), outcome));
     }
 
     /// Answers requests whose line starts with `prefix` with a failure printing `stderr`.
-    pub(crate) fn fail(&self, prefix: &str, stderr: &str) {
-        self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: String::new(), stderr: stderr.to_string(), code: 1 }));
+    pub(crate) fn fail(
+        &self,
+        prefix: &str,
+        stderr: &str,
+    ) {
+        self.rules.borrow_mut().push((
+            prefix.to_string(),
+            RunOutcome {
+                stdout: String::new(),
+                stderr: stderr.to_string(),
+                code: 1,
+            },
+        ));
     }
 
     /// Every request received,
@@ -100,7 +157,11 @@ impl FakeRunner {
 
 /// The request line with the program's base name (`/x/y/uv tool list` becomes `uv tool list`).
 fn matching_line(request: &RunRequest) -> String {
-    let base: &str = request.command.rsplit('/').next().unwrap_or(&request.command);
+    let base: &str = request
+        .command
+        .rsplit('/')
+        .next()
+        .unwrap_or(&request.command);
     let mut line: String = base.to_string();
     for argument in &request.args {
         line.push(' ');
@@ -114,7 +175,10 @@ impl Runner for FakeRunner {
     /// Records the request,
     /// runs any matching effect,
     /// and answers from the first matching rule.
-    fn run(&self, request: &RunRequest) -> RunOutcome {
+    fn run(
+        &self,
+        request: &RunRequest,
+    ) -> RunOutcome {
         self.calls.borrow_mut().push(request.clone());
         let line: String = matching_line(request);
         for (prefix, effect) in self.effects.borrow().iter() {
@@ -123,7 +187,11 @@ impl Runner for FakeRunner {
             }
         }
         for (trigger, prefix, outcome) in self.after_rules.borrow().iter() {
-            let triggered: bool = self.calls.borrow().iter().any(|call| return matching_line(call).starts_with(trigger.as_str()));
+            let triggered: bool = self
+                .calls
+                .borrow()
+                .iter()
+                .any(|call| return matching_line(call).starts_with(trigger.as_str()));
             if triggered && line.starts_with(prefix.as_str()) {
                 return outcome.clone();
             }
@@ -133,7 +201,11 @@ impl Runner for FakeRunner {
                 return outcome.clone();
             }
         }
-        return RunOutcome { stdout: String::new(), stderr: String::new(), code: 0 };
+        return RunOutcome {
+            stdout: String::new(),
+            stderr: String::new(),
+            code: 0,
+        };
     }
 }
 
@@ -168,19 +240,38 @@ impl FakeHttp {
     }
 
     /// Serves `body` for exactly this URL.
-    pub(crate) fn serve(&self, url: &str, body: &[u8]) {
-        self.bodies.borrow_mut().push((url.to_string(), body.to_vec()));
+    pub(crate) fn serve(
+        &self,
+        url: &str,
+        body: &[u8],
+    ) {
+        self.bodies
+            .borrow_mut()
+            .push((url.to_string(), body.to_vec()));
     }
 
     /// Fails requests for exactly this URL with this message.
-    pub(crate) fn fail(&self, url: &str, message: &str) {
-        self.failures.borrow_mut().push((url.to_string(), message.to_string(), None));
+    pub(crate) fn fail(
+        &self,
+        url: &str,
+        message: &str,
+    ) {
+        self.failures
+            .borrow_mut()
+            .push((url.to_string(), message.to_string(), None));
     }
 
     /// Fails the first `times` requests for exactly this URL,
     /// then serves it normally.
-    pub(crate) fn fail_first(&self, url: &str, message: &str, times: usize) {
-        self.failures.borrow_mut().push((url.to_string(), message.to_string(), Some(times)));
+    pub(crate) fn fail_first(
+        &self,
+        url: &str,
+        message: &str,
+        times: usize,
+    ) {
+        self.failures
+            .borrow_mut()
+            .push((url.to_string(), message.to_string(), Some(times)));
     }
 
     /// Every URL requested,
@@ -191,7 +282,10 @@ impl FakeHttp {
 
     /// The body served for this URL,
     /// if any.
-    fn body_of(&self, url: &str) -> Option<Vec<u8>> {
+    fn body_of(
+        &self,
+        url: &str,
+    ) -> Option<Vec<u8>> {
         for (served, body) in self.bodies.borrow().iter() {
             if served == url {
                 return Some(body.clone());
@@ -202,7 +296,10 @@ impl FakeHttp {
 
     /// The configured failure for this URL,
     /// consuming one of a limited count.
-    fn failure_of(&self, url: &str) -> Option<String> {
+    fn failure_of(
+        &self,
+        url: &str,
+    ) -> Option<String> {
         for (failing, message, remaining) in self.failures.borrow_mut().iter_mut() {
             if failing != url {
                 continue;
@@ -223,26 +320,51 @@ impl FakeHttp {
 /// Implements `HttpGet` for `FakeHttp`.
 impl HttpGet for FakeHttp {
     /// Records the URL and answers from the table (404 for an unknown URL).
-    fn get(&self, url: &str, _headers: &[(String, String)], _max_bytes: usize) -> Result<HttpResponse, HttpError> {
+    fn get(
+        &self,
+        url: &str,
+        _headers: &[(String, String)],
+        _max_bytes: usize,
+    ) -> Result<HttpResponse, HttpError> {
         self.requests.borrow_mut().push(url.to_string());
         if let Some(message) = self.failure_of(url) {
-            return Err(HttpError { url: url.to_string(), message });
+            return Err(HttpError {
+                url: url.to_string(),
+                message,
+            });
         }
         return match self.body_of(url) {
-            Some(body) => Ok(HttpResponse { status: 200, body }),
-            None => Ok(HttpResponse { status: 404, body: b"not served by the fake".to_vec() }),
+            Some(body) => Ok(HttpResponse {
+                status: 200,
+                body,
+            }),
+            None => Ok(HttpResponse {
+                status: 404,
+                body: b"not served by the fake".to_vec(),
+            }),
         };
     }
 
     /// Records the URL and writes the served body to the target,
     /// returning its hash.
-    fn download(&self, url: &str, target: &Path, _max_bytes: u64) -> Result<String, HttpError> {
+    fn download(
+        &self,
+        url: &str,
+        target: &Path,
+        _max_bytes: u64,
+    ) -> Result<String, HttpError> {
         self.requests.borrow_mut().push(url.to_string());
         if let Some(message) = self.failure_of(url) {
-            return Err(HttpError { url: url.to_string(), message });
+            return Err(HttpError {
+                url: url.to_string(),
+                message,
+            });
         }
         let Some(body) = self.body_of(url) else {
-            return Err(HttpError { url: url.to_string(), message: "HTTP 404".to_string() });
+            return Err(HttpError {
+                url: url.to_string(),
+                message: "HTTP 404".to_string(),
+            });
         };
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent).expect("make the download directory");
@@ -297,7 +419,10 @@ impl Rig {
             runner: FakeRunner::new(),
             http: FakeHttp::new(),
             lock: super::fixtures::sample_lock(),
-            host: super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) },
+            host: super::context::Host {
+                platform: "linux-x64".to_string(),
+                family: Some(super::model::OsFamily::Linux),
+            },
         };
     }
 
@@ -319,7 +444,8 @@ impl Rig {
         let link = directory.path().join("link");
         std::os::unix::fs::symlink(&physical, &link).expect("link the physical directory");
         let linked_home = link.join("home");
-        let env = super::scope::EnvMap::from_pairs(&[("HOME", linked_home.to_str().expect("utf-8"))]);
+        let env =
+            super::scope::EnvMap::from_pairs(&[("HOME", linked_home.to_str().expect("utf-8"))]);
         let scope = super::scope::repo_scope(&root, &env).expect("a scope");
         let canonical_home = std::fs::canonicalize(&physical_home).expect("the home exists");
         let rig = Rig {
@@ -329,7 +455,10 @@ impl Rig {
             runner: FakeRunner::new(),
             http: FakeHttp::new(),
             lock: super::fixtures::sample_lock(),
-            host: super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) },
+            host: super::context::Host {
+                platform: "linux-x64".to_string(),
+                family: Some(super::model::OsFamily::Linux),
+            },
         };
         return (rig, canonical_home);
     }
@@ -347,14 +476,28 @@ impl Rig {
     }
 
     /// The locked tool with this id (cloned so the test can keep using the rig).
-    pub(crate) fn tool(&self, id: &str) -> super::model::LockedTool {
-        return self.lock.tool(id).expect("the sample lock holds the tool").clone();
+    pub(crate) fn tool(
+        &self,
+        id: &str,
+    ) -> super::model::LockedTool {
+        return self
+            .lock
+            .tool(id)
+            .expect("the sample lock holds the tool")
+            .clone();
     }
 
     /// Writes an executable stand-in at `<install dir of tool>/<name>`.
-    pub(crate) fn install_binary(&self, tool_id: &str, name: &str) -> std::path::PathBuf {
+    pub(crate) fn install_binary(
+        &self,
+        tool_id: &str,
+        name: &str,
+    ) -> std::path::PathBuf {
         let tool = self.tool(tool_id);
-        let path = super::layout::tool_install_dir(&self.scope.toolchain_root, tool_id, &tool.version).expect("a plain directory name").join(name);
+        let path =
+            super::layout::tool_install_dir(&self.scope.toolchain_root, tool_id, &tool.version)
+                .expect("a plain directory name")
+                .join(name);
         write_executable(&path);
         return path;
     }

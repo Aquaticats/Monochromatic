@@ -15,7 +15,7 @@ fn every_parent_combination() -> Vec<ParentEnvironment> {
             x11_display: bits & 4 != 0,
         });
     }
-    return combinations
+    return combinations;
 }
 
 /// Without the flag the nested window is chosen whether or not a parent display exists.
@@ -45,7 +45,11 @@ fn headless_flag_selects_headless_for_every_parent_combination() {
     for parent in every_parent_combination() {
         let choice = select_backend(true, parent);
         assert_eq!(choice.kind, BackendKind::Headless, "{parent:?}");
-        assert_eq!(choice.ignored_parent_display, parent.any_display(), "{parent:?}");
+        assert_eq!(
+            choice.ignored_parent_display,
+            parent.any_display(),
+            "{parent:?}"
+        );
     }
 }
 
@@ -55,7 +59,8 @@ fn headless_flag_selects_headless_for_every_parent_combination() {
 fn empty_values_count_as_absent() {
     let parent = ParentEnvironment::from_values(Some(OsStr::new("")), None, Some(OsStr::new("")));
     assert_eq!(parent, ParentEnvironment::default());
-    let present = ParentEnvironment::from_values(Some(OsStr::new("wayland-0")), None, Some(OsStr::new(":0")));
+    let present =
+        ParentEnvironment::from_values(Some(OsStr::new("wayland-0")), None, Some(OsStr::new(":0")));
     assert!(present.wayland_display && present.x11_display && !present.wayland_socket);
 }
 
@@ -71,8 +76,14 @@ fn failure_without_parent_display_names_the_headless_flag() {
 /// With a parent display the failure keeps the original message unchanged.
 #[test]
 fn failure_with_parent_display_keeps_the_original_message() {
-    for parent in every_parent_combination().into_iter().filter(|parent| return parent.any_display()) {
+    for parent in every_parent_combination()
+        .into_iter()
+        .filter(|parent| return parent.any_display())
+    {
         let message = nested_failure_message("NoCompositor", parent);
-        assert_eq!(message, "winit backend init failed: NoCompositor", "{parent:?}");
+        assert_eq!(
+            message, "winit backend init failed: NoCompositor",
+            "{parent:?}"
+        );
     }
 }

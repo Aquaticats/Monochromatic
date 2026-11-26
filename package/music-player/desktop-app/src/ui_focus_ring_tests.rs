@@ -35,8 +35,16 @@
 use i_slint_backend_testing::ElementHandle;
 use slint::ComponentHandle;
 
-use crate::ui_render_support::{Frame, Rendered, RoundedBox, box_of};
-use crate::ui_test_support::{focus_label, tap};
+use crate::ui_render_support::{
+    Frame,
+    Rendered,
+    RoundedBox,
+    box_of,
+};
+use crate::ui_test_support::{
+    focus_label,
+    tap,
+};
 
 /// Counts what `check_ring` judged,
 /// so a test can see that it was not vacuous.
@@ -61,13 +69,23 @@ pub(crate) struct RingReport {
 pub(crate) fn roles_of(rendered: &Rendered) -> ([u8; 3], [u8; 3]) {
     let theme = rendered.app.global::<crate::Theme>();
     let (primary, on_primary) = (theme.get_primary(), theme.get_on_primary());
-    return ([primary.red(), primary.green(), primary.blue()], [on_primary.red(), on_primary.green(), on_primary.blue()]);
+    return (
+        [primary.red(), primary.green(), primary.blue()],
+        [on_primary.red(), on_primary.green(), on_primary.blue()],
+    );
 }
 
 /// What:
 /// `color_distance` is the sum of the channel differences of two colors.
-fn color_distance(a: [u8; 3], b: [u8; 3]) -> i32 {
-    return a.iter().zip(b.iter()).map(|(left, right)| return (i32::from(*left) - i32::from(*right)).abs()).sum();
+fn color_distance(
+    a: [u8; 3],
+    b: [u8; 3],
+) -> i32 {
+    return a
+        .iter()
+        .zip(b.iter())
+        .map(|(left, right)| return (i32::from(*left) - i32::from(*right)).abs())
+        .sum();
 }
 
 /// What:
@@ -77,7 +95,11 @@ fn color_distance(a: [u8; 3], b: [u8; 3]) -> i32 {
 /// a pixel that a curve covers in part is a blend of what was there and the ring's color,
 /// so how far along it lies is how
 /// much the ring covers it.
-fn share_toward(pixel: [u8; 3], from: [u8; 3], to: [u8; 3]) -> f32 {
+fn share_toward(
+    pixel: [u8; 3],
+    from: [u8; 3],
+    to: [u8; 3],
+) -> f32 {
     let (mut along, mut span) = (0.0_f32, 0.0_f32);
     for channel in 0..3 {
         let step = f32::from(to[channel]) - f32::from(from[channel]);
@@ -112,7 +134,14 @@ const SAMPLES: usize = 4;
 /// which a text field cannot offer (its ring does not turn off with the
 /// keyboard ring,
 /// so the other frame has another ring elsewhere).
-pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: ([u8; 3], [u8; 3]), inside: bool, options: &Case) -> Result<RingReport, String> {
+pub(crate) fn check_ring(
+    on: &Frame,
+    off: &Frame,
+    element: RoundedBox,
+    colors: ([u8; 3], [u8; 3]),
+    inside: bool,
+    options: &Case,
+) -> Result<RingReport, String> {
     let (near_color, outer_color) = colors;
     let far = options.far;
     let (edge_element, edge_near, edge_outer) = if inside {
@@ -140,25 +169,53 @@ pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: (
         return 0;
     };
     let near_box = edge_element.grown(6.0);
-    let (left, top) = (near_box.x.floor().max(0.0) as usize, near_box.y.floor().max(0.0) as usize);
-    let (right, bottom) = (((near_box.x + near_box.width).ceil() as usize).min(on.width), ((near_box.y + near_box.height).ceil() as usize).min(on.height));
-    let mut report = RingReport { near: 0, outer: 0, unchanged: 0, exact: 0, partial: 0 };
+    let (left, top) = (
+        near_box.x.floor().max(0.0) as usize,
+        near_box.y.floor().max(0.0) as usize,
+    );
+    let (right, bottom) = (
+        ((near_box.x + near_box.width).ceil() as usize).min(on.width),
+        ((near_box.y + near_box.height).ceil() as usize).min(on.height),
+    );
+    let mut report = RingReport {
+        near: 0,
+        outer: 0,
+        unchanged: 0,
+        exact: 0,
+        partial: 0,
+    };
     for y in 0..on.height {
         for x in 0..on.width {
             let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
-            if options.skip.iter().any(|(skip_left, skip_top, skip_right, skip_bottom)| return cx >= *skip_left && cx < *skip_right && cy >= *skip_top && cy < *skip_bottom) {
+            if options
+                .skip
+                .iter()
+                .any(|(skip_left, skip_top, skip_right, skip_bottom)| {
+                    return cx >= *skip_left
+                        && cx < *skip_right
+                        && cy >= *skip_top
+                        && cy < *skip_bottom;
+                })
+            {
                 continue;
             }
             if x < left || x >= right || y < top || y >= bottom {
                 if far && on.at(x, y) != off.at(x, y) {
-                    return Err(format!("pixel {x},{y} is far from the element and focus changed it from {:?} to {:?}", off.at(x, y), on.at(x, y)));
+                    return Err(format!(
+                        "pixel {x},{y} is far from the element and focus changed it from {:?} to {:?}",
+                        off.at(x, y),
+                        on.at(x, y)
+                    ));
                 }
                 continue;
             }
             let (mut near_samples, mut outer_samples) = (0, 0);
             for sy in 0..SAMPLES {
                 for sx in 0..SAMPLES {
-                    let (px, py) = (x as f32 + (sx as f32 + 0.5) / SAMPLES as f32, y as f32 + (sy as f32 + 0.5) / SAMPLES as f32);
+                    let (px, py) = (
+                        x as f32 + (sx as f32 + 0.5) / SAMPLES as f32,
+                        y as f32 + (sy as f32 + 0.5) / SAMPLES as f32,
+                    );
                     match band_of(px, py) {
                         1 => near_samples += 1,
                         2 => outer_samples += 1,
@@ -170,10 +227,15 @@ pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: (
             let pixel = on.at(x, y);
             // The renderer only approximates the coverage of an arc, so on a curve a pixel need only be nearer to its band's color
             // than to what was there before, while on a straight edge it must be exactly the band's color.
-            let curved = edge_outer.near_a_curve(cx, cy, 2.0) || edge_element.near_a_curve(cx, cy, 2.0);
+            let curved =
+                edge_outer.near_a_curve(cx, cy, 2.0) || edge_element.near_a_curve(cx, cy, 2.0);
             let (before, tolerance) = (off.at(x, y), 12);
             if near_samples == all || outer_samples == all {
-                let (band, band_color) = if near_samples == all { ("near", near_color) } else { ("outer", outer_color) };
+                let (band, band_color) = if near_samples == all {
+                    ("near", near_color)
+                } else {
+                    ("outer", outer_color)
+                };
                 if near_samples == all {
                     report.near += 1;
                 } else {
@@ -184,33 +246,50 @@ pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: (
                         continue;
                     }
                     if share_toward(pixel, before, band_color) < 0.25 {
-                        return Err(format!("pixel {x},{y} is on a curve in the {band} ring and is {pixel:?}, less than a quarter of the way from {before:?} to {band_color:?}"));
+                        return Err(format!(
+                            "pixel {x},{y} is on a curve in the {band} ring and is {pixel:?}, less than a quarter of the way from {before:?} to {band_color:?}"
+                        ));
                     }
                 } else {
                     if color_distance(pixel, band_color) > tolerance {
-                        return Err(format!("pixel {x},{y} is wholly in the {band} ring and is {pixel:?}, not {band_color:?}"));
+                        return Err(format!(
+                            "pixel {x},{y} is wholly in the {band} ring and is {pixel:?}, not {band_color:?}"
+                        ));
                     }
                     report.exact += 1;
                 }
-            } else if options.coverage && near_samples == 0 && outer_samples > 0 && color_distance(outer_color, before) > 60 {
+            } else if options.coverage
+                && near_samples == 0
+                && outer_samples > 0
+                && color_distance(outer_color, before) > 60
+            {
                 // A pixel the outer ring covers in part: how far it moved from what was there toward the ring's color is the share
                 // of the pixel the ring covers. This is what tells a corner of the right radius from a sharper or a rounder one.
                 let expected = outer_samples as f32 / all as f32;
                 let share = share_toward(pixel, before, outer_color);
                 report.partial += 1;
                 if (share - expected).abs() > 0.3 {
-                    return Err(format!("pixel {x},{y} is {:.0} percent covered by the outer ring but shows {:.0} percent ({pixel:?} from {before:?} toward {outer_color:?})", expected * 100.0, share * 100.0));
+                    return Err(format!(
+                        "pixel {x},{y} is {:.0} percent covered by the outer ring but shows {:.0} percent ({pixel:?} from {before:?} toward {outer_color:?})",
+                        expected * 100.0,
+                        share * 100.0
+                    ));
                 }
             } else if near_samples + outer_samples == 0 && !curved {
                 report.unchanged += 1;
                 if pixel != before {
-                    return Err(format!("pixel {x},{y} is outside the rings and focus changed it from {before:?} to {pixel:?}"));
+                    return Err(format!(
+                        "pixel {x},{y} is outside the rings and focus changed it from {before:?} to {pixel:?}"
+                    ));
                 }
             }
         }
     }
     if report.near < 20 || report.outer < 8 {
-        return Err(format!("a ring band holds too few whole pixels (near {}, outer {}): the ring is not drawn", report.near, report.outer));
+        return Err(format!(
+            "a ring band holds too few whole pixels (near {}, outer {}): the ring is not drawn",
+            report.near, report.outer
+        ));
     }
     return Ok(report);
 }
@@ -218,14 +297,21 @@ pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: (
 /// What:
 /// `tab_to` presses Tab until the named element holds focus,
 /// at most sixteen times.
-pub(crate) fn tab_to(rendered: &Rendered, label: &str) {
+pub(crate) fn tab_to(
+    rendered: &Rendered,
+    label: &str,
+) {
     for _ in 0..16 {
         if focus_label(&rendered.app) == label {
             return;
         }
         tap(&rendered.app, "Tab");
     }
-    assert_eq!(focus_label(&rendered.app), label, "Tab never reached {label}");
+    assert_eq!(
+        focus_label(&rendered.app),
+        label,
+        "Tab never reached {label}"
+    );
 }
 
 /// What:
@@ -239,14 +325,33 @@ pub(crate) fn tab_to(rendered: &Rendered, label: &str) {
 /// copy is on screen:
 /// the one whose box grown by 2 px (or exactly,
 /// for an `inside` ring) is the box of the differing pixels.
-pub(crate) fn element_for_ring(rendered: &Rendered, id: &str, inset: (f32, f32), origin: (f32, f32), differing: (usize, usize, usize, usize), inside: bool) -> RoundedBox {
+pub(crate) fn element_for_ring(
+    rendered: &Rendered,
+    id: &str,
+    inset: (f32, f32),
+    origin: (f32, f32),
+    differing: (usize, usize, usize, usize),
+    inside: bool,
+) -> RoundedBox {
     // The differing pixels hold the near ring always and the outer ring only where `on-primary` differs from the surface under
     // it (it equals the canvas in the light scheme), so the element's box is either 2 px or 3 px inside the differing box.
     let reaches: [f32; 2] = if inside { [-1.0, 0.0] } else { [2.0, 3.0] };
-    let wanted = (differing.0 as f32, differing.1 as f32, (differing.2 - differing.0) as f32, (differing.3 - differing.1) as f32);
+    let wanted = (
+        differing.0 as f32,
+        differing.1 as f32,
+        (differing.2 - differing.0) as f32,
+        (differing.3 - differing.1) as f32,
+    );
     let found: Vec<(f32, f32, f32, f32)> = ElementHandle::find_by_element_id(&rendered.app, id)
         .map(|element| return box_of(&element))
-        .map(|(x, y, width, height)| return (x + origin.0 + inset.0, y + origin.1 + inset.1, width - 2.0 * inset.0, height - 2.0 * inset.1))
+        .map(|(x, y, width, height)| {
+            return (
+                x + origin.0 + inset.0,
+                y + origin.1 + inset.1,
+                width - 2.0 * inset.0,
+                height - 2.0 * inset.1,
+            );
+        })
         .filter(|(x, y, width, height)| {
             return reaches.iter().any(|reach| {
                 return (x - reach - wanted.0).abs() < 0.6
@@ -256,7 +361,10 @@ pub(crate) fn element_for_ring(rendered: &Rendered, id: &str, inset: (f32, f32),
             });
         })
         .collect();
-    assert!(!found.is_empty(), "no element {id} (inset {inset:?}) has a box that the ring of {wanted:?} hugs");
+    assert!(
+        !found.is_empty(),
+        "no element {id} (inset {inset:?}) has a box that the ring of {wanted:?} hugs"
+    );
     let (x, y, width, height) = found[0];
     return RoundedBox::new(x, y, width, height, 0.0);
 }
@@ -314,7 +422,10 @@ pub(crate) struct Case<'a> {
 /// one call per element keeps each test to the facts that differ,
 /// and both schemes prove the roles,
 /// not fixed colors.
-pub(crate) fn run_case(rendered: &Rendered, case: &Case) -> Vec<RingReport> {
+pub(crate) fn run_case(
+    rendered: &Rendered,
+    case: &Case,
+) -> Vec<RingReport> {
     tab_to(rendered, case.label);
     return check_focused(rendered, case);
 }
@@ -322,12 +433,21 @@ pub(crate) fn run_case(rendered: &Rendered, case: &Case) -> Vec<RingReport> {
 /// What:
 /// `check_focused` checks the ring of the element that holds focus now,
 /// in both schemes.
-pub(crate) fn check_focused(rendered: &Rendered, case: &Case) -> Vec<RingReport> {
+pub(crate) fn check_focused(
+    rendered: &Rendered,
+    case: &Case,
+) -> Vec<RingReport> {
     let mut reports = Vec::new();
     for dark in [false, true] {
         rendered.set_dark(dark);
         let (on, off) = rendered.ring_frames();
-        reports.push(check_pair(rendered, case, &on, &off, if dark { "dark" } else { "light" }));
+        reports.push(check_pair(
+            rendered,
+            case,
+            &on,
+            &off,
+            if dark { "dark" } else { "light" },
+        ));
     }
     rendered.set_dark(false);
     return reports;
@@ -335,39 +455,102 @@ pub(crate) fn check_focused(rendered: &Rendered, case: &Case) -> Vec<RingReport>
 
 /// What:
 /// `check_pair` finds the element the ring of a frame pair hugs and checks the pair against it.
-pub(crate) fn check_pair(rendered: &Rendered, case: &Case, on: &Frame, off: &Frame, scheme: &str) -> RingReport {
+pub(crate) fn check_pair(
+    rendered: &Rendered,
+    case: &Case,
+    on: &Frame,
+    off: &Frame,
+    scheme: &str,
+) -> RingReport {
     let found = if let Some(nth) = case.nth {
         let (x, y, width, height) = ElementHandle::find_by_element_id(&rendered.app, case.id)
             .map(|element| return box_of(&element))
-            .map(|(x, y, width, height)| return (x + case.origin.0, y + case.origin.1, width, height))
+            .map(|(x, y, width, height)| {
+                return (x + case.origin.0, y + case.origin.1, width, height);
+            })
             .filter(|(_x, _y, width, _height)| return *width > 0.0)
             .nth(nth)
-            .unwrap_or_else(|| panic!("{}: no element {} number {nth} has a size", case.label, case.id));
-        RoundedBox::new(x + case.inset.0, y + case.inset.1, width - 2.0 * case.inset.0, height - 2.0 * case.inset.1, 0.0)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{}: no element {} number {nth} has a size",
+                    case.label, case.id
+                )
+            });
+        RoundedBox::new(
+            x + case.inset.0,
+            y + case.inset.1,
+            width - 2.0 * case.inset.0,
+            height - 2.0 * case.inset.1,
+            0.0,
+        )
     } else {
-        let differing = on.differing_box(off).unwrap_or_else(|| panic!("{} ({scheme}): the ring is not drawn: both frames are equal", case.label));
-        element_for_ring(rendered, case.id, case.inset, case.origin, differing, case.inside)
+        let differing = on.differing_box(off).unwrap_or_else(|| {
+            panic!(
+                "{} ({scheme}): the ring is not drawn: both frames are equal",
+                case.label
+            )
+        });
+        element_for_ring(
+            rendered,
+            case.id,
+            case.inset,
+            case.origin,
+            differing,
+            case.inside,
+        )
     };
-    let element = RoundedBox { radii: case.radii, ..found };
+    let element = RoundedBox {
+        radii: case.radii,
+        ..found
+    };
     let colors = roles_of(rendered);
-    return check_ring(on, off, element, colors, case.inside, case).unwrap_or_else(|message| panic!("{} {} ({scheme}): {message}", case.label, case.id));
+    return check_ring(on, off, element, colors, case.inside, case)
+        .unwrap_or_else(|message| panic!("{} {} ({scheme}): {message}", case.label, case.id));
 }
 
 /// What:
 /// `case` makes the common case:
 /// a ring outside the element,
 /// all corners the same.
-pub(crate) fn case<'a>(label: &'a str, id: &'a str, inset: (f32, f32), radius: f32) -> Case<'a> {
-    return Case { label, id, inset, radii: [radius; 4], inside: false, far: true, skip: Vec::new(), origin: (0.0, 0.0), coverage: false, nth: None };
+pub(crate) fn case<'a>(
+    label: &'a str,
+    id: &'a str,
+    inset: (f32, f32),
+    radius: f32,
+) -> Case<'a> {
+    return Case {
+        label,
+        id,
+        inset,
+        radii: [radius; 4],
+        inside: false,
+        far: true,
+        skip: Vec::new(),
+        origin: (0.0, 0.0),
+        coverage: false,
+        nth: None,
+    };
 }
 
 #[test]
 fn the_open_pill_ring_is_a_pill_flush_outside_the_pill() {
     let rendered = Rendered::new(850, 900);
-    let reports = run_case(&rendered, &case("open-pill", "OpenPill::pill", (0.0, 0.0), 20.0));
+    let reports = run_case(
+        &rendered,
+        &case("open-pill", "OpenPill::pill", (0.0, 0.0), 20.0),
+    );
     for report in reports {
-        assert!(report.near > 150 && report.outer > 60, "a pill ring has long bands, {} and {} whole pixels", report.near, report.outer);
-        assert!(report.unchanged > 1000, "the pixels around it were compared, {}", report.unchanged);
+        assert!(
+            report.near > 150 && report.outer > 60,
+            "a pill ring has long bands, {} and {} whole pixels",
+            report.near,
+            report.outer
+        );
+        assert!(
+            report.unchanged > 1000,
+            "the pixels around it were compared, {}",
+            report.unchanged
+        );
     }
 }
 
@@ -375,14 +558,21 @@ fn the_open_pill_ring_is_a_pill_flush_outside_the_pill() {
 fn the_search_and_settings_rings_are_circles_flush_outside_the_40_px_circle() {
     let rendered = Rendered::new(850, 900);
     for label in ["search", "settings"] {
-        run_case(&rendered, &case(label, "IconTarget::stop", (4.0, 4.0), 20.0));
+        run_case(
+            &rendered,
+            &case(label, "IconTarget::stop", (4.0, 4.0), 20.0),
+        );
     }
 }
 
 #[test]
 fn the_transport_rings_are_circles_flush_outside_the_40_px_circles() {
     let rendered = Rendered::new(850, 900);
-    for (label, id) in [("previous", "TransportDeck::prev-stop"), ("play", "TransportDeck::play-stop"), ("next", "TransportDeck::next-stop")] {
+    for (label, id) in [
+        ("previous", "TransportDeck::prev-stop"),
+        ("play", "TransportDeck::play-stop"),
+        ("next", "TransportDeck::next-stop"),
+    ] {
         run_case(&rendered, &case(label, id, (4.0, 4.0), 20.0));
     }
 }
@@ -390,25 +580,37 @@ fn the_transport_rings_are_circles_flush_outside_the_40_px_circles() {
 #[test]
 fn the_seek_bar_ring_is_a_pill_around_its_48_px_target() {
     let rendered = Rendered::new(850, 900);
-    run_case(&rendered, &case("seek", "TransportDeck::seek-stop", (0.0, 0.0), 24.0));
+    run_case(
+        &rendered,
+        &case("seek", "TransportDeck::seek-stop", (0.0, 0.0), 24.0),
+    );
 }
 
 #[test]
 fn the_folder_trigger_ring_is_a_pill_flush_outside_the_40_px_pill_of_the_folded_layout() {
     let rendered = Rendered::new(443, 900);
-    run_case(&rendered, &case("folder-trigger", "CoverTopRow::trigger", (0.0, 4.0), 20.0));
+    run_case(
+        &rendered,
+        &case("folder-trigger", "CoverTopRow::trigger", (0.0, 4.0), 20.0),
+    );
 }
 
 #[test]
 fn the_folder_list_ring_is_a_square_cornered_box_with_2_px_corners_around_the_name() {
     let rendered = Rendered::new(850, 900);
-    run_case(&rendered, &case("folder-list", "FolderPickerPane::name-row", (0.0, 0.0), 0.0));
+    run_case(
+        &rendered,
+        &case("folder-list", "FolderPickerPane::name-row", (0.0, 0.0), 0.0),
+    );
 }
 
 #[test]
 fn the_track_list_ring_is_on_the_edge_of_a_row_as_wide_as_its_pane() {
     let rendered = Rendered::new(850, 900);
-    let row = Case { inside: true, ..case("track-list", "TrackListPane::item", (0.0, 0.0), 0.0) };
+    let row = Case {
+        inside: true,
+        ..case("track-list", "TrackListPane::item", (0.0, 0.0), 0.0)
+    };
     run_case(&rendered, &row);
 }
 
@@ -418,15 +620,26 @@ fn the_track_list_ring_is_on_the_edge_of_a_row_as_wide_as_its_pane() {
 /// the group is one row,
 /// two rows of two or four rows depending on the width,
 /// and each layout rounds different corners.
-fn mode_ring_case(width: usize, corners: [[f32; 4]; 4]) {
+fn mode_ring_case(
+    width: usize,
+    corners: [[f32; 4]; 4],
+) {
     let rendered = Rendered::new(width, 900);
     tab_to(&rendered, "mode-group");
     for (mode, radii) in corners.into_iter().enumerate() {
-        rendered.app.set_playback_mode(i32::try_from(mode).unwrap_or(0));
+        rendered
+            .app
+            .set_playback_mode(i32::try_from(mode).unwrap_or(0));
         // The segments ease their width over 150 ms when the selection changes.
         rendered.wait(250);
         let id = format!("TransportDeck::seg-{mode}");
-        check_focused(&rendered, &Case { radii, ..case("mode-group", &id, (0.0, 0.0), 0.0) });
+        check_focused(
+            &rendered,
+            &Case {
+                radii,
+                ..case("mode-group", &id, (0.0, 0.0), 0.0)
+            },
+        );
     }
 }
 
@@ -434,17 +647,41 @@ fn mode_ring_case(width: usize, corners: [[f32; 4]; 4]) {
 fn the_mode_ring_hugs_the_selected_segment_with_its_own_corners_in_one_row() {
     // Wide enough for the group in one row: the two ends are pills and the inside corners are square, so the ring on a middle
     // segment is a rectangle with 2 px corners.
-    mode_ring_case(1200, [[24.0, 0.0, 0.0, 24.0], [0.0; 4], [0.0; 4], [0.0, 24.0, 24.0, 0.0]]);
+    mode_ring_case(
+        1200,
+        [
+            [24.0, 0.0, 0.0, 24.0],
+            [0.0; 4],
+            [0.0; 4],
+            [0.0, 24.0, 24.0, 0.0],
+        ],
+    );
 }
 
 #[test]
 fn the_mode_ring_hugs_the_selected_segment_with_its_own_corners_in_two_rows() {
     // Two rows of two: each segment rounds only the corner that is a corner of the group.
-    mode_ring_case(400, [[20.0, 0.0, 0.0, 0.0], [0.0, 20.0, 0.0, 0.0], [0.0, 0.0, 0.0, 20.0], [0.0, 0.0, 20.0, 0.0]]);
+    mode_ring_case(
+        400,
+        [
+            [20.0, 0.0, 0.0, 0.0],
+            [0.0, 20.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 20.0],
+            [0.0, 0.0, 20.0, 0.0],
+        ],
+    );
 }
 
 #[test]
 fn the_mode_ring_hugs_the_selected_segment_with_its_own_corners_in_four_rows() {
     // The narrowest window stacks the four segments: the top one rounds its upper corners and the bottom one its lower corners.
-    mode_ring_case(360, [[20.0, 20.0, 0.0, 0.0], [0.0; 4], [0.0; 4], [0.0, 0.0, 20.0, 20.0]]);
+    mode_ring_case(
+        360,
+        [
+            [20.0, 20.0, 0.0, 0.0],
+            [0.0; 4],
+            [0.0; 4],
+            [0.0, 0.0, 20.0, 20.0],
+        ],
+    );
 }

@@ -37,7 +37,12 @@
 /// ```ts
 /// // a thread-safe queue split into a Sender (push) and a Receiver (tryPop)
 /// ```
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{
+    self,
+    Receiver,
+    Sender,
+    TryRecvError,
+};
 
 /// What:
 ///      `use std::thread::{self, JoinHandle, Thread};`.
@@ -61,7 +66,11 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 /// ```ts
 /// // JoinHandle ~ a Worker + exit promise; Thread ~ a WorkerRef you can post "wake" to
 /// ```
-use std::thread::{self, JoinHandle, Thread};
+use std::thread::{
+    self,
+    JoinHandle,
+    Thread,
+};
 
 /// What:
 ///      `use std::time::Duration;`.
@@ -88,7 +97,10 @@ use std::time::Duration;
 /// ```ts
 /// import { Command, Update } from "./command";
 /// ```
-use crate::command::{Command, Update};
+use crate::command::{
+    Command,
+    Update,
+};
 
 /// What:
 ///      `use crate::controller::Controller;`.
@@ -101,10 +113,10 @@ use crate::command::{Command, Update};
 /// import { Controller } from "./controller";
 /// ```
 use crate::audio_meter::MeterReporter;
-/// Imports the call that raises the decode thread's scheduling priority.
-use crate::thread_priority::raise_current_thread_for_decode;
 /// Imports the controller that the worker thread owns.
 use crate::controller::Controller;
+/// Imports the call that raises the decode thread's scheduling priority.
+use crate::thread_priority::raise_current_thread_for_decode;
 
 /// What:
 ///      `use crate::peakcache::CacheHandle;`.
@@ -249,7 +261,11 @@ pub struct Engine {
 ///   worker.postWakeUp();
 /// }
 /// ```
-fn send_and_wake(tx: &Sender<Command>, worker: &Thread, command: Command) {
+fn send_and_wake(
+    tx: &Sender<Command>,
+    worker: &Thread,
+    command: Command,
+) {
     // What:     `let _ = tx.send(command);`. `send` returns a `Result` that errs only if the
     //           worker is gone; `let _ =` DISCARDS it.
     // Why:      A dead worker during shutdown is not worth surfacing.
@@ -342,7 +358,10 @@ impl CommandSender {
     /// ```ts
     /// send(command: Command): void { ... }
     /// ```
-    pub fn send(&self, command: Command) {
+    pub fn send(
+        &self,
+        command: Command,
+    ) {
         // What:     `send_and_wake(&self.tx, &self.worker, command);`. Delegate to the shared
         //           send-then-wake helper, lending this sender's channel and worker handle.
         // Why:      One implementation of the "queue then unpark" contract, shared with
@@ -396,7 +415,7 @@ impl Engine {
         // ```ts
         // return Engine.spawnWithCache(onUpdate, CacheHandle.open());
         // ```
-        return Engine::spawn_with_cache(on_update, CacheHandle::open())
+        return Engine::spawn_with_cache(on_update, CacheHandle::open());
     }
 
     /// What:
@@ -413,7 +432,10 @@ impl Engine {
     /// ```ts
     /// static spawnWithCache(onUpdate, cache): Engine { ... }
     /// ```
-    pub(crate) fn spawn_with_cache<F>(on_update: F, cache: CacheHandle) -> Engine
+    pub(crate) fn spawn_with_cache<F>(
+        on_update: F,
+        cache: CacheHandle,
+    ) -> Engine
     where
         F: Fn(Update) + Send + 'static,
     {
@@ -489,7 +511,7 @@ impl Engine {
             tx,
             worker,
             handle: Some(handle),
-        }
+        };
     }
 
     /// What:
@@ -524,7 +546,7 @@ impl Engine {
         return CommandSender {
             tx: self.tx.clone(),
             worker: self.worker.clone(),
-        }
+        };
     }
 
     /// What:
@@ -538,7 +560,10 @@ impl Engine {
     /// ```ts
     /// send(command: Command): void { ... }
     /// ```
-    pub fn send(&self, command: Command) {
+    pub fn send(
+        &self,
+        command: Command,
+    ) {
         // What:     `send_and_wake(&self.tx, &self.worker, command);`. Delegate to the shared
         //           send-then-wake helper, lending this engine's channel and worker handle.
         // Why:      One implementation of the "queue then unpark" contract, shared with
@@ -682,7 +707,9 @@ fn run(
         // ```
         Err(e) => {
             tracing::warn!(error = %e, "audio init failed; degrading to silent mode");
-            on_update(Update::AudioUnavailable { reason: e.to_string() });
+            on_update(Update::AudioUnavailable {
+                reason: e.to_string(),
+            });
             None
         }
     };
@@ -722,7 +749,9 @@ fn run(
     // controller.sweepSink = (report) => selfSender.send({ kind: "sweepReport", report });
     // ```
     let sweep_sender = self_sender.clone();
-    controller.sweep_sink = crate::sweep_report::sink_from(move |report| return sweep_sender.send(Command::SweepReport(report)));
+    controller.sweep_sink = crate::sweep_report::sink_from(move |report| {
+        return sweep_sender.send(Command::SweepReport(report));
+    });
     // What:     no `emit_source_root` here any more; `Command::NoLibrary` says "nothing to open" when that is true.
     // Why:      The old start-up signal said "no folder is open" before the launch had decided whether a saved folder or the
     //           music folder was about to open, so a library being read showed the "No folder is open" copy (EM1).
@@ -914,7 +943,9 @@ fn run(
         // if (!appliedPeak && !didWork) await Promise.race([wokenSignal, sleep(IDLE_PARK_FALLBACK_MS)]);
         // ```
         if !applied_peak && !did_work {
-            thread::park_timeout(controller.idle_park_timeout(Duration::from_millis(IDLE_PARK_FALLBACK_MS)));
+            thread::park_timeout(
+                controller.idle_park_timeout(Duration::from_millis(IDLE_PARK_FALLBACK_MS)),
+            );
         }
     }
 }

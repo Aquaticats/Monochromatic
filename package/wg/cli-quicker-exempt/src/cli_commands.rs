@@ -23,7 +23,10 @@ pub fn parse_mark(value: &str) -> io::Result<u32> {
     let mark: u32 = match value.parse() {
         Ok(parsed) => parsed,
         Err(error) => {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid mark {value}: {error}")));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid mark {value}: {error}"),
+            ));
         }
     };
     if mark == 0 {
@@ -39,12 +42,18 @@ pub fn parse_mark(value: &str) -> io::Result<u32> {
 pub fn parse_uid(value: &str) -> io::Result<u32> {
     return match value.parse() {
         Ok(uid) => Ok(uid),
-        Err(error) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid UID {value}: {error}"))),
+        Err(error) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid UID {value}: {error}"),
+        )),
     };
 }
 
 /// Attaches marker transaction to every listed cgroup while global lock is held.
-pub fn attach_many(mark: u32, dirs: &[String]) -> io::Result<()> {
+pub fn attach_many(
+    mark: u32,
+    dirs: &[String],
+) -> io::Result<()> {
     let _lock = pin::acquire_lifecycle_lock()?;
     for dir in dirs {
         let cgroup = Path::new(dir);
@@ -61,7 +70,10 @@ pub fn attach_many(mark: u32, dirs: &[String]) -> io::Result<()> {
                 );
             }
             Err(error) => {
-                return Err(io::Error::new(error.kind(), format!("attach {dir}: {error}")));
+                return Err(io::Error::new(
+                    error.kind(),
+                    format!("attach {dir}: {error}"),
+                ));
             }
         }
     }
@@ -74,10 +86,16 @@ pub fn detach_many(dirs: &[String]) -> io::Result<()> {
     for dir in dirs {
         let cgroup = Path::new(dir);
         if let Err(error) = keeper::detach_keeper(cgroup) {
-            return Err(io::Error::new(error.kind(), format!("detach fallback {dir}: {error}")));
+            return Err(io::Error::new(
+                error.kind(),
+                format!("detach fallback {dir}: {error}"),
+            ));
         }
         if let Err(error) = pin::detach_cgroup(cgroup) {
-            return Err(io::Error::new(error.kind(), format!("detach pins {dir}: {error}")));
+            return Err(io::Error::new(
+                error.kind(),
+                format!("detach pins {dir}: {error}"),
+            ));
         }
         println!("detached {dir}");
     }

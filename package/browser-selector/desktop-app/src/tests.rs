@@ -1,13 +1,20 @@
 //! Tests URL encoding and routing with disposable browser profile data.
 
 /// Imports the path and file functions used to create disposable fixtures.
-use std::{ffi::OsStr, fs, path::Path};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+};
 
 /// Imports the GIO methods used to check file URI decoding.
 use gio::prelude::FileExt;
 
 /// Imports the app entry points exercised by these tests.
-use crate::{profiles, target};
+use crate::{
+    profiles,
+    target,
+};
 
 /// What: Creates an automatically removed scratch directory inside the build directory.
 /// Why: Each test mutates its own fixture on the package's filesystem.
@@ -72,7 +79,14 @@ fn file_path_round_trips_through_desktop_uri() -> anyhow::Result<()> {
 fn firefox_sqlite_and_legacy_profiles_keep_channel_identity() -> anyhow::Result<()> {
     let fixture = fixture()?;
     let root = fixture.path();
-    for directory in ["release", "esr", "work", "personal", "legacy", "Profile Groups"] {
+    for directory in [
+        "release",
+        "esr",
+        "work",
+        "personal",
+        "legacy",
+        "Profile Groups",
+    ] {
         fs::create_dir(root.join(directory))?;
     }
     let release = root.join("release");
@@ -100,11 +114,24 @@ fn firefox_sqlite_and_legacy_profiles_keep_channel_identity() -> anyhow::Result<
     let found = profiles::firefox_profiles_at(root);
     let release_profiles = profiles::profiles_for_firefox(&found, &release.join(executable), false);
     let esr_profiles = profiles::profiles_for_firefox(&found, &esr.join(executable), false);
-    let release_names: Vec<&str> = release_profiles.iter().map(|profile| return profile.name.as_str()).collect();
+    let release_names: Vec<&str> = release_profiles
+        .iter()
+        .map(|profile| return profile.name.as_str())
+        .collect();
     assert_eq!(release_names, ["Personal", "Work"]);
-    let esr_names: Vec<&str> = esr_profiles.iter().map(|profile| return profile.name.as_str()).collect();
+    let esr_names: Vec<&str> = esr_profiles
+        .iter()
+        .map(|profile| return profile.name.as_str())
+        .collect();
     assert_eq!(esr_names, ["Legacy"]);
-    assert_eq!(esr_profiles[0].arguments, [OsStr::new("--profile"), root.join("legacy").as_os_str(), OsStr::new("--new-tab")]);
+    assert_eq!(
+        esr_profiles[0].arguments,
+        [
+            OsStr::new("--profile"),
+            root.join("legacy").as_os_str(),
+            OsStr::new("--new-tab")
+        ]
+    );
     return Ok(());
 }
 
@@ -122,12 +149,15 @@ fn helium_uses_the_directory_key_and_ignores_stale_rows() -> anyhow::Result<()> 
     for directory in ["Profile 7", "Omitted"] {
         fs::create_dir(root.join(directory))?;
     }
-    fs::write(root.join("Local State"), r#"{"profile":{"info_cache":{
+    fs::write(
+        root.join("Local State"),
+        r#"{"profile":{"info_cache":{
         "Profile 7":{"name":"Work"},
         "Omitted":{"name":"Hidden","is_omitted":true},
         "Deleted":{"name":"Gone"},
         "../..":{"name":"Outside"}
-    }}}"#)?;
+    }}}"#,
+    )?;
     let found = profiles::helium_profiles(root);
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].name, "Work");

@@ -18,7 +18,10 @@ use super::identity::ServerIdentity;
 /// `didOpen` follows readiness.
 use super::lifecycle::send_did_open;
 /// States reported to the interface thread.
-use super::status::{DocumentState, ServerState};
+use super::status::{
+    DocumentState,
+    ServerState,
+};
 /// The worker's messages to itself,
 ///  one of which carries the last standard-error lines of a server whose start failed.
 use super::worker::Internal;
@@ -54,7 +57,12 @@ mod report;
 /// ```ts
 /// function retire(worker: Worker, index: number, state: ServerState, stop: boolean): void
 /// ```
-fn retire(worker: &mut Worker, index: usize, state: ServerState, stop: bool) {
+fn retire(
+    worker: &mut Worker,
+    index: usize,
+    state: ServerState,
+    stop: bool,
+) {
     let record = &mut worker.session.servers[index];
     // `take()` moves the client out of the record, leaving "nothing" behind.
     if let Some(client) = record.client.take() {
@@ -73,7 +81,10 @@ fn retire(worker: &mut Worker, index: usize, state: ServerState, stop: bool) {
 }
 
 /// Remove everything a server process contributed to the displayed document.
-fn forget_results(worker: &mut Worker, identity: &ServerIdentity) {
+fn forget_results(
+    worker: &mut Worker,
+    identity: &ServerIdentity,
+) {
     worker.session.diagnostics.server_exited(identity);
     // The entries of other servers are kept, in their order.
     let held = std::mem::take(&mut worker.session.hints);
@@ -106,7 +117,10 @@ struct SendEndCause {
 impl report::AfterEnd for SendEndCause {
     /// Send the cause;
     ///  a worker that stopped meanwhile needs none.
-    fn after_end(self, lines: Vec<String>) {
+    fn after_end(
+        self,
+        lines: Vec<String>,
+    ) {
         if let Err(error) = self.internal.send(Internal::EndCause(self.identity, lines)) {
             tracing::debug!(%error, "language worker stopped before the cause of a failed start arrived");
         }
@@ -125,7 +139,10 @@ impl report::AfterEnd for SendEndCause {
 /// ```ts
 /// function attachRunning(worker: Worker, names: string[]): void
 /// ```
-fn attach_running(worker: &mut Worker, names: &[String]) {
+fn attach_running(
+    worker: &mut Worker,
+    names: &[String],
+) {
     for index in 0..worker.session.servers.len() {
         let record = &mut worker.session.servers[index];
         if record.client.is_none() || !names.contains(&record.identity.name) {
@@ -253,7 +270,10 @@ pub(super) async fn revive(worker: &mut Worker) -> bool {
 /// ```ts
 /// function initialized(worker: Worker, server: ServerId): void
 /// ```
-pub(super) fn initialized(worker: &mut Worker, server: LanguageServerId) {
+pub(super) fn initialized(
+    worker: &mut Worker,
+    server: LanguageServerId,
+) {
     let Some(index) = worker.session.index_of(server) else {
         return;
     };
@@ -281,7 +301,10 @@ pub(super) fn initialized(worker: &mut Worker, server: LanguageServerId) {
 /// ```ts
 /// function exited(worker: Worker, server: ServerId): void
 /// ```
-pub(super) fn exited(worker: &mut Worker, server: LanguageServerId) {
+pub(super) fn exited(
+    worker: &mut Worker,
+    server: LanguageServerId,
+) {
     let Some(index) = worker.session.index_of(server) else {
         worker.registry.remove_by_id(server);
         return;
@@ -302,7 +325,14 @@ pub(super) fn exited(worker: &mut Worker, server: LanguageServerId) {
     } else {
         let internal = worker.internal.clone();
         let name = identity.name.clone();
-        report::ended_unexpectedly_then(name, false, SendEndCause { internal, identity });
+        report::ended_unexpectedly_then(
+            name,
+            false,
+            SendEndCause {
+                internal,
+                identity,
+            },
+        );
     }
     retire(worker, index, state, false);
     if !worker.session.servers[index].attached {
@@ -323,7 +353,10 @@ pub(super) fn exited(worker: &mut Worker, server: LanguageServerId) {
 /// ```ts
 /// function startDeadline(worker: Worker, server: ServerId): void
 /// ```
-pub(super) fn start_deadline(worker: &mut Worker, server: LanguageServerId) {
+pub(super) fn start_deadline(
+    worker: &mut Worker,
+    server: LanguageServerId,
+) {
     let Some(index) = worker.session.index_of(server) else {
         return;
     };
@@ -336,7 +369,14 @@ pub(super) fn start_deadline(worker: &mut Worker, server: LanguageServerId) {
     let summary = format!("{name} did not answer initialize within {seconds} seconds");
     let lines = report::stopped_during_start(&name);
     let reason = with_lines(summary, &lines);
-    retire(worker, index, ServerState::FailedToStart { reason }, true);
+    retire(
+        worker,
+        index,
+        ServerState::FailedToStart {
+            reason,
+        },
+        true,
+    );
     if !worker.session.servers[index].attached {
         worker.session.servers.remove(index);
     }
@@ -365,7 +405,10 @@ const CAUSE_LINE_BYTES: usize = 200;
 /// ```ts
 /// function withLines(reason: string, lines: string[]): string
 /// ```
-fn with_lines(reason: String, lines: &[String]) -> String {
+fn with_lines(
+    reason: String,
+    lines: &[String],
+) -> String {
     if lines.is_empty() {
         return reason;
     }
@@ -398,13 +441,20 @@ fn with_lines(reason: String, lines: &[String]) -> String {
 /// ```ts
 /// function endCause(worker: Worker, server: ServerIdentity, lines: string[]): void
 /// ```
-pub(super) fn end_cause(worker: &mut Worker, server: &ServerIdentity, lines: Vec<String>) {
+pub(super) fn end_cause(
+    worker: &mut Worker,
+    server: &ServerIdentity,
+    lines: Vec<String>,
+) {
     let Some(index) = worker.session.index_of_identity(server) else {
         tracing::debug!(server = %server.name, "the record of a failed start was removed before its cause arrived");
         return;
     };
     let record = &mut worker.session.servers[index];
-    let ServerState::FailedToStart { reason } = &record.state else {
+    let ServerState::FailedToStart {
+        reason,
+    } = &record.state
+    else {
         return;
     };
     if lines.is_empty() {
@@ -412,7 +462,9 @@ pub(super) fn end_cause(worker: &mut Worker, server: &ServerIdentity, lines: Vec
     }
     let updated = with_lines(reason.clone(), &lines);
     tracing::debug!(server = %server.name, lines = lines.len(), "stated the cause of a failed start");
-    record.state = ServerState::FailedToStart { reason: updated };
+    record.state = ServerState::FailedToStart {
+        reason: updated,
+    };
 }
 
 /// The reason text a failed start carries is built without a server.

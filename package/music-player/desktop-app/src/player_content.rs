@@ -11,20 +11,33 @@
 //! from a template,
 //!  so the builder has no playing-line parameter.
 
-/// Folder list types and the grouping function that builds one page's folder.
-use crate::folder_index::{FolderEntry, FolderListItem, FolderTrackRow, folder_index};
-/// Rail section type and the builder that derives the rail from the page labels.
-use crate::folder_rail::{RailSection, rail_for};
 /// Playback mode,
 ///  carried through to the deck unchanged.
 use crate::command::PlaybackMode;
+/// Folder list types and the grouping function that builds one page's folder.
+use crate::folder_index::{
+    FolderEntry,
+    FolderListItem,
+    FolderTrackRow,
+    folder_index,
+};
+/// Rail section type and the builder that derives the rail from the page labels.
+use crate::folder_rail::{
+    RailSection,
+    rail_for,
+};
 /// One track of the displayed page,
 ///  with its queue position.
 use crate::pagination::PageEntry;
 /// One track with its URI and display path.
 use crate::track::Track;
 /// Track row types and the helpers that build rows and titles.
-use crate::track_entries::{TrackListEntry, TrackRowModel, track_list_entries, track_title_for};
+use crate::track_entries::{
+    TrackListEntry,
+    TrackRowModel,
+    track_list_entries,
+    track_title_for,
+};
 /// Imports the per-track measure that the rows show.
 use crate::track_measure::TrackMeasure;
 /// Imports the map type that looks measures up by name.
@@ -144,7 +157,9 @@ pub struct PlayerContentModel {
 fn row_entry(entry: &TrackListEntry) -> Option<&TrackRowModel> {
     return match entry {
         TrackListEntry::RowEntry(row) => Some(row),
-        TrackListEntry::HeaderEntry { .. } => None,
+        TrackListEntry::HeaderEntry {
+            ..
+        } => None,
     };
 }
 
@@ -163,12 +178,20 @@ fn row_entry(entry: &TrackListEntry) -> Option<&TrackRowModel> {
 /// ```ts
 /// export function buildPlayerContent(input: PlayerContentInput, supportingLine: (f: TrackFields) => string | null): PlayerContentModel { /* ... */ }
 /// ```
-pub fn build_player_content(input: &PlayerContentInput, supporting_line: &dyn crate::track_supporting_line::SupportingLine) -> PlayerContentModel {
+pub fn build_player_content(
+    input: &PlayerContentInput,
+    supporting_line: &dyn crate::track_supporting_line::SupportingLine,
+) -> PlayerContentModel {
     let sections: Vec<RailSection> = rail_for(&input.page_labels);
     let current_folder: Option<String> = input.page_labels.get(input.selected_page).cloned();
     let folder_title: String = current_folder.clone().unwrap_or_default();
     let folder: FolderEntry = page_folder_for(&folder_title, &input.page_items);
-    let entries: Vec<TrackListEntry> = track_list_entries(&folder, input.current_index, &input.measures, supporting_line);
+    let entries: Vec<TrackListEntry> = track_list_entries(
+        &folder,
+        input.current_index,
+        &input.measures,
+        supporting_line,
+    );
     let mut row_position: Option<usize> = None;
     let mut rows_seen: usize = 0;
     for entry in &entries {
@@ -219,7 +242,10 @@ pub fn build_player_content(input: &PlayerContentInput, supporting_line: &dyn cr
 /// ```ts
 /// const tracks = pageItems.map((item) => ({ uri: "", displayPath: item.name }));
 /// ```
-pub fn page_folder_for(folder_title: &str, page_items: &[PageEntry]) -> FolderEntry {
+pub fn page_folder_for(
+    folder_title: &str,
+    page_items: &[PageEntry],
+) -> FolderEntry {
     let mut tracks: Vec<Track> = Vec::with_capacity(page_items.len());
     for item in page_items {
         tracks.push(Track {
@@ -250,7 +276,10 @@ pub fn page_folder_for(folder_title: &str, page_items: &[PageEntry]) -> FolderEn
 /// ```ts
 /// items.map((item) => item.kind === "track" ? { ...item, row: { ...item.row, indexInLibrary: pageItems[item.row.indexInLibrary].index } } : item);
 /// ```
-pub fn with_load_indices(items: Vec<FolderListItem>, page_items: &[PageEntry]) -> Vec<FolderListItem> {
+pub fn with_load_indices(
+    items: Vec<FolderListItem>,
+    page_items: &[PageEntry],
+) -> Vec<FolderListItem> {
     let mut indexed: Vec<FolderListItem> = Vec::with_capacity(items.len());
     for item in items {
         indexed.push(with_load_index(item, page_items));
@@ -269,7 +298,10 @@ pub fn with_load_indices(items: Vec<FolderListItem>, page_items: &[PageEntry]) -
 /// ```ts
 /// const withLoadIndex = (item, pageItems) => item.kind === "track" ? { kind: "track", row: { track: item.row.track, indexInLibrary: pageItems[item.row.indexInLibrary].index } } : item;
 /// ```
-fn with_load_index(item: FolderListItem, page_items: &[PageEntry]) -> FolderListItem {
+fn with_load_index(
+    item: FolderListItem,
+    page_items: &[PageEntry],
+) -> FolderListItem {
     return match item {
         FolderListItem::TrackItem(row) => FolderListItem::TrackItem(FolderTrackRow {
             index_in_library: page_items[row.index_in_library].index,
@@ -293,7 +325,10 @@ fn with_load_index(item: FolderListItem, page_items: &[PageEntry]) -> FolderList
 /// ```ts
 /// const subtitleFor = (pos: number | null, total: number) => (pos === null ? "" : `${pos + 1} of ${total}`);
 /// ```
-pub fn subtitle_for(row_position: Option<usize>, page_track_count: usize) -> String {
+pub fn subtitle_for(
+    row_position: Option<usize>,
+    page_track_count: usize,
+) -> String {
     return match row_position {
         Some(position) => format!("{} of {page_track_count}", position + 1),
         None => String::new(),

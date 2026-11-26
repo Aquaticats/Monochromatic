@@ -16,7 +16,9 @@ use std::process::Command;
 #[test]
 fn logging_filter_probe() {
     // Result's Ok variant contains the parent-owned fixture expectation; ordinary enumeration returns immediately.
-    let Ok(expected) = std::env::var("SCANNER_LOGGING_FILTER_EXPECTED") else { return; };
+    let Ok(expected) = std::env::var("SCANNER_LOGGING_FILTER_EXPECTED") else {
+        return;
+    };
     // Display renders only fixed fixture directives here, independently of subscriber initialization.
     assert_eq!(logging_filter().to_string(), expected);
 }
@@ -35,14 +37,27 @@ fn configured_filters_and_fallback_are_observable() {
     ];
     for (configuration, expected) in cases {
         // current_exe returns an owned native pathname to this test binary, not the installed scanner.
-        let mut command: Command = Command::new(std::env::current_exe().expect("unit-test executable"));
-        command.args(["--exact", "logging_tests::logging_filter_probe", "--nocapture"])
-            .env("SCANNER_LOGGING_FILTER_EXPECTED", expected).env_remove("RUST_LOG");
+        let mut command: Command =
+            Command::new(std::env::current_exe().expect("unit-test executable"));
+        command
+            .args([
+                "--exact",
+                "logging_tests::logging_filter_probe",
+                "--nocapture",
+            ])
+            .env("SCANNER_LOGGING_FILTER_EXPECTED", expected)
+            .env_remove("RUST_LOG");
         // Borrowed directive text is copied into the child environment without changing the parent process.
-        if let Some(value) = configuration { command.env("RUST_LOG", value); }
+        if let Some(value) = configuration {
+            command.env("RUST_LOG", value);
+        }
         let output = command.output().expect("isolated logging-filter probe");
         // Borrow output bytes for UTF-8 display only after the child finished; these are fixed synthetic directives.
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
     }
 }

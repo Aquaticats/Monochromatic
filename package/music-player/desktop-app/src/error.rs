@@ -254,7 +254,10 @@ impl fmt::Display for PlayerError {
     /// ```ts
     /// toString(): string { switch (this.kind) { ... } }
     /// ```
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What:     `match self { ... }` dispatches on which variant this is. Each
         //           arm binds the inner value by reference (`e`/`m`) because `self`
         //           is borrowed, not owned.
@@ -417,7 +420,7 @@ impl From<std::io::Error> for PlayerError {
         // ```ts
         // return { kind: "io", cause: e };
         // ```
-        return PlayerError::Io(e)
+        return PlayerError::Io(e);
     }
 }
 
@@ -451,7 +454,7 @@ impl From<symphonia::core::errors::Error> for PlayerError {
         // ```ts
         // return { kind: "decode", cause: e };
         // ```
-        return PlayerError::Decode(e)
+        return PlayerError::Decode(e);
     }
 }
 
@@ -484,7 +487,7 @@ impl From<opus::Error> for PlayerError {
         // ```ts
         // return { kind: "opus", cause: e };
         // ```
-        return PlayerError::Opus(e)
+        return PlayerError::Opus(e);
     }
 }
 

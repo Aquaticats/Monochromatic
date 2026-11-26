@@ -39,7 +39,10 @@ fn texts(items: &[&str]) -> Vec<OsString> {
 #[test]
 fn the_name_is_the_last_segment_of_the_first_argument() {
     assert_eq!(invoked_name(&texts(&["/usr/local/bin/rg"])), "rg");
-    assert_eq!(invoked_name(&texts(&["search-shadow", "link"])), "search-shadow");
+    assert_eq!(
+        invoked_name(&texts(&["search-shadow", "link"])),
+        "search-shadow"
+    );
     assert_eq!(invoked_name(&texts(&["rg"])), "rg");
 }
 

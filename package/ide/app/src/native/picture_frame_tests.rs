@@ -15,19 +15,32 @@ use super::find_tests::Reader;
 use super::{
     minimap::PICTURE_FRAMES_ASKED,
     minimap_tests::picture_still,
-    sidebar_tests::{TEXT_LEFT, minimap_beside},
+    sidebar_tests::{
+        TEXT_LEFT,
+        minimap_beside,
+    },
     tile_reads::draw_minimap,
-    wrap_tests::{long_text, open},
+    wrap_tests::{
+        long_text,
+        open,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Toolkit events.
 use slint::{
-    ComponentHandle, LogicalSize,
-    platform::{WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalSize,
+    platform::{
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Counters are atomic.
-use std::{sync::atomic::Ordering, time::Duration};
+use std::{
+    sync::atomic::Ordering,
+    time::Duration,
+};
 
 /// A window whose first picture is on screen and drawn,
 /// and the number of pictures set and frames asked for so far.
@@ -43,7 +56,10 @@ fn drawn() -> (tempfile::TempDir, Reader, u64, u64) {
 /// Change the window by one pixel and advance the timers until the picture of the change is handed to the GPU,
 /// and stop in the step that handed it over:
 /// no timer runs between that step and the next thing the caller does.
-fn hand_over_a_picture(opened: &Reader, images: u64) {
+fn hand_over_a_picture(
+    opened: &Reader,
+    images: u64,
+) {
     opened.window.window().dispatch_event(WindowEvent::Resized {
         size: LogicalSize::new(TEXT_LEFT + 1330.0 + minimap_beside(1330.0), 3501.0),
     });

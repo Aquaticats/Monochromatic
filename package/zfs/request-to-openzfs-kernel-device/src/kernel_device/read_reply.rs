@@ -71,8 +71,12 @@ where
         made += 1;
         match attempt(request)? {
             ReadAttempt::End => return Ok(None),
-            ReadAttempt::Reply { list } => return Ok(Some(list)),
-            ReadAttempt::NeedsBiggerReply { requested } => {
+            ReadAttempt::Reply {
+                list,
+            } => return Ok(Some(list)),
+            ReadAttempt::NeedsBiggerReply {
+                requested,
+            } => {
                 let held: usize = request.reply().len();
                 if requested <= held as u64 || made >= MAXIMUM_READ_ATTEMPTS {
                     return Err(DeviceError::UnstableReply {

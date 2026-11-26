@@ -22,7 +22,10 @@
 use std::collections::HashMap;
 
 /// Imports the result types that are anchored.
-use music_player::search_results::{SearchResult, SearchResultKind};
+use music_player::search_results::{
+    SearchResult,
+    SearchResultKind,
+};
 
 /// What:
 ///      `pub const SEARCH_ROW_HEIGHT_PX: f32 = 72.0`.
@@ -60,7 +63,12 @@ pub fn result_key(result: &SearchResult) -> String {
 /// ```ts
 /// function anchoredOffset(oldKeys: string[], newKeys: string[], offset: number, rowHeight: number): number { ... }
 /// ```
-pub fn anchored_offset(old_keys: &[String], new_keys: &[String], offset_px: f32, row_height_px: f32) -> f32 {
+pub fn anchored_offset(
+    old_keys: &[String],
+    new_keys: &[String],
+    offset_px: f32,
+    row_height_px: f32,
+) -> f32 {
     let offset: f32 = offset_px.max(0.0);
     let limit: f32 = (new_keys.len() as f32 * row_height_px).max(0.0);
     if old_keys.is_empty() || new_keys.is_empty() {
@@ -72,7 +80,12 @@ pub fn anchored_offset(old_keys: &[String], new_keys: &[String], offset_px: f32,
         new_positions.insert(key.as_str(), position);
     }
     let visible_rows: usize = 12;
-    for (old_position, old_key) in old_keys.iter().enumerate().skip(first_visible).take(visible_rows) {
+    for (old_position, old_key) in old_keys
+        .iter()
+        .enumerate()
+        .skip(first_visible)
+        .take(visible_rows)
+    {
         if let Some(new_position) = new_positions.get(old_key.as_str()) {
             let old_screen_top: f32 = old_position as f32 * row_height_px - offset;
             let anchored: f32 = *new_position as f32 * row_height_px - old_screen_top;

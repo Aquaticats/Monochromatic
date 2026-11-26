@@ -9,9 +9,15 @@ use super::unpack;
 use std::{
     fs,
     io::Read,
-    os::unix::fs::{MetadataExt, PermissionsExt},
+    os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    },
     path::Path,
-    sync::{Arc, Barrier},
+    sync::{
+        Arc,
+        Barrier,
+    },
     thread,
 };
 

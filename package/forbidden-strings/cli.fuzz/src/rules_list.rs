@@ -8,13 +8,17 @@
 // export function checkRulesListValue(value: string): void { /* compare parseRulesList with a reference */ }
 // ```
 
-use forbidden_strings::{parse_rules_list, RulesEntry, RulesListError};
+use forbidden_strings::{
+    RulesEntry,
+    RulesListError,
+    parse_rules_list,
+};
 
 // Pieces a generated list is assembled from: the separator, the optional marker, doubled markers, empty entries,
 // lookalike delimiters, whitespace, percent-escapes (which carry no meaning here), non-ASCII commas, and paths.
 const TOKENS: &[&str] = &[
-    ",", "?", "??", ",,", ",?", "a", "b.txt", "x/y.txt", " ", "%2C", "%3F", "\\", "\n", "\u{ff0c}", "..", "a?b", "-",
-    "C:/rules", ";", "\u{fe0f}",
+    ",", "?", "??", ",,", ",?", "a", "b.txt", "x/y.txt", " ", "%2C", "%3F", "\\", "\n", "\u{ff0c}",
+    "..", "a?b", "-", "C:/rules", ";", "\u{fe0f}",
 ];
 
 /// Maximum tokens one generated rules-list value assembles from fuzz bytes.
@@ -26,7 +30,7 @@ pub fn generated_rules_list(data: &[u8]) -> String {
     for byte in data.iter().take(MAX_TOKENS) {
         value.push_str(TOKENS[usize::from(*byte) % TOKENS.len()]);
     }
-    return value
+    return value;
 }
 
 // An independent reference parse: scans characters once instead of splitting, so it shares no code path with
@@ -51,27 +55,39 @@ pub fn reference_parse(value: &str) -> Result<Vec<(String, bool)>, RulesListErro
             None => (segment.clone(), false),
         };
         if name.is_empty() {
-            return Err(RulesListError::EmptyEntry { position });
+            return Err(RulesListError::EmptyEntry {
+                position,
+            });
         }
-        if let Some(first) = parsed.iter().position(|(earlier, _)| return *earlier == name) {
-            return Err(RulesListError::DuplicatePath { first: first + 1, position });
+        if let Some(first) = parsed
+            .iter()
+            .position(|(earlier, _)| return *earlier == name)
+        {
+            return Err(RulesListError::DuplicatePath {
+                first: first + 1,
+                position,
+            });
         }
         parsed.push((name, optional));
     }
-    return Ok(parsed)
+    return Ok(parsed);
 }
 
 // Renders entries back to a list value, the inverse of a successful parse.
 pub fn render(entries: &[RulesEntry]) -> String {
     let mut parts: Vec<String> = Vec::with_capacity(entries.len());
     for entry in entries {
-        let mut part = entry.path.to_str().expect("a parsed path comes from UTF-8 text").to_string();
+        let mut part = entry
+            .path
+            .to_str()
+            .expect("a parsed path comes from UTF-8 text")
+            .to_string();
         if entry.optional {
             part.push('?');
         }
         parts.push(part);
     }
-    return parts.join(",")
+    return parts.join(",");
 }
 
 // Asserts every grammar property for one value; panics on any violation.
@@ -82,15 +98,29 @@ pub fn check_rules_list_value(value: &str) {
         (Ok(entries), Ok(expected)) => {
             let seen: Vec<(String, bool)> = entries
                 .iter()
-                .map(|entry| return (entry.path.to_str().expect("UTF-8 path").to_string(), entry.optional))
+                .map(|entry| {
+                    return (
+                        entry.path.to_str().expect("UTF-8 path").to_string(),
+                        entry.optional,
+                    );
+                })
                 .collect();
-            assert_eq!(&seen, expected, "entries differ from the reference for {value:?}");
+            assert_eq!(
+                &seen, expected,
+                "entries differ from the reference for {value:?}"
+            );
             // The parse is lossless: rendering the entries gives the value back byte for byte.
-            assert_eq!(render(entries), value, "render did not invert the parse for {value:?}");
+            assert_eq!(
+                render(entries),
+                value,
+                "render did not invert the parse for {value:?}"
+            );
             assert_eq!(entries.len(), value.matches(',').count() + 1, "{value:?}");
         }
         (Err(found), Err(expected)) => assert_eq!(found, expected, "refusal differs for {value:?}"),
-        _ => panic!("parse and reference disagree on acceptance for {value:?}: {actual:?} against {reference:?}"),
+        _ => panic!(
+            "parse and reference disagree on acceptance for {value:?}: {actual:?} against {reference:?}"
+        ),
     }
     // A value with no comma and no trailing marker is one required entry equal to the whole value.
     if !value.is_empty() && !value.contains(',') && !value.ends_with('?') {

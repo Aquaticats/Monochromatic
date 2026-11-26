@@ -225,7 +225,10 @@ impl SearchIndex {
     /// `set_generation` renumbers the library.
     /// Why:
     /// an index built on the side is numbered when it is installed.
-    pub fn set_generation(&mut self, generation: u64) {
+    pub fn set_generation(
+        &mut self,
+        generation: u64,
+    ) {
         self.generation = generation;
     }
 
@@ -244,7 +247,12 @@ impl SearchIndex {
     /// Why:
     /// growing a buffer copies it,
     /// and a copy of a hundred megabytes under the write lock would stall a keystroke.
-    pub fn reserve(&mut self, tracks: usize, path_bytes: usize, norm_bytes: usize) {
+    pub fn reserve(
+        &mut self,
+        tracks: usize,
+        path_bytes: usize,
+        norm_bytes: usize,
+    ) {
         self.paths.reserve(tracks, path_bytes);
         self.norm.reserve(tracks, norm_bytes);
         self.nlen.reserve(tracks);
@@ -256,7 +264,10 @@ impl SearchIndex {
     /// Why:
     /// results show the title and the folder path of a track,
     /// which derive from this path.
-    pub(crate) fn path(&self, position: usize) -> &str {
+    pub(crate) fn path(
+        &self,
+        position: usize,
+    ) -> &str {
         return self.paths.get(position);
     }
 
@@ -264,7 +275,10 @@ impl SearchIndex {
     /// `norm` is the trimmed normalized title of track `position`.
     /// Why:
     /// matching tests this text.
-    pub(crate) fn norm(&self, position: usize) -> &str {
+    pub(crate) fn norm(
+        &self,
+        position: usize,
+    ) -> &str {
         return self.norm.get(position);
     }
 
@@ -272,7 +286,10 @@ impl SearchIndex {
     /// `nlen` is the UTF-16 length of track `position`'s normalized title.
     /// Why:
     /// it is the second key of the result order.
-    pub(crate) fn nlen(&self, position: usize) -> u32 {
+    pub(crate) fn nlen(
+        &self,
+        position: usize,
+    ) -> u32 {
         return self.nlen.get(position).copied().unwrap_or(0);
     }
 
@@ -280,7 +297,10 @@ impl SearchIndex {
     /// `bucket_first` lists the tracks having a word that starts with `character`.
     /// Why:
     /// a one-character term can match only these tracks.
-    pub(crate) fn bucket_first(&self, character: char) -> &[u32] {
+    pub(crate) fn bucket_first(
+        &self,
+        character: char,
+    ) -> &[u32] {
         return self.by_first.get(&character).map_or(&[], Vec::as_slice);
     }
 
@@ -288,7 +308,10 @@ impl SearchIndex {
     /// `bucket_pair` lists the tracks having a word that starts with the two characters.
     /// Why:
     /// a term of two or more characters can match only these tracks.
-    pub(crate) fn bucket_pair(&self, pair: (char, char)) -> &[u32] {
+    pub(crate) fn bucket_pair(
+        &self,
+        pair: (char, char),
+    ) -> &[u32] {
         return self.by_pair.get(&pair).map_or(&[], Vec::as_slice);
     }
 
@@ -306,7 +329,9 @@ impl SearchIndex {
     /// Why:
     /// the warm-up pass starts with the largest buckets.
     pub(crate) fn first_characters(&self) -> FirstCharacters<'_> {
-        return FirstCharacters { buckets: self.by_first.iter() };
+        return FirstCharacters {
+            buckets: self.by_first.iter(),
+        };
     }
 
     /// What:
@@ -314,7 +339,10 @@ impl SearchIndex {
     /// or `None` for a slot that is not a table entry.
     /// Why:
     /// the query path reads names of folders by the slot a ranked candidate carries.
-    pub(crate) fn folder(&self, slot: usize) -> Option<&FolderRecord> {
+    pub(crate) fn folder(
+        &self,
+        slot: usize,
+    ) -> Option<&FolderRecord> {
         return self.folders.get(slot);
     }
 
@@ -326,7 +354,9 @@ impl SearchIndex {
     /// otherwise it is indistinguishable from the root-level group,
     /// which is never offered.
     pub(crate) fn listed_folders(&self) -> ListedFolders<'_> {
-        return ListedFolders { records: self.folders.iter().enumerate() };
+        return ListedFolders {
+            records: self.folders.iter().enumerate(),
+        };
     }
 
     /// What:
@@ -349,8 +379,12 @@ impl SearchIndex {
     /// # Panics
     /// When a library passes four billion tracks,
     /// which is far above the supported size.
-    pub(crate) fn append(&mut self, batch: PreparedBatch) {
-        let base: u32 = u32::try_from(self.nlen.len()).expect("a library holds under four billion tracks");
+    pub(crate) fn append(
+        &mut self,
+        batch: PreparedBatch,
+    ) {
+        let base: u32 =
+            u32::try_from(self.nlen.len()).expect("a library holds under four billion tracks");
         self.paths.append(&batch.paths);
         self.norm.append(&batch.norm);
         self.nlen.extend_from_slice(&batch.nlen);
@@ -358,7 +392,9 @@ impl SearchIndex {
         while run_start < batch.by_first.len() {
             let key: char = batch.by_first[run_start].0;
             let mut run_len: usize = 0;
-            while run_start + run_len < batch.by_first.len() && batch.by_first[run_start + run_len].0 == key {
+            while run_start + run_len < batch.by_first.len()
+                && batch.by_first[run_start + run_len].0 == key
+            {
                 run_len += 1;
             }
             let bucket: &mut Vec<u32> = self.by_first.entry(key).or_default();
@@ -372,7 +408,9 @@ impl SearchIndex {
         while run_start < batch.by_pair.len() {
             let key: (char, char) = batch.by_pair[run_start].0;
             let mut run_len: usize = 0;
-            while run_start + run_len < batch.by_pair.len() && batch.by_pair[run_start + run_len].0 == key {
+            while run_start + run_len < batch.by_pair.len()
+                && batch.by_pair[run_start + run_len].0 == key
+            {
                 run_len += 1;
             }
             let bucket: &mut Vec<u32> = self.by_pair.entry(key).or_default();
@@ -386,9 +424,14 @@ impl SearchIndex {
             match self.folder_slots.get(&sighting.name) {
                 Some(slot) => self.folders[*slot].nested_or_prefixed |= sighting.nested_or_prefixed,
                 None => {
-                    let norm: String = crate::search_matcher::trim_kotlin_whitespace(&normalize_for_search(&sighting.name)).to_string();
-                    let nlen: u32 = u32::try_from(norm.encode_utf16().count()).expect("a folder name is short");
-                    self.folder_slots.insert(sighting.name.clone(), self.folders.len());
+                    let norm: String = crate::search_matcher::trim_kotlin_whitespace(
+                        &normalize_for_search(&sighting.name),
+                    )
+                    .to_string();
+                    let nlen: u32 =
+                        u32::try_from(norm.encode_utf16().count()).expect("a folder name is short");
+                    self.folder_slots
+                        .insert(sighting.name.clone(), self.folders.len());
                     self.folders.push(FolderRecord {
                         name: sighting.name,
                         norm,

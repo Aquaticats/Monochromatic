@@ -5,7 +5,11 @@
 use smithay::input::pointer::CursorImageStatus;
 
 /// Sibling modules of this crate.
-use crate::{gpu_choice::GpuReport, protocol::Response, state::Compositor};
+use crate::{
+    gpu_choice::GpuReport,
+    protocol::Response,
+    state::Compositor,
+};
 /// Structured logging.
 use tracing::info;
 
@@ -23,20 +27,26 @@ use tracing::info;
 /// ```ts
 /// function repeatInfo(state: Compositor, change?: [number, number]): Response { ... }
 /// ```
-pub fn repeat_info(state: &mut Compositor, change: Option<(i32, i32)>) -> Response {
+pub fn repeat_info(
+    state: &mut Compositor,
+    change: Option<(i32, i32)>,
+) -> Response {
     let Some((rate, delay)) = change else {
-        return Response::OkWith(format!("rate={} delay={}", state.repeat_info.0, state.repeat_info.1))
+        return Response::OkWith(format!(
+            "rate={} delay={}",
+            state.repeat_info.0, state.repeat_info.1
+        ));
     };
     if state.repeat_info == (rate, delay) {
-        return Response::OkWith("unchanged".to_string())
+        return Response::OkWith("unchanged".to_string());
     }
     let Some(keyboard) = state.seat.get_keyboard() else {
-        return Response::Err("nested seat has no keyboard".to_string())
+        return Response::Err("nested seat has no keyboard".to_string());
     };
     keyboard.change_repeat_info(rate, delay);
     state.repeat_info = (rate, delay);
     info!(rate, delay, "announced a new key repeat rate and delay");
-    return Response::OkWith("changed".to_string())
+    return Response::OkWith("changed".to_string());
 }
 
 /// Answer `gpu`.
@@ -55,7 +65,7 @@ pub fn repeat_info(state: &mut Compositor, change: Option<(i32, i32)>) -> Respon
 /// ```
 pub fn gpu(state: &mut Compositor) -> Response {
     if let Some(report) = state.backend.gpu_report() {
-        return Response::OkWith(report.answer())
+        return Response::OkWith(report.answer());
     }
     let renderer = crate::gpu_device::renderer_name(state.backend.renderer());
     return Response::OkWith(
@@ -66,7 +76,7 @@ pub fn gpu(state: &mut Compositor) -> Response {
             fell_back: false,
         }
         .answer(),
-    )
+    );
 }
 
 /// Name a cursor image for the `cursor` answer.
@@ -110,7 +120,7 @@ pub fn describe_cursor(image: &CursorImageStatus) -> String {
 /// ```
 #[must_use]
 pub fn cursor(state: &Compositor) -> Response {
-    return Response::OkWith(describe_cursor(&state.cursor_image))
+    return Response::OkWith(describe_cursor(&state.cursor_image));
 }
 
 /// What:

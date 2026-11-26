@@ -11,17 +11,31 @@
 //! and a wrapped line at the end of the file are covered.
 
 /// Canonical source and the reading position with its side of a wrap offset.
-use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    Document,
+    ReadingAffinity,
+    ReadingPosition,
+};
 /// The pure Home and End rules,
 /// and the shaped form the key handler calls.
-use ide_app::line_boundary::{CaretPlace, Edge, end, home, moved_to_edge, row_containing};
+use ide_app::line_boundary::{
+    CaretPlace,
+    Edge,
+    end,
+    home,
+    moved_to_edge,
+    row_containing,
+};
 /// The height of one code row,
 /// which places a point below the rows.
 use ide_app::row_map::CODE_ROW;
 /// Shaper and the rows it produces.
 use ide_app::shaped_text::TextShaper;
 /// The remembered column and the vertical step under test.
-use ide_app::vertical_motion::{PreferredColumn, vertical};
+use ide_app::vertical_motion::{
+    PreferredColumn,
+    vertical,
+};
 /// Source character ranges of visual rows.
 use std::ops::Range;
 
@@ -35,7 +49,11 @@ const SCALES: [f32; 2] = [1.0, 2.0];
 
 /// A document whose caret is at `head` on `affinity`,
 /// with no selection.
-fn at(text: &str, head: usize, affinity: ReadingAffinity) -> Document {
+fn at(
+    text: &str,
+    head: usize,
+    affinity: ReadingAffinity,
+) -> Document {
     let mut document = Document::new(text);
     document.select(ReadingPosition {
         anchor: head,
@@ -54,13 +72,21 @@ fn advance(scale: f32) -> f32 {
 }
 
 /// How many glyphs of the source font fill a row of `width` logical pixels.
-fn cells(width: f32, scale: f32) -> usize {
+fn cells(
+    width: f32,
+    scale: f32,
+) -> usize {
     return (width / advance(scale)).floor() as usize;
 }
 
 /// Visual rows of line `line` of `text` as global character ranges,
 /// shaped at `width` and `scale`.
-fn rows_of(text: &str, line: usize, width: f32, scale: f32) -> Vec<Range<usize>> {
+fn rows_of(
+    text: &str,
+    line: usize,
+    width: f32,
+    scale: f32,
+) -> Vec<Range<usize>> {
     let document = Document::new(text);
     let mut shaper = TextShaper::new();
     return shaper
@@ -69,7 +95,10 @@ fn rows_of(text: &str, line: usize, width: f32, scale: f32) -> Vec<Range<usize>>
 }
 
 /// An indented line of words that wraps to several rows.
-fn prose(width: f32, scale: f32) -> String {
+fn prose(
+    width: f32,
+    scale: f32,
+) -> String {
     let words = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau";
     let mut text = String::from("    ");
     while text.chars().count() < cells(width, scale) * 5 {
@@ -85,13 +114,19 @@ fn prose(width: f32, scale: f32) -> String {
 ///  (an overflowing blank stays on the upper row,
 /// so a tab right after it starts the next row),
 /// then the tab.
-fn tab_starts_a_row(width: f32, scale: f32) -> String {
+fn tab_starts_a_row(
+    width: f32,
+    scale: f32,
+) -> String {
     return format!("{} \ttail words", "m".repeat(cells(width, scale)));
 }
 
 /// A line whose first row ends with a tab that fills it exactly,
 /// then a token that fills the next row.
-fn tab_ends_a_row(width: f32, scale: f32) -> String {
+fn tab_ends_a_row(
+    width: f32,
+    scale: f32,
+) -> String {
     return format!(
         "{}\t{} more words",
         "m".repeat(cells(width, scale) - 1),
@@ -103,14 +138,21 @@ fn tab_ends_a_row(width: f32, scale: f32) -> String {
 /// the first row holds `cells` glyphs and each
 ///  continuation row one less,
 /// because of the indent that stands for the wrap mark.
-fn exact_fit(width: f32, scale: f32) -> String {
+fn exact_fit(
+    width: f32,
+    scale: f32,
+) -> String {
     return "m".repeat(cells(width, scale) * 3 - 2);
 }
 
 /// Every row range of a line tiles its text:
 /// each starts where the one before ended,
 /// the last ends at the line end.
-fn assert_tiles(rows: &[Range<usize>], line_end: usize, label: &str) {
+fn assert_tiles(
+    rows: &[Range<usize>],
+    line_end: usize,
+    label: &str,
+) {
     assert_eq!(rows[0].start, 0, "{label}: the first row starts the line");
     for pair in rows.windows(2) {
         assert_eq!(pair[0].end, pair[1].start, "{label}: rows tile");
@@ -245,18 +287,32 @@ struct Navigator<'a> {
 
 impl Navigator<'_> {
     /// Press Home with the caret at `head` and `affinity`.
-    fn home(&self, head: usize, affinity: ReadingAffinity) -> CaretPlace {
+    fn home(
+        &self,
+        head: usize,
+        affinity: ReadingAffinity,
+    ) -> CaretPlace {
         return home(self.text, self.rows, head, affinity);
     }
 
     /// Press End with the caret at `head` and `affinity`.
-    fn end(&self, head: usize, affinity: ReadingAffinity) -> CaretPlace {
+    fn end(
+        &self,
+        head: usize,
+        affinity: ReadingAffinity,
+    ) -> CaretPlace {
         return end(self.text, self.rows, head, affinity);
     }
 }
 
-fn place(head: usize, affinity: ReadingAffinity) -> CaretPlace {
-    return CaretPlace { head, affinity };
+fn place(
+    head: usize,
+    affinity: ReadingAffinity,
+) -> CaretPlace {
+    return CaretPlace {
+        head,
+        affinity,
+    };
 }
 
 /// Home on a row goes to its start,
@@ -269,7 +325,10 @@ fn home_goes_to_the_row_start_then_the_first_non_blank() {
         text: document.text().slice(..),
         rows: &rows,
     };
-    use ReadingAffinity::{Downstream, Upstream};
+    use ReadingAffinity::{
+        Downstream,
+        Upstream,
+    };
     assert_eq!(
         from.home(28, Downstream),
         place(25, Downstream),
@@ -345,7 +404,10 @@ fn end_goes_to_the_row_end_then_the_line_end() {
         text: document.text().slice(..),
         rows: &rows,
     };
-    use ReadingAffinity::{Downstream, Upstream};
+    use ReadingAffinity::{
+        Downstream,
+        Upstream,
+    };
     assert_eq!(
         from.end(0, Downstream),
         place(11, Downstream),
@@ -605,7 +667,11 @@ fn an_exact_fit_row_end_is_drawn_on_the_upper_row_only_when_the_side_says_so() {
 /// as (line,
 /// row,
 /// range).
-fn all_rows(text: &str, width: f32, scale: f32) -> Vec<(usize, usize, Range<usize>)> {
+fn all_rows(
+    text: &str,
+    width: f32,
+    scale: f32,
+) -> Vec<(usize, usize, Range<usize>)> {
     let document = Document::new(text);
     let mut shaper = TextShaper::new();
     let mut result = Vec::new();
@@ -628,7 +694,10 @@ fn all_rows(text: &str, width: f32, scale: f32) -> Vec<(usize, usize, Range<usiz
 /// a short line,
 /// an empty line,
 /// and a wrapped line at the end of the file.
-fn several_lines(width: f32, scale: f32) -> String {
+fn several_lines(
+    width: f32,
+    scale: f32,
+) -> String {
     return format!(
         "{}\nshort\n\n{}\n{}",
         prose(width, scale),
@@ -638,7 +707,11 @@ fn several_lines(width: f32, scale: f32) -> String {
 }
 
 /// The global index of the visual row that holds the caret of `document`.
-fn caret_row(document: &Document, width: f32, scale: f32) -> usize {
+fn caret_row(
+    document: &Document,
+    width: f32,
+    scale: f32,
+) -> usize {
     let position = document.position();
     let rows = all_rows(&document.text().to_string(), width, scale);
     let line = document.text().char_to_line(position.head);

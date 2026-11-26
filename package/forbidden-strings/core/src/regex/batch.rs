@@ -22,7 +22,13 @@
 //! ```
 
 /// Imports the per-line checks and the first-seen set that the batch resolution uses.
-use super::line_checks::{any_group_matches, any_line_start_match, CheckedFull, RuleCheck, RuleCollector};
+use super::line_checks::{
+    CheckedFull,
+    RuleCheck,
+    RuleCollector,
+    any_group_matches,
+    any_line_start_match,
+};
 
 /// What:
 ///     Imports the public matcher types this module extends.
@@ -37,7 +43,10 @@ use super::line_checks::{any_group_matches, any_line_start_match, CheckedFull, R
 /// ```ts
 /// import { Regex, RegexSet } from "./super";
 /// ```
-use super::{Regex, RegexSet};
+use super::{
+    Regex,
+    RegexSet,
+};
 
 /// What:
 ///     Imports the anchored line-start match used by the per-line resolution.
@@ -111,10 +120,13 @@ impl Regex {
     /// let lines: &[&[u8]] = &[b"AKIA2345", b"nope"];
     /// assert_eq!(re.is_match_batch(lines), vec![true, false]);
     /// ```
-    pub fn is_match_batch(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn is_match_batch(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         self.engine.is_match_batch(lines, &mut out);
-        return out
+        return out;
     }
 
     /// Reports per line,
@@ -162,7 +174,10 @@ impl Regex {
     /// let lines: &[&[u8]] = &[b"deadbeefdeadbeefdeadbeefdeadbeef", b"short", b"nope"];
     /// assert_eq!(re.is_match_batch_bucketed(lines), re.is_match_batch(lines));
     /// ```
-    pub fn is_match_batch_bucketed(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn is_match_batch_bucketed(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         let Some(dfa) = self.engine.table_dfa() else {
             self.engine.is_match_batch(lines, &mut out);
@@ -196,7 +211,7 @@ impl Regex {
             }
             start = end;
         }
-        return out
+        return out;
     }
 
     /// Benchmark hook:
@@ -218,13 +233,16 @@ impl Regex {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn is_match_batch_scalar(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn is_match_batch_scalar(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         match self.engine.table_dfa() {
             Some(dfa) => dfa.is_match_batch_scalar(lines, &mut out),
             None => self.engine.is_match_batch(lines, &mut out),
         }
-        return out
+        return out;
     }
 
     /// Benchmark hook:
@@ -244,13 +262,16 @@ impl Regex {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn is_match_batch_interleaved(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn is_match_batch_interleaved(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         match self.engine.table_dfa() {
             Some(dfa) => dfa.is_match_batch_interleaved(lines, &mut out),
             None => self.engine.is_match_batch(lines, &mut out),
         }
-        return out
+        return out;
     }
 
     /// Benchmark hook:
@@ -272,7 +293,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn is_table(&self) -> bool {
-        return self.engine.table_dfa().is_some()
+        return self.engine.table_dfa().is_some();
     }
 
     /// Benchmark hook:
@@ -293,13 +314,16 @@ impl Regex {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn batch_inter_w<const N: usize>(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn batch_inter_w<const N: usize>(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         match self.engine.table_dfa() {
             Some(dfa) => dfa.is_match_batch_interleaved_w::<N>(lines, &mut out),
             None => self.engine.is_match_batch(lines, &mut out),
         }
-        return out
+        return out;
     }
 
     /// Benchmark hook:
@@ -320,13 +344,16 @@ impl Regex {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn batch_tight_w<const N: usize>(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn batch_tight_w<const N: usize>(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         match self.engine.table_dfa() {
             Some(dfa) => dfa.is_match_batch_tight_w::<N>(lines, &mut out),
             None => self.engine.is_match_batch(lines, &mut out),
         }
-        return out
+        return out;
     }
 
     /// Benchmark hook:
@@ -348,13 +375,16 @@ impl Regex {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn batch_sheng(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn batch_sheng(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         match self.engine.table_dfa() {
             Some(dfa) => dfa.is_match_batch_sheng(lines, &mut out),
             None => self.engine.is_match_batch(lines, &mut out),
         }
-        return out
+        return out;
     }
 
     /// Benchmark hook:
@@ -375,13 +405,16 @@ impl Regex {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn batch_sheng2(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn batch_sheng2(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut out = vec![false; lines.len()];
         match self.engine.table_dfa() {
             Some(dfa) => dfa.is_match_batch_sheng2(lines, &mut out),
             None => self.engine.is_match_batch(lines, &mut out),
         }
-        return out
+        return out;
     }
 }
 
@@ -424,12 +457,15 @@ impl RegexSet {
     /// let lines: &[&[u8]] = &[b"AKIA2345", b"all clear", b"a secret here"];
     /// assert_eq!(set.is_match_batch(lines), vec![true, false, true]);
     /// ```
-    pub fn is_match_batch(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn is_match_batch(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let mut verdicts: Vec<bool> = Vec::with_capacity(lines.len());
         for line in lines {
             verdicts.push(self.is_match(line));
         }
-        return verdicts
+        return verdicts;
     }
 
     /// Returns the `(line index, rule index)` pairs the lines in `buf` match.
@@ -493,7 +529,11 @@ impl RegexSet {
     /// let starts = [0usize, 9, 19];
     /// assert_eq!(set.line_matches(buf, &starts), vec![(0, 0), (2, 1)]);
     /// ```
-    pub fn line_matches(&self, buf: &[u8], starts: &[usize]) -> Vec<(usize, usize)> {
+    pub fn line_matches(
+        &self,
+        buf: &[u8],
+        starts: &[usize],
+    ) -> Vec<(usize, usize)> {
         // What:    One SIMD prefilter sweep over the whole buffer marks which
         //          lines hold a seeded literal, so the per-line loop runs the
         //          seeded-rule gate only where a seed is actually present.
@@ -543,7 +583,7 @@ impl RegexSet {
                 hits.push((index, rule));
             }
         }
-        return hits
+        return hits;
     }
 
     /// Benchmark hook:
@@ -569,7 +609,10 @@ impl RegexSet {
     /// }
     /// ```
     #[doc(hidden)]
-    pub fn is_match_batch_concat(&self, lines: &[&[u8]]) -> Vec<bool> {
+    pub fn is_match_batch_concat(
+        &self,
+        lines: &[&[u8]],
+    ) -> Vec<bool> {
         let count = lines.len();
         if count == 0 {
             return Vec::new();
@@ -591,7 +634,7 @@ impl RegexSet {
             let end = starts.get(index + 1).copied().unwrap_or(buf.len()) - 1;
             verdicts.push(self.resolve_line(&buf[starts[index]..end], candidate[index]));
         }
-        return verdicts
+        return verdicts;
     }
 
     /// Marks,
@@ -613,7 +656,11 @@ impl RegexSet {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn sweep_candidates(&self, buf: &[u8], starts: &[usize]) -> Vec<bool> {
+    fn sweep_candidates(
+        &self,
+        buf: &[u8],
+        starts: &[usize],
+    ) -> Vec<bool> {
         let mut candidate = vec![false; starts.len()];
         let mut at = 0;
         while let Some(hit) = self.gate.prefilter_find_from(buf, at) {
@@ -629,7 +676,7 @@ impl RegexSet {
                 break;
             }
         }
-        return candidate
+        return candidate;
     }
 
     /// Resolves one line's verdict given whether the sweep found a seed in it.
@@ -651,9 +698,17 @@ impl RegexSet {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn resolve_line(&self, line: &[u8], has_seed: bool) -> bool {
+    fn resolve_line(
+        &self,
+        line: &[u8],
+        has_seed: bool,
+    ) -> bool {
         if has_seed {
-            let mut rule_check = RuleCheck { set: self, line, checked: CheckedFull::new() };
+            let mut rule_check = RuleCheck {
+                set: self,
+                line,
+                checked: CheckedFull::new(),
+            };
             if self.gate.any_candidate(line, &mut rule_check) {
                 return true;
             }
@@ -661,7 +716,7 @@ impl RegexSet {
         if self.line_start_candidate(line) && any_line_start_match(&self.line_start, line) {
             return true;
         }
-        return any_group_matches(&self.seedless_groups, line)
+        return any_group_matches(&self.seedless_groups, line);
     }
 
     /// Collects one line's matching rule ids given whether the sweep found a seed
@@ -688,8 +743,17 @@ impl RegexSet {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn resolve_matches(&self, line: &[u8], has_seed: bool) -> Vec<usize> {
-        let mut collector = RuleCollector { set: self, line, checked: CheckedFull::new(), hits: Vec::new() };
+    fn resolve_matches(
+        &self,
+        line: &[u8],
+        has_seed: bool,
+    ) -> Vec<usize> {
+        let mut collector = RuleCollector {
+            set: self,
+            line,
+            checked: CheckedFull::new(),
+            hits: Vec::new(),
+        };
         if has_seed {
             self.gate.for_each_candidate(line, &mut collector);
         }
@@ -708,7 +772,7 @@ impl RegexSet {
         }
         hits.sort_unstable();
         hits.dedup();
-        return hits
+        return hits;
     }
 }
 

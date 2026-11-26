@@ -3,6 +3,9 @@
 ## Report metadata
 
 - Status:
+  adopted; live on the CachyOS PC since 2026-11-25T22:01:09-05:00,
+  recorded in `doc/decision/garage-file-sync-change-watcher.md`.
+  Before that:
   adopted by the owner in round 7 and kept in round 8 with an accepted exception
   (names starting with `.` or `_` are not watched; they sync by the timer);
   not final until the design is confirmed and implemented.

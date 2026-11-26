@@ -11,7 +11,11 @@ Nothing in this file is decided until the owner answers the open questions it li
 
 This section is the design as it stands after eight owner rounds and two reviews;
 the sections after it are the record of how each part was decided and measured.
-Status: confirmed by the owner at 2026-11-25T20:54:22-05:00 ("Yes, confirmed"); not implemented.
+Status: confirmed by the owner at 2026-11-25T20:54:22-05:00 ("Yes, confirmed").
+Implemented on this PC (`package/garage-file-sync/linux-client`, merged as `325f2f1ab6`) and live since 2026-11-25T22:01:09-05:00;
+the Mac's agent has both passes and `--conflict-resolve newer` since 2026-11-25T21:15:56-05:00.
+Not final: no sync started by a real save has been observed yet.
+Decision record: `doc/decision/garage-file-sync-change-watcher.md`.
 
 ### Scope
 
@@ -502,6 +506,46 @@ each checked or labelled:
   `WantedBy=default.target` (linger is on).
 - Round 2's "later clients only add a service wrapper" does not hold:
   the Linux shape relies on systemd's job merging.
+
+## Proof on this PC's user manager (2026-11-25T21:57:27-05:00)
+
+Test-named copies of every unit in `package/garage-file-sync/linux-client` (prefix `gfs-proof-`),
+on the real user manager,
+against a throwaway Garage in podman on `127.0.0.1:39000`, a scratch rclone config and a scratch tree with `.` and `_` names.
+The proof sync unit had one added line, `ExecStartPre=/usr/bin/sleep 20`, so an edit could land inside a run;
+the alert units ran the package's entry with a scratch home and a stand-in `notify-send` that only logged.
+Logs: `~/temp/agent/garage-file-sync-unit-stack-proof-2026-11-25/keep/`.
+
+- Every unit loaded (`LoadState=loaded`) with no warning in the user journal.
+- One edit gave one sync run.
+- An edit, then three edits during the run that followed, gave exactly two runs.
+- A sync started by hand (as the timer starts it) plus an edit during it gave two runs.
+- Edits under `.obsidian/`, `_pages/` and a new `.newdot/` folder started no run;
+  the next run uploaded them with everything else.
+- Stopping the watcher during a run left the run to finish with `Result=success`.
+- The timer's next elapse was a five-minute boundary plus 4 s, with `AccuracyUSec=1s` and `Persistent=yes`.
+- A failure (filter file missing) sent one critical notice and wrote the streak;
+  a second failure inside the hour sent none;
+  a failure with the streak backdated by two hours sent another;
+  the next clean run sent one normal-urgency "recovered" and removed the streak.
+- A failed notification wrote no state, and its handler exited 1.
+- With the trigger unit removed, the watcher's hook alerted directly through `node`.
+- The watcher killed while its folder was missing kept failing on restart and sent no recovery;
+  with the folder back, the next restart sent one recovery and cleared the streak.
+
+Two defects the proof found, both fixed on the branch before go-live:
+
+- systemd 262 passes no `MONITOR_*` variables to a handler that one unit names in both `OnFailure=` and `OnSuccess=`
+  (journal: "multiple trigger source candidates for exit status propagation (gfs-proof-sync.service, gfs-proof-sync.service), skipping"),
+  so every clean run was reported as a failure.
+  The success handler is now its own template, `rclone-bisync-garage-recovered@.service`.
+  The DeepSeek re-review had read the source as fine; only running it showed the defect.
+- Stopping a running oneshot by hand ends it in `Result=signal` (killed by signal 15), a failure,
+  so `OnFailure=` handles it; the design's line that `OnSuccess=` fires for a hand stop was wrong for this unit.
+
+The short DeepSeek review of the branch found that the watcher's global start hook would report a false recovery every 30 s
+when adding watches fails, and that the abort notice demanded a `--resync` the troubleshooting doc says is not needed;
+both are fixed (the hook is now the target's `onStartWatch`, which directory-watcher runs only after watching starts).
 
 ## Owner answers, round 8 (2026-11-25T20:41:14-05:00)
 

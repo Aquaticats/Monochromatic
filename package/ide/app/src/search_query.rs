@@ -34,7 +34,10 @@ impl PathQuery {
     }
 
     /// Test a project-relative native path without changing the path identity stored in the result.
-    pub fn matches(&self, relative: &Path) -> bool {
+    pub fn matches(
+        &self,
+        relative: &Path,
+    ) -> bool {
         // Conversion is only a matching/display view; result activation retains the original native bytes.
         let candidate = relative.to_string_lossy();
         if self.case_sensitive {

@@ -20,7 +20,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `parse_int_prefix` from `crate::js_number::parse_int_prefix`.
 /// Why:

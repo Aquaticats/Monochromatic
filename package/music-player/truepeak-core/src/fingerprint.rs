@@ -101,7 +101,11 @@ pub const FINGERPRINT_DOMAIN_TAG: &[u8] = b"monochromatic.music-player.track-fin
 ///   return concat(FINGERPRINT_DOMAIN_TAG, u64le(BigInt(pathBytes.length)), pathBytes, u64le(size), u128le(mtimeNanos));
 /// }
 /// ```
-fn fingerprint_material(path: &str, size: u64, mtime_nanos: u128) -> Vec<u8> {
+fn fingerprint_material(
+    path: &str,
+    size: u64,
+    mtime_nanos: u128,
+) -> Vec<u8> {
     // What:     `let path_bytes = path.as_bytes();`. The path's UTF-8 bytes, borrowed.
     // Why:      Both the length prefix and the body come from the same slice.
     //
@@ -174,7 +178,7 @@ fn fingerprint_material(path: &str, size: u64, mtime_nanos: u128) -> Vec<u8> {
     // ```ts
     // return new Uint8Array(material);
     // ```
-    return material
+    return material;
 }
 
 /// What:
@@ -198,7 +202,11 @@ fn fingerprint_material(path: &str, size: u64, mtime_nanos: u128) -> Vec<u8> {
 ///   return xxh3_64(fingerprintMaterial(path, size, mtimeNanos)); // default seed 0
 /// }
 /// ```
-pub fn track_fingerprint(path: &str, size: u64, mtime_nanos: u128) -> u64 {
+pub fn track_fingerprint(
+    path: &str,
+    size: u64,
+    mtime_nanos: u128,
+) -> u64 {
     // What:     `let material = fingerprint_material(path, size, mtime_nanos);`. Build the bytes.
     // Why:      The hash input is defined in one place.
     //
@@ -231,7 +239,7 @@ pub fn track_fingerprint(path: &str, size: u64, mtime_nanos: u128) -> u64 {
     // ```ts
     // return fingerprint;
     // ```
-    return fingerprint
+    return fingerprint;
 }
 
 /// What:

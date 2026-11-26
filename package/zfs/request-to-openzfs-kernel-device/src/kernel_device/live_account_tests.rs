@@ -25,10 +25,24 @@ use super::ZfsDevice;
 use super::fixture::Fixture;
 use super::fixture::properties;
 use super::fixture_pool::FixturePool;
-use super::fixture_reply::{listing_names, property_source, property_str, property_u64};
+use super::fixture_reply::{
+    listing_names,
+    property_source,
+    property_str,
+    property_u64,
+};
 use super::live_account_fixture_tests::{
-    BATCH_ARM, CHECKOUT_SNAPSHOT, DEPENDENT_ARM, DEPENDENT_CLONE, FREE_SNAPSHOT, OWN_SNAPSHOTS,
-    PINNED_SNAPSHOT, PROMOTED_BATCH_ARM, PROMOTED_DEPENDENT_CLONE, PROPERTY_ARM, READ_ARM,
+    BATCH_ARM,
+    CHECKOUT_SNAPSHOT,
+    DEPENDENT_ARM,
+    DEPENDENT_CLONE,
+    FREE_SNAPSHOT,
+    OWN_SNAPSHOTS,
+    PINNED_SNAPSHOT,
+    PROMOTED_BATCH_ARM,
+    PROMOTED_DEPENDENT_CLONE,
+    PROPERTY_ARM,
+    READ_ARM,
     REPLACEMENT_ARM,
 };
 use crate::kernel_device::DatasetIdentity;

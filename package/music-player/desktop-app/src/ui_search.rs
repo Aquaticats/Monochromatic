@@ -33,13 +33,22 @@ use music_player::command::Command;
 /// Imports the engine that receives the commands.
 use music_player::engine::Engine;
 /// Imports the library feeder and its batch size.
-use music_player::search_feed::{FEED_BATCH, feed_library};
+use music_player::search_feed::{
+    FEED_BATCH,
+    feed_library,
+};
 /// Imports the query splitter.
 use music_player::search_matcher::search_terms;
 /// Imports the result kind and the search state.
-use music_player::search_results::{SearchResultKind, SearchState};
+use music_player::search_results::{
+    SearchResultKind,
+    SearchState,
+};
 /// Imports the answer type and the service that answers queries.
-use music_player::search_service::{SearchAnswer, SearchService};
+use music_player::search_service::{
+    SearchAnswer,
+    SearchService,
+};
 /// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
@@ -48,12 +57,24 @@ use crate::AppWindow;
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, write_screen};
+use crate::ui_screen::{
+    project,
+    read_screen,
+    write_screen,
+};
 /// Imports the route,
 /// the screen state and the folder selection.
-use crate::ui_screen_view::{Route, ScreenState, select_folder_label};
+use crate::ui_screen_view::{
+    Route,
+    ScreenState,
+    select_folder_label,
+};
 /// Imports the application of an answer to the window.
-use crate::ui_search_apply::{apply_answer, install_rows_model, show_view};
+use crate::ui_search_apply::{
+    apply_answer,
+    install_rows_model,
+    show_view,
+};
 /// Imports the pure search view builder.
 use crate::ui_search_model::search_view_of;
 
@@ -120,7 +141,10 @@ pub(crate) fn start_service(app: &AppWindow) -> Arc<SearchService> {
 /// Why:
 /// production posts answers to the event loop;
 /// a test collects them and applies them itself.
-pub(crate) fn install(app: &AppWindow, deliver: impl Fn(SearchAnswer) + Send + 'static) {
+pub(crate) fn install(
+    app: &AppWindow,
+    deliver: impl Fn(SearchAnswer) + Send + 'static,
+) {
     install_rows_model(app);
     let started: Arc<SearchService> = Arc::new(SearchService::start(deliver));
     SERVICE.set(Some(started));
@@ -150,7 +174,10 @@ pub(crate) fn feed_library_names(names: Arc<Vec<String>>) {
 /// ```ts
 /// function wireSearch(app: AppWindow, engine: Engine): void { ... };
 /// ```
-pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
+pub(crate) fn wire(
+    app: &AppWindow,
+    engine: &Rc<Engine>,
+) {
     wire_route(app);
     wire_open(app, Rc::clone(engine) as Rc<dyn Host>);
 }
@@ -159,11 +186,18 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
 /// `wire_open` registers the callback that opens a result with a host.
 /// Why:
 /// the window tests open a result with a recording host.
-pub(crate) fn wire_open(app: &AppWindow, host: Rc<dyn Host>) {
+pub(crate) fn wire_open(
+    app: &AppWindow,
+    host: Rc<dyn Host>,
+) {
     let result_weak = app.as_weak();
     app.on_search_open(move |position| {
         if let Some(window) = result_weak.upgrade() {
-            activate_result(&window, host.as_ref(), usize::try_from(position).unwrap_or(usize::MAX));
+            activate_result(
+                &window,
+                host.as_ref(),
+                usize::try_from(position).unwrap_or(usize::MAX),
+            );
         }
     });
 }
@@ -255,7 +289,10 @@ fn show_route(window: &AppWindow) {
 /// an empty query needs no index,
 /// so its prompt is shown at once.
 pub(crate) fn project_search(window: &AppWindow) {
-    let (query, route) = { let state = read_screen(); (state.search_query.clone(), state.route) };
+    let (query, route) = {
+        let state = read_screen();
+        (state.search_query.clone(), state.route)
+    };
     window.set_search_query(query.as_str().into());
     window.set_route(route.to_int());
     if route != Route::Search {
@@ -271,8 +308,16 @@ pub(crate) fn project_search(window: &AppWindow) {
         state.search_ui.sequence = sequence;
     }
     if search_terms(&query).is_empty() {
-        let (current_index, playing) = { let state = read_screen(); (state.current_index, state.playing) };
-        show_view(window, search_view_of(&SearchState::EmptyQuery, current_index, playing, true), &query, false);
+        let (current_index, playing) = {
+            let state = read_screen();
+            (state.current_index, state.playing)
+        };
+        show_view(
+            window,
+            search_view_of(&SearchState::EmptyQuery, current_index, playing, true),
+            &query,
+            false,
+        );
     }
 }
 
@@ -283,8 +328,15 @@ pub(crate) fn project_search(window: &AppWindow) {
 /// which was kept from the last answer;
 /// searching again could return a
 /// different row for the same position while the library is still growing.
-pub(crate) fn activate_result(window: &AppWindow, engine: &dyn Host, position: usize) {
-    let result = { let state = read_screen(); state.search_ui.results.get(position).cloned() };
+pub(crate) fn activate_result(
+    window: &AppWindow,
+    engine: &dyn Host,
+    position: usize,
+) {
+    let result = {
+        let state = read_screen();
+        state.search_ui.results.get(position).cloned()
+    };
     let Some(found) = result else {
         return;
     };
@@ -315,7 +367,10 @@ pub(crate) fn activate_result(window: &AppWindow, engine: &dyn Host, position: u
 /// staying inside the list.
 /// Why:
 /// Up and Down move through the results while the query field keeps the typing focus (D106).
-pub(crate) fn move_ring(window: &AppWindow, delta: isize) {
+pub(crate) fn move_ring(
+    window: &AppWindow,
+    delta: isize,
+) {
     let count = read_screen().search_ui.results.len();
     if count == 0 {
         return;
@@ -338,7 +393,10 @@ pub(crate) fn move_ring(window: &AppWindow, delta: isize) {
 /// or the first one when none is highlighted.
 /// Why:
 /// Enter in the Search page opens the focused result (D106).
-pub(crate) fn open_ringed_result(window: &AppWindow, host: &dyn Host) {
+pub(crate) fn open_ringed_result(
+    window: &AppWindow,
+    host: &dyn Host,
+) {
     let position = read_screen().search_ring.unwrap_or(0);
     activate_result(window, host, position);
 }
@@ -353,7 +411,10 @@ pub(crate) fn open_ringed_result(window: &AppWindow, host: &dyn Host) {
 /// Leaving
 /// Search for an empty player would lose the user's place,
 /// so the tap changes nothing until the folder exists.
-pub(crate) fn open_folder_result(state: &mut ScreenState, name: &str) -> Option<Vec<usize>> {
+pub(crate) fn open_folder_result(
+    state: &mut ScreenState,
+    name: &str,
+) -> Option<Vec<usize>> {
     let scope: Vec<usize> = select_folder_label(state, name)?;
     state.route = Route::Player;
     return Some(scope);

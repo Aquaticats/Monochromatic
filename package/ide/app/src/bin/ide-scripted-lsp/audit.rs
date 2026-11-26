@@ -13,7 +13,10 @@ use ide_app::json_value;
 /// ```ts
 /// type Value = unknown;
 /// ```
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 /// What:
 ///  `Write` adds `write_all` to files;
 ///  `OpenOptions` opens a file with chosen modes.
@@ -24,10 +27,16 @@ use serde_json::{Value, json};
 /// ```ts
 /// import { appendFileSync } from 'node:fs';
 /// ```
-use std::{fs::OpenOptions, io::Write};
+use std::{
+    fs::OpenOptions,
+    io::Write,
+};
 
 /// True when the comma-separated mount `options` list `wanted`.
-fn lists_option(options: &str, wanted: &str) -> bool {
+fn lists_option(
+    options: &str,
+    wanted: &str,
+) -> bool {
     for option in options.split(',') {
         if option == wanted {
             return true;

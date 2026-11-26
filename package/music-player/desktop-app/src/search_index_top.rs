@@ -31,13 +31,20 @@
 /// Imports the map type of the cached answers.
 use std::collections::HashMap;
 /// Imports the shared ownership and lock types that share the cache between searches and the warm-up thread.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// Imports the index type that the cache answers for.
 use crate::search_index::SearchIndex;
 /// Imports the ranked candidate type,
 /// the cheap tier test and the best-first selection.
-use crate::search_index_rank::{Ranked, fast_tier, select_best};
+use crate::search_index_rank::{
+    Ranked,
+    fast_tier,
+    select_best,
+};
 
 /// What:
 ///      `pub(crate) const TRACK_KEEP: usize = 500`.
@@ -103,7 +110,10 @@ impl TopCache {
     /// if any.
     /// Why:
     /// the entry is cloned out so ranking never holds the map lock.
-    fn get(&self, character: char) -> Option<Arc<TopEntry>> {
+    fn get(
+        &self,
+        character: char,
+    ) -> Option<Arc<TopEntry>> {
         return match self.entries.lock() {
             Ok(map) => map.get(&character).cloned(),
             Err(poisoned) => poisoned.into_inner().get(&character).cloned(),
@@ -114,7 +124,11 @@ impl TopCache {
     /// `put` stores the entry of `character`.
     /// Why:
     /// the newest merge replaces the older one.
-    fn put(&self, character: char, entry: Arc<TopEntry>) {
+    fn put(
+        &self,
+        character: char,
+        entry: Arc<TopEntry>,
+    ) {
         match self.entries.lock() {
             Ok(mut map) => {
                 map.insert(character, entry);
@@ -130,7 +144,10 @@ impl TopCache {
     /// or `None` without an entry.
     /// Why:
     /// the warm-up pass refreshes entries that fall behind.
-    pub(crate) fn covered(&self, character: char) -> Option<usize> {
+    pub(crate) fn covered(
+        &self,
+        character: char,
+    ) -> Option<usize> {
         let entry = self.get(character)?;
         return Some(entry.through);
     }
@@ -141,7 +158,12 @@ impl TopCache {
 ///  Tiers the bucket members that match.
 /// Why:
 ///       Both a rebuild and a merge rank a list of bucket members the same way.
-fn rank_members(index: &SearchIndex, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
+fn rank_members(
+    index: &SearchIndex,
+    members: &[u32],
+    terms: &[String],
+    joined: &str,
+) -> Vec<Ranked> {
     let mut ranked: Vec<Ranked> = Vec::with_capacity(members.len());
     for member in members {
         if let Some(tier) = fast_tier(index.norm(*member as usize), terms, joined) {
@@ -166,7 +188,10 @@ fn rank_members(index: &SearchIndex, members: &[u32], terms: &[String], joined: 
 /// ```ts
 /// const firstMemberFrom = (bucket: number[], through: number): number => bucket.findIndex((member) => member >= through) ?? bucket.length;
 /// ```
-fn first_member_from(bucket: &[u32], through: usize) -> usize {
+fn first_member_from(
+    bucket: &[u32],
+    through: usize,
+) -> usize {
     let mut low: usize = 0;
     let mut high: usize = bucket.len();
     while low < high {
@@ -190,7 +215,10 @@ fn first_member_from(bucket: &[u32], through: usize) -> usize {
 /// ```ts
 /// const byBucketSizeThenCharacter = (left: [string, number], right: [string, number]): number => right[1] - left[1] || compare(left[0], right[0]);
 /// ```
-fn by_bucket_size_then_character(left: &(char, usize), right: &(char, usize)) -> std::cmp::Ordering {
+fn by_bucket_size_then_character(
+    left: &(char, usize),
+    right: &(char, usize),
+) -> std::cmp::Ordering {
     return right.1.cmp(&left.1).then(left.0.cmp(&right.0));
 }
 
@@ -208,7 +236,10 @@ fn by_bucket_size_then_character(left: &(char, usize), right: &(char, usize)) ->
 /// ```ts
 /// function singleCharacterTracks(index: SearchIndex, c: string): [Ranked[], number] { /* cached + delta */ }
 /// ```
-pub(crate) fn single_character_tracks(index: &SearchIndex, character: char) -> (Vec<Ranked>, usize) {
+pub(crate) fn single_character_tracks(
+    index: &SearchIndex,
+    character: char,
+) -> (Vec<Ranked>, usize) {
     let terms: Vec<String> = vec![character.to_string()];
     let joined: String = character.to_string();
     let bucket: &[u32] = index.bucket_first(character);

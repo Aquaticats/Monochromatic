@@ -13,11 +13,26 @@
 //! the counts alone would still agree.
 
 use super::declaration::ContainerKind;
-use super::expectations::{ExpectedContainer, ExpectedMember, ZFS_CMD, compared_structures};
-use super::expected_requests::{ExpectedEnumerator, expected_enumerators};
-use crate::layout::{ZcDestroyControl, ZcInjectOverlay, ZfsCmd};
+use super::expectations::{
+    ExpectedContainer,
+    ExpectedMember,
+    ZFS_CMD,
+    compared_structures,
+};
+use super::expected_requests::{
+    ExpectedEnumerator,
+    expected_enumerators,
+};
+use crate::layout::{
+    ZcDestroyControl,
+    ZcInjectOverlay,
+    ZfsCmd,
+};
 use crate::requests::Operation;
-use std::mem::{offset_of, size_of};
+use std::mem::{
+    offset_of,
+    size_of,
+};
 
 /// Every member's bit range,
 /// sorted by offset.
@@ -42,7 +57,12 @@ fn every_structures_members_tile_its_size() {
             assert_eq!(offset, expected_start, "{}", container.name);
             expected_start = expected_start.saturating_add(length);
         }
-        assert_eq!(expected_start, container.byte_size * 8, "{}", container.name);
+        assert_eq!(
+            expected_start,
+            container.byte_size * 8,
+            "{}",
+            container.name
+        );
     }
 }
 
@@ -63,7 +83,10 @@ fn the_anonymous_union_sits_where_the_rust_type_puts_it() {
         })
         .expect("the union has no name");
     assert_eq!(overlay.container, Some(ContainerKind::Union));
-    assert_eq!(overlay.bit_offset, (offset_of!(ZfsCmd, zc_inject_overlay) * 8) as u32);
+    assert_eq!(
+        overlay.bit_offset,
+        (offset_of!(ZfsCmd, zc_inject_overlay) * 8) as u32
+    );
     assert_eq!(overlay.byte_size, size_of::<ZcInjectOverlay>() as u32);
     let interior: &ExpectedContainer = overlay.interior.expect("the union is compared");
     assert_eq!(interior.byte_size, size_of::<ZcInjectOverlay>() as u32);
@@ -74,7 +97,10 @@ fn the_anonymous_union_sits_where_the_rust_type_puts_it() {
             return member.name == Some("zc_inject_record");
         })
         .expect("the inject record is the union's first member");
-    assert_eq!(inject.bit_offset, (offset_of!(ZcInjectOverlay, inject) * 8) as u32);
+    assert_eq!(
+        inject.bit_offset,
+        (offset_of!(ZcInjectOverlay, inject) * 8) as u32
+    );
     let control: &ExpectedMember = interior
         .members
         .iter()
@@ -82,7 +108,10 @@ fn the_anonymous_union_sits_where_the_rust_type_puts_it() {
             return member.name.is_none();
         })
         .expect("the destroy control is the union's anonymous member");
-    assert_eq!(control.bit_offset, (offset_of!(ZcInjectOverlay, control) * 8) as u32);
+    assert_eq!(
+        control.bit_offset,
+        (offset_of!(ZcInjectOverlay, control) * 8) as u32
+    );
     assert_eq!(control.byte_size, size_of::<ZcDestroyControl>() as u32);
     let pad: &ExpectedMember = control
         .interior
@@ -99,9 +128,10 @@ fn every_request_this_crate_sends_has_one_expectation_and_two_endpoints() {
     assert_eq!(wanted.len(), Operation::ALL.len() + 2);
     for operation in Operation::ALL {
         let name: String = format!("ZFS_IOC_{}", operation.as_str());
-        let found: Option<&ExpectedEnumerator> = wanted.iter().find(|entry: &&ExpectedEnumerator| {
-            return entry.name == name;
-        });
+        let found: Option<&ExpectedEnumerator> =
+            wanted.iter().find(|entry: &&ExpectedEnumerator| {
+                return entry.name == name;
+            });
         let entry: &ExpectedEnumerator = found.expect("every operation is expected");
         assert_eq!(entry.value, operation.code() as i64, "{name}");
     }

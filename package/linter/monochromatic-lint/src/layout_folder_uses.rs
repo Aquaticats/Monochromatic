@@ -209,9 +209,47 @@ pub fn use_loops(
             help: Some(String::from(
                 "Move the shared code into a folder both can use, or pass it in, so that one direction of use disappears.",
             )),
+            key: String::new(),
         });
     }
     return findings;
+}
+
+/// What:
+///  The loop each node is in,
+///  numbered in the order `find_loops` reports them.
+/// Why:
+///  Two folders are in a loop together exactly when their numbers are the same,
+///  which is what an allow-list entry about one use has to keep true to stay alive.
+///  A node in no loop of two or more is absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function loopMembership(nodes: Path[], grouped: FolderUses): Map<Path, number>;
+/// ```
+pub fn loop_membership(nodes: &[PathBuf], grouped: &FolderUses) -> BTreeMap<PathBuf, usize> {
+    let mut position: BTreeMap<&PathBuf, usize> = BTreeMap::<&PathBuf, usize>::new();
+    for (index, node) in nodes.iter().enumerate() {
+        position.insert(node, index);
+    }
+    let mut adjacency: Vec<Vec<usize>> = vec![Vec::<usize>::new(); nodes.len()];
+    for (from, targets) in grouped {
+        let Some(source) = position.get(from) else {
+            continue;
+        };
+        for to in targets.keys() {
+            if let Some(target) = position.get(to) {
+                adjacency[*source].push(*target);
+            }
+        }
+    }
+    let mut membership: BTreeMap<PathBuf, usize> = BTreeMap::<PathBuf, usize>::new();
+    for (number, members) in find_loops(adjacency.as_slice()).into_iter().enumerate() {
+        for member in members {
+            membership.insert(nodes[member].clone(), number);
+        }
+    }
+    return membership;
 }
 
 /// Controls of the use records stay outside release artifacts.

@@ -21,20 +21,35 @@
 //! which is how the declaration's contract outlives every adapter.
 
 use super::approved_module_fixture::{
-    COMMAND_BYTES, module_with_an_unreadable_extra_member, module_with_the_kind_flag_set,
+    COMMAND_BYTES,
+    module_with_an_unreadable_extra_member,
+    module_with_the_kind_flag_set,
 };
-use super::blob_fixture::{Blob, WrittenMember, check_pair};
+use super::blob_fixture::{
+    Blob,
+    WrittenMember,
+    check_pair,
+};
 use super::refusal::Step;
-use super::{Compatible, Refusal};
+use super::{
+    Compatible,
+    Refusal,
+};
 
 /// The gate's verdict for one module file over the empty base file
 /// every writer here starts from.
-fn verdict(name: &str, module: &Blob) -> Result<Compatible, Refusal> {
+fn verdict(
+    name: &str,
+    module: &Blob,
+) -> Result<Compatible, Refusal> {
     return check_pair(name, &Blob::new(), module);
 }
 
 /// The refusal one module file must get.
-fn refused(name: &str, module: &Blob) -> Refusal {
+fn refused(
+    name: &str,
+    module: &Blob,
+) -> Refusal {
     let answer: Result<Compatible, Refusal> = verdict(name, module);
     let Err(refusal): Result<Compatible, Refusal> = answer else {
         panic!("the {name} module passed the gate");
@@ -95,7 +110,10 @@ fn a_record_whose_kind_flag_is_set_and_whose_widths_are_zero_passes() {
     let module: Blob = module_with_the_kind_flag_set();
     let answer: Result<Compatible, Refusal> = verdict("contract-kind-flag", &module);
     let Ok(compatible): Result<Compatible, Refusal> = answer else {
-        panic!("the kind-flagged approved declaration refused: {}", answer.err().unwrap());
+        panic!(
+            "the kind-flagged approved declaration refused: {}",
+            answer.err().unwrap()
+        );
     };
     assert_eq!(compatible.module_bytes, module.bytes().len());
 }
@@ -110,7 +128,11 @@ fn a_typedef_that_names_itself_refuses_and_returns() {
     let refusal: Refusal = refused("contract-alias-loop", &module_with_a_self_naming_typedef());
     assert_eq!(refusal.step, Step::BaseType);
     assert!(refusal.detail.contains("zc_name"), "{}", refusal.detail);
-    assert!(refusal.detail.contains("cannot compute"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("cannot compute"),
+        "{}",
+        refusal.detail
+    );
 }
 
 /// An array element walk is bounded:
@@ -125,7 +147,11 @@ fn an_array_that_names_itself_refuses_and_returns() {
     let refusal: Refusal = refused("contract-array-loop", &module_with_a_self_naming_array());
     assert_eq!(refusal.step, Step::BaseType);
     assert!(refusal.detail.contains("zc_name"), "{}", refusal.detail);
-    assert!(refusal.detail.contains("cannot compute"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("cannot compute"),
+        "{}",
+        refusal.detail
+    );
 }
 
 /// An unreadable member is a refusal,
@@ -138,6 +164,14 @@ fn a_member_whose_name_cannot_be_read_refuses() {
     let module: Blob = module_with_an_unreadable_extra_member();
     let refusal: Refusal = refused("contract-unreadable-member", &module);
     assert_eq!(refusal.step, Step::BaseType);
-    assert!(refusal.detail.contains("zc_objset_stats"), "{}", refusal.detail);
-    assert!(refusal.detail.contains("cannot compute"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("zc_objset_stats"),
+        "{}",
+        refusal.detail
+    );
+    assert!(
+        refusal.detail.contains("cannot compute"),
+        "{}",
+        refusal.detail
+    );
 }

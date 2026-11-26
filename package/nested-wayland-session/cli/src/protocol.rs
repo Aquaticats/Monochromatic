@@ -14,7 +14,10 @@
 //! including adversarial inputs (the tests live in `protocol_tests.rs`).
 
 /// Error text that is built only on failure.
-use crate::lazy_error_text::{option_or_text, result_or_text};
+use crate::lazy_error_text::{
+    option_or_text,
+    result_or_text,
+};
 /// What:
 ///      `use std::path::PathBuf;`.
 ///  Owned filesystem path.
@@ -681,13 +684,16 @@ pub fn parse_command(raw: &str) -> Result<Command, String> {
         "title" => return no_arguments(&mut tokens, "title", Command::Title),
         "app-id" => return no_arguments(&mut tokens, "app-id", Command::AppId),
         "launcher" => return no_arguments(&mut tokens, "launcher", Command::Launcher),
-        "launcher-clear" => return no_arguments(&mut tokens, "launcher-clear", Command::LauncherClear),
+        "launcher-clear" => {
+            return no_arguments(&mut tokens, "launcher-clear", Command::LauncherClear);
+        }
         "launcher-log" => return launcher::parse_log(&mut tokens),
         "accent-color" => return accent::parse(&mut tokens),
         "notifications" | "notification-log" | "notification-clear" | "notification-close" => {
             return notification::parse(verb, &mut tokens);
         }
-        "jobs" | "job-log" | "job-clear" | "job-suspend" | "job-resume" | "job-cancel" | "job-refresh" => {
+        "jobs" | "job-log" | "job-clear" | "job-suspend" | "job-resume" | "job-cancel"
+        | "job-refresh" => {
             return job::parse(verb, &mut tokens);
         }
         other => return Err(format!("unknown command: {other}")),
@@ -712,10 +718,8 @@ fn no_arguments(
     if tokens.next().is_some() {
         return Err(format!("{verb} takes no arguments"));
     }
-    return Ok(command)
+    return Ok(command);
 }
-
-
 
 /// Parse the arguments of a `resize` command.
 ///
@@ -743,10 +747,11 @@ fn parse_resize(tokens: &mut std::str::SplitWhitespace) -> Result<Command, Strin
 
     // What:     `Ok(Command::Resize { width, height })`. Build the command.
     // Why:      Return the parsed resize.
-    return Ok(Command::Resize { width, height })
+    return Ok(Command::Resize {
+        width,
+        height,
+    });
 }
-
-
 
 /// Parse an optional token as `f64`,
 ///  with a field name for errors.
@@ -757,14 +762,17 @@ fn parse_resize(tokens: &mut std::str::SplitWhitespace) -> Result<Command, Strin
 ///  32-bit `f32`).
 /// Why:
 ///       Click coordinates are floating-point logical positions.
-fn parse_f64(token: Option<&str>, field: &str) -> Result<f64, String> {
+fn parse_f64(
+    token: Option<&str>,
+    field: &str,
+) -> Result<f64, String> {
     // What:     `token.ok_or_else(|| format!("{field} missing"))?.parse::<f64>()
     //           .map_err(|_| format!("{field} is not a number"))`. Require the token, then
     //           parse it, converting both the missing and the non-numeric cases into
     //           messages. Tail expression.
     // Why:      One place for the "present and numeric" check.
     let text = option_or_text(token, format_args!("{field} missing"))?;
-    return result_or_text(text.parse::<f64>(), format_args!("{field} is not a number"))
+    return result_or_text(text.parse::<f64>(), format_args!("{field} is not a number"));
 }
 
 /// Parse an optional token as `i32`,
@@ -774,12 +782,18 @@ fn parse_f64(token: Option<&str>, field: &str) -> Result<f64, String> {
 ///      `fn parse_i32(token: Option<&str>, field: &str) -> Result<i32, String>`.
 /// Why:
 ///       Resize dimensions are signed integers (to match Smithay geometry).
-fn parse_i32(token: Option<&str>, field: &str) -> Result<i32, String> {
+fn parse_i32(
+    token: Option<&str>,
+    field: &str,
+) -> Result<i32, String> {
     // What:     `token.ok_or_else(...)?.parse::<i32>().map_err(...)`. Same shape as
     //           `parse_f64` for integers.
     // Why:      One place for the integer check.
     let text = option_or_text(token, format_args!("{field} missing"))?;
-    return result_or_text(text.parse::<i32>(), format_args!("{field} is not an integer"))
+    return result_or_text(
+        text.parse::<i32>(),
+        format_args!("{field} is not an integer"),
+    );
 }
 
 /// Parse a pointer-button name.

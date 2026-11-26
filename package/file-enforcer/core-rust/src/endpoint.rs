@@ -20,12 +20,20 @@ use crate::identity::canonical_or_same;
 /// `runtime_directory`,
 /// `server_key`,
 /// `socket_path` from `crate::runtime_dir`.
-use crate::runtime_dir::{prepare_runtime_directory, runtime_directory, server_key, socket_path};
+use crate::runtime_dir::{
+    prepare_runtime_directory,
+    runtime_directory,
+    server_key,
+    socket_path,
+};
 /// Imports `BaseDirs` from `directories`.
 use directories::BaseDirs;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The socket a command talks to and the root that server serves.
@@ -59,7 +67,10 @@ pub struct Endpoint {
 fn resolve_runtime_directory() -> Result<PathBuf, Diagnostic> {
     let xdg = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
     let Some(base) = BaseDirs::new() else {
-        return Err(Diagnostic::new("runtime-dir-unusable", "the home directory cannot be determined"));
+        return Err(Diagnostic::new(
+            "runtime-dir-unusable",
+            "the home directory cannot be determined",
+        ));
     };
     let directory = runtime_directory(xdg, base.cache_dir())?;
     prepare_runtime_directory(&directory)?;
@@ -80,7 +91,10 @@ pub fn repository_endpoint(root: &Path) -> Result<Endpoint, Diagnostic> {
     let canonical = canonical_or_same(root);
     let directory = resolve_runtime_directory()?;
     let key = server_key(&canonical.display().to_string());
-    return Ok(Endpoint { socket: socket_path(&directory, &key)?, root: canonical });
+    return Ok(Endpoint {
+        socket: socket_path(&directory, &key)?,
+        root: canonical,
+    });
 }
 
 /// What:
@@ -97,16 +111,26 @@ pub fn user_endpoint(config_path: &Path) -> Result<Endpoint, Diagnostic> {
     let canonical = match std::fs::canonicalize(config_path) {
         Ok(canonical) => canonical,
         Err(error) => {
-            let message = format!("cannot read the per-user config {}: {error}", config_path.display());
-            return Err(Diagnostic::new("config-unreadable", &message).with_path(&config_path.display().to_string()));
+            let message = format!(
+                "cannot read the per-user config {}: {error}",
+                config_path.display()
+            );
+            return Err(Diagnostic::new("config-unreadable", &message)
+                .with_path(&config_path.display().to_string()));
         }
     };
     let Some(base) = BaseDirs::new() else {
-        return Err(Diagnostic::new("runtime-dir-unusable", "the home directory cannot be determined"));
+        return Err(Diagnostic::new(
+            "runtime-dir-unusable",
+            "the home directory cannot be determined",
+        ));
     };
     let directory = resolve_runtime_directory()?;
     let key = server_key(&format!("user:{}", canonical.display()));
-    return Ok(Endpoint { socket: socket_path(&directory, &key)?, root: base.home_dir().to_path_buf() });
+    return Ok(Endpoint {
+        socket: socket_path(&directory, &key)?,
+        root: base.home_dir().to_path_buf(),
+    });
 }
 
 /// What:
@@ -121,7 +145,14 @@ pub fn user_endpoint(config_path: &Path) -> Result<Endpoint, Diagnostic> {
 /// ```
 pub fn default_user_config_path() -> Result<PathBuf, Diagnostic> {
     let Some(base) = BaseDirs::new() else {
-        return Err(Diagnostic::new("usage-error", "the home directory cannot be determined"));
+        return Err(Diagnostic::new(
+            "usage-error",
+            "the home directory cannot be determined",
+        ));
     };
-    return Ok(base.config_dir().join("monochromatic-dev").join("file-enforcer").join("user.config.jsonc"));
+    return Ok(base
+        .config_dir()
+        .join("monochromatic-dev")
+        .join("file-enforcer")
+        .join("user.config.jsonc"));
 }

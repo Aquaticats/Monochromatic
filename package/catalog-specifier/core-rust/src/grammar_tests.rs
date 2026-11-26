@@ -22,7 +22,10 @@
 /// ```ts
 /// import { isAllowedSpecifier, type SectionKind } from './grammar';
 /// ```
-use super::{SectionKind, is_allowed_specifier};
+use super::{
+    SectionKind,
+    is_allowed_specifier,
+};
 
 /// What:
 /// `#[test]` marks the next function as a test the runner (`cargo nextest`) will call.
@@ -45,8 +48,14 @@ fn bare_catalog_is_allowed_in_both_kinds() {
 /// Named catalogs with the full allowed character set pass in both kinds.
 #[test]
 fn named_catalog_with_every_allowed_character_class_is_allowed() {
-    assert!(is_allowed_specifier(SectionKind::Install, "catalog:Team.a_b-9"));
-    assert!(is_allowed_specifier(SectionKind::Peer, "catalog:Team.a_b-9"));
+    assert!(is_allowed_specifier(
+        SectionKind::Install,
+        "catalog:Team.a_b-9"
+    ));
+    assert!(is_allowed_specifier(
+        SectionKind::Peer,
+        "catalog:Team.a_b-9"
+    ));
 }
 
 /// `workspace:*` passes only in install sections.
@@ -68,9 +77,24 @@ fn bare_star_is_allowed_only_in_peers() {
 fn literal_versions_are_refused_in_both_kinds() {
     // What: `for specifier in ["a", "b"]` loops over a fixed array of `&str` values; `assert!` panics when its condition is false.
     // Why: One loop covers every shape without repeating the assertion.
-    for specifier in ["4.6.7", "^4.6.7", "~1.2.3", ">=4.6.7", "1.0.0-beta.1", "latest", "x", ""] {
-        assert!(!is_allowed_specifier(SectionKind::Install, specifier), "install accepted {specifier:?}");
-        assert!(!is_allowed_specifier(SectionKind::Peer, specifier), "peer accepted {specifier:?}");
+    for specifier in [
+        "4.6.7",
+        "^4.6.7",
+        "~1.2.3",
+        ">=4.6.7",
+        "1.0.0-beta.1",
+        "latest",
+        "x",
+        "",
+    ] {
+        assert!(
+            !is_allowed_specifier(SectionKind::Install, specifier),
+            "install accepted {specifier:?}"
+        );
+        assert!(
+            !is_allowed_specifier(SectionKind::Peer, specifier),
+            "peer accepted {specifier:?}"
+        );
     }
 }
 
@@ -78,8 +102,18 @@ fn literal_versions_are_refused_in_both_kinds() {
 /// including the `*.0` trailing-text leak.
 #[test]
 fn other_workspace_forms_are_refused() {
-    for specifier in ["workspace:", "workspace:^", "workspace:~", "workspace:^1.0.0", "workspace:*.0", "workspace:**"] {
-        assert!(!is_allowed_specifier(SectionKind::Install, specifier), "install accepted {specifier:?}");
+    for specifier in [
+        "workspace:",
+        "workspace:^",
+        "workspace:~",
+        "workspace:^1.0.0",
+        "workspace:*.0",
+        "workspace:**",
+    ] {
+        assert!(
+            !is_allowed_specifier(SectionKind::Install, specifier),
+            "install accepted {specifier:?}"
+        );
     }
 }
 
@@ -87,7 +121,10 @@ fn other_workspace_forms_are_refused() {
 #[test]
 fn peers_starting_with_a_star_are_refused() {
     for specifier in ["*.0", "* ", "**", " *"] {
-        assert!(!is_allowed_specifier(SectionKind::Peer, specifier), "peer accepted {specifier:?}");
+        assert!(
+            !is_allowed_specifier(SectionKind::Peer, specifier),
+            "peer accepted {specifier:?}"
+        );
     }
 }
 
@@ -98,11 +135,27 @@ fn peers_starting_with_a_star_are_refused() {
 #[test]
 fn malformed_catalog_references_are_refused() {
     for specifier in [
-        "catalog: ", " catalog:", "catalog:team ", "catalog:te am", "catalog:te\tam", "catalog:team:other", "catalog:*",
-        "catalog:\u{e9}", "Catalog:", "CATALOG:", "catalog", "catalog:\n",
+        "catalog: ",
+        " catalog:",
+        "catalog:team ",
+        "catalog:te am",
+        "catalog:te\tam",
+        "catalog:team:other",
+        "catalog:*",
+        "catalog:\u{e9}",
+        "Catalog:",
+        "CATALOG:",
+        "catalog",
+        "catalog:\n",
     ] {
-        assert!(!is_allowed_specifier(SectionKind::Install, specifier), "install accepted {specifier:?}");
-        assert!(!is_allowed_specifier(SectionKind::Peer, specifier), "peer accepted {specifier:?}");
+        assert!(
+            !is_allowed_specifier(SectionKind::Install, specifier),
+            "install accepted {specifier:?}"
+        );
+        assert!(
+            !is_allowed_specifier(SectionKind::Peer, specifier),
+            "peer accepted {specifier:?}"
+        );
     }
 }
 
@@ -110,9 +163,18 @@ fn malformed_catalog_references_are_refused() {
 #[test]
 fn protocol_and_url_forms_are_refused() {
     for specifier in [
-        "link:../x", "file:../x", "git+https://github.com/a/b.git", "github:a/b", "https://example.com/x.tgz",
-        "npm:other@^1.0.0", "portal:../x", "jsr:@a/b@^1",
+        "link:../x",
+        "file:../x",
+        "git+https://github.com/a/b.git",
+        "github:a/b",
+        "https://example.com/x.tgz",
+        "npm:other@^1.0.0",
+        "portal:../x",
+        "jsr:@a/b@^1",
     ] {
-        assert!(!is_allowed_specifier(SectionKind::Install, specifier), "install accepted {specifier:?}");
+        assert!(
+            !is_allowed_specifier(SectionKind::Install, specifier),
+            "install accepted {specifier:?}"
+        );
     }
 }

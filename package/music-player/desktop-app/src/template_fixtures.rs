@@ -29,7 +29,10 @@ use crate::template_format::utf16_length;
 ///  imports the track record types.
 /// Why:
 ///  Every fixture builds one of them.
-use crate::template_model::{PlayingTrackFields, TrackFields};
+use crate::template_model::{
+    PlayingTrackFields,
+    TrackFields,
+};
 
 /// What:
 ///  `pub fn typed(state: &TemplateEditorState, text: &str) -> TemplateEditorState` types a whole text with the caret at its end.
@@ -41,7 +44,10 @@ use crate::template_model::{PlayingTrackFields, TrackFields};
 /// ```ts
 /// const typed = (state, text) => state.withEdit({ text, selectionStart: text.length, selectionEnd: text.length });
 /// ```
-pub fn typed(state: &TemplateEditorState, text: &str) -> TemplateEditorState {
+pub fn typed(
+    state: &TemplateEditorState,
+    text: &str,
+) -> TemplateEditorState {
     let length = utf16_length(text);
     return edit_at(state, text, length, length);
 }
@@ -56,7 +62,12 @@ pub fn typed(state: &TemplateEditorState, text: &str) -> TemplateEditorState {
 /// ```ts
 /// state.withEdit({ text, selectionStart: start, selectionEnd: end });
 /// ```
-pub fn edit_at(state: &TemplateEditorState, text: &str, start: usize, end: usize) -> TemplateEditorState {
+pub fn edit_at(
+    state: &TemplateEditorState,
+    text: &str,
+    start: usize,
+    end: usize,
+) -> TemplateEditorState {
     return state.with_edit(TemplateEditorEdit {
         text: text.to_string(),
         selection_start: start,

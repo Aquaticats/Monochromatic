@@ -75,28 +75,56 @@ mod request;
 mod snapshot_requests;
 
 /// The four dataset writes.
-pub use dataset_requests::{clone, destroy, promote, set_prop};
+pub use dataset_requests::{
+    clone,
+    destroy,
+    promote,
+    set_prop,
+};
 /// The per-name failures and their diagnostic helpers.
 pub use element_error::{
-    ELEMENTS_SHOWN, ElementError, MAXIMUM_ELEMENTS_KEPT, element_errors, elements_suffix,
+    ELEMENTS_SHOWN,
+    ElementError,
+    MAXIMUM_ELEMENTS_KEPT,
+    element_errors,
+    elements_suffix,
 };
 /// The failure type every request returns.
 pub use error::Error;
 /// The typed request numbers.
 pub use operation::Operation;
 /// The fixed-program request and its inputs.
-pub use program_requests::{ChannelProgramRequest, channel_program};
+pub use program_requests::{
+    ChannelProgramRequest,
+    channel_program,
+};
 /// The five read requests.
 pub use read_requests::{
-    dataset_list_next, get_bookmarks, get_fsacl, objset_stats, snapshot_list_next,
+    dataset_list_next,
+    get_bookmarks,
+    get_fsacl,
+    objset_stats,
+    snapshot_list_next,
 };
 /// The reply buffer,
 /// its refusals and its error.
 pub use reply::{
-    INITIAL_REPLY_SIZE, MAXIMUM_REPLY_SIZE, ReplyBuffer, ReplyError, ReplyRefusal,
-    ReplyRefusalReason, ReplyUse,
+    INITIAL_REPLY_SIZE,
+    MAXIMUM_REPLY_SIZE,
+    ReplyBuffer,
+    ReplyError,
+    ReplyRefusal,
+    ReplyRefusalReason,
+    ReplyUse,
 };
 /// The request value and the two builders the packers share.
-pub use request::{Request, checked_name, flag_list};
+pub use request::{
+    Request,
+    checked_name,
+    flag_list,
+};
 /// The two snapshot writes.
-pub use snapshot_requests::{destroy_snaps, snapshot};
+pub use snapshot_requests::{
+    destroy_snaps,
+    snapshot,
+};
