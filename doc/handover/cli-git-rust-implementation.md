@@ -144,6 +144,16 @@ Rounds started earlier run on the pool they named.
   and the merged tree answered `commit::` `test result: ok. 474 passed; 0 failed` in both runs,
   `source_guard::` `ok. 151 passed`,
   and every one of the 34 controls `1 passed` alone with `--exact`.
+- The crate split's round 2, the files over the 300-line budget, reads the linter after the reformat:
+  281 files are over on `987635373a`, 19 of them over before `00b6a940b4` and 262 only because of it (code lines grew 1.472 times).
+  13 of the 19 run in five branches queued behind the small Lows round, one starting after the other
+  (`~/temp/agent/split-*-files-over-the-line-budget-2026-11-26/prompt.md`: the removal hand-over pair, the copy pair, the service and supervisor three,
+  the landing replanning handlers with the ZFS route test facts, then four more `worktree/` files).
+  The other six wait for the rounds beside them: four `merge/isolation` files for the record-folder pipes round,
+  `commit/native_commit_waiting_notice.rs` and `invocation/entry.rs` for the notices round.
+  The 262 wait for the owner's answer on the budget (`doc/handover/questions-for-the-owner.md`), since splitting them answers only the layout.
+- 6519 (filed 12:40): the notice sink control fails in a threaded `commit::` run, three of three, and passes alone and in its module; it is queued after the notices round, which works beside it.
+- One whole gate on `main` for the batch from 6512 to 6509 started about 12:45 (unit `whole-gate-on-main-<tip>`, background task of this session).
 - Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
   (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
   the alpha.47 ZFS pass's High (the removal and move refusals skip global options before `worktree`, `-C <git dir>` and `--git-dir`),
