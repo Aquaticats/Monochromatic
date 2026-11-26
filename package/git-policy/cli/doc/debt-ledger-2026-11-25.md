@@ -460,6 +460,49 @@ blocking-job user,
 which is issue 6477,
 and the other call sites of it are unchanged.
 
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6505-queued-rewrite-controls-drain-every-shard`:
+issue 6505 is fixed,
+and the blocking pool's queue was not why those two controls measured nothing.
+They are
+`subvolume::subvolume_index_files::parallel_tests`'s
+`a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`
+and
+`subvolume::subvolume_index_refresh_of_every_worktree::tests`'s
+`an_index_rewrite_reported_as_never_started_does_not_run_afterwards`.
+Measured:
+with `RewriteEachIndex::run`'s claim check removed, both answered `1 passed; 0 failed`;
+with the claim the process's bound takes removed as well,
+the second answered `0 passed; 1 failed` at `the rewrite the report gave up on ran afterwards`
+(`left: 1`),
+and a print inside the queued closure appeared twice,
+so one awaited blocking job does drain the queue.
+tokio 1.54.1's blocking queue is one `VecDeque` unless `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE` names a
+value other than zero (`runtime/builder.rs`, `sharded_blocking_queue_default`, and
+`runtime/blocking/pool.rs`, which picks `LockedImpl`),
+pushed at the back before a thread is asked for and popped at the front (`spawn_task`, `run_worker`).
+Two claims guarded the one queued closure,
+so either could be removed unseen:
+the process's bound takes one before that closure's first effect and takes it again when it gives up,
+and the item took a second behind it.
+The item's is gone and its answer reads the bound's,
+so removing the bound's check fails the item's control (`0 passed; 1 failed`),
+and not taking that claim when it gives up fails the whole-report control (`0 passed; 1 failed` at the
+report's own words),
+as does a job that runs where the bound puts it on the pool (`0 passed; 1 failed` each).
+The whole-report control cannot reach a queued rewrite at all,
+because the run's first job is the preparation and a refused thread ends the run there;
+it now proves what that end can prove:
+no index named,
+the refused step reported as one that will not run,
+and no rewrite after the queue is drained,
+and it stays `1 passed; 0 failed` when the bound's check goes,
+which is what its own face allows.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
