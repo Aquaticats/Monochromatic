@@ -127,7 +127,10 @@ Rounds started earlier run on the pool they named.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
 - Issue 6508 (the compaction silence control has 10 ms of scheduling slack, found by 6506's round),
   window `issue-6508-compaction-silence-control-owns-its-clock`, on the virtual writer.
-- Issues 6505 and 6507 and the split's round 1, on the virtual writer.
+- Issue 6505 and the split's round 1, on the virtual writer.
+- Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
+  and 6510 (the interactive selection control reads the run's terminal and never ends),
+  both found by 6507's round, start on the virtual writer after its merge (starters `brvxjo7uf` and `bu9d1ahqg`).
 - Issue 6494 merged as `c72c68f022` (07:57) and was closed by comment, its branch carrying no closing keyword.
   Its merge check's one red, `commit::commit_index`'s span control (the `index::` filter also matches `commit::commit_index::`),
   passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
@@ -185,6 +188,10 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6507 as `3d11fc0526`: the five controls that drain the preparation-span ledger run in children of their own,
+  and `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs` refuses one that does not.
+- The wrapper's `0.6.1-alpha.47`, released from `68af165851` after the gate at `196b8d0c87`;
+  its two Sonnet release passes run on the detached worktrees `wrapper-alpha-47-release-review-zfs-route` and `-the-rest`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
   the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
   proved in an Ubuntu 6.8 guest with the remedy arm.
