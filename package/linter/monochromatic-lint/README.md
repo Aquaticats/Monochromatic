@@ -946,28 +946,30 @@ so a finding is never reported twice.
   breadth first,
   so the message spells the fewest uses that lead back.
   Measured on 2026-11-26,
-  one process per binary in its own capped scope,
+  one process per binary per round in its own capped scope,
   with only ratios a finding and every ratio taken between runs of one shape:
   on a package of 250 groups reached from 250 folders,
   each folder using one child folder of every group (62,500 uses,
   every link written)
   and each group's own file using one folder that reaches nothing,
-  alpha.13 took 3.0 seconds,
-  alpha.14 13.3,
-  alpha.15 3.3,
-  and this release 3.2,
-  1.06 times alpha.13's time,
+  alpha.14 took 13.3 seconds,
+  4.41 times alpha.13's time,
+  alpha.15 3.3 seconds,
+  1.02 to 1.08 times,
+  and this release 3.2 and 3.3 seconds,
+  0.97 to 1.06 times,
   while the same graph with an empty own file took 3.0 and 3.1 seconds on alpha.13 and this release.
   On a three-layer package that shape does not cover,
   300 groups and 300 folders,
   each folder using every later folder and a child folder of every group
   (134,850 uses,
   every link written),
-  alpha.13 took 5.99 and 6.09 seconds in two rounds,
-  alpha.15 13.55 and 14.43,
-  alpha.14 49.48 in one run,
-  and this release 6.86 and 6.52,
-  1.07 to 1.15 times alpha.13's time and 0.45 to 0.51 times alpha.15's,
+  alpha.14 took about 51 seconds,
+  8.1 to 8.8 times alpha.13's time,
+  alpha.15 13.2 to 14.4 seconds,
+  2.05 to 2.37 times,
+  and this release 6.5 to 7.8 seconds in four rounds,
+  1.00 to 1.19 times alpha.13's time and 0.49 to 0.54 times alpha.15's,
   and every binary's output on both packages is byte-identical.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
