@@ -69,6 +69,12 @@ apparmor="DENIED" operation="capable" class="cap" profile="unprivileged_userns" 
 Second,
 on that guest the open of `/proc/self/setgroups` for write answers `EACCES`,
 before any write the design reasoned about.
+That is the kernel's own refusal:
+`proc_setgroups_open` answers `-EACCES` for a write open whose caller lacks
+`CAP_SYS_ADMIN` in the file's user namespace
+(`kernel/user_namespace.c:3140` to `:3144` of the guest's 6.8 series),
+so the capability the profile denies is asked for at the open and not at the
+write.
 A probe that makes the companion's three calls in the companion's order,
 as the account,
 answers:
