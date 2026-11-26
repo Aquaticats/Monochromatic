@@ -127,7 +127,8 @@ Rounds started before that decision run on flex.
   window `zfs-step-23-host-kernel-qualification`, run 2 on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
-- Issues 6489, 6493 and 6495 (flex),
+- Issue 6489, run 2 on Qwen (run 1 on flex timed out at turn 150 with its fix committed and no report),
+  and issues 6493 and 6495 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
