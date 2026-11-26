@@ -377,6 +377,23 @@ fn an_added_member_keeps_the_line_ending_the_file_uses() {
 }
 
 #[test]
+fn a_comment_and_non_ascii_text_do_not_disturb_the_splice() {
+    let source = "{\n  \"name\": \"é 日本 😀\", // a note\n  \"a\": 1,\n}\n";
+    assert_eq!(
+        add_member(source, &[], "homepage", "\"h\""),
+        "{\n  \"name\": \"é 日本 😀\", // a note\n  \"a\": 1,\n  \"homepage\": \"h\"\n}\n"
+    );
+}
+
+#[test]
+fn an_added_member_of_an_inline_record_takes_one_indentation_unit() {
+    assert_eq!(
+        add_member("{\"a\":1}", &[], "homepage", "\"h\""),
+        "{\"a\":1,\n  \"homepage\": \"h\"}"
+    );
+}
+
+#[test]
 fn an_added_member_of_an_empty_record_takes_the_files_indentation_unit() {
     let source = "{\n\t\"name\": \"d\",\n\t\"repository\": {}\n}\n";
     assert_eq!(
