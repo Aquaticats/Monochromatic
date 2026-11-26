@@ -137,7 +137,7 @@ Rounds started earlier run on the pool they named.
   The outage also killed four queued starters through an uncaught `git fetch` failure; the starter now treats a failed fetch as "not yet".
 - Issue 6503's round replaced `started_within_a_child_of_its_own` (a yes or no) with `run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`
   across 106 call sites; its merge of `main` met issue 6514's new call to the old starter, which the coordinator moved to the new one (`18ce8792ee`).
-  Any round still open that adds a call to the old starter (6509, 6510, 6511 and the alpha.47 rounds may) builds no more once 6503 is on `main`:
+  It merged as `75fbf8d59b` (11:15). Any round still open that adds a call to the old starter (6509, 6510, 6511 and the alpha.47 rounds may) no longer builds after merging `main`:
   its merge check then fails at `cargo check`, and the call is moved the same way, the body handed to the starter as a closure.
 - Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
   (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
