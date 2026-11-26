@@ -83,6 +83,21 @@ fn the_holding_dataset_is_the_longest_mount_point_the_path_is_under() {
     assert_eq!(tree.holding_dataset("/fixture/home"), Some("tank/home"));
 }
 
+/// The dataset that holds a path is the one whose mount point is deepest,
+/// not the one whose name is longest:
+/// a container's name says nothing about where its children mount.
+#[test]
+fn the_holding_dataset_is_the_deepest_mount_point_not_the_longest_name() {
+    let tree: MeasuredTree = MeasuredTree {
+        datasets: vec![
+            MeasuredDataset { name: String::from("tank/nosnap/npm"), mountpoint: Some(String::from("/fixture/home")), auto_snapshot: Some(String::from("false")) },
+            MeasuredDataset { name: String::from("tank/home"), mountpoint: Some(String::from("/fixture/home/.npm")), auto_snapshot: None },
+        ],
+    };
+    assert_eq!(tree.holding_dataset("/fixture/home/.npm/packages"), Some("tank/home"));
+    assert_eq!(tree.holding_dataset("/fixture/home/other"), Some("tank/nosnap/npm"));
+}
+
 /// A path next to a mount point but not under it is held by nothing there,
 /// and a dataset with no path mount point holds nothing.
 #[test]

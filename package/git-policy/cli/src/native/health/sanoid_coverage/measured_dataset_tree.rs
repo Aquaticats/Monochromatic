@@ -134,7 +134,7 @@ impl MeasuredTree {
     /// tree.holdingDataset('/fixture/home/.local/share/pnpm/store'); // 'tank/home'
     /// ```
     pub fn holding_dataset(&self, path: &str) -> Option<&str> {
-        let mut best: Option<&MeasuredDataset> = None;
+        let mut best: Option<(&MeasuredDataset, usize)> = None;
         for dataset in &self.datasets {
             let Some(mounted) = dataset.mountpoint.as_deref() else {
                 continue;
@@ -146,11 +146,11 @@ impl MeasuredTree {
             if !covers {
                 continue;
             }
-            if best.is_none_or(|held| return held.name.len() < dataset.name.len()) {
-                best = Some(dataset);
+            if best.is_none_or(|(_, held)| return held < mounted.len()) {
+                best = Some((dataset, mounted.len()));
             }
         }
-        return best.map(|dataset| return dataset.name.as_str());
+        return best.map(|(dataset, _)| return dataset.name.as_str());
     }
 }
 
