@@ -1,0 +1,10 @@
+# How rustfmt lays out Rust in every crate of this repository, as the owner set it on 2026-11-25.
+# rustfmt reads the nearest rustfmt.toml in the file's folder or any parent folder, so this one file covers every crate.
+# `imports_layout` is unstable: it takes effect only with the nightly toolchain the repository pins and `unstable_features`.
+unstable_features = true
+# Every struct literal breaks onto one line per field, however short.
+struct_lit_width = 0
+# Every `use` with braces lists one item per line.
+imports_layout = "Vertical"
+# Every function signature lists one parameter per line.
+fn_params_layout = "Vertical"

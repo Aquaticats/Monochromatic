@@ -95,7 +95,7 @@ fn the_ceiling_of_a_query_that_could_not_be_ended_says_it_was_left_running() {
         let mut command: Command = Command::new("sleep");
         command.arg("600").stdin(Stdio::null());
         let pipes: StepPipes = attach_pipes_awaiting(&mut command).await.expect("the pipes of the query");
-        let child: Child = command.spawn().expect("the query starts");
+        let child: Child = crate::test_support::spawn_owned(&mut command).expect("the query starts");
         release_write_ends(&mut command);
         let pid: u32 = child.id();
         // The signal of the ceiling is refused, and the child ends by itself after this control has read the answer.
@@ -221,7 +221,7 @@ fn a_step_that_writes_more_than_a_pipe_holds_is_read_while_it_writes() {
         command.arg("-c").arg(format!("head -c {count} /dev/zero | tr '\\0' 'x'; printf '\\nwhole\\n'"));
         command.stdin(Stdio::null());
         let pipes: StepPipes = attach_pipes_awaiting(&mut command).await.expect("the pipes of the step");
-        let child: Child = command.spawn().expect("the step starts");
+        let child: Child = crate::test_support::spawn_owned(&mut command).expect("the step starts");
         release_write_ends(&mut command);
         let carried: CarriedCeiling = carried_by(PIPE_CONTROL_CEILING, CeilingWhy::TheQueryIsBounded);
         return read_until_the_child_ends_awaiting(pipes, child, "a step that writes more than a pipe holds", Some(carried))

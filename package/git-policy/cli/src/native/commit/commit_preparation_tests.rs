@@ -419,13 +419,9 @@ fn either_signature_header_marks_the_commit_signed() {
             tree.trim(),
             parent.trim()
         );
-        let mut child = std::process::Command::new(REAL_GIT)
-            .current_dir(&repo)
-            .args(["hash-object", "-t", "commit", "-w", "--stdin"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("hash-object");
+        let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+        command.current_dir(&repo).args(["hash-object", "-t", "commit", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("hash-object");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), raw.as_bytes()).expect("raw commit");
         return String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string();
     };

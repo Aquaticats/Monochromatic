@@ -3,7 +3,6 @@
 use super::*;
 use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, signal_members, terminate_members};
 use std::io::{BufRead, BufReader};
-use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
@@ -17,14 +16,12 @@ const ENDING_BOUND: Duration = Duration::from_secs(10);
 /// that starts a sleeping child,
 /// prints its number,
 /// and waits for it.
+/// `test_support::spawn_owned` puts the shell in that group,
+/// so the test thread's fixtures end the shell and the sleeper under it however the test ends.
 fn shell_with_a_sleeper() -> (Child, i32) {
-    let mut shell: Child = Command::new("sh")
-        .args(["-c", "sleep 600 & echo $!; wait"])
-        .process_group(0)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("the shell starts");
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "sleep 600 & echo $!; wait"]).stdin(Stdio::null()).stdout(Stdio::piped());
+    let mut shell: Child = crate::test_support::spawn_owned(&mut command).expect("the shell starts");
     let mut line: String = String::new();
     BufReader::new(shell.stdout.take().expect("piped stdout"))
         .read_line(&mut line)

@@ -12,15 +12,12 @@ use std::time::{Duration, Instant};
 
 /// A shell child that sleeps `seconds` and exits with `code`.
 /// A shell is the one program every host has.
+/// The child is started with `test_support::spawn_owned`,
+/// so the test thread's fixtures end it however the test ends.
 fn sleeper(seconds: &str, code: i32) -> std::process::Child {
-    return Command::new("/bin/sh")
-        .arg("-c")
-        .arg(format!("sleep {seconds}; exit {code}"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the shell starts");
+    let mut command: Command = Command::new("/bin/sh");
+    command.arg("-c").arg(format!("sleep {seconds}; exit {code}")).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    return crate::test_support::spawn_owned(&mut command).expect("the shell starts");
 }
 
 /// Whether a process with this id still exists (a zombie still does).

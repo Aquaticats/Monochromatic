@@ -5,11 +5,12 @@
 use super::*;
 use std::process::{Command, Stdio};
 
-/// A child of a shell command line whose streams go nowhere.
+/// A child of a shell command line whose streams go nowhere,
+/// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn quiet(line: &str) -> Child {
     let mut command = Command::new("/bin/sh");
     command.arg("-c").arg(line).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    return command.spawn().expect("the stand-in starts");
+    return crate::test_support::spawn_owned(&mut command).expect("the stand-in starts");
 }
 
 /// The number this host names one child by,
