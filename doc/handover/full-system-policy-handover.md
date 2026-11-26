@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-26T02:02:59-05:00
+## Status at 2026-11-26T02:10:24-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -212,6 +212,13 @@ Unprofiled development processes remain a residual risk.
   and the owner confirmed all three channels were back.
   This was not an AVC and required no policy or cache change; see
   `doc/troubleshooting/firefox-xdg-profiles-legacy-test-directory.md`.
+- Firefox Backup in both channels then failed on `rename_dest` and `unlink` in
+  `~/Documents/Restore Firefox`.
+  `/etc/apparmor.d/local/firefox` now grants `rwl` only to `FirefoxBackup_*` there,
+  with directory metadata access.
+  The confined rename-readback-delete probe passed, an unrelated filename remained denied,
+  and the owner completed real backups in regular Firefox and ESR.
+  See `doc/troubleshooting/firefox-backup-documents-archive-replacement.md`.
 
 ## Current-boot evidence
 
@@ -417,18 +424,18 @@ custom
 and `setpci` changes.
 `build-verify-and-select-tuned-early-policy-cache.ts` compiled source
 without reading old cache,
-checked all 809 expected profile artifacts and live feature bytes,
+checked every expected profile artifact and the live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-dolphin-plain-drag-fix-2026-11-25T17-30-36-0500.json`.
+The latest such report is `verified-selected-firefox-backup-fix-2026-11-26T02-09-04-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T02-02-59-0500`.
-All 24
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T02-09-04-0500`.
+All 25
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
