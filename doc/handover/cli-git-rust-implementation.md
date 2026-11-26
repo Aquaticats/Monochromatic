@@ -402,6 +402,22 @@ run the next whole gate on `main`'s tip,
 read its window's denials with `list-denials-in-a-window.ts`,
 and start a fix round for any failure outside the recorded baseline.
 
+#### The Markdown the line-break sweep left out
+
+`monochromatic-lint`'s `markdown/semantic-line-breaks` still reports in the files the whitespace-only
+sweep of 2026-11-23 left out,
+because the branches that were changing them could not take the diff:
+`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` alone reports 683 findings on
+`main`,
+and everything under `package/git-policy/cli` and `package/pi-shared/subagent-driver/README.md` is the
+same.
+`fix-whitespace-only-line-breaks.ts` in `~/temp/agent/lint-line-breaks-of-the-2026-11-23-markdown/`
+applies that fix,
+and each file it rewrites is equal to its old text with whitespace collapsed,
+which is how the sweep's 108 files were committed.
+Run it once the rounds that edit those files have merged,
+one file's commit each.
+
 #### The release passes
 
 `0.6.1-alpha.46` is released,
