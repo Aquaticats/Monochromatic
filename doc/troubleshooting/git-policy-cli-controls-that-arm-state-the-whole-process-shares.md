@@ -604,6 +604,52 @@ and the child start without the refusal:
   the control armed a flag of the whole process and nothing said so,
   which is the leak the refusal exists to catch.
 
+### The same runs after `origin/main` moved the starter
+
+`origin/main` was 47 commits ahead when this round's second half began,
+and issue 6503 had replaced the starter:
+`started_within_a_child_of_its_own` answered a yes or a no,
+and every caller held that answer in an `if`,
+so the ten guards of this round called a function that no longer existed.
+Each now hands its body to `run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`,
+and no test's body changed.
+
+The host carried other work while these ran (load average 7.78 on 10 cores).
+Measured on the merged tree:
+
+- two threaded runs of `push::child_watch::`:
+  `test result: ok. 47 passed; 0 failed; 1 ignored`,
+  in 21.38 s and 21.38 s;
+- the same module with `--test-threads=1`:
+  `test result: ok. 47 passed; 0 failed; 1 ignored`,
+  in 41.35 s;
+- `push::child_watch_output_watched_on_the_runtime::`:
+  `test result: ok. 7 passed; 0 failed`,
+  in 0.58 s;
+- `foundation::lazy_runtime::`:
+  `test result: ok. 15 passed; 0 failed; 1 ignored`;
+- `service::service_runtime_build_report::`:
+  `test result: ok. 5 passed; 0 failed`;
+- `source_guard::`:
+  `test result: ok. 145 passed; 0 failed`,
+  in 5.20 s;
+- each of the ten controls this round changed,
+  alone with `--exact`:
+  `test result: ok. 1 passed; 0 failed` each.
+
+The two guard proofs were made again on the merged tree,
+with one control of `service::service_runtime_build_report::tests` taken out of its child:
+
+- the body in the parent fails at its first line,
+  `test result: FAILED. 0 passed; 1 failed`,
+  with the refusal's sentence,
+  which now ends at `run_the_body_in_a_child_of_its_own`;
+- with `refuse_outside_the_child` also taken out of `a_control_stands_in_for_a_late_runtime`,
+  the same run passes,
+  `test result: ok. 1 passed; 0 failed`:
+  the control set a stand-in of the whole process and nothing said so,
+  and the refusal is what catches it.
+
 ### Not covered
 
 - The container gate was not run:
