@@ -179,18 +179,18 @@ fn six_browsers(samsung: Agent) -> AgentTable {
 fn ray_comparisons() {
     let table = six_browsers(agent("samsung", &["4", "5"]));
     let dead = dead_set(&table).expect("expands");
-    assert!(dead.contains(&"baidu 1.5".to_string()));
-    assert!(dead.contains(&"baidu 2-3".to_string()));
-    assert!(!dead.contains(&"baidu x".to_string()));
-    assert!(dead.contains(&"ie 9".to_string()));
-    assert!(!dead.contains(&"ie 12".to_string()));
-    assert!(!dead.contains(&"ie 11.5".to_string()));
-    assert!(dead.contains(&"bb 10".to_string()));
-    assert!(!dead.contains(&"bb 11".to_string()));
-    assert!(dead.contains(&"op_mob 11-12.1".to_string()));
-    assert!(dead.contains(&"op_mob 12.1".to_string()));
-    assert!(!dead.contains(&"op_mob 13".to_string()));
-    assert!(!dead.contains(&"op_mob TP".to_string()));
+    assert!(dead.iter().any(|item| return item == "baidu 1.5"));
+    assert!(dead.iter().any(|item| return item == "baidu 2-3"));
+    assert!(!dead.iter().any(|item| return item == "baidu x"));
+    assert!(dead.iter().any(|item| return item == "ie 9"));
+    assert!(!dead.iter().any(|item| return item == "ie 12"));
+    assert!(!dead.iter().any(|item| return item == "ie 11.5"));
+    assert!(dead.iter().any(|item| return item == "bb 10"));
+    assert!(!dead.iter().any(|item| return item == "bb 11"));
+    assert!(dead.iter().any(|item| return item == "op_mob 11-12.1"));
+    assert!(dead.iter().any(|item| return item == "op_mob 12.1"));
+    assert!(!dead.iter().any(|item| return item == "op_mob 13"));
+    assert!(!dead.iter().any(|item| return item == "op_mob TP"));
 }
 
 /// The single-version rule:
