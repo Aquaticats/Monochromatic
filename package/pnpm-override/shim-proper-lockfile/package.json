@@ -27,7 +27,8 @@
   "version": "0.0.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/pnpm-override/shim-proper-lockfile"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/pnpm-override/shim-proper-lockfile"
 }

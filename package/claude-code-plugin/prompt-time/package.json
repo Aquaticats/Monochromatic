@@ -9,7 +9,7 @@
   "version": "0.0.3",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/claude-code-plugin/prompt-time"
   },
   "private": true,
@@ -19,5 +19,6 @@
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@types/node": "catalog:"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/claude-code-plugin/prompt-time"
 }
