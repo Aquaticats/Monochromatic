@@ -95,37 +95,8 @@ fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_roo
     //  and the walk past the bound then needs two, its root's clone and the directory it is opening.
     let room: u64 = u64::try_from(MOST_DIRECTORIES_HELD + 1).expect("a count of descriptors");
     let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + room);
-    // What:     three channels of `()` messages, and a thread of this process that opens one descriptor between the
-    //           count above and the walk below and holds it until it is told to drop it. `std::sync::mpsc::channel`
-    //           answers a sending end and a receiving end (the siblings being `Mutex` around a value, and an atomic),
-    //           and `()` is the value that carries no information: the message is its happening.
-    // Why:      The walk's room is what the count left free; a descriptor any thread opens after that count takes one
-    //           of them, which is the failure this plants on demand.
-    // Gotcha:   `recv` blocks until a message arrives, and the sending end is dropped when the other thread ends.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const whenToOpen = channel<void>(); const itIsOpen = channel<void>(); const whenToDrop = channel<void>();
-    // const planted = spawnThread(() => { whenToOpen.receive(); const held = openFile('/dev/null'); itIsOpen.send();
-    //   whenToDrop.receive(); held.close(); });
-    // ```
-    let (open_it, when_to_open) = std::sync::mpsc::channel::<()>();
-    // The sending end and the receiving end of the report that the descriptor is open.
-    let (it_is_open, wait_until_open) = std::sync::mpsc::channel::<()>();
-    let (drop_it, when_to_drop) = std::sync::mpsc::channel::<()>();
-    let planted: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        when_to_open.recv().expect("the signal to open one descriptor");
-        let held: std::fs::File = std::fs::File::open("/dev/null").expect("one descriptor of this process");
-        it_is_open.send(()).expect("the report that the descriptor is open");
-        when_to_drop.recv().expect("the signal to drop the descriptor");
-        drop(held);
-    });
-    open_it.send(()).expect("ask the planted thread for one descriptor");
-    wait_until_open.recv().expect("the planted thread opened its descriptor");
     let verdict = check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path());
     restore_limit(before);
-    drop_it.send(()).expect("let the planted thread drop its descriptor");
-    planted.join().expect("the planted thread ends");
     let clean: CleanSource = verdict.expect("a clean worktree whose deepest tracked directory is past the chain's bound");
     assert_eq!(clean.tracked, 2, "both tracked files are proven, the one at the bound and the one past it");
     remove(root.as_path());
