@@ -223,7 +223,15 @@ pub fn read_slot(
     let binding: BindingReading = read_binding_reading(home.as_path(), slot);
     let mounts = read_mount_rows(reads.mounts);
     let slot_mount = slot_mount_of(reads.mounts, slot_path);
+    // A record is keyed by the slot's last name, so the path it names says which worktree it belongs to, and the
+    // classification proves nothing about a different path from it. Asking the plan folder and the clone's own intent
+    // first would open the kernel's ZFS device for a removal, a move or a repair of a plain worktree that shares a bound
+    // slot's last name, which endangers nothing (`refuse_the_removal_with`; finding Low 5 of the alpha.47 pass), so the
+    // record's path is compared before either is asked.
     let (plan, intent, stands): (PlanReading, IntentFacts, Option<bool>) = match &binding {
+        BindingReading::Record(record) if names_another_path(record, slot_path) => {
+            (PlanReading::NotAsked, IntentFacts::Unasked, None)
+        }
         BindingReading::Record(record) => (
             read_plan(common_dir, record.clone_guid, record.clone_dataset.as_str()),
             asked_intent(record, reads.intents),
@@ -247,6 +255,26 @@ pub fn read_slot(
     };
 }
 
+/// What:
+///  Whether the record filed under `slot` names a path other than the one the
+///  command stands at.
+/// Why:
+///  The read above and the classification must compare the same paths,
+///  or one of them would ask the pool about a worktree that is not the one the
+///  command names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesAnother = (record, slotPath) => record.slotPath() !== slotPath;
+/// ```
+fn names_another_path(
+    record: &BindingRecord,
+    slot_path: &Path,
+) -> bool {
+    return record
+        .slot_path()
+        .is_some_and(|recorded| return recorded.as_path() != slot_path);
+}
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "slot_state_live_read_tests.rs"]

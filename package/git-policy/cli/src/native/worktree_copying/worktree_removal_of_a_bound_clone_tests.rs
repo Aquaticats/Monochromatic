@@ -9,11 +9,12 @@
 
 use super::*;
 use crate::test_support::{
-    fixture,
     git,
     remove,
 };
 use crate::testing::fixture_zfs_binding_record::{
+    RegisteredSlot,
+    a_registered_slot,
     publish_under,
     record_naming,
 };
@@ -46,7 +47,10 @@ use crate::worktree_clone_slot_state::slot_state_live_read::{
     CloneIntentReads,
     SlotReadingSources,
 };
-use crate::worktree_command_facts::RemovePlan;
+use crate::worktree_command_facts::{
+    CopyFacts,
+    RemovePlan,
+};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::{
     MountHoldingAPath,
@@ -63,64 +67,21 @@ use std::path::{
     PathBuf,
 };
 
-/// One fixture slot with a real registration,
-/// its record,
-/// and the facts a removal carries.
-struct Bound {
-    /// The fixture root.
-    root: PathBuf,
-    /// The Git common directory.
-    common: PathBuf,
-    /// The slot's path.
-    slot: PathBuf,
-    /// The bytes Git wrote into the slot.
-    pointer: Vec<u8>,
-    /// The registration's path.
-    registration: PathBuf,
-}
-
-/// One real registration of one slot.
-fn bound_slot(name: &str) -> Bound {
-    let root: PathBuf = fixture(name);
-    let repository: PathBuf = root.join("repository");
-    std::fs::create_dir(repository.as_path()).expect("repository");
-    git(repository.as_path(), &["init", "--quiet"]);
-    git(
-        repository.as_path(),
-        &["commit", "--quiet", "--allow-empty", "--message", "base"],
-    );
-    let slot: PathBuf = root.join("one");
-    git(
-        repository.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "--no-checkout",
-            slot.to_str().expect("utf-8"),
-            "HEAD",
-        ],
-    );
-    let common: PathBuf = repository.join(".git");
-    let pointer: Vec<u8> = std::fs::read(slot.join(".git")).expect("pointer reads");
-    let registration: PathBuf = common.join("worktrees").join("one");
-    return Bound {
-        root,
-        common,
-        slot,
-        pointer,
-        registration,
-    };
+/// One real registration of one slot, which Git writes,
+/// with the facts a removal carries built from it.
+fn bound_slot(name: &str) -> RegisteredSlot {
+    return a_registered_slot(name);
 }
 
 /// The facts a `git worktree remove --force` of one slot carries.
-fn facts_of(bound: &Bound) -> CopyFacts {
+fn facts_of(bound: &RegisteredSlot) -> CopyFacts {
     return CopyFacts {
         identity: WorktreeIdentity::MainWorktree {
             common_dir: bound.common.clone(),
             git_dir: bound.common.clone(),
-            worktree_root: bound.root.join("repository"),
+            worktree_root: bound.repository.clone(),
         },
+        common_dir: Some(bound.common.clone()),
         creates: false,
         destination: None,
         add_plan: None,
@@ -142,6 +103,7 @@ fn facts_of_the_fixture(fixture: &RemovalFixture) -> CopyFacts {
             git_dir: fixture.common_dir.clone(),
             worktree_root: fixture.common_dir.clone(),
         },
+        common_dir: Some(fixture.common_dir.clone()),
         creates: false,
         destination: None,
         add_plan: None,
@@ -206,6 +168,15 @@ fn walk(
     }
 }
 
+/// The slot and the common directory a removal's facts name,
+/// which are the two things the refusal reads,
+/// or nothing when the facts name no removal at all.
+fn the_slot_and_its_common(facts: &CopyFacts) -> Option<(PathBuf, PathBuf)> {
+    let target: PathBuf = facts.removal_target.clone()?;
+    let common: PathBuf = facts.common_dir.clone()?;
+    return Some((target, common));
+}
+
 /// The refusal's printed lines,
 /// or the panic that says the command was left to Git.
 fn refusal_of(
@@ -248,15 +219,20 @@ impl MountedDatasets for ATableNoControlReads {
 
 /// The refusal's answer for one slot with nothing mounted and no intent set,
 /// which the states that stay Git's ask for.
-fn refusal_of_or_none(facts: &CopyFacts) -> Option<ForwardedRun> {
+fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalRefusal> {
     let mounts: ScriptedMountTable = nothing_is_mounted();
     let intents: ScriptedIntent = no_intent_asked();
     let sources: SlotReadingSources<'_> = SlotReadingSources {
         mounts: &mounts,
         intents: &intents,
     };
+    // A command that names no worktree to remove answers nothing, whatever its repository holds.
+    let Some((target, common)): Option<(PathBuf, PathBuf)> = the_slot_and_its_common(facts) else {
+        return None;
+    };
     return refuse_the_removal_with(
-        facts,
+        target.as_path(),
+        common.as_path(),
         RemovalReads::Unreadable("this control reads no pool"),
         &sources,
     );
@@ -296,8 +272,10 @@ fn refusal_of_with(
     reads: RemovalReads<'_>,
     sources: &SlotReadingSources<'_>,
 ) -> String {
-    return match refuse_the_removal_with(facts, reads, sources) {
-        Some(ForwardedRun::Failed {
+    let (target, common): (PathBuf, PathBuf) =
+        the_slot_and_its_common(facts).expect("the facts name one removal");
+    return match refuse_the_removal_with(target.as_path(), common.as_path(), reads, sources) {
+        Some(BoundSlotRemovalRefusal {
             stderr,
             code,
         }) => {
@@ -321,7 +299,7 @@ fn refusal_of_with(
 ///  removal.
 #[test]
 fn a_whole_worktree_refuses_its_removal() {
-    let bound: Bound = bound_slot("removal-of-a-bound-clone");
+    let bound: RegisteredSlot = bound_slot("removal-of-a-bound-clone");
     publish_under(
         bound.common.as_path(),
         &record_naming(
@@ -361,9 +339,9 @@ fn a_whole_worktree_refuses_its_removal() {
 ///  and a slot no record names is not this route's to refuse.
 #[test]
 fn every_other_slot_stays_gits() {
-    let unrecorded: Bound = bound_slot("removal-of-an-unrecorded-slot");
+    let unrecorded: RegisteredSlot = bound_slot("removal-of-an-unrecorded-slot");
     assert!(refusal_of_or_none(&facts_of(&unrecorded)).is_none());
-    let adding: Bound = bound_slot("removal-of-a-pending-add");
+    let adding: RegisteredSlot = bound_slot("removal-of-a-pending-add");
     publish_under(
         adding.common.as_path(),
         &record_naming(
@@ -425,15 +403,18 @@ fn every_spelling_of_a_bound_slots_removal_is_refused() {
 ///  the table this control hands in fails the test if it is asked anything.
 #[test]
 fn a_repository_without_records_reads_no_mount_table() {
-    let bound: Bound = bound_slot("removal-of-no-records");
+    let bound: RegisteredSlot = bound_slot("removal-of-no-records");
     let intents: ScriptedIntent = no_intent_asked();
     let sources: SlotReadingSources<'_> = SlotReadingSources {
         mounts: &ATableNoControlReads,
         intents: &intents,
     };
+    let (target, common): (PathBuf, PathBuf) =
+        the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
     assert!(
         refuse_the_removal_with(
-            &facts_of(&bound),
+            target.as_path(),
+            common.as_path(),
             RemovalReads::Unreadable("this control reads no pool"),
             &sources
         )
@@ -451,7 +432,7 @@ fn a_repository_without_records_reads_no_mount_table() {
 ///  and a command that names no directory must not read a slot at all.
 #[test]
 fn a_command_without_a_removal_target_answers_nothing() {
-    let bound: Bound = bound_slot("removal-of-no-target");
+    let bound: RegisteredSlot = bound_slot("removal-of-no-target");
     publish_under(
         bound.common.as_path(),
         &record_naming(
@@ -747,4 +728,80 @@ fn the_scripted_pool_reaches_every_identity_the_proof_compares() {
         "{stderr}"
     );
     assert_eq!(fixture.the_plan_folder_holds(), 0);
+}
+
+/// An intent source no control may ask:
+/// a question fails the test instead of answering.
+/// Why:
+///  The clone's intent is read through this machine's ZFS device,
+///  and the control below proves the refusal never asks it for a worktree the
+///  record does not name.
+struct NoIntentMayBeAsked;
+
+impl CloneIntentReads for NoIntentMayBeAsked {
+    fn intent_of(
+        &self,
+        _clone: &str,
+    ) -> Result<IntentReading, String> {
+        panic!("the refusal asked the clone's intent before it compared the record's slot path");
+    }
+}
+
+/// What:
+///  A removal of a plain worktree that shares a bound slot's last name opens no
+///  device,
+///  and the slot stays refused.
+/// Why:
+///  The record is keyed by the slot's last name,
+///  so a removal of another worktree with that last name reads a record that
+///  names a different path;
+///  the read compared the path after it had asked the clone's own intent and the
+///  plan folder,
+///  which is one guarded open of the kernel's ZFS device for a command that
+///  endangers nothing (the alpha.47 pass's Low finding 5).
+#[test]
+fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
+    let bound: RegisteredSlot = bound_slot("removal-of-a-same-leaf-worktree");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let plain: PathBuf = bound.root.join("elsewhere").join("one");
+    std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
+    git(
+        bound.repository.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            plain.to_str().expect("utf-8"),
+            "HEAD",
+        ],
+    );
+    let plain: PathBuf = std::fs::canonicalize(plain.as_path()).expect("canonical plain worktree");
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &NoIntentMayBeAsked,
+    };
+    assert!(
+        refuse_the_removal_with(
+            plain.as_path(),
+            bound.common.as_path(),
+            RemovalReads::Unreadable("this control reads no pool"),
+            &sources
+        )
+        .is_none(),
+        "a record that names another path leaves the removal to Git without asking the pool"
+    );
+    assert!(plain.is_dir(), "the plain worktree stands");
+    assert!(bound.slot.is_dir(), "the bound slot stands");
+    remove(bound.root.as_path());
 }

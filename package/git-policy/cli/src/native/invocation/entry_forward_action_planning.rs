@@ -136,7 +136,55 @@ pub(crate) fn forward_action(
         Ok(found) => found,
         Err(message) => return failure(message.as_str()),
     };
+    // The Git common directory this command's repository has: the one its identity names, or, for a command that stands
+    // inside a Git directory and so in no worktree of it, the one Git itself named
+    // (`git -C <repository>/.git worktree remove <slot>`).
+    let common_dir: Option<PathBuf> = match common_directory(&location.identity) {
+        Some(common) => Some(common.to_path_buf()),
+        None => location.common_directory_outside_a_worktree.clone(),
+    };
     if location.identity == WorktreeIdentity::OutsideWorktree {
+        // A command started inside a Git directory stands in no worktree, and Git still names the repository it belongs
+        //  to: the slot refusals run over that directory, whose records are the ones the command would endanger
+        //  (`SPEC.md`, "Removal of a ZFS worktree clone").
+        #[cfg(target_os = "linux")]
+        if let Some(common) = common_dir.as_deref()
+            && let Some(ending) = crate::entry_zfs_slot_commands::the_slot_endings(
+                &command,
+                common,
+                &mut stderr,
+                checks.start_directory.path(),
+            )
+        {
+            return ending;
+        }
+        // The removal's refusal reads the pool, which only the run that would have carried the removal out may do, so a
+        //  removal the command names is settled by the copy run; the run forwards it once the refusal answered nothing.
+        //  A repository with no record folder can refuse nothing, so it keeps its plain forward and the cost of a run.
+        #[cfg(target_os = "linux")]
+        if let Some(common) = common_dir.as_deref()
+            && crate::worktree_clone_binding_record::registration_home::home_folder(common).is_dir()
+            && let Some(target) =
+                plan_removal_target(&command, Some(common), checks.start_directory.path())
+        {
+            return Action::ForwardSettled {
+                real_git,
+                arguments: forwarded_arguments,
+                overlay,
+                copy: Box::new(CopyFacts {
+                    identity: location.identity,
+                    common_dir,
+                    creates: false,
+                    destination: None,
+                    add_plan: None,
+                    // The ladder serves no command that stands in no worktree: its steps read a worktree and a checkout.
+                    remove_plan: None,
+                    removal_target: Some(target),
+                    quiet: false,
+                }),
+                stderr,
+            };
+        }
         return Action::Forward {
             real_git,
             arguments: forwarded_arguments,
@@ -148,27 +196,15 @@ pub(crate) fn forward_action(
     // pointer a prune would otherwise drop, and reports what a repair can restore
     // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Unmounted, pruned or moved worktrees"; plan step 12).
     #[cfg(target_os = "linux")]
+    if let Some(common) = common_directory(&location.identity)
+        && let Some(ending) = crate::entry_zfs_slot_commands::the_slot_endings(
+            &command,
+            common,
+            &mut stderr,
+            checks.start_directory.path(),
+        )
     {
-        if let Some(ending) = crate::entry_zfs_slot_commands::move_refusal_of(
-            &command,
-            common_directory(&location.identity),
-            checks.start_directory.path(),
-        ) {
-            return ending;
-        }
-        crate::entry_zfs_slot_commands::before_a_repair(
-            &command,
-            common_directory(&location.identity),
-            &mut stderr,
-            checks.start_directory.path(),
-        );
-        if let Some(ending) = crate::entry_zfs_slot_commands::before_a_prune(
-            &command,
-            common_directory(&location.identity),
-            &mut stderr,
-        ) {
-            return ending;
-        }
+        return ending;
     }
     // An invalid configuration refuses an index writer; a main checkout's worktree copy reads none.
     if configuration_needed(writes_index)
@@ -198,7 +234,7 @@ pub(crate) fn forward_action(
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
         plan_worktree_remove(
             &command,
-            common_directory(&location.identity),
+            common_dir.as_deref(),
             checks.start_directory.path(),
         )
     } else {
@@ -209,7 +245,7 @@ pub(crate) fn forward_action(
     let removal_target: Option<PathBuf> = if command.word() == b"worktree" {
         plan_removal_target(
             &command,
-            common_directory(&location.identity),
+            common_dir.as_deref(),
             checks.start_directory.path(),
         )
     } else {
@@ -220,6 +256,7 @@ pub(crate) fn forward_action(
         if !copy_bypassed && copy_applies_with(&location.identity, creates, serves_ladder) {
             Some(CopyFacts {
                 identity: location.identity.clone(),
+                common_dir,
                 creates,
                 destination,
                 add_plan,
@@ -348,13 +385,19 @@ fn plan_worktree_remove(
 
 /// What:
 ///  The worktree a `git worktree remove` names in any form Git accepts,
-/// read from the resolved command and the directory this
+///  read from the resolved command and the directory this
 ///  command was started in.
 /// Why:
 ///   The refusal of a removal of a bound slot reads the command whatever its
 ///  options,
 ///  and the operand's relation to the directory Git starts in is the same one
 ///  the plan reads.
+///  The start directory is read over Git's whole global table rather than the
+///  ladder's short list,
+///  because `-c`, `--no-optional-locks` and a `--git-dir` change nothing about
+///  where the operand lies and must not hide it from the refusal;
+///  a spelling that table does not know still names a registered worktree,
+///  which is what Git matches first (`parse_removal_target`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -365,11 +408,12 @@ fn plan_removal_target(
     common_dir: Option<&Path>,
     current: Option<&Path>,
 ) -> Option<PathBuf> {
-    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
+    let start: Option<PathBuf> =
+        copy_start_directory(&command.arguments[..command.subcommand_index], current?);
     return parse_removal_target(
         command.arguments.as_slice(),
         command.subcommand_index,
-        start.as_path(),
+        start.as_deref(),
         common_dir,
     );
 }

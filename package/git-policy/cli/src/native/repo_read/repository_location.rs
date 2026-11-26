@@ -42,6 +42,7 @@ use crate::git_metadata::{
 use crate::worktree_identity::{
     IDENTITY_QUERY,
     WorktreeIdentity,
+    parse_identity_and_common_directory,
     parse_identity_output,
 };
 /// What:
@@ -96,7 +97,7 @@ pub const PREFIX_OPTION: &str = "--show-prefix";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RepositoryLocation = { identity: WorktreeIdentity; prefix: Buffer };
+/// type RepositoryLocation = { identity: WorktreeIdentity; prefix: Buffer; standsInAGitDirectoryOf?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RepositoryLocation {
@@ -108,6 +109,17 @@ pub struct RepositoryLocation {
     ///  empty at the top level,
     ///  and empty where the identity has no worktree.
     pub prefix: Vec<u8>,
+    /// The Git common directory Git named for a command that stands in no
+    ///  worktree of it,
+    ///  which is what `git -C <repository>/.git worktree remove <slot>` has:
+    /// Git answers the three lines it prints before it refuses `--show-toplevel`,
+    ///  and the refusals of a managed clone's slot need that directory
+    ///  (`SPEC.md`,
+    /// "Removal of a ZFS worktree clone").
+    ///  Absent for every worktree identity, whose own answer carries the
+    ///  directory,
+    ///  and for a place that belongs to no repository at all.
+    pub common_directory_outside_a_worktree: Option<PathBuf>,
 }
 
 /// Named predicate for finding the last line break;
@@ -142,11 +154,13 @@ pub fn parse_location_output(
 ) -> std::io::Result<RepositoryLocation> {
     if !success {
         // A trailing `?` returns the reader's error to our caller, or unwraps the identity.
-        let identity: WorktreeIdentity = parse_identity_output(false, stdout)?;
+        let (identity, common_directory_outside_a_worktree): (WorktreeIdentity, Option<PathBuf>) =
+            parse_identity_and_common_directory(false, stdout)?;
         // `Ok(...)` is the success variant; `Vec::<u8>::new()` is an empty owned byte list.
         return Ok(RepositoryLocation {
             identity,
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree,
         });
     }
     let body: &[u8] = strip_git_line(stdout);
@@ -164,6 +178,7 @@ pub fn parse_location_output(
         identity,
         // `.to_vec()` copies the borrowed bytes into an owned list.
         prefix: body[last_break + 1..].to_vec(),
+        common_directory_outside_a_worktree: None,
     });
 }
 

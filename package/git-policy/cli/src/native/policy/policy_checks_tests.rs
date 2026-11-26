@@ -343,6 +343,7 @@ fn linked_worktree_exempts_an_allowed_tool_cache() {
             worktree_root: clone,
         },
         prefix: Vec::<u8>::new(),
+        common_directory_outside_a_worktree: None,
     });
     let mut exempt: ShippedChecks<ScriptedFacts> = checks(&["reset", "--hard"], facts.clone());
     exempt.allowed_worktree_dirs = vec![ToolCacheDirectory {
