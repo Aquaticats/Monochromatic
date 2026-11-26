@@ -14,7 +14,8 @@ the sections after it are the record of how each part was decided and measured.
 Status: confirmed by the owner at 2026-11-25T20:54:22-05:00 ("Yes, confirmed").
 Implemented on this PC (`package/garage-file-sync/linux-client`, merged as `325f2f1ab6`) and live since 2026-11-25T22:01:09-05:00;
 the Mac's agent has both passes and `--conflict-resolve newer` since 2026-11-25T21:15:56-05:00.
-Not final: no sync started by a real save has been observed yet.
+The first change-triggered sync on live data ran at 2026-11-25T23:19:37-05:00 (a deletion of five conflict copies), two passes, both successful.
+Not final until the owner says so.
 Decision record: `doc/decision/garage-file-sync-change-watcher.md`.
 
 ### Scope
