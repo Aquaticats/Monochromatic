@@ -413,6 +413,25 @@ For the probe that amends two things this record and its design said:
 Creating the probe dataset stays the owner's act through the setup steps,
 as Q3 and the design say.
 
+## The account companion's group drop on Ubuntu 24.04 (owner, 2026-11-26T00:05-05:00)
+
+On a stock Ubuntu 24.04 the AppArmor restriction on unprivileged user namespaces refuses the companion's open of
+`/proc/self/setgroups` for write (`EACCES`),
+so every managed ZFS add there was refused and the slot took the reflink or ordinary Git route
+(`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`,
+measured on 2026-11-25 in a throwaway Ubuntu 24.04 guest on the recipe's own kernel).
+Asked whether that step's refusal joins the skip list the companion's later steps already have,
+the owner answered:
+"Add the skip and make the doctor tell user what to do."
+So the `setgroups` step's `EACCES` is a skip that prints its line naming the call and the number it answered,
+the add goes ahead,
+and `doctor` reports on such a host that the group drop was skipped,
+why,
+and what the person can do about it.
+This amends the skip reach this record accepted for the companion,
+the design's skip paragraph and their control;
+the build waits for the crate split's window in `doc/planning/cli-git-source-layout.md`.
+
 [answered]: ../planning/cli-git-zfs-start-probe-design.md#questions-the-owner-answered
 [design]: ../planning/cli-git-zfs-start-probe-design.md
 [owed]: ../planning/cli-git-zfs-start-probe-design.md#owed-measurements
