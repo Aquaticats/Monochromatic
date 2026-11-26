@@ -72,7 +72,7 @@ const DIGIT_LIMIT: usize = 9;
 
 /// The suffixes Git multiplies a number by,
 /// with their factors.
-const UNIT_FACTORS: [(u8, i64); 3] = [(b'k', 1 << 10), (b'm', 1 << 20), (b'g', 1 << 30)];
+const UNIT_FACTORS: &[(u8, i64)] = &[(b'k', 1 << 10), (b'm', 1 << 20), (b'g', 1 << 30)];
 
 /// The decimal number a spelling stands for,
 /// or `None` for a spelling the proof does not read as one.

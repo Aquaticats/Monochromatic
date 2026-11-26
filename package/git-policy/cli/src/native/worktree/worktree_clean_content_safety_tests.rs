@@ -709,7 +709,7 @@ fn the_process_environment_names_an_attribute_source() {
 ///  it,
 /// a replacement base with nothing under it),
 ///  so Git's own starts in the proof still run and the reader's decline is the only thing the variable moves.
-const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = [
+const THE_VARIABLES_A_COMMAND_NAMES: &[&str] = &[
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_REPLACE_REF_BASE",

@@ -691,7 +691,7 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
         worktrees.push(staged.repo.join(name.as_str()));
     }
     let mut round: usize = 0;
-    for width in MEASURED_WIDTHS {
+    for &width in MEASURED_WIDTHS {
         round += 1;
         for (index, worktree) in worktrees.iter().enumerate() {
             let name: String = trash_name_of_round(round, index);
@@ -899,7 +899,7 @@ const MEASURED_PUSH_CLAIMED: usize = 2;
 
 /// The widths a measurement asks its own binary for,
 /// alternating so the spread is visible.
-const MEASURED_WIDTHS: [usize; 8] = [
+const MEASURED_WIDTHS: &[usize] = &[
     1,
     2,
     crate::service_work_items_side_by_side::SLOW_ITEMS_CEILING,

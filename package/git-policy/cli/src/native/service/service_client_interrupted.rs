@@ -90,7 +90,7 @@ const WATCHED: [std::os::raw::c_int; 4] =
 ///  a shell that ignores the interrupt for a background job while a person still means a Ctrl-C to end the command
 ///  is what the wait answered before this branch,
 /// and that is a question of its own.
-const KEPT_IGNORED: [std::os::raw::c_int; 2] = [libc::SIGHUP, libc::SIGQUIT];
+const KEPT_IGNORED: &[std::os::raw::c_int] = &[libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
 ///  Notes the stop the person asked for,

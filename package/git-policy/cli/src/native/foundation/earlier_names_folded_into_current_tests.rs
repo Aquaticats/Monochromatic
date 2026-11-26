@@ -20,7 +20,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 /// The names the controls fold.
-const NAMES: [KeptName; 3] = [
+const NAMES: &[KeptName] = &[
     KeptName {
         name: DATA_FOLDER,
         kind: KeptKind::Folder,
@@ -185,7 +185,7 @@ fn steps_of_one_fold() -> Vec<&'static str> {
     };
     let report: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut recording,
     );
@@ -239,7 +239,7 @@ fn kill_then_fold(point: KillPoint<'_>) {
     };
     let first: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut stop,
     );
@@ -265,7 +265,7 @@ fn kill_then_fold(point: KillPoint<'_>) {
     }
     fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -342,7 +342,7 @@ fn an_earlier_program_whose_journal_word_a_removed_link_no_longer_resolves_holds
     );
     let report: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -370,7 +370,7 @@ fn with_no_earlier_program_running_every_name_is_folded() {
     let world: World = world("folds");
     let report: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -386,7 +386,7 @@ fn with_no_earlier_program_running_every_name_is_folded() {
     assert_folded(&world);
     let again: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -414,7 +414,7 @@ fn an_earlier_program_that_runs_holds_the_fold_until_it_stops() {
     start_earlier_service(&world);
     let report: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -438,7 +438,7 @@ fn an_earlier_program_that_runs_holds_the_fold_until_it_stops() {
     std::fs::remove_dir_all(world.surroundings.proc_root.join("4242")).expect("the program stops");
     let later: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -466,7 +466,7 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
     .expect("socket table");
     let report: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -532,7 +532,7 @@ fn a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_
         .expect("writer");
     let report: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -555,7 +555,7 @@ fn a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_
     drop(writer);
     let later: FoldReport = fold_kept_names(
         world.git_dir.as_path(),
-        &NAMES,
+        NAMES,
         &world.surroundings,
         &mut NeverStopped,
     );
@@ -588,12 +588,8 @@ fn a_read_only_git_directory_fails_every_name_and_loses_nothing() {
     std::fs::set_permissions(git.as_path(), std::fs::Permissions::from_mode(0o500))
         .expect("read-only");
     let probe = std::fs::File::create(git.join("probe"));
-    let report: FoldReport = fold_kept_names(
-        git.as_path(),
-        &NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
-    );
+    let report: FoldReport =
+        fold_kept_names(git.as_path(), NAMES, &world.surroundings, &mut NeverStopped);
     std::fs::set_permissions(git.as_path(), std::fs::Permissions::from_mode(0o700))
         .expect("writable again");
     if probe.is_ok() {
@@ -693,7 +689,7 @@ fn numbered_copies_of_an_earlier_rotating_log_are_kept_beside_the_current_ones()
         "current copy",
     )
     .expect("current copy");
-    fold_kept_names(git, &NAMES, &world.surroundings, &mut NeverStopped);
+    fold_kept_names(git, NAMES, &world.surroundings, &mut NeverStopped);
     assert_eq!(
         std::fs::read_to_string(git.join(format!("{}.1", COMMIT_TIMING_LOG.current)))
             .expect("kept"),
@@ -732,7 +728,7 @@ fn numbered_copies_of_an_earlier_push_trigger_log_are_kept_beside_the_current_on
         "current copy",
     )
     .expect("current copy");
-    fold_kept_names(git, &NAMES, &world.surroundings, &mut NeverStopped);
+    fold_kept_names(git, NAMES, &world.surroundings, &mut NeverStopped);
     assert_eq!(
         std::fs::read_to_string(git.join(format!("{}.1", PUSH_TRIGGER_LOG.current))).expect("kept"),
         "current copy"

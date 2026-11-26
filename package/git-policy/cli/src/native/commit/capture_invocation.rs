@@ -258,7 +258,7 @@ const LAYOUT_ANSWERS: usize = 6 + 1;
 
 /// The `rev-parse` options of the one layout query,
 /// in the order its answers are read.
-const LAYOUT_ARGUMENTS: [&str; 11] = [
+const LAYOUT_ARGUMENTS: &[&str] = &[
     "--path-format=absolute",
     "--show-toplevel",
     "--absolute-git-dir",
@@ -308,7 +308,7 @@ const PATH_QUESTIONS: [&[&str]; LAYOUT_PATHS] = [
 
 /// The question that prints the object format,
 ///  which is text and not a pathname.
-const OBJECT_FORMAT_QUESTION: [&str; 2] = ["rev-parse", "--show-object-format"];
+const OBJECT_FORMAT_QUESTION: &[&str] = &["rev-parse", "--show-object-format"];
 
 /// What:
 ///  The layout the seven answers of one report name.
@@ -386,7 +386,7 @@ fn layout_report_asked_for(
         object_directory,
         registry_root,
     ] = absolute_answers(context, cwd)?;
-    let output: GitOutput = required(context, cwd, OBJECT_FORMAT_QUESTION.as_slice())?;
+    let output: GitOutput = required(context, cwd, OBJECT_FORMAT_QUESTION)?;
     return Ok(InvocationReport {
         top_level,
         git_dir,
@@ -415,7 +415,7 @@ fn layout_report_from_git(
     cwd: &Path,
 ) -> Result<InvocationReport, GitFailure> {
     let mut arguments: Vec<&str> = vec!["rev-parse"];
-    arguments.extend_from_slice(LAYOUT_ARGUMENTS.as_slice());
+    arguments.extend_from_slice(LAYOUT_ARGUMENTS);
     let output: GitOutput = required(context, cwd, arguments.as_slice())?;
     let answers: Vec<&[u8]> = answers_of(output.stdout.as_slice());
     return match <[&[u8]; LAYOUT_ANSWERS]>::try_from(answers.as_slice()) {

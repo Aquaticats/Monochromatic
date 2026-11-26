@@ -29,7 +29,7 @@ use super::{
 
 /// Every pair this release keeps,
 ///  in the order the module declares them.
-const ALL_PAIRS: [RenamedName; 13] = [
+const ALL_PAIRS: &[RenamedName] = &[
     PROGRAM,
     COMMAND_WORD,
     SETTINGS_FILE,

@@ -357,7 +357,7 @@ impl Draw {
 /// boolean words,
 /// integers,
 /// bad booleans and paths Git expands.
-const VALUES: [&str; 24] = [
+const VALUES: &[&str] = &[
     "",
     "true",
     "TRUE",
@@ -386,7 +386,7 @@ const VALUES: [&str; 24] = [
 
 /// Keys the generated cases set,
 /// with the `--type` the consumer reads each with.
-const KEYS: [(&str, &str); 4] = [
+const KEYS: &[(&str, &str)] = &[
     ("core.hooksPath", "--type=path"),
     ("hook.pre-commit.enabled", "--type=bool"),
     ("gc.auto", "--type=bool-or-int"),

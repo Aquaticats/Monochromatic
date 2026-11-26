@@ -84,7 +84,7 @@ use std::path::{
 /// what is left is this list.
 ///  `lfs` is the folder `git-lfs` keeps its objects and logs in,
 ///  which a clean filter of a commit in the shadow writes into.
-pub const SHARED_ENTRY_NAMES: [&str; 9] = [
+pub const SHARED_ENTRY_NAMES: &[&str] = &[
     "branches", "hooks", "info", "lfs", "modules", "remotes", "rr-cache", "shallow", "svn",
 ];
 
@@ -326,7 +326,7 @@ pub fn shared_entries_of(
     let listed: Vec<(std::ffi::OsString, PathBuf, bool)> =
         listing_of_a_common_directory(common_dir)?;
     let mut entries: Vec<SharedEntry> = Vec::with_capacity(SHARED_ENTRY_NAMES.len());
-    for name in SHARED_ENTRY_NAMES {
+    for &name in SHARED_ENTRY_NAMES {
         if own_info && name == "info" {
             continue;
         }

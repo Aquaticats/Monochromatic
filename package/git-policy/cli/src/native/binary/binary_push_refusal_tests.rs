@@ -43,7 +43,7 @@ use super::support::{
 
 /// What the wrapper's own failure report carries for this refusal,
 /// which a refusal by Git must never show.
-const ENGINE_FAILURE_MARKERS: [&str; 3] = [
+const ENGINE_FAILURE_MARKERS: &[&str] = &[
     "engine-failure",
     "content-unavailable",
     "Hint: if you are committing or pushing content",

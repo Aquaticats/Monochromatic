@@ -18,13 +18,13 @@
 //! ```
 
 /// The words Git reads as true.
-pub(crate) const TRUE_WORDS: [&str; 3] = ["true", "yes", "on"];
+pub(crate) const TRUE_WORDS: &[&str] = &["true", "yes", "on"];
 
 /// The words Git reads as false.
-pub(crate) const FALSE_WORDS: [&str; 3] = ["false", "no", "off"];
+pub(crate) const FALSE_WORDS: &[&str] = &["false", "no", "off"];
 
 /// Keys whose value is a plain boolean.
-pub(crate) const BOOLEAN_KEYS: [&str; 49] = [
+pub(crate) const BOOLEAN_KEYS: &[&str] = &[
     "color.advice",
     "color.pager",
     "commitgraph.readchangedpaths",
@@ -78,7 +78,7 @@ pub(crate) const BOOLEAN_KEYS: [&str; 49] = [
 
 /// Keys whose value is any text,
 /// but never a bare name.
-pub(crate) const TEXT_KEYS: [&str; 21] = [
+pub(crate) const TEXT_KEYS: &[&str] = &[
     "attr.tree",
     "author.email",
     "author.name",
@@ -106,7 +106,7 @@ pub(crate) const TEXT_KEYS: [&str; 21] = [
 /// which Git expands (`~/x`,
 /// and `~user/x`,
 /// which fails for an unknown user).
-pub(crate) const PATHNAME_KEYS: [&str; 5] = [
+pub(crate) const PATHNAME_KEYS: &[&str] = &[
     "core.attributesfile",
     "core.excludesfile",
     "core.hookspath",
@@ -115,13 +115,13 @@ pub(crate) const PATHNAME_KEYS: [&str; 5] = [
 ];
 
 /// Per-driver keys (`diff.<driver>.<name>`) whose value is a boolean.
-pub(crate) const DRIVER_BOOLEAN_NAMES: [&str; 3] = ["binary", "cachetextconv", "trustexitcode"];
+pub(crate) const DRIVER_BOOLEAN_NAMES: &[&str] = &["binary", "cachetextconv", "trustexitcode"];
 
 /// Per-driver keys whose value is text.
-pub(crate) const DRIVER_TEXT_NAMES: [&str; 4] = ["command", "textconv", "wordregex", "xfuncname"];
+pub(crate) const DRIVER_TEXT_NAMES: &[&str] = &["command", "textconv", "wordregex", "xfuncname"];
 
 /// Per-remote keys (`remote.<name>.<key>`) whose value is a boolean.
-pub(crate) const REMOTE_BOOLEAN_NAMES: [&str; 6] = [
+pub(crate) const REMOTE_BOOLEAN_NAMES: &[&str] = &[
     "mirror",
     "promisor",
     "prune",
@@ -131,7 +131,7 @@ pub(crate) const REMOTE_BOOLEAN_NAMES: [&str; 6] = [
 ];
 
 /// Per-remote keys whose value is text.
-pub(crate) const REMOTE_TEXT_NAMES: [&str; 12] = [
+pub(crate) const REMOTE_TEXT_NAMES: &[&str] = &[
     "negotiationinclude",
     "negotiationrestrict",
     "partialclonefilter",
@@ -148,7 +148,7 @@ pub(crate) const REMOTE_TEXT_NAMES: [&str; 12] = [
 
 /// The slots `color.grep.<slot>` knows;
 /// any other slot is a failure in Git.
-pub(crate) const GREP_COLOR_SLOTS: [&str; 10] = [
+pub(crate) const GREP_COLOR_SLOTS: &[&str] = &[
     "column",
     "context",
     "filename",
@@ -162,10 +162,10 @@ pub(crate) const GREP_COLOR_SLOTS: [&str; 10] = [
 ];
 
 /// The color words Git reads without a `bright` prefix.
-pub(crate) const PLAIN_COLOR_WORDS: [&str; 2] = ["normal", "default"];
+pub(crate) const PLAIN_COLOR_WORDS: &[&str] = &["normal", "default"];
 
 /// The color words that also exist with a `bright` prefix.
-pub(crate) const BRIGHT_COLOR_WORDS: [&str; 8] = [
+pub(crate) const BRIGHT_COLOR_WORDS: &[&str] = &[
     "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
 ];
 

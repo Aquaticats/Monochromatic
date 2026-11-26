@@ -113,7 +113,7 @@ pub const KIND_UNIDENTIFIED: &str = "unidentified";
 ///   A reader of an `unidentified` record needs to know what was ruled out:
 ///  every route a commit can stop by is named,
 ///  and the record says they were all absent.
-const EVERY_ROUTE_A_MESSAGE_IS_NOT: [&str; 7] = [
+const EVERY_ROUTE_A_MESSAGE_IS_NOT: &[&str] = &[
     KIND_POLICY,
     KIND_CORE_FINDING,
     KIND_ENGINE_FAILURE,
@@ -404,7 +404,7 @@ pub fn reason_of_stop(
         TransactionStop::Client(failure) => CommitStopReason::client_failure(failure),
         TransactionStop::Message(_) => match failed {
             Some(step) => CommitStopReason::git_step(step.name.as_str(), step.status),
-            None => CommitStopReason::unidentified(&EVERY_ROUTE_A_MESSAGE_IS_NOT),
+            None => CommitStopReason::unidentified(EVERY_ROUTE_A_MESSAGE_IS_NOT),
         },
         TransactionStop::Failed {
             code,

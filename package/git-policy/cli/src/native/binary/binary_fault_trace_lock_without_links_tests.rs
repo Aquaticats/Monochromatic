@@ -98,7 +98,7 @@ fn kill_case(point: &str) -> Result<(), String> {
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let output: Output = run_watched(
         &fixture,
-        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+        &mut unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS),
     );
     let said: String =
         String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
@@ -149,7 +149,7 @@ fn kill_case(point: &str) -> Result<(), String> {
         //  so the owner's answer applies (2026-11-07, "Service removes it"): the new service removes it and the commit lands.
         let landed: Output = run_watched(
             &fixture,
-            &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+            &mut unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS),
         );
         if landed.status.code() != Some(0) {
             return Err(format!(

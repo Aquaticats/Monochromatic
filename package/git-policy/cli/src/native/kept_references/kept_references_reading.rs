@@ -69,7 +69,7 @@ const NOT_THE_KEPT_ONES: &str = "--exclude=refs/cli-git/kept/*";
 ///  A pass that read any of them as a branch would remove the reference of a commit nothing else
 ///  would keep once that holder goes,
 ///  and say that nothing was lost.
-const THE_HOLDERS_THAT_SETTLE_A_COMMIT: [&str; 3] = ["--branches", "--remotes", "--tags"];
+const THE_HOLDERS_THAT_SETTLE_A_COMMIT: &[&str] = &["--branches", "--remotes", "--tags"];
 
 /// What:
 ///  One kept reference of the repository.

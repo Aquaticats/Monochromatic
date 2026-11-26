@@ -62,7 +62,7 @@ use std::path::{
 };
 
 /// The names kept in the common Git directory that rotate into numbered older copies.
-const ROTATING_LOGS_IN_COMMON_DIRECTORY: [RenamedName; 3] = [
+const ROTATING_LOGS_IN_COMMON_DIRECTORY: &[RenamedName] = &[
     DISCARD_AUDIT_LOG,
     COMMIT_TIMING_LOG,
     WORKTREE_ADD_TIMING_LOG,
@@ -73,10 +73,10 @@ const OTHER_NAMES_IN_COMMON_DIRECTORY: [RenamedName; 3] =
     [DATA_FOLDER, PUSH_TRIGGER_LOG, WORKTREE_COPY_RECORD_FOLDER];
 
 /// The names kept in a worktree's own Git directory.
-const NAMES_IN_WORKTREE_DIRECTORY: [RenamedName; 2] = [DATA_FOLDER, MERGE_INTENT_FOLDER];
+const NAMES_IN_WORKTREE_DIRECTORY: &[RenamedName] = &[DATA_FOLDER, MERGE_INTENT_FOLDER];
 
 /// The names to fold in a worktree's own Git directory when both spellings exist.
-const WORKTREE_DIRECTORY_FOLDS: [KeptName; 2] = [
+const WORKTREE_DIRECTORY_FOLDS: &[KeptName] = &[
     KeptName {
         name: DATA_FOLDER,
         kind: KeptKind::Folder,
@@ -88,7 +88,7 @@ const WORKTREE_DIRECTORY_FOLDS: [KeptName; 2] = [
 ];
 
 /// The names to fold in the common Git directory when both spellings exist.
-const COMMON_DIRECTORY_FOLDS: [KeptName; 6] = [
+const COMMON_DIRECTORY_FOLDS: &[KeptName] = &[
     KeptName {
         name: DATA_FOLDER,
         kind: KeptKind::Folder,
@@ -116,7 +116,7 @@ const COMMON_DIRECTORY_FOLDS: [KeptName; 6] = [
 ];
 
 /// The names to fold in a Git directory that is both the worktree's own and the common one (the main worktree).
-const MAIN_DIRECTORY_FOLDS: [KeptName; 7] = [
+const MAIN_DIRECTORY_FOLDS: &[KeptName] = &[
     KeptName {
         name: DATA_FOLDER,
         kind: KeptKind::Folder,
@@ -232,16 +232,16 @@ pub fn settle_kept_names_within(
     rename_common_directory_names(common_dir);
     // The main worktree's directory is both, and its looks at the earlier program are made once.
     if git_dir == common_dir {
-        fold_kept_names_and_tell(common_dir, &MAIN_DIRECTORY_FOLDS, surroundings, steps);
+        fold_kept_names_and_tell(common_dir, MAIN_DIRECTORY_FOLDS, surroundings, steps);
     } else {
-        fold_kept_names_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS, surroundings, steps);
-        fold_kept_names_and_tell(common_dir, &COMMON_DIRECTORY_FOLDS, surroundings, steps);
+        fold_kept_names_and_tell(git_dir, WORKTREE_DIRECTORY_FOLDS, surroundings, steps);
+        fold_kept_names_and_tell(common_dir, COMMON_DIRECTORY_FOLDS, surroundings, steps);
     }
 }
 
 /// Move the names kept in a worktree's own Git directory that exist only under the earlier spelling.
 fn rename_worktree_directory_names(git_dir: &Path) {
-    for name in NAMES_IN_WORKTREE_DIRECTORY {
+    for &name in NAMES_IN_WORKTREE_DIRECTORY {
         let _placed = kept_name_for_use(git_dir, name);
     }
 }
@@ -251,7 +251,7 @@ fn rename_common_directory_names(common_dir: &Path) {
     for name in OTHER_NAMES_IN_COMMON_DIRECTORY {
         let _placed = kept_name_for_use(common_dir, name);
     }
-    for name in ROTATING_LOGS_IN_COMMON_DIRECTORY {
+    for &name in ROTATING_LOGS_IN_COMMON_DIRECTORY {
         let _placed = kept_name_for_use(common_dir, name);
         move_numbered_copies(common_dir, name);
     }

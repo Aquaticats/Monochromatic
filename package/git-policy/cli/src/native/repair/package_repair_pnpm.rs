@@ -54,7 +54,7 @@ const MODULES: &str = "node_modules";
 /// The arguments of the relink:
 /// no network,
 /// and no change to the lockfile.
-const ARGUMENTS: [&str; 3] = ["install", "--offline", "--frozen-lockfile"];
+const ARGUMENTS: &[&str] = &["install", "--offline", "--frozen-lockfile"];
 
 /// What:
 ///  The command a person runs to do what the repair could not,

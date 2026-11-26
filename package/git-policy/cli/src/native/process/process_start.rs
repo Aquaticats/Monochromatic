@@ -212,7 +212,7 @@ pub fn linux_start(
 ///  Month numbers of the C locale's abbreviated month names.
 /// Why:
 ///   `ps -o lstart=` prints `Fri Sep 26 10:00:00 2026`.
-const MONTHS: [&str; 12] = [
+const MONTHS: &[&str] = &[
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 

@@ -27,7 +27,7 @@ use crate::transaction_git::{
 use crate::transaction_journal::Conclusion;
 
 /// The three markers in the order the commit path asks.
-const NAMES: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
+const NAMES: &[&str] = &["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
 
 /// The ref file places of a probed repository.
 fn layout_of(found: &Probe) -> RefFilesLayout<'_> {
@@ -55,7 +55,7 @@ fn proven(
     directory: &Path,
     found: &Probe,
 ) -> Vec<bool> {
-    let maybe: Vec<bool> = markers_maybe_present(&layout_of(found), &NAMES);
+    let maybe: Vec<bool> = markers_maybe_present(&layout_of(found), NAMES);
     for (name, maybe_present) in NAMES.iter().zip(maybe.iter()) {
         if !maybe_present {
             assert!(
@@ -377,11 +377,11 @@ fn the_backend_check_refuses_when_every_place_is_empty() {
         ..layout_of(&found)
     };
     assert_eq!(
-        markers_maybe_present(&layout, &NAMES),
+        markers_maybe_present(&layout, NAMES),
         vec![true, true, true]
     );
     assert_eq!(
-        markers_maybe_present(&layout_of(&found), &NAMES),
+        markers_maybe_present(&layout_of(&found), NAMES),
         vec![false, false, false]
     );
     remove(root.as_path());
@@ -395,7 +395,7 @@ fn an_unreadable_packed_refs_is_a_hit() {
     let found: Probe = probe(repo.as_path());
     std::fs::create_dir(found.common_dir.join("packed-refs")).expect("fixture");
     assert_eq!(
-        markers_maybe_present(&layout_of(&found), &NAMES),
+        markers_maybe_present(&layout_of(&found), NAMES),
         vec![true, true, true]
     );
     remove(root.as_path());

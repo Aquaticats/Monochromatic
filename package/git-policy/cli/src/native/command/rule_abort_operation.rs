@@ -228,7 +228,7 @@ pub fn in_progress_operation(
 }
 
 /// The path names inside the Git directory the question reads.
-pub const OPERATION_STATE_NAMES: [&str; 6] = [
+pub const OPERATION_STATE_NAMES: &[&str] = &[
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
     "REVERT_HEAD",
@@ -256,7 +256,7 @@ pub const SEQUENCER_DIRECTORY: &str = "sequencer";
 /// ```ts
 /// RESTORED_REVISION_NAMES.includes('rebase-merge/orig-head');
 /// ```
-pub const RESTORED_REVISION_NAMES: [&str; 3] = [
+pub const RESTORED_REVISION_NAMES: &[&str] = &[
     "rebase-merge/orig-head",
     "rebase-apply/orig-head",
     "sequencer/head",

@@ -215,7 +215,7 @@ pub(super) fn run_to_end(command: &mut Command) -> Output {
 
 /// The commit every sweep runs:
 /// an explicit-path commit of the staged `a.txt`.
-pub(super) const COMMIT_ARGUMENTS: [&str; 5] = ["commit", "--quiet", "--message=x", "--", "a.txt"];
+pub(super) const COMMIT_ARGUMENTS: &[&str] = &["commit", "--quiet", "--message=x", "--", "a.txt"];
 
 /// How many calls of `syscall` an uninjected explicit-path commit makes in the traced process,
 /// or,
@@ -234,7 +234,7 @@ pub(super) fn run_injected_with_environment(
     let mut command: Command = traced(
         fixture,
         repo,
-        &COMMIT_ARGUMENTS,
+        COMMIT_ARGUMENTS,
         fault.syscall,
         Some(fault),
         fault.follow_forks,

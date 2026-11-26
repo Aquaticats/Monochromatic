@@ -127,7 +127,7 @@ fn private_git<S: AsRef<OsStr>>(
 /// The one start that writes an empty index,
 /// for a repository whose index file does not exist yet.
 /// It writes a private copy and never the person's index.
-const EMPTY_INDEX: [&str; 2] = ["read-tree", "--empty"];
+const EMPTY_INDEX: &[&str] = &["read-tree", "--empty"];
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
@@ -220,7 +220,7 @@ pub fn initialize_commit_index(
             cwd,
             indexes.captured_index.as_path(),
             indexes.object_directory.as_path(),
-            &EMPTY_INDEX,
+            EMPTY_INDEX,
         )?;
         indexes.captured_index.clone()
     };
