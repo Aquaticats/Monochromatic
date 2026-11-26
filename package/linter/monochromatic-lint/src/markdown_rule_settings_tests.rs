@@ -19,6 +19,8 @@ use super::{
 };
 use crate::configuration_rules::RULE_IDS;
 use crate::diagnostic::Severity;
+/// Import the largest bound the tracked-image reader reads one image under.
+use crate::markdown_lfs_context::MAX_IMAGE_BYTES_BOUND;
 use monochromatic_jsonc_edit::{
     JsoncValue,
     parse_jsonc,
@@ -155,6 +157,46 @@ fn the_lfs_image_bound_is_read_from_its_option() {
             error.message
         );
     }
+    // The largest bound the reader can probe past is accepted as written.
+    let largest: u64 = MAX_IMAGE_BYTES_BOUND;
+    let widest: MarkdownRuleSettings = settings(
+        format!(
+            r#"{{"markdown/lfs-image-url":{{"severity":"error","max-image-bytes":{largest}}}}}"#
+        )
+        .as_str(),
+    );
+    assert_eq!(
+        widest.lfs_image_url.expect("selected rule").max_image_bytes,
+        largest
+    );
+    // One more than that is refused when the settings are read,
+    // naming the option and the largest value it takes, in its own unit of bytes.
+    let unprobeable: u64 = MAX_IMAGE_BYTES_BOUND + 1;
+    let value: JsoncValue = parse_jsonc(
+        format!(
+            r#"{{"markdown/lfs-image-url":{{"severity":"error","max-image-bytes":{unprobeable}}}}}"#
+        )
+        .as_str(),
+    )
+    .expect("JSONC fixture");
+    let refused =
+        markdown_rule_settings(&value).expect_err("the probe past the bound has no answer");
+    assert!(
+        refused.message.contains("max-image-bytes"),
+        "{}",
+        refused.message
+    );
+    assert!(
+        refused.message.contains(largest.to_string().as_str()),
+        "{}",
+        refused.message
+    );
+    // A byte count is never reported in the line-count unit the shared grammar's other options use.
+    assert!(
+        !refused.message.contains("line index"),
+        "{}",
+        refused.message
+    );
 }
 
 /// Invalid settings are configuration errors,

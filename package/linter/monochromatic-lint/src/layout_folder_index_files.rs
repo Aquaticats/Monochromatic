@@ -20,7 +20,11 @@
 /// Import the finding shape,
 ///  the code check of an index file and the tree.
 use crate::{
-    layout_finding::LayoutFinding,
+    layout_finding::{
+        LayoutFinding,
+        key_path,
+        shown,
+    },
     layout_index_file_items::{
         IndexRole,
         check_index_items,
@@ -93,6 +97,12 @@ pub(crate) fn files_by_folder(
 /// `lib.rs`,
 /// else `main.rs`,
 /// for the folder of a crate root.
+///  A `mod.rs` is the folder's index whether or not the module tree could read it:
+///  a folder whose index cannot be read is reported as unreadable,
+///  with one missing entry per file it holds,
+///  rather than as a folder that has no top doc at all.
+///  `lib.rs` and `main.rs` stay tied to the tree's roots,
+///  because a file of that name beside a root is another executable and not an index.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,13 +113,67 @@ pub(crate) fn index_file(
     files: &BTreeSet<PathBuf>,
     roots: &BTreeSet<PathBuf>,
 ) -> Option<PathBuf> {
-    for name in ["mod.rs", "lib.rs", "main.rs"] {
-        let candidate: PathBuf = folder.join(name);
-        if files.contains(&candidate) && (name == "mod.rs" || roots.contains(&candidate)) {
-            return Some(candidate);
+    let candidate: PathBuf = folder.join("mod.rs");
+    // What: a `mod.rs` the tree holds, or one on disk that the tree could not read.
+    // Why: an unreadable index still owes its reader a list, and that is the finding the file rule reports.
+    if files.contains(&candidate) || candidate.is_file() {
+        return Some(candidate);
+    }
+    for name in ["lib.rs", "main.rs"] {
+        let root: PathBuf = folder.join(name);
+        if files.contains(&root) && roots.contains(&root) {
+            return Some(root);
         }
     }
     return None;
+}
+
+/// What:
+///  Whether a module file's name holds a space.
+/// Why:
+///  A key separates its words by spaces,
+///  so a file name holding one cannot be read back from the key that names it.
+///  A `#[path]` attribute can declare such a file, so the rule must answer it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nameHoldsSpace = (file: Path) => fileName(file).includes(' ');
+/// ```
+pub(crate) fn name_holds_space(file: &Path) -> bool {
+    return file_name(file).contains(' ');
+}
+
+/// What:
+///  The finding for a module file whose name holds a space.
+/// Why:
+///  No key and no `file-uses` line can name that file unambiguously,
+///  because both separate their words by spaces;
+///  the finding therefore names the folder and the file in its message,
+///  and its key names only the folder,
+///  so the line a round records is itself unambiguous.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function spaceFinding(file: Path, folder: Path, base: Path): LayoutFinding;
+/// ```
+pub(crate) fn space_finding(
+    file: &Path,
+    folder: &Path,
+    base: &Path,
+) -> LayoutFinding {
+    return LayoutFinding {
+        file: file.to_path_buf(),
+        line: 0,
+        message: format!(
+            "{} in the folder {} holds a space, so no key and no file-use line can name it unambiguously.",
+            file_name(file),
+            shown(folder, base)
+        ),
+        help: Some(String::from(
+            "Rename the file so its name holds no space, and update the mod line or the `#[path]` attribute that declares it.",
+        )),
+        key: format!("space-in-file-name {}", key_path(folder, base)),
+    };
 }
 
 /// What:

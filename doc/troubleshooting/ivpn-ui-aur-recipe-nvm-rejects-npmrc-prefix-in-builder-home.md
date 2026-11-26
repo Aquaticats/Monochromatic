@@ -274,9 +274,17 @@ No work in progress on the recipe was found.
 4.  **Would the repo welcome our contribution?**
      AUR comments are the package's intake,
      and a comment thanking the maintainer for an earlier fix shows they respond.
-    The AUR's rules on AI-assisted comments were not read on `2026-11-26T01:41:13-05:00`;
-     the AUR site also refused `agent-browser` (Anubis "Access Denied"),
-     so this constraint is unchecked.
+    On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
+     its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
+     had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
+    The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
+    The "Arch User Repository" page's "Commenting on packages" tip says:
+     "Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
+     or even use a [[pastebin]]."
+    The draft's three-line excerpt is short,
+     but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
+    The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
+     so the live package page was read with `curl` only.
 5.  **Will they likely fix it?**
      Plausible; no sign of refusal.
 6.  **Have we prototyped a minimal fix compatible with their architecture?**
@@ -285,7 +293,8 @@ No work in progress on the recipe was found.
 Readiness on `2026-11-26T01:41:13-05:00`:
 reproduction re-run on the only release line the AUR carries (`3.15.15-1`);
 prior-art search done as listed;
-AUR comment policy, a clean-runner reproduction repository and a same-day trust-system check not done.
+AUR comment policy read as listed under constraint 4;
+a clean-runner reproduction repository and a same-day trust-system check not done.
 So there is no recommendation.
 A comment posted from the owner's AUR account puts that account in front of the maintainer;
 filing is the owner's decision.

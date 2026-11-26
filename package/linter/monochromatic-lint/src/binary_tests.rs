@@ -44,6 +44,9 @@ use monochromatic_lint::cli_options::{
 };
 /// The configuration filename the executable discovers.
 use monochromatic_lint::config_lookup::CONFIG_NAME;
+/// The largest bound that rule reads one tracked image under,
+///  because it reads one byte past the bound.
+use monochromatic_lint::markdown_lfs_context::MAX_IMAGE_BYTES_BOUND;
 /// The default bound the `markdown/lfs-image-url` rule reads one tracked image under.
 use monochromatic_lint::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES;
 /// The core diagnostic codes the controls expect.
@@ -1118,6 +1121,81 @@ fn a_large_lfs_image_is_refused_until_configuration_raises_the_bound() {
     );
 }
 
+/// The largest value a platform's word can hold is refused when the configuration loads,
+///  naming the option and the largest bound the reader can probe past,
+///  and the largest bound it does take reads the image and rewrites its link.
+/// Why the boundary is here:
+///  the rule reads one byte past the bound, so a bound at the platform's maximum
+///  wraps to zero in a build without overflow checks, reads no byte and hashes empty input.
+#[test]
+fn an_image_bound_the_probe_cannot_pass_is_refused_at_load() {
+    let repository: Fixture = Fixture::new();
+    repository.write(".lfsconfig", "[lfs]\n\turl = https://lfs.example\n");
+    repository.write(
+        ".gitattributes",
+        "*.png filter=lfs diff=lfs merge=lfs -text\n",
+    );
+    repository.write("pkg/asset/shot.png", "image bytes");
+    let document: &[u8] = b"# Title.\n\n![shot](asset/shot.png)\n";
+    let arguments: [&str; 4] = [
+        "--stdin",
+        "--stdin-filename",
+        "pkg/README.md",
+        "--fix-content",
+    ];
+    // The bound with no answer past it: reading one byte more would wrap the reader's counter.
+    let unprobeable: u64 = MAX_IMAGE_BYTES_BOUND + 1;
+    repository.write(
+        CONFIG,
+        format!(
+            r#"[{{ "files": ["**/*.md"], "rules": {{ "markdown/lfs-image-url": {{ "severity": "error", "max-image-bytes": {unprobeable} }} }} }}]"#
+        )
+        .as_str(),
+    );
+    let refused: Run = run(&repository.path, &arguments, document);
+    assert_eq!(refused.status, 2, "{}", refused.stderr);
+    assert_eq!(refused.stdout, "", "{}", refused.stderr);
+    assert!(
+        refused.stderr.contains("max-image-bytes"),
+        "{}",
+        refused.stderr
+    );
+    // The largest value the option takes is the one the reader's bound names, derived rather than copied.
+    let largest: String = MAX_IMAGE_BYTES_BOUND.to_string();
+    assert!(
+        refused.stderr.contains(largest.as_str()),
+        "the refusal must name the largest value it takes: {}",
+        refused.stderr
+    );
+    assert!(
+        !refused.stderr.contains("panicked"),
+        "the bound is refused, never read under arithmetic that cannot hold it: {}",
+        refused.stderr
+    );
+    // The control: that largest value itself is accepted, reads the image and rewrites its link.
+    repository.write(
+        CONFIG,
+        format!(
+            r#"[{{ "files": ["**/*.md"], "rules": {{ "markdown/lfs-image-url": {{ "severity": "error", "max-image-bytes": {largest} }} }} }}]"#
+        )
+        .as_str(),
+    );
+    let accepted: Run = run(&repository.path, &arguments, document);
+    assert_eq!(
+        (accepted.status, accepted.stderr.as_str()),
+        (0, ""),
+        "{}",
+        accepted.stderr
+    );
+    // Measured with coreutils `sha256sum` for the bytes `image bytes`.
+    let oid: &str = "de7030234493a8bea844dbe1d8676e68a2c1a4b014c721f0425a22b6df66faec";
+    assert!(
+        accepted.stdout.contains(oid),
+        "the largest bound reads the real bytes: {}",
+        accepted.stdout
+    );
+}
+
 /// The commit-time shape:
 ///  a temporary one-rule configuration outside the repository,
 ///  standard input,
@@ -1640,6 +1718,58 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     );
 }
 
+/// Two glob re-exports written on one line are two findings with two keys,
+///  so a list line recorded for the first never tolerates the second,
+///  and that line stays alive while its own glob exists.
+#[test]
+fn layout_two_globs_on_one_line_are_two_findings_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(
+        "src/lib.rs",
+        "//! Index.\npub mod a;\npub mod b;\npub use crate::{a::*, b::*};\n",
+    );
+    fixture.write("src/a.rs", "pub struct X;\n");
+    fixture.write("src/b.rs", "pub struct Y;\n");
+    // The list records only the first of the two globs the line holds.
+    fixture.write("folder.txt", "glob src/lib.rs crate::a\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let found: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    // The second glob is the finding; the listed first one tolerates itself and its line stays alive.
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [String::from("src/lib.rs rust/folder-uses-links 4 1")],
+        "{}",
+        found.stdout
+    );
+    assert!(
+        found
+            .stdout
+            .contains("`pub use crate::b::*` re-exports every item"),
+        "{}",
+        found.stdout
+    );
+    assert!(
+        found
+            .stderr
+            .contains("rust/folder-uses-links: allow-list key: glob src/lib.rs crate::b"),
+        "{}",
+        found.stderr
+    );
+    assert!(
+        !found.stderr.contains("tolerates nothing any more"),
+        "{}",
+        found.stderr
+    );
+}
+
 /// The built executable checks group folders:
 ///  a group's `uses` summary is wanted when a child uses another group,
 ///  accepted once it links the group,
@@ -1699,6 +1829,221 @@ fn layout_group_folders_run_in_the_built_executable() {
         (0, ""),
         "{}",
         clean.stderr
+    );
+}
+
+/// A use by a group's own file reaches no entry loop,
+///  because the shelf rule reports that file and a group's summary is what its child folders use,
+///  so a new use from the group's own file to another entry is no finding
+///  even while a listed entry loop joins the two entries,
+///  and no `uses` line is owed for it.
+#[test]
+fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\npub mod a;\npub mod grp;\n");
+    fixture.write("src/a/mod.rs", "//! A.\nuse crate::grp::g2::X;\n");
+    fixture.write(
+        "src/grp/mod.rs",
+        "//! Group.\npub mod own;\npub mod g1;\npub mod g2;\n",
+    );
+    // The group's own file. The shelf rule reports it; its use reaches no entry loop.
+    fixture.write("src/grp/own.rs", "//! Own.\nuse crate::a::X;\n");
+    fixture.write("src/grp/g1/mod.rs", "//! G1.\nuse crate::a::X;\n");
+    fixture.write("src/grp/g2/mod.rs", "//! G2.\n");
+    // Every finding of this tree except the use in the group's own file,
+    // and both uses that hold the entry loop between `a` and `grp`.
+    fixture.write(
+        "folder.txt",
+        "missing-link src/a -> src/grp/g2\n\
+         missing-link src/grp/g1 -> src/a\n\
+         group-file src/grp own.rs\n\
+         summary-missing src/grp src/a\n\
+         uses src/a -> src/grp/g2\n\
+         uses src/grp/g1 -> src/a\n",
+    );
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let clean: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (
+            clean.status,
+            clean.stdout.as_str(),
+            clean.stderr.contains("both sit inside one loop")
+        ),
+        (0, "", false),
+        "{}",
+        clean.stderr
+    );
+    // The use is no finding and owes no `uses` line: a line naming it is the dead line below.
+    fixture.write(
+        "folder.txt",
+        "missing-link src/a -> src/grp/g2\n\
+         missing-link src/grp/g1 -> src/a\n\
+         group-file src/grp own.rs\n\
+         summary-missing src/grp src/a\n\
+         uses src/a -> src/grp/g2\n\
+         uses src/grp/g1 -> src/a\n\
+         uses src/grp -> src/a\n",
+    );
+    let dead: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(dead.status, 1, "{}", dead.stderr);
+    assert!(
+        dead.stdout
+            .contains("uses src/grp -> src/a` in folder.txt tolerates nothing any more"),
+        "{}",
+        dead.stdout
+    );
+}
+
+/// A folder whose index cannot be read reports the index itself
+///  and one missing entry per file the folder holds,
+///  so the `unreadable-index` line tolerates only its own finding
+///  and a file added to that folder is still reported.
+#[test]
+fn layout_an_unreadable_index_reports_every_file_it_cannot_list() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The folder's files are declared from outside it, so the module tree never reads the index
+    // and the run reaches the file rule's own read of it.
+    fixture.write(
+        "src/lib.rs",
+        "#[path = \"a/b.rs\"] mod b;\n#[path = \"a/c.rs\"] mod c;\n",
+    );
+    fixture.write("src/a/b.rs", "\n");
+    fixture.write("src/a/c.rs", "\n");
+    // An index that is not UTF-8 is unreadable to every user, not only to one without a permission bit.
+    std::fs::write(fixture.path.join("src/a/mod.rs"), [0x2f, 0x2f, 0xff, b'\n'])
+        .expect("fixture index");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    // Name the readable files, so the unreadable index is read by the layout rules alone.
+    let found: Run = run(
+        &fixture.path,
+        &["--debug", "src/lib.rs", "src/a/b.rs", "src/a/c.rs"],
+        b"",
+    );
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [
+            String::from("src/a/mod.rs rust/file-order-in-folder 1 1"),
+            String::from("src/a/b.rs rust/file-order-in-folder 1 1"),
+            String::from("src/a/c.rs rust/file-order-in-folder 1 1"),
+        ],
+        "{}",
+        found.stdout
+    );
+    // The index line holds only its own finding; each file it could not list has its own key.
+    for key in [
+        "rust/file-order-in-folder: allow-list key: unreadable-index src/a/mod.rs",
+        "rust/file-order-in-folder: allow-list key: missing-entry src/a/mod.rs b.rs",
+        "rust/file-order-in-folder: allow-list key: missing-entry src/a/mod.rs c.rs",
+    ] {
+        assert!(
+            found.stderr.contains(key),
+            "{key} missing in {}",
+            found.stderr
+        );
+    }
+}
+
+/// A module file whose name holds a space is refused by a finding that names the folder in its key,
+///  because a key separates its words by spaces and no line could name that file unambiguously.
+#[test]
+fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(
+        "src/lib.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n#[path = \"a b.rs\"] mod ab;\n",
+    );
+    fixture.write("src/a b.rs", "pub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let found: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [String::from("src/a b.rs rust/file-order-in-folder 1 1")],
+        "{}",
+        found.stdout
+    );
+    assert!(
+        found
+            .stdout
+            .contains("a b.rs in the folder src holds a space"),
+        "{}",
+        found.stdout
+    );
+    // The key names the folder and never the file, so no list line is ambiguous either.
+    let key_lines: Vec<&str> = found
+        .stderr
+        .lines()
+        .filter(|line| return line.contains("allow-list key:"))
+        .collect::<Vec<&str>>();
+    assert_eq!(
+        key_lines,
+        [
+            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: space-in-file-name src"
+        ],
+        "{}",
+        found.stderr
+    );
+}
+
+/// A module file a `#[path]` names outside the package is keyed by the walk from the package folder,
+///  never by an absolute path,
+///  so the line that tolerates its finding reads the same in every checkout.
+#[test]
+fn layout_a_module_outside_the_package_is_keyed_from_the_package() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The package folder is `pkg`, so `../../outside/x.rs` from its `src` folder leaves it.
+    fixture.write(
+        "pkg/src/lib.rs",
+        "#[path = \"../../outside/x.rs\"] mod x;\n",
+    );
+    fixture.write("outside/x.rs", "pub struct X;\n");
+    fixture.write(
+        "pkg/monochromatic-lint.config.jsonc",
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let found: Run = run(&fixture.path.join("pkg"), &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    // The folder is one step above the package, so both keys write it from the package folder.
+    for key in [
+        "rust/file-order-in-folder: allow-list key: no-top-doc ../outside",
+        "rust/file-order-in-folder: allow-list key: missing-entry ../outside x.rs",
+    ] {
+        assert!(
+            found.stderr.contains(key),
+            "{key} missing in {}",
+            found.stderr
+        );
+    }
+    assert!(
+        !found.stderr.contains("allow-list key: /"),
+        "a key never holds an absolute path: {}",
+        found.stderr
     );
 }
 
