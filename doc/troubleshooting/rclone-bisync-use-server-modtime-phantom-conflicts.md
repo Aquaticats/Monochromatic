@@ -193,6 +193,15 @@ Confirmed rather than assumed:
 The same run logged the phantom on two unrelated files and healed both without a transfer,
  so the deletions held while the phantom was demonstrably still active.
 
+Measured again at 2026-11-25T23:19:24-05:00 to 2026-11-25T23:53:24-05:00 on 34 copies:
+`rclone deletefile` on the bucket, then `rm` on this PC, in one command,
+so a sync landing between the two can only finish the deletion.
+Every following run reported `File was deleted` on both paths and queued nothing,
+and the Mac's next run deleted its copies.
+To restore a copy under its original name, create the file on one side only and delete the copies on both:
+the new file uploads as `File is new`,
+and the settle pass heals the upload's phantom `time (newer)` with `Updated modification time in destination`.
+
 ## Verification
 
 Versions:
