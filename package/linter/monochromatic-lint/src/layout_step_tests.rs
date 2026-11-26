@@ -323,6 +323,104 @@ fn a_no_file_list_entry_does_not_hide_a_new_file() {
     );
 }
 
+/// A `no-top-doc` entry tolerates the folder's missing top doc alone,
+///  never a file added to that folder afterwards.
+#[test]
+fn a_no_top_doc_entry_does_not_hide_a_new_file() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `a.rs`: a.\nmod a;\n",
+        ),
+        ("src/a.rs", "mod b;\n"),
+        ("src/a/b.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    // The list records the missing top doc and the one file that was in the folder when the line was written.
+    write(
+        &fixture.path,
+        "file.txt",
+        "no-top-doc src/a\nmissing-entry src/a b.rs\n",
+    );
+    let before: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(before.stdout, "", "{}", before.stderr);
+    assert_eq!(before.exit_code, 0, "{}", before.stdout);
+    // A file added to that folder is a finding that no line of the list holds.
+    write(&fixture.path, "src/a/c.rs", "");
+    write(&fixture.path, "src/a.rs", "mod b;\nmod c;\n");
+    let after: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(after.exit_code, 1, "{}", after.stdout);
+    assert!(
+        after
+            .stdout
+            .contains("so the file `c.rs` is not listed in any top doc"),
+        "{}",
+        after.stdout
+    );
+    assert!(
+        !after.stdout.contains("tolerates nothing any more"),
+        "{}",
+        after.stdout
+    );
+}
+
+/// A use between two members of one group is a new loop edge only when the two share a real loop:
+///  a group's tolerated entry loop does not put every member of the group inside it.
+#[cfg(unix)]
+#[test]
+fn a_group_entry_loop_does_not_hold_a_use_between_two_members() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod grp;\n"),
+        ("src/a/mod.rs", "use crate::grp::g3::X;\n"),
+        ("src/grp/mod.rs", "mod g1;\nmod g2;\nmod g3;\nmod g4;\n"),
+        ("src/grp/g1/mod.rs", "use crate::grp::g2::X;\n"),
+        ("src/grp/g2/mod.rs", ""),
+        ("src/grp/g3/mod.rs", ""),
+        ("src/grp/g4/mod.rs", "use crate::a::X;\n"),
+    ]);
+    // Every use gets its link, and the group's summary links the folder its members use outside it.
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/g3", "../../grp/g3");
+    crate::layout_test_support::link(&fixture.path, "src/grp/g1/uses/g2", "../../g2");
+    crate::layout_test_support::link(&fixture.path, "src/grp/g4/uses/a", "../../../a");
+    crate::layout_test_support::link(&fixture.path, "src/grp/uses/a", "../../a");
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/folder-uses-links", "folder.txt").as_str(),
+    );
+    // Both uses of the entry loop between `a` and the group are recorded, so that loop is tolerated.
+    write(
+        &fixture.path,
+        "folder.txt",
+        "uses src/a -> src/grp/g3\nuses src/grp/g4 -> src/a\n",
+    );
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(listed.stdout, "", "{}", listed.stderr);
+    assert_eq!(listed.exit_code, 0, "{}", listed.stdout);
+    // A line typed for the use between two members of the group holds no loop, so it is reported dead.
+    write(
+        &fixture.path,
+        "folder.txt",
+        "uses src/a -> src/grp/g3\nuses src/grp/g4 -> src/a\nuses src/grp/g1 -> src/grp/g2\n",
+    );
+    let handwritten: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(handwritten.exit_code, 1, "{}", handwritten.stdout);
+    assert!(
+        handwritten.stdout.contains("tolerates nothing any more"),
+        "{}",
+        handwritten.stdout
+    );
+    assert!(
+        !handwritten.stdout.contains("and both sit inside one loop"),
+        "{}",
+        handwritten.stdout
+    );
+}
+
 /// Configuration turning one layout rule on with a list beside the fixture's configuration file.
 fn allow_config(
     rule: &str,

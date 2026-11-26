@@ -182,8 +182,9 @@ fn a_top_doc_without_the_list_marker_is_reported() {
     );
 }
 
-/// A folder with module files and no `mod.rs` is a finding;
-/// one with only an index and folders is not.
+/// A folder with module files and no `mod.rs` is a finding of its own,
+///  and so is every file that folder holds,
+///  so a file added to it later is never tolerated by the one line about the missing doc.
 #[test]
 fn a_folder_without_mod_rs_has_no_top_doc() {
     let fixture = package_with(&[
@@ -192,11 +193,16 @@ fn a_folder_without_mod_rs_has_no_top_doc() {
         ("src/a/inner.rs", ""),
     ]);
     let found: Vec<String> = findings_of(&fixture.path);
-    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found.len(), 2, "{found:#?}");
     assert!(
         found[0].contains("The folder src/a holds module files but no mod.rs"),
         "{}",
         found[0]
+    );
+    assert!(
+        found[1].contains("so the file `inner.rs` is not listed in any top doc"),
+        "{}",
+        found[1]
     );
 }
 

@@ -279,6 +279,38 @@ fn folder_below_uses(
 }
 
 /// What:
+///  Which graph a loop was found in.
+/// Why:
+///  A folder belongs to one loop of folders and to the loop of its entry,
+///  and the two graphs put different folders together,
+///  so a loop number alone would say that two members of one group share a loop they never make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LoopGraph = 'folders' | 'entries';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum LoopGraph {
+    /// The source folders, each using the other.
+    Folders,
+    /// The entries: a group, or a folder outside every group.
+    Entries,
+}
+
+/// What:
+///  Which loops each folder sits in.
+/// Why:
+///  A loop is one of the folder graph or one of the entry graph,
+///  and the two graphs put different folders together,
+///  so the pair to the left of the count says which graph made it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FolderLoops = Map<Path, Set<[LoopGraph, number]>>;
+/// ```
+type FolderLoops = BTreeMap<PathBuf, BTreeSet<(LoopGraph, usize)>>;
+
+/// What:
 ///  Which loops each folder is in:
 ///  its own folder loop and the loop of the entry it belongs to.
 /// Why:
@@ -294,27 +326,26 @@ fn folder_below_uses(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function loopsOfEachFolder(folders: Path[], grouped: FolderUses, groups: Set<Path>): Map<Path, Set<[number, number]>>;
+/// function loopsOfEachFolder(folders: Path[], grouped: FolderUses, groups: Set<Path>): FolderLoops;
 /// ```
 fn loops_of_each_folder(
     folders: &[PathBuf],
     grouped: &FolderUses,
     groups: &BTreeSet<PathBuf>,
-) -> BTreeMap<PathBuf, BTreeSet<(u8, usize)>> {
+) -> FolderLoops {
     let (entry_nodes, entry_grouped): (Vec<PathBuf>, FolderUses) = entry_uses(groups, grouped);
     let folder_loops: BTreeMap<PathBuf, usize> = loop_membership(folders, grouped);
     let entry_loops: BTreeMap<PathBuf, usize> = loop_membership(&entry_nodes, &entry_grouped);
-    let mut loops: BTreeMap<PathBuf, BTreeSet<(u8, usize)>> =
-        BTreeMap::<PathBuf, BTreeSet<(u8, usize)>>::new();
+    let mut loops: FolderLoops = BTreeMap::<PathBuf, BTreeSet<(LoopGraph, usize)>>::new();
     for folder in folders {
-        // The loops this folder is in, from either graph; zero means its own folders, one its entry.
-        let mut held: BTreeSet<(u8, usize)> = BTreeSet::<(u8, usize)>::new();
+        // The loops this folder is in, from either graph; the graph is part of the answer.
+        let mut held: BTreeSet<(LoopGraph, usize)> = BTreeSet::<(LoopGraph, usize)>::new();
         if let Some(number) = folder_loops.get(folder) {
-            held.insert((0, *number));
+            held.insert((LoopGraph::Folders, *number));
         }
         let entry: PathBuf = entry_of(folder, groups);
         if let Some(number) = entry_loops.get(&entry) {
-            held.insert((1, *number));
+            held.insert((LoopGraph::Entries, *number));
         }
         if !held.is_empty() {
             loops.insert(folder.clone(), held);
@@ -329,23 +360,40 @@ fn loops_of_each_folder(
 /// Why:
 ///  One use between two folders holds a loop only while both are in it,
 ///  and a folder may sit in a folder loop and in an entry loop at the same time.
+///  An entry loop holds a use only when the use reaches outside its entry:
+///  two folders of one group share that group as their entry,
+///  so a use between them makes no edge of the entry graph and no entry loop can hold it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sharedLoops(loops: Map<Path, Set<[number, number]>>, from: Path, to: Path): Set<[number, number]>;
+/// function sharedLoops(loops: FolderLoops, from: Path, to: Path, groups: Set<Path>): Set<[LoopGraph, number]>;
 /// ```
 fn shared_loops(
-    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
+    loops: &FolderLoops,
     from: &Path,
     to: &Path,
-) -> BTreeSet<(u8, usize)> {
+    groups: &BTreeSet<PathBuf>,
+) -> BTreeSet<(LoopGraph, usize)> {
     let (Some(of_from), Some(of_to)) = (loops.get(from), loops.get(to)) else {
-        return BTreeSet::<(u8, usize)>::new();
+        return BTreeSet::<(LoopGraph, usize)>::new();
     };
-    return of_from
-        .intersection(of_to)
-        .copied()
-        .collect::<BTreeSet<(u8, usize)>>();
+    let mut shared: BTreeSet<(LoopGraph, usize)> = BTreeSet::<(LoopGraph, usize)>::new();
+    for held in of_from.intersection(of_to) {
+        match held.0 {
+            LoopGraph::Folders => {
+                shared.insert(*held);
+            }
+            LoopGraph::Entries => {
+                // A group's own code is left to the group checks, and two members of one group make no entry edge.
+                let inside_one_entry: bool =
+                    groups.contains(from) || entry_of(from, groups) == entry_of(to, groups);
+                if !inside_one_entry {
+                    shared.insert(*held);
+                }
+            }
+        }
+    }
+    return shared;
 }
 
 /// What:
@@ -391,15 +439,16 @@ fn without_tolerated(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function toleratedLoops(grouped: FolderUses, loops: Map<Path, Set<[number, number]>>, list: AllowList, base: Path): Set<[number, number]>;
+/// function toleratedLoops(grouped: FolderUses, loops: FolderLoops, list: AllowList, groups: Set<Path>, base: Path): Set<[LoopGraph, number]>;
 /// ```
 fn tolerated_loops(
     grouped: &FolderUses,
-    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
+    loops: &FolderLoops,
     list: &AllowList,
+    groups: &BTreeSet<PathBuf>,
     base: &Path,
-) -> BTreeSet<(u8, usize)> {
-    let mut tolerated: BTreeSet<(u8, usize)> = BTreeSet::<(u8, usize)>::new();
+) -> BTreeSet<(LoopGraph, usize)> {
+    let mut tolerated: BTreeSet<(LoopGraph, usize)> = BTreeSet::<(LoopGraph, usize)>::new();
     for (from, targets) in grouped {
         for to in targets.keys() {
             let listed: bool = list.covers_use(
@@ -409,7 +458,7 @@ fn tolerated_loops(
             if !listed {
                 continue;
             }
-            tolerated.extend(shared_loops(loops, from, to));
+            tolerated.extend(shared_loops(loops, from, to, groups));
         }
     }
     return tolerated;
@@ -428,14 +477,15 @@ fn tolerated_loops(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function newLoopUses(grouped: FolderUses, loops: Map<Path, Set<[number, number]>>, reportedLoops: Map<Path, Set<[number, number]>>, tolerated: Set<[number, number]>, list: AllowList, base: Path): LayoutFinding[];
+/// function newLoopUses(grouped: FolderUses, loops: FolderLoops, reportedLoops: FolderLoops, tolerated: Set<[LoopGraph, number]>, list: AllowList, groups: Set<Path>, base: Path): LayoutFinding[];
 /// ```
 fn new_loop_uses(
     grouped: &FolderUses,
-    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
-    reported_loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
-    tolerated: &BTreeSet<(u8, usize)>,
+    loops: &FolderLoops,
+    reported_loops: &FolderLoops,
+    tolerated: &BTreeSet<(LoopGraph, usize)>,
     list: &AllowList,
+    groups: &BTreeSet<PathBuf>,
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
@@ -449,7 +499,7 @@ fn new_loop_uses(
                 continue;
             }
             // Every loop these two folders are in together, from either graph.
-            let joined: BTreeSet<(u8, usize)> = shared_loops(loops, from, to);
+            let joined: BTreeSet<(LoopGraph, usize)> = shared_loops(loops, from, to, groups);
             if joined.is_empty() {
                 continue;
             }
@@ -457,7 +507,7 @@ fn new_loop_uses(
                 continue;
             }
             // A loop the loop check reports already lists this use.
-            if !shared_loops(reported_loops, from, to).is_empty() {
+            if !shared_loops(reported_loops, from, to, groups).is_empty() {
                 continue;
             }
             findings.push(LayoutFinding {
@@ -488,12 +538,13 @@ fn new_loop_uses(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function liveUseEntries(grouped: FolderUses, loops: Map<Path, Set<[number, number]>>, list: AllowList): Set<number>;
+/// function liveUseEntries(grouped: FolderUses, loops: FolderLoops, list: AllowList, groups: Set<Path>, base: Path): Set<number>;
 /// ```
 fn live_use_entries(
     grouped: &FolderUses,
-    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
+    loops: &FolderLoops,
     list: &AllowList,
+    groups: &BTreeSet<PathBuf>,
     base: &Path,
 ) -> BTreeSet<usize> {
     let mut used: BTreeSet<usize> = BTreeSet::<usize>::new();
@@ -513,7 +564,7 @@ fn live_use_entries(
         if !targets.contains_key(&absolute_to) {
             continue;
         }
-        if shared_loops(loops, &absolute_from, &absolute_to).is_empty() {
+        if shared_loops(loops, &absolute_from, &absolute_to, groups).is_empty() {
             continue;
         }
         used.insert(index);
@@ -587,21 +638,21 @@ pub fn check_folder_links(
     let Some(list) = allow else {
         return findings;
     };
-    let loops: BTreeMap<PathBuf, BTreeSet<(u8, usize)>> =
-        loops_of_each_folder(&folder_list, &grouped, &groups);
-    let reported_loops: BTreeMap<PathBuf, BTreeSet<(u8, usize)>> =
-        loops_of_each_folder(&folder_list, &reported, &groups);
-    let tolerated_loops: BTreeSet<(u8, usize)> = tolerated_loops(&grouped, &loops, list, base);
+    let loops: FolderLoops = loops_of_each_folder(&folder_list, &grouped, &groups);
+    let reported_loops: FolderLoops = loops_of_each_folder(&folder_list, &reported, &groups);
+    let tolerated_loops: BTreeSet<(LoopGraph, usize)> =
+        tolerated_loops(&grouped, &loops, list, &groups, base);
     findings.extend(new_loop_uses(
         &grouped,
         &loops,
         &reported_loops,
         &tolerated_loops,
         list,
+        &groups,
         base,
     ));
     let (mut kept, mut used): (Vec<LayoutFinding>, BTreeSet<usize>) = tolerated(findings, list);
-    used.extend(live_use_entries(&grouped, &loops, list, base));
+    used.extend(live_use_entries(&grouped, &loops, list, &groups, base));
     kept.extend(dead_entry_findings(list, &used, base));
     return kept;
 }
