@@ -10,7 +10,7 @@ use crate::add_timing::{
     begin as begin_timing,
     finish as finish_timing,
 };
-use crate::alone_in_its_process_child_test_support::ran_alone_in_a_child_of_its_own;
+use crate::process_wide_state_child_test_support::started_within_a_child_of_its_own;
 use crate::test_support::{
     git,
     git_context,
@@ -143,7 +143,7 @@ fn the_fence(
 ///  and the record states the read's own cost.
 #[test]
 fn a_settled_head_uses_the_read_beside_the_check() {
-    // What:     `ran_alone_in_a_child_of_its_own` starts this same test in a child process of this test binary, which
+    // What:     `started_within_a_child_of_its_own` starts this same test in a child process of this test binary, which
     //  holds that one test and no other, and answers `true` in the parent, which has then asserted the child's one
     //  passing test; `module_path!()` is this module's path and the second argument this test's name in it.
     //  Its sibling is a body run here, beside every other test of the module, which is what it replaces.
@@ -155,7 +155,7 @@ fn a_settled_head_uses_the_read_beside_the_check() {
     // ```ts
     // if (ranAloneInAChildOfItsOwn(import.meta.url, 'a_settled_head_uses_the_read_beside_the_check')) return;
     // ```
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_settled_head_uses_the_read_beside_the_check",
     ) {
@@ -306,7 +306,7 @@ fn the_stale_read_is_dropped(
 fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_moved_symbolic_ref_drops_the_read_beside_the_check",
     ) {
@@ -323,7 +323,7 @@ fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
 fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check",
     ) {
@@ -344,7 +344,7 @@ fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
 fn a_detached_head_moving_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_detached_head_moving_drops_the_read_beside_the_check",
     ) {
@@ -366,7 +366,7 @@ fn a_detached_head_moving_drops_the_read_beside_the_check() {
 fn a_head_moved_to_another_tree_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_head_moved_to_another_tree_drops_the_read_beside_the_check",
     ) {
@@ -432,7 +432,7 @@ fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
 fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_linked_worktrees_settled_head_uses_the_read_beside_the_check",
     ) {
@@ -499,7 +499,7 @@ fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
 fn a_read_that_outlives_its_deadline_refuses_the_rung() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold that makes this control's read
     //  outlive its deadline is a seam every read of the process waits at.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_read_that_outlives_its_deadline_refuses_the_rung",
     ) {
@@ -532,7 +532,8 @@ fn a_read_that_outlives_its_deadline_refuses_the_rung() {
 fn a_read_whose_task_dies_refuses_the_rung() {
     // What: the body runs in a child of its own (see the import's file). Why: the stand-in that makes this control's
     //  read die reaches every read of the process.
-    if ran_alone_in_a_child_of_its_own(module_path!(), "a_read_whose_task_dies_refuses_the_rung") {
+    if started_within_a_child_of_its_own(module_path!(), "a_read_whose_task_dies_refuses_the_rung")
+    {
         return;
     }
     let root: PathBuf = fixture("dies");
@@ -616,7 +617,7 @@ fn the_head_commit(repo: &Path) -> String {
 fn the_read_beside_the_check_leaves_another_steps_note_alone() {
     // What: the body runs in a child of its own (see the import's file). Why: the note of the last failed Git step
     //  belongs to the whole process, so a test beside this one took it or wrote over it.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "the_read_beside_the_check_leaves_another_steps_note_alone",
     ) {
@@ -775,7 +776,7 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
 fn a_read_that_already_answered_is_stated_as_work() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process, and beside other tests it lost its work entry.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_read_that_already_answered_is_stated_as_work",
     ) {
@@ -802,7 +803,7 @@ fn a_read_that_already_answered_is_stated_as_work() {
 fn a_read_that_has_not_answered_is_started_and_not_joined() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process, and beside other tests it took their work entries for its own.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_read_that_has_not_answered_is_started_and_not_joined",
     ) {
@@ -835,7 +836,7 @@ fn a_read_that_has_not_answered_is_started_and_not_joined() {
 fn an_add_that_never_reaches_the_fence_does_not_wait_for_the_read() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold on the read and the record this
     //  control writes both belong to the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "an_add_that_never_reaches_the_fence_does_not_wait_for_the_read",
     ) {
@@ -1162,7 +1163,7 @@ fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
     // What: the body runs in a child of its own (see the import's file). Why: the variables that name the promisor
     //  remote are the environment of the whole process, which every other test's Git child inherits, and this control
     //  removed them only where its read returned.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_read_with_the_promisor_remote_from_the_environment_fetches_nothing",
     ) {
@@ -1363,7 +1364,7 @@ fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
     // What: the body runs in a child of its own (see the import's file). Why: the repository whose record every Git
     //  start is noted in, and the record file of the process, belong to the whole process, so a test beside this one
     //  noted its own children into this control's folder and kept it from being swept.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "an_abandoned_read_ends_its_child_and_its_record_is_swept",
     ) {
@@ -1557,7 +1558,7 @@ fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {
     // What: the body runs in a child of its own (see the import's file). Why: this control forks the test process, and
     //  a fork of a process whose runtime threads run loses the runtime's wake-up in the child, so the child of the
     //  fork could not start the read at all.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_process_that_ends_with_a_running_read_leaves_no_child_behind",
     ) {
@@ -1614,7 +1615,7 @@ fn a_git_whose_size_read_ends_at_once(wrote: &Path) -> String {
 fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold on the read is a seam every read
     //  of the process waits at.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "an_abandon_before_the_child_is_published_leaves_no_child_running",
     ) {
@@ -1674,7 +1675,7 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
 fn an_abandon_after_the_child_ended_names_no_child() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold after the wait, and the note
     //  that a read reached it, belong to every read of the process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "an_abandon_after_the_child_ended_names_no_child",
     ) {
@@ -1730,7 +1731,7 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
     // What: the body runs in a child of its own (see the import's file). Why: the note that a read answered and the
     //  counters of freed maps belong to the whole process, so beside other tests this control abandoned before its own
     //  read answered and counted their frees.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "the_abandon_frees_the_answered_map_off_the_adding_thread",
     ) {
@@ -1790,7 +1791,7 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
 fn the_clear_keeps_an_abandon_that_comes_before_it() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold before the runner's clear is a
     //  seam every watched Git run of the process waits at.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "the_clear_keeps_an_abandon_that_comes_before_it",
     ) {
@@ -1854,7 +1855,7 @@ fn the_clear_keeps_an_abandon_that_comes_before_it() {
 fn the_fence_ends_a_read_no_path_needs() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if ran_alone_in_a_child_of_its_own(module_path!(), "the_fence_ends_a_read_no_path_needs") {
+    if started_within_a_child_of_its_own(module_path!(), "the_fence_ends_a_read_no_path_needs") {
         return;
     }
     let root: PathBuf = fixture("no-sizes");
@@ -1904,7 +1905,7 @@ fn the_fence_ends_a_read_no_path_needs() {
 fn a_refused_thread_start_reads_where_it_stands() {
     // What: the body runs in a child of its own (see the import's file). Why: the refusal of thread starts is a seam of
     //  the whole process, and the record this control writes belongs to it too.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_refused_thread_start_reads_where_it_stands",
     ) {
@@ -1964,7 +1965,7 @@ const THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL: &str = "CLI_GIT_TEST_ONLY_RUNTIME_B
 fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     // What: the body runs in a child of its own (see the import's file). Why: the runtime the process builds, and the
     //  variable that makes its build miss the deadline, belong to the whole process.
-    if ran_alone_in_a_child_of_its_own(
+    if started_within_a_child_of_its_own(
         module_path!(),
         "a_read_and_the_fence_complete_on_the_current_thread_stand_in",
     ) {

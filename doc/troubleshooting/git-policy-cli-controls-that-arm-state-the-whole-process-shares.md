@@ -87,10 +87,12 @@ The free counters one: `the abandoned answer was freed, not leaked`, `left: 5`, 
 
 ## The change
 
-`testing/alone_in_its_process_child_test_support.rs` starts one control's body in a child process of this test binary
+`testing/process_wide_state_child_test_support.rs` starts one control's body in a child process of this test binary
 through `testing/child_test_process.rs`,
 where it is the only test that process runs,
 and the parent's assertion is the child's one passing test.
+That helper landed with issue 6487's round (branch `fix/git-policy-cli-issue-6487-one-process-wide-room-for-blocking-jobs`),
+and this module's controls now call it too.
 The twenty-two controls that armed or read one of the six pieces of state above call it first and return in the parent:
 the ten that write an add timing record,
 the six that arm a size read hold or read its counters,
@@ -100,11 +102,12 @@ the record sweep's control,
 the fork's control,
 and the two that change the process's environment or runtime.
 
-`refuse_outside_the_child` fails a body that arms one of the size read holds or the clear hold in a process that holds
+`refuse_outside_the_child` fails a body that sets one of the size read holds or the clear hold in a process that holds
 other tests,
 naming the starter,
 so a control that forgets its child fails every run at its first line instead of making the rest of a threaded run fail
 now and then.
+The same refusal already stood in front of the room and the blocking bound that helper was written for.
 
 No shipped behaviour changed: every seam and every refusal is `#[cfg(test)]`,
 and what the size read does is what `package/git-policy/cli/SPEC.md` says it does
@@ -132,7 +135,7 @@ the control armed a seam of the whole process and nothing said so,
 which is what the refusal is for.
 
 The refusal and the child's own answer also have permanent controls,
-in `package/git-policy/cli/src/native/testing/alone_in_its_process_child_test_support_tests.rs`:
+in `package/git-policy/cli/src/native/testing/process_wide_state_child_test_support_tests.rs`:
 one is `#[should_panic]` on the refusal's own sentence,
 and the other is a body that runs in its child and asserts that the child saw its marker.
 

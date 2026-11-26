@@ -120,7 +120,7 @@ pub enum LfsImageTarget {
 ///  every value of `u64` but the largest.
 /// Why:
 ///  The rule reads one byte past the bound,
-///  so it can refuse an image that grew after the rule looked,
+///  so it can refuse an image that is over the bound,
 ///  and `u64::MAX + 1` has no answer:
 ///  a release build wraps it to zero, reads no byte at all and hashes empty input.
 ///  A configuration asking for more is refused when it loads,
@@ -403,12 +403,15 @@ impl LfsImageRepo {
                 });
             }
         };
-        // One byte past the bound, so a file that grew after the size check is refused rather than swallowed.
+        // One byte past the bound, so an image over it is refused rather than read whole.
+        // No size is checked before this read: the extra byte is what notices an image over the bound.
         // A configuration value past `MAX_IMAGE_BYTES_BOUND` never reaches this read: the option refuses it at load.
         let mut bytes: Vec<u8> = Vec::<u8>::new();
-        // What: the bound plus the one byte that proves the file did not stop at the bound.
-        // Why: a read of exactly the bound cannot tell a file of that size from a longer one.
-        let probe: u64 = max_bytes + 1;
+        // What: the bound plus the one byte that proves the file did not stop at the bound,
+        // or the bound itself when a caller passes the largest value it can.
+        // Why: a read of exactly the bound cannot tell a file of that size from a longer one,
+        // and adding one to `u64::MAX` would overflow in a caller that names no limit at all.
+        let probe: u64 = max_bytes.saturating_add(1);
         if let Err(error) = file.take(probe).read_to_end(&mut bytes) {
             return Err(LfsConfigError {
                 message: format!("Cannot read image target {}: {error}.", absolute.display()),

@@ -913,7 +913,7 @@ fn hold_the_sizes_after_the_wait_where_a_control_asked() {
 ///   See `hold_the_sizes_after_the_wait_where_a_control_asked`;
 /// the hold is a seam of the whole process,
 ///  so the control runs in a child process of its own
-/// (`crate::alone_in_its_process_child_test_support`),
+/// (`crate::process_wide_state_child_test_support`),
 ///  and `refuse_outside_the_child` fails a body that arms it beside other tests.
 ///
 /// In TS you'd write (pseudocode):
@@ -922,7 +922,7 @@ fn hold_the_sizes_after_the_wait_where_a_control_asked() {
 /// ```
 #[cfg(test)]
 pub(crate) fn a_control_holds_the_sizes_after_the_wait() -> TheHeldSizesForTheControl {
-    crate::alone_in_its_process_child_test_support::refuse_outside_the_child(
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
         "THE_SIZES_ARE_HELD_AFTER_THE_WAIT, the hold every read of this process waits at after its child ended",
     );
     THE_SIZES_WERE_HELD.store(false, std::sync::atomic::Ordering::SeqCst);
@@ -979,7 +979,7 @@ fn die_where_a_control_asked() {
 /// Why:
 ///   The seams are process-wide because the read runs on a thread of its own,
 ///  so the control runs in a child process of its own
-/// (`crate::alone_in_its_process_child_test_support`),
+/// (`crate::process_wide_state_child_test_support`),
 ///  and `refuse_outside_the_child` fails a body that arms it beside other tests.
 ///
 /// In TS you'd write (pseudocode):
@@ -988,7 +988,7 @@ fn die_where_a_control_asked() {
 /// ```
 #[cfg(test)]
 pub(crate) fn a_control_holds_the_read() -> TheHeldReadForTheControl {
-    crate::alone_in_its_process_child_test_support::refuse_outside_the_child(
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
         "THE_READ_IS_HELD, the hold every read of this process waits at before its Git run",
     );
     THE_READ_IS_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -1016,7 +1016,7 @@ impl Drop for TheHeldReadForTheControl {
 ///   See `die_where_a_control_asked`;
 /// the stand-in is a seam of the whole process,
 ///  so the control runs in a child process of its own
-/// (`crate::alone_in_its_process_child_test_support`),
+/// (`crate::process_wide_state_child_test_support`),
 ///  and `refuse_outside_the_child` fails a body that arms it beside other tests.
 ///
 /// In TS you'd write (pseudocode):
@@ -1025,7 +1025,7 @@ impl Drop for TheHeldReadForTheControl {
 /// ```
 #[cfg(test)]
 pub(crate) fn a_control_makes_the_read_die() -> TheDeadReadForTheControl {
-    crate::alone_in_its_process_child_test_support::refuse_outside_the_child(
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
         "THE_READ_DIES, the stand-in that makes every read of this process die before it answers",
     );
     THE_READ_DIES.store(true, std::sync::atomic::Ordering::SeqCst);

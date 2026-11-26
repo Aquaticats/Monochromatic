@@ -449,7 +449,7 @@ fn hold_the_clear_where_a_control_asked() {
 ///   See `hold_the_clear_where_a_control_asked`;
 /// the hold is a seam of the whole process,
 ///  so the control runs in a child process of its own
-/// (`crate::alone_in_its_process_child_test_support`),
+/// (`crate::process_wide_state_child_test_support`),
 ///  and `refuse_outside_the_child` fails a body that arms it beside other tests.
 ///
 /// In TS you'd write (pseudocode):
@@ -458,7 +458,7 @@ fn hold_the_clear_where_a_control_asked() {
 /// ```
 #[cfg(test)]
 pub(crate) fn a_control_holds_the_clear() -> TheHeldClearForTheControl {
-    crate::alone_in_its_process_child_test_support::refuse_outside_the_child(
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
         "THE_CLEAR_IS_HELD, the hold every watched Git run of this process waits at before its clear",
     );
     THE_CLEAR_WAS_REACHED.store(false, std::sync::atomic::Ordering::SeqCst);

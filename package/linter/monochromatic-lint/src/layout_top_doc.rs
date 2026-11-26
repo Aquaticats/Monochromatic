@@ -86,7 +86,11 @@ pub struct TopDoc {
 fn entry_name(text: &str) -> Option<String> {
     let after_dash: &str = text.trim_start().strip_prefix("- `")?;
     let end: usize = after_dash.find('`')?;
-    return Some(String::from(&after_dash[..end]));
+    // What: the name with the whitespace at its end taken off.
+    // Why: a list line is read without its ends,
+    // so an entry written `x.rs ` names `x.rs`,
+    // and no module file can hold a name that ends in one of those characters anyway.
+    return Some(String::from(after_dash[..end].trim_end()));
 }
 
 /// What:

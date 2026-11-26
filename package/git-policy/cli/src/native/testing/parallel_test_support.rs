@@ -234,6 +234,10 @@ impl Rendezvous {
 /// and one that does not run proves nothing.
 /// Call it first:
 /// a runtime and a bound already made keep their sizes.
+/// It belongs to the whole process,
+/// so the control runs its body in a child process of its own
+/// (`process_wide_state_child_test_support.rs`),
+/// and `room_for` refuses in any other process (issue 6487).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

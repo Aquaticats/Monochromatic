@@ -131,11 +131,12 @@ pub(crate) mod file_size_limit_child_test_support;
 #[cfg(target_os = "linux")]
 pub(crate) mod descriptor_limit_child_test_support;
 
-/// A test body run in a child process of its own, which holds that one test and no other,
-/// and the only process a control may arm a seam of the whole process in;
+/// A test body run in a child process of its own,
+/// for a control whose state belongs to the whole process,
+/// and the only process a test may set that state in;
 /// never part of the release executable.
 #[cfg(test)]
-pub(crate) mod alone_in_its_process_child_test_support;
+pub(crate) mod process_wide_state_child_test_support;
 
 /// A point where threads must all arrive,
 /// for controls that prove work overlapped.

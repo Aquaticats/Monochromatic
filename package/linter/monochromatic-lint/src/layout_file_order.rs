@@ -668,11 +668,10 @@ pub fn check_file_order(
             if Some(file) == index.as_ref() || roots.contains(file) {
                 continue;
             }
-            // A name holding a space cannot be written back into a key, so the name is the finding
-            // and the file stays out of the list and loop checks until it is renamed.
+            // A name holding a space forbids a `file-uses` line, which a loop needs to be tolerated.
+            // The file stays in every check, so a loop through it is reported rather than hidden.
             if name_holds_space(file) {
                 findings.push(space_finding(file, folder, base));
-                continue;
             }
             listed.push(file.clone());
         }
@@ -720,11 +719,20 @@ pub fn check_file_order(
             );
         }
         let Some(index_path) = index else {
+            // What: the sentence about a `mod.rs` on disk that no `mod` line declares, when the folder holds one.
+            // Why: the folder owes its reader a top doc, and the file that looks like one is no part of the package.
+            let stray: String = if folder.join("mod.rs").is_file() {
+                String::from(
+                    " The mod.rs on disk is not part of the package, because no mod line declares it.",
+                )
+            } else {
+                String::new()
+            };
             findings.push(LayoutFinding {
                 file: listed[0].clone(),
                 line: 0,
                 message: format!(
-                    "The folder {} holds module files but no mod.rs, so it has no top doc to list them in.",
+                    "The folder {} holds module files but no mod.rs that declares them, so it has no top doc to list them in.{stray}",
                     shown(folder, base)
                 ),
                 help: Some(String::from("Add a mod.rs that declares the modules and carries the top doc.")),
