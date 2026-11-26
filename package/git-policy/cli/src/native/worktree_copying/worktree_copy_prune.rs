@@ -65,7 +65,7 @@ pub const COPY_RUN_RECORDS: bool = false;
 /// ```ts
 /// const CACHE_NAMES = ['.pnpm-store', '.gradle', '.kotlin', '.zig-cache'] as const;
 /// ```
-const CACHE_NAMES: [&str; 4] = [".pnpm-store", ".gradle", ".kotlin", ".zig-cache"];
+const CACHE_NAMES: &[&str] = &[".pnpm-store", ".gradle", ".kotlin", ".zig-cache"];
 
 /// What:
 ///  Directory names that are caches only inside a Cargo `target` directory.
@@ -77,7 +77,7 @@ const CACHE_NAMES: [&str; 4] = [".pnpm-store", ".gradle", ".kotlin", ".zig-cache
 /// ```ts
 /// const TARGET_CACHE_NAMES = ['incremental', 'zig-global-cache'] as const;
 /// ```
-const TARGET_CACHE_NAMES: [&str; 2] = ["incremental", "zig-global-cache"];
+const TARGET_CACHE_NAMES: &[&str] = &["incremental", "zig-global-cache"];
 
 /// What:
 ///  Directory names that hold the output of earlier test,
@@ -91,7 +91,7 @@ const TARGET_CACHE_NAMES: [&str; 2] = ["incremental", "zig-global-cache"];
 /// ```ts
 /// const RUN_RECORD_NAMES = ['mutants.out', 'mutants.out.old', 'playwright-report', 'test-results'] as const;
 /// ```
-const RUN_RECORD_NAMES: [&str; 4] = [
+const RUN_RECORD_NAMES: &[&str] = &[
     "mutants.out",
     "mutants.out.old",
     "playwright-report",
@@ -396,10 +396,10 @@ impl Prune {
             let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == b".cache" && index > 0;
-            let cache: bool = component_is_one_of(component, &CACHE_NAMES)
+            let cache: bool = component_is_one_of(component, CACHE_NAMES)
                 || nested_cache
-                || (below_target && component_is_one_of(component, &TARGET_CACHE_NAMES));
-            let record: bool = component_is_one_of(component, &RUN_RECORD_NAMES)
+                || (below_target && component_is_one_of(component, TARGET_CACHE_NAMES));
+            let record: bool = component_is_one_of(component, RUN_RECORD_NAMES)
                 || (*component == b".monochromatic"
                     && components[..index].contains(&"node_modules".as_bytes()))
                 || (*component == b"verification" && parent == Some(b"target".as_slice()))

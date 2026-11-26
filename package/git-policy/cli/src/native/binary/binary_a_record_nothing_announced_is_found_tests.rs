@@ -381,7 +381,7 @@ fn every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound() {
     let tip: String = head_of(&setup, "HEAD");
     let parent: String = head_of(&setup, "HEAD~1");
     let mut written: Vec<String> = Vec::new();
-    for kind in SERVICE_KINDS {
+    for &kind in SERVICE_KINDS {
         let item: WorkItem = WorkItem {
             kind,
             repository: setup.repo.clone(),
@@ -404,7 +404,7 @@ fn every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound() {
     // The kinds whose steps can take minutes are claimed by one lane, one at a time, so the bound each record is found in is
     //  the look's bound and each may wait for the ones beside it.
     let patience: Duration = LOOK_AGAIN_AFTER * 3;
-    for (id, kind) in written.iter().zip(SERVICE_KINDS) {
+    for (id, kind) in written.iter().zip(SERVICE_KINDS.iter()) {
         wait_until(
             format!(
                 "the running service claimed the {} record within the bound",

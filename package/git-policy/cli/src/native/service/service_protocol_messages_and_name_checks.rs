@@ -139,7 +139,7 @@ pub const MAX_ID_BYTES: usize = 128;
 pub const MAX_FORGOTTEN_RECORDS: usize = MAX_CHANGES;
 
 /// Modes a change may give a file.
-pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
+pub const ALLOWED_MODES: &[u32] = &[0o100_644, 0o100_755, 0o120_000];
 
 /// What:
 ///  One path a commit changes:
@@ -385,7 +385,7 @@ impl FailureCode {
 
     /// Every code,
     /// so a test reaches all of them.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: &[Self] = &[
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::PermissionDenied,
@@ -401,7 +401,7 @@ impl FailureCode {
     /// The code for a word,
     /// nothing for an unknown word.
     pub fn from_word(word: &str) -> Option<Self> {
-        for code in Self::ALL {
+        for &code in Self::ALL {
             if code.word() == word {
                 return Some(code);
             }

@@ -48,7 +48,7 @@ use std::sync::atomic::{
 };
 
 /// The signals that end the service without a word otherwise.
-pub const HANDLED: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
+pub const HANDLED: &[libc::c_int] = &[libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
 
 /// The words before the signal number in the line.
 const BEFORE_SIGNAL: &str = "exiting reason=signal-";
@@ -340,7 +340,7 @@ pub fn install() {
             "the stop of this service cannot wake its shutdown ({error}), so a stop ends the service at once and does not end the Git processes it is waiting for"
         );
     }
-    for signal in HANDLED {
+    for &signal in HANDLED {
         // SAFETY: `on_signal` has the signature a handler needs and only calls functions that are safe in a handler.
         unsafe {
             libc::signal(signal, on_signal as *const () as libc::sighandler_t);

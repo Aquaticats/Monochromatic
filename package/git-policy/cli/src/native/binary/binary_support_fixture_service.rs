@@ -228,7 +228,7 @@ impl FixtureService {
             .expect("the service launch")
             .clone();
         // A helper that an older program started has the earlier command word in its unit file.
-        let words: [&str; 3] = if launch.earlier_command_word {
+        let words: &[&str] = if launch.earlier_command_word {
             git_policy_cli::service_main::EARLIER_SERVICE_WORDS
         } else {
             git_policy_cli::service_main::SERVICE_WORDS

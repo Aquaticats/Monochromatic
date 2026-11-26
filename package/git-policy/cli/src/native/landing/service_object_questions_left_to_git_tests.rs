@@ -450,7 +450,7 @@ fn a_landing_does_not_answer_with_the_commits_an_earlier_landing_read() {
 /// The names the cut-write control asks about:
 /// two object names,
 /// so the input file holds more bytes than the child may write.
-const TWO_NAMES: [&str; 2] = [
+const TWO_NAMES: &[&str] = &[
     "1111111111111111111111111111111111111111",
     "2222222222222222222222222222222222222222",
 ];
@@ -476,12 +476,7 @@ fn a_question_whose_input_file_cannot_be_made_is_not_an_answer() {
     std::fs::write(blocked.as_path(), "x").expect("file");
     let context = crate::test_support::git_context();
     assert_eq!(
-        objects_missing(
-            &context,
-            repo.as_path(),
-            blocked.as_path(),
-            TWO_NAMES.as_slice()
-        ),
+        objects_missing(&context, repo.as_path(), blocked.as_path(), TWO_NAMES),
         None,
         "a question that could not be asked is not an answer"
     );
@@ -548,12 +543,7 @@ fn child_asks_the_objects_question_under_a_file_size_limit() {
     let common_dir: PathBuf = repo.join(".git");
     let context = crate::test_support::git_context();
     assert_eq!(
-        objects_missing(
-            &context,
-            repo.as_path(),
-            common_dir.as_path(),
-            TWO_NAMES.as_slice()
-        ),
+        objects_missing(&context, repo.as_path(), common_dir.as_path(), TWO_NAMES),
         None,
         "the input file was written whole, so the limit is not cutting this write"
     );

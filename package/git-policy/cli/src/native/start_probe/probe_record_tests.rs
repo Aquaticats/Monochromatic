@@ -61,14 +61,14 @@ fn the_started_record_carries_no_verdict() {
 #[test]
 fn the_finished_record_names_verdict_arms_and_steps() {
     let mut report: ProbeReport = ProbeReport::new();
-    for step in ProbeStep::WORKER_ORDER {
+    for &step in ProbeStep::WORKER_ORDER {
         if step == ProbeStep::CheckoutRoot {
             report.record(StepLine::not_exercised(step, "no-checkout-path", None));
         } else {
             report.record(StepLine::passed(step));
         }
     }
-    for step in ProbeStep::HOLDER_ORDER {
+    for &step in ProbeStep::HOLDER_ORDER {
         report.record(StepLine::passed(step));
     }
     let verdict: ProbeVerdict = ProbeVerdict::Blocked {

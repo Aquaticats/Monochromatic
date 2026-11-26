@@ -73,7 +73,7 @@ pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 2;
 
 /// The versions an earlier release wrote,
 /// which this one still recovers.
-pub const EARLIER_MERGE_INTENT_SCHEMA_VERSIONS: [i64; 1] = [1];
+pub const EARLIER_MERGE_INTENT_SCHEMA_VERSIONS: &[i64] = &[1];
 
 /// Suffix of an intent record's file name.
 const RECORD_SUFFIX: &str = ".json";
@@ -227,7 +227,7 @@ fn an_earlier_schema_version(
 pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
     let map: serde_json::Map<String, serde_json::Value> = parse_object(decode_fatal(bytes)?)?;
     let version_readable: bool = number_equals(&map, "schemaVersion", MERGE_INTENT_SCHEMA_VERSION)
-        || an_earlier_schema_version(&map, &EARLIER_MERGE_INTENT_SCHEMA_VERSIONS);
+        || an_earlier_schema_version(&map, EARLIER_MERGE_INTENT_SCHEMA_VERSIONS);
     if !version_readable || string_field(&map, "state")? != "merge-intent" {
         return None;
     }

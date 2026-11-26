@@ -72,7 +72,7 @@ pub const ABSENT_WORD: &str = "none";
 
 /// The keys before the findings,
 /// in the order the file holds them.
-pub const RESULT_KEYS: [&str; 9] = [
+pub const RESULT_KEYS: &[&str] = &[
     "kind",
     "dataset",
     "nonce",

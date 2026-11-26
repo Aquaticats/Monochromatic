@@ -80,7 +80,7 @@ fn names_match_the_incumbent() {
     // Every pseudoref the reftable backend keeps in its store is one of the entries landing removes.
     for name in STORE_HELD_PSEUDOREFS {
         assert!(
-            REMOVED_CONCLUSION_FILES.contains(&name),
+            REMOVED_CONCLUSION_FILES.contains(name),
             "{name} must be a conclusion entry landing removes"
         );
     }

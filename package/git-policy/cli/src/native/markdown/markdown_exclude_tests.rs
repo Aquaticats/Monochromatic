@@ -205,7 +205,7 @@ struct Shape {
 ///  the alternate-group reading brace syntax would give,
 ///  an escaped leading exclamation mark,
 ///  and an escaped space.
-const SHAPES: [Shape; 14] = [
+const SHAPES: &[Shape] = &[
     Shape {
         patterns: &["*.md"],
         name: "README.md",
@@ -321,7 +321,7 @@ fn the_matcher_reads_the_pattern_language_native_git_reads() {
     let repository_root: std::path::PathBuf =
         crate::test_support::repository(root.as_path(), "repo");
     // Every shape has a file of its own name, so the oracle removes only its own pattern file.
-    for shape in &SHAPES {
+    for shape in SHAPES {
         let named: std::path::PathBuf = repository_root.join(shape.name);
         if let Some(parent) = named.parent() {
             std::fs::create_dir_all(parent).expect("the shape's directory");
@@ -329,7 +329,7 @@ fn the_matcher_reads_the_pattern_language_native_git_reads() {
         std::fs::write(&named, b"text\n").expect("the shape's file");
     }
     git(repository_root.as_path(), &["add", "--", "."]);
-    for shape in &SHAPES {
+    for shape in SHAPES {
         let oracle: bool = native_git_ignores(repository_root.as_path(), shape);
         assert_eq!(
             excluded(shape.patterns, shape.name.as_bytes()),

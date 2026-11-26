@@ -57,7 +57,7 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// const UNTRACKED_LISTING_WORDS = ['ls-files', '--others', '--exclude-standard', '--directory', '--no-empty-directory', '-z']
 /// ```
-pub(crate) const UNTRACKED_LISTING_WORDS: [&str; 6] = [
+pub(crate) const UNTRACKED_LISTING_WORDS: &[&str] = &[
     "ls-files",
     "--others",
     "--exclude-standard",

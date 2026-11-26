@@ -176,7 +176,7 @@ const REFERENCE_BACKEND_ENVIRONMENT: &str = "GIT_REFERENCE_BACKEND";
 /// the object store itself (`GIT_OBJECT_DIRECTORY`),
 /// the directories searched beside it (`GIT_ALTERNATE_OBJECT_DIRECTORIES`),
 /// and the namespace replacement refs are read from (`GIT_REPLACE_REF_BASE`).
-const MOVED_READ_ENVIRONMENTS: [&str; 3] = [
+const MOVED_READ_ENVIRONMENTS: &[&str] = &[
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_REPLACE_REF_BASE",

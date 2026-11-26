@@ -14,7 +14,7 @@
 
 /// The errno names a status line may carry,
 /// with the values they stand for.
-pub const ERRNO_NAMES: [(&str, i32); 21] = [
+pub const ERRNO_NAMES: &[(&str, i32)] = &[
     ("EACCES", libc::EACCES),
     ("EBUSY", libc::EBUSY),
     ("EEXIST", libc::EEXIST),
@@ -137,7 +137,7 @@ pub fn errno_of(number: i32) -> Option<&'static str> {
 }
 
 /// The reason words a step that did not run may carry.
-pub const REASON_WORDS: [&str; 17] = [
+pub const REASON_WORDS: &[&str] = &[
     "earlier-arm-failed",
     "source-held",
     "exclusive-create-unsupported",

@@ -308,7 +308,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
         now,
         CLAIM_LEASE,
         &assignment.retrying,
-        &PUSH_KINDS,
+        PUSH_KINDS,
     )
     .await;
     let common: Drained = drain_common_records_planned_awaiting(
@@ -317,7 +317,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
         now,
         CLAIM_LEASE,
         &assignment.retrying,
-        &PUSH_KINDS,
+        PUSH_KINDS,
     )
     .await;
     let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();

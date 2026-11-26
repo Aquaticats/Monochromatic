@@ -48,7 +48,7 @@ pub const RECEIPT_KIND: &str = "clone-mount-result";
 pub const ABSENT_WORD: &str = "none";
 
 /// The receipt's keys in the order the file holds them.
-pub const RECEIPT_KEYS: [&str; 15] = [
+pub const RECEIPT_KEYS: &[&str] = &[
     "v1",
     "kind",
     "dataset",

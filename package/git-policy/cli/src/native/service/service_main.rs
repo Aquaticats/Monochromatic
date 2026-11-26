@@ -86,11 +86,11 @@ use std::time::Duration;
 /// and
 ///  `run` is a third word apart from `status`,
 /// which asks a running service whether it answers.
-pub const SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.current, "service", "run"];
+pub const SERVICE_WORDS: &[&str] = &[COMMAND_WORD.current, "service", "run"];
 
 /// The words a unit file an earlier release wrote passes;
 ///  the service mode answers them the same.
-pub const EARLIER_SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.earlier, "service", "run"];
+pub const EARLIER_SERVICE_WORDS: &[&str] = &[COMMAND_WORD.earlier, "service", "run"];
 
 /// The most workers and blocking-pool threads the service's runtime has: 4.
 /// A service runs per worktree and lives for hours,
@@ -166,8 +166,8 @@ pub const EXIT_NOTHING_TO_SERVE: i32 = 0;
 /// ```
 pub fn is_service_start(arguments: &[OsString]) -> bool {
     return arguments.len() >= SERVICE_WORDS.len()
-        && (starts_with_service_words(arguments, &SERVICE_WORDS)
-            || starts_with_service_words(arguments, &EARLIER_SERVICE_WORDS));
+        && (starts_with_service_words(arguments, SERVICE_WORDS)
+            || starts_with_service_words(arguments, EARLIER_SERVICE_WORDS));
 }
 
 /// The words of the arguments after the service mode words,
@@ -196,7 +196,7 @@ pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> 
 /// ```
 fn starts_with_service_words(
     arguments: &[OsString],
-    words: &[&str; 3],
+    words: &[&str],
 ) -> bool {
     for (argument, word) in arguments.iter().zip(words) {
         if argument != *word {

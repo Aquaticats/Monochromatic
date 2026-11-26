@@ -74,7 +74,7 @@ enum StreamFault {
 }
 
 /// Every stream fault the controls that compare exit statuses apply.
-const OUTPUT_FAULTS: [StreamFault; 3] = [
+const OUTPUT_FAULTS: &[StreamFault] = &[
     StreamFault::Closed,
     StreamFault::BrokenPipe,
     StreamFault::FullDevice,
@@ -148,7 +148,7 @@ fn apply(
 
 /// A commit that prints its summary (no `--quiet`),
 /// so the wrapper and Git both write to the faulty streams.
-const SUMMARY_COMMIT: [&str; 4] = ["commit", "--message=x", "--", "a.txt"];
+const SUMMARY_COMMIT: &[&str] = &["commit", "--message=x", "--", "a.txt"];
 
 /// A commit whose streams are faulty lands,
 /// or is recovered by the next command,
@@ -159,7 +159,7 @@ fn commit_with_faulty_streams(
 ) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &SUMMARY_COMMIT);
+    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), SUMMARY_COMMIT);
     apply(&mut command, fault);
     let finished: ExitStatus = command.status().expect("the commit starts");
     assert_ne!(
@@ -211,10 +211,10 @@ fn a_commit_with_full_output_devices_lands() {
 #[test]
 fn a_commit_with_faulty_streams_ends_as_git_does() {
     let fixture: Fixture = fixture("stream-exit");
-    for fault in OUTPUT_FAULTS {
+    for &fault in OUTPUT_FAULTS {
         let wrapped_repo: PathBuf = staged_repository(&fixture, &format!("wrapped-{fault:?}"));
         let mut through_wrapper: Command =
-            wrapped_commit(&fixture, wrapped_repo.as_path(), &SUMMARY_COMMIT);
+            wrapped_commit(&fixture, wrapped_repo.as_path(), SUMMARY_COMMIT);
         apply(&mut through_wrapper, fault);
         let wrapped: ExitStatus = through_wrapper.status().expect("the wrapped commit starts");
         let direct_repo: PathBuf = staged_repository(&fixture, &format!("direct-{fault:?}"));

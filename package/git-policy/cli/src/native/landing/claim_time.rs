@@ -74,7 +74,7 @@ const BOOT_ID_LENGTH: usize = 32;
 
 /// Where a machine ID is kept,
 /// in the order they are tried (`/var/lib/dbus/machine-id` is the older place and often a link to the first).
-const MACHINE_ID_PATHS: [&str; 2] = ["/etc/machine-id", "/var/lib/dbus/machine-id"];
+const MACHINE_ID_PATHS: &[&str] = &["/etc/machine-id", "/var/lib/dbus/machine-id"];
 
 /// The number of parts in a reading's text before the machine ID was added,
 /// and after.

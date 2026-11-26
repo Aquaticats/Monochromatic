@@ -136,8 +136,6 @@ Rounds started before that decision run on flex.
 - Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
   briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `invocation/`.
-- Debt ledger item 19, window `fixed-length-lists-become-slices`, run 2 on Qwen
-  (run 1 on flex ended when the writer did not begin a response in time; its work is committed).
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
   (run 1 on flex ended the same way, its edits committed as `45de70f8fd`; it touches `invocation/`, one of the split round 1 folders).
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
@@ -176,6 +174,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   its lock as `07c8785fa9`
   (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
 - The linter's `alpha.14` fixes as `d127a911a0`, the release commit `73f1091ce0`, its lock as `925cec1406`.
+- Debt ledger item 19 (lists of names held as slices, with a source guard) as `df7e6467c5`;
+  whether the 297 local lists join it is in `doc/handover/questions-for-the-owner.md`.
 
 - 6462 as `d169557d37`:
   a clone inherits `mountpoint=legacy` from its container,

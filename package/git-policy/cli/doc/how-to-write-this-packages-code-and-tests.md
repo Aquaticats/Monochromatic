@@ -198,6 +198,9 @@ commit the control, take the guarded line out, run, restore (`AGENTS.md`'s GFP).
 A green run counts only when its output names the expected tests (TRV).
 
 The two rules above are enforced, not only written down:
+`source_guard/lists_are_slices_tests.rs` fails on a `const` whose element type names a text reference
+and whose length is a number,
+whatever layout the declaration uses,
 `source_guard/test_children_owned_tests.rs` fails on a test file that starts a child
 which neither `spawn_owned` nor `own_group` owns,
 and on any signal whose target is `getpid()`, `getpgrp()`, `std::process::id()` or `0`.

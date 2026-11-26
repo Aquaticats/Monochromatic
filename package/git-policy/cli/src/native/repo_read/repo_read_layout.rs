@@ -663,7 +663,7 @@ pub fn git_path(
     layout: &RepoLayout,
     name: &str,
 ) -> Option<PathBuf> {
-    const KNOWN: [&str; 9] = [
+    const KNOWN: &[&str] = &[
         "index",
         "objects",
         "HEAD",

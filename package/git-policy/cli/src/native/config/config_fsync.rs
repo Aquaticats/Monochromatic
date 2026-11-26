@@ -55,7 +55,7 @@ const ALL: u8 = LOOSE_OBJECT | PACK | PACK_METADATA | COMMIT_GRAPH | INDEX | REF
 /// The words `core.fsync` accepts,
 /// in the order Git lists them,
 /// with the components each names.
-const WORDS: [(&str, u8); 11] = [
+const WORDS: &[(&str, u8)] = &[
     ("loose-object", LOOSE_OBJECT),
     ("pack", PACK),
     ("pack-metadata", PACK_METADATA),
@@ -70,7 +70,7 @@ const WORDS: [(&str, u8); 11] = [
 ];
 
 /// The separator characters Git skips before a word.
-const SEPARATORS: [char; 5] = [',', ' ', '\t', '\n', '\r'];
+const SEPARATORS: &[char] = &[',', ' ', '\t', '\n', '\r'];
 
 /// What:
 ///  The components one `core.fsync` value makes Git flush.

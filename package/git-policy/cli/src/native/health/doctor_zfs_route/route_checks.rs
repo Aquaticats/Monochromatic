@@ -344,7 +344,7 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
         check_staging_bind_propagation(&facts.staging_binds),
     ));
     reports.extend(clone_reports(facts));
-    for step in LaterStep::ALL {
+    for &step in LaterStep::ALL {
         reports.push(CheckReport::new(step.check(), check_later_step(step)));
     }
     return reports;

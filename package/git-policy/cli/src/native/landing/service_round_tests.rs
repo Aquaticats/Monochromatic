@@ -1178,7 +1178,7 @@ fn a_job_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step()
                 let step = crate::service_work_storage_awaited::claim_all_within_awaiting(
                     THE_STEPS_CEILING,
                     work_dir.as_path(),
-                    &crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS,
+                    crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS,
                 )
                 .await;
                 return (read, step);

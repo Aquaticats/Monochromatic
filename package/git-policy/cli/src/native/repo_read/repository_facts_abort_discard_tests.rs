@@ -69,7 +69,7 @@ fn words(arguments: &[OsString]) -> Vec<String> {
 fn asked_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = OPERATION_STATE_NAMES.to_vec();
     names.push(SEQUENCER_DIRECTORY);
-    names.extend_from_slice(RESTORED_REVISION_NAMES.as_slice());
+    names.extend_from_slice(RESTORED_REVISION_NAMES);
     return names;
 }
 
@@ -138,7 +138,7 @@ fn the_state_query_names_every_entry_once() {
         "rebase-apply/applying",
     ];
     expected.push("sequencer");
-    expected.extend_from_slice(RESTORED_REVISION_NAMES.as_slice());
+    expected.extend_from_slice(RESTORED_REVISION_NAMES);
     assert_eq!(names, expected);
 }
 

@@ -29,7 +29,7 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 
 /// The mode words this build accepts,
 /// in the order the help lists them.
-pub const MODE_WORDS: [&str; 7] = [
+pub const MODE_WORDS: &[&str] = &[
     "boot-reconcile",
     "start-probe",
     "shutdown-unmount",

@@ -57,7 +57,7 @@ const MESSAGE_FILE_NAME: &str = "amended-message";
 
 /// The header line that starts a signature,
 /// which is dropped and made again.
-const SIGNATURE_HEADERS: [&str; 2] = ["gpgsig ", "gpgsig-sha256 "];
+const SIGNATURE_HEADERS: &[&str] = &["gpgsig ", "gpgsig-sha256 "];
 
 /// The commit an amend replaces,
 /// when the service built the amend itself.

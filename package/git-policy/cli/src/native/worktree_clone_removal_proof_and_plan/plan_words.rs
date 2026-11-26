@@ -33,7 +33,7 @@ pub use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 /// a missing key and a key written out of place with
 ///  one rule,
 /// so no reader has to guess which of two lines is the record's.
-pub const PLAN_KEYS_IN_ORDER: [&str; 18] = [
+pub const PLAN_KEYS_IN_ORDER: &[&str] = &[
     "run",
     "owner",
     "started",
