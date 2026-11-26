@@ -1,6 +1,10 @@
 //! Controls for how the service opens its listening socket.
 
 use super::*;
+use crate::service_server_queue_types_and_send::{
+    GroupKey,
+    place_in_groups,
+};
 use std::os::unix::net::UnixStream;
 
 /// A directory of this test's own,
