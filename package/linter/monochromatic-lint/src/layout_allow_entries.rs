@@ -178,7 +178,10 @@ fn unusable_reason(path: &str) -> Option<&'static str> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const listedPath = (text) => text === '.' || text === './' ? '.' : lexical_normal(text)
+/// const listedPath = (text) => {
+///   const normal = lexicalNormal(text)
+///   return normal === '' && text !== '' ? '.' : normal
+/// }
 /// ```
 fn listed_path(text: &str) -> PathBuf {
     let normal: PathBuf = crate::markdown_lfs_target::lexical_normal(Path::new(text));

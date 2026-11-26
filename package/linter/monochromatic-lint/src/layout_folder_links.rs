@@ -192,9 +192,9 @@ fn check_one_folder(
 ///  a list line for the first glob must never tolerate the second.
 ///  One source line is one finding however many `mod` declarations reach its file:
 ///  a library and an executable that declare the same modules give the tree two nodes
-///  that hold the same reference at the same byte offset,
-///  so references are told apart by the file and the offset in it,
-///  and never by the module node that reached them.
+///  with one file and the same reference offsets,
+///  so the rule reads one node per file and set of offsets,
+///  and never one node per declaration that reached it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
