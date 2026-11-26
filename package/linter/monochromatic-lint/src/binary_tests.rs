@@ -44,6 +44,9 @@ use monochromatic_lint::cli_options::{
 };
 /// The configuration filename the executable discovers.
 use monochromatic_lint::config_lookup::CONFIG_NAME;
+/// The largest bound that rule reads one tracked image under,
+///  because it reads one byte past the bound.
+use monochromatic_lint::markdown_lfs_context::MAX_IMAGE_BYTES_BOUND;
 /// The default bound the `markdown/lfs-image-url` rule reads one tracked image under.
 use monochromatic_lint::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES;
 /// The core diagnostic codes the controls expect.
@@ -1115,6 +1118,81 @@ fn a_large_lfs_image_is_refused_until_configuration_raises_the_bound() {
         raised.stdout.contains("/pkg/asset/huge.png"),
         "{}",
         raised.stdout
+    );
+}
+
+/// The largest value a platform's word can hold is refused when the configuration loads,
+///  naming the option and the largest bound the reader can probe past,
+///  and the largest bound it does take reads the image and rewrites its link.
+/// Why the boundary is here:
+///  the rule reads one byte past the bound, so a bound at the platform's maximum
+///  wraps to zero in a build without overflow checks, reads no byte and hashes empty input.
+#[test]
+fn an_image_bound_the_probe_cannot_pass_is_refused_at_load() {
+    let repository: Fixture = Fixture::new();
+    repository.write(".lfsconfig", "[lfs]\n\turl = https://lfs.example\n");
+    repository.write(
+        ".gitattributes",
+        "*.png filter=lfs diff=lfs merge=lfs -text\n",
+    );
+    repository.write("pkg/asset/shot.png", "image bytes");
+    let document: &[u8] = b"# Title.\n\n![shot](asset/shot.png)\n";
+    let arguments: [&str; 4] = [
+        "--stdin",
+        "--stdin-filename",
+        "pkg/README.md",
+        "--fix-content",
+    ];
+    // The bound with no answer past it: reading one byte more would wrap the reader's counter.
+    let unprobeable: u64 = MAX_IMAGE_BYTES_BOUND + 1;
+    repository.write(
+        CONFIG,
+        format!(
+            r#"[{{ "files": ["**/*.md"], "rules": {{ "markdown/lfs-image-url": {{ "severity": "error", "max-image-bytes": {unprobeable} }} }} }}]"#
+        )
+        .as_str(),
+    );
+    let refused: Run = run(&repository.path, &arguments, document);
+    assert_eq!(refused.status, 2, "{}", refused.stderr);
+    assert_eq!(refused.stdout, "", "{}", refused.stderr);
+    assert!(
+        refused.stderr.contains("max-image-bytes"),
+        "{}",
+        refused.stderr
+    );
+    // The largest value the option takes is the one the reader's bound names, derived rather than copied.
+    let largest: String = MAX_IMAGE_BYTES_BOUND.to_string();
+    assert!(
+        refused.stderr.contains(largest.as_str()),
+        "the refusal must name the largest value it takes: {}",
+        refused.stderr
+    );
+    assert!(
+        !refused.stderr.contains("panicked"),
+        "the bound is refused, never read under arithmetic that cannot hold it: {}",
+        refused.stderr
+    );
+    // The control: that largest value itself is accepted, reads the image and rewrites its link.
+    repository.write(
+        CONFIG,
+        format!(
+            r#"[{{ "files": ["**/*.md"], "rules": {{ "markdown/lfs-image-url": {{ "severity": "error", "max-image-bytes": {largest} }} }} }}]"#
+        )
+        .as_str(),
+    );
+    let accepted: Run = run(&repository.path, &arguments, document);
+    assert_eq!(
+        (accepted.status, accepted.stderr.as_str()),
+        (0, ""),
+        "{}",
+        accepted.stderr
+    );
+    // Measured with coreutils `sha256sum` for the bytes `image bytes`.
+    let oid: &str = "de7030234493a8bea844dbe1d8676e68a2c1a4b014c721f0425a22b6df66faec";
+    assert!(
+        accepted.stdout.contains(oid),
+        "the largest bound reads the real bytes: {}",
+        accepted.stdout
     );
 }
 

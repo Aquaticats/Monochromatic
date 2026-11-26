@@ -1527,6 +1527,24 @@ naming the image and skipping it,
 was rejected because a skipped image's object URL is never checked or rewritten,
 so a reader who needs the rule's coverage would have to exclude the whole Markdown file from it.
 
+The largest bound the option takes is 18446744073709551614,
+one less than the largest value of the unsigned 64-bit word it is read under.
+The reader reads one byte past the bound,
+so it can tell an image of exactly the bound from one that grew after the rule looked,
+and a bound of 18446744073709551615 has no byte past it.
+A configuration naming a larger bound is refused when it loads,
+with a message naming `max-image-bytes` and that largest value,
+and the run stops before any file is read.
+The other repair,
+reading the bound without the extra byte,
+was rejected because the extra byte is what refuses an image that grew:
+without it the rule would hash the first bound's worth of a larger file and rewrite the link to the wrong object id.
+Refusing the value is also what a release build needs:
+with overflow checks off,
+the extra byte wraps that bound to zero,
+the rule hashes empty input,
+and `--fix-content` rewrites the link to the empty file's object id.
+
 ## Workflow shell rules
 
 A GitHub Actions workflow is a host for shell scripts.
