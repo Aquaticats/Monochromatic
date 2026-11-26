@@ -23,6 +23,7 @@
 //! const finished = runAZfsAdd(realGit, args, overlay, facts); // null: the ordinary add
 //! ```
 
+use super::add_plan_stop::refuse_while_a_plan_stands;
 use super::add_route_gate::{RouteFacts, the_routes_add};
 use super::add_preflight::{Preflight, preflight_the_add};
 use super::add_route_plan::{AddNames, Stops, name_the_add, request_of};
@@ -33,7 +34,6 @@ use crate::transaction_git::GitContext;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_binding_record::plan_folder_read::refuse_while_a_plan_names_the_clone;
 use crate::worktree_clone_binding_record::record_publication::{RecordRefusalAtTheFile, read_binding};
 use crate::worktree_clone_binding_record::registration_home::{claim_generation_of, claim_prefix, home_folder, open_or_create_home};
 use super::add_capture_store::clear_other_adds_records;
@@ -250,11 +250,11 @@ fn resume_the_record(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPla
 
 /// Write the record's first version before any mutation beyond the claim.
 fn fresh_the_record(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, arguments: &[OsString], preflight: &Preflight, home: &std::fs::File, generation: u64) -> Result<BindingRecord, StepRefusal> {
-    // A plan that names the clone comes from a removal's record design and can
-    // stand only from step 14, so the read finds nothing today and refuses at
-    // once when it does.
-    let clone_dataset: String = route.clone_dataset();
-    refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, clone_dataset.as_str()).map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
+    // A plan that names the clone comes from a removal's record design, and the
+    // plan's head word and the clone the pool can find decide the one command the
+    // person reads beside it (plan step 10's choice 2C). The same call stands in the
+    // preflight, so one state prints one sentence.
+    refuse_while_a_plan_stands(route, &preflight.device)?;
     let names: AddNames = name_the_add(route, plan, arguments).map_err(StepRefusal::refused)?;
     clear_other_adds_records(home_folder(route.common_dir.as_path()).as_path(), route.slot.as_str(), &names.nonce).map_err(StepRefusal::refused)?;
     let repository_identity: FolderIdentity = FolderIdentity::of_folder(route.common_dir.as_path()).map_err(|error| return StepRefusal::refused(format!("the common Git directory cannot be identified ({error})")))?;

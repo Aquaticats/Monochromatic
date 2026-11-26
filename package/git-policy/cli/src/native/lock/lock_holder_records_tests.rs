@@ -113,7 +113,14 @@ fn a_record_of_a_finished_command_is_swept_and_one_a_lock_needs_is_kept() {
     let root: PathBuf = fixture("record-sweep");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
-    let mut helper: std::process::Child = std::process::Command::new("talk").stdin(std::process::Stdio::null()).spawn().ok().unwrap_or_else(|| { return std::process::Command::new("sleep").arg("0").spawn().expect("a helper"); });
+    let mut talk: std::process::Command = std::process::Command::new("talk");
+    talk.stdin(std::process::Stdio::null());
+    // Both starts are owned, so the helper the control reads and reaps is the test thread's whichever one it gets.
+    let mut helper: std::process::Child = crate::test_support::spawn_owned(&mut talk).unwrap_or_else(|_| {
+        let mut fallback: std::process::Command = std::process::Command::new("sleep");
+        fallback.arg("0");
+        return crate::test_support::spawn_owned(&mut fallback).expect("a helper");
+    });
     let gone: i64 = i64::from(helper.id());
     let identity: String = identity_of_process(gone).expect("its identity while it runs");
     helper.wait().expect("the helper ends");

@@ -703,6 +703,26 @@ fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
     };
 }
 
+/// What:
+///  The pool this arm asks for one dataset's GUID.
+/// Why:
+///  The managed lock's proof compares the mount's clone GUID while a mount
+///  covers the slot,
+///  so the guest's own pool answers,
+///  through the arm's own identity read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ThisGuestsPool implements DatasetGuidReads { guidOf(dataset) { return identity(dataset).guid; } }
+/// ```
+struct ThisGuestsPool;
+
+impl git_policy_cli::worktree_clone_managed_lock::DatasetGuidReads for ThisGuestsPool {
+    fn guid_of(&self, dataset: &str) -> Result<git_policy_cli::worktree_clone_mount_protocol::DatasetGuid, String> {
+        return git_policy_cli::worktree_clone_mount_protocol::DatasetGuid::parse(identity(dataset).stats.dds_guid.to_string().as_str()).map_err(|refusal| return format!("{refusal:?}"));
+    }
+}
+
 /// The one managed clone of this arm's fixture,
 /// read through the route's own slot readings and pool replies.
 fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_policy_cli::doctor_zfs_route::CloneFacts {
@@ -776,6 +796,10 @@ fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_pol
             at_the_path: PathState::Absent,
             gitdir: None,
             slot_git: slot.join(".git"),
+        },
+        lock: git_policy_cli::doctor_zfs_route::ManagedLockFacts {
+            slot: String::from("one"),
+            classification: git_policy_cli::worktree_clone_managed_lock::classify_the_managed_lock(common.as_path(), "one", slot.as_path(), &mounts, &ThisGuestsPool),
         },
         plan: RemovalPlanFacts { clone: clone.clone(), reading: PlanFileReading::NoPlan },
         snapshots: CloneSnapshotFacts { clone: clone.clone(), clone_createtxg: identity(clone.as_str()).stats.dds_creation_txg, live: git_policy_cli::doctor_zfs_route::Reading::Read(inventory), plan_stands: false, recorded: Vec::new() },

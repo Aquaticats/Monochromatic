@@ -527,16 +527,17 @@ Pieces of steps 12,
 15,
 16 and 18 are built ahead and on `main`,
 unwired.
-State at 2026-11-25T19:20-05:00, by the plan's 23 steps:
+State at 2026-11-25T20:55-05:00, by the plan's 23 steps:
 1 to 16 on `main` (12 to 16 wired, the removal command path still cut);
 17's cancel command merged (`df15f27a7a`) and its forced arm's decision half (`64a71a4c9b`),
-its kernel calls unbuilt (round `zfs-step-17-forced-arm-ends-holders-and-measures-its-wait`);
-18's `doctor` checks merged unwired (`838b7f5e71`), its managed-lock lines a round;
+its kernel calls a live round (`zfs-step-17-forced-arm-ends-holders-and-measures-its-wait`);
+18's `doctor` checks merged unwired (`838b7f5e71`), its managed-lock lines too (`d463965dcd`, two wording choices in `doc/handover/questions-for-the-owner.md`);
 19's migration entry and units built ahead (`72a0be07ef`), the migration not run on this host;
-20 a live round; 21 merged; 22's guest half a round, its storage half the owner's act; 23 not started.
+20 merged unwired (`a7502138a4`, writing `sanoid.conf` the owner's act); 21 merged;
+22's guest half a live round, its storage half the owner's act; 23 not started.
 Before a person's add takes the route:
-the add's `mountpoint` request the design forbids (issue 6462, answered "C: inherit" and "Both"),
-`doctor`'s create-time and named-set gaps (6472), 2C, the attach path's A5 answer,
+the add's `mountpoint` request the design forbids (issue 6462, answered "C: inherit" and "Both"; a live round),
+2C (its round ended, its merge check queued), the attach path's A5 answer (a live round),
 wiring 17 and 18 with step 22's request budget and lifting the removal path's cut,
 step 19's migration on this host, steps 22 and 23, and a release carrying it, installed.
 The deferred-destroy refusal is shown (step 15's guest arm);
