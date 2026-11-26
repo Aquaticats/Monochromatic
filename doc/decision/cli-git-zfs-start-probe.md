@@ -90,8 +90,28 @@ refusing the managed add instead,
 is not taken;
 it would turn the managed route off on those same three reaches.
 
+The reach grew on 2026-11-26T00:05-05:00,
+by the answer the section below records.
+A guest measured on 2026-11-25 showed Ubuntu 24.04's AppArmor profile answering
+`EACCES` at the open of `/proc/self/setgroups` for write,
+before the write is reached,
+and that open asks for `CAP_SYS_ADMIN` inside the new user namespace,
+so it is a capability a host denies inside one and sits on the reach this record
+already states.
+The skip list now names it:
+the open's `EACCES` is a skip that prints its line,
+which names the call and the number it answered,
+and every other answer of that open is an arm failure.
+Every answer of the `deny` write stays an arm failure,
+because the write asks for no capability.
+
+That answer went to the owner as the question of 2026-11-26T00:05-05:00,
+and the section below states what was decided with it:
+the skip,
+and the report `doctor` prints about it.
+
 The design's setup calls are the two `unshare` calls,
-the `setgroups` write,
+the open of `/proc/self/setgroups` for write and its `deny` write,
 the two mapping writes,
 the private propagation,
 and the `mount` that puts the scratch tmpfs in place.
@@ -429,8 +449,14 @@ and `doctor` reports on such a host that the group drop was skipped,
 why,
 and what the person can do about it.
 This amends the skip reach this record accepted for the companion,
-the design's skip paragraph and their control;
-the build waits for the crate split's window in `doc/planning/cli-git-source-layout.md`.
+the design's skip paragraph and their control.
+The section stated on 2026-11-26T00:05-05:00 that the build waited for the crate
+split's window in `doc/planning/cli-git-source-layout.md`;
+that window is open,
+and the skip, its line and `doctor`'s report were built on the branch
+`feat/git-policy-cli-ubuntu-setgroups-skip-and-doctor-line`
+(`package/git-policy/cli/src/native/account_companion/companion_steps.rs`,
+`package/git-policy/cli/src/native/group_drop_report/`).
 
 [answered]: ../planning/cli-git-zfs-start-probe-design.md#questions-the-owner-answered
 [design]: ../planning/cli-git-zfs-start-probe-design.md
