@@ -376,6 +376,20 @@ the QEMU process's `smaps_rollup` `Rss` plus `Swap`,
 and its RAM mapping is the largest mapping,
 named in every sample.
 
+Two measurements need a smaller memory and a domain attribute `mvm` has no flag for,
+and `mvm` has no constant for either:
+a 4 GiB guest,
+and a `memballoon` with `freePageReporting="on"`.
+For these guests only,
+the worktree's `package/mvm/cli/src/domain-xml.ts` carried a temporary block
+that read `MVM_MEMORY_PROBE` (`memory4g`,
+`reporting`),
+and `mvm` ran from source as `node package/mvm/cli/src/cli.ts`.
+The block was reverted before any commit of this revision,
+and its diff is in the round folder (`keep/probe-patch-for-the-measurement.diff`),
+outside this repository.
+No other code and no constant was changed.
+
 ## The quantity the rank orders
 
 The rank orders **host memory freed**:
@@ -443,23 +457,38 @@ with the ratio from the same sample):
   **0.38 GiB**.
 - the 4 GiB guest at its peak (`mem-d`,
   reporting on,
-  no build):
+  no build and no arm,
+  from the first round):
   0.66 GiB resident plus 0.10 GiB swapped;
   at that sample the device held 4.4 percent,
   so about 0.004 GiB,
   and the host held about
   **0.67 GiB**.
+- this revision's 4 GiB guest after its drop,
+  which did run the real arm:
+  1.86 GiB resident plus 0.14 GiB swapped;
+  the device held 9.7 percent,
+  so about 0.014 GiB,
+  and the host held about
+  **1.88 GiB**.
+- this revision's default guest after its drop:
+  5.24 GiB resident plus 0.20 GiB swapped;
+  the device held 9.7 percent,
+  so about 0.019 GiB,
+  and the host held about
+  **5.26 GiB**.
 
-So counting the swap at its compressed size reverses two pairs the first draft ordered by the full
-swap:
-after the drop,
-an 8 GiB guest holds less host RAM at rest than a 4 GiB guest that built
-nothing,
-and reporting alone is closer to the default than the full-swap figures suggested.
+So counting the swap at its compressed size changes what the first draft's full-swap figures said:
+the default guest at rest cost the host about 1.2 GiB of RAM,
+not 7.98 GiB,
+and reporting's saving at rest is smaller than those figures implied.
 What it does not change is the peak:
 a guest that compiles holds its live pages resident,
 compressed swap or not,
 and that peak is what the host has to be able to give at one moment.
+The at-rest figures of the first round and of this revision were read under different pressure,
+so they are not compared here;
+the pair this revision measured is under "The order by that quantity".
 
 ### The order by that quantity
 
@@ -1121,5 +1150,7 @@ one of the four guests in the first round had 5.36 GiB of its RAM in the zram sw
 It is not an option among the others because it is not free:
 it costs zram's compression CPU and the guests' latency,
 it happens only under pressure,
-and it left 22.8 GiB held anyway.
+and swapping does not make the charge go away:
+the three guests in the opening reading still held 24.0 GiB charged,
+most of it swapped.
 `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md` records what that costs this machine.
