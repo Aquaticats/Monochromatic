@@ -3,6 +3,8 @@
 //!  a request writer that records what it was asked to file,
 //!  a staging folder that records its settlements,
 //!  a slot claim that records its takes,
+//!  a slot claim that rewrites the binding as it takes the claim,
+//!  a pool that answers a second clone once that claim is held,
 //!  a reader no control needs,
 //!  one recorded binding and one plan writer,
 //!  and one throwaway repository with the slot's pointer.
@@ -21,7 +23,11 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
-use crate::worktree_clone_binding_record::registration_home::plans_folder;
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+    plans_folder,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
     DatasetReader,
     ListedChild,
@@ -63,11 +69,16 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     the_stats,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
+use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
     DatasetIdentity,
     NvList,
 };
-use std::cell::RefCell;
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use std::path::{
     Path,
     PathBuf,
@@ -356,4 +367,134 @@ impl TheRemovalClaim for ScriptedClaim {
             None => Ok(HeldClaim::AControl),
         };
     }
+}
+
+/// What:
+///  A slot claim that rewrites one slot's binding record as it is taken,
+///  which is a record rewritten between the two proofs the command makes.
+/// Why:
+///  The command proves the records before the claim and again under it,
+///  and the GUID it claimed by is the first proof's,
+///  so a rewrite in between is the one state the second proof's comparison exists for.
+///  A control can reach it no other way:
+///  every deciding read happens under the claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = { take: (slot) => { writeFileSync(binding, rewritten); switched.value = true; return { kind: 'a-control' }; } };
+/// ```
+pub struct RewritingClaim {
+    /// The order every seam appends to.
+    pub order: TheOrder,
+    /// The binding file the take rewrites.
+    pub binding_path: PathBuf,
+    /// The lines the file holds once the claim is taken.
+    pub lines: Vec<String>,
+    /// Whether the rewrite has happened,
+    /// which is what the pool's own change follows.
+    pub switched: Rc<Cell<bool>>,
+}
+
+impl TheRemovalClaim for RewritingClaim {
+    fn take(
+        &self,
+        slot: &str,
+    ) -> Result<HeldClaim, CancelRefusal> {
+        self.order.borrow_mut().push(format!("claim:{slot}"));
+        let mut text: String = String::new();
+        for line in &self.lines {
+            text.push_str(line.as_str());
+            text.push('\n');
+        }
+        std::fs::write(self.binding_path.as_path(), text).expect("the rewritten binding");
+        self.switched.set(true);
+        return Ok(HeldClaim::AControl);
+    }
+}
+
+/// What:
+///  The pool that answers one clone before a rewrite and another one after it,
+///  which is what a second act at the same slot leaves.
+/// Why:
+///  The command proves the live clone's GUID against the binding's twice,
+///  so a rewrite that the pool did not follow would refuse at the live read
+///  instead of at the comparison the control is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pool = { identity: (name) => (switched.value ? after : before).identity(name) };
+/// ```
+pub struct TwoClones<'a> {
+    /// The pool the reads answer from before the rewrite.
+    pub before: &'a ScriptedPool,
+    /// The pool the reads answer from once the binding names another clone.
+    pub after: &'a ScriptedPool,
+    /// Whether the rewrite has happened.
+    pub switched: Rc<Cell<bool>>,
+}
+
+impl RemovalPoolReads for TwoClones<'_> {
+    fn identity(
+        &self,
+        name: &str,
+    ) -> Result<DatasetIdentity, String> {
+        return match self.switched.get() {
+            true => self.after.identity(name),
+            false => self.before.identity(name),
+        };
+    }
+
+    fn snapshots_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
+        return match self.switched.get() {
+            true => self.after.snapshots_of(dataset, dataset_guid),
+            false => self.before.snapshots_of(dataset, dataset_guid),
+        };
+    }
+
+    fn bookmarks_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
+        return match self.switched.get() {
+            true => self.after.bookmarks_of(dataset, dataset_guid),
+            false => self.before.bookmarks_of(dataset, dataset_guid),
+        };
+    }
+}
+
+/// What:
+///  One slot's binding lines,
+///  with the clone GUID line naming the value the control gives,
+///  which is a record rewritten to another clone.
+/// Why:
+///  The binding is the record the two proofs read,
+///  and every other line stays as the add wrote it,
+///  so the rewrite changes the one field the comparison reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = readFileSync(binding, 'utf8').split('\n').map((line) => line.startsWith('cloneGuid=') ? `cloneGuid=${other}` : line);
+/// ```
+pub fn the_binding_naming_another_clone(
+    common: &Path,
+    slot: &str,
+    clone_guid: u64,
+) -> Vec<String> {
+    let path: PathBuf = home_folder(common).join(binding_name(slot));
+    let text: String = std::fs::read_to_string(path.as_path()).expect("the fixture's binding");
+    let renamed: String = format!("cloneGuid={}", guid(clone_guid).file_name());
+    return text
+        .lines()
+        .map(|line| {
+            return match line.starts_with("cloneGuid=") {
+                true => renamed.clone(),
+                false => String::from(line),
+            };
+        })
+        .collect();
 }
