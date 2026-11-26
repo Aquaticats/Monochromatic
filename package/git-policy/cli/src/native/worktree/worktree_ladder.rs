@@ -43,7 +43,7 @@ pub use crate::worktree_ladder_run::{
 #[cfg(not(target_os = "linux"))]
 mod other {
     use crate::transaction_git::GitContext;
-    use crate::worktree_add_plan::AddPlan;
+    use crate::worktree_command_facts::AddPlan;
     use crate::worktree_copy::{
         GitRunner,
         GitStatus,

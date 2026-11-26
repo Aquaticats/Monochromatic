@@ -43,7 +43,7 @@ use crate::transaction_git::{
     GitRequest,
     run_git,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clone_conversion_fence::{
     ChangeNotServed,
     WhyNotServed,

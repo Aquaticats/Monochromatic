@@ -648,7 +648,7 @@ fn repository_with_rules_file(root: &Path) -> (PathBuf, PathBuf) {
 
 /// The settled-forward facts of a plan,
 /// or a failure naming the action that was planned instead.
-fn settled_facts(action: Action) -> crate::worktree_copy_forward::CopyFacts {
+fn settled_facts(action: Action) -> crate::worktree_command_facts::CopyFacts {
     match action {
         Action::ForwardSettled {
             copy,

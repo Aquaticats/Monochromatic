@@ -162,7 +162,7 @@ use crate::worktree_remove::{
     remove_with,
 };
 use crate::worktree_remove_hand_over::hand_over_worktree_removal;
-use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_command_facts::RemovePlan;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{

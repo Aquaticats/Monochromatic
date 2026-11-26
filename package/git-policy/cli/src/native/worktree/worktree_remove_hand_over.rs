@@ -110,7 +110,7 @@ use crate::worktree_remove::{
     RemoveOutcome,
     RemoveRequest,
 };
-use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_remove_registry::{
     Registration,
     registered_worktree,

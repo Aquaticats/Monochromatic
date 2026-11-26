@@ -32,7 +32,7 @@ use crate::worktree_remove::{
     remove_with,
 };
 use crate::worktree_remove_hand_over as test_support;
-use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_command_facts::RemovePlan;
 
 /// What:
 ///  A subvolume inside a fresh disposable root,

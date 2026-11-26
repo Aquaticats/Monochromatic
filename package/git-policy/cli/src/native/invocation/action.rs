@@ -15,7 +15,7 @@ use crate::index_writer_forward::CoordinatedForward;
 /// The branches a destination reported,
 /// which the upload plan of the same push reads.
 use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
-use crate::worktree_copy_forward::CopyFacts;
+use crate::worktree_command_facts::CopyFacts;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).

@@ -45,7 +45,7 @@ use crate::fs_kind::{
 use crate::fs_mount_options::read_mount_facts;
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clean::{
     CleanRefusal,
     CleanRefusalKind,

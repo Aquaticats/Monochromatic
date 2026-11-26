@@ -94,7 +94,7 @@ use crate::worktree_removal_takes_its_pending_deletions::{
     VolumesBelow,
     take_the_pending_deletions_below,
 };
-use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_remove_registry::{
     Registration,
     registration_of,

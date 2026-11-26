@@ -29,37 +29,13 @@
 //! const plan = parseRemovePlan(['worktree', 'remove', '../topic'], 0, cwd, commonDir); // undefined: Git removes it
 //! ```
 
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_operands::operands_after_options;
 use std::ffi::OsString;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The worktree a `git worktree remove <path>` names,
-/// resolved to a directory that exists.
-/// Why:
-///   The removal needs the worktree's real path;
-/// Git also accepts a unique last component,
-/// which is
-///  found among the registered paths before the name is read as a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RemovePlan = { target: string; operand: string; force: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RemovePlan {
-    /// The real path of the worktree directory.
-    pub target: PathBuf,
-    /// The operand as the person typed it,
-    /// which Git also matches against the last components of every registered path.
-    pub operand: OsString,
-    /// Whether the person passed `-f` or `--force`,
-    /// which is what makes Git remove a worktree that holds changes.
-    pub force: bool,
-}
 
 /// Whether a token is one of the two spellings of Git's force option for this command.
 /// Why:

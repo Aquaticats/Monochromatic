@@ -11,6 +11,11 @@ use crate::test_support::{
     remove,
     repository,
 };
+/// The two plans a settled run's facts may carry.
+use crate::worktree_command_facts::{
+    AddPlan,
+    RemovePlan,
+};
 use std::path::Path;
 
 /// A repository with an ignored rules file,
@@ -667,7 +672,7 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
         identity: main_identity(main.as_path(), main.join(".git").as_path()),
         creates: true,
         destination: Some(topic.clone()),
-        add_plan: Some(crate::worktree_add_plan::AddPlan {
+        add_plan: Some(crate::worktree_command_facts::AddPlan {
             destination: topic.clone(),
             insert_at: 4,
             quiet: true,

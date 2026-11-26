@@ -19,7 +19,7 @@
 
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clone_add_route::add_route_plan::{
     AddNames,
     Stops,

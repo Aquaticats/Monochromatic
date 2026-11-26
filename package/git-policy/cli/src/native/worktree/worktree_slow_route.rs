@@ -36,7 +36,7 @@ use crate::fs_kind::{
 };
 use crate::journald_native::Priority;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clean::CleanRefusalKind;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_snapshot_source::{

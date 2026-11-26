@@ -68,7 +68,7 @@ use crate::test_support::{
     remove,
     repository,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;

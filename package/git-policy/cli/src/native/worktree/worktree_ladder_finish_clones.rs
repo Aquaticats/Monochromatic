@@ -25,7 +25,7 @@ use crate::worktree_add_binding::{
     Bound,
     verify_association,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 #[cfg(feature = "measurement-routes")]
 use crate::worktree_clone::{
     Cloned,

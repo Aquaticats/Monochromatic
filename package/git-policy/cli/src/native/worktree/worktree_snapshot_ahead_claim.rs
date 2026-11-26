@@ -52,7 +52,7 @@ use crate::work_item::{
     FAILED,
     state_directory,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_snapshot_ahead::{
     AHEAD_KEPT,

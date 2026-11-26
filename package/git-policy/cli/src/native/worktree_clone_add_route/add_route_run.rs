@@ -64,10 +64,8 @@ use crate::worktree_clone_binding_record::registration_home::{
     home_folder,
     open_or_create_home,
 };
-use crate::worktree_copy_forward::{
-    CopyFacts,
-    ForwardedRun,
-};
+use crate::worktree_command_facts::CopyFacts;
+use crate::worktree_copy_forward::ForwardedRun;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::ffi::OsString;
@@ -100,7 +98,7 @@ pub fn run_a_zfs_add(
         return None;
     };
     let destination: &std::path::Path = facts.destination.as_deref()?;
-    let plan: &crate::worktree_add_plan::AddPlan = facts.add_plan.as_ref()?;
+    let plan: &crate::worktree_command_facts::AddPlan = facts.add_plan.as_ref()?;
     let route: RouteFacts = match the_routes_add(&facts.identity, destination, &LiveMountedDatasets)
     {
         Ok(None) => return None,
@@ -154,7 +152,7 @@ pub fn run_a_zfs_add(
 ///  ladder with nothing changed.
 fn run_the_route(
     route: &RouteFacts,
-    plan: &crate::worktree_add_plan::AddPlan,
+    plan: &crate::worktree_command_facts::AddPlan,
     context: &GitContext,
     real_git: &std::path::Path,
     arguments: &[OsString],
@@ -340,7 +338,7 @@ fn the_claims_generation(
 /// Read a standing record and prove it is this add's continuation.
 fn resume_the_record(
     route: &RouteFacts,
-    plan: &crate::worktree_add_plan::AddPlan,
+    plan: &crate::worktree_command_facts::AddPlan,
     arguments: &[OsString],
     mut record: BindingRecord,
     generation: u64,
@@ -379,7 +377,7 @@ fn resume_the_record(
 /// Write the record's first version before any mutation beyond the claim.
 fn fresh_the_record(
     route: &RouteFacts,
-    plan: &crate::worktree_add_plan::AddPlan,
+    plan: &crate::worktree_command_facts::AddPlan,
     arguments: &[OsString],
     preflight: &Preflight,
     home: &std::fs::File,

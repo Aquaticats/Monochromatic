@@ -44,7 +44,7 @@ use crate::worktree_add_binding::{
     Bound,
     path_identity,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clean::head_commit;
 use crate::worktree_copy::{
     GitRunner,
