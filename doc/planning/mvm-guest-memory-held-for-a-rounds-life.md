@@ -18,7 +18,7 @@ and a QEMU process's charge is its `smaps_rollup` `Rss` plus `Swap`,
 also kB;
 the ARC,
 zram and systemd counters are bytes.
-Every figure below carries its unit,
+Every figure here carries its unit,
 and a byte count is never written where the sample holds kB.
 
 ## What changed since the gate read of 2026-11-26T00:00-05:00
@@ -704,7 +704,7 @@ and the questions turn on none of those peaks for an effect size.
 
 ## The cells, one run each
 
-Each cell below ran the lock arm in one guest;
+Each cell in this section ran the lock arm in one guest;
 the guests under "The four guests of 2026-11-25T21:14:34+00:00 to 2026-11-25T23:35:20+00:00" measured other loads.
 
 ### A default guest that builds the crate inside itself
@@ -1111,7 +1111,11 @@ The section the record cites today,
 "Free page reporting on,
 the same guest with one domain attribute",
 is not a heading of this document;
-the section above is the one to cite.
+this section,
+"Free page reporting:
+decided,
+and shipped",
+is the one to cite.
 
 The decision's limits are the ones measured here:
 one run each,
@@ -1222,7 +1226,7 @@ a drop only helps the next arm of the same driver run,
 and the cost,
 a cold cache,
 is certain.
-The scope is a driver change in the four drivers named above;
+The scope is a driver change in the four drivers "What it would change" names;
 if a return is established later,
 each owes one line.
 
@@ -1475,7 +1479,8 @@ over its whole life,
 so it used far less than its 7,755 MiB;
 no run here gave that guest less.
 What would make a smaller default affordable is therefore the build's location,
-which the section before asks about,
+which "Should the crate's test binaries be built outside the guest?"
+asks about,
 and this question is answerable without it only as "keep 8,192 MiB".
 
 What it would cost:
