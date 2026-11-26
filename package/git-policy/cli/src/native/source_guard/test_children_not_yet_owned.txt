@@ -128,11 +128,6 @@ lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round 
 lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/stopped_git_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_changes_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 push/auto_push_reconcile_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/bounded_push_awaiting_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/bounded_push_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
