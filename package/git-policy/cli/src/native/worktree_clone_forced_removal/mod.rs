@@ -88,10 +88,24 @@
 //!   the single-threaded child that enters one holder namespace and runs one
 //!   piece of the act there,
 //!   and the bounded report it hands back.
+//! - `the_mount_table_the_act_reads.rs`:
+//!   the kernel's mount table as the act reads it inside a holder's namespace,
+//!   one row per mount and the topmost mount at a path.
 //! - `the_copy_taken_out_of_a_namespace.rs`:
-//!   the act itself, in two stages:
-//!   the structural stage that proves the copy and makes way 7's directory,
-//!   and the unmount stage that takes the copy out by the handle or by the move.
+//!   the shapes the act speaks in:
+//!   one holder namespace's copy,
+//!   what the structural stage left,
+//!   what the unmount stage took out,
+//!   why the act stopped,
+//!   and the word a failed child's report becomes.
+//! - `the_structural_stage.rs`:
+//!   the act's first stage in both halves:
+//!   prove the copy and the checkout's own mount,
+//!   and for way 7 stop the parent propagating and make the directory.
+//! - `the_unmount_stage.rs`:
+//!   the act's second stage in both halves:
+//!   take the copy out by the handle,
+//!   or move it onto way 7's directory and unmount it there.
 //! - `removal_progress_file.rs`:
 //!   the progress file the handler advances while the act lives,
 //!   and the reads the wrapper makes of it.
@@ -155,8 +169,17 @@ pub mod descriptor_calls;
 /// The child that enters one holder namespace and runs one piece of the act.
 pub mod mount_namespace_child;
 
-/// The act on one holder namespace's copy, in its two stages.
+/// The kernel's mount table as the act reads it.
+pub mod the_mount_table_the_act_reads;
+
+/// The shapes the act speaks in, and the word a failed child's report becomes.
 pub mod the_copy_taken_out_of_a_namespace;
+
+/// The act's first stage, in both halves.
+pub mod the_structural_stage;
+
+/// The act's second stage, in both halves.
+pub mod the_unmount_stage;
 
 /// The progress file the handler advances while the act lives.
 pub mod removal_progress_file;
@@ -380,17 +403,18 @@ pub use the_acts_journal_lines::{
     dataset_word,
     quoted,
 };
-/// The act on one holder namespace's copy.
+/// The shapes the act speaks in and the word a failed child's report becomes.
 pub use the_copy_taken_out_of_a_namespace::{
     CopyRefusal,
     DESTINATION_MODE,
     NamespaceCopy,
     Ready,
     WayOut,
-    make_the_way_ready,
+};
+/// The kernel's mount table as the act reads it.
+pub use the_mount_table_the_act_reads::{
     row_of,
     rows_of,
-    take_the_copy_out,
     topmost_at,
 };
 /// The sentences a forced removal prints.
@@ -402,3 +426,7 @@ pub use the_refusal_sentences::{
     caller_holds_in_its_working_directory,
     the_callers_namespace_holds,
 };
+/// The act's first stage.
+pub use the_structural_stage::make_the_way_ready;
+/// The act's second stage.
+pub use the_unmount_stage::take_the_copy_out;
