@@ -298,6 +298,7 @@ among them app data folders whose edits matter (a notes app's settings folder, a
 Round 1's answer "every folder, including folders created later" decides it:
 the watcher config re-includes these names.
 Adopted unless the owner vetoes.
+(Superseded: directory-watcher cannot re-include them; see "Review findings".)
 
 ## The Mac recovered (2026-11-25T20:04:52-05:00)
 
@@ -345,6 +346,43 @@ Checked by the coordinating session against the sources before acting:
   the watcher unit and the 5-minute timer are not yet specified;
   and several lines of this record and the vet report were stale (fixed in the same change).
 
+## Review findings, Claude Sonnet gate review (2026-11-25T20:33:56-05:00)
+
+Its verdict: not confirmable yet.
+Beyond the DeepSeek findings it adds,
+each checked or labelled:
+
+- The candidate exits of rounds 4 to 6 rest on the blocking shape.
+  With round 7's `--no-block` hook on Linux,
+  the watcher's command is a millisecond `systemctl` call and systemd merges the requests,
+  so "queues natively" and "never interrupts a running command" no longer separate candidates on this PC;
+  they still matter on macOS and Windows, which have no such merge.
+  onchange's record shows it watches dot names (`OC-E18`);
+  Watchman kills only a `systemctl` child that has already exited.
+  Reading of the records, not measured.
+- Measured at 2026-11-25T20:33:56-05:00 in a systemd 262 container:
+  a unit with `Restart=on-failure` and `RestartSec=1` that always fails
+  ran its `OnFailure=` unit on every crash (5 of 5)
+  and then stayed failed with `Result=start-limit-hit` after five starts in 10 s.
+  So the watcher unit needs a `RestartSec` long enough that the default start limit cannot trip,
+  and the alert needs per-unit deduplication.
+- Measured, same container: `TimeoutStartSec` applies per `ExecStart=` pass (recorded under "Design consequences").
+- KeePassXC 2.8.0 defaults `AutoSaveAfterEveryChange` to true (`src/core/Config.cpp:61`, source reading),
+  so an editing session is a burst of saves;
+  with a 2 s quiet period each pause starts a sync,
+  and a save that lands inside an upload pass still makes a conflict copy (measured on the throwaway).
+- The recovery alert needs `OnSuccess=` (systemd 249 and later), not only a script change;
+  the remembered state has to be per unit and written only after `notify-send` succeeds.
+- Implementation details the record leaves open:
+  the trigger unit must not set `RemainAfterExit=yes`
+  and must order itself with `After=` only;
+  absolute or login-shell-resolved paths for `systemctl` and the watcher binary;
+  the 5-minute timer's `OnCalendar`, `RandomizedDelaySec` and `Persistent`;
+  whether `~` expands in the watcher YAML;
+  `WantedBy=default.target` (linger is on).
+- Round 2's "later clients only add a service wrapper" does not hold:
+  the Linux shape relies on systemd's job merging.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
@@ -352,8 +390,11 @@ Checked by the coordinating session against the sources before acting:
   unless something starts one more run after it.
   Settled in round 4:
   a queuing watcher plus a trigger unit ordered after the sync unit.
-- `TimeoutStartSec`: settled in round 7 (kept at 3000 s);
-  one `TimeoutStartSec` bounds the whole start job, so both passes together, not each pass.
+- `TimeoutStartSec`: settled in round 7 (kept at 3000 s).
+  Measured at 2026-11-25T20:33:56-05:00 (systemd 262 container, two 3-second `ExecStart=` passes under `TimeoutStartSec=5`, both finished):
+  the timeout applies to each pass,
+  so a stalled two-pass sync can hold every follow-up for up to 6000 s.
+  An earlier line here said the opposite, from a review claim; it was wrong.
 - The reasoning in `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` that `--conflict-resolve newer`
   cannot let a stale remote copy win assumes one writer;
   it needs rechecking once other clients write to the bucket on change.
