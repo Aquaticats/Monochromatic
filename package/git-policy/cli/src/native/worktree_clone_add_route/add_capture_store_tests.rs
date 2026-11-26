@@ -6,7 +6,7 @@
 
 use super::{capture_name, clear_other_adds_records, marker_is_ours, publish_capture, publish_marker, read_capture, remove_capture};
 use crate::test_support::{fixture, remove};
-use crate::worktree_clone_add_route::add_capture::{CapturedIndex, Capture};
+use crate::worktree_clone_add_route::add_capture::{Capture, CapturedDigest, CapturedEntry, CapturedIndex, CapturedKind};
 use crate::worktree_clone_binding_record::registration_home::{home_folder, open_or_create_home};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
@@ -26,6 +26,31 @@ fn a_capture(nonce: &RequestNonce) -> Capture {
         entries: Vec::new(),
         digests: Vec::new(),
     };
+}
+
+/// What:
+///  A capture whose encoded bytes are longer than the prefix the reader takes.
+/// Why:
+///  The reader learns the record's whole bound from its first bytes,
+///  and a capture of a few hundred tracked paths is longer than that prefix,
+///  which is the shape a person's checkout has and the empty capture does not.
+fn a_capture_longer_than_the_prefix(nonce: &RequestNonce) -> Capture {
+    let mut capture: Capture = a_capture(nonce);
+    let count: usize = 200;
+    for index in 0..count {
+        let path: Vec<u8> = format!("a/long/tracked/path/number/{index:03}/of/the/record").into_bytes();
+        capture.entries.push(CapturedEntry {
+            path: path.clone(),
+            kind: CapturedKind::Regular,
+            size: 1,
+            mtime: (1, 2),
+            ctime: (1, 2),
+            executable: false,
+            link_target: None,
+        });
+        capture.digests.push(CapturedDigest { path, digest: [7; 32] });
+    }
+    return capture;
 }
 
 /// A common directory with a fresh home.
@@ -48,6 +73,20 @@ fn one_publication_stays_and_a_second_replaces_nothing() {
     assert_eq!(read, capture);
     let second: std::io::Result<()> = publish_capture(&folder, "topic", &capture);
     assert!(second.is_err(), "a second publication replaces nothing");
+    remove(root.as_path());
+}
+
+#[test]
+fn a_capture_longer_than_the_prefix_reads_back() {
+    let (root, home) = a_home("capture-store-prefix");
+    let nonce: RequestNonce = RequestNonce::fresh().expect("a nonce");
+    let capture: Capture = a_capture_longer_than_the_prefix(&nonce);
+    let folder: std::fs::File = open_or_create_home(root.join(".git").as_path()).expect("the home opens");
+    publish_capture(&folder, "topic", &capture).expect("the publication");
+    let bytes: u64 = std::fs::metadata(home.join(capture_name("topic"))).expect("the record's metadata").len();
+    assert!(bytes > 8 * 1024, "the control's capture is longer than the prefix the reader takes: {bytes} bytes");
+    let read: Capture = read_capture(home.as_path(), "topic").expect("a capture longer than the prefix reads").expect("it stands");
+    assert_eq!(read.entries.len(), capture.entries.len(), "every entry of the longer capture reads back");
     remove(root.as_path());
 }
 

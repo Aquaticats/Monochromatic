@@ -164,6 +164,50 @@ impl Stage {
         };
     }
 
+    /// What:
+    ///  The stage one word names,
+    ///  which is how a reader turns a stored word back into the vocabulary.
+    /// Why:
+    ///  The progress file carries the word and a reader must refuse a word this
+    ///  build does not write rather than guess a stage.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const stage = Stage.parseWord('signals'); // undefined for another word
+    /// ```
+    pub fn parse_word(word: &str) -> Option<Stage> {
+        return match word {
+            "preflight" => Some(Stage::Preflight),
+            "structural" => Some(Stage::Structural),
+            "signals" => Some(Stage::Signals),
+            "unmount" => Some(Stage::Unmount),
+            "done" => Some(Stage::Done),
+            _ => None,
+        };
+    }
+
+    /// What:
+    ///  The stage one order value names,
+    ///  which a counter's own word reads back.
+    /// Why:
+    ///  The heartbeat publishes the stage the act last set,
+    ///  and it holds that word as a number,
+    ///  so exactly one place turns the number back into the vocabulary.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const stage = Stage.ofOrder(2); // 'signals'
+    /// ```
+    pub fn of_order(order: u8) -> Stage {
+        return match order {
+            1 => Stage::Structural,
+            2 => Stage::Signals,
+            3 => Stage::Unmount,
+            4 => Stage::Done,
+            _ => Stage::Preflight,
+        };
+    }
+
     /// The stage an earlier stage may advance to.
     /// Why:
     ///  The act's order is fixed and its words say which stage it is in,

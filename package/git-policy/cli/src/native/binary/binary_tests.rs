@@ -1113,6 +1113,11 @@ mod zfs_add_guest;
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
+/// Plan step 22's guest measurements: the add against ordinary Git, the
+/// waits, the sweep's cost, retention and the request budget.
+#[path = "binary_zfs_step_22_measurement_guest_tests.rs"]
+mod zfs_step_22_measurement;
+
 /// The refusal path of the installed name and the words,
 /// and the marker a start that reached the wrapper writes.
 #[path = "binary_root_mode_name_tests.rs"]
