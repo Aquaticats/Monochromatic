@@ -38,6 +38,8 @@ import {
   type ProviderPool,
   QWEN_PLAN_DEEPSEEK,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
+  VIRTUAL_POOLS,
+  type VirtualPool,
   firstDefaultPoolWithRoom,
   freeSpaceFloorTextOf,
   freeSpaceTextOf,
@@ -49,11 +51,13 @@ import {
   poolHasRoom,
   poolNamed,
   poolTakesNoNewRun,
+  poolsARunMayTake,
   poolsHeldBy,
   poolsWithTheseLimits,
   roomIn,
   summaryTextOf,
   talliesOf,
+  virtualTextOf,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -256,7 +260,7 @@ function countOf({
 
 /**
  Says the counts line names every pool the table ships, in the table's order, each with the count these runs give it and its own
- limit.
+ limit, and then every virtual selection with the count of runs on its members once and the room they have together.
 
  @param line - the counts line, without the room the volume has
 
@@ -275,16 +279,75 @@ function expectCountsLineNamesEachPool({
   readonly runs: readonly GoingRun[];
 },): void {
   /**
-   One entry per pool, in the order the line prints them.
+   One entry per pool and one per virtual selection, in the order the line prints them.
    */
   const entries = line.split(', ',);
-  expect(entries.length,).toBe(PROVIDER_POOLS.length,);
+  expect(entries.length,).toBe(PROVIDER_POOLS.length + VIRTUAL_POOLS.length,);
   for (const [index, pool,] of PROVIDER_POOLS.entries()) {
     expect(entries[index],).toBe(`${pool.name} ${String(countOf({
       runs,
       pool,
     },),)}/${String(roomIn(pool,),)}`,);
   }
+  for (const [index, selection,] of VIRTUAL_POOLS.entries()) {
+    expect(entries[PROVIDER_POOLS.length + index],).toBe(`${virtualTextOf({ virtual: selection, },)} ${String(countOnItsMembers({
+      runs,
+      selection,
+    },),)}/${String(roomTogetherOf(selection,),)} together`,);
+  }
+}
+
+/**
+ How many of the runs are on the members of one virtual selection, each counted once however many of those members it may take.
+
+ @param runs - the runs going now
+
+ @param selection - the virtual selection to count
+
+ @returns how many runs are on its members
+
+ @example
+ ```ts
+ const going = countOnItsMembers({ runs, selection: VIRTUAL_WRITER });
+ ```
+ */
+function countOnItsMembers({
+  runs,
+  selection,
+}: {
+  readonly runs: readonly GoingRun[];
+  readonly selection: VirtualPool;
+},): number {
+  /**
+   The names of the selection's members.
+   */
+  const members = new Set(selection.memberPools.map(function nameOf(pool,) {
+    return pool.name;
+  },),);
+  return runs.filter(function mayTakeAMember(run,) {
+    return poolsARunMayTake({ membership: run.membership, },)
+      .some(function isOneOfTheMembers(pool,) {
+        return members.has(pool.name,);
+      },);
+  },).length;
+}
+
+/**
+ The room one virtual selection's members have together, read from the shipped table.
+
+ @param selection - the virtual selection to read
+
+ @returns how many runs its open members take together
+
+ @example
+ ```ts
+ const room = roomTogetherOf(VIRTUAL_WRITER);
+ ```
+ */
+function roomTogetherOf(selection: VirtualPool,): number {
+  return selection.memberPools.reduce(function sumOf(sum, pool,) {
+    return sum + roomIn(pool,);
+  }, 0,);
 }
 
 /**
@@ -558,7 +621,7 @@ await describe({
       name: summaryTextOf.name,
       children: [
         it({
-          name: 'names every pool the table ships, in the table order every count prints, each with its own limit',
+          name: 'names every pool the table ships, in the table order every count prints, each with its own limit, and then each virtual selection with the room its members have together',
           fn: async () => {
             expectCountsLineNamesEachPool({
               line: summaryTextOf(talliesOf({ runs: [], },),),

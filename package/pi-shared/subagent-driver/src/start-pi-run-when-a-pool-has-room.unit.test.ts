@@ -36,6 +36,7 @@ import {
   POOL_LIMITS_VARIABLE,
   PROVIDER_POOLS,
   type ProviderPool,
+  VIRTUAL_POOLS,
   firstDefaultPoolWithRoom,
   freeSpaceFloorTextOf,
   freeSpaceTextOf,
@@ -139,7 +140,7 @@ function openDefaultPools(): readonly ProviderPool[] {
 
 /**
  Says the counts line names every pool the table ships, in the table's order, each with the count this test expects and its own
- limit, and ends with the room the build volume has.
+ limit, then every virtual selection with the room its members have together, and ends with the room the build volume has.
 
  @param line - what the gate printed
 
@@ -167,16 +168,22 @@ function expectCountsLine({
   readonly volume: string;
 },): void {
   /**
-   The pools, and the room the volume has, which the line names after a semicolon.
+   The pools, the virtual selections and the room the volume has, which the line names after a semicolon.
    */
   const [summary, room,] = line.split('; ',);
   /**
-   One entry per pool, in the order the line prints them.
+   One entry per pool and one per virtual selection, in the order the line prints them.
    */
   const entries = (summary ?? '').split(', ',);
-  expect(entries.length,).toBe(PROVIDER_POOLS.length,);
+  expect(entries.length,).toBe(PROVIDER_POOLS.length + VIRTUAL_POOLS.length,);
   for (const [index, pool,] of PROVIDER_POOLS.entries()) {
     expect(entries[index],).toBe(`${pool.name} ${String(counts.get(pool.name,) ?? 0,)}/${String(roomIn(pool,),)}`,);
+  }
+  for (const [index, selection,] of VIRTUAL_POOLS.entries()) {
+    // The combined count is not written down here: this control reads that the selection has an entry of the shape the tally
+    // prints, and every number of it comes from the runs whose counts a test states.
+    expect(entries[PROVIDER_POOLS.length + index],).toContain(`${selection.provider}/${selection.model} `,);
+    expect(entries[PROVIDER_POOLS.length + index]?.endsWith(' together',),).toBe(true,);
   }
   expect(room,).toBe(freeSpaceTextOf({
     volume,

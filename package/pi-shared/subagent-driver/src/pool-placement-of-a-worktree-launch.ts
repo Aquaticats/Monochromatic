@@ -8,8 +8,9 @@
  provider and model name.
 
  A command line that names Pi's virtual writer or reviewer keeps that pair: the plugin's router moves a refused request on by
- itself, so rewriting the pair would pin the run to one member. Such a run is counted in every pool that router may take
- (`place-a-run-on-a-virtual-selection.ts`), and starts only while all of them have room.
+ itself, so rewriting the pair would pin the run to one member. Such a run is counted once against the room those members have
+ together (`place-a-run-on-a-virtual-selection.ts`), and starts while the runs on them are fewer than that room: a run on a
+ virtual selection holds no member's own room, so the smallest member bounds nothing here.
 
  The counts are the pool gate's own (`goingRunsNow`, `talliesOf`), so a slot this command takes is a slot the gate reads as taken
  once the unit exists: the unit's command line names the pool. No second counting mechanism exists beside that one.
@@ -25,27 +26,18 @@ import {
 } from './pool-counts-before-a-launch.ts';
 import {
   poolOfARunNamingNoProvider,
-  whyItTakesNoRun,
 } from './pool-of-a-run-naming-no-provider.ts';
 import {
   NO_SLOT_EXIT_STATUS,
-  poolChoiceFor,
 } from './pool-gate.ts';
 import {
   NO_VIRTUAL_POOL,
-  POOL_LIMITS_VARIABLE,
   PoolLimitsError,
   type PoolMembership,
-  type ProviderPool,
-  limitsIn,
   poolNamed,
-  poolOfThatNameIn,
-  poolsWithTheseLimits,
-  type VirtualPool,
   virtualPoolNamed,
 } from './pool-limits.ts';
 import {
-  poolsWithoutRoom,
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';
@@ -254,8 +246,8 @@ export async function poolPlacementOfAWorktreeLaunch({
     model,
   },);
   /**
-   The virtual selection the pair names, when it names one: a run on it keeps its pair and is counted against every pool that
-   selection's router may take.
+   The virtual selection the pair names, when it names one: a run on it keeps its pair and is counted once against the room its
+   members have together.
    */
   const virtual = virtualPoolNamed({
     provider,

@@ -1,11 +1,13 @@
 /**
- What a launch on Pi's virtual writer takes, and what it is refused with: the pair it named, and every pool that plugin's router may
- send it to.
+ What a launch on Pi's virtual writer takes, and what it is refused with: the pair it named, and the room its router's members have
+ together.
 
  A virtual selection has no single pool to place a run on. Its router starts every request at the first member and moves the request
- on when a member refuses with a `429` before any output, so the run may be taking any member's room at its next request. The run
- therefore keeps the provider and model it named, which is what lets the router move the request on, and it starts only while every
- pool that router may take has room.
+ on when a member refuses with a `429` before any output, so the run takes whatever room those members have between them. The run
+ therefore keeps the provider and model it named, which is what lets the router move the request on, and it is counted once against
+ that room rather than as a slot in each member, which is what capped these runs at the smallest member's room
+ (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The virtual writer is not capped at its smallest
+ member").
 
  @module
  */
@@ -14,9 +16,10 @@ import { wallSecondsOn, } from './launcher-arguments.ts';
 import {
   POOL_LIMITS_VARIABLE,
   type PoolMembership,
-  type ProviderPool,
-  poolOfThatNameIn,
+  poolTakesNoNewRun,
   type VirtualPool,
+  membershipOfAVirtualSelection,
+  virtualTextOf,
 } from './pool-limits.ts';
 import {
   poolsWithTheCallersLimits,
@@ -28,38 +31,34 @@ import {
 } from './pool-gate.ts';
 import { whyItTakesNoRun, } from './pool-of-a-run-naming-no-provider.ts';
 import {
-  poolsWithoutRoom,
   summaryTextOf,
   talliesOf,
+  virtualRoomOf,
 } from './pool-tallies.ts';
 import type { RunCommand, } from './run-command.ts';
 import type { WorktreeLaunchPlacement, } from './worktree-launch-placement.ts';
 
 /**
- Says what a run on a virtual selection is refused with: the pools its router may take, which of them has no room and why, and the
- setting that gives a pool room again.
+ Says what a run on a virtual selection is refused with: the pools its router may take, how full they are together, and the
+ setting that gives a member room again.
 
  @param virtual - the selection the run named
 
- @param tallies - how many runs each pool holds, and the pools that were counted with a caller's limits
-
- @param full - the pools of the selection that have no room now
+ @param tallies - how many runs each pool holds, and how full the selections are together, with a caller's limits
 
  @returns the refusal, one line per thing a reader needs
 
  @example
  ```ts
- const text = virtualRunRefusalTextOf({ virtual: VIRTUAL_WRITER, tallies, full });
+ const text = virtualRunRefusalTextOf({ virtual: VIRTUAL_WRITER, tallies });
  ```
  */
 function virtualRunRefusalTextOf({
   virtual,
   tallies,
-  full,
 }: {
   readonly virtual: VirtualPool;
   readonly tallies: ReturnType<typeof talliesOf>;
-  readonly full: readonly ProviderPool[];
 },): string {
   /**
    The names of the pools that selection's router may take, in its own order.
@@ -70,24 +69,52 @@ function virtualRunRefusalTextOf({
     },)
     .join(', ',);
   /**
+   How full those members are together, which is the count that refuses this run.
+   */
+  const room = virtualRoomOf({
+    tallies,
+    virtual,
+  },);
+  /**
    The lines the refusal is made of, which start with what this command could not find.
    */
   const lines: string[] = [
-    `--provider=${virtual.provider} --model=${virtual.model} is a virtual selection whose router may take ${members}, and a run on it holds a slot in every one of those pools.`,
-    'No run on it starts while any of them has no room:',
+    `--provider=${virtual.provider} --model=${virtual.model} is a virtual selection whose router may take ${members}, and a run on it is counted once against the room those members have together.`,
+    'No run on it starts while the runs on those members fill that room:',
   ];
-  for (const pool of full) {
+  for (const pool of room.pools) {
     lines.push(`  ${pool.name}: ${whyItTakesNoRun({
       tallies,
       pool,
     },)}`,);
   }
+  lines.push(`  together: ${String(room.going,)} going of the ${String(room.room,)} those open members take`,);
   /**
-   The pool the refusal names in its closing line, which is the first one a reader could reopen.
+   The members a caller closed, which add no room to that total.
    */
-  const named = full[0]
+  const closed = room.pools
+    .filter(function takesNoNewRun(pool,) {
+      return poolTakesNoNewRun({ pool, },);
+    },);
+  if (closed.length > 0) {
+    /**
+     Their names, so a reader knows which members the total leaves out.
+     */
+    const named = closed.map(function nameOf(pool,) {
+      return pool.name;
+    },)
+      .join(', ',);
+    lines.push(`  ${named} ${(closed.length === 1) ? 'adds' : 'add'} no room while closed, and the runs already there are still counted in the total.`,);
+  }
+  /**
+   The pool the refusal names in its closing line, which is the first open member a reader could reopen.
+   */
+  const named = room.pools
+    .find(function isOpen(pool,) {
+      return !poolTakesNoNewRun({ pool, },);
+    },)
     ?.name
-    ?? virtual.memberPools[0]
+    ?? room.pools[0]
       ?.name
     ?? '';
   lines.push(
@@ -98,7 +125,7 @@ function virtualRunRefusalTextOf({
 
 /**
  Places a run on a virtual selection: it keeps the provider and model it named, so its router can still move a request on, and it
- starts only while every pool that router may take has room.
+ starts while the runs on those members are fewer than the room they have together.
 
  This run's own name is left out of the count, as it is for a run placed on one pool: the launcher is already a launcher of that
  name, and the slot it is choosing is the one it would hold.
@@ -121,7 +148,7 @@ function virtualRunRefusalTextOf({
 
  @param run - how a command is run
 
- @returns the run's placement, which is a refusal naming each pool that has no room
+ @returns the run's placement, which is a refusal naming how full the members are together
 
  @throws PoolLimitsError when the limits setting cannot be read
 
@@ -171,20 +198,14 @@ export async function placeARunOnAVirtualSelection({
     pools,
   },);
   /**
-   What the run holds: every pool the selection's router may take, as the caller's table holds them.
+   What the run holds: one slot against the room the selection's members have together, as the caller's table holds them.
    */
-  const requested: PoolMembership = {
-    holds: 'some-pools',
-    pools: virtual.memberPools
-      .map(function asTheCallersTableHoldsIt(pool,) {
-        return poolOfThatNameIn({
-          pool,
-          pools,
-        },);
-      },),
-  };
+  const requested: PoolMembership = membershipOfAVirtualSelection({
+    virtual,
+    pools,
+  },);
   /**
-   Which of those pools the run may take now, which is the pool gate's own reading of the owner's order.
+   Which of those members the run may take now, which is the pool gate's own reading of the owner's order.
    */
   const choice = poolChoiceFor({
     requested,
@@ -198,10 +219,6 @@ export async function placeARunOnAVirtualSelection({
       message: virtualRunRefusalTextOf({
         virtual,
         tallies,
-        full: poolsWithoutRoom({
-          tallies,
-          membership: requested,
-        },),
       },),
     };
   }
@@ -224,6 +241,6 @@ export async function placeARunOnAVirtualSelection({
       wallSeconds,
       wallFactor: choice.wallFactor,
     },),
-    lines: [`pool: ${virtual.provider}/${virtual.model}, every pool its router may take has room (${members}): ${summaryTextOf(tallies,)}`,],
+    lines: [`pool: ${virtualTextOf({ virtual, },)}, its members have room together (${members}): ${summaryTextOf(tallies,)}`,],
   };
 }
