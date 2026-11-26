@@ -34,7 +34,7 @@
 //! and until then the caller passes what step 16 has.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `request_budget.rs`:
 //!   the largest encoded request input one request may carry.
@@ -45,6 +45,8 @@
 //!   the one request,
 //!   its encoded size,
 //!   and the proof it names no `defer` key.
+//! - `snapshot_batch_plan.rs`:
+//!   the sort and the largest fitting prefix over the budget.
 //! - `snapshot_name_outcome.rs`:
 //!   one submitted name's answer as `destroyed`,
 //!   `refused`,
@@ -55,8 +57,6 @@
 //!   with the kernel's per-name list kept.
 //! - `snapshot_batch_answer.rs`:
 //!   reading a live answer into those outcomes.
-//! - `snapshot_batch_plan.rs`:
-//!   the sort and the largest fitting prefix over the budget.
 //! - `snapshot_batch_send.rs`:
 //!   the device seam,
 //!   the empty-set skip and one request's outcome.

@@ -34,6 +34,14 @@ mod lint_attribute_tests;
 #[path = "typed_ban_configuration_tests.rs"]
 mod typed_ban_configuration_tests;
 
+/// The passage each piece built ahead of its command has in both release
+/// documents,
+/// because a reader of either one must learn that the piece exists and that no
+/// command reaches it.
+#[cfg(test)]
+#[path = "spec_and_readme_reach_tests.rs"]
+mod spec_and_readme_reach_tests;
+
 /// The lock inventory of the service and its support modules:
 /// a lock stands only on the inventory,
 /// with its reason beside it.
@@ -67,6 +75,13 @@ mod no_self_invocation_tests;
 #[cfg(test)]
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
+
+/// The ban on a control reading a starter's marker to decide whether its body runs here:
+/// a control hands the starter its body,
+/// which runs in a child of the test binary.
+#[cfg(test)]
+#[path = "only_the_process_wide_starter_reads_its_marker_tests.rs"]
+mod only_the_process_wide_starter_reads_its_marker_tests;
 
 /// The ban on a list of text written as an array with a hand-counted length:
 /// a list of names, sites or words is a slice,

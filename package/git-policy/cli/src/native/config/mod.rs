@@ -4,6 +4,37 @@
 //!  Settings reach every other subsystem through these modules,
 //!  so they are easy to find in one place.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `config_error.rs`:
+//!   the one failure type for rejected configuration content or files.
+//! - `config_fsync.rs`:
+//!   git's `core.fsync` value read into the components it flushes.
+//! - `config_loading.rs`:
+//!   lazy configuration loading for known inspection versus mutation/ambiguous commands.
+//! - `config_rules_file.rs`:
+//!   the `rulesFile` option:
+//!   a repository-relative name that stays inside the repository.
+//! - `config_schema.rs`:
+//!   typed settings and their defaults.
+//! - `config_snapshot.rs`:
+//!   one `git config --list` read,
+//!   parsed,
+//!   and the lookups the commit path makes against it.
+//! - `config_values.rs`:
+//!   key-naming typed readers over parsed JSONC values.
+//! - `config_policies_markdown.rs`:
+//!   validation of the options of the `markdown/autofix` policy and of its `rules` list.
+//! - `config_policies.rs`:
+//!   validation of the `policies` section and per-policy options.
+//! - `config_parse.rs`:
+//!   whole-document JSONC validation into typed settings.
+//! - `config_file.rs`:
+//!   repository-root discovery and bounded reading of `monochromatic-git-policy-cli.config.jsonc`.
+//! - `invocation_config.rs`:
+//!   configuration of the repository one invocation selects.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // config/index.ts: one `export * from './file'` per module below.

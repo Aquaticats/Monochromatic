@@ -244,48 +244,48 @@ fn a_staging_that_lands_after_the_read_reaches_neither_private_copy() {
 /// ```
 #[test]
 fn every_selection_mode_states_its_one_read_and_its_seed_walk() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "every_selection_mode_states_its_one_read_and_its_seed_walk",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("commit-index-one-read-spans");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
-    let named: Vec<OsString> = vec![OsString::from("a.txt")];
-    let all: Vec<OsString> = Vec::new();
-    let modes: [(&str, TransactionMode, &Vec<OsString>, Option<usize>); 2] = [
-        ("index", TransactionMode::Index, &all, None),
-        (
-            "explicit path",
-            TransactionMode::ExplicitPath,
-            &named,
-            Some(1),
-        ),
-    ];
-    for (called, mode, pathspecs, seed_walks) in modes {
-        let _previous = crate::prepare_work_spans::drain_spans();
-        initialize(&repo, &indexes, &selection(mode, pathspecs, &base));
-        let (spans, dropped) = crate::prepare_work_spans::drain_spans();
-        assert_eq!(dropped, 0, "{called}: every step name fits");
-        assert_eq!(
-            calls_of(spans.as_slice(), "index read"),
-            Some(1),
-            "{called}: the one read of the real index is stated: {spans:?}"
-        );
-        assert_eq!(
-            calls_of(spans.as_slice(), "index seed"),
-            seed_walks,
-            "{called}: the walk of those bytes for the seed is stated only where the mode decides one: {spans:?}"
-        );
-        assert_eq!(
-            calls_of(spans.as_slice(), "index copy"),
-            Some(2),
-            "{called}: both private copies are stated: {spans:?}"
-        );
-    }
-    remove(root.as_path());
+        || {
+            let root: PathBuf = fixture("commit-index-one-read-spans");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+            let named: Vec<OsString> = vec![OsString::from("a.txt")];
+            let all: Vec<OsString> = Vec::new();
+            let modes: [(&str, TransactionMode, &Vec<OsString>, Option<usize>); 2] = [
+                ("index", TransactionMode::Index, &all, None),
+                (
+                    "explicit path",
+                    TransactionMode::ExplicitPath,
+                    &named,
+                    Some(1),
+                ),
+            ];
+            for (called, mode, pathspecs, seed_walks) in modes {
+                let _previous = crate::prepare_work_spans::drain_spans();
+                initialize(&repo, &indexes, &selection(mode, pathspecs, &base));
+                let (spans, dropped) = crate::prepare_work_spans::drain_spans();
+                assert_eq!(dropped, 0, "{called}: every step name fits");
+                assert_eq!(
+                    calls_of(spans.as_slice(), "index read"),
+                    Some(1),
+                    "{called}: the one read of the real index is stated: {spans:?}"
+                );
+                assert_eq!(
+                    calls_of(spans.as_slice(), "index seed"),
+                    seed_walks,
+                    "{called}: the walk of those bytes for the seed is stated only where the mode decides one: {spans:?}"
+                );
+                assert_eq!(
+                    calls_of(spans.as_slice(), "index copy"),
+                    Some(2),
+                    "{called}: both private copies are stated: {spans:?}"
+                );
+            }
+            remove(root.as_path());
+        },
+    );
 }
 
 /// What:

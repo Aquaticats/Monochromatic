@@ -16,6 +16,7 @@
 //!  (issue 6450: the add printed a Rust `Debug` value here).
 
 use super::fresh_the_record;
+use super::resume_the_record;
 use super::run_a_zfs_add;
 use super::run_the_route;
 use crate::test_support::{
@@ -31,12 +32,16 @@ use crate::worktree_clone_add_route::add_preflight::Preflight;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
+use crate::worktree_clone_binding_record::binding_record::BindingRecord;
+use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 use crate::worktree_clone_binding_record::registration_home::{
+    binding_path,
     home_folder,
     plans_folder,
 };
 use crate::worktree_clone_mount_protocol::DatasetGuid;
+use crate::worktree_clone_slot_state::slot_state_test_records::record_at;
 use crate::worktree_command_facts::AddPlan;
 use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_identity::WorktreeIdentity;
@@ -241,6 +246,77 @@ fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
         );
     }
     remove(root.as_path());
+}
+
+/// What:
+///  A record written by an add that was given another request refuses the
+///  resume,
+///  and its sentence names the record's own file.
+/// Why:
+///  The sentence said `git worktree remove` removed the worktree and its
+///  records,
+///  and Git's removal deletes the registration and the slot folder while the
+///  binding record stays,
+///  so a person who followed it was left with a slot that refused every add and
+///  no command that removed the record
+///  (the release pass's run t1).
+///  The way forward names the file to delete instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = resumeTheRecord(route, planForMain, recordForAnotherRequest);
+/// expect(refusal.message).toContain('leaves that record');
+/// ```
+#[test]
+fn a_record_written_for_another_request_names_the_file_git_leaves_behind() {
+    let destination: PathBuf = PathBuf::from("/repo/.claude/worktrees/topic");
+    let route: RouteFacts = RouteFacts {
+        source_root: PathBuf::from("/repo"),
+        common_dir: PathBuf::from("/repo/.git"),
+        git_dir: PathBuf::from("/repo/.git"),
+        destination: destination.clone(),
+        slot: String::from("topic"),
+        checkout_dataset: String::from("tank/monochromatic-git-checkout"),
+        container_dataset: String::from("tank/clones"),
+        pool: String::from("tank"),
+    };
+    let record: BindingRecord = record_at(Phase::Snapshotted, destination.as_path());
+    let plan: AddPlan = AddPlan {
+        destination: destination.clone(),
+        insert_at: 2,
+        quiet: false,
+        target: Some(OsString::from("main")),
+        checks_out_a_branch: false,
+    };
+    let arguments: Vec<OsString> = [
+        String::from("worktree"),
+        String::from("add"),
+        destination.display().to_string(),
+        String::from("main"),
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
+    let refusal: StepRefusal = resume_the_record(&route, &plan, arguments.as_slice(), record, 7)
+        .expect_err("another request refuses the resume");
+    let message: &str = refusal.message.as_str();
+    let record_path: PathBuf = binding_path(route.common_dir.as_path(), route.slot.as_str());
+    assert!(
+        message.contains("git worktree remove topic"),
+        "the worktree's removal is named: {message}"
+    );
+    assert!(
+        message.contains(record_path.display().to_string().as_str()),
+        "and the record's own file after it: {message}"
+    );
+    assert!(
+        message.contains("leaves that record"),
+        "the sentence says Git's removal leaves it: {message}"
+    );
+    assert!(
+        !message.contains("and its records"),
+        "and claims no removal of the records: {message}"
+    );
 }
 
 /// What:

@@ -104,7 +104,7 @@ pub fn usage() -> String {
         format!("usage: {ROOT_MODE_FILE_PLACEHOLDER} {named} <mode>"),
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
         String::from("  start-probe          run the start probe's arms and write this boot's result"),
-        String::from("  shutdown-unmount     unmount the verified clone mounts at shutdown; the boot unit's ExecStopPost"),
+        String::from("  shutdown-unmount     refuses in this build: unmounts the mounts this boot verified once plan step 19's boot unit runs it"),
         String::from("  holder-scan --dataset <name> [--nonce <32 hex digits>]"),
         String::from("                       report which mount namespaces hold that clone, and every read the scan could not complete"),
         String::from("  adopt-worktree-parent --checkout <path> --device <count> --inode <count>"),

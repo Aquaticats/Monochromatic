@@ -33,6 +33,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `mode_awaiting_its_step.rs`:
+//!   the refusal of a mode whose plan step has not landed.
+//! - `per_slot_root_claim.rs`:
+//!   the root-owned directory of one claim file per slot,
+//!   and the exclusive lock a sweep holds while it acts.
 //! - `root_mode_names.rs`:
 //!   the one start name and the group word,
 //!   and the decision each start is read as.
@@ -50,32 +55,32 @@
 //!   what one invocation asks for,
 //!   the adoption's three options and the replacement a record admits,
 //!   and the parse that reads them.
-//! - `mode_awaiting_its_step.rs`:
-//!   the refusal of a mode whose plan step has not landed.
 //! - `root_mode_caller.rs`:
 //!   the refusal a root mode answers a caller that is not root with.
+//! - `adopt_worktree_parent_mode.rs`:
+//!   the administrator's adoption,
+//!   decided by step 4's table and recorded here.
+//! - `shutdown_unmount_mode.rs`:
+//!   the shutdown unit's verified unmount,
+//!   which step 9 builds.
 //! - `sweep_checkout_mount.rs`:
 //!   the checkout's own mount,
 //!   its dataset and its propagation,
 //!   read from the kernel's table.
+//! - `sweep_configuration.rs`:
+//!   the names the sweep takes from the configuration and the mount table.
 //! - `sweep_configuration_refusal.rs`:
 //!   why the sweep has no names to act on,
 //!   and the words a person reads for each cause.
-//! - `attaching_sweep_mode.rs`:
-//!   the default invocation's sweep,
-//!   which step 8 builds.
-//! - `boot_reconcile_mode.rs`:
-//!   the boot unit's reconciliation,
-//!   which step 6 begins.
-//! - `shutdown_unmount_mode.rs`:
-//!   the shutdown unit's verified unmount,
-//!   which step 9 builds.
+//! - `sweep_dataset_facts.rs`:
+//!   what one dataset the sweep reached says about itself.
+//! - `sweep_clone_check.rs`:
+//!   the checks one child of the pinned parent passes before it is attached.
+//! - `sweep_dataset_reader.rs`:
+//!   the pool reads one sweep makes and the parent's child listing.
 //! - `holder_scan_mode.rs`:
 //!   the all-namespace holder scan of one clone,
 //!   which step 9 builds.
-//! - `adopt_worktree_parent_mode.rs`:
-//!   the administrator's adoption,
-//!   decided by step 4's table and recorded here.
 //! - `record_checkout_mode_record.rs`:
 //!   what the checkout record holds,
 //!   the field a later run finds different,
@@ -96,12 +101,37 @@
 //! - `mount_path_descendant_mode.rs`:
 //!   one nested dataset mounted at its own mountpoint beneath the recorded
 //!   checkout.
-//! - `per_slot_root_claim.rs`:
-//!   the root-owned directory of one claim file per slot,
-//!   and the exclusive lock a sweep holds while it acts.
+//! - `sweep_first_attach.rs`:
+//!   this boot's first attach,
+//!   claimed after the key check and written before the receipt.
+//! - `sweep_preconditions.rs`:
+//!   what a run checks before any attach.
+//! - `sweep_standing_mount_source.rs`:
+//!   one mount's source,
+//!   asked of the kernel by the mount's unique number.
+//! - `sweep_standing_mounts.rs`:
+//!   whether a clone's own mount stands at its slot,
+//!   from one polled read of the kernel's mount table and that one mount's source.
+//! - `sweep_attach_step.rs`:
+//!   the attach step one clone goes through and its rollback,
+//!   and the answer an occupied slot gets before the attach.
+//! - `sweep_one_clone.rs`:
+//!   one clone's whole turn of the sweep.
+//! - `sweep_one_clone_answers.rs`:
+//!   what one clone's turn answers and files.
+//! - `sweep_run.rs`:
+//!   one whole sweep run and the lines it reports.
+//! - `attaching_sweep_mode.rs`:
+//!   the default invocation's sweep,
+//!   which step 8 builds.
+//! - `boot_reconcile_mode.rs`:
+//!   the boot unit's reconciliation,
+//!   which step 6 begins.
 //! - `handler_mode_dispatch.rs`:
 //!   the command line,
 //!   the exit statuses and the lines each mode writes.
+//! - `sweep_unmount_answers.rs`:
+//!   the unmount arm's GUID read and refusal answer.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

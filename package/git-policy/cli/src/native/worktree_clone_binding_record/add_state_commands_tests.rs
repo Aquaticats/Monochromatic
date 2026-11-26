@@ -6,10 +6,12 @@
 //!  it,
 //!  a plan's recorded name answering another clone names no command,
 //!  and
-//!  the printed settling line carries placeholders rather than the digits.
+//!  the printed settling line carries placeholders rather than the digits,
+//!  and both lines say the command they leave cannot be run in this release.
 
 use crate::worktree_clone_binding_record::add_state_commands::{
     ClonePresence,
+    NOT_ADMITTED_YET,
     NextCommand,
     PlanHeadWord,
     SETTLING_COMMAND_WORDS,
@@ -301,7 +303,8 @@ fn a_reused_name_names_no_command_for_every_head_word() {
 }
 
 /// The line for a reused name sends the person to the records and names no
-/// command that would act on the slot.
+/// command that would act on the slot,
+/// and it does not claim a `doctor` line this release prints.
 #[test]
 fn the_reused_names_line_names_the_doctor_and_no_command() {
     let line: String = NextCommand::APersonReadsTheRecords.printed_line("add-cache-layer");
@@ -309,7 +312,22 @@ fn the_reused_names_line_names_the_doctor_and_no_command() {
         line.contains("no command of this release settles the state"),
         "{line}"
     );
-    assert!(line.contains("doctor"), "{line}");
+    assert!(
+        line.contains("`git monochromatic-git-policy-cli doctor`"),
+        "the doctor is named as a person types it: {line}"
+    );
+    assert!(
+        !line.contains("names the plan"),
+        "and no line of this release names the plan, its registration and the slot: {line}"
+    );
+    assert!(
+        line.contains("add-cache-layer.binding"),
+        "the binding record's own name is printed: {line}"
+    );
+    assert!(
+        line.contains("monochromatic-git-policy-cli/worktree-clones/v1"),
+        "and the folder it sits in under the common directory: {line}"
+    );
     for command in [
         SETTLING_COMMAND_WORDS,
         "git worktree remove",
@@ -323,7 +341,8 @@ fn the_reused_names_line_names_the_doctor_and_no_command() {
 }
 
 /// The printed settling line names the command and leaves both flags as placeholders,
-/// so the line a person copies carries no value they must have read.
+/// so the line a person copies carries no value they must have read,
+/// and it says the command cannot be run in this release.
 #[test]
 fn the_settling_line_leaves_its_confirmations_as_placeholders() {
     let line: String = NextCommand::TheSettlingCommand.printed_line("add-cache-layer");
@@ -332,6 +351,14 @@ fn the_settling_line_leaves_its_confirmations_as_placeholders() {
     assert!(
         line.contains("--confirm-clone-guid <the last four decimal digits of cloneGuid=>"),
         "{line}"
+    );
+    assert!(
+        line.contains(NOT_ADMITTED_YET),
+        "the line says no grammar admits the command: {line}"
+    );
+    assert!(
+        line.contains("cannot be run yet"),
+        "and that nothing can be run for the state: {line}"
     );
     assert!(
         !line.contains("3102"),
