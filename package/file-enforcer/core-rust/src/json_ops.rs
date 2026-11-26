@@ -554,10 +554,9 @@ impl JsonText {
         offset: usize,
     ) -> &str {
         let bytes = self.source.as_bytes();
-        let head = match self.source.get(..offset) {
-            Some(head) => head,
-            None => "",
-        };
+        // A caller passes a member's own key start, so this never falls outside a character boundary; the
+        // empty fallback means "no line before this offset", which the match below reads as the first line.
+        let head = self.source.get(..offset).unwrap_or("");
         let start = match head.rfind('\n') {
             Some(index) => index + 1,
             None => 0,
