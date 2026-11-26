@@ -288,6 +288,14 @@ fn a_plan_witnessing_no_destroy_names_the_cancel_command() {
             sentence.contains(SLOT),
             "the cancel command names the slot: {sentence}"
         );
+        assert!(
+            sentence.contains("no management grammar admits it in this release"),
+            "and says the command cannot be run yet: {sentence}"
+        );
+        assert!(
+            !sentence.contains("runs `git"),
+            "and sends nobody to run it: {sentence}"
+        );
     }
 }
 

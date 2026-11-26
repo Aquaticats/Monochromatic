@@ -27,6 +27,12 @@
 //! ```
 
 use super::binding_words::Phase;
+use super::registration_home::{
+    BINDING_SUFFIX,
+    GRAMMAR_VERSION_FOLDER,
+    WORKTREE_CLONES_FOLDER,
+};
+use crate::foundation::wrapper_names_old_and_new::DATA_FOLDER;
 
 /// What:
 ///  Whether the recorded clone still stands,
@@ -191,7 +197,9 @@ pub enum NextCommand {
 }
 
 /// The settling command's program and subcommand,
-/// which the wrapper's own executable answers.
+/// which no management grammar admits in this release
+/// (`SPEC.md`,
+/// "The settling command, built and reachable from no command").
 pub const SETTLING_COMMAND_WORDS: &str =
     "git monochromatic-git-policy-cli settle-worktree-clone-record";
 
@@ -207,6 +215,20 @@ pub const SETTLING_COMMAND_WORDS: &str =
 ///  "Removal of a ZFS worktree clone").
 pub const NO_REMOVAL_WORDS: &str =
     "this release has no removal for a clone, so the clone and its record stay until it does";
+
+/// The words that say a command the project designed for a state cannot be run
+/// in this release.
+/// Why:
+///  Two commands a state names are built ahead of the grammar that would reach
+///  them,
+///  so a sentence that tells a person to run one sends them to a command that
+///  answers with the usage text and exit 2
+///  (`SPEC.md`,
+///  "The settling command, built and reachable from no command",
+///  and "The cancel command, built and reachable from no command").
+///  The round that adds either to the grammar deletes this claim from one place,
+///  and every sentence that prints it follows.
+pub const NOT_ADMITTED_YET: &str = "no management grammar admits it in this release";
 
 /// What:
 ///  The command one state names.
@@ -352,7 +374,7 @@ impl NextCommand {
         return match self {
             NextCommand::TheAddAgain => format!("run the add again at `{slot}`"),
             NextCommand::TheSettlingCommand => format!(
-                "run `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, after reading the evidence above"
+                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, and it is built while {NOT_ADMITTED_YET}, so it cannot be run yet: read the evidence above, and leave the record and its slot as they stand until a release that answers it ships"
             ),
             NextCommand::GitWorktreeRemove => format!(
                 "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"
@@ -366,8 +388,12 @@ impl NextCommand {
             NextCommand::None => {
                 String::from("nothing: the add continues at the step its phase names")
             }
-            NextCommand::APersonReadsTheRecords => String::from(
-                "read the two records before acting: the plan's recorded clone name now answers another clone, so no command of this release settles the state, and `git monochromatic-git-policy-cli doctor` names the plan, its registration and the slot",
+            NextCommand::APersonReadsTheRecords => format!(
+                "read the two records before acting: the plan's recorded clone name now answers another clone, so no command of this release settles the state, and `git monochromatic-git-policy-cli doctor` reports neither the plan nor the registration nor the slot yet, so read the plan's own file and the binding record `{slot}{binding}` in `{wrapper}/{clones}/{grammar}` under the Git common directory",
+                binding = BINDING_SUFFIX,
+                wrapper = DATA_FOLDER.current,
+                clones = WORKTREE_CLONES_FOLDER,
+                grammar = GRAMMAR_VERSION_FOLDER
             ),
         };
     }

@@ -26,6 +26,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
     ReadinessRecord,
     ReadyState,
 };
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT;
 
 /// The log tag of every decision this module takes.
 const TAG: &str = "cloneMountReadinessAdmission";
@@ -126,7 +127,7 @@ impl AdmissionRefusal {
             }
         };
         return format!(
-            "the clone mount is not admitted: {reason}. No clone was attached, mounted or unmounted, and no durable intent was changed. Ways forward: wait for the boot unit's `boot-reconcile` to verify the provider and publish this boot's readiness, then let the next trigger (a ZED event, the checkout provider's post-key-load hook, or the caller's own sweep nudge) run the sweep; `journalctl -u reconcile-git-worktree-clone-mounts.service`, whose unit plan step 19 installs, says which step refused; the `doctor` command reports a readiness record once plan step 10 adds it."
+            "the clone mount is not admitted: {reason}. No clone was attached, mounted or unmounted, and no durable intent was changed. Ways forward: wait for the boot unit's `boot-reconcile` to verify the provider and publish this boot's readiness, then let the next trigger (a ZED event, the checkout provider's post-key-load hook, or the caller's own sweep nudge) run the sweep. {NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT}."
         );
     }
 }

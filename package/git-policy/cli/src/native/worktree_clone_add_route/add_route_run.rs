@@ -59,6 +59,7 @@ use crate::worktree_clone_binding_record::record_publication::{
     read_binding,
 };
 use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
     claim_generation_of,
     claim_prefix,
     home_folder,
@@ -363,11 +364,14 @@ fn resume_the_record(
     }
     let request = request_of(plan, arguments).map_err(StepRefusal::refused)?;
     if record.request != request {
+        let record_path: std::path::PathBuf =
+            home_folder(route.common_dir.as_path()).join(binding_name(route.slot.as_str()));
         return Err(StepRefusal::refused(format!(
-            "the record was written by an add given `{}` and this add was given `{}`; Ways forward: run the same add again, or remove the worktree and its records with `git worktree remove {}` first",
+            "the record was written by an add given `{}` and this add was given `{}`; Ways forward: run the same add again, which continues that record, or remove the worktree with `git worktree remove {}` and then delete the binding record at {} yourself, because Git's removal leaves that record and no command of this release removes it",
             record.request.encode(),
             request.encode(),
-            route.slot
+            route.slot,
+            record_path.display()
         )));
     }
     record.claim = generation;
