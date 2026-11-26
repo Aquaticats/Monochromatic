@@ -183,6 +183,22 @@ with what each failed".
 No gate has covered tonight's merges yet;
 the next one is due on `main`'s tip and a failure outside the recorded baseline starts a fix round.
 
+### The session wrapper is a build of 2026-11-22
+
+`.cache/monochromatic-git-policy-cli-bin/git` links to
+`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`
+(measured 2026-11-26T04:08-05:00).
+That build predates `4acb1b04b6` (2026-11-24T19:39:21-05:00),
+so every `git worktree remove` warns and keeps the removed worktree's service journal
+because it "holds rules-repository, a file this release does not know";
+`package/git-policy/cli/SPEC.md`'s sweep on `main` removes that file with the journal.
+The kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
+After this batch's whole gate on `main`,
+the wrapper's next alpha (alphas of everything are covered,
+with the Sonnet release pass) carries the fix,
+and the session wrapper moves to it;
+the newer build's `service stop-units-of-removed-worktrees` then sweeps the kept journals.
+
 ### Threaded-only test failures
 
 A control that passes in the gate and fails in a threaded `cargo test` is that control's defect
