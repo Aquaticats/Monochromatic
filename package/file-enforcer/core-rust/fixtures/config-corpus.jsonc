@@ -62,6 +62,27 @@
     "toml-keys onlyDirs null": {
       "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "onlyDirs": null, "edits": [], "blocks": [] }],
     },
+    "json-keys minimal": { "rules": [{ "kind": "json-keys", "id": "j", "manifests": [], "edits": [] }] },
+    "json-keys full": {
+      "rules": [
+        {
+          "kind": "json-keys",
+          "id": "j",
+          "manifests": ["package/*/*/package.json", "package.json"],
+          "onlyDirs": ["package/a/b"],
+          "edits": [
+            { "guard": ["repository"], "path": ["repository", "url"], "value": "https://example/mono.git" },
+            { "guard": [], "path": ["private"], "value": false },
+            { "guard": ["funding"], "path": ["funding", "count"], "value": 1 },
+            { "guard": ["keywords"], "path": ["keywords"], "value": ["a", { "var": "dir" }] },
+            { "guard": ["repository"], "path": ["homepage"], "value": { "concat": ["https://example/tree/", { "var": "dir" }] } },
+          ],
+        },
+      ],
+    },
+    "json-keys onlyDirs null": {
+      "rules": [{ "kind": "json-keys", "id": "j", "manifests": [], "onlyDirs": null, "edits": [] }],
+    },
     "mise-path-list minimal": {
       "rules": [{ "kind": "mise-path-list", "id": "b", "output": "o.toml", "directories": ["a/*/.bin"] }],
     },
@@ -140,6 +161,16 @@
       "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [], "blocks": [{ "absentPath": ["a"] }] }],
     },
     "toml-keys blocks missing": { "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [] }] },
+    "json-keys edits missing": { "rules": [{ "kind": "json-keys", "id": "j", "manifests": [] }] },
+    "json-keys edit value missing": {
+      "rules": [{ "kind": "json-keys", "id": "j", "manifests": [], "edits": [{ "guard": [], "path": ["a"] }] }],
+    },
+    "json-keys edit path not strings": {
+      "rules": [{ "kind": "json-keys", "id": "j", "manifests": [], "edits": [{ "guard": [], "path": [1], "value": "x" }] }],
+    },
+    "json-keys blocks are not a field": {
+      "rules": [{ "kind": "json-keys", "id": "j", "manifests": [], "edits": [], "blocks": [] }],
+    },
     "mise-path-list directories missing": { "rules": [{ "kind": "mise-path-list", "id": "b", "output": "o" }] },
     "rust-catalog catalog missing": { "rules": [{ "kind": "rust-catalog", "id": "c", "manifests": [] }] },
     "browserslist source missing": { "rules": [{ "kind": "browserslist", "id": "b", "output": "o.json", "lock": "lock.json" }] },

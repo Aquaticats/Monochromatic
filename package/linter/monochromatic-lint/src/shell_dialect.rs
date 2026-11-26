@@ -166,7 +166,10 @@ impl Construct {
     ///  PowerShell uses the backtick as its escape and has no `|&`,
     ///  and `cmd` has no `;`,
     ///  `$(` or backtick.
-    pub fn applies_to(self, dialect: ShellDialect) -> bool {
+    pub fn applies_to(
+        self,
+        dialect: ShellDialect,
+    ) -> bool {
         match dialect {
             ShellDialect::Posix => return true,
             ShellDialect::Fish => return self != Construct::Backtick,

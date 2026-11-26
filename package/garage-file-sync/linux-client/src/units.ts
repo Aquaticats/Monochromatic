@@ -8,6 +8,16 @@
  */
 
 /**
+ Start of the name of every unit this package ships, and of the drop-in folders beside
+ them.
+
+ The user manager loads every unit file whose name matches, and every file in a unit's
+ drop-in folder, whatever the install wrote, so the drift check uses this prefix to
+ find files the package stopped shipping.
+ */
+export const UNIT_NAME_PREFIX = 'rclone-bisync-garage';
+
+/**
  Unit that runs the bisync passes; its runs are what a sync alert describes.
  */
 export const SYNC_UNIT = 'rclone-bisync-garage.service';

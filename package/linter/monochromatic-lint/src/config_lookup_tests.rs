@@ -10,14 +10,26 @@
 
 /// Import the same adapter interface and discovery entry used by production.
 use super::{
-    CONFIG_NAME, ConfigFilesystem, NativeConfigFilesystem, NearestAnswer, NearestSource,
-    discover_configuration, discover_with_filesystem, nearest_above,
+    CONFIG_NAME,
+    ConfigFilesystem,
+    NativeConfigFilesystem,
+    NearestAnswer,
+    NearestSource,
+    discover_configuration,
+    discover_with_filesystem,
+    nearest_above,
 };
 use crate::config_error::ConfigError;
 use crate::test_fs::Fixture;
 /// Import owned lookup storage and native path values.
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A test filesystem with explicit file contents and read failures.
@@ -47,7 +59,10 @@ struct MemoryFilesystem {
 /// ```
 impl ConfigFilesystem for MemoryFilesystem {
     /// Read an explicitly supplied fixture or preserve the missing-file signal.
-    fn read(&self, path: &Path) -> Result<Option<String>, ConfigError> {
+    fn read(
+        &self,
+        path: &Path,
+    ) -> Result<Option<String>, ConfigError> {
         if self.failures.contains(path) {
             return Err(ConfigError::new("fixture configuration read failed"));
         }
@@ -90,7 +105,10 @@ impl NearestSource for FixedSource {
 
     /// The configured answer,
     ///  or absence.
-    fn at(&self, directory: &Path) -> Result<Option<u32>, ConfigError> {
+    fn at(
+        &self,
+        directory: &Path,
+    ) -> Result<Option<u32>, ConfigError> {
         return Ok(self.answers.get(directory).copied());
     }
 }
@@ -108,8 +126,13 @@ fn the_nearest_walk_stops_at_the_first_answer() {
     let child: PathBuf = base.join("child");
     let mut answers: BTreeMap<PathBuf, u32> = BTreeMap::<PathBuf, u32>::new();
     answers.insert(base.clone(), 7);
-    let answered: NearestAnswer<u32> =
-        nearest_above(&child, &FixedSource { answers }).expect("walk");
+    let answered: NearestAnswer<u32> = nearest_above(
+        &child,
+        &FixedSource {
+            answers,
+        },
+    )
+    .expect("walk");
     assert_eq!(answered.found, Some(7));
     assert_eq!(answered.consulted, [child.clone(), base]);
     let absent: NearestAnswer<u32> = nearest_above(

@@ -17,9 +17,17 @@
 //! ```
 
 /// Import the shared data validation and string readers of the configuration.
-use crate::config_data::{key_text, strings, validate_data};
+use crate::config_data::{
+    key_text,
+    strings,
+    validate_data,
+};
 /// Import the exact JSONC parser and value model.
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+    parse_jsonc,
+};
 /// Import the path types that locate the manifest beside a package's `Cargo.toml`.
 use std::path::Path;
 
@@ -127,7 +135,10 @@ fn valid_name(name: &str) -> bool {
 /// ```ts
 /// function names(kind: string, value: JsoncValue): string[]; // throws string
 /// ```
-fn names(kind: &str, value: &JsoncValue) -> Result<Vec<String>, String> {
+fn names(
+    kind: &str,
+    value: &JsoncValue,
+) -> Result<Vec<String>, String> {
     let list: Vec<String> = match strings(value, kind) {
         Ok(found) => found,
         Err(error) => return Err(format!("{kind}: {error}")),
@@ -156,8 +167,14 @@ fn names(kind: &str, value: &JsoncValue) -> Result<Vec<String>, String> {
 /// ```ts
 /// function onlyTrue(kind: string, value: JsoncValue): void; // throws string
 /// ```
-fn only_true(kind: &str, value: &JsoncValue) -> Result<(), String> {
-    if let JsoncKind::Boolean { value: true } = value.kind {
+fn only_true(
+    kind: &str,
+    value: &JsoncValue,
+) -> Result<(), String> {
+    if let JsoncKind::Boolean {
+        value: true,
+    } = value.kind
+    {
         return Ok(());
     }
     return Err(format!("{kind} takes the value true."));

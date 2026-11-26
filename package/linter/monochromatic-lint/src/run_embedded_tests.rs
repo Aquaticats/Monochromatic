@@ -11,7 +11,11 @@
 //! ```
 
 use super::{
-    EMBEDDED_CONFIGURATION_LABEL, EmbeddedFailure, EmbeddedRequest, EmbeddedRun, fix_source,
+    EMBEDDED_CONFIGURATION_LABEL,
+    EmbeddedFailure,
+    EmbeddedRequest,
+    EmbeddedRun,
+    fix_source,
 };
 use crate::test_fs::Fixture;
 use std::path::Path;

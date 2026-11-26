@@ -11,16 +11,26 @@
 //! test('a broken link is reported', () => expect(readLinks(folder, sources, base).findings[0].message).toContain('broken'));
 //! ```
 
-use super::{LinkRead, link_command, read_links};
+use super::{
+    LinkRead,
+    link_command,
+    read_links,
+};
 use crate::layout_test_support::package_with;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The source folders of a fixture,
 /// keyed by their real paths.
-fn sources_of(root: &Path, folders: &[&str]) -> BTreeMap<PathBuf, PathBuf> {
+fn sources_of(
+    root: &Path,
+    folders: &[&str],
+) -> BTreeMap<PathBuf, PathBuf> {
     let mut sources: BTreeMap<PathBuf, PathBuf> = BTreeMap::<PathBuf, PathBuf>::new();
     for folder in folders {
         let path: PathBuf = root.join(folder);
@@ -31,7 +41,10 @@ fn sources_of(root: &Path, folders: &[&str]) -> BTreeMap<PathBuf, PathBuf> {
 
 /// The messages of a read,
 /// with the fixture folder removed.
-fn messages(read: &LinkRead, root: &Path) -> Vec<String> {
+fn messages(
+    read: &LinkRead,
+    root: &Path,
+) -> Vec<String> {
     let prefix: String = format!("{}/", root.display());
     return read
         .findings

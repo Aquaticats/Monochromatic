@@ -46,7 +46,10 @@ pub struct RustFileEngine;
 impl RustFileEngine {
     /// Construct the router;
     ///  the arguments exist so callers compile unchanged against either build.
-    pub fn new(_preparation: WorkspacePreparation, _progress: fn(String)) -> RustFileEngine {
+    pub fn new(
+        _preparation: WorkspacePreparation,
+        _progress: fn(String),
+    ) -> RustFileEngine {
         return RustFileEngine;
     }
 

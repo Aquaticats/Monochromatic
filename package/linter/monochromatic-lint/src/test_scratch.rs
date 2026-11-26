@@ -2,7 +2,10 @@
 //! placed in the build directory so no test writes under `/tmp`.
 
 /// Import the path types the scratch root is built from.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Whether a directory,
 /// or an ancestor of it,

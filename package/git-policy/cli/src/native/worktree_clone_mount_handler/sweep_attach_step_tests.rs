@@ -15,7 +15,11 @@
 //! ```
 
 use super::{AttachRequest, AttachStepOutcome, CloneAttachStep, CloneMountCall, RealAttachStep, RealRollbackCalls, RollbackCalls, roll_back_a_mount};
-use crate::worktree_clone_mount::{CloneFolderIdentity, HeldCloneSlot, HoldCloneSlotRequest, MountIdentity, observe_the_clone_slot, publish_parent_identity_under_root_control, publish_slot_identity_under_root_control};
+use crate::testing::standing_slot_mounts::the_slots_mount_reads;
+use crate::worktree_clone_mount::{
+    CloneFolderIdentity, HeldCloneSlot, HoldCloneSlotRequest, MountIdentity, observe_the_clone_slot, publish_parent_identity_under_root_control, publish_slot_identity_under_root_control,
+};
+use crate::worktree_clone_mount_handler::sweep_standing_mounts::LiveStandingMounts;
 use std::cell::RefCell;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -50,11 +54,19 @@ fn mounted() -> MountIdentity {
     };
 }
 
-/// The four answers one step can give stay four answers,
-/// and each reads as what happened rather than as a summary.
+/// What:
+///  The answers one step can give stay separate answers,
+///  and each reads as what happened rather than as a summary.
+/// Why:
+///  A receipt word is one of the protocol's own and `done` covers both a mount
+///  this step made and this clone's own mount it found,
+///  so the step's own answer must still tell the two apart:
+///  an attach claims the post-attach proofs ran and a standing mount claims
+///  none of them did.
 #[test]
-fn the_four_answers_stay_four() {
-    let answers: [AttachStepOutcome; 3] = [
+fn the_steps_answers_stay_separate() {
+    let answers: [AttachStepOutcome; 4] = [
+        AttachStepOutcome::AlreadyStanding { mount: mounted() },
         AttachStepOutcome::RolledBack { said: String::from("the mount 41 left the kernel through the descriptor the attach acted on") },
         AttachStepOutcome::Retained { said: String::from("the mount 41 is still attached at /tmp/elsewhere") },
         AttachStepOutcome::Refused { step: String::from("walk"), errno: None, said: String::from("the walk refused the slot") },
@@ -62,6 +74,11 @@ fn the_four_answers_stay_four() {
     for answer in answers {
         assert_ne!(answer, AttachStepOutcome::Attached { mount: mounted() }, "only a proved place is an attach: {answer:?}");
     }
+    assert_ne!(
+        AttachStepOutcome::AlreadyStanding { mount: mounted() },
+        AttachStepOutcome::Attached { mount: mounted() },
+        "a mount this step made and a mount it found standing are different answers even for one mount"
+    );
     assert_ne!(
         AttachStepOutcome::RolledBack { said: String::from("left") },
         AttachStepOutcome::Retained { said: String::from("left") },
@@ -234,7 +251,8 @@ fn the_real_attach_step_answers_a_retained_mount_as_retained() {
         detail: String::from("the mount number could not be read"),
         placement: Placement::PlacedAndRetained,
     };
-    let step: RealAttachStep<RealRollbackCalls, RetainingMount> = RealAttachStep { calls: RealRollbackCalls, mount_call: RetainingMount { refusal } };
+    let standing: LiveStandingMounts = the_slots_mount_reads("zpcachyos/nosnap/clones/one", "/");
+    let step: RealAttachStep<'_, RealRollbackCalls, RetainingMount> = RealAttachStep { calls: RealRollbackCalls, mount_call: RetainingMount { refusal }, standing: &standing };
     let outcome: AttachStepOutcome = step.attach(&request);
     assert!(matches!(outcome, AttachStepOutcome::Retained { .. }), "a mount that stands is retained: {outcome:?}");
     assert!(outcome_about(&outcome).contains("could not be taken down"), "the answer says what became of the mount: {}", outcome_about(&outcome));
@@ -244,7 +262,7 @@ fn the_real_attach_step_answers_a_retained_mount_as_retained() {
 /// for the rollback controls that compare it.
 fn outcome_about(outcome: &AttachStepOutcome) -> String {
     return match outcome {
-        AttachStepOutcome::Attached { mount } => mount.describe(),
+        AttachStepOutcome::Attached { mount } | AttachStepOutcome::AlreadyStanding { mount } => mount.describe(),
         AttachStepOutcome::RolledBack { said } | AttachStepOutcome::Retained { said } => said.clone(),
         AttachStepOutcome::Refused { said, .. } => said.clone(),
     };

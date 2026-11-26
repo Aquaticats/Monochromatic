@@ -19,13 +19,20 @@
 
 /// Import the file and index readers and the tree.
 use crate::{
-    layout_folder_index_files::{file_name, files_by_folder, index_file},
+    layout_folder_index_files::{
+        file_name,
+        files_by_folder,
+        index_file,
+    },
     layout_module_tree::ModuleTree,
 };
 /// Import ordered collections and native paths.
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -70,7 +77,10 @@ pub fn find_groups(tree: &ModuleTree) -> BTreeSet<PathBuf> {
 /// ```ts
 /// function ownerOf(folder: Path, groups: Set<Path>): Path | undefined;
 /// ```
-pub fn owner_of(folder: &Path, groups: &BTreeSet<PathBuf>) -> Option<PathBuf> {
+pub fn owner_of(
+    folder: &Path,
+    groups: &BTreeSet<PathBuf>,
+) -> Option<PathBuf> {
     let mut outermost: Option<PathBuf> = None;
     for ancestor in folder.ancestors().skip(1) {
         if groups.contains(ancestor) {
@@ -91,7 +101,10 @@ pub fn owner_of(folder: &Path, groups: &BTreeSet<PathBuf>) -> Option<PathBuf> {
 /// ```ts
 /// function entryOf(folder: Path, groups: Set<Path>): Path;
 /// ```
-pub fn entry_of(folder: &Path, groups: &BTreeSet<PathBuf>) -> PathBuf {
+pub fn entry_of(
+    folder: &Path,
+    groups: &BTreeSet<PathBuf>,
+) -> PathBuf {
     return match owner_of(folder, groups) {
         Some(group) => group,
         None => folder.to_path_buf(),

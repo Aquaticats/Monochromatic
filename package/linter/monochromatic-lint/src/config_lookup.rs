@@ -13,9 +13,15 @@ use crate::config_error::ConfigError;
 /// Import the measured staleness hint that names a stale resolved binary.
 use crate::config_pin::stale_binary_hint;
 /// Import the block model and parser that turn each configuration file into rules.
-use crate::configuration::{ConfigBlock, parse_configuration};
+use crate::configuration::{
+    ConfigBlock,
+    parse_configuration,
+};
 /// Import native path values rather than requiring filesystem names to be UTF-8 strings.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The sole discovered configuration filename.
@@ -62,7 +68,10 @@ pub struct ConfigurationSource {
 pub(crate) trait ConfigFilesystem {
     /// Return absence only when no file exists;
     ///  unreadable or non-file inputs are failures.
-    fn read(&self, path: &Path) -> Result<Option<String>, ConfigError>;
+    fn read(
+        &self,
+        path: &Path,
+    ) -> Result<Option<String>, ConfigError>;
 }
 
 /// What:
@@ -88,7 +97,10 @@ struct NativeConfigFilesystem;
 /// ```
 impl ConfigFilesystem for NativeConfigFilesystem {
     /// Read a regular configuration file or return a typed filesystem diagnostic.
-    fn read(&self, path: &Path) -> Result<Option<String>, ConfigError> {
+    fn read(
+        &self,
+        path: &Path,
+    ) -> Result<Option<String>, ConfigError> {
         // What: Distinguish a present file, absence, and an actual metadata failure.
         // Why: Only absence permits discovery to continue toward an ancestor.
         //
@@ -142,7 +154,10 @@ impl ConfigFilesystem for NativeConfigFilesystem {
 /// ```ts
 /// function absolutePath(path: Path, cwd: Path): Path;
 /// ```
-fn absolute_path(path: &Path, cwd: &Path) -> PathBuf {
+fn absolute_path(
+    path: &Path,
+    cwd: &Path,
+) -> PathBuf {
     if path.is_absolute() {
         // Copy the borrowed path into result-owned storage without converting it to text.
         return path.to_path_buf();
@@ -166,7 +181,13 @@ fn selected(
 ) -> Result<ConfigurationSource, ConfigError> {
     // Inspect the typed parser result and retain the affected source path on failure.
     match parse_configuration(source) {
-        Ok(blocks) => return Ok(ConfigurationSource { path, base, blocks }),
+        Ok(blocks) => {
+            return Ok(ConfigurationSource {
+                path,
+                base,
+                blocks,
+            });
+        }
         Err(error) => {
             return Err(rejected(&path, error));
         }
@@ -187,7 +208,10 @@ fn selected(
 /// ```ts
 /// function rejected(path: Path, error: ConfigError): ConfigError;
 /// ```
-fn rejected(path: &Path, error: ConfigError) -> ConfigError {
+fn rejected(
+    path: &Path,
+    error: ConfigError,
+) -> ConfigError {
     // What: Measure staleness only for an unregistered rule name.
     // Why: A syntax or option failure says nothing about which rules another version registers.
     //
@@ -229,7 +253,10 @@ pub(crate) trait NearestSource {
     /// Why:
     ///  Absence is the only answer that lets the walk continue;
     ///  a read or parse failure must stop it.
-    fn at(&self, directory: &Path) -> Result<Option<Self::Found>, ConfigError>;
+    fn at(
+        &self,
+        directory: &Path,
+    ) -> Result<Option<Self::Found>, ConfigError>;
 }
 
 /// What:
@@ -321,7 +348,10 @@ impl<TFilesystem: ConfigFilesystem> NearestSource for DirectoryConfiguration<'_,
 
     /// Read the candidate file and parse it,
     ///  or report absence when the directory has none.
-    fn at(&self, directory: &Path) -> Result<Option<ConfigurationSource>, ConfigError> {
+    fn at(
+        &self,
+        directory: &Path,
+    ) -> Result<Option<ConfigurationSource>, ConfigError> {
         let candidate: PathBuf = directory.join(CONFIG_NAME);
         let Some(source): Option<String> = self.filesystem.read(&candidate)? else {
             return Ok(None);
@@ -381,8 +411,12 @@ pub(crate) fn discover_with_filesystem(
     // return answer.found;
     // ```
     if let Some(parent) = path.parent() {
-        let answer: NearestAnswer<ConfigurationSource> =
-            nearest_above(parent, &DirectoryConfiguration { filesystem })?;
+        let answer: NearestAnswer<ConfigurationSource> = nearest_above(
+            parent,
+            &DirectoryConfiguration {
+                filesystem,
+            },
+        )?;
         return Ok(answer.found);
     }
     return Ok(None);

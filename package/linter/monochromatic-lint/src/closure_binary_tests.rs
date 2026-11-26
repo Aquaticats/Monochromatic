@@ -19,14 +19,27 @@
 #[path = "closure_stub_support.rs"]
 mod closure_stub_support;
 
-use closure_stub_support::{Scenario, scenario};
+use closure_stub_support::{
+    Scenario,
+    scenario,
+};
 use monochromatic_lint::CLOSURE_RULE;
 use monochromatic_lint::run_failure::PROCESSING_FAILURE;
 use serde_json::Value;
 use std::{
-    path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
-    sync::atomic::{AtomicU64, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+        Stdio,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// The executable that Cargo built for this test run.
@@ -70,7 +83,11 @@ impl Fixture {
     }
 
     /// Write a file below the root.
-    fn write(&self, relative: &str, text: &str) {
+    fn write(
+        &self,
+        relative: &str,
+        text: &str,
+    ) {
         let path: PathBuf = self.path.join(relative);
         std::fs::create_dir_all(path.parent().expect("a parent")).expect("directories");
         std::fs::write(path, text).expect("file");
@@ -96,13 +113,21 @@ struct Run {
 }
 
 /// Run the executable in the fixture with the stub as `cargo`.
-fn run(fixture: &Fixture, stub: &Scenario, arguments: &[&str]) -> Run {
+fn run(
+    fixture: &Fixture,
+    stub: &Scenario,
+    arguments: &[&str],
+) -> Run {
     return run_with(fixture, Some(stub.cargo.as_path()), arguments);
 }
 
 /// Run the executable with a chosen `cargo` program,
 /// or with the variable unset.
-fn run_with(fixture: &Fixture, cargo: Option<&Path>, arguments: &[&str]) -> Run {
+fn run_with(
+    fixture: &Fixture,
+    cargo: Option<&Path>,
+    arguments: &[&str],
+) -> Run {
     let mut command: Command = Command::new(BINARY);
     command
         .args(arguments)
@@ -131,7 +156,11 @@ fn parse_line(line: &str) -> Value {
 }
 
 /// A cargo record for a file at a byte range.
-fn record(code: &str, file: &str, start: u64) -> String {
+fn record(
+    code: &str,
+    file: &str,
+    start: u64,
+) -> String {
     return format!(
         r#"{{"reason": "compiler-message", "message": {{"code": {{"code": "{code}", "explanation": null}}, "level": "warning", "message": "a closure", "spans": [{{"file_name": "{file}", "is_primary": true, "byte_start": {start}, "byte_end": {end}, "line_start": 2, "column_start": 7}}], "children": [{{"level": "help", "message": "use a function", "spans": [], "children": [], "code": null}}]}}}}
 "#,

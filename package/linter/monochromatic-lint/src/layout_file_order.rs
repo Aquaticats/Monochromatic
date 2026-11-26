@@ -39,19 +39,42 @@
 /// the tree,
 /// the uses and the top doc reader.
 use crate::{
-    layout_allow_list::{AllowKind, AllowList, dead_entry_findings, tolerated},
-    layout_finding::{LayoutFinding, shown},
-    layout_folder_index_files::{file_name, files_by_folder, index_file, index_file_findings},
+    layout_allow_list::{
+        AllowKind,
+        AllowList,
+        dead_entry_findings,
+        tolerated,
+    },
+    layout_finding::{
+        LayoutFinding,
+        shown,
+    },
+    layout_folder_index_files::{
+        file_name,
+        files_by_folder,
+        index_file,
+        index_file_findings,
+    },
     layout_group_entries::find_groups,
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::ModuleUse,
-    layout_top_doc::{LIST_MARKER, TopDoc, read_top_doc},
+    layout_top_doc::{
+        LIST_MARKER,
+        TopDoc,
+        read_top_doc,
+    },
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -582,7 +605,8 @@ pub fn check_file_order(
         let (loops, component) = loop_findings(listed.as_slice(), &reported, base);
         findings.extend(loops);
         if let Some(list) = allow {
-            let loops_of_files: BTreeMap<usize, usize> = loop_of_each_file(listed.as_slice(), &edges);
+            let loops_of_files: BTreeMap<usize, usize> =
+                loop_of_each_file(listed.as_slice(), &edges);
             let tolerated: BTreeSet<usize> = tolerated_file_loops(
                 folder,
                 &edges,

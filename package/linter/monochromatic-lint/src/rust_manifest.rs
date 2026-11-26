@@ -15,7 +15,10 @@ use crate::rust_semantic_error::SemanticError;
 /// Import native manifest discovery and explicit I/O failure kinds.
 use std::io::ErrorKind;
 /// Import the path types used to name the manifest.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Refuse a path that is not absolute UTF-8,
 /// as the backend's path type does,

@@ -16,13 +16,32 @@
 //! ```
 
 /// Import the path reader that turns tokens into references.
-use crate::layout_reference_paths::{RawReference, Token, TokenKind, read_references};
+use crate::layout_reference_paths::{
+    RawReference,
+    Token,
+    TokenKind,
+    read_references,
+};
 /// Import the test-build detectors shared with the sidecar rule.
-use crate::rust_tests_in_sidecars::{has_test_attribute, has_test_cfg};
+use crate::rust_tests_in_sidecars::{
+    has_test_attribute,
+    has_test_cfg,
+};
 /// Import the syntax tree types and the walk events.
 use ra_ap_syntax::{
-    AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken, WalkEvent,
-    ast::{self, HasAttrs, HasName, HasVisibility, LiteralKind},
+    AstNode,
+    NodeOrToken,
+    SyntaxKind,
+    SyntaxNode,
+    SyntaxToken,
+    WalkEvent,
+    ast::{
+        self,
+        HasAttrs,
+        HasName,
+        HasVisibility,
+        LiteralKind,
+    },
 };
 
 /// What:

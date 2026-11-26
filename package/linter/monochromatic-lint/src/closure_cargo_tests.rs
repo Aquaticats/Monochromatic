@@ -13,11 +13,25 @@
 //! ```
 
 use super::{
-    CARGO_VARIABLE, DYLINT_FLAGS, ProbeFailure, cargo_program, dependencies_missing, dylint_probe,
-    run_dylint, rustc_dev_missing, rustc_dev_missing_in,
+    CARGO_VARIABLE,
+    DYLINT_FLAGS,
+    ProbeFailure,
+    cargo_program,
+    dependencies_missing,
+    dylint_probe,
+    run_dylint,
+    rustc_dev_missing,
+    rustc_dev_missing_in,
 };
-use crate::{closure_probe::PackageSetup, closure_stub_support::scenario, test_fs::Fixture};
-use std::path::{Path, PathBuf};
+use crate::{
+    closure_probe::PackageSetup,
+    closure_stub_support::scenario,
+    test_fs::Fixture,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The default program is `cargo`,
 /// and the variable's name is the documented one.

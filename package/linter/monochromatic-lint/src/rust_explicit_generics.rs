@@ -11,24 +11,42 @@
 //! ```
 
 /// Import owned findings and the retained source context.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the resolved argument-owner mapping,
 ///  including enum and function-trait spellings.
 use crate::rust_generic_arguments::{
-    GenericSite, is_instantiation_path, path_site, required_arguments, supplied_arguments,
+    GenericSite,
+    is_instantiation_path,
+    path_site,
+    required_arguments,
+    supplied_arguments,
 };
 /// Import exact source coordinates.
 use crate::rust_source::RustSource;
 /// Import ordinary findings and explicit semantic-processing failures.
-use crate::rust_type_diagnostic::{resolution_failure, type_finding};
+use crate::rust_type_diagnostic::{
+    resolution_failure,
+    type_finding,
+};
 /// Import the native resolver and its typed declaration results.
-use ra_ap_hir::{Function, GenericDef, PathResolution, Semantics};
+use ra_ap_hir::{
+    Function,
+    GenericDef,
+    PathResolution,
+    Semantics,
+};
 /// Import the database interface borrowed during a query.
 use ra_ap_hir_ty::db::HirDatabase;
 /// Import the accessor implemented by method-call syntax.
 use ra_ap_syntax::ast::HasGenericArgs;
 /// Import typed syntax and generic-argument accessors.
-use ra_ap_syntax::{AstNode, ast};
+use ra_ap_syntax::{
+    AstNode,
+    ast,
+};
 
 /// Report absent arguments on genuinely generic methods while leaving nongeneric methods unchanged.
 fn check_method(

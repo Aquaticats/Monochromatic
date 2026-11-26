@@ -10,14 +10,26 @@
 //! ```
 
 /// Import the shared finding model and retained Rust parse.
-use crate::diagnostic::{Diagnostic, Severity, Span};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
 /// Import the owned source whose syntax tree the rule walks.
 use crate::rust_source::RustSource;
 /// Import attribute and name access on parsed items,
 /// not a text-pattern approximation.
-use ra_ap_syntax::ast::{HasAttrs, HasName};
+use ra_ap_syntax::ast::{
+    HasAttrs,
+    HasName,
+};
 /// Import parser node casts and the syntax types the walk passes around.
-use ra_ap_syntax::{AstNode, SyntaxNode, SyntaxToken, ast};
+use ra_ap_syntax::{
+    AstNode,
+    SyntaxNode,
+    SyntaxToken,
+    ast,
+};
 
 /// Split a path into its directory parts and file name,
 ///  accepting either separator so a Windows path is read like a Unix one.
@@ -54,7 +66,10 @@ pub(crate) fn is_sidecar_path(filename: &str) -> bool {
 /// Whether a `cfg` predicate selects test builds.
 ///  `not(...)` flips the sense,
 /// and a key-value atom such as `feature = "test"` is not the `test` flag.
-fn predicate_enables_test(predicate: &ast::CfgPredicate, negated: bool) -> bool {
+fn predicate_enables_test(
+    predicate: &ast::CfgPredicate,
+    negated: bool,
+) -> bool {
     match predicate {
         ast::CfgPredicate::CfgAtom(atom) => {
             let Some(identifier): Option<SyntaxToken> = atom.ident_token() else {
@@ -171,7 +186,10 @@ fn finding_for(
 /// ```ts
 /// function checkTestsInSidecars(context: RustSource, severity: Severity): Diagnostic[];
 /// ```
-pub fn check_tests_in_sidecars(context: &RustSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn check_tests_in_sidecars(
+    context: &RustSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     if is_sidecar_path(context.filename.as_str()) {
         return findings;

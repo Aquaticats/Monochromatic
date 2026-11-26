@@ -11,12 +11,25 @@
 //! test('maps severity per file', () => expect(findingsFrom(reports, dir, targets).map(f => f.severity)).toEqual([...]));
 //! ```
 
-use super::{RULE, findings_from, key_of, span_of, targets_of};
+use super::{
+    RULE,
+    findings_from,
+    key_of,
+    span_of,
+    targets_of,
+};
 use crate::{
     closure_report::Report,
-    diagnostic::{Diagnostic, Severity},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
     run_plan::FilePlan,
-    run_test_support::{CONFIG, plan, write},
+    run_test_support::{
+        CONFIG,
+        plan,
+        write,
+    },
     test_fs::Fixture,
 };
 use std::path::PathBuf;
@@ -31,7 +44,11 @@ const CONFIGURATION: &str = r#"[
 ]"#;
 
 /// A report at a byte range of a file.
-fn report(file: &str, start: usize, end: usize) -> Report {
+fn report(
+    file: &str,
+    start: usize,
+    end: usize,
+) -> Report {
     return Report {
         file: String::from(file),
         byte_start: start,
@@ -44,7 +61,10 @@ fn report(file: &str, start: usize, end: usize) -> Report {
 }
 
 /// Plan the named files of a fixture.
-fn plans(root: &std::path::Path, files: &[&str]) -> Vec<FilePlan> {
+fn plans(
+    root: &std::path::Path,
+    files: &[&str],
+) -> Vec<FilePlan> {
     let mut found: Vec<FilePlan> = Vec::<FilePlan>::new();
     for file in files {
         found.push(plan(root, file));

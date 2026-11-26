@@ -16,7 +16,11 @@
 
 /// Import the finding model and both languages' position conventions.
 use crate::{
-    diagnostic::{Diagnostic, Severity, Span},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+        Span,
+    },
     markdown_positions::MarkdownPositions,
     processors::ProcessorError,
     run_paths::Language,
@@ -81,7 +85,11 @@ pub fn file_start() -> Span {
 /// ```ts
 /// function hostSpan(language: Language, source: string, offset: number): Span;
 /// ```
-pub fn host_span(language: Language, source: &str, offset: usize) -> Span {
+pub fn host_span(
+    language: Language,
+    source: &str,
+    offset: usize,
+) -> Span {
     let clamped: usize = offset.min(source.len());
     if language != Language::Rust {
         return MarkdownPositions::new(source).span(clamped, 0);
@@ -111,7 +119,11 @@ pub fn host_span(language: Language, source: &str, offset: usize) -> Span {
 /// ```ts
 /// function processingFailure(filename: string, span: Span, message: string): Diagnostic;
 /// ```
-pub fn processing_failure(filename: &str, span: Span, message: String) -> Diagnostic {
+pub fn processing_failure(
+    filename: &str,
+    span: Span,
+    message: String,
+) -> Diagnostic {
     let mut finding: Diagnostic = Diagnostic::new(
         PROCESSING_FAILURE,
         Severity::Error,
@@ -134,7 +146,10 @@ pub fn processing_failure(filename: &str, span: Span, message: String) -> Diagno
 /// ```ts
 /// function fixRefused(filename: string, message: string): Diagnostic;
 /// ```
-pub fn fix_refused(filename: &str, message: String) -> Diagnostic {
+pub fn fix_refused(
+    filename: &str,
+    message: String,
+) -> Diagnostic {
     let mut finding: Diagnostic = Diagnostic::new(
         FIX_REFUSED,
         Severity::Error,
@@ -156,7 +171,11 @@ pub fn fix_refused(filename: &str, message: String) -> Diagnostic {
 /// ```ts
 /// function processorFailure(language: Language, source: string, error: ProcessorError): Diagnostic;
 /// ```
-pub fn processor_failure(language: Language, source: &str, error: &ProcessorError) -> Diagnostic {
+pub fn processor_failure(
+    language: Language,
+    source: &str,
+    error: &ProcessorError,
+) -> Diagnostic {
     return processing_failure(
         error.filename.as_str(),
         host_span(language, source, error.offset),

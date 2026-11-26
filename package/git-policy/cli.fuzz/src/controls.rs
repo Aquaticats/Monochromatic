@@ -83,6 +83,9 @@ use git_policy_cli::rule_commit_sequencer::SequencerState;
 /// The guarded form whose abort or skip the lifecycle judges.
 use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use git_policy_cli::rule_worktree_dirty::DirtyScope;
+/// The subject's record of the directory a command was started in,
+///  which its shipped checks take as their fifth argument.
+use git_policy_cli::start_directory::StartDirectory;
 use git_policy_cli::transaction_git::GitContext;
 use git_policy_cli::worktree_identity::{
     WorktreeIdentity,
@@ -964,6 +967,21 @@ const PUSH_DRY_RUN_STARTS: &[&[u8]] = &[b"--dr"];
 const PUSH_DRY_RUN_LETTER: u8 = b'n';
 
 /// What:
+///  `GIT_FATAL_STATUS` is the exit status Git gives a fatal error, 128;
+///  `i32` is the 32-bit signed integer a child's status is read into,
+///  where the sibling `i64` is wider than any status and the sibling `u8` cannot hold a negative one.
+/// Why:
+///   A `git commit` form real Git refuses ends with Git's own fatal status,
+///  and the repository link gate stops with it too,
+///  so the frontier check must accept it from a command it did not let through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GIT_FATAL_STATUS = 128;
+/// ```
+const GIT_FATAL_STATUS: i32 = 128;
+
+/// What:
 ///  Whether some token could make Git treat a command as a dry run:
 ///  a long option
 ///       with one of the given starts,
@@ -1017,7 +1035,8 @@ pub enum FrontierSeen {
     Forwarded,
     /// A policy or fixed transform stopped the command with exit status 1.
     Rejected,
-    /// The command stopped with exit status 2.
+    /// The command stopped with exit status 2,
+    ///  or with Git's own fatal status when the stop names Git's answer.
     Refused,
 }
 
@@ -1047,6 +1066,20 @@ pub fn check_frontier(
         stripped.arguments.clone(),
         LifecycleContent::None,
         Vec::<ToolCacheDirectory>::new(),
+        // What:     `StartDirectory::at(Path::new("/"))` builds the directory the command starts in from one fixed
+        //           absolute path, and the leading `&` lends it to the call. `StartDirectory` is the subject's own
+        //           record of that directory; `Path::new` borrows a filesystem path whose bytes are baked into the
+        //           program, and the owned sibling a reader might expect is `PathBuf`.
+        // Why:      The fifth argument says where the invocation started, so a relative path it decides about
+        //           resolves as the wrapper would resolve it; the fuzz checks have no real invocation directory,
+        //           and one fixed directory keeps an input answering the same on every run without reading the
+        //           directory of the process every test shares.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // shippedChecks(facts, args, content, [], startDirectoryAt('/'));
+        // ```
+        &StartDirectory::at(Path::new("/")),
     );
     // `&[]` is an empty environment: no lease is inherited.
     let outcome: WrappedOutcome = run_wrapped_command(&stripped, &[], &mut checks);
@@ -1056,7 +1089,18 @@ pub fn check_frontier(
             code,
             stderr,
         } => {
-            assert!(code == 1 || code == 2, "a stop exits 1 or 2, got {code}");
+            // What:     A stop ends with status 1, 2, or Git's fatal status 128.
+            // Why:      The wrapper refuses a `git commit` form real Git refuses with Git's own status, which is
+            //           128, and the repository link gate stops with 128 too, so neither may look like a defect.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // assert(code === 1 || code === 2 || code === GIT_FATAL_STATUS);
+            // ```
+            assert!(
+                code == 1 || code == 2 || code == GIT_FATAL_STATUS,
+                "a stop exits 1, 2 or Git's fatal status, got {code}: {arguments:?}"
+            );
             // A real commit writes its own events and diagnostics while it runs, so its ending carries no text.
             let commit_wrote_itself: bool = stderr.is_empty()
                 && stripped.layout.outcome == GlobalOutcome::Command

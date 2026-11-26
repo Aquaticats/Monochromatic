@@ -13,13 +13,28 @@
 //! ```
 
 /// Import the filter and the models its inputs and outputs use.
-use super::{DirectiveContext, apply_directives};
-use crate::diagnostic::{Diagnostic, Severity};
+use super::{
+    DirectiveContext,
+    apply_directives,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::directive_findings::{
-    MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE, UNKNOWN_RULE, UNUSED,
+    MALFORMED,
+    MISSING_JUSTIFICATION,
+    NON_SUPPRESSIBLE,
+    UNKNOWN_RULE,
+    UNUSED,
 };
 use crate::directive_options::DirectiveOptions;
-use crate::run_failure::{FIX_REFUSED, PROCESSING_FAILURE, host_span, processing_failure};
+use crate::run_failure::{
+    FIX_REFUSED,
+    PROCESSING_FAILURE,
+    host_span,
+    processing_failure,
+};
 use crate::run_paths::Language;
 
 /// A suppressible Rust rule.
@@ -36,7 +51,12 @@ const RUSTDOC: &str = "rust/require-rustdoc";
 
 /// A finding with a registry code at the first occurrence of a marker,
 /// in the host's units.
-fn finding(language: Language, source: &str, marker: &str, code: &str) -> Diagnostic {
+fn finding(
+    language: Language,
+    source: &str,
+    marker: &str,
+    code: &str,
+) -> Diagnostic {
     let offset: usize = source.find(marker).expect("the marker is in the fixture");
     return Diagnostic::new(
         code,
@@ -58,7 +78,9 @@ fn apply(
         language,
         filename: "fixture",
         source,
-        options: DirectiveOptions { unused },
+        options: DirectiveOptions {
+            unused,
+        },
     };
     return apply_directives(&context, findings);
 }
@@ -75,13 +97,19 @@ fn summary(found: &[Diagnostic]) -> Vec<String> {
 
 /// One expected finding:
 /// the diagnostic code and the source line that carries it.
-fn expected(code: &str, line: usize) -> String {
+fn expected(
+    code: &str,
+    line: usize,
+) -> String {
     return format!("{code}@{line}");
 }
 
 /// Rust fixture findings:
 /// one suppressible finding at each marker.
-fn sidecar_findings(source: &str, markers: &[&str]) -> Vec<Diagnostic> {
+fn sidecar_findings(
+    source: &str,
+    markers: &[&str],
+) -> Vec<Diagnostic> {
     let mut found: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for marker in markers {
         found.push(finding(Language::Rust, source, marker, SIDECARS));

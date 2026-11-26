@@ -10,7 +10,10 @@
 //! ```
 
 /// Import the arena container the walker indexes.
-use satteri_arena::{Arena, Mdast};
+use satteri_arena::{
+    Arena,
+    Mdast,
+};
 /// Import the node-kind enum the walker classifies.
 use satteri_ast::mdast::MdastNodeType;
 

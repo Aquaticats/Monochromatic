@@ -17,7 +17,13 @@
 /// Import the command fixtures and the disposable directory.
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_output::RunOutput;
-use crate::run_test_support::{CONFIG, codes, records, run, write};
+use crate::run_test_support::{
+    CONFIG,
+    codes,
+    records,
+    run,
+    write,
+};
 use crate::test_deadline::finished_within_deadline;
 use crate::test_fs::Fixture;
 
@@ -50,7 +56,11 @@ const CLEAN: &str = "name: ci\njobs:\n  a:\n    runs-on: ubuntu-latest\n    step
 
 /// Run the command over a tree under the test deadline,
 ///  so a run that stops advancing fails the test instead of hanging the run.
-fn run_bounded(root: &std::path::Path, args: &[&str], input: &str) -> RunOutput {
+fn run_bounded(
+    root: &std::path::Path,
+    args: &[&str],
+    input: &str,
+) -> RunOutput {
     let owned_root: std::path::PathBuf = root.to_path_buf();
     let owned_args: Vec<String> = args
         .iter()

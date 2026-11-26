@@ -44,9 +44,7 @@ Open:
 
 - The first sync started by a real save has not been seen yet;
   a background wait in the building session reports it.
-- Tests and a stricter drift check for the package are on branch `test/garage-file-sync-linux-client-coverage` (reviewed),
-  and fixes from that review are being written on `fix/garage-file-sync-linux-client-alert-review-findings`;
-  both merge together after a review of the fixes. Until then a run stopped by hand raises a failure notice.
+- Smaller review findings left open are listed in the design record, section "Coverage and review fixes merged".
 - Five `main.kdbx.conflictN` copies remain in `~/Plain` and the bucket;
   removing one means deleting it on both sides in one window.
 - The Mac keeps the files it set aside before its resync in

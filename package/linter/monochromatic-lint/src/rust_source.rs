@@ -11,7 +11,13 @@
 /// Import the common diagnostic wire range.
 use crate::diagnostic::Span;
 /// Import the exact rust-analyzer syntax interface already used by the incumbent.
-use ra_ap_syntax::{Edition, NodeOrToken, SourceFile, SyntaxKind, SyntaxNode};
+use ra_ap_syntax::{
+    Edition,
+    NodeOrToken,
+    SourceFile,
+    SyntaxKind,
+    SyntaxNode,
+};
 
 /// What:
 ///  Owned per-file source with a parser-owned syntax handle.
@@ -66,7 +72,10 @@ fn line_starts(source: &str) -> Vec<usize> {
 /// ```ts
 /// function lineIndex(offset: number, starts: number[]): number;
 /// ```
-fn line_index(offset: usize, starts: &[usize]) -> usize {
+fn line_index(
+    offset: usize,
+    starts: &[usize],
+) -> usize {
     // What: `count` is how many line starts lie at or before `offset`:
     //  `binary_search` reports `Ok(found)` for an exact line start,
     //  which counts itself and everything before it,
@@ -95,7 +104,10 @@ fn line_index(offset: usize, starts: &[usize]) -> usize {
 /// ```ts
 /// function codeLines(syntax: SyntaxNode, starts: number[]): number[];
 /// ```
-fn code_lines(syntax: &SyntaxNode, starts: &[usize]) -> Vec<usize> {
+fn code_lines(
+    syntax: &SyntaxNode,
+    starts: &[usize],
+) -> Vec<usize> {
     let mut marked = vec![false; starts.len()];
     for element in syntax.descendants_with_tokens() {
         let NodeOrToken::Token(token) = element else {
@@ -138,7 +150,11 @@ fn code_lines(syntax: &SyntaxNode, starts: &[usize]) -> Vec<usize> {
 /// ```
 impl RustSource {
     /// Index one already associated text/tree pair without another parse.
-    fn indexed(filename: String, source: String, syntax: SyntaxNode) -> RustSource {
+    fn indexed(
+        filename: String,
+        source: String,
+        syntax: SyntaxNode,
+    ) -> RustSource {
         let starts: Vec<usize> = line_starts(source.as_str());
         let lines: Vec<usize> = code_lines(&syntax, starts.as_slice());
         return RustSource {
@@ -151,7 +167,10 @@ impl RustSource {
     }
 
     /// Parse under the already selected current Rust edition.
-    pub fn new(filename: String, source: String) -> RustSource {
+    pub fn new(
+        filename: String,
+        source: String,
+    ) -> RustSource {
         let parsed = SourceFile::parse(source.as_str(), Edition::CURRENT);
         let syntax: SyntaxNode = parsed.syntax_node();
         return RustSource::indexed(filename, source, syntax);
@@ -167,7 +186,10 @@ impl RustSource {
     /// ```ts
     /// static fromSyntax(filename: string, syntax: SyntaxNode): RustSource;
     /// ```
-    pub fn from_syntax(filename: String, syntax: SyntaxNode) -> RustSource {
+    pub fn from_syntax(
+        filename: String,
+        syntax: SyntaxNode,
+    ) -> RustSource {
         // Reconstruct owned source bytes from lossless tokens, not a formatter or diagnostic display.
         let source: String = syntax.text().to_string();
         return RustSource::indexed(filename, source, syntax);
@@ -184,13 +206,19 @@ impl RustSource {
     }
 
     /// Read the one-based line at a zero-based code-line index.
-    pub fn code_line_at(&self, index: usize) -> Option<usize> {
+    pub fn code_line_at(
+        &self,
+        index: usize,
+    ) -> Option<usize> {
         return self.code_lines.get(index).copied();
     }
 
     /// Return a whole LF-delimited line span,
     ///  excluding the final LF exactly as the incumbent does.
-    pub fn line_span(&self, line: usize) -> Option<Span> {
+    pub fn line_span(
+        &self,
+        line: usize,
+    ) -> Option<Span> {
         if line == 0 {
             return None;
         }
@@ -216,7 +244,11 @@ impl RustSource {
 
     /// Resolve a byte range and clamp its underline to the first line,
     ///  preserving Rust byte columns.
-    pub fn span(&self, offset: usize, length: usize) -> Span {
+    pub fn span(
+        &self,
+        offset: usize,
+        length: usize,
+    ) -> Span {
         let index = line_index(offset, self.line_starts.as_slice());
         let start = self.line_starts[index];
         let next = self

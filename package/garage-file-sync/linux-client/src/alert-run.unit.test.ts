@@ -14,7 +14,13 @@ import {
   runAlert,
 } from './alert-run.ts';
 import type { NotifyOutcome, } from './alert-notify.ts';
-import type { Streak, StreakLookup, } from './alert-streak.ts';
+import {
+  readStreak,
+  removeStreak,
+  type Streak,
+  type StreakLookup,
+  writeStreak,
+} from './alert-streak.ts';
 import type { BackupListings, } from './bisync-backup-listings.ts';
 import {
   SYNC_UNIT,
@@ -22,9 +28,14 @@ import {
 } from './units.ts';
 
 /**
+ Milliseconds in one minute.
+ */
+const MINUTE_MS = 60 * 1_000;
+
+/**
  One hour in milliseconds, the gap after which a still-failing unit alerts again.
  */
-const HOUR_MS = 60 * 60 * 1_000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 /**
  A failed run as systemd reports it.
@@ -45,13 +56,16 @@ const CLEAN_RUN: UnitOutcome = {
 };
 
 /**
- A run stopped by hand as systemd reports it: a clean stop, not a clean exit.
+ Hand stops as systemd reports them to the failure handler.
+
+ The first is systemd's own report of the stopped oneshot (`Result=signal`, measured on
+ this PC's user manager at 2026-11-25); the second is rclone after it caught SIGTERM,
+ ran its exit handlers and exited with 128 + 15.
  */
-const STOPPED_RUN: UnitOutcome = {
-  result: 'success',
-  exitCode: 'killed',
-  exitStatus: 'TERM',
-};
+const HAND_STOP_RUNS: readonly UnitOutcome[] = [
+  { result: 'signal', exitCode: 'killed', exitStatus: 'TERM', },
+  { result: 'exit-code', exitCode: 'exited', exitStatus: '143', },
+];
 
 /**
  What a fake run recorded, so a test can assert on effects instead of on stdout.
@@ -68,13 +82,14 @@ type Recorded = {
 /**
  Builds the alert's effects as fakes, recording every call.
 
- @param options - streak to start with, journal lines to hand back, and whether
-   notify-send succeeds
+ @param options - streak to start with, the reason its file could not be used, journal
+   lines to hand back, and whether notify-send succeeds
 
  @returns the deps to run the alert with, and the record of what it did
  */
 function fakeDeps(options: Readonly<{
   streak?: Streak;
+  streakProblem?: string;
   journalLines?: readonly string[];
   journalProblem?: string;
   notifySucceeds?: boolean;
@@ -99,6 +114,7 @@ function fakeDeps(options: Readonly<{
   const deps: AlertDeps = {
     home: options.home ?? '/home/example',
     readStreak: async function readUnitStreak(): Promise<StreakLookup> {
+      if (options.streakProblem !== undefined) return { problem: options.streakProblem, };
       return recorded.streak === undefined ? {} : { streak: recorded.streak, };
     },
     writeStreak: async function writeUnitStreak(streak,): Promise<void> {
@@ -188,7 +204,7 @@ await describe({
          The run under test, with an alert one minute ago.
          */
         const { deps, recorded, } = fakeDeps({
-          streak: { lastAlertAtMs: HOUR_MS - 60_000, },
+          streak: { lastAlertAtMs: HOUR_MS - MINUTE_MS, },
           nowMs: HOUR_MS,
         },);
         /**
@@ -234,6 +250,32 @@ await describe({
     },),
     //endregion Failure alerts
 
+    //region A state file that could not be used
+    it({
+      name: 'a state file that could not be used still alerts and logs the reason',
+      fn: async function unusableStreakStillAlerts() {
+        /**
+         The reason the state file could not be used.
+         */
+        const reason = 'could not read /home/example/.local/state/rclone-bisync-garage-alert/rclone-bisync-garage.service.json: EACCES: permission denied';
+        /**
+         The run under test, whose streak file could not be used.
+         */
+        const { deps, recorded, } = fakeDeps({ streakProblem: reason, nowMs: 5 * HOUR_MS, },);
+        /**
+         Exit status of the entry.
+         */
+        const status = await runAlert({ request: request(), deps, },);
+        expect(status,).toBe(0,);
+        expect(recorded.notifications,).toHaveLength(1,);
+        expect(recorded.notifications[0]?.summary,).toBe('Garage sync failed',);
+        expect(recorded.streak,).toEqual({ lastAlertAtMs: 5 * HOUR_MS, },);
+        expect(recorded.stderr.join('\n',),).toContain(reason,);
+        expect(recorded.stderr.join('\n',),).toContain('treating it as no open streak',);
+      },
+    },),
+    //endregion A state file that could not be used
+
     //region Recovery alerts
     it({
       name: 'a run that exited with status 0 closes an open streak with one recovery alert',
@@ -268,22 +310,30 @@ await describe({
         expect(recorded.journalReads,).toHaveLength(0,);
       },
     },),
-    it({
-      name: 'a run stopped by hand is not a recovery and leaves the streak open',
-      fn: async function stoppedRunIsNotRecovery() {
-        /**
-         The run under test, with an open streak.
-         */
-        const { deps, recorded, } = fakeDeps({ streak: { lastAlertAtMs: HOUR_MS, }, },);
-        /**
-         Exit status of the entry.
-         */
-        const status = await runAlert({ request: request({ outcome: STOPPED_RUN, }), deps, },);
-        expect(status,).toBe(0,);
-        expect(recorded.notifications,).toHaveLength(0,);
-        expect(recorded.streak,).toEqual({ lastAlertAtMs: HOUR_MS, },);
-        expect(recorded.stdout.join('\n',),).toContain('was stopped',);
-      },
+    ...HAND_STOP_RUNS.map(function handStopRun(outcome,) {
+      return it({
+        name: `a hand stop systemd reports as ${outcome.result} (${outcome.exitCode} status ${outcome.exitStatus}) stays silent and leaves the streak open`,
+        fn: async function handStopIsNotAFailure() {
+          /**
+           The run under test, with an open streak and the hand stop systemd reported.
+           */
+          const { deps, recorded, } = fakeDeps({ streak: { lastAlertAtMs: HOUR_MS, }, },);
+          /**
+           Exit status of the entry.
+           */
+          const status = await runAlert({
+            request: request({
+              trigger: 'unit-failed',
+              outcome,
+            },),
+            deps,
+          },);
+          expect(status,).toBe(0,);
+          expect(recorded.notifications,).toHaveLength(0,);
+          expect(recorded.streak,).toEqual({ lastAlertAtMs: HOUR_MS, },);
+          expect(recorded.stdout.join('\n',),).toContain('was stopped',);
+        },
+      },);
     },),
     it({
       name: 'a success handler started with no systemd variables stays silent and leaves the streak open',
@@ -379,20 +429,138 @@ await describe({
         expect(openWatcherRun.recorded.notifications,).toHaveLength(1,);
         expect(openWatcherRun.recorded.notifications[0]?.summary,).toBe(`Garage sync recovered (${WATCH_UNIT})`,);
         expect(openWatcherRun.recorded.notifications[0]?.kind,).toBe('recovery',);
-        expect(openWatcherRun.recorded.streak,).toBeUndefined();
+        expect(openWatcherRun.recorded.streak,).toEqual({ lastAlertAtMs: 0, recovered: true, },);
         /**
          The same start hook with no streak open.
          */
         const closedWatcherRun = fakeDeps({},);
         await runAlert({ request: request({ trigger: 'watcher-started', unit: WATCH_UNIT, outcome: { result: '', exitCode: '', exitStatus: '', }, }), deps: closedWatcherRun.deps, },);
         expect(closedWatcherRun.recorded.notifications,).toHaveLength(0,);
+        expect(closedWatcherRun.recorded.streak,).toBeUndefined();
       },
+    },),
+    it({
+      name: 'a watcher crash loop sends one failure and one recovery inside the hour, then one more of each past it',
+      fn: async function watcherCrashLoopKeepsTheHour() {
+        await using home = await mkdtempDisposable(join(scratchRoot(), 'garage-alert-watch-loop-',),);
+        /**
+         Every notification the entry sent, in order.
+         */
+        const notifications: Notification[] = [];
+        /**
+         Clock the scenario moves between events; an object rather than a local, so no
+         binding changes value.
+         */
+        const clock = { nowMs: 0, };
+        /**
+         The watcher's streak file in the disposable home.
+         */
+        async function watchStreak(): Promise<StreakLookup> {
+          return await readStreak({
+            home: home.path,
+            unit: WATCH_UNIT,
+          },);
+        }
+        /**
+         The real effects, minus the notification server and the journal.
+         */
+        const deps: AlertDeps = {
+          home: home.path,
+          readStreak: watchStreak,
+          writeStreak: async function writeWatchStreak(streak,) {
+            await writeStreak({
+              home: home.path,
+              unit: WATCH_UNIT,
+              streak,
+            },);
+          },
+          removeStreak: async function removeWatchStreak() {
+            await removeStreak({
+              home: home.path,
+              unit: WATCH_UNIT,
+            },);
+          },
+          readJournal: async function readNoJournal() {
+            return { lines: [], };
+          },
+          backupListingsExist: async function noListings() {
+            return { exist: false, };
+          },
+          notify: async function collect(notification,) {
+            notifications.push(notification,);
+            return { sent: true, };
+          },
+          nowMs: function now() {
+            return clock.nowMs;
+          },
+          writeOut: function writeNothing() {},
+          writeError: function refuseDiagnostic(text,) {
+            throw new Error(`the entry wrote a diagnostic the scenario did not expect: ${text}`,);
+          },
+        };
+        /**
+         Runs one watcher event to its end.
+         */
+        async function runWatcherEvent(trigger: AlertRequest['trigger'],): Promise<void> {
+          await runAlert({
+            request: request({
+              trigger,
+              unit: WATCH_UNIT,
+              outcome: { result: '', exitCode: '', exitStatus: '', },
+            },),
+            deps,
+          },);
+        }
+        //region The crash loop inside the hour
+        clock.nowMs = 0;
+        await runWatcherEvent('unit-failed',);
+        expect(notifications.map(function kind(notification,) {
+          return notification.kind;
+        },),).toEqual(['failure',],);
+        expect((await watchStreak()).streak,).toEqual({ lastAlertAtMs: 0, },);
+        clock.nowMs = MINUTE_MS;
+        await runWatcherEvent('watcher-started',);
+        expect(notifications.map(function kind(notification,) {
+          return notification.kind;
+        },),).toEqual(['failure', 'recovery',],);
+        expect((await watchStreak()).streak,).toEqual({ lastAlertAtMs: 0, recovered: true, },);
+        clock.nowMs = 2 * MINUTE_MS;
+        await runWatcherEvent('unit-failed',);
+        clock.nowMs = 3 * MINUTE_MS;
+        await runWatcherEvent('watcher-started',);
+        clock.nowMs = 4 * MINUTE_MS;
+        await runWatcherEvent('unit-failed',);
+        expect(notifications.map(function kind(notification,) {
+          return notification.kind;
+        },),).toEqual(['failure', 'recovery',],);
+        expect((await watchStreak()).streak,).toEqual({ lastAlertAtMs: 0, recovered: true, },);
+        //endregion The crash loop inside the hour
+
+        //region A failure past the hour
+        clock.nowMs = HOUR_MS + MINUTE_MS;
+        await runWatcherEvent('unit-failed',);
+        expect(notifications.map(function kind(notification,) {
+          return notification.kind;
+        },),).toEqual(['failure', 'recovery', 'failure',],);
+        expect((await watchStreak()).streak,).toEqual({ lastAlertAtMs: HOUR_MS + MINUTE_MS, },);
+        clock.nowMs = HOUR_MS + (2 * MINUTE_MS);
+        await runWatcherEvent('watcher-started',);
+        expect(notifications.map(function kind(notification,) {
+          return notification.kind;
+        },),).toEqual(['failure', 'recovery', 'failure', 'recovery',],);
+        expect((await watchStreak()).streak,).toEqual({
+          lastAlertAtMs: HOUR_MS + MINUTE_MS,
+          recovered: true,
+        },);
+        //endregion A failure past the hour
+      },
+      timeout: 30_000,
     },),
     //endregion Watcher modes
 
     //region Journal
     it({
-      name: 'the journal read is the failed run\'s own invocation, and a failed read still alerts',
+      name: 'a failed journal read still alerts, names the failure, and logs the reason',
       fn: async function failedJournalReadStillAlerts() {
         /**
          The run under test, whose journal cannot be read.

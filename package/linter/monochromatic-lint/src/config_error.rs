@@ -126,7 +126,10 @@ impl ConfigError {
     /// ```ts
     /// static composed(message: string, unknownRule?: string): ConfigError;
     /// ```
-    pub fn composed(message: String, unknown_rule: Option<String>) -> ConfigError {
+    pub fn composed(
+        message: String,
+        unknown_rule: Option<String>,
+    ) -> ConfigError {
         // What: Store the composed text and the carried marker without decoration.
         // Why: Wrapping renames the affected input,
         //  never the identity of the running binary.
@@ -153,7 +156,10 @@ impl ConfigError {
 /// ```
 impl std::fmt::Display for ConfigError {
     /// Borrow the formatter only while it writes this error's message.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }

@@ -17,7 +17,11 @@ use crate::{
     layout_finding::LayoutFinding,
     layout_folder_links::check_folder_links,
     layout_module_uses::collect_uses,
-    layout_test_support::{link, package_with, tree_of},
+    layout_test_support::{
+        link,
+        package_with,
+        tree_of,
+    },
 };
 use std::path::Path;
 

@@ -10,7 +10,10 @@
 //! ```
 
 /// Import owned findings and selected rule severity.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the exact syntax-presence checks.
 use crate::rust_explicit_declarations::check_declaration_annotations;
 /// Import generic checks driven by actual callee/path resolution.

@@ -9,18 +9,30 @@
 //! ```
 
 /// Import the diagnostic and severity types that duplicate-heading findings use.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import node findings and the processing failure reported when the document's structure cannot be walked.
-use crate::markdown_finding::{finding, structure_failure};
+use crate::markdown_finding::{
+    finding,
+    structure_failure,
+};
 /// Import the parsed Markdown source whose headings are compared for duplicates.
 use crate::markdown_source::MarkdownSource;
 /// Import native heading data and shared finding construction.
-use satteri_ast::mdast::{MdastNodeType, decode_heading_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_heading_data,
+};
 /// Use ordered structural keys rather than encoding relationships into delimiter strings.
 use std::collections::BTreeSet;
 
 /// Report repeated depth/text pairs under the same textual ancestor heading path.
-pub fn no_duplicate_heading(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn no_duplicate_heading(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     let mut ancestors: Vec<(u8, String)> = Vec::<(u8, String)>::new();
     let mut seen: BTreeSet<Vec<(u8, String)>> = BTreeSet::<Vec<(u8, String)>>::new();

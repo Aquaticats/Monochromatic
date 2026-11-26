@@ -11,8 +11,17 @@
 //! ```
 
 /// Import the real extraction seam and the finding model.
-use crate::diagnostic::{Diagnostic, Severity, Span};
-use crate::processors::{ProcessorError, ProcessorLanguage, VirtualSource, extract};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
+use crate::processors::{
+    ProcessorError,
+    ProcessorLanguage,
+    VirtualSource,
+    extract,
+};
 use crate::test_deadline::finished_within_deadline;
 
 /// Extract the virtual files of one workflow.
@@ -39,7 +48,10 @@ fn names(text: &str) -> Vec<String> {
 }
 
 /// A finding at a byte range of the virtual file.
-fn finding(offset: usize, length: usize) -> Diagnostic {
+fn finding(
+    offset: usize,
+    length: usize,
+) -> Diagnostic {
     return Diagnostic::new(
         "shell/no-pipe",
         Severity::Error,

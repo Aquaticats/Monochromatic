@@ -9,7 +9,11 @@
 //! test('the smallest proof wins in any order', () => expect(recordInEachOrder(proofs)).toEqual(smallest));
 //! ```
 
-use super::{FolderUses, Proof, record_use};
+use super::{
+    FolderUses,
+    Proof,
+    record_use,
+};
 use std::path::PathBuf;
 
 /// A proof on a line of one file.

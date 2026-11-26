@@ -24,25 +24,50 @@
 /// Import every part of the layout checks and the run's plan,
 /// finding and path types.
 use crate::{
-    diagnostic::{Diagnostic, Severity, Span},
-    layout_allow_list::{AllowList, read_allow_list},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+        Span,
+    },
+    layout_allow_list::{
+        AllowList,
+        read_allow_list,
+    },
     layout_crate_roots::crate_root_files,
     layout_file_order::check_file_order,
     layout_finding::LayoutFinding,
     layout_folder_links::check_folder_links,
-    layout_module_tree::{ModuleTree, build_module_tree},
-    layout_module_uses::{ModuleUse, collect_uses},
+    layout_module_tree::{
+        ModuleTree,
+        build_module_tree,
+    },
+    layout_module_uses::{
+        ModuleUse,
+        collect_uses,
+    },
     layout_path_resolution::link_glob_targets,
     markdown_lfs_target::lexical_normal,
-    run_failure::{file_start, processing_failure},
-    run_paths::{Language, display_name},
-    run_plan::{FilePlan, RootRules},
+    run_failure::{
+        file_start,
+        processing_failure,
+    },
+    run_paths::{
+        Language,
+        display_name,
+    },
+    run_plan::{
+        FilePlan,
+        RootRules,
+    },
     rust_manifest::discover_manifest,
 };
 /// Import an ordered map and native paths.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The diagnostic code of the folder rule.
@@ -100,13 +125,19 @@ struct Selection {
 /// ```ts
 /// function selectPackages(plans: FilePlan[], notes: string[]): Map<Path, Selection>;
 /// ```
-fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<PathBuf, Selection> {
+fn select_packages(
+    plans: &[FilePlan],
+    notes: &mut Vec<String>,
+) -> BTreeMap<PathBuf, Selection> {
     let mut chosen: BTreeMap<PathBuf, Selection> = BTreeMap::<PathBuf, Selection>::new();
     for plan in plans {
         if plan.language != Language::Rust {
             continue;
         }
-        let RootRules::Rust { settings } = &plan.root else {
+        let RootRules::Rust {
+            settings,
+        } = &plan.root
+        else {
             continue;
         };
         if settings.folder_uses_links.is_none() && settings.file_order_in_folder.is_none() {
@@ -154,7 +185,10 @@ fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<Path
 /// ```ts
 /// function lineSpan(file: Path, line: number): Span;
 /// ```
-fn line_span(file: &Path, line: usize) -> Span {
+fn line_span(
+    file: &Path,
+    line: usize,
+) -> Span {
     if line == 0 {
         return file_start();
     }
@@ -253,7 +287,11 @@ fn list_for(
 /// ```ts
 /// function noteKeys(found: LayoutFinding[], rule: string, outcome: LayoutOutcome): void;
 /// ```
-fn note_keys(found: &[LayoutFinding], rule: &str, outcome: &mut LayoutOutcome) {
+fn note_keys(
+    found: &[LayoutFinding],
+    rule: &str,
+    outcome: &mut LayoutOutcome,
+) {
     for item in found {
         if item.key.is_empty() {
             continue;
@@ -273,7 +311,12 @@ fn note_keys(found: &[LayoutFinding], rule: &str, outcome: &mut LayoutOutcome) {
 /// ```ts
 /// function checkPackage(manifest: Path, selection: Selection, cwd: Path, outcome: LayoutOutcome): void;
 /// ```
-fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &mut LayoutOutcome) {
+fn check_package(
+    manifest: &Path,
+    selection: &Selection,
+    cwd: &Path,
+    outcome: &mut LayoutOutcome,
+) {
     let Some(package) = manifest.parent() else {
         return;
     };
@@ -349,7 +392,10 @@ fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &m
 /// ```ts
 /// function runLayoutStep(plans: FilePlan[], cwd: Path): LayoutOutcome;
 /// ```
-pub fn run_layout_step(plans: &[FilePlan], cwd: &Path) -> LayoutOutcome {
+pub fn run_layout_step(
+    plans: &[FilePlan],
+    cwd: &Path,
+) -> LayoutOutcome {
     let mut outcome: LayoutOutcome = LayoutOutcome::default();
     let mut notes: Vec<String> = Vec::<String>::new();
     let chosen: BTreeMap<PathBuf, Selection> = select_packages(plans, &mut notes);

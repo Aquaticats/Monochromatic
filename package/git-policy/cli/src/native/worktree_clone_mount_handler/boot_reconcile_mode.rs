@@ -137,9 +137,12 @@ pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<Str
     let receipts: ReceiptsFolder = ReceiptsFolder::live();
     let claims: SlotClaimDirectory = SlotClaimDirectory::live();
     let clock = || return crate::iso_time::now_iso();
-    let attach: super::sweep_attach_step::RealAttachStep = super::sweep_attach_step::RealAttachStep::default();
-    let first_attach: LiveFirstAttach = LiveFirstAttach::live();
     let standing: LiveStandingMounts = LiveStandingMounts::read();
+    // The step asks this same reader when the walk stops at a slot that already stands on this clone's own mount, so one
+    // copy of the kernel's table answers both the answer before the walk and the answer at it.
+    let attach: super::sweep_attach_step::RealAttachStep<'_, super::sweep_attach_step::RealRollbackCalls, super::sweep_attach_step::RealCloneMountCall> =
+        super::sweep_attach_step::RealAttachStep::release(&standing);
+    let first_attach: LiveFirstAttach = LiveFirstAttach::live();
     let context: SweepContext<'_> = SweepContext {
         parent_dataset: configuration.parent_dataset.as_str(),
         checkout: configuration.checkout.as_path(),

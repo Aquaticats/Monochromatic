@@ -16,7 +16,13 @@ use crate::{
     diagnostic::Span,
     layout_test_support::package_with,
     run_output::RunOutput,
-    run_test_support::{ALL_RULES, CONFIG, records, run, write},
+    run_test_support::{
+        ALL_RULES,
+        CONFIG,
+        records,
+        run,
+        write,
+    },
     test_fs::Fixture,
 };
 
