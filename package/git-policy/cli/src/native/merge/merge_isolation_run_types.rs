@@ -38,7 +38,7 @@ pub const TAG: &str = "isolatedMerge";
 /// native Git reports those
 /// itself,
 /// so the command is forwarded.
-pub const IN_PROGRESS_MARKERS: [&str; 6] = [
+pub const IN_PROGRESS_MARKERS: &[&str] = &[
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
     "REVERT_HEAD",

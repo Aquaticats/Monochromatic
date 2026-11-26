@@ -27,7 +27,7 @@ use std::path::Path;
 const CLIPPY_LEVELS: &str = "complexity={level=\"allow\",priority=-1}disallowed_methods=\"deny\"implicit_return=\"deny\"needless_return=\"allow\"shadow_reuse=\"deny\"shadow_same=\"deny\"shadow_unrelated=\"deny\"";
 
 /// Every disallowed call's path, in the configuration's own order.
-const DISALLOWED_CALLS: [&str; 9] = [
+const DISALLOWED_CALLS: &[&str] = &[
     "std::result::Result::unwrap",
     "std::env::temp_dir",
     "tempfile::tempdir",

@@ -74,7 +74,7 @@ thread_local! {
 /// ```ts
 /// const OWN_ENTRIES = ['HEAD', 'config', 'objects', 'refs'];
 /// ```
-const OWN_ENTRIES: [&str; 4] = ["HEAD", "config", "objects", "refs"];
+const OWN_ENTRIES: &[&str] = &["HEAD", "config", "objects", "refs"];
 
 /// What:
 ///  The per-worktree file a creation copies into a shadow.

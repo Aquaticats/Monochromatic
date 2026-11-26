@@ -158,7 +158,7 @@ pub(crate) fn stage_the_worktrees_own_state(
 ///
 /// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
 /// because the names stand beside the build directory they take, inside the worktree.
-pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 3] = [
+pub(crate) const EXCLUDED_STAGING_PATTERNS: &[&str] = &[
     "*.monochromatic-prewarm/",
     "*.monochromatic-prewarm.target/",
     "*.monochromatic-prewarm.owner",

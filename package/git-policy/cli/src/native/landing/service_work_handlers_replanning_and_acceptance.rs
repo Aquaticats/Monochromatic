@@ -52,7 +52,7 @@ use std::time::{
 };
 /// The kinds of work the service runs itself:
 /// the push and every slow kind.
-pub const SERVICE_KINDS: [WorkKind; 8] = [
+pub const SERVICE_KINDS: &[WorkKind] = &[
     WorkKind::Push,
     WorkKind::Maintenance,
     WorkKind::Review,
@@ -74,7 +74,7 @@ pub const SERVICE_KINDS: [WorkKind; 8] = [
 /// and every round that held a push that day was measured the same way
 /// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 /// The other kinds are the slow lane's (`landing/service_work_slow_lane.rs`).
-pub const PUSH_KINDS: [WorkKind; 1] = [WorkKind::Push];
+pub const PUSH_KINDS: &[WorkKind] = &[WorkKind::Push];
 
 /// The kinds whose steps can take minutes:
 /// the upkeep,
@@ -95,7 +95,7 @@ pub const PUSH_KINDS: [WorkKind; 1] = [WorkKind::Push];
 /// They are claimed by the slow lane (`landing/service_work_slow_lane.rs`),
 /// one at a time,
 /// and never by the round.
-pub const SLOW_KINDS: [WorkKind; 7] = [
+pub const SLOW_KINDS: &[WorkKind] = &[
     WorkKind::Maintenance,
     WorkKind::Prewarm,
     WorkKind::Relink,

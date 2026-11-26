@@ -97,7 +97,7 @@ pub struct Decision<'record> {
 /// finds them;
 /// every other reason is a decision working as intended (a branch that did not grow,
 /// a detached `HEAD`).
-const WARN_REASONS: [&str; 9] = [
+const WARN_REASONS: &[&str] = &[
     "layout-declined",
     "head-unreadable",
     "branch-has-no-tip",

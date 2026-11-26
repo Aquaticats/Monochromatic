@@ -184,7 +184,7 @@ pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace is refused: this buil
 /// ```ts
 /// const TABLE: readonly KindEvidence[] = [ ... ];
 /// ```
-pub const THE_KINDS: [KindEvidence; 6] = [
+pub const THE_KINDS: &[KindEvidence] = &[
     KindEvidence {
         kind: HolderKind::SessionTask,
         ending: Ending::EndBlockersThenUnmount,
@@ -235,7 +235,7 @@ pub const THE_KINDS: [KindEvidence; 6] = [
 /// const ending = endingOf(kind);   // throws when the table lacks the kind
 /// ```
 pub fn ending_of(kind: HolderKind) -> Result<KindEvidence, MissingKind> {
-    for row in THE_KINDS {
+    for &row in THE_KINDS {
         if row.kind == kind {
             return Ok(row);
         }

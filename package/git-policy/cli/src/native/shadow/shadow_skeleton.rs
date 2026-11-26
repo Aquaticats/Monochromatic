@@ -41,7 +41,7 @@ use std::path::Path;
 ///  "E. The claim keeps every check, with a smaller skeleton and one listing of the common directory"),
 ///  and a probe of Git and the wrapper's own ref store in a shadow without the three found both working:
 ///  `git commit --allow-empty` landed and `for-each-ref`, `log`, `rev-parse HEAD` and `status` answered.
-pub const SKELETON_DIRECTORIES: [&str; 4] = ["", "objects", "objects/info", "refs"];
+pub const SKELETON_DIRECTORIES: &[&str] = &["", "objects", "objects/info", "refs"];
 
 /// The `HEAD` a new repository starts with:
 ///  a branch that does not exist yet.

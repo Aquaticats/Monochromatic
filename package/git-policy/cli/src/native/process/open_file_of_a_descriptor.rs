@@ -61,8 +61,8 @@ pub struct OpenedFile {
 /// An overlay file system is not one of them:
 /// its attributes are those of the file below it,
 /// which such a server may be serving.
-const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] =
-    ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "zfs", "bcachefs"];
+const READ_IN_MEMORY_FILE_SYSTEMS: &[&str] =
+    &["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "zfs", "bcachefs"];
 
 /// What:
 ///  The mount a descriptor was opened through,

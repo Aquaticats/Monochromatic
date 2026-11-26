@@ -29,7 +29,7 @@ pub const EXPECTED_FILESYSTEM: &str = "zfs";
 
 /// The flags the attach asks for,
 /// read back as mount options.
-pub const EXPECTED_FLAGS: [&str; 3] = ["ro", "nosuid", "nodev"];
+pub const EXPECTED_FLAGS: &[&str] = &["ro", "nosuid", "nodev"];
 
 /// What:
 ///  One mount the attach asked for.

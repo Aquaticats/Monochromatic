@@ -83,7 +83,7 @@ pub const ALLOW_VARIABLE: &str = "SHADOW_REVIEW_ALLOW";
 
 /// The credential variable,
 /// and the stop-hook credential used when it is unset.
-pub const KEY_VARIABLES: [&str; 2] = crate::service_review_key::KEY_VARIABLES;
+pub const KEY_VARIABLES: &[&str] = crate::service_review_key::KEY_VARIABLES;
 
 /// The failure line written when no credential is set.
 pub const NO_KEY_MESSAGE: &str =

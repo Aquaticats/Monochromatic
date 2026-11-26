@@ -48,7 +48,7 @@ const FSMONITOR_KEY: &str = "core.fsmonitor";
 /// `--local`,
 ///  `--worktree`);
 /// the `command` scope (`-c` and the environment) has no file.
-const WRITABLE_SCOPES: [&str; 4] = ["system", "global", "local", "worktree"];
+const WRITABLE_SCOPES: &[&str] = &["system", "global", "local", "worktree"];
 
 /// The repository-relative path of the document that records why the owner turned Git's fsmonitor off.
 pub const FSMONITOR_DOCUMENT: &str = "doc/troubleshooting/git-fsmonitor-daemon-start-wait.md";

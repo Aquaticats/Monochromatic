@@ -34,14 +34,14 @@ use super::{
 ///  is a pass.
 fn a_passing_report() -> ProbeReport {
     let mut report: ProbeReport = ProbeReport::new();
-    for step in ProbeStep::WORKER_ORDER {
+    for &step in ProbeStep::WORKER_ORDER {
         if step == ProbeStep::CheckoutRoot {
             report.record(StepLine::not_exercised(step, "no-checkout-path", None));
         } else {
             report.record(StepLine::passed(step));
         }
     }
-    for step in ProbeStep::HOLDER_ORDER {
+    for &step in ProbeStep::HOLDER_ORDER {
         report.record(StepLine::passed(step));
     }
     return report;
@@ -67,7 +67,7 @@ fn an_arm_that_did_not_run_blocks() {
 #[test]
 fn a_failed_step_stops_every_later_arm() {
     let mut report: ProbeReport = ProbeReport::new();
-    for step in ProbeStep::WORKER_ORDER {
+    for &step in ProbeStep::WORKER_ORDER {
         if step == ProbeStep::AttachPlace {
             report.record(StepLine::failed(step, Some("EPERM")));
             break;

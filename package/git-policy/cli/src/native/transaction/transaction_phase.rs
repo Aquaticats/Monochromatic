@@ -121,7 +121,7 @@ pub enum Phase {
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 13] = [
+pub const TRANSACTION_TEST_PHASES: &[Phase] = &[
     Phase::MergeCarried,
     Phase::MergeIntent,
     Phase::MergeClearIndex,

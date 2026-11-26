@@ -800,7 +800,7 @@ fn leave_a_batch_open(
 }
 
 /// The words after the program that make it settle the batches an earlier release left open.
-const SETTLE_WORDS: [&str; 3] = [
+const SETTLE_WORDS: &[&str] = &[
     "monochromatic-git-policy-cli",
     "service",
     "settle-earlier-batches",
@@ -855,7 +855,7 @@ fn run_settle_past_a_refusal(
 ) -> super::support::Observed {
     let begun: Instant = Instant::now();
     loop {
-        let observed = super::support::run_wrapped(fixture, repo, &SETTLE_WORDS);
+        let observed = super::support::run_wrapped(fixture, repo, SETTLE_WORDS);
         // Every hold exits 1 with nothing on standard output and changes nothing on disk; anything else is the control's answer.
         let refused: bool = observed.code == Some(1) && observed.stdout.is_empty();
         if !refused || begun.elapsed() >= PATIENCE {
@@ -1379,7 +1379,7 @@ fn clients_sent_together_all_land_once() {
 /// and the commit of a batch that the branch never took is kept where the person can find it.
 #[test]
 fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
-    for point in FAULT_POINTS {
+    for &point in FAULT_POINTS {
         let fixture: Fixture = fixture(format!("service-kill-{point}").as_str());
         let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
         let name: String = address(&fixture, "kill");
@@ -2217,7 +2217,7 @@ fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
 /// with the parent of the replaced commit and a healthy repository.
 #[test]
 fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
-    for point in FAULT_POINTS {
+    for &point in FAULT_POINTS {
         let fixture: Fixture = fixture(format!("service-amend-kill-{point}").as_str());
         let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
         let name: String = address(&fixture, "amendkill");

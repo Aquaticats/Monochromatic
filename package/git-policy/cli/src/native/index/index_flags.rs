@@ -65,7 +65,7 @@ const STAT_LENGTH: usize = 40;
 
 /// Object name lengths tried in turn:
 /// SHA-1 and SHA-256.
-const OBJECT_NAME_LENGTHS: [usize; 2] = [20, 32];
+const OBJECT_NAME_LENGTHS: &[usize] = &[20, 32];
 
 /// The extension that makes the entries live partly in another file,
 /// which this reader does not follow.
@@ -257,7 +257,7 @@ fn scan_entries(
 /// readIndexFlags(bytes)
 /// ```
 pub fn read_index_flags(bytes: &[u8]) -> IndexFlags {
-    for name_length in OBJECT_NAME_LENGTHS {
+    for &name_length in OBJECT_NAME_LENGTHS {
         match scan_entries(bytes, name_length) {
             // A hidden entry sends the whole commit to the slower build, so its paths are not needed.
             Some(marks) if marks.hidden => return IndexFlags::Marked,

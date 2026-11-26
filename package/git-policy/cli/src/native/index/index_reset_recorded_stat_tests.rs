@@ -37,7 +37,7 @@ use std::path::{
 };
 
 /// The files of the first commit.
-const FILES: [(&str, &[u8], bool); 3] = [
+const FILES: &[(&str, &[u8], bool)] = &[
     ("a", b"a one\n", false),
     ("d/x", b"x one\n", false),
     ("z", b"z one\n", false),
@@ -141,7 +141,7 @@ fn captures_a_two(name: &str) -> Scene {
     return scene(
         name,
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -169,7 +169,7 @@ fn a_path_the_worktree_holds_records_the_files_stat_data_and_one_edited_after_it
     let scene: Scene = scene(
         "index-reset-recorded-stat-both",
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -245,7 +245,7 @@ fn a_landing_with_an_indexed_root_attributes_file_records_a_nested_path() {
     let scene: Scene = scene(
         "index-reset-recorded-stat-nested-attributes",
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -416,7 +416,7 @@ fn the_commit_after_a_landing_asks_for_no_refresh_for_the_paths_it_landed() {
     let scene: Scene = scene(
         "index-reset-recorded-stat-next",
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             ..Plan::default()
         },

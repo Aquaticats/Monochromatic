@@ -66,7 +66,7 @@ const BRANCH_NAMESPACE: &str = "refs/heads/";
 /// Why they are here:
 ///  a hand-made ref of such a name would otherwise be read as the branch Git checked out,
 ///  and `-` is Git's own synonym for `@{-1}`.
-const NAMES_NEVER_A_BRANCH: [&str; 1] = ["HEAD"];
+const NAMES_NEVER_A_BRANCH: &[&str] = &["HEAD"];
 
 /// What:
 ///  The commit the add's worktree starts at,

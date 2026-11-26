@@ -32,7 +32,7 @@ use std::process::Command;
 
 /// The names of OpenZFS's CDDL libraries,
 /// as a dynamic linker prints them with their `.so` suffix.
-const CDDL_LIBRARY_STEMS: [&str; 7] = [
+const CDDL_LIBRARY_STEMS: &[&str] = &[
     "libzfs",
     "libzfs_core",
     "libzfsbootenv",
@@ -151,7 +151,7 @@ fn started(
 
 /// The one executable the release archive holds,
 /// named as cargo built it for this test run.
-const RELEASE_BINS: [&str; 1] = [env!("CARGO_BIN_EXE_monochromatic-git-policy-cli")];
+const RELEASE_BINS: &[&str] = &[env!("CARGO_BIN_EXE_monochromatic-git-policy-cli")];
 
 /// Neither executable names a CDDL library,
 /// and each listing is a real answer:

@@ -21,7 +21,7 @@ pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
 /// in the order a batch reaches them;
 /// the three `prestage-*` points are reached by the job that makes the next batch's marker,
 /// which runs beside the landing that started it.
-pub const FAULT_POINTS: [&str; 8] = [
+pub const FAULT_POINTS: &[&str] = &[
     "after-objects",
     "after-intent",
     PRESTAGE_START,

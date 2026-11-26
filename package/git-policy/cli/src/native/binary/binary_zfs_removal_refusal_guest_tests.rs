@@ -203,7 +203,7 @@ fn the_refusal(
 ///  where a set of names would read a move as a loss.
 fn protected_guids(
     sbin: &str,
-    datasets: [&str; 2],
+    datasets: &[&str],
 ) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for dataset in datasets {
@@ -587,7 +587,7 @@ fn zfs_removal_refusal_guest() {
     // The recorded tuple is read before the promotion, because a promotion moves the origin snapshot under the clone.
     let recorded_tuple: (u64, u64) = identity_of(sbin.as_str(), origin_snapshot.as_str());
     let protected: Vec<String> =
-        protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]);
+        protected_guids(sbin.as_str(), &[checkout_dataset.as_str(), clone.as_str()]);
     assert!(
         protected.len() >= 3,
         "the arm read the checkout's snapshot and the clone's own: {protected:?}"
@@ -611,7 +611,7 @@ fn zfs_removal_refusal_guest() {
         "a promoted clone's proof does not pass: {promoted}"
     );
     assert_eq!(
-        protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]),
+        protected_guids(sbin.as_str(), &[checkout_dataset.as_str(), clone.as_str()]),
         protected,
         "promotion moved tuples without losing one, and the refusal destroyed nothing"
     );
@@ -656,7 +656,7 @@ fn zfs_removal_refusal_guest() {
     // show is that every identity it read before the promotion is still there, which is what "every protected object
     // survives" means.
     let after: Vec<String> =
-        protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]);
+        protected_guids(sbin.as_str(), &[checkout_dataset.as_str(), clone.as_str()]);
     for identity in &protected {
         assert!(
             after.contains(identity),

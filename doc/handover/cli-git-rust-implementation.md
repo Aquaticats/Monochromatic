@@ -127,7 +127,8 @@ Rounds started before that decision run on flex.
   window `zfs-step-23-host-kernel-qualification`, run 2 on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
-- Issues 6489, 6493 and 6495 (flex),
+- Issue 6489, run 2 on Qwen (run 1 on flex timed out at turn 150 with its fix committed and no report),
+  and issues 6493 and 6495 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
@@ -135,15 +136,16 @@ Rounds started before that decision run on flex.
 - Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
   briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `invocation/`.
-- Debt ledger item 19, window `fixed-length-lists-become-slices`, run 2 on Qwen
-  (run 1 on flex ended when the writer did not begin a response in time; its work is committed).
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
   (run 1 on flex ended the same way, its edits committed as `45de70f8fd`; it touches `invocation/`, one of the split round 1 folders).
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
   (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
   a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
-  window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
-  then the `alpha.14` release, its Sonnet release pass and the lock bump.
+  merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`;
+  its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-14-release-review`.
+  The fix round's claim of 244 `rust/folder-uses-links` findings on `main` did not reproduce:
+  clean `git archive` exports of `44996d08eb` and `1efb8a1163` give 0 and 0
+  (`~/temp/agent/layout-findings-on-a-clean-export-of-main-2026-11-26/keep/`).
 - The virtual writer with Qwen first,
   window `virtual-writer-qwen-first`, run 2 on Qwen
   (run 1 on flex ended the same way at turn 151, its work committed as `f5bca9e28f`).
@@ -171,6 +173,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   the release commit `e58ba6f078`,
   its lock as `07c8785fa9`
   (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
+- The linter's `alpha.14` fixes as `d127a911a0`, the release commit `73f1091ce0`, its lock as `925cec1406`.
+- Debt ledger item 19 (lists of names held as slices, with a source guard) as `df7e6467c5`;
+  whether the 297 local lists join it is in `doc/handover/questions-for-the-owner.md`.
 
 - 6462 as `d169557d37`:
   a clone inherits `mountpoint=legacy` from its container,

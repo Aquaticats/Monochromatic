@@ -353,7 +353,7 @@ fn projected_scope(
         prefix,
         command.as_slice(),
         overlay,
-        crate::conflict_side_modes::MODE_VARIABLES.as_slice(),
+        crate::conflict_side_modes::MODE_VARIABLES,
         "read the selected worktree files",
     )?;
     return staged_scope(store, pathspecs);

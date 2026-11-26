@@ -74,7 +74,7 @@ const MOST_ENTRIES: usize = 8192;
 /// whose `*.lock` files are a pack writer's own temporary names,
 /// and the logs,
 /// which hold no lock at all.
-const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
+const SKIPPED_FOLDERS: &[&str] = &["objects", "logs"];
 
 /// The folder of the common Git directory that holds each linked worktree's own administrative directory.
 const LINKED_WORKTREES_FOLDER: &str = "worktrees";

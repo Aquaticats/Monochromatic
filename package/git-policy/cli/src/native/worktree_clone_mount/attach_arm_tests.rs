@@ -117,7 +117,7 @@ const THE_BESIDE_SLOT: &str = "beside";
 /// The slots item 2's refusals are planted on,
 /// one per refusal,
 /// so one plant never sees what another plant left.
-const REFUSAL_SLOTS: [&str; 9] = [
+const REFUSAL_SLOTS: &[&str] = &[
     "link-slot",
     "planted-link",
     "new-inode",

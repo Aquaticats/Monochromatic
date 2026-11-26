@@ -110,7 +110,7 @@ pub const ATTEMPT_SEPARATORS_BYTES: u64 = 6;
 /// Why:
 ///  A writer refuses a value wider than its key's bound,
 ///  so one rule proves a plan cannot carry a field its reader would refuse.
-pub const HEADER_FIELD_WIDEST_BYTES: [(&str, usize); 18] = [
+pub const HEADER_FIELD_WIDEST_BYTES: &[(&str, usize)] = &[
     ("run", NONCE_MAXIMUM_DIGITS),
     ("owner", OWNER_MAXIMUM_BYTES),
     ("started", STARTED_MAXIMUM_BYTES),
@@ -152,7 +152,7 @@ pub fn bare_line_bytes(text: &str) -> u64 {
 /// The widest one header line may carry,
 /// or nothing when the key is not the plan's.
 pub fn header_field_maximum_bytes(key: &str) -> Option<u64> {
-    for (known, widest) in HEADER_FIELD_WIDEST_BYTES {
+    for &(known, widest) in HEADER_FIELD_WIDEST_BYTES {
         if known == key {
             return Some(line_bytes(known, widest));
         }
@@ -168,7 +168,7 @@ pub fn header_field_maximum_bytes(key: &str) -> Option<u64> {
 ///  so a control compares the two rather than restating either.
 pub fn widest_header_bytes() -> u64 {
     let mut total: u64 = bare_line_bytes(PLAN_HEADER);
-    for (key, widest) in HEADER_FIELD_WIDEST_BYTES {
+    for &(key, widest) in HEADER_FIELD_WIDEST_BYTES {
         total += line_bytes(key, widest);
     }
     return total;

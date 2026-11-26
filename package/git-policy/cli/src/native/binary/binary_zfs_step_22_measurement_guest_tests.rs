@@ -130,13 +130,13 @@ const BUILD_OUTPUT_MIB: usize = 12;
 ///  The design's budget is bytes of encoded input,
 ///  and one name is the same flag pair at every count,
 ///  so three counts read the same rule at three scales.
-const REQUEST_NAMES: [usize; 3] = [64, 512, 2048];
+const REQUEST_NAMES: &[usize] = &[64, 512, 2048];
 
 /// The account this arm runs as, whose delegation the route's preflight reads.
 const ACCOUNT: &str = "0";
 
 /// The binding record's phases in the order the add writes them.
-const PHASES: [&str; 7] = [
+const PHASES: &[&str] = &[
     "claimed",
     "slot",
     "registered",
@@ -512,7 +512,7 @@ impl Fixture {
         let mut attach_made: bool = false;
         let mut ended: bool = false;
         while started.elapsed() < ADD_WAIT {
-            for word in PHASES {
+            for &word in PHASES {
                 if phases.iter().any(|(already, _at)| return *already == word) {
                     continue;
                 }
@@ -576,7 +576,7 @@ impl Fixture {
         }
         let output: Output = child.wait_with_output().expect("the add ends");
         let _ended: bool = ended;
-        for word in PHASES {
+        for &word in PHASES {
             if phases.iter().any(|(already, _at)| return *already == word) {
                 continue;
             }
@@ -1461,7 +1461,7 @@ fn request_budget_arm(fixture: &Fixture) {
     let _destroyed: (bool, String, String) =
         fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
     fixture.zfs_ok(&["create", "-o", "mountpoint=none", dataset.as_str()]);
-    for count in REQUEST_NAMES {
+    for &count in REQUEST_NAMES {
         let names: Vec<String> = (0..count)
             .map(|index| return format!("{dataset}@step22-{index:05}"))
             .collect();

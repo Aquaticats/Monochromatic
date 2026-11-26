@@ -77,7 +77,7 @@ pub const RESTART_COMMAND: &str =
 pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-cli@*.service'";
 
 /// The commands that show whether the commit was made.
-pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
+pub const CHECK_COMMANDS: &[&str] = &["git log -1", "git status"];
 
 /// The command that shows what the commit service of a worktree is doing,
 /// and names the unit that serves it.
@@ -596,7 +596,7 @@ pub use crate::service_messages_of_a_platform::platform_remedy;
 /// The texts that must never reach a user:
 /// implementation terms the system should have resolved itself.
 ///  Matched case-insensitively against whole words after the quoted commands are removed.
-pub const DENYLIST: [&str; 22] = [
+pub const DENYLIST: &[&str] = &[
     "protocol",
     "journal",
     "request id",

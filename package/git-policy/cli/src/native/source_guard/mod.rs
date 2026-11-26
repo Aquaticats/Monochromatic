@@ -68,6 +68,13 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a list of text written as an array with a hand-counted length:
+/// a list of names, sites or words is a slice,
+/// so adding an entry never edits a count beside it.
+#[cfg(test)]
+#[path = "lists_are_slices_tests.rs"]
+mod lists_are_slices_tests;
+
 /// The ban on a control taking the runner the whole service process shares:
 /// a control that reviews a commit declares one of its own and reaches the review through `review_item_in`.
 #[cfg(test)]

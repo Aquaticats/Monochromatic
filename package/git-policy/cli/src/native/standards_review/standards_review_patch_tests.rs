@@ -253,7 +253,7 @@ fn absent_paths_and_hunkless_sections_have_no_spans() {
 /// Names Git quotes in its patch header:
 /// a quote it escapes and a non-ASCII byte it escapes,
 /// both of which `core.quotePath` quotes by default.
-const QUOTED_NAMES: [&str; 2] = ["quote\".rs", "caf\u{e9}.rs"];
+const QUOTED_NAMES: &[&str] = &["quote\".rs", "caf\u{e9}.rs"];
 
 /// A changed path Git quotes in the patch header is still that file's section:
 /// the spans are the changed lines',

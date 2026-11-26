@@ -37,7 +37,7 @@ use forbidden_strings::ScanFinding;
 
 /// Every candidate-layer cause that means "Git could not list or hand over content",
 /// including a private index that could not be prepared for a prediction.
-const UNREADABLE: [CandidateFailure; 13] = [
+const UNREADABLE: &[CandidateFailure] = &[
     CandidateFailure::GitNotStarted,
     CandidateFailure::GitFailed,
     CandidateFailure::ListingMalformed,
@@ -70,7 +70,7 @@ fn the_two_codes_have_the_decided_names() {
 ///  a stale candidate alone is `policy-incomplete`.
 #[test]
 fn every_candidate_failure_has_its_code() {
-    for failure in UNREADABLE {
+    for &failure in UNREADABLE {
         assert_eq!(
             candidate_failure_code(failure),
             EngineFailureCode::ContentUnavailable,
@@ -102,7 +102,7 @@ fn every_scanner_failure_is_policy_incomplete() {
 ///  whichever layer failed.
 #[test]
 fn scan_run_errors_carry_the_code_of_the_failure_they_wrap() {
-    for failure in UNREADABLE {
+    for &failure in UNREADABLE {
         let unreadable: ScanRunError = ScanRunError::Candidate(CandidateError::new(failure, "x"));
         assert_eq!(
             scan_run_failure_code(&unreadable),
