@@ -22,7 +22,10 @@
 /// ```ts
 /// import { Outcome, dataError } from './error';
 /// ```
-use crate::error::{Outcome, data_error};
+use crate::error::{
+    Outcome,
+    data_error,
+};
 /// What:
 ///  Import `HashSet` from `std::collections::HashSet`.
 /// Why:
@@ -133,7 +136,10 @@ pub enum JsValue {
 /// ```ts
 /// function get(value: JsValue, key: string): JsValue | undefined;
 /// ```
-pub fn object_get<'a>(value: &'a JsValue, key: &str) -> Option<&'a JsValue> {
+pub fn object_get<'a>(
+    value: &'a JsValue,
+    key: &str,
+) -> Option<&'a JsValue> {
     if let JsValue::Object(entries) = value {
         for (entry_key, entry_value) in entries {
             if entry_key == key {
@@ -174,7 +180,10 @@ struct Cursor<'a> {
 /// ```
 impl<'a> Cursor<'a> {
     /// Build the error at the current offset.
-    fn fail(&self, message: &str) -> crate::error::BrowserslistError {
+    fn fail(
+        &self,
+        message: &str,
+    ) -> crate::error::BrowserslistError {
         return data_error(self.file, self.offset, message);
     }
 
@@ -184,7 +193,11 @@ impl<'a> Cursor<'a> {
     }
 
     /// Consume one expected byte or fail.
-    fn expect(&mut self, wanted: u8, what: &str) -> Outcome<()> {
+    fn expect(
+        &mut self,
+        wanted: u8,
+        what: &str,
+    ) -> Outcome<()> {
         if self.peek() == Some(wanted) {
             self.offset += 1;
             return Ok(());
@@ -256,7 +269,9 @@ impl<'a> Cursor<'a> {
         if self.peek().is_some_and(is_number_tail_byte) {
             return Err(self.fail("number followed by a byte outside the subset"));
         }
-        return Ok(JsValue::Number(String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned()));
+        return Ok(JsValue::Number(
+            String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned(),
+        ));
     }
 
     /// Parse the `null` keyword.
@@ -273,7 +288,10 @@ impl<'a> Cursor<'a> {
 
     /// Parse any value;
     /// `depth` counts the containers already open.
-    fn value(&mut self, depth: usize) -> Outcome<JsValue> {
+    fn value(
+        &mut self,
+        depth: usize,
+    ) -> Outcome<JsValue> {
         match self.peek() {
             Some(b'{') => return self.object(depth + 1),
             Some(b'[') => return self.array(depth + 1),
@@ -286,7 +304,10 @@ impl<'a> Cursor<'a> {
 
     /// Parse `{ key: value, ... }`,
     /// rejecting trailing commas and duplicate keys.
-    fn object(&mut self, depth: usize) -> Outcome<JsValue> {
+    fn object(
+        &mut self,
+        depth: usize,
+    ) -> Outcome<JsValue> {
         if depth > MAX_DEPTH {
             return Err(self.fail("containers nest deeper than the subset allows"));
         }
@@ -320,7 +341,10 @@ impl<'a> Cursor<'a> {
 
     /// Parse `[ value, ... ]`,
     /// rejecting trailing commas and holes.
-    fn array(&mut self, depth: usize) -> Outcome<JsValue> {
+    fn array(
+        &mut self,
+        depth: usize,
+    ) -> Outcome<JsValue> {
         if depth > MAX_DEPTH {
             return Err(self.fail("containers nest deeper than the subset allows"));
         }
@@ -358,8 +382,15 @@ impl<'a> Cursor<'a> {
 /// ```ts
 /// function parseModuleExports(file: string, source: string): JsValue;
 /// ```
-pub fn parse_module_exports(file: &str, source: &str) -> Outcome<JsValue> {
-    let mut cursor = Cursor { file, bytes: source.as_bytes(), offset: 0 };
+pub fn parse_module_exports(
+    file: &str,
+    source: &str,
+) -> Outcome<JsValue> {
+    let mut cursor = Cursor {
+        file,
+        bytes: source.as_bytes(),
+        offset: 0,
+    };
     if !source.starts_with(PREFIX) {
         return Err(cursor.fail("file does not start with `module.exports=`"));
     }

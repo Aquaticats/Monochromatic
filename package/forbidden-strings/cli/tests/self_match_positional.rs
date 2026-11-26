@@ -16,9 +16,15 @@
 /// Imports ordinary filesystem operations for isolated fixtures.
 use std::fs;
 /// Imports the absolute path type for disposable fixtures.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the process runner to exercise the actual CLI.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Binary artifact built by Cargo for this integration test.
 const BIN: &str = env!("CARGO_BIN_EXE_forbidden-strings");
@@ -37,8 +43,11 @@ const RULE_SOURCES: [&str; 3] = [
 
 /// Creates a fresh repository-shaped root holding the rules file and the three rule sources.
 fn fixture(label: &str) -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("self-match-positional-{}-{}", label, std::process::id()));
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "self-match-positional-{}-{}",
+        label,
+        std::process::id()
+    ));
     fs::create_dir_all(root.join(".git")).expect("create repository marker");
     fs::write(root.join("rules.txt"), format!("{SENTINEL}\n")).expect("write rules");
     for source in RULE_SOURCES {
@@ -49,9 +58,14 @@ fn fixture(label: &str) -> PathBuf {
 
 /// Writes a file below the fixture root,
 /// creating its directories.
-fn write_file(root: &Path, relative: &str, text: &str) {
+fn write_file(
+    root: &Path,
+    relative: &str,
+    text: &str,
+) {
     let path = root.join(relative);
-    fs::create_dir_all(path.parent().expect("file has a parent")).expect("create parent directories");
+    fs::create_dir_all(path.parent().expect("file has a parent"))
+        .expect("create parent directories");
     fs::write(path, text).expect("write fixture file");
 }
 
@@ -68,19 +82,35 @@ fn remove_fixture(root: PathBuf) {
 /// Runtime cache directory beside the fixture root,
 /// outside it so an `--all` walk never reads the cache files.
 fn cache_directory(root: &Path) -> PathBuf {
-    let mut name = root.file_name().expect("fixture root has a name").to_os_string();
+    let mut name = root
+        .file_name()
+        .expect("fixture root has a name")
+        .to_os_string();
     name.push("-cache");
     return root.with_file_name(name);
 }
 
 /// Runs the scanner in the fixture root with the fixture rules and a test-owned runtime cache.
-fn scan(root: &Path, arguments: &[&str]) -> Output {
-    return scan_from(root, &cache_directory(root), &root.join("rules.txt"), arguments);
+fn scan(
+    root: &Path,
+    arguments: &[&str],
+) -> Output {
+    return scan_from(
+        root,
+        &cache_directory(root),
+        &root.join("rules.txt"),
+        arguments,
+    );
 }
 
 /// Runs the scanner in `directory`,
 ///  naming the rules file absolutely so a working directory below the fixture root still reads it.
-fn scan_from(directory: &Path, cache: &Path, rules: &Path, arguments: &[&str]) -> Output {
+fn scan_from(
+    directory: &Path,
+    cache: &Path,
+    rules: &Path,
+    arguments: &[&str],
+) -> Output {
     return Command::new(BIN)
         .env("FORBIDDEN_STRINGS_CACHE_DIR", cache)
         .current_dir(directory)
@@ -121,11 +151,21 @@ fn positional_rule_sources_are_skipped_by_absolute_path() {
 #[test]
 fn same_named_copy_elsewhere_is_still_scanned() {
     let root = fixture("copy");
-    write_file(&root, "vendor/package/forbidden-strings/cli/data/builtin-rules.txt", &format!("{SENTINEL}\n"));
-    let output = scan(&root, &["vendor/package/forbidden-strings/cli/data/builtin-rules.txt"]);
+    write_file(
+        &root,
+        "vendor/package/forbidden-strings/cli/data/builtin-rules.txt",
+        &format!("{SENTINEL}\n"),
+    );
+    let output = scan(
+        &root,
+        &["vendor/package/forbidden-strings/cli/data/builtin-rules.txt"],
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("vendor/package/forbidden-strings/cli/data/builtin-rules.txt:1"), "{stderr}");
+    assert!(
+        stderr.contains("vendor/package/forbidden-strings/cli/data/builtin-rules.txt:1"),
+        "{stderr}"
+    );
     remove_fixture(root);
 }
 
@@ -136,14 +176,21 @@ fn same_named_copy_elsewhere_is_still_scanned() {
 #[test]
 fn ordinary_file_with_a_hit_still_fails_beside_the_skipped_sources() {
     let root = fixture("control");
-    write_file(&root, "src/leak.ts", &format!("const value = '{SENTINEL}';\n"));
+    write_file(
+        &root,
+        "src/leak.ts",
+        &format!("const value = '{SENTINEL}';\n"),
+    );
     let mut arguments = RULE_SOURCES.to_vec();
     arguments.push("src/leak.ts");
     let output = scan(&root, &arguments);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("src/leak.ts:1"), "{stderr}");
-    assert!(!stderr.contains("builtin-rules.txt"), "a skipped rule source was reported: {stderr}");
+    assert!(
+        !stderr.contains("builtin-rules.txt"),
+        "a skipped rule source was reported: {stderr}"
+    );
     remove_fixture(root);
 }
 
@@ -182,9 +229,18 @@ fn all_mode_still_skips_the_rule_sources() {
 fn all_mode_from_a_subdirectory_still_skips_the_rule_sources() {
     let root = fixture("walk-subdirectory");
     let directory = root.join("package/forbidden-strings/cli");
-    let output = scan_from(&directory, &cache_directory(&root), &root.join("rules.txt"), &["--all"]);
+    let output = scan_from(
+        &directory,
+        &cache_directory(&root),
+        &root.join("rules.txt"),
+        &["--all"],
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(output.status.code(), Some(0), "a rule source self-matched from a subdirectory: {stderr}");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a rule source self-matched from a subdirectory: {stderr}"
+    );
     remove_fixture(root);
 }
 
@@ -193,11 +249,24 @@ fn all_mode_from_a_subdirectory_still_skips_the_rule_sources() {
 #[test]
 fn all_mode_from_a_subdirectory_still_reports_an_ordinary_file() {
     let root = fixture("walk-subdirectory-control");
-    write_file(&root, "package/forbidden-strings/cli/src/leak.ts", &format!("const value = '{SENTINEL}';\n"));
+    write_file(
+        &root,
+        "package/forbidden-strings/cli/src/leak.ts",
+        &format!("const value = '{SENTINEL}';\n"),
+    );
     let directory = root.join("package/forbidden-strings/cli");
-    let output = scan_from(&directory, &cache_directory(&root), &root.join("rules.txt"), &["--all"]);
+    let output = scan_from(
+        &directory,
+        &cache_directory(&root),
+        &root.join("rules.txt"),
+        &["--all"],
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(output.status.code(), Some(1), "the ordinary file's hit must fail the run: {stderr}");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the ordinary file's hit must fail the run: {stderr}"
+    );
     assert!(stderr.contains("leak.ts:1"), "{stderr}");
     remove_fixture(root);
 }

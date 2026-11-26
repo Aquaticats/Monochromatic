@@ -1368,6 +1368,9 @@ The session's `git` stays the build of `ee0cf2268b` for now:
 the AppArmor `git` and `gh` local rules name that exact path,
 and `doc/handover/full-system-policy-handover.md` records that "a rebuilt wrapper requires a fresh review",
 so pointing the session at alpha.46 waits for that review of the new binary's path and rules, which is the system policy's to give;
+a toolchain install in the main checkout (its `.cache/toolchain.guard` written 2026-11-25T21:00:59-05:00, every link folder rewritten by 21:01:17) pointed the link back at the locked launcher `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
+which the `gh` rule does not name, so `gh` failed with `fork/exec .../monochromatic-git-policy-cli-bin/git: permission denied`;
+on the owner's "Repoint the git link too" it points at the build of `ee0cf2268b` again (about 21:27), and any later toolchain install in the main checkout undoes it the same way;
 until then its removals keep journals, which the fixed build's `service stop-units-of-removed-worktrees` clears after each batch.
 
 #### Markdown line breaks in the files changed on 2026-11-23

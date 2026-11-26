@@ -9,7 +9,10 @@
 // });
 // ```
 
-use super::{build_dfa_within, residual_too_large};
+use super::{
+    build_dfa_within,
+    residual_too_large,
+};
 use crate::ast::node::Node;
 use crate::charset::singleton;
 use crate::error::CompileError;
@@ -25,7 +28,11 @@ use crate::error::CompileError;
 // }
 // ```
 fn wide_concat(count: usize) -> Node {
-    return Node::Concat((0..count).map(|_| return Node::Class(singleton(b'a'))).collect())
+    return Node::Concat(
+        (0..count)
+            .map(|_| return Node::Class(singleton(b'a')))
+            .collect(),
+    );
 }
 
 #[test]
@@ -55,7 +62,11 @@ fn the_guard_descends_into_every_recursive_arm() {
     assert!(residual_too_large(&Node::Alt(vec![big.clone()])));
     assert!(residual_too_large(&Node::Inter(vec![big.clone()])));
     assert!(residual_too_large(&Node::Comp(Box::new(big.clone()))));
-    assert!(residual_too_large(&Node::Repeat { node: Box::new(big), min: 1, max: 2 }));
+    assert!(residual_too_large(&Node::Repeat {
+        node: Box::new(big),
+        min: 1,
+        max: 2
+    }));
 }
 
 #[test]
@@ -83,7 +94,10 @@ fn build_succeeds_on_a_normal_pattern() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    let dfa = build_dfa_within(crate::parse::parse("AKIA[A-Z2-7]{4}").expect("parses"), 10_000);
+    let dfa = build_dfa_within(
+        crate::parse::parse("AKIA[A-Z2-7]{4}").expect("parses"),
+        10_000,
+    );
     assert!(dfa.is_ok());
 }
 
@@ -101,11 +115,22 @@ fn the_determinization_state_cap_is_an_inclusive_ceiling() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let node = crate::parse::parse("[a-z]{3}").expect("parses");
-    let exact = build_dfa_within(node.clone(), 10_000).expect("builds").num_states as usize;
-    assert!(exact >= 2, "the pattern should produce several states, got {exact}");
-    assert!(build_dfa_within(node.clone(), exact).is_ok(), "a cap equal to the count is allowed");
+    let exact = build_dfa_within(node.clone(), 10_000)
+        .expect("builds")
+        .num_states as usize;
     assert!(
-        matches!(build_dfa_within(node, exact - 1), Err(CompileError::StateCap { .. })),
+        exact >= 2,
+        "the pattern should produce several states, got {exact}"
+    );
+    assert!(
+        build_dfa_within(node.clone(), exact).is_ok(),
+        "a cap equal to the count is allowed"
+    );
+    assert!(
+        matches!(
+            build_dfa_within(node, exact - 1),
+            Err(CompileError::StateCap { .. })
+        ),
         "a cap one below the state count must abort as StateCap",
     );
 }

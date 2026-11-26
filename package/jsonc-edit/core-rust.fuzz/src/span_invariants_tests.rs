@@ -19,7 +19,11 @@
 /// ```ts
 /// import { catchUnwind, setHook, takeHook } from 'std:panic';
 /// ```
-use std::panic::{catch_unwind, set_hook, take_hook};
+use std::panic::{
+    catch_unwind,
+    set_hook,
+    take_hook,
+};
 
 /// What:
 ///  Import the checks under test.
@@ -30,7 +34,10 @@ use std::panic::{catch_unwind, set_hook, take_hook};
 /// ```ts
 /// import { assertSpansConsistent, assertSpansMatch } from './spanInvariants';
 /// ```
-use crate::span_invariants::{assert_spans_consistent, assert_spans_match};
+use crate::span_invariants::{
+    assert_spans_consistent,
+    assert_spans_match,
+};
 
 /// What:
 ///  Import the span-reporting parse the tests tamper with.
@@ -41,7 +48,10 @@ use crate::span_invariants::{assert_spans_consistent, assert_spans_match};
 /// ```ts
 /// import { parseJsoncWithSpans } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{parse_jsonc_with_spans, JsoncSpanned};
+use monochromatic_jsonc_edit::{
+    JsoncSpanned,
+    parse_jsonc_with_spans,
+};
 
 /// What:
 ///  Report whether a closure panics,
@@ -63,14 +73,16 @@ where
 /// nested containers,
 /// comments,
 /// CRLF and a multi-byte key.
-const DOCUMENT: &str = "// lead\n{\r\n  \"a\": [1, {\"b\": null}], /* c */\n  \"\u{00e9}\": true\n}";
+const DOCUMENT: &str =
+    "// lead\n{\r\n  \"a\": [1, {\"b\": null}], /* c */\n  \"\u{00e9}\": true\n}";
 
 /// What:
 ///  Parse the shared document with spans.
 /// Why:
 ///  Each case starts from an honest result and changes one thing.
 fn honest() -> JsoncSpanned {
-    return parse_jsonc_with_spans(DOCUMENT).unwrap_or_else(|error| panic!("test document must parse: {error}"));
+    return parse_jsonc_with_spans(DOCUMENT)
+        .unwrap_or_else(|error| panic!("test document must parse: {error}"));
 }
 
 /// Honest results pass,
@@ -128,7 +140,13 @@ fn a_wrong_column_fails() {
 #[test]
 fn a_tree_that_does_not_match_its_spans_fails() {
     let tampered_source = "{\"a\":1}";
-    let mut tampered = parse_jsonc_with_spans(tampered_source).unwrap_or_else(|error| panic!("{error}"));
-    tampered.value = parse_jsonc_with_spans("{\"a\":2}").unwrap_or_else(|error| panic!("{error}")).value;
-    assert!(panics(|| return assert_spans_match(tampered_source, &tampered)));
+    let mut tampered =
+        parse_jsonc_with_spans(tampered_source).unwrap_or_else(|error| panic!("{error}"));
+    tampered.value = parse_jsonc_with_spans("{\"a\":2}")
+        .unwrap_or_else(|error| panic!("{error}"))
+        .value;
+    assert!(panics(|| return assert_spans_match(
+        tampered_source,
+        &tampered
+    )));
 }

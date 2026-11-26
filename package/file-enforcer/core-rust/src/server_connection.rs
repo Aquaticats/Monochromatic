@@ -21,29 +21,47 @@
 use crate::config_decode::ConfigScope;
 /// Imports `Event`,
 /// `EventSink` from `crate::event`.
-use crate::event::{Event, EventSink};
+use crate::event::{
+    Event,
+    EventSink,
+};
+/// Imports `object` from `crate::json_build`.
+use crate::json_build::object;
 /// Imports `OutputScope` from `crate::output_scope`.
 use crate::output_scope::OutputScope;
 /// Imports  from `crate::rpc_protocol`.
 use crate::rpc_protocol::{
-    ERROR_FAILED, ERROR_METHOD, ERROR_MISMATCH, ERROR_PARSE, PROTOCOL_VERSION, error_line, notification_line, result_line,
+    ERROR_FAILED,
+    ERROR_METHOD,
+    ERROR_MISMATCH,
+    ERROR_PARSE,
+    PROTOCOL_VERSION,
+    error_line,
+    notification_line,
+    result_line,
 };
 /// Imports `RunMode`,
 /// `RunRequest`,
 /// `run` from `crate::run`.
-use crate::run::{RunMode, RunRequest, run};
+use crate::run::{
+    RunMode,
+    RunRequest,
+    run,
+};
 /// Imports `Shared` from `crate::server`.
 use crate::server::Shared;
 /// Imports `watch_connection` from `crate::watch`.
 use crate::watch::watch_connection;
-/// Imports `object` from `crate::json_build`.
-use crate::json_build::object;
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 /// Imports `BufRead`,
 /// `BufReader`,
 /// `Write` from `std::io`.
-use std::io::{BufRead, BufReader, Write};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
 /// Imports `UnixStream` from `std::os::unix::net`.
 use std::os::unix::net::UnixStream;
 /// Imports `PathBuf` from `std::path`.
@@ -86,7 +104,9 @@ impl RpcSink {
     /// new RpcSink(socket)
     /// ```
     pub fn new(stream: UnixStream) -> RpcSink {
-        return RpcSink { stream };
+        return RpcSink {
+            stream,
+        };
     }
 
     /// What:
@@ -101,7 +121,10 @@ impl RpcSink {
     /// ping(): boolean
     /// ```
     pub fn ping(&mut self) -> bool {
-        return self.stream.write_all(notification_line("ping", Value::Null).as_bytes()).is_ok();
+        return self
+            .stream
+            .write_all(notification_line("ping", Value::Null).as_bytes())
+            .is_ok();
     }
 }
 
@@ -119,7 +142,10 @@ impl RpcSink {
 impl EventSink for RpcSink {
     /// Send the event;
     /// a closed client is ignored so the run still finishes.
-    fn emit(&mut self, event: Event) {
+    fn emit(
+        &mut self,
+        event: Event,
+    ) {
         let line = notification_line("event", event.to_json(0));
         let _ = self.stream.write_all(line.as_bytes());
     }
@@ -127,7 +153,10 @@ impl EventSink for RpcSink {
 
 /// The `{"ok": true, "pid": <this process>}` result of the handshake and of `shutdown`.
 fn ok_with_pid() -> Value {
-    return object(&[("ok", Value::Bool(true)), ("pid", Value::from(std::process::id()))]);
+    return object(&[
+        ("ok", Value::Bool(true)),
+        ("pid", Value::from(std::process::id())),
+    ]);
 }
 
 /// The `{"exitCode": <code>}` result of `run` and `watch`.
@@ -145,7 +174,10 @@ fn exit_code_object(code: i32) -> Value {
 /// ```ts
 /// function handshakeMismatch(shared: Shared, params: unknown): string | undefined
 /// ```
-fn handshake_mismatch(shared: &Shared, params: &Value) -> Option<String> {
+fn handshake_mismatch(
+    shared: &Shared,
+    params: &Value,
+) -> Option<String> {
     if params["protocolVersion"].as_u64() != Some(PROTOCOL_VERSION) {
         return Some("the protocol version differs".to_string());
     }
@@ -168,25 +200,39 @@ fn handshake_mismatch(shared: &Shared, params: &Value) -> Option<String> {
 /// ```ts
 /// function runRequestOf(shared: Shared, params: unknown): RunRequest | string
 /// ```
-fn run_request_of(shared: &Shared, params: &Value) -> Result<RunRequest, String> {
+fn run_request_of(
+    shared: &Shared,
+    params: &Value,
+) -> Result<RunRequest, String> {
     let Some(config) = params["configPath"].as_str() else {
         return Err("the run request has no configPath".to_string());
     };
     let mode = match params["mode"].as_str() {
         Some("write") => RunMode::Write,
-        Some("check") => RunMode::Check { expected_dir: params["expectedDir"].as_str().map(PathBuf::from) },
-        Some("explain") => RunMode::Explain { path: params["path"].as_str().unwrap_or_default().to_string() },
+        Some("check") => RunMode::Check {
+            expected_dir: params["expectedDir"].as_str().map(PathBuf::from),
+        },
+        Some("explain") => RunMode::Explain {
+            path: params["path"].as_str().unwrap_or_default().to_string(),
+        },
         _ => return Err("the run request has an unknown mode".to_string()),
     };
     let outputs = match params["outputs"].as_str() {
         None => OutputScope::All,
         Some(word) => match OutputScope::parse(word) {
             Some(parsed) => parsed,
-            None => return Err(format!("the run request names an unknown outputs scope {word:?}; use all, committed or local")),
+            None => {
+                return Err(format!(
+                    "the run request names an unknown outputs scope {word:?}; use all, committed or local"
+                ));
+            }
         },
     };
     if outputs != OutputScope::All && shared.options.scope == ConfigScope::User {
-        return Err("the per-user config has no committed and local outputs, so it takes no outputs scope".to_string());
+        return Err(
+            "the per-user config has no committed and local outputs, so it takes no outputs scope"
+                .to_string(),
+        );
     }
     return Ok(RunRequest {
         root: shared.options.root.clone(),
@@ -207,8 +253,13 @@ fn run_request_of(shared: &Shared, params: &Value) -> Result<RunRequest, String>
 /// ```ts
 /// async function handleConnection(shared: Shared, socket: Socket): Promise<void>
 /// ```
-pub fn handle_connection(shared: &Shared, stream: UnixStream) {
-    let Ok(reader_stream) = stream.try_clone() else { return };
+pub fn handle_connection(
+    shared: &Shared,
+    stream: UnixStream,
+) {
+    let Ok(reader_stream) = stream.try_clone() else {
+        return;
+    };
     let mut writer = stream;
     let mut shaken = false;
     for line in BufReader::new(reader_stream).lines() {
@@ -219,7 +270,12 @@ pub fn handle_connection(shared: &Shared, stream: UnixStream) {
         let request: Value = match serde_json::from_str(&text) {
             Ok(request) => request,
             Err(error) => {
-                let reply = error_line(&Value::Null, ERROR_PARSE, &format!("not valid JSON: {error}"), Value::Null);
+                let reply = error_line(
+                    &Value::Null,
+                    ERROR_PARSE,
+                    &format!("not valid JSON: {error}"),
+                    Value::Null,
+                );
                 let _ = writer.write_all(reply.as_bytes());
                 return;
             }
@@ -229,8 +285,13 @@ pub fn handle_connection(shared: &Shared, stream: UnixStream) {
         let params = request["params"].clone();
         if method == "handshake" {
             if let Some(reason) = handshake_mismatch(shared, &params) {
-                let data = object(&[("reason", Value::from(reason)), ("pid", Value::from(std::process::id()))]);
-                let _ = writer.write_all(error_line(&id, ERROR_MISMATCH, "handshake mismatch", data).as_bytes());
+                let data = object(&[
+                    ("reason", Value::from(reason)),
+                    ("pid", Value::from(std::process::id())),
+                ]);
+                let _ = writer.write_all(
+                    error_line(&id, ERROR_MISMATCH, "handshake mismatch", data).as_bytes(),
+                );
                 shared.shutdown.store(true, Ordering::SeqCst);
                 return;
             }
@@ -239,7 +300,12 @@ pub fn handle_connection(shared: &Shared, stream: UnixStream) {
             continue;
         }
         if !shaken {
-            let reply = error_line(&id, ERROR_METHOD, "the first request must be the handshake", Value::Null);
+            let reply = error_line(
+                &id,
+                ERROR_METHOD,
+                "the first request must be the handshake",
+                Value::Null,
+            );
             let _ = writer.write_all(reply.as_bytes());
             return;
         }
@@ -247,7 +313,9 @@ pub fn handle_connection(shared: &Shared, stream: UnixStream) {
             "run" => {
                 let reply = match run_request_of(shared, &params) {
                     Ok(run_request) => {
-                        let Ok(sink_stream) = writer.try_clone() else { return };
+                        let Ok(sink_stream) = writer.try_clone() else {
+                            return;
+                        };
                         let mut sink = RpcSink::new(sink_stream);
                         let guard = shared.run_lock.lock();
                         let code = run(&run_request, &shared.registry, &mut sink);
@@ -260,11 +328,18 @@ pub fn handle_connection(shared: &Shared, stream: UnixStream) {
             }
             "watch" => {
                 let Some(config) = params["configPath"].as_str() else {
-                    let reply = error_line(&id, ERROR_FAILED, "the watch request has no configPath", Value::Null);
+                    let reply = error_line(
+                        &id,
+                        ERROR_FAILED,
+                        "the watch request has no configPath",
+                        Value::Null,
+                    );
                     let _ = writer.write_all(reply.as_bytes());
                     return;
                 };
-                let Ok(sink_stream) = writer.try_clone() else { return };
+                let Ok(sink_stream) = writer.try_clone() else {
+                    return;
+                };
                 watch_connection(shared, RpcSink::new(sink_stream), &PathBuf::from(config));
                 let _ = writer.write_all(result_line(&id, exit_code_object(0)).as_bytes());
                 return;
@@ -275,7 +350,12 @@ pub fn handle_connection(shared: &Shared, stream: UnixStream) {
                 return;
             }
             other => {
-                let reply = error_line(&id, ERROR_METHOD, &format!("unknown method {other}"), Value::Null);
+                let reply = error_line(
+                    &id,
+                    ERROR_METHOD,
+                    &format!("unknown method {other}"),
+                    Value::Null,
+                );
                 let _ = writer.write_all(reply.as_bytes());
             }
         }

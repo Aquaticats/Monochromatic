@@ -31,7 +31,10 @@
 /// The streaming log line.
 use crate::lean_run_report::emit;
 /// Sets.
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// One image row of `podman images --all` (one per tag).
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -66,10 +69,16 @@ pub trait PodmanApi {
     fn dangling_volumes(&self) -> Result<Vec<Volume>, String>;
     /// Removes one image through every reference that names it,
     /// never forcing.
-    fn remove_image(&self, references: &[String]) -> Result<(), String>;
+    fn remove_image(
+        &self,
+        references: &[String],
+    ) -> Result<(), String>;
     /// Removes a volume,
     /// never forcing.
-    fn remove_volume(&self, name: &str) -> Result<(), String>;
+    fn remove_volume(
+        &self,
+        name: &str,
+    ) -> Result<(), String>;
 }
 
 /// What Podman's refusal of one removal says about the image.
@@ -124,7 +133,10 @@ pub fn refusal_of(message: &str) -> Option<Refusal> {
 /// ```ts
 /// export function imageReferences(rows: Image[], id: string): string[]
 /// ```
-pub fn image_references(rows: &[&Image], id: &str) -> Vec<String> {
+pub fn image_references(
+    rows: &[&Image],
+    id: &str,
+) -> Vec<String> {
     let mut references: Vec<String> = Vec::new();
     for row in rows {
         if row.repository == "<none>" || row.tag == "<none>" {
@@ -170,8 +182,13 @@ pub struct PodmanOutcome {
 /// ```ts
 /// const sameImage = (a: string, b: string): boolean => a.startsWith(b) || b.startsWith(a);
 /// ```
-fn same_image(left: &str, right: &str) -> bool {
-    return !left.is_empty() && !right.is_empty() && (left.starts_with(right) || right.starts_with(left));
+fn same_image(
+    left: &str,
+    right: &str,
+) -> bool {
+    return !left.is_empty()
+        && !right.is_empty()
+        && (left.starts_with(right) || right.starts_with(left));
 }
 
 /// What:
@@ -185,11 +202,15 @@ fn same_image(left: &str, right: &str) -> bool {
 /// ```ts
 /// const tagIsNamed = (image: Image, refs: Set<string>): boolean
 /// ```
-fn tag_is_named(image: &Image, references: &HashSet<String>) -> bool {
+fn tag_is_named(
+    image: &Image,
+    references: &HashSet<String>,
+) -> bool {
     if image.repository == "<none>" {
         return false;
     }
-    return references.contains(&format!("{}:{}", image.repository, image.tag)) || (image.tag == "latest" && references.contains(&image.repository));
+    return references.contains(&format!("{}:{}", image.repository, image.tag))
+        || (image.tag == "latest" && references.contains(&image.repository));
 }
 
 /// What:
@@ -201,7 +222,10 @@ fn tag_is_named(image: &Image, references: &HashSet<String>) -> bool {
 /// ```ts
 /// const usedByAContainer = (id: string, containerImages: string[]): boolean
 /// ```
-fn used_by_a_container(id: &str, container_images: &[String]) -> bool {
+fn used_by_a_container(
+    id: &str,
+    container_images: &[String],
+) -> bool {
     for used in container_images {
         if same_image(used, id) {
             return true;
@@ -219,7 +243,10 @@ fn used_by_a_container(id: &str, container_images: &[String]) -> bool {
 /// ```ts
 /// const anyTagNamed = (rows: Image[], refs: Set<string>): boolean
 /// ```
-fn any_tag_named(rows: &[&Image], references: &HashSet<String>) -> bool {
+fn any_tag_named(
+    rows: &[&Image],
+    references: &HashSet<String>,
+) -> bool {
     for row in rows {
         if tag_is_named(row, references) {
             return true;
@@ -238,7 +265,11 @@ fn any_tag_named(rows: &[&Image], references: &HashSet<String>) -> bool {
 /// ```ts
 /// const isNewestOfARepository = (rows: Image[], id: string, newest: Map<string, [number, string]>): boolean
 /// ```
-fn is_newest_of_a_repository(rows: &[&Image], id: &str, newest: &HashMap<&str, (i64, &str)>) -> bool {
+fn is_newest_of_a_repository(
+    rows: &[&Image],
+    id: &str,
+    newest: &HashMap<&str, (i64, &str)>,
+) -> bool {
     for row in rows {
         if let Some(entry) = newest.get(row.repository.as_str())
             && entry.1 == id
@@ -260,13 +291,21 @@ fn is_newest_of_a_repository(rows: &[&Image], id: &str, newest: &HashMap<&str, (
 /// ```ts
 /// export function judgeImages(images: Image[], containerImages: string[], refs: Set<string>, graceSeconds: number, now: number): { remove: string[]; keep: [string, string][] }
 /// ```
-pub fn judge_images(images: &[Image], container_images: &[String], references: &HashSet<String>, grace_seconds: i64, now: i64) -> (Vec<String>, Vec<(String, String)>) {
+pub fn judge_images(
+    images: &[Image],
+    container_images: &[String],
+    references: &HashSet<String>,
+    grace_seconds: i64,
+    now: i64,
+) -> (Vec<String>, Vec<(String, String)>) {
     let mut newest_of_repository: HashMap<&str, (i64, &str)> = HashMap::new();
     for image in images {
         if image.repository == "<none>" {
             continue;
         }
-        let entry = newest_of_repository.entry(image.repository.as_str()).or_insert((image.created, image.id.as_str()));
+        let entry = newest_of_repository
+            .entry(image.repository.as_str())
+            .or_insert((image.created, image.id.as_str()));
         if image.created > entry.0 {
             *entry = (image.created, image.id.as_str());
         }
@@ -290,11 +329,23 @@ pub fn judge_images(images: &[Image], container_images: &[String], references: &
         if used_by_a_container(&id, container_images) {
             keep.push((id, String::from("a container (in some state) uses it")));
         } else if now - created <= grace_seconds {
-            keep.push((id, format!("created {} s ago, within the grace period of {grace_seconds} s", now - created)));
+            keep.push((
+                id,
+                format!(
+                    "created {} s ago, within the grace period of {grace_seconds} s",
+                    now - created
+                ),
+            ));
         } else if any_tag_named(rows, references) {
-            keep.push((id, String::from("a tag of it is named by the repository's current sources")));
+            keep.push((
+                id,
+                String::from("a tag of it is named by the repository's current sources"),
+            ));
         } else if is_newest_of_a_repository(rows, &id, &newest_of_repository) {
-            keep.push((id, String::from("the newest image of its repository, kept as its current one")));
+            keep.push((
+                id,
+                String::from("the newest image of its repository, kept as its current one"),
+            ));
         } else {
             remove.push(id);
         }
@@ -313,14 +364,25 @@ pub fn judge_images(images: &[Image], container_images: &[String], references: &
 /// ```ts
 /// export function judgeVolumes(volumes: Volume[], refs: Set<string>, graceSeconds: number, now: number): { remove: string[]; keep: [string, string][] }
 /// ```
-pub fn judge_volumes(volumes: &[Volume], references: &HashSet<String>, grace_seconds: i64, now: i64) -> (Vec<String>, Vec<(String, String)>) {
+pub fn judge_volumes(
+    volumes: &[Volume],
+    references: &HashSet<String>,
+    grace_seconds: i64,
+    now: i64,
+) -> (Vec<String>, Vec<(String, String)>) {
     let mut remove: Vec<String> = Vec::new();
     let mut keep: Vec<(String, String)> = Vec::new();
     for volume in volumes {
         if references.contains(&volume.name) {
             keep.push((volume.name.clone(), String::from("a current task names it")));
         } else if now - volume.created <= grace_seconds {
-            keep.push((volume.name.clone(), format!("created {} s ago, within the grace period of {grace_seconds} s", now - volume.created)));
+            keep.push((
+                volume.name.clone(),
+                format!(
+                    "created {} s ago, within the grace period of {grace_seconds} s",
+                    now - volume.created
+                ),
+            ));
         } else {
             remove.push(volume.name.clone());
         }
@@ -338,13 +400,24 @@ pub fn judge_volumes(volumes: &[Volume], references: &HashSet<String>, grace_sec
 /// ```ts
 /// export function cleanPodman(api: PodmanApi, refs: Set<string>, graceSeconds: number, now: number, dryRun: boolean, log: string[]): PodmanOutcome
 /// ```
-pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_seconds: i64, now: i64, dry_run: bool, log: &mut Vec<String>) -> PodmanOutcome {
+pub fn clean_podman(
+    api: &dyn PodmanApi,
+    references: &HashSet<String>,
+    grace_seconds: i64,
+    now: i64,
+    dry_run: bool,
+    log: &mut Vec<String>,
+) -> PodmanOutcome {
     let mut outcome: PodmanOutcome = PodmanOutcome::default();
     match (api.images(), api.container_image_ids()) {
         (Ok(images), Ok(containers)) => {
             let (remove, keep) = judge_images(&images, &containers, references, grace_seconds, now);
             outcome.kept_images = keep;
-            let proof: String = format!("podman listed {} image rows and {} containers (any state); none of the containers uses it, no current source names a tag of it, it is not the newest of its repository, and it is older than {grace_seconds} s", images.len(), containers.len());
+            let proof: String = format!(
+                "podman listed {} image rows and {} containers (any state); none of the containers uses it, no current source names a tag of it, it is not the newest of its repository, and it is older than {grace_seconds} s",
+                images.len(),
+                containers.len()
+            );
             for id in remove {
                 let mut rows: Vec<&Image> = Vec::new();
                 for row in &images {
@@ -353,7 +426,14 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
                     }
                 }
                 let named: Vec<String> = image_references(&rows, &id);
-                emit(log, format!("{} image {id} ({}): {proof}", if dry_run { "would remove" } else { "removing" }, named.join(" ")));
+                emit(
+                    log,
+                    format!(
+                        "{} image {id} ({}): {proof}",
+                        if dry_run { "would remove" } else { "removing" },
+                        named.join(" ")
+                    ),
+                );
                 if dry_run {
                     outcome.images.push(id);
                     continue;
@@ -362,37 +442,56 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
                     Ok(()) => outcome.images.push(id),
                     Err(reason) => match refusal_of(&reason) {
                         Some(Refusal::AlreadyGone) => {
-                            emit(log, format!("image {id} was gone when this run asked: {reason}"));
+                            emit(
+                                log,
+                                format!("image {id} was gone when this run asked: {reason}"),
+                            );
                             outcome.gone_with_another.push(id);
                         }
                         Some(Refusal::InUse) => {
                             emit(log, format!("keeping image {id}: {reason}"));
-                            outcome.kept_images.push((id, format!("a container holds it: {reason}")));
+                            outcome
+                                .kept_images
+                                .push((id, format!("a container holds it: {reason}")));
                         }
-                        None => outcome.failures.push(format!("podman rmi {}: {reason}", named.join(" "))),
+                        None => outcome
+                            .failures
+                            .push(format!("podman rmi {}: {reason}", named.join(" "))),
                     },
                 }
             }
         }
-        (Err(reason), _) | (_, Err(reason)) => outcome.failures.push(format!("podman could not list images or containers: {reason}")),
+        (Err(reason), _) | (_, Err(reason)) => outcome.failures.push(format!(
+            "podman could not list images or containers: {reason}"
+        )),
     }
     match api.dangling_volumes() {
         Ok(volumes) => {
             let (remove, keep) = judge_volumes(&volumes, references, grace_seconds, now);
             outcome.kept_volumes = keep;
             for name in remove {
-                emit(log, format!("{} volume {name}: podman reports it dangling (no container in any state mounts it), no current source names it, older than {grace_seconds} s", if dry_run { "would remove" } else { "removing" }));
+                emit(
+                    log,
+                    format!(
+                        "{} volume {name}: podman reports it dangling (no container in any state mounts it), no current source names it, older than {grace_seconds} s",
+                        if dry_run { "would remove" } else { "removing" }
+                    ),
+                );
                 if dry_run {
                     outcome.volumes.push(name);
                     continue;
                 }
                 match api.remove_volume(&name) {
                     Ok(()) => outcome.volumes.push(name),
-                    Err(reason) => outcome.failures.push(format!("podman volume rm {name}: {reason}")),
+                    Err(reason) => outcome
+                        .failures
+                        .push(format!("podman volume rm {name}: {reason}")),
                 }
             }
         }
-        Err(reason) => outcome.failures.push(format!("podman could not list volumes: {reason}")),
+        Err(reason) => outcome
+            .failures
+            .push(format!("podman could not list volumes: {reason}")),
     }
     return outcome;
 }

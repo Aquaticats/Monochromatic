@@ -24,7 +24,11 @@
 /// import { JsoncParseError, JsoncNumberError } from './error';
 /// ```
 use crate::error::{
-    JsoncEditError, JsoncNumberError, JsoncParseError, JsoncPathNotFoundError, JsoncTypeError,
+    JsoncEditError,
+    JsoncNumberError,
+    JsoncParseError,
+    JsoncPathNotFoundError,
+    JsoncTypeError,
 };
 /// What:
 ///      Import the comment merge function and the comment types.
@@ -55,7 +59,10 @@ use crate::number::JsoncNumberIdentity;
 /// ```ts
 /// import { jsoncKeyPath, JsoncPathSegment } from './path';
 /// ```
-use crate::path::{jsonc_key_path, JsoncPathSegment};
+use crate::path::{
+    JsoncPathSegment,
+    jsonc_key_path,
+};
 /// What:
 ///      Import the quoted-text conversion and the document model.
 /// Why:
@@ -66,8 +73,16 @@ use crate::path::{jsonc_key_path, JsoncPathSegment};
 /// import { decodeQuoted, JsoncComment, JsoncKey } from './index';
 /// ```
 use crate::text_units::decode_quoted;
-use crate::value::{JsoncComment, JsoncCommentKind, JsoncKey, JsoncValue};
-use crate::{jsonc_has, parse_jsonc};
+use crate::value::{
+    JsoncComment,
+    JsoncCommentKind,
+    JsoncKey,
+    JsoncValue,
+};
+use crate::{
+    jsonc_has,
+    parse_jsonc,
+};
 
 /// Check the address helpers build and classify segments.
 #[test]
@@ -79,7 +94,9 @@ fn path_helpers_build_and_classify_segments() {
     assert_eq!(path.len(), 2);
     assert!(path[0].is_key());
     assert!(!path[0].is_index());
-    let index = JsoncPathSegment::Index { index: 3 };
+    let index = JsoncPathSegment::Index {
+        index: 3,
+    };
     assert!(index.is_index());
     assert!(!index.is_key());
     // A built address works against a parsed document.
@@ -123,13 +140,41 @@ fn identity_accessors_expose_normalized_parts() {
 fn number_errors_name_their_grammar_part() {
     let cases: [(&str, JsoncNumberError, &str); 8] = [
         ("", JsoncNumberError::Empty, "number token is empty"),
-        ("+1", JsoncNumberError::LeadingPlus, "number token starts with +"),
-        ("01", JsoncNumberError::LeadingZero, "number token has a leading zero"),
-        (".5", JsoncNumberError::MissingIntegerDigit, "number token has no integer digit"),
-        ("1.", JsoncNumberError::MissingFractionDigit, "number token has no fraction digit"),
-        ("1e", JsoncNumberError::MissingExponentDigit, "number token has no exponent digit"),
-        ("1e+", JsoncNumberError::MissingExponentDigit, "number token has no exponent digit"),
-        ("1.2.3", JsoncNumberError::UnexpectedSuffix, "number token has an unexpected trailing byte"),
+        (
+            "+1",
+            JsoncNumberError::LeadingPlus,
+            "number token starts with +",
+        ),
+        (
+            "01",
+            JsoncNumberError::LeadingZero,
+            "number token has a leading zero",
+        ),
+        (
+            ".5",
+            JsoncNumberError::MissingIntegerDigit,
+            "number token has no integer digit",
+        ),
+        (
+            "1.",
+            JsoncNumberError::MissingFractionDigit,
+            "number token has no fraction digit",
+        ),
+        (
+            "1e",
+            JsoncNumberError::MissingExponentDigit,
+            "number token has no exponent digit",
+        ),
+        (
+            "1e+",
+            JsoncNumberError::MissingExponentDigit,
+            "number token has no exponent digit",
+        ),
+        (
+            "1.2.3",
+            JsoncNumberError::UnexpectedSuffix,
+            "number token has an unexpected trailing byte",
+        ),
     ];
     for (token, expected, message) in cases {
         let error = JsoncNumberIdentity::from_token(token).expect_err("invalid number token");
@@ -141,8 +186,18 @@ fn number_errors_name_their_grammar_part() {
 /// Check comment merging keeps one comment per owner and marks mixed styles.
 #[test]
 fn merge_comments_collapses_stacks_in_order() {
-    let line = |text: &str| return JsoncComment { kind: JsoncCommentKind::Line, text: String::from(text) };
-    let block = |text: &str| return JsoncComment { kind: JsoncCommentKind::Block, text: String::from(text) };
+    let line = |text: &str| {
+        return JsoncComment {
+            kind: JsoncCommentKind::Line,
+            text: String::from(text),
+        };
+    };
+    let block = |text: &str| {
+        return JsoncComment {
+            kind: JsoncCommentKind::Block,
+            text: String::from(text),
+        };
+    };
     // Merging nothing into absence stays absent.
     assert_eq!(merge_comments(None, Vec::new()), None);
     // A single addition is stored unchanged, keeping its own style.
@@ -158,7 +213,8 @@ fn merge_comments_collapses_stacks_in_order() {
     assert_eq!(mixed.kind, JsoncCommentKind::Mixed);
     assert_eq!(mixed.text, "one\ntwo");
     // Several additions fold left to right.
-    let folded = merge_comments(None, vec![line("a"), line("b"), block("c")]).expect("folded merge");
+    let folded =
+        merge_comments(None, vec![line("a"), line("b"), block("c")]).expect("folded merge");
     assert_eq!(folded.kind, JsoncCommentKind::Mixed);
     assert_eq!(folded.text, "a\nb\nc");
 }
@@ -166,30 +222,57 @@ fn merge_comments_collapses_stacks_in_order() {
 /// Check each error type renders the documented text and behaves as a Rust error.
 #[test]
 fn errors_render_documented_text() {
-    let parse = JsoncParseError { offset: 7, message: String::from("unterminated object") };
+    let parse = JsoncParseError {
+        offset: 7,
+        message: String::from("unterminated object"),
+    };
     assert_eq!(parse.to_string(), "unterminated object (at offset 7)");
-    let path = JsoncPathNotFoundError { path: jsonc_key_path(["a", "b"]) };
-    assert!(path.to_string().starts_with("no JSONC node at path "), "unexpected text: {path}");
-    let shape = JsoncTypeError { message: String::from("target is not an object") };
+    let path = JsoncPathNotFoundError {
+        path: jsonc_key_path(["a", "b"]),
+    };
+    assert!(
+        path.to_string().starts_with("no JSONC node at path "),
+        "unexpected text: {path}"
+    );
+    let shape = JsoncTypeError {
+        message: String::from("target is not an object"),
+    };
     assert_eq!(shape.to_string(), "target is not an object");
     // The edit enum delegates to whichever failure it carries.
-    let missing = JsoncEditError::PathNotFound { error: path.clone() };
+    let missing = JsoncEditError::PathNotFound {
+        error: path.clone(),
+    };
     assert_eq!(missing.to_string(), path.to_string());
-    let wrong = JsoncEditError::Type { error: shape.clone() };
+    let wrong = JsoncEditError::Type {
+        error: shape.clone(),
+    };
     assert_eq!(wrong.to_string(), shape.to_string());
     // Every type works as a standard-library error, so `?` and error chains can carry it.
-    let boxed: Vec<Box<dyn std::error::Error>> = vec![Box::new(parse), Box::new(path), Box::new(shape)];
+    let boxed: Vec<Box<dyn std::error::Error>> =
+        vec![Box::new(parse), Box::new(path), Box::new(shape)];
     assert_eq!(boxed.len(), 3);
     // A parse failure from the public parser names the operation and renders its byte offset.
     let source = "{\"a\":";
     let failure = parse_jsonc(source).expect_err("incomplete document");
     let rendered = failure.to_string();
-    assert!(!failure.message.is_empty(), "a parse failure must explain itself");
-    assert!(rendered.contains(&format!("(at offset {})", failure.offset)), "offset not rendered: {rendered}");
-    assert!(failure.offset <= source.len(), "offset must point inside the rejected source");
+    assert!(
+        !failure.message.is_empty(),
+        "a parse failure must explain itself"
+    );
+    assert!(
+        rendered.contains(&format!("(at offset {})", failure.offset)),
+        "offset not rendered: {rendered}"
+    );
+    assert!(
+        failure.offset <= source.len(),
+        "offset must point inside the rejected source"
+    );
     // Every error type is usable as a boxed standard-library error.
     let boxed_parse: Box<dyn std::error::Error> = Box::new(failure);
-    assert!(boxed_parse.to_string().contains("at offset"), "boxed error lost its text");
+    assert!(
+        boxed_parse.to_string().contains("at offset"),
+        "boxed error lost its text"
+    );
 }
 
 /// Check key constructors keep spelling and decode units consistently.

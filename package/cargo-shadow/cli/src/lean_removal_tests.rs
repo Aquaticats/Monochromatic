@@ -4,11 +4,31 @@
 //! and a directory this user may not write is made writable first when this user owns it,
 //! or left alone and named when it does not.
 
-use std::{fs, os::unix::fs::{MetadataExt, PermissionsExt}, path::{Path, PathBuf}};
+use std::{
+    fs,
+    os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 use rustix::process::geteuid;
 
-use crate::lean_removal::{Deleted, Item, Refusal, claim_into_trash, delete_claimed, delete_claimed_as, item_of, modes_named, widened_mode};
+use crate::lean_removal::{
+    Deleted,
+    Item,
+    Refusal,
+    claim_into_trash,
+    delete_claimed,
+    delete_claimed_as,
+    item_of,
+    modes_named,
+    widened_mode,
+};
 
 /// The modes a claimed tree of this issue holds:
 /// searchable but not writable,
@@ -33,7 +53,10 @@ fn an_item_is_claimed_and_deleted_and_its_bytes_are_reported() {
     assert!(!path.exists());
     let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
     assert!(deleted.bytes >= 8192, "{}", deleted.bytes);
-    assert!(deleted.modes_added.is_empty(), "a writable tree needs no mode change: {deleted:?}");
+    assert!(
+        deleted.modes_added.is_empty(),
+        "a writable tree needs no mode change: {deleted:?}"
+    );
     assert!(!claimed.exists());
 }
 
@@ -47,8 +70,14 @@ fn a_path_swapped_for_another_entry_is_not_claimed() {
     fs::create_dir_all(&path).expect("put another entry in its place");
     fs::write(path.join("precious"), b"user data").expect("data");
     let outcome = claim_into_trash(&item, &root.path().join("trash"), 1);
-    assert!(matches!(outcome, Err(Refusal::Changed { .. })), "{outcome:?}");
-    assert!(path.join("precious").exists(), "the other entry stays where it is");
+    assert!(
+        matches!(outcome, Err(Refusal::Changed { .. })),
+        "{outcome:?}"
+    );
+    assert!(
+        path.join("precious").exists(),
+        "the other entry stays where it is"
+    );
 }
 
 #[test]
@@ -62,7 +91,10 @@ fn a_claimed_entry_that_changed_before_the_unlink_is_not_deleted() {
     fs::create_dir_all(&claimed).expect("and a different entry takes the name");
     fs::write(claimed.join("precious"), b"user data").expect("data");
     let outcome = delete_claimed(&claimed, item.identity);
-    assert!(matches!(outcome, Err(Refusal::Changed { .. })), "{outcome:?}");
+    assert!(
+        matches!(outcome, Err(Refusal::Changed { .. })),
+        "{outcome:?}"
+    );
     assert!(claimed.join("precious").exists());
 }
 
@@ -73,7 +105,10 @@ fn an_item_another_owner_already_removed_is_gone_not_an_error() {
     fs::create_dir_all(&path).expect("directory");
     let item: Item = item_of(&path).expect("identity");
     fs::remove_dir(&path).expect("another owner");
-    assert!(matches!(claim_into_trash(&item, &root.path().join("trash"), 1), Err(Refusal::Gone(_))));
+    assert!(matches!(
+        claim_into_trash(&item, &root.path().join("trash"), 1),
+        Err(Refusal::Gone(_))
+    ));
 }
 
 #[test]
@@ -87,7 +122,10 @@ fn a_symbolic_link_is_removed_as_a_link_and_its_target_stays() {
     let item: Item = item_of(&link).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     delete_claimed(&claimed, item.identity).expect("delete");
-    assert!(target.join("data").exists(), "the link's target is untouched");
+    assert!(
+        target.join("data").exists(),
+        "the link's target is untouched"
+    );
 }
 
 /// What:
@@ -104,7 +142,11 @@ fn a_symbolic_link_is_removed_as_a_link_and_its_target_stays() {
 /// ```ts
 /// function closedTree(root: string, mode: number, depth: number): [string, string]
 /// ```
-fn closed_tree(root: &Path, mode: u32, depth: usize) -> (PathBuf, PathBuf) {
+fn closed_tree(
+    root: &Path,
+    mode: u32,
+    depth: usize,
+) -> (PathBuf, PathBuf) {
     let tree: PathBuf = root.join("tree");
     fs::create_dir_all(&tree).expect("tree");
     let mut below: PathBuf = PathBuf::new();
@@ -128,21 +170,33 @@ fn a_claimed_tree_whose_directory_this_user_may_not_write_is_still_removed_whole
             let root = scratch();
             let (tree, below) = closed_tree(root.path(), mode, depth);
             let item: Item = item_of(&tree).expect("identity");
-            let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
+            let claimed: PathBuf =
+                claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
             let deleted: Deleted = match delete_claimed(&claimed, item.identity) {
                 Ok(deleted) => deleted,
                 Err(refusal) => panic!("mode {mode:04o} at depth {depth}: {refusal}"),
             };
-            assert!(!claimed.exists(), "mode {mode:04o} at depth {depth}: the whole tree is gone");
-            assert_eq!(deleted.modes_added, vec![claimed.join(&below)], "mode {mode:04o} at depth {depth}: the one directory this removal changed the mode of is named");
+            assert!(
+                !claimed.exists(),
+                "mode {mode:04o} at depth {depth}: the whole tree is gone"
+            );
+            assert_eq!(
+                deleted.modes_added,
+                vec![claimed.join(&below)],
+                "mode {mode:04o} at depth {depth}: the one directory this removal changed the mode of is named"
+            );
             let named: String = modes_named(&deleted.modes_added);
-            assert!(named.contains("mode changed on 1 directories"), "mode {mode:04o} at depth {depth}: {named}");
+            assert!(
+                named.contains("mode changed on 1 directories"),
+                "mode {mode:04o} at depth {depth}: {named}"
+            );
         }
     }
 }
 
 #[test]
-fn a_symbolic_link_inside_a_claimed_tree_that_names_a_closed_directory_outside_it_leaves_it_untouched() {
+fn a_symbolic_link_inside_a_claimed_tree_that_names_a_closed_directory_outside_it_leaves_it_untouched()
+ {
     let root = scratch();
     let outside: PathBuf = root.path().join("outside");
     fs::create_dir_all(&outside).expect("outside directory");
@@ -156,9 +210,22 @@ fn a_symbolic_link_inside_a_claimed_tree_that_names_a_closed_directory_outside_i
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
     assert!(!claimed.exists(), "the claimed tree is gone");
-    assert_eq!(fs::symlink_metadata(&outside).expect("the outside directory").mode() & 0o7777, 0o500, "the mode of a directory outside the claimed tree is as it was");
-    assert!(outside.join("kept").exists(), "what lies outside the claimed tree is untouched");
-    assert!(deleted.modes_added.is_empty(), "nothing outside the claimed tree was made writable: {deleted:?}");
+    assert_eq!(
+        fs::symlink_metadata(&outside)
+            .expect("the outside directory")
+            .mode()
+            & 0o7777,
+        0o500,
+        "the mode of a directory outside the claimed tree is as it was"
+    );
+    assert!(
+        outside.join("kept").exists(),
+        "what lies outside the claimed tree is untouched"
+    );
+    assert!(
+        deleted.modes_added.is_empty(),
+        "nothing outside the claimed tree was made writable: {deleted:?}"
+    );
 }
 
 #[test]
@@ -177,13 +244,32 @@ fn a_closed_directory_of_another_user_stays_and_the_removal_says_so() {
     let item: Item = item_of(&tree).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     let deleted: Deleted = match delete_claimed_as(&claimed, item.identity, somebody_else) {
-        Err(Refusal::PartlyRemoved { deleted, .. }) => deleted,
+        Err(Refusal::PartlyRemoved {
+            deleted,
+            ..
+        }) => deleted,
         other => panic!("a directory of another user is a partial removal: {other:?}"),
     };
-    assert_eq!(fs::symlink_metadata(claimed.join("theirs")).expect("their directory").mode() & 0o7777, 0o500, "their mode is not changed");
-    assert!(claimed.join("theirs").join("file").exists(), "what lies under their directory stays");
-    assert!(!claimed.join("mine").exists(), "what this user owns is still removed");
-    assert!(deleted.modes_added.is_empty(), "nothing was made writable: {deleted:?}");
+    assert_eq!(
+        fs::symlink_metadata(claimed.join("theirs"))
+            .expect("their directory")
+            .mode()
+            & 0o7777,
+        0o500,
+        "their mode is not changed"
+    );
+    assert!(
+        claimed.join("theirs").join("file").exists(),
+        "what lies under their directory stays"
+    );
+    assert!(
+        !claimed.join("mine").exists(),
+        "what this user owns is still removed"
+    );
+    assert!(
+        deleted.modes_added.is_empty(),
+        "nothing was made writable: {deleted:?}"
+    );
     assert!(
         deleted.remaining.iter().any(|reason| {
             return reason.contains("is owned by uid") && reason.contains("was not changed");
@@ -199,7 +285,9 @@ fn the_display_of_a_partial_removal_says_what_went_and_what_stayed() {
         deleted: Deleted {
             bytes: 4096,
             modes_added: vec![PathBuf::from("/base/.cargo-shadow-trash/1-2-0-tree/closed")],
-            remaining: vec![String::from("/base/.cargo-shadow-trash/1-2-0-tree/theirs is owned by uid 70 and the removal runs as uid 1000, so its mode 0500 was not changed")],
+            remaining: vec![String::from(
+                "/base/.cargo-shadow-trash/1-2-0-tree/theirs is owned by uid 70 and the removal runs as uid 1000, so its mode 0500 was not changed",
+            )],
         },
     };
     let text: String = refusal.to_string();
@@ -212,7 +300,14 @@ fn the_display_of_a_partial_removal_says_what_went_and_what_stayed() {
 
 #[test]
 fn a_widened_directory_gets_this_users_read_write_and_search_and_keeps_every_other_bit() {
-    for (found, widened) in [(0o500, 0o700), (0o555, 0o755), (0o000, 0o700), (0o540, 0o740), (0o2750, 0o2750 | 0o700), (0o1755, 0o1755)] {
+    for (found, widened) in [
+        (0o500, 0o700),
+        (0o555, 0o755),
+        (0o000, 0o700),
+        (0o540, 0o740),
+        (0o2750, 0o2750 | 0o700),
+        (0o1755, 0o1755),
+    ] {
         assert_eq!(widened_mode(found), widened, "mode {found:04o}");
     }
 }

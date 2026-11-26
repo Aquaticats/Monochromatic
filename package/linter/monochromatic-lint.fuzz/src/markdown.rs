@@ -9,15 +9,29 @@
 //! // Check an independently counted fixture on every draw, then lint arbitrary UTF-8 in both modes.
 //! ```
 
-use monochromatic_lint::diagnostic::{Diagnostic, Severity, Span};
-use monochromatic_lint::edits::{Fix, apply_fixes};
+use monochromatic_lint::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
+use monochromatic_lint::edits::{
+    Fix,
+    apply_fixes,
+};
 /// Import production rule entry points rather than duplicate their recognition logic.
 use monochromatic_lint::markdown_code::fenced_code_language;
 use monochromatic_lint::markdown_commands::commands_show_output;
 use monochromatic_lint::markdown_definitions::reference_definitions;
 use monochromatic_lint::markdown_duplicate_headings::no_duplicate_heading;
-use monochromatic_lint::markdown_headings::{heading_increment, no_emphasis_as_heading, single_h1};
-use monochromatic_lint::markdown_links::{link_image_style, no_bare_urls};
+use monochromatic_lint::markdown_headings::{
+    heading_increment,
+    no_emphasis_as_heading,
+    single_h1,
+};
+use monochromatic_lint::markdown_links::{
+    link_image_style,
+    no_bare_urls,
+};
 use monochromatic_lint::markdown_punctuation::no_trailing_punctuation;
 use monochromatic_lint::markdown_semantic_breaks::semantic_line_breaks;
 /// Import the real parser,
@@ -91,7 +105,10 @@ fn findings(context: &MarkdownSource) -> Vec<Diagnostic> {
 
 /// Verify diagnostic ranges and every advertised edit,
 ///  allowing only the deliberate empty-file refusal.
-fn check_source(source: &str, mdx: bool) -> Option<usize> {
+fn check_source(
+    source: &str,
+    mdx: bool,
+) -> Option<usize> {
     // Own each snapshot; the parser cannot retain references into the fuzzer's changing input buffer.
     let parsed = MarkdownSource::new(String::from("fuzz.md"), String::from(source), mdx);
     let context: MarkdownSource = match parsed {

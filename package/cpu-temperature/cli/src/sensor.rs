@@ -9,7 +9,14 @@
 /// import * as fs from "node:fs";
 /// type Path = string;
 /// ```
-use std::{fs, io, path::{Path, PathBuf}};
+use std::{
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// What
 /// A struct groups two owned strings. `String` owns bytes that would only be borrowed by `&str`.
@@ -54,7 +61,10 @@ pub fn parse_sensor(value: &str) -> Result<Sensor, String> {
     // Both pieces of the selector can outlive the parser input.
     // TypeScript pseudocode
     // return { driver, channel };
-    return Ok(Sensor { driver: driver.to_owned(), channel: channel.to_owned() });
+    return Ok(Sensor {
+        driver: driver.to_owned(),
+        channel: channel.to_owned(),
+    });
 }
 
 /// Recognize the Linux temperature-channel filename.
@@ -83,7 +93,11 @@ fn temperature_channel(input: &str) -> Option<&str> {
 }
 
 /// Match a configured sensor against one chip and append the resolved input paths.
-fn find_on_chip(chip: &Path, sensor: &Sensor, inputs: &mut Vec<PathBuf>) -> io::Result<()> {
+fn find_on_chip(
+    chip: &Path,
+    sensor: &Sensor,
+    inputs: &mut Vec<PathBuf>,
+) -> io::Result<()> {
     // What
     // Read the chip name from a file. `?` propagates an I/O failure to the sampler.
     // Why
@@ -141,7 +155,10 @@ fn find_on_chip(chip: &Path, sensor: &Sensor, inputs: &mut Vec<PathBuf>) -> io::
 }
 
 /// Resolve every configured selector. Multiple matches contribute to the highest reading.
-pub fn find_inputs(root: &Path, selectors: &[Sensor]) -> io::Result<Vec<PathBuf>> {
+pub fn find_inputs(
+    root: &Path,
+    selectors: &[Sensor],
+) -> io::Result<Vec<PathBuf>> {
     // What
     // `Vec::new` creates a growable owned list. A slice borrows the selectors from the service.
     // Why
@@ -161,9 +178,15 @@ pub fn find_inputs(root: &Path, selectors: &[Sensor]) -> io::Result<Vec<PathBuf>
         }
         if inputs.len() == preceding_count {
             // Name the exact sensor the operator needs to configure or reconnect.
-            return Err(io::Error::new(io::ErrorKind::NotFound, format!(
-                "CPU sensor {}:{} was not found in {}", selector.driver, selector.channel, root.display()
-            )));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "CPU sensor {}:{} was not found in {}",
+                    selector.driver,
+                    selector.channel,
+                    root.display()
+                ),
+            ));
         }
     }
     // Transfer the resolved paths to the service's read cache.
@@ -174,7 +197,10 @@ pub fn find_inputs(root: &Path, selectors: &[Sensor]) -> io::Result<Vec<PathBuf>
 pub fn read_highest(inputs: &[PathBuf]) -> io::Result<i32> {
     if inputs.is_empty() {
         // Reading an empty set cannot establish a valid control input.
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "configure at least one CPU sensor"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "configure at least one CPU sensor",
+        ));
     }
     // Start with the smallest signed value so below-freezing readings also compare correctly.
     let mut highest = i32::MIN;
@@ -187,7 +213,10 @@ pub fn read_highest(inputs: &[PathBuf]) -> io::Result<i32> {
         // Use a signed parser since hwmon temperatures are signed.
         let sample = text.trim().parse::<i32>().map_err(|error| {
             // Name the channel that cannot be interpreted in millidegrees.
-            return io::Error::new(io::ErrorKind::InvalidData, format!("parse {}: {error}", input.display()));
+            return io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("parse {}: {error}", input.display()),
+            );
         })?;
         highest = highest.max(sample);
     }

@@ -10,7 +10,11 @@
 
 /// Import the production rule and owned source/finding models,
 ///  not a second implementation.
-use monochromatic_lint::diagnostic::{Diagnostic, Severity, Span};
+use monochromatic_lint::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
 /// Import the parser-owning input shared by all Rust rules.
 use monochromatic_lint::rust_source::RustSource;
 /// Import the actual sidecar test checker used by the linter.
@@ -78,7 +82,10 @@ pub fn generated_source(data: &[u8]) -> (String, usize) {
 }
 
 /// Check the sidecar rule's findings and byte ranges for one source under one file name.
-fn check_sidecar_source(source: &str, filename: &str) -> usize {
+fn check_sidecar_source(
+    source: &str,
+    filename: &str,
+) -> usize {
     let context: RustSource = RustSource::new(String::from(filename), String::from(source));
     let findings: Vec<Diagnostic> = check_tests_in_sidecars(&context, Severity::Error);
     for finding in &findings {

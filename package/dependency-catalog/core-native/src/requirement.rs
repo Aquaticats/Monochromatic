@@ -21,7 +21,13 @@
 use std::cmp::Ordering;
 
 /// Imports `crate::version::{ABSENT_PART, ParsedVersion, VersionError, compare_versions, parse_version}`.
-use crate::version::{ABSENT_PART, ParsedVersion, VersionError, compare_versions, parse_version};
+use crate::version::{
+    ABSENT_PART,
+    ParsedVersion,
+    VersionError,
+    compare_versions,
+    parse_version,
+};
 
 /// What:
 /// `pub enum Operator { ... }` declares a closed set of named choices (a TS string-literal union).
@@ -80,7 +86,10 @@ pub fn split_requirement(requirement: &str) -> Result<Requirement, VersionError>
         if let Some(rest) = trimmed.strip_prefix(text) {
             // `?` returns early with the error when the parse fails, like an uncaught `throw` propagating.
             let version: ParsedVersion = parse_version(rest.trim())?;
-            return Ok(Requirement { operator, version });
+            return Ok(Requirement {
+                operator,
+                version,
+            });
         }
     }
     let version: ParsedVersion = parse_version(trimmed)?;
@@ -91,7 +100,11 @@ pub fn split_requirement(requirement: &str) -> Result<Requirement, VersionError>
 }
 
 /// Builds a release version (no prerelease) from three parts.
-fn release_version(major: i64, minor: i64, patch: i64) -> ParsedVersion {
+fn release_version(
+    major: i64,
+    minor: i64,
+    patch: i64,
+) -> ParsedVersion {
     return ParsedVersion {
         major,
         minor,
@@ -112,7 +125,10 @@ fn release_version(major: i64, minor: i64, patch: i64) -> ParsedVersion {
 /// ```ts
 /// function upperBound(operator: '^' | '~', floor: ParsedVersion): ParsedVersion
 /// ```
-fn upper_bound(operator: Operator, floor: &ParsedVersion) -> ParsedVersion {
+fn upper_bound(
+    operator: Operator,
+    floor: &ParsedVersion,
+) -> ParsedVersion {
     if operator == Operator::Tilde {
         if floor.minor == ABSENT_PART {
             return release_version(floor.major + 1, 0, 0);
@@ -140,7 +156,10 @@ fn upper_bound(operator: Operator, floor: &ParsedVersion) -> ParsedVersion {
 /// ```ts
 /// export function satisfies(args: { version: string; requirement: string }): boolean // throws TypeError
 /// ```
-pub fn satisfies(version: &str, requirement: &str) -> Result<bool, VersionError> {
+pub fn satisfies(
+    version: &str,
+    requirement: &str,
+) -> Result<bool, VersionError> {
     let candidate: ParsedVersion = parse_version(version)?;
     let split: Requirement = split_requirement(requirement)?;
     let floor: &ParsedVersion = &split.version;

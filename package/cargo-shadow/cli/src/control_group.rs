@@ -40,7 +40,6 @@
 //! export function query(record: ScopeRecord): 'gone' | 'alive' | { unknown: string }
 //! ```
 
-
 /// Imports `std::fs` for this file.
 use std::fs;
 
@@ -48,63 +47,120 @@ use std::fs;
 use std::io;
 
 /// Imports `std::io::{Read, Write}` for this file.
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
 
 /// Imports `std::os::unix::fs::{FileExt, MetadataExt}` for this file.
-use std::os::unix::fs::{FileExt};
+use std::os::unix::fs::FileExt;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
-
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `std::process::{Command, Stdio}` for this file.
-use std::process::{Command};
+use std::process::Command;
 
 /// Imports `std::time::{Duration, Instant}` for this file.
-use std::time::{Duration, Instant};
-
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports `rustix::event::{PollFd, PollFlags, Timespec, poll}` for this file.
-use rustix::event::{PollFd, PollFlags, Timespec, poll};
-
+use rustix::event::{
+    PollFd,
+    PollFlags,
+    Timespec,
+    poll,
+};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
 
 /// Imports `rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal}` for this file.
-use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
+use rustix::process::{
+    Pid,
+    PidfdFlags,
+    Signal,
+    pidfd_open,
+    pidfd_send_signal,
+};
 
 /// The items that only the tests of the control group use.
 #[cfg(test)]
-pub(crate) use crate::control_group_machine_identity::{BOOT_ID_PATH, read_current_identity};
+pub(crate) use crate::control_group_machine_identity::{
+    BOOT_ID_PATH,
+    read_current_identity,
+};
 /// The process identity items that only the tests of the control group use.
 #[cfg(test)]
-pub(crate) use crate::control_group_process_identity::{StartOf, missing_entry_verdict, nspid_shows_own_namespace};
+pub(crate) use crate::control_group_process_identity::{
+    StartOf,
+    missing_entry_verdict,
+    nspid_shows_own_namespace,
+};
 /// The route discovery item that only the tests of the control group use.
 #[cfg(test)]
-pub(crate) use crate::control_group_route_discovery::{RouteSettings, detect_route, kill_file_present};
+pub(crate) use crate::control_group_route_discovery::{
+    RouteSettings,
+    detect_route,
+    kill_file_present,
+};
 
-/// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
-pub(crate) use crate::control_group_machine_identity::{Identity, read_identity_text, current_identity};
 /// The test-only items of the same module.
 #[cfg(test)]
-pub(crate) use crate::control_group_machine_identity::{use_identity_for_test};
+pub(crate) use crate::control_group_machine_identity::use_identity_for_test;
+/// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
+pub(crate) use crate::control_group_machine_identity::{
+    Identity,
+    current_identity,
+    read_identity_text,
+};
 
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
-pub(crate) use crate::control_group_process_identity::{LauncherState, pid_namespace_id, process_start, launcher_state};
+pub(crate) use crate::control_group_process_identity::{
+    LauncherState,
+    launcher_state,
+    pid_namespace_id,
+    process_start,
+};
 /// The test-only items of the same module.
 #[cfg(test)]
-pub(crate) use crate::control_group_process_identity::{procfs_matches_namespace, names_an_absent_process, process_is_running};
+pub(crate) use crate::control_group_process_identity::{
+    names_an_absent_process,
+    process_is_running,
+    procfs_matches_namespace,
+};
 
 /// Discovery of the route to a delegated control group (split out of the control group module).
-pub(crate) use crate::control_group_route_discovery::{CGROUP_ROOT, STRAGGLER_INTERVAL, TOKEN_BYTES, GroupUnavailable, View, view_of, Route, is_cgroup2, namespace_id, is_executable_file, unavailable};
+pub(crate) use crate::control_group_route_discovery::{
+    CGROUP_ROOT,
+    GroupUnavailable,
+    Route,
+    STRAGGLER_INTERVAL,
+    TOKEN_BYTES,
+    View,
+    is_cgroup2,
+    is_executable_file,
+    namespace_id,
+    unavailable,
+    view_of,
+};
 
 /// The records of a scope and the membership verdict (split out of the control group module).
-pub(crate) use crate::control_group_records::{Record, Membership, parse_record, query};
+pub(crate) use crate::control_group_records::{
+    Membership,
+    Record,
+    parse_record,
+    query,
+};
 
 /// The scope of one run.
 #[derive(Debug)]
@@ -157,7 +213,10 @@ fn random_token() -> io::Result<String> {
 fn escaped(argument: &std::ffi::OsStr) -> std::ffi::OsString {
     /// The byte views of an operating-system string,
     /// so escaping never assumes the argument is UTF-8.
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    use std::os::unix::ffi::{
+        OsStrExt,
+        OsStringExt,
+    };
     let mut bytes: Vec<u8> = Vec::with_capacity(argument.len());
     for byte in argument.as_bytes() {
         bytes.push(*byte);
@@ -183,7 +242,13 @@ impl ControlGroup {
     pub(crate) fn plan(route: &Route) -> io::Result<ControlGroup> {
         let name: String = format!("cargo-shadow-{}", random_token()?);
         let directory: PathBuf = route.slice_dir.join(format!("{name}.scope"));
-        return Ok(ControlGroup { name, directory, parent: route.slice_dir.clone(), parent_view: route.slice_view, namespace: route.namespace });
+        return Ok(ControlGroup {
+            name,
+            directory,
+            parent: route.slice_dir.clone(),
+            parent_view: route.slice_view,
+            namespace: route.namespace,
+        });
     }
 
     /// What:
@@ -209,7 +274,11 @@ impl ControlGroup {
     /// record(): Record
     /// ```
     pub(crate) fn record(&self) -> Record {
-        return Record::Scope { namespace: self.namespace, parent_view: self.parent_view, path: self.directory.clone() };
+        return Record::Scope {
+            namespace: self.namespace,
+            parent_view: self.parent_view,
+            path: self.directory.clone(),
+        };
     }
 
     /// What:
@@ -230,9 +299,20 @@ impl ControlGroup {
     /// ```ts
     /// launcher(route: Route, original: Command, cleanEnvironment: boolean): Command
     /// ```
-    pub(crate) fn launcher(&self, route: &Route, original: &Command, clean_environment: bool) -> Command {
+    pub(crate) fn launcher(
+        &self,
+        route: &Route,
+        original: &Command,
+        clean_environment: bool,
+    ) -> Command {
         let mut launch: Command = Command::new(&route.systemd_run);
-        launch.args(["--user", "--scope", "--quiet", "--collect", "--property=Delegate=yes"]);
+        launch.args([
+            "--user",
+            "--scope",
+            "--quiet",
+            "--collect",
+            "--property=Delegate=yes",
+        ]);
         // The scope sits under the manager's slice, so the caller's own limits would not reach it: it carries them (absent stay absent).
         for property in route.limits.properties() {
             launch.arg(format!("--property={property}"));
@@ -285,14 +365,24 @@ impl ControlGroup {
         let text: String = match fs::read_to_string(self.directory.join("cgroup.procs")) {
             Ok(found) => found,
             // A scope that was removed has no members; `ENODEV` is what a read of a removed group's file says.
-            Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => return Ok(Vec::new()),
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) =>
+            {
+                return Ok(Vec::new());
+            }
             Err(error) => return Err(error),
         };
         let mut found: Vec<i32> = Vec::new();
         for line in text.lines() {
             match line.trim().parse::<i32>() {
                 Ok(number) => found.push(number),
-                Err(error) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("cgroup.procs holds {line:?} ({error})"))),
+                Err(error) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("cgroup.procs holds {line:?} ({error})"),
+                    ));
+                }
             }
         }
         return Ok(found);
@@ -359,11 +449,17 @@ impl ControlGroup {
     fn absence_is_verified(&self) -> io::Result<()> {
         let namespace: u64 = namespace_id()?;
         if namespace != self.namespace {
-            return Err(io::Error::other("this process is in another cgroup namespace than the one the scope was made in"));
+            return Err(io::Error::other(
+                "this process is in another cgroup namespace than the one the scope was made in",
+            ));
         }
         let seen: View = view_of(&self.parent)?;
         if seen != self.parent_view {
-            return Err(io::Error::other(format!("{} is seen as {seen} now and was {} when the scope was planned", self.parent.display(), self.parent_view)));
+            return Err(io::Error::other(format!(
+                "{} is seen as {seen} now and was {} when the scope was planned",
+                self.parent.display(),
+                self.parent_view
+            )));
         }
         return Ok(());
     }
@@ -384,7 +480,10 @@ impl ControlGroup {
     /// ```ts
     /// stop(boundMs: number): boolean
     /// ```
-    pub(crate) fn stop(&self, bound: Duration) -> io::Result<bool> {
+    pub(crate) fn stop(
+        &self,
+        bound: Duration,
+    ) -> io::Result<bool> {
         #[cfg(test)]
         {
             if crate::failpoints::fires(crate::failpoints::Point::ContainmentStopError) {
@@ -398,7 +497,8 @@ impl ControlGroup {
         // A test makes a member survive every signal, so the loop below runs to its deadline as it would for a member in an
         // uninterruptible wait (round 16, V6: an unsuccessful shutdown has a deadline).
         #[cfg(test)]
-        let survivor: bool = crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor);
+        let survivor: bool =
+            crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor);
         #[cfg(not(test))]
         let survivor: bool = false;
         match write_text(&self.directory.join("cgroup.kill"), "1") {
@@ -410,7 +510,10 @@ impl ControlGroup {
                 return Ok(true);
             }
             // The signal pass below does the stopping when the kill file cannot be written.
-            Err(error) => eprintln!("cargo-shadow: warning: cgroup.kill of {} could not be written ({error}); signalling the members one by one", self.directory.display()),
+            Err(error) => eprintln!(
+                "cargo-shadow: warning: cgroup.kill of {} could not be written ({error}); signalling the members one by one",
+                self.directory.display()
+            ),
         }
         let events = match fs::File::open(self.directory.join("cgroup.events")) {
             Ok(found) => found,
@@ -436,7 +539,10 @@ impl ControlGroup {
                 return Ok(false);
             }
             let wait: Duration = STRAGGLER_INTERVAL.min(deadline - now);
-            let timeout: Timespec = Timespec { tv_sec: i64::try_from(wait.as_secs()).unwrap_or(0), tv_nsec: i64::from(wait.subsec_nanos()) };
+            let timeout: Timespec = Timespec {
+                tv_sec: i64::try_from(wait.as_secs()).unwrap_or(0),
+                tv_nsec: i64::from(wait.subsec_nanos()),
+            };
             let mut watched = [PollFd::new(&events, PollFlags::PRI)];
             match poll(&mut watched, Some(&timeout)) {
                 Ok(_) | Err(Errno::INTR) => {}
@@ -455,7 +561,10 @@ impl ControlGroup {
 /// ```ts
 /// function writeText(path: string, text: string): void
 /// ```
-fn write_text(path: &Path, text: &str) -> io::Result<()> {
+fn write_text(
+    path: &Path,
+    text: &str,
+) -> io::Result<()> {
     let mut file = fs::OpenOptions::new().write(true).open(path)?;
     return file.write_all(text.as_bytes());
 }
@@ -478,7 +587,10 @@ fn parse_populated(text: &str) -> io::Result<bool> {
             _ => {}
         }
     }
-    return Err(io::Error::new(io::ErrorKind::InvalidData, format!("cgroup.events has no populated line: {text:?}")));
+    return Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("cgroup.events has no populated line: {text:?}"),
+    ));
 }
 
 /// What:
@@ -495,7 +607,9 @@ fn populated_through(events: &fs::File) -> io::Result<bool> {
     let mut buffer: [u8; 128] = [0; 128];
     let count: usize = match events.read_at(&mut buffer, 0) {
         Ok(found) => found,
-        Err(error) if error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => return Ok(false),
+        Err(error) if error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => {
+            return Ok(false);
+        }
         Err(error) => return Err(error),
     };
     return parse_populated(&String::from_utf8_lossy(&buffer[..count]));

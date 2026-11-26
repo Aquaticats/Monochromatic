@@ -19,7 +19,10 @@ use monochromatic_file_enforcer::identity::canonical_or_same;
 use std::ffi::OsStr;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The config file name searched for upward from the current directory.
 pub const CONFIG_FILE_NAME: &str = "file-enforcer.config.jsonc";
@@ -50,8 +53,12 @@ pub fn resolve_repository(explicit: &Option<PathBuf>) -> Result<(PathBuf, PathBu
         None => match find_upward(&current) {
             Some(found) => found,
             None => {
-                let message = format!("no {CONFIG_FILE_NAME} in {} or any directory above it", current.display());
-                return Err(Diagnostic::new("config-missing", &message).with_hint("run from inside the repository or pass --config"));
+                let message = format!(
+                    "no {CONFIG_FILE_NAME} in {} or any directory above it",
+                    current.display()
+                );
+                return Err(Diagnostic::new("config-missing", &message)
+                    .with_hint("run from inside the repository or pass --config"));
             }
         },
     };
@@ -60,7 +67,10 @@ pub fn resolve_repository(explicit: &Option<PathBuf>) -> Result<(PathBuf, PathBu
         return Err(Diagnostic::new("usage-error", &message));
     };
     let root = canonical_or_same(parent);
-    let file_name = config.file_name().map(OsStr::to_os_string).unwrap_or_default();
+    let file_name = config
+        .file_name()
+        .map(OsStr::to_os_string)
+        .unwrap_or_default();
     return Ok((root.clone(), root.join(file_name)));
 }
 

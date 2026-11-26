@@ -9,7 +9,11 @@
 //!  so Qt-internal logs cannot block the UI/render thread.
 
 /// Imports the C string and integer FFI types used by the Qt-to-tracing callback.
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{
+    CStr,
+    c_char,
+    c_int,
+};
 
 // C++ shim in qt_log.cpp; extern block itself carries no docs (cxx/rustc forbid it).
 unsafe extern "C" {
@@ -60,7 +64,9 @@ pub unsafe extern "C" fn fmqt_forward_log(
     let category = if category_ptr.is_null() {
         "qt"
     } else {
-        unsafe { CStr::from_ptr(category_ptr) }.to_str().unwrap_or("qt")
+        unsafe { CStr::from_ptr(category_ptr) }
+            .to_str()
+            .unwrap_or("qt")
     };
     let message = if message_ptr.is_null() {
         ""

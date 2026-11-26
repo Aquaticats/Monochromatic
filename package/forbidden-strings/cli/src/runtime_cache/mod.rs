@@ -33,7 +33,10 @@ mod publish;
 mod warning;
 
 /// Imports application-level redacted error construction.
-use anyhow::{anyhow, Result};
+use anyhow::{
+    Result,
+    anyhow,
+};
 
 /// Imports the list entry type `compile_rules_to_cache` takes.
 use crate::rules_list::RulesEntry;
@@ -44,14 +47,27 @@ use crate::rules_snapshot::RulesSnapshot;
 use crate::runtime_matcher::RuntimeRules;
 
 /// Imports envelope operations and complete artifact ceiling.
-use envelope::{decode, encode, MAX_ARTIFACT_BYTES};
+use envelope::{
+    MAX_ARTIFACT_BYTES,
+    decode,
+    encode,
+};
 /// Imports source identity and cache-location operations.
 use path::{
-    cache_location, current_environment, current_platform, resolve_cache_root, source_digest,
-    CacheRootError, SourceDigest,
+    CacheRootError,
+    SourceDigest,
+    cache_location,
+    current_environment,
+    current_platform,
+    resolve_cache_root,
+    source_digest,
 };
 /// Imports complete artifact IO operations.
-use publish::{publish_artifact, read_artifact, ArtifactReadError};
+use publish::{
+    ArtifactReadError,
+    publish_artifact,
+    read_artifact,
+};
 /// Re-exports warning value for loaded-rules output.
 pub use warning::CacheWarning;
 /// Imports closed warning reason values.
@@ -92,7 +108,10 @@ pub(crate) struct CacheLoad {
 /// Loads compatible artifact or compiles and,
 ///  under [`CacheAccess::ReadWrite`],
 ///  best-effort repairs from one snapshot of the rules files.
-pub(crate) fn load_or_compile(snapshot: &RulesSnapshot, access: CacheAccess) -> Result<CacheLoad> {
+pub(crate) fn load_or_compile(
+    snapshot: &RulesSnapshot,
+    access: CacheAccess,
+) -> Result<CacheLoad> {
     let digest = match source_digest(snapshot.text().as_bytes()) {
         Ok(digest) => digest,
         Err(error) => return Err(anyhow!("rules {}: {}", snapshot.label(), error)),
@@ -101,7 +120,11 @@ pub(crate) fn load_or_compile(snapshot: &RulesSnapshot, access: CacheAccess) -> 
     let root = match resolve_cache_root(&environment, current_platform()) {
         Ok(root) => root,
         Err(CacheRootError::InvalidOverride) => {
-            return Err(anyhow!("rules {}: {}", snapshot.label(), CacheRootError::InvalidOverride));
+            return Err(anyhow!(
+                "rules {}: {}",
+                snapshot.label(),
+                CacheRootError::InvalidOverride
+            ));
         }
         Err(CacheRootError::Unavailable) => {
             let compiled = snapshot.compile()?;
@@ -116,16 +139,39 @@ pub(crate) fn load_or_compile(snapshot: &RulesSnapshot, access: CacheAccess) -> 
     let location = cache_location(&root, digest);
     match read_artifact(&location.artifact_path, MAX_ARTIFACT_BYTES) {
         Ok(bytes) => match decode(&bytes, digest) {
-            Ok(compiled) => return Ok(CacheLoad { compiled, warnings: Vec::new() }),
+            Ok(compiled) => {
+                return Ok(CacheLoad {
+                    compiled,
+                    warnings: Vec::new(),
+                });
+            }
             Err(error) => {
-                return compile_and_repair(snapshot, digest, &location, error.warning_reason(), access);
+                return compile_and_repair(
+                    snapshot,
+                    digest,
+                    &location,
+                    error.warning_reason(),
+                    access,
+                );
             }
         },
         Err(ArtifactReadError::Missing) => {
-            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Missing, access);
+            return compile_and_repair(
+                snapshot,
+                digest,
+                &location,
+                CacheWarningReason::Missing,
+                access,
+            );
         }
         Err(ArtifactReadError::Unreadable) => {
-            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Unreadable, access);
+            return compile_and_repair(
+                snapshot,
+                digest,
+                &location,
+                CacheWarningReason::Unreadable,
+                access,
+            );
         }
     }
 }
@@ -141,8 +187,12 @@ pub(crate) fn load_or_compile(snapshot: &RulesSnapshot, access: CacheAccess) -> 
 ///  so a warm cache pays no second read of the artifact.
 ///
 pub(crate) fn artifact_exists(snapshot: &RulesSnapshot) -> bool {
-    let Ok(digest) = source_digest(snapshot.text().as_bytes()) else { return false };
-    let Ok(root) = resolve_cache_root(&current_environment(), current_platform()) else { return false };
+    let Ok(digest) = source_digest(snapshot.text().as_bytes()) else {
+        return false;
+    };
+    let Ok(root) = resolve_cache_root(&current_environment(), current_platform()) else {
+        return false;
+    };
     return cache_location(&root, digest).artifact_path.is_file();
 }
 
@@ -157,9 +207,11 @@ pub(crate) fn artifact_exists(snapshot: &RulesSnapshot) -> bool {
 ///  so the caller keeps the write itself and the next load says why it failed.
 ///
 pub fn compiled_rules_artifact_exists(entries: &[RulesEntry]) -> bool {
-    let Ok(snapshot) = RulesSnapshot::read(entries) else { return false };
+    let Ok(snapshot) = RulesSnapshot::read(entries) else {
+        return false;
+    };
     if snapshot.is_empty() {
-        return false
+        return false;
     }
     return artifact_exists(&snapshot);
 }
@@ -177,12 +229,18 @@ fn compile_and_repair(
     let compiled = snapshot.compile()?;
     let mut warnings = vec![CacheWarning::compile_from_text(reason)];
     if access == CacheAccess::ReadOnly {
-        return Ok(CacheLoad { compiled, warnings })
+        return Ok(CacheLoad {
+            compiled,
+            warnings,
+        });
     }
     if !snapshot.still_current() || !publish_compiled_snapshot(&compiled, digest, location) {
         warnings.push(CacheWarning::write_failed());
     }
-    return Ok(CacheLoad { compiled, warnings })
+    return Ok(CacheLoad {
+        compiled,
+        warnings,
+    });
 }
 
 /// Encodes and publishes compiled snapshot without conflating codec and IO errors.
@@ -194,7 +252,7 @@ fn publish_compiled_snapshot(
     let Ok(bytes) = encode(compiled, digest) else {
         return false;
     };
-    return publish_artifact(location, &bytes).is_ok()
+    return publish_artifact(location, &bytes).is_ok();
 }
 
 /// The fatal error for an artifact that could not be encoded,
@@ -222,13 +280,15 @@ pub(crate) fn compile_rules_to_cache(entries: &[RulesEntry]) -> Result<Vec<std::
         Ok(digest) => digest,
         Err(error) => return Err(anyhow!("rules {}: {}", label, error)),
     };
-    let root = resolve_cache_root(&current_environment(), current_platform()).map_err(anyhow::Error::msg)?;
+    let root = resolve_cache_root(&current_environment(), current_platform())
+        .map_err(anyhow::Error::msg)?;
     let location = cache_location(&root, digest);
 
-    let cached_artifact_decodes: bool = match read_artifact(&location.artifact_path, MAX_ARTIFACT_BYTES) {
-        Ok(bytes) => decode(&bytes, digest).is_ok(),
-        Err(_) => false,
-    };
+    let cached_artifact_decodes: bool =
+        match read_artifact(&location.artifact_path, MAX_ARTIFACT_BYTES) {
+            Ok(bytes) => decode(&bytes, digest).is_ok(),
+            Err(_) => false,
+        };
     if cached_artifact_decodes {
         if snapshot.still_current() {
             return Ok(snapshot.skipped());
@@ -240,10 +300,8 @@ pub(crate) fn compile_rules_to_cache(entries: &[RulesEntry]) -> Result<Vec<std::
     if !snapshot.still_current() {
         return Err(anyhow!("rules {} changed during compilation", label));
     }
-    let artifact = encode(&compiled, digest)
-        .map_err(artifact_not_encoded)?;
-    publish_artifact(&location, &artifact)
-        .map_err(artifact_not_published)?;
+    let artifact = encode(&compiled, digest).map_err(artifact_not_encoded)?;
+    publish_artifact(&location, &artifact).map_err(artifact_not_published)?;
     return Ok(snapshot.skipped());
 }
 
@@ -261,5 +319,5 @@ pub fn decode_artifact_for_fuzzing(
     let Ok(digest) = source_digest(source) else {
         return false;
     };
-    return decode(bytes, digest).is_ok()
+    return decode(bytes, digest).is_ok();
 }

@@ -20,16 +20,24 @@
 ///  one source of truth for magic values used across the shell modules.
 mod constants;
 /// What:
-///  the top-level window construction module.
+///  debug-only tint labels and overlay wrappers.
 /// Why:
-///  keeps window assembly out of `run`,
-///  each file under the max-lines budget.
-mod window;
+///  layout screenshots need stable three-character codes naming each visible region.
+mod debug_tint;
 /// What:
-///  the directory-listing pane widget.
+///  the file drag-and-drop wiring (inbound drop target,
+///  outbound drag source/shims).
 /// Why:
-///  renders a `DirectorySnapshot` as a virtualized icon+name list.
-mod pane;
+///  native inbound over `GdkFileList`;
+///  outbound native on Wayland,
+///  shims on Windows/macOS.
+mod dnd;
+/// What:
+///  keyboard column navigation for the strip.
+/// Why:
+///  Left/Right move focus between columns;
+///  split out to keep `strip.rs` under max-lines.
+mod keys;
 /// What:
 ///  deep GTK layout adapter for the detached-column pane strip.
 /// Why:
@@ -40,21 +48,21 @@ mod pane;
 ///      and reveal behind one interface.
 mod layout;
 /// What:
+///  the macOS-only native AppKit outbound-drag shim.
+/// Why:
+///  GDK's Quartz drag source cannot deliver files to Finder.
+#[cfg(target_os = "macos")]
+mod mac_drag;
+/// What:
+///  the directory-listing pane widget.
+/// Why:
+///  renders a `DirectorySnapshot` as a virtualized icon+name list.
+mod pane;
+/// What:
 ///  the pane-strip controller.
 /// Why:
 ///  mutates the pane model and delegates GTK placement/scrolling to `layout`.
 mod strip;
-/// What:
-///  keyboard column navigation for the strip.
-/// Why:
-///  Left/Right move focus between columns;
-///  split out to keep `strip.rs` under max-lines.
-mod keys;
-/// What:
-///  debug-only tint labels and overlay wrappers.
-/// Why:
-///  layout screenshots need stable three-character codes naming each visible region.
-mod debug_tint;
 /// What:
 ///  the application stylesheet (black background).
 /// Why:
@@ -66,35 +74,18 @@ mod style;
 ///  preview panes decode images on a worker thread and cache them with LRU eviction.
 mod thumbs;
 /// What:
-///  the file drag-and-drop wiring (inbound drop target,
-///  outbound drag source/shims).
-/// Why:
-///  native inbound over `GdkFileList`;
-///  outbound native on Wayland,
-///  shims on Windows/macOS.
-mod dnd;
-/// What:
 ///  the Windows-only native OLE outbound-drag shim.
 /// Why:
 ///  GDK's Win32 drag source cannot deliver files to Explorer.
 #[cfg(windows)]
 mod win_drag;
 /// What:
-///  the macOS-only native AppKit outbound-drag shim.
+///  the top-level window construction module.
 /// Why:
-///  GDK's Quartz drag source cannot deliver files to Finder.
-#[cfg(target_os = "macos")]
-mod mac_drag;
+///  keeps window assembly out of `run`,
+///  each file under the max-lines budget.
+mod window;
 
-/// What:
-///  the core domain types (ids,
-///  entries,
-///  locations,
-///  snapshots).
-/// Why:
-///  plain-Rust model shared across the shell;
-///  public so it unit-tests without GTK.
-pub mod types;
 /// What:
 ///  filesystem reads producing sorted directory snapshots.
 /// Why:
@@ -106,6 +97,15 @@ pub mod fs;
 ///  the Niri interaction rules live here,
 ///  tested independently of GTK.
 pub mod model;
+/// What:
+///  the core domain types (ids,
+///  entries,
+///  locations,
+///  snapshots).
+/// Why:
+///  plain-Rust model shared across the shell;
+///  public so it unit-tests without GTK.
+pub mod types;
 
 /// What:
 ///  unit tests for the filesystem reads.
@@ -135,7 +135,10 @@ use gtk4::prelude::*;
 ///  timers).
 /// Why:
 ///  `run` constructs an `Application` and returns the `glib::ExitCode` GTK yields.
-use gtk4::{Application, glib};
+use gtk4::{
+    Application,
+    glib,
+};
 
 /// What:
 ///  imports the tracing subscriber's env-filter type.
@@ -149,7 +152,10 @@ use tracing_subscriber::EnvFilter;
 /// Why:
 ///  the `Application` is identified by `APP_ID`;
 ///  `QUIT_MS_ENV` drives unattended runs.
-use crate::constants::{APP_ID, QUIT_MS_ENV};
+use crate::constants::{
+    APP_ID,
+    QUIT_MS_ENV,
+};
 
 /// What:
 ///  install non-blocking tracing,
@@ -182,10 +188,12 @@ pub fn run() -> glib::ExitCode {
     let controllers = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     app.connect_activate(move |activated| {
         style::install();
-        controllers.borrow_mut().push(window::build_window(activated));
+        controllers
+            .borrow_mut()
+            .push(window::build_window(activated));
         schedule_self_quit(activated);
     });
-    return app.run()
+    return app.run();
 }
 
 /// What:
@@ -224,7 +232,7 @@ fn enable_windows_gpu_rendering() {}
 /// Why:
 ///  a named function lets `and_then` take it by path instead of through a closure.
 fn parse_milliseconds(value: &str) -> Option<u64> {
-    return value.parse::<u64>().ok()
+    return value.parse::<u64>().ok();
 }
 
 /// What:

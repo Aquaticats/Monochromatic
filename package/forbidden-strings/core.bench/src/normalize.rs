@@ -50,7 +50,7 @@ pub(crate) fn normalize(inner: &str) -> String {
     s = s.replace("(?i)", "");
     s = s.replace("\\_", "_");
     s = s.replace("\\x60", "`");
-    return scan_rewrite(&s)
+    return scan_rewrite(&s);
 }
 
 /// Rewrites capturing groups and unbounded quantifiers in one escape-aware pass.
@@ -85,7 +85,7 @@ fn scan_rewrite(s: &str) -> String {
         }
         i = rewrite_token(s, b, i, &mut out);
     }
-    return out
+    return out;
 }
 
 /// Rewrites one non-class,
@@ -100,24 +100,29 @@ fn scan_rewrite(s: &str) -> String {
 /// anything else verbatim.
 ///  Why:
 ///  keeps `scan_rewrite` within its line budget.
-fn rewrite_token(s: &str, b: &[u8], i: usize, out: &mut String) -> usize {
+fn rewrite_token(
+    s: &str,
+    b: &[u8],
+    i: usize,
+    out: &mut String,
+) -> usize {
     match b[i] {
         b'(' if open_is_capturing(b, i) => {
             out.push_str("(?:");
-            return i + 1
+            return i + 1;
         }
         b'*' => {
             out.push_str(&format!("{{0,{QUANT_CAP}}}"));
-            return i + 1
+            return i + 1;
         }
         b'+' => {
             out.push_str(&format!("{{1,{QUANT_CAP}}}"));
-            return i + 1
+            return i + 1;
         }
         b'{' => return rewrite_brace(s, b, i, out),
         other => {
             out.push(other as char);
-            return i + 1
+            return i + 1;
         }
     }
 }
@@ -129,10 +134,13 @@ fn rewrite_token(s: &str, b: &[u8], i: usize, out: &mut String) -> usize {
 ///  Why:
 ///  only capturing
 /// groups are rewritten to non-capturing.
-fn open_is_capturing(b: &[u8], i: usize) -> bool {
+fn open_is_capturing(
+    b: &[u8],
+    i: usize,
+) -> bool {
     let is_flagged = i + 1 < b.len() && b[i + 1] == b'?';
     let is_complement = i > 0 && b[i - 1] == b'~' && (i < 2 || b[i - 2] != b'\\');
-    return !is_flagged && !is_complement
+    return !is_flagged && !is_complement;
 }
 
 /// Rewrites a `{...}` token,
@@ -144,16 +152,30 @@ fn open_is_capturing(b: &[u8], i: usize) -> bool {
 ///  Why:
 ///  the engine
 /// rejects an open-ended upper bound.
-fn rewrite_brace(s: &str, b: &[u8], i: usize, out: &mut String) -> usize {
-    let Some(close) = b[i..].iter().position(|&x| return x == b'}').map(|p| return i + p) else {
+fn rewrite_brace(
+    s: &str,
+    b: &[u8],
+    i: usize,
+    out: &mut String,
+) -> usize {
+    let Some(close) = b[i..]
+        .iter()
+        .position(|&x| return x == b'}')
+        .map(|p| return i + p)
+    else {
         out.push('{');
         return i + 1;
     };
     let body = &s[i + 1..close];
-    if body.len() >= 2 && body.ends_with(',') && body[..body.len() - 1].bytes().all(|x| return x.is_ascii_digit()) {
+    if body.len() >= 2
+        && body.ends_with(',')
+        && body[..body.len() - 1]
+            .bytes()
+            .all(|x| return x.is_ascii_digit())
+    {
         out.push_str(&format!("{{{},{QUANT_CAP}}}", &body[..body.len() - 1]));
     } else {
         out.push_str(&s[i..=close]);
     }
-    return close + 1
+    return close + 1;
 }

@@ -12,7 +12,9 @@
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
 use git_policy_cli_fuzz::arguments::{
-    arguments_from_bytes, check_global_layout, generated_arguments,
+    arguments_from_bytes,
+    check_global_layout,
+    generated_arguments,
 };
 use libfuzzer_sys::fuzz_target;
 use std::ffi::OsString;

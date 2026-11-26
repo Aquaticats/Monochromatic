@@ -37,9 +37,10 @@ fn words(text: &[&str]) -> Vec<OsString> {
 }
 
 /// The `git commit` of the step,
-/// standing in for the one the commit runs in its scratch repository.
+/// standing in for the one the commit runs in its scratch repository,
+/// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn sleeping_step() -> std::process::Child {
-    return std::process::Command::new("sleep").arg("120").spawn().expect("a long-running child");
+    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("120")).expect("a long-running child");
 }
 
 /// The number of a child.

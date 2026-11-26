@@ -16,7 +16,10 @@
 ///  imports the single-slot cell used for the directory-read generation.
 /// Why:
 ///  directory panes get monotonically increasing snapshot generations.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 /// What:
 ///  imports the borrowed path type.
 /// Why:
@@ -37,13 +40,20 @@ use gtk4::prelude::*;
 ///  imports concrete GTK fallback widget types.
 /// Why:
 ///  a missing pane or failed directory read degrades to a label widget.
-use gtk4::{Label, Widget};
+use gtk4::{
+    Label,
+    Widget,
+};
 
 /// What:
 ///  imports the layout adapter and its placement snapshot type.
 /// Why:
 ///  this controller delegates GTK reconciliation and scrolling to a deep layout module.
-use crate::layout::{PanePlacement, PaneWidgetBuilder, StripLayout};
+use crate::layout::{
+    PanePlacement,
+    PaneWidgetBuilder,
+    StripLayout,
+};
 /// What:
 ///  imports the pane-strip state machine.
 /// Why:
@@ -54,20 +64,30 @@ use crate::model::PaneStripState;
 /// Why:
 ///  a directory pane is a listing pane;
 ///  a preview pane renders a thumbnail or typed icon.
-use crate::pane::{build_listing_pane, build_preview_pane};
+use crate::pane::{
+    build_listing_pane,
+    build_preview_pane,
+};
 /// What:
 ///  imports thumbnail service and image-detection helper.
 /// Why:
 ///  preview panes need the service;
 ///  autopreview branches on `is_image`.
-use crate::thumbs::{Thumbnails, is_image};
+use crate::thumbs::{
+    Thumbnails,
+    is_image,
+};
 /// What:
 ///  imports entry,
 ///  id,
 ///  and location domain types.
 /// Why:
 ///  activating an entry maps it to a `PaneLocation` and returns a stable `PaneId`.
-use crate::types::{FileEntry, PaneId, PaneLocation};
+use crate::types::{
+    FileEntry,
+    PaneId,
+    PaneLocation,
+};
 
 /// What:
 ///  shared controller state captured by GTK closures.
@@ -132,7 +152,9 @@ impl StripController {
             .open_root(PaneLocation::Directory(root.to_path_buf()));
         reconcile(&inner);
         crate::keys::install_column_nav(&inner);
-        return Self { inner }
+        return Self {
+            inner,
+        };
     }
 
     /// What:
@@ -140,7 +162,7 @@ impl StripController {
     /// Why:
     ///  the concrete GTK root lives behind `StripLayout` so callers do not depend on it.
     pub fn widget(&self) -> Widget {
-        return self.inner.layout.widget()
+        return self.inner.layout.widget();
     }
 
     /// What:
@@ -211,8 +233,11 @@ fn root_directory(inner: &Rc<StripInner>) -> Option<(PaneId, std::path::PathBuf)
 ///  or nothing when the pane is not live.
 /// Why:
 ///  callers release the state borrow before building widgets from the location.
-fn location_of(state: &PaneStripState, id: PaneId) -> Option<PaneLocation> {
-    return Some(state.pane(id)?.location.clone())
+fn location_of(
+    state: &PaneStripState,
+    id: PaneId,
+) -> Option<PaneLocation> {
+    return Some(state.pane(id)?.location.clone());
 }
 
 /// What:
@@ -220,8 +245,11 @@ fn location_of(state: &PaneStripState, id: PaneId) -> Option<PaneLocation> {
 ///  or nothing when the pane is not live.
 /// Why:
 ///  a spawn focuses the column of the pane it just created.
-fn column_of(state: &PaneStripState, id: PaneId) -> Option<usize> {
-    return Some(state.pane(id)?.column)
+fn column_of(
+    state: &PaneStripState,
+    id: PaneId,
+) -> Option<usize> {
+    return Some(state.pane(id)?.column);
 }
 
 /// What:
@@ -232,7 +260,7 @@ fn column_of(state: &PaneStripState, id: PaneId) -> Option<usize> {
 fn next_generation(inner: &Rc<StripInner>) -> u64 {
     let generation = inner.generation.get() + 1;
     inner.generation.set(generation);
-    return generation
+    return generation;
 }
 
 /// What:
@@ -263,8 +291,11 @@ impl PaneWidgetBuilder for Rc<StripInner> {
     /// Why:
     ///  forwards to `build_pane_widget`,
     ///  which owns the per-location construction.
-    fn build_widget(&self, id: PaneId) -> Widget {
-        return build_pane_widget(self, id)
+    fn build_widget(
+        &self,
+        id: PaneId,
+    ) -> Widget {
+        return build_pane_widget(self, id);
     }
 }
 
@@ -275,7 +306,10 @@ impl PaneWidgetBuilder for Rc<StripInner> {
 ///  a preview becomes a thumbnail pane;
 ///  a
 ///      missing pane degrades to a label.
-fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
+fn build_pane_widget(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+) -> Widget {
     let location = location_of(&inner.state.borrow(), id);
     match location {
         Some(PaneLocation::Directory(path)) => return build_directory_pane(inner, id, &path),
@@ -286,7 +320,7 @@ fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
                     close_pane(&upgraded, id);
                 }
             })
-            .upcast::<Widget>()
+            .upcast::<Widget>();
         }
         None => return Label::new(Some("(missing pane)")).upcast::<Widget>(),
     }
@@ -299,7 +333,11 @@ fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
 ///  activating a row spawns `path`'s child from this pane via a weak back-reference,
 ///  so the
 ///      closure never keeps the strip alive.
-fn build_directory_pane(inner: &Rc<StripInner>, id: PaneId, path: &Path) -> Widget {
+fn build_directory_pane(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+    path: &Path,
+) -> Widget {
     let generation = next_generation(inner);
     match crate::fs::read_directory(path, generation) {
         Ok(snapshot) => {
@@ -318,11 +356,12 @@ fn build_directory_pane(inner: &Rc<StripInner>, id: PaneId, path: &Path) -> Widg
                     }
                 },
             )
-            .upcast::<Widget>()
+            .upcast::<Widget>();
         }
         Err(error) => {
             tracing::error!(%error, path = %path.display(), "failed to read directory for pane");
-            return Label::new(Some(&format!("Cannot read {}: {error}", path.display()))).upcast::<Widget>()
+            return Label::new(Some(&format!("Cannot read {}: {error}", path.display())))
+                .upcast::<Widget>();
         }
     }
 }
@@ -368,7 +407,7 @@ fn spawn_from(
         columns = inner.state.borrow().column_count(),
         "spawned child pane"
     );
-    return spawned
+    return spawned;
 }
 
 /// What:
@@ -376,8 +415,15 @@ fn spawn_from(
 /// Why:
 ///  explicit close is the only way a pane dies;
 ///  layout reconciliation drops the widget.
-fn close_pane(inner: &Rc<StripInner>, id: PaneId) {
+fn close_pane(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+) {
     inner.state.borrow_mut().close(id);
     reconcile(inner);
-    tracing::info!(closed = id.0, panes = inner.state.borrow().len(), "closed pane");
+    tracing::info!(
+        closed = id.0,
+        panes = inner.state.borrow().len(),
+        "closed pane"
+    );
 }

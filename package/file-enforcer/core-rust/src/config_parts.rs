@@ -15,7 +15,10 @@
 // The `JsonSchema` derive expands to `Result::unwrap` calls inside its generated `json_schema` function, which
 // the repository's `clippy.toml` disallows. Evidence and the failed configuration attempts:
 // doc/troubleshooting/schemars-derive-trips-disallowed-methods.md.
-#![expect(clippy::disallowed_methods, reason = "the schemars JsonSchema derive expands to Result::unwrap")]
+#![expect(
+    clippy::disallowed_methods,
+    reason = "the schemars JsonSchema derive expands to Result::unwrap"
+)]
 
 /// Imports `JsonSchema` from `schemars`.
 use schemars::JsonSchema;
@@ -36,7 +39,11 @@ use schemars::JsonSchema;
 /// type ValueExpr = string | boolean | number | ValueExpr[] | { file: ValueExpr } | { var: string } | { concat: ValueExpr[] };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
-#[schemars(untagged, deny_unknown_fields, description = "A literal, a list, or a tagged object: file, var or concat.")]
+#[schemars(
+    untagged,
+    deny_unknown_fields,
+    description = "A literal, a list, or a tagged object: file, var or concat."
+)]
 pub enum ValueExpr {
     /// Literal text.
     Text(
@@ -91,7 +98,10 @@ pub enum ValueExpr {
 /// type LicenseRequirement = { contains: string; texts: string[] };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
-#[schemars(deny_unknown_fields, description = "License texts a manifest license expression needs.")]
+#[schemars(
+    deny_unknown_fields,
+    description = "License texts a manifest license expression needs."
+)]
 pub struct LicenseRequirement {
     /// Substring of the manifest's license expression.
     pub contains: String,
@@ -110,7 +120,10 @@ pub struct LicenseRequirement {
 /// type TomlEdit = { guard: string[]; path: string[]; value: ValueExpr };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
-#[schemars(deny_unknown_fields, description = "A key assignment applied only where the guard key path exists.")]
+#[schemars(
+    deny_unknown_fields,
+    description = "A key assignment applied only where the guard key path exists."
+)]
 pub struct TomlEdit {
     /// Key path that must exist before the edit applies;
     /// empty means always.
@@ -135,7 +148,11 @@ pub struct TomlEdit {
 /// type TomlBlock = { absentPath: string[]; text: ValueExpr };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
-#[schemars(deny_unknown_fields, rename_all = "camelCase", description = "A TOML block appended when a key path is absent.")]
+#[schemars(
+    deny_unknown_fields,
+    rename_all = "camelCase",
+    description = "A TOML block appended when a key path is absent."
+)]
 pub struct TomlBlock {
     /// Key path whose absence triggers the append.
     pub absent_path: Vec<String>,
@@ -155,7 +172,11 @@ pub struct TomlBlock {
 /// type HarperScopedServer = { id: string; name: string; fileNames: string[]; languageId: string; disabledLinters: string[] };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
-#[schemars(deny_unknown_fields, rename_all = "camelCase", description = "A language server scoped to named files.")]
+#[schemars(
+    deny_unknown_fields,
+    rename_all = "camelCase",
+    description = "A language server scoped to named files."
+)]
 pub struct HarperScopedServer {
     /// Server id in the IDE settings.
     pub id: String,

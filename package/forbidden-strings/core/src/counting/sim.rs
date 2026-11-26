@@ -152,7 +152,7 @@ impl State {
         return State {
             active: vec![false; elements.len() + 1],
             counts: elements.iter().map(count_set_for).collect(),
-        }
+        };
     }
 
     /// Empties the state in place for reuse as a ping-pong buffer.
@@ -190,7 +190,10 @@ impl State {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub(crate) fn seed(&mut self, start: &[u32]) {
+    pub(crate) fn seed(
+        &mut self,
+        start: &[u32],
+    ) {
         for &s in start {
             self.active[s as usize] = true;
         }
@@ -211,7 +214,7 @@ impl State {
     /// }
     /// ```
     pub(crate) fn accepts(&self) -> bool {
-        return self.active.last().copied().unwrap_or(false)
+        return self.active.last().copied().unwrap_or(false);
     }
 
     /// Reports whether the state can never reach acceptance again.
@@ -231,7 +234,7 @@ impl State {
     /// }
     /// ```
     pub(crate) fn is_dead(&self) -> bool {
-        return !self.active.contains(&true) && self.counts.iter().all(CountSet::is_empty)
+        return !self.active.contains(&true) && self.counts.iter().all(CountSet::is_empty);
     }
 }
 
@@ -255,7 +258,10 @@ impl State {
 /// ```
 fn count_set_for(element: &Element) -> CountSet {
     match element {
-        Element::Counted { max, .. } => return CountSet::new(*max),
+        Element::Counted {
+            max,
+            ..
+        } => return CountSet::new(*max),
         _ => return CountSet::new(0),
     }
 }
@@ -278,14 +284,17 @@ fn count_set_for(element: &Element) -> CountSet {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn boundary_ctx(line: &[u8], i: usize) -> Ctx {
+pub(crate) fn boundary_ctx(
+    line: &[u8],
+    i: usize,
+) -> Ctx {
     let len = line.len();
     return Ctx {
         line_start: i == 0 || line[i - 1] == b'\n',
         line_end: i == len || line[i] == b'\n',
         word_before: i > 0 && is_word_byte(line[i - 1]),
         word_after: i < len && is_word_byte(line[i]),
-    }
+    };
 }
 
 /// Expands active positions through every zero-width move to a fixpoint.
@@ -310,7 +319,12 @@ pub(crate) fn boundary_ctx(line: &[u8], i: usize) -> Ctx {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn closure(elements: &[Element], follow: &[Vec<u32>], state: &mut State, ctx: Ctx) {
+pub(crate) fn closure(
+    elements: &[Element],
+    follow: &[Vec<u32>],
+    state: &mut State,
+    ctx: Ctx,
+) {
     let mut changed = true;
     while changed {
         changed = false;
@@ -350,10 +364,15 @@ fn zero_width_move(
 ) -> bool {
     match element {
         Element::Class(_) => return false,
-        Element::Counted { min, .. } => return counted_move(p, *min, follow, state),
+        Element::Counted {
+            min,
+            ..
+        } => return counted_move(p, *min, follow, state),
         Element::LineStart => return anchor_move(p, ctx.line_start, follow, state),
         Element::LineEnd => return anchor_move(p, ctx.line_end, follow, state),
-        Element::WordBoundary => return anchor_move(p, ctx.word_before != ctx.word_after, follow, state),
+        Element::WordBoundary => {
+            return anchor_move(p, ctx.word_before != ctx.word_after, follow, state);
+        }
     }
 }
 
@@ -375,7 +394,12 @@ fn zero_width_move(
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn counted_move(p: usize, min: usize, follow: &[Vec<u32>], state: &mut State) -> bool {
+fn counted_move(
+    p: usize,
+    min: usize,
+    follow: &[Vec<u32>],
+    state: &mut State,
+) -> bool {
     let mut changed = false;
     if state.active[p] && state.counts[p].insert_zero() {
         changed = true;
@@ -383,7 +407,7 @@ fn counted_move(p: usize, min: usize, follow: &[Vec<u32>], state: &mut State) ->
     if state.counts[p].has_at_least(min) && activate(&follow[p], &mut state.active) {
         changed = true;
     }
-    return changed
+    return changed;
 }
 
 /// Follows a reached anchor when its boundary condition holds.
@@ -399,11 +423,16 @@ fn counted_move(p: usize, min: usize, follow: &[Vec<u32>], state: &mut State) ->
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn anchor_move(p: usize, cond: bool, follow: &[Vec<u32>], state: &mut State) -> bool {
+fn anchor_move(
+    p: usize,
+    cond: bool,
+    follow: &[Vec<u32>],
+    state: &mut State,
+) -> bool {
     if state.active[p] && cond {
-        return activate(&follow[p], &mut state.active)
+        return activate(&follow[p], &mut state.active);
     } else {
-        return false
+        return false;
     }
 }
 
@@ -422,7 +451,10 @@ fn anchor_move(p: usize, cond: bool, follow: &[Vec<u32>], state: &mut State) -> 
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn activate(targets: &[u32], active: &mut [bool]) -> bool {
+fn activate(
+    targets: &[u32],
+    active: &mut [bool],
+) -> bool {
     let mut changed = false;
     for &t in targets {
         if !active[t as usize] {
@@ -430,7 +462,7 @@ fn activate(targets: &[u32], active: &mut [bool]) -> bool {
             changed = true;
         }
     }
-    return changed
+    return changed;
 }
 
 /// Consumes one byte,
@@ -467,7 +499,11 @@ pub(crate) fn step_into(
                     activate(&follow[p], &mut dst.active);
                 }
             }
-            Element::Counted { set, max, .. } => {
+            Element::Counted {
+                set,
+                max,
+                ..
+            } => {
                 if set.contains(b) {
                     dst.counts[p].copy_advanced_from(&src.counts[p], *max);
                 }

@@ -1,0 +1,20 @@
+
+running 1 test
+LOCK mounted slot-identity-answers=no
+LOCK mounted classified managed=yes
+LOCK mounted clone-guid-answers=yes
+LOCK mounted cloned-again refused=yes
+LOCK mounted restored-clone managed=yes
+LOCK classified managed-nonce=1 pointer=absent
+LOCK prune-kept-the-locked-registration=true
+LOCK operator class=an-operators-lock
+LOCK operator git-removal-refused=yes single-force-refused=yes
+LOCK put-back wrote=yes line=yes
+LOCK installed-lock-kept-the-registration=true
+LOCK release refused-with-another-clones-proof=yes
+LOCK released=yes registration-still-stands=true
+LOCK unlock-control-lost-the-registration=true
+LOCK done
+test zfs_managed_lock_guest::the_managed_lock_outlives_the_pointer_and_goes_after_the_clone ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1354 filtered out; finished in 1.13s

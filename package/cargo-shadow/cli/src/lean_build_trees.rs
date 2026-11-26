@@ -20,16 +20,32 @@
 //! ```
 
 /// Files and directories.
-use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{
+    fs,
+    os::unix::fs::MetadataExt,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
-/// The ledger and the keyed directory name.
-use crate::lean_keyed_folder::{KEYED_DIRECTORY, read_ledger};
 /// The deadline of walks and the lock file name.
 use crate::lean_identity::Deadline;
+/// The ledger and the keyed directory name.
+use crate::lean_keyed_folder::{
+    KEYED_DIRECTORY,
+    read_ledger,
+};
 /// Imports the names this file uses from `crate::lean_lock_probe`.
 use crate::lean_lock_probe::LOCK_FILE_NAMES;
 /// Named reads of paths and text.
-use crate::lean_text::{all_hex, extension_is, is_directory, name_of, read_small_bytes};
+use crate::lean_text::{
+    all_hex,
+    extension_is,
+    is_directory,
+    name_of,
+    read_small_bytes,
+};
 
 /// Directory names inside a profile directory,
 /// never entered when looking for profile directories.
@@ -46,7 +62,13 @@ const LEAD_FILES: usize = 300;
 const LEAD_BYTES: usize = 4_096;
 
 /// Path fragments of sources that are not a workspace.
-const NOT_A_WORKSPACE: [&str; 5] = ["/.cargo/registry/", "/.cargo/git/", "/rustlib/", "/.rustup/", "/toolchains/"];
+const NOT_A_WORKSPACE: [&str; 5] = [
+    "/.cargo/registry/",
+    "/.cargo/git/",
+    "/rustlib/",
+    "/.rustup/",
+    "/toolchains/",
+];
 
 /// Which layout a tree is in.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -132,13 +154,19 @@ pub fn list_trees(base: &Path) -> Vec<Tree> {
                 let toolchain_name: String = name_of(&toolchain);
                 for shard in directories_of(&toolchain) {
                     for tree in directories_of(&shard) {
-                        trees.push(Tree { path: tree, kind: TreeKind::Keyed(toolchain_name.clone()) });
+                        trees.push(Tree {
+                            path: tree,
+                            kind: TreeKind::Keyed(toolchain_name.clone()),
+                        });
                     }
                 }
             }
         } else if name.len() == 2 && all_hex(&name) {
             for tree in directories_of(&child) {
-                trees.push(Tree { path: tree, kind: TreeKind::Legacy });
+                trees.push(Tree {
+                    path: tree,
+                    kind: TreeKind::Legacy,
+                });
             }
         }
     }
@@ -195,7 +223,10 @@ pub fn profile_dirs_of(tree: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// function newestIn(directory: string, newest: { value: number }): void
 /// ```
-fn newest_in(directory: &Path, newest: &mut i64) {
+fn newest_in(
+    directory: &Path,
+    newest: &mut i64,
+) {
     if let Ok(metadata) = fs::symlink_metadata(directory) {
         *newest = (*newest).max(metadata.mtime());
     }
@@ -221,7 +252,10 @@ fn newest_in(directory: &Path, newest: &mut i64) {
 /// ```ts
 /// export function lastActivity(tree: string, deadline: Deadline): number | undefined
 /// ```
-pub fn last_activity(tree: &Path, deadline: &Deadline) -> Option<i64> {
+pub fn last_activity(
+    tree: &Path,
+    deadline: &Deadline,
+) -> Option<i64> {
     let mut newest: i64 = 0;
     newest_in(tree, &mut newest);
     for profile in profile_dirs_of(tree) {
@@ -265,7 +299,10 @@ pub fn last_activity(tree: &Path, deadline: &Deadline) -> Option<i64> {
 /// ```ts
 /// function leadIn(tree: string, dependencyFile: string): string | undefined
 /// ```
-fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf> {
+fn lead_in(
+    tree: &Path,
+    dependency_file: &Path,
+) -> Option<PathBuf> {
     let buffer: Vec<u8> = read_small_bytes(dependency_file, LEAD_BYTES).ok()?;
     let count: usize = buffer.len();
     let read: String = String::from_utf8_lossy(&buffer).to_string();

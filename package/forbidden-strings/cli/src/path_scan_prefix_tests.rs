@@ -18,14 +18,20 @@
 //! ```
 
 /// Import the private canonical scan and the structured record it returns.
-use super::{scan_normalized_records, PathScanRecords};
-/// Import the production Windows normalization and prefix counting rather than a test-local copy.
-use crate::path_name_bytes::{count_prefix_parts, normalize_bytes};
+use super::{
+    PathScanRecords,
+    scan_normalized_records,
+};
+/// Import the structured finding compared by every assertion.
+use crate::ScanFinding;
 /// Import loaded matcher sets,
 ///  the type the scan borrows.
 use crate::frx_load::LoadedRules;
-/// Import the structured finding compared by every assertion.
-use crate::ScanFinding;
+/// Import the production Windows normalization and prefix counting rather than a test-local copy.
+use crate::path_name_bytes::{
+    count_prefix_parts,
+    normalize_bytes,
+};
 
 /// What:
 ///  One native Windows prefix with a forbidden-name candidate and a clean control under the same prefix.
@@ -84,9 +90,16 @@ fn load_rules() -> LoadedRules {
 ///   return scanNormalized(normalize(path, true), countPrefixParts(prefix), loaded);
 /// }
 /// ```
-fn scan_windows_form(path: &[u8], prefix: &[u8], loaded: &LoadedRules) -> PathScanRecords {
+fn scan_windows_form(
+    path: &[u8],
+    prefix: &[u8],
+    loaded: &LoadedRules,
+) -> PathScanRecords {
     // A native prefix always spans the leading bytes of its path; reject a fixture that violates that.
-    assert!(path.starts_with(prefix), "fixture prefix must be a byte prefix of its path");
+    assert!(
+        path.starts_with(prefix),
+        "fixture prefix must be a byte prefix of its path"
+    );
     // `true` selects Windows separator semantics; the Vec owns the normalized copy.
     let normalized: Vec<u8> = normalize_bytes(path, true);
     // usize counts prefix parts, matching the scan parameter; u32 or u64 would need a cast.
@@ -107,7 +120,10 @@ fn scan_windows_form(path: &[u8], prefix: &[u8], loaded: &LoadedRules) -> PathSc
 /// ```
 fn first_name() -> Vec<ScanFinding> {
     // String::from copies the literal into the owned String the finding stores.
-    return vec![ScanFinding::Name { component: 1, rule: String::from("0") }];
+    return vec![ScanFinding::Name {
+        component: 1,
+        rule: String::from("0"),
+    }];
 }
 
 /// What:

@@ -15,14 +15,20 @@
 use crate::diagnostic::Diagnostic;
 /// Imports `Digest`,
 /// `Sha256` from `sha2`.
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `PermissionsExt` from `std::os::unix::fs`.
 use std::os::unix::fs::PermissionsExt;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What a path holds on disk right now.
@@ -134,7 +140,10 @@ pub fn kind_of(metadata: &fs::Metadata) -> EntryKind {
 /// ```ts
 /// function absolute(root: string, rel: string): string { return path.join(root, rel); }
 /// ```
-pub fn absolute(root: &Path, rel: &str) -> PathBuf {
+pub fn absolute(
+    root: &Path,
+    rel: &str,
+) -> PathBuf {
     return root.join(rel);
 }
 
@@ -149,7 +158,10 @@ pub fn absolute(root: &Path, rel: &str) -> PathBuf {
 /// ```ts
 /// function ancestorsAreDirectories(root: string, rel: string): boolean // throws on a link
 /// ```
-pub fn ancestors_are_real_directories(root: &Path, rel: &str) -> Result<bool, Diagnostic> {
+pub fn ancestors_are_real_directories(
+    root: &Path,
+    rel: &str,
+) -> Result<bool, Diagnostic> {
     let mut current = root.to_path_buf();
     let segments: Vec<&str> = rel.split('/').collect();
     let ancestor_count = segments.len().saturating_sub(1);
@@ -159,11 +171,17 @@ pub fn ancestors_are_real_directories(root: &Path, rel: &str) -> Result<bool, Di
             Ok(metadata) => match kind_of(&metadata) {
                 EntryKind::Directory => {}
                 EntryKind::Symlink => {
-                    let message = format!("{} is a symbolic link; paths are never followed through links", current.display());
+                    let message = format!(
+                        "{} is a symbolic link; paths are never followed through links",
+                        current.display()
+                    );
                     return Err(Diagnostic::new("symlink-rejected", &message).with_path(rel));
                 }
                 _ => {
-                    let message = format!("{} is not a directory, so {rel} cannot exist", current.display());
+                    let message = format!(
+                        "{} is not a directory, so {rel} cannot exist",
+                        current.display()
+                    );
                     return Err(Diagnostic::new("path-blocked", &message).with_path(rel));
                 }
             },
@@ -186,7 +204,10 @@ pub fn ancestors_are_real_directories(root: &Path, rel: &str) -> Result<bool, Di
 /// ```ts
 /// function readReal(root: string, rel: string): RealState
 /// ```
-pub fn read_real(root: &Path, rel: &str) -> Result<RealState, Diagnostic> {
+pub fn read_real(
+    root: &Path,
+    rel: &str,
+) -> Result<RealState, Diagnostic> {
     if !ancestors_are_real_directories(root, rel)? {
         return Ok(RealState::Absent);
     }
@@ -208,7 +229,10 @@ pub fn read_real(root: &Path, rel: &str) -> Result<RealState, Diagnostic> {
                     return Err(Diagnostic::new("io-failure", &message).with_path(rel));
                 }
             };
-            return Ok(RealState::File { content, mode: metadata.permissions().mode() & 0o7777 });
+            return Ok(RealState::File {
+                content,
+                mode: metadata.permissions().mode() & 0o7777,
+            });
         }
         EntryKind::Directory => return Ok(RealState::Directory),
         EntryKind::Symlink => return Ok(RealState::Symlink),
@@ -228,13 +252,20 @@ pub fn read_real(root: &Path, rel: &str) -> Result<RealState, Diagnostic> {
 /// ```ts
 /// function listReal(root: string, rel: string): [string, EntryKind][]
 /// ```
-pub fn list_real(root: &Path, rel: &str) -> Result<Vec<(String, EntryKind)>, Diagnostic> {
+pub fn list_real(
+    root: &Path,
+    rel: &str,
+) -> Result<Vec<(String, EntryKind)>, Diagnostic> {
     let mut entries: Vec<(String, EntryKind)> = Vec::new();
     let probe = format!("{rel}/x");
     if !rel.is_empty() && !ancestors_are_real_directories(root, &probe)? {
         return Ok(entries);
     }
-    let full = if rel.is_empty() { root.to_path_buf() } else { absolute(root, rel) };
+    let full = if rel.is_empty() {
+        root.to_path_buf()
+    } else {
+        absolute(root, rel)
+    };
     let reader = match fs::read_dir(&full) {
         Ok(reader) => reader,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(entries),

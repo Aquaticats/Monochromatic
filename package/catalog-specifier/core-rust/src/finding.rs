@@ -192,7 +192,10 @@ impl fmt::Display for Finding {
     /// ```ts
     /// toString(): string { /* build and return the text */ }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What: `.as_deref()` turns `&Option<String>` into `Option<&str>`; `.unwrap_or("")` takes the text or an empty text.
         // Why: Most branches print an optional field, and an absent one should print as nothing rather than fail.
         // Gotcha: `.unwrap_or(...)` silently replaces `None`; that is intended here because absence is not an error.
@@ -221,10 +224,16 @@ impl fmt::Display for Finding {
                 "{path}: this manifest format is not supported by the catalog specifier rule; use package.json"
             ),
             FindingKind::InvalidManifest => {
-                write!(formatter, "{path}: not a readable package.json object ({detail})")
+                write!(
+                    formatter,
+                    "{path}: not a readable package.json object ({detail})"
+                )
             }
             FindingKind::MalformedSection => {
-                write!(formatter, "{path}: `{section}` must be an object of dependency names to specifiers")
+                write!(
+                    formatter,
+                    "{path}: `{section}` must be an object of dependency names to specifiers"
+                )
             }
             FindingKind::DuplicateKey => {
                 // What: `self.name.is_none()` is true when no dependency name was recorded, so the section itself repeats.

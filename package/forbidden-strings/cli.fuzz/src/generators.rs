@@ -42,10 +42,17 @@
 //           the crate's `Result<T> = Result<T, arbitrary::Error>` alias, and the cursor
 //           over the fuzzer-supplied bytes.
 // Why:      Manual impls (not derive) so recursion and lengths stay bounded.
-use arbitrary::{Arbitrary, Result, Unstructured};
+use arbitrary::{
+    Arbitrary,
+    Result,
+    Unstructured,
+};
 
 /// Imports the SHA-256 hasher for the redacted crash-fingerprint helper.
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 //region Bounds
 
@@ -131,7 +138,7 @@ impl BadFlag {
             BadFlag::U => 'u',
             BadFlag::G => 'g',
             BadFlag::Us => 'r',
-        }
+        };
     }
 }
 
@@ -148,14 +155,17 @@ impl<'a> Arbitrary<'a> for FlagRun {
             3 => FlagRun::Verbose,
             4 => FlagRun::Both,
             _ => FlagRun::Bad(BadFlag::arbitrary(u)?),
-        })
+        });
     }
 }
 
 /// Reads a flag run for rendering and load-outcome prediction.
 impl FlagRun {
     /// Appends the flag letters after a regex line's closing slash.
-    fn render(&self, out: &mut String) {
+    fn render(
+        &self,
+        out: &mut String,
+    ) {
         match self {
             FlagRun::None => {}
             FlagRun::Multiline => out.push('m'),
@@ -167,7 +177,7 @@ impl FlagRun {
 
     /// Reports whether this run makes the strict loader fail closed.
     fn is_bad(&self) -> bool {
-        return matches!(self, FlagRun::Bad(_))
+        return matches!(self, FlagRun::Bad(_));
     }
 }
 
@@ -216,17 +226,23 @@ impl<'a> Arbitrary<'a> for RuleLine {
             },
             6 => RuleLine::Comment(SafeBytes::arbitrary(u)?),
             _ => RuleLine::Blank,
-        })
+        });
     }
 }
 
 /// Renders a rule line and reports the bytes it can match.
 impl RuleLine {
     /// Appends this line's rendered text (no trailing newline) to `out`.
-    fn render(&self, out: &mut String) {
+    fn render(
+        &self,
+        out: &mut String,
+    ) {
         match self {
             RuleLine::Literal(bytes) => bytes.render(out),
-            RuleLine::Regex { body, flags } => {
+            RuleLine::Regex {
+                body,
+                flags,
+            } => {
                 out.push('/');
                 body.render(out);
                 out.push('/');
@@ -252,9 +268,12 @@ impl RuleLine {
     fn match_bytes(&self) -> Option<Vec<u8>> {
         return match self {
             RuleLine::Literal(bytes) => Some(bytes.0.clone()),
-            RuleLine::Regex { body, flags } if !flags.is_bad() => Some(body.0.clone()),
+            RuleLine::Regex {
+                body,
+                flags,
+            } if !flags.is_bad() => Some(body.0.clone()),
             _ => None,
-        }
+        };
     }
 }
 
@@ -293,7 +312,7 @@ fn safe_byte(u: &mut Unstructured<'_>) -> Result<u8> {
         1 => b'A' + u.int_in_range(0u8..=25)?,
         2 => b'0' + u.int_in_range(0u8..=9)?,
         _ => *u.choose(METAS)?,
-    })
+    });
 }
 
 /// An ASCII alphanumeric byte,
@@ -304,7 +323,7 @@ fn alnum_byte(u: &mut Unstructured<'_>) -> Result<u8> {
         0 => b'a' + u.int_in_range(0u8..=25)?,
         1 => b'A' + u.int_in_range(0u8..=25)?,
         _ => b'0' + u.int_in_range(0u8..=9)?,
-    })
+    });
 }
 
 /// Builds a `SafeBytes` with alphanumeric ends and a safe-alphabet interior.
@@ -325,7 +344,7 @@ impl<'a> Arbitrary<'a> for SafeBytes {
             };
             bytes.push(byte);
         }
-        return Ok(SafeBytes(bytes))
+        return Ok(SafeBytes(bytes));
     }
 }
 
@@ -334,7 +353,10 @@ impl SafeBytes {
     /// Writes the bytes into `out`;
     ///  every byte is ASCII,
     ///  so the string stays valid UTF-8.
-    fn render(&self, out: &mut String) {
+    fn render(
+        &self,
+        out: &mut String,
+    ) {
         for &byte in &self.0 {
             out.push(byte as char);
         }
@@ -360,7 +382,7 @@ impl<'a> Arbitrary<'a> for AlnumBytes {
         for _ in 0..len {
             bytes.push(alnum_byte(u)?);
         }
-        return Ok(AlnumBytes(bytes))
+        return Ok(AlnumBytes(bytes));
     }
 }
 
@@ -368,7 +390,10 @@ impl<'a> Arbitrary<'a> for AlnumBytes {
 impl AlnumBytes {
     /// Writes the bytes into `out`;
     ///  every byte is ASCII alphanumeric.
-    fn render(&self, out: &mut String) {
+    fn render(
+        &self,
+        out: &mut String,
+    ) {
         for &byte in &self.0 {
             out.push(byte as char);
         }
@@ -396,7 +421,9 @@ impl<'a> Arbitrary<'a> for RuleFile {
         for _ in 0..count {
             lines.push(RuleLine::arbitrary(u)?);
         }
-        return Ok(RuleFile { lines })
+        return Ok(RuleFile {
+            lines,
+        });
     }
 }
 
@@ -413,7 +440,7 @@ impl RuleFile {
             }
             line.render(&mut out);
         }
-        return out
+        return out;
     }
 
     /// Renders the same lines in reverse order (rule-order-invariance oracle).
@@ -425,7 +452,7 @@ impl RuleFile {
             }
             line.render(&mut out);
         }
-        return out
+        return out;
     }
 
     /// Reports whether any regex line carries a flag the strict loader rejects.
@@ -435,9 +462,10 @@ impl RuleFile {
     ///  so a target can
     /// predict a load error without re-implementing the loader.
     pub fn has_bad_flag(&self) -> bool {
-        return self.lines.iter().any(|line| {
-            return matches!(line, RuleLine::Regex { flags, .. } if flags.is_bad())
-        })
+        return self
+            .lines
+            .iter()
+            .any(|line| return matches!(line, RuleLine::Regex { flags, .. } if flags.is_bad()));
     }
 
     /// Collects the bytes the loading rules can match,
@@ -449,7 +477,7 @@ impl RuleFile {
                 out.push(bytes);
             }
         }
-        return out
+        return out;
     }
 }
 
@@ -481,7 +509,10 @@ impl<'a> Arbitrary<'a> for RuleFileAndContent {
         let rules = RuleFile::arbitrary(u)?;
         let literals = rules.match_literals();
         let content = synth_content(&literals, u)?;
-        return Ok(RuleFileAndContent { rules, content })
+        return Ok(RuleFileAndContent {
+            rules,
+            content,
+        });
     }
 }
 
@@ -497,7 +528,10 @@ impl<'a> Arbitrary<'a> for RuleFileAndContent {
 ///  A few post-hoc single-byte mutations perturb the
 /// buffer to reach near-miss edges.
 ///  The result is capped at `MAX_CONTENT_BYTES`.
-fn synth_content(literals: &[Vec<u8>], u: &mut Unstructured<'_>) -> Result<Vec<u8>> {
+fn synth_content(
+    literals: &[Vec<u8>],
+    u: &mut Unstructured<'_>,
+) -> Result<Vec<u8>> {
     let mut out: Vec<u8> = Vec::with_capacity(256);
     let line_count = u.int_in_range(1usize..=MAX_CONTENT_LINES)?;
     for _ in 0..line_count {
@@ -531,19 +565,23 @@ fn synth_content(literals: &[Vec<u8>], u: &mut Unstructured<'_>) -> Result<Vec<u
         out[index] = u.int_in_range(0u8..=255)?;
     }
     out.truncate(MAX_CONTENT_BYTES);
-    return Ok(out)
+    return Ok(out);
 }
 
 /// Appends `count` lowercase filler bytes,
 ///  stopping at the content cap.
-fn push_filler(out: &mut Vec<u8>, count: usize, u: &mut Unstructured<'_>) -> Result<()> {
+fn push_filler(
+    out: &mut Vec<u8>,
+    count: usize,
+    u: &mut Unstructured<'_>,
+) -> Result<()> {
     for _ in 0..count {
         if out.len() >= MAX_CONTENT_BYTES {
             break;
         }
         out.push(b'a' + u.int_in_range(0u8..=25)?);
     }
-    return Ok(())
+    return Ok(());
 }
 
 //endregion Rule file plus content
@@ -563,8 +601,13 @@ pub fn redacted_fingerprint(content: &[u8]) -> String {
     hasher.update(content);
     let digest = hasher.finalize();
     // sha2 0.11 returns a byte array without `LowerHex`, so each byte is written as two lowercase hex digits.
-    let hex: String = digest.iter().map(|byte| { return format!("{byte:02x}"); }).collect();
-    return format!("len={} sha256={hex}", content.len())
+    let hex: String = digest
+        .iter()
+        .map(|byte| {
+            return format!("{byte:02x}");
+        })
+        .collect();
+    return format!("len={} sha256={hex}", content.len());
 }
 
 //endregion Redacted fingerprint

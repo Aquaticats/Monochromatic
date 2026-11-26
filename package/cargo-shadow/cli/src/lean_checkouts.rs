@@ -16,7 +16,13 @@
 //! ```
 
 /// Files and paths.
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// What:
 /// `pub fn common_git_directory(checkout: &Path) -> Option<PathBuf>` is the Git directory all checkouts of the repository share.
@@ -34,10 +40,18 @@ pub fn common_git_directory(checkout: &Path) -> Option<PathBuf> {
     }
     let text: String = fs::read_to_string(&dot_git).ok()?;
     let own: PathBuf = PathBuf::from(text.trim().strip_prefix("gitdir:")?.trim());
-    let own_absolute: PathBuf = if own.is_absolute() { own } else { checkout.join(own) };
+    let own_absolute: PathBuf = if own.is_absolute() {
+        own
+    } else {
+        checkout.join(own)
+    };
     let common_text: String = fs::read_to_string(own_absolute.join("commondir")).ok()?;
     let common: PathBuf = PathBuf::from(common_text.trim());
-    let joined: PathBuf = if common.is_absolute() { common } else { own_absolute.join(common) };
+    let joined: PathBuf = if common.is_absolute() {
+        common
+    } else {
+        own_absolute.join(common)
+    };
     return fs::canonicalize(joined).ok();
 }
 
@@ -52,15 +66,21 @@ pub fn common_git_directory(checkout: &Path) -> Option<PathBuf> {
 /// ```
 pub fn list_checkouts(start: &Path) -> Vec<PathBuf> {
     let mut checkouts: Vec<PathBuf> = Vec::new();
-    let Some(common) = common_git_directory(start) else { return checkouts };
+    let Some(common) = common_git_directory(start) else {
+        return checkouts;
+    };
     if let Some(main) = common.parent()
         && main.exists()
     {
         checkouts.push(main.to_path_buf());
     }
-    let Ok(entries) = fs::read_dir(common.join("worktrees")) else { return checkouts };
+    let Ok(entries) = fs::read_dir(common.join("worktrees")) else {
+        return checkouts;
+    };
     for entry in entries.flatten() {
-        let Ok(text) = fs::read_to_string(entry.path().join("gitdir")) else { continue };
+        let Ok(text) = fs::read_to_string(entry.path().join("gitdir")) else {
+            continue;
+        };
         let dot_git: PathBuf = PathBuf::from(text.trim());
         if let Some(worktree) = dot_git.parent()
             && worktree.exists()

@@ -30,7 +30,10 @@
 /// ```ts
 /// import { AhoCorasick, AhoCorasickKind } from "aho_corasick";
 /// ```
-use aho_corasick::{AhoCorasick, AhoCorasickKind};
+use aho_corasick::{
+    AhoCorasick,
+    AhoCorasickKind,
+};
 
 /// What:
 ///     Imports the leftmost match-kind for the SIMD prefilter.
@@ -154,13 +157,21 @@ fn start_of(span: Span) -> usize {
 /// and any `FnMut(usize, usize) -> bool` implements it as well.
 pub trait CandidateCheck {
     /// Whether the line matches the rule whose seed starts at `pos`.
-    fn check(&mut self, rule: usize, pos: usize) -> bool;
+    fn check(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    ) -> bool;
 }
 
 /// Lets a plain function or closure stand in for a candidate check.
 impl<Check: FnMut(usize, usize) -> bool> CandidateCheck for Check {
     /// Runs the function.
-    fn check(&mut self, rule: usize, pos: usize) -> bool {
+    fn check(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    ) -> bool {
         return self(rule, pos);
     }
 }
@@ -172,13 +183,21 @@ impl<Check: FnMut(usize, usize) -> bool> CandidateCheck for Check {
 /// and any `FnMut(usize, usize)` implements it as well.
 pub trait CandidateVisit {
     /// Handles the rule whose seed starts at `pos`.
-    fn visit(&mut self, rule: usize, pos: usize);
+    fn visit(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    );
 }
 
 /// Lets a plain function or closure stand in for a candidate visit.
 impl<Visit: FnMut(usize, usize)> CandidateVisit for Visit {
     /// Runs the function.
-    fn visit(&mut self, rule: usize, pos: usize) {
+    fn visit(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    ) {
         self(rule, pos);
     }
 }
@@ -243,7 +262,7 @@ impl SetGate {
             prefilter,
             matcher,
             literal_rule,
-        }
+        };
     }
 
     /// Reports whether any seeded rule whose literal occurs in `line` satisfies
@@ -262,7 +281,11 @@ impl SetGate {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn any_candidate(&self, line: &[u8], check: &mut impl CandidateCheck) -> bool {
+    pub fn any_candidate(
+        &self,
+        line: &[u8],
+        check: &mut impl CandidateCheck,
+    ) -> bool {
         let Some(matcher) = &self.matcher else {
             return false;
         };
@@ -287,7 +310,7 @@ impl SetGate {
                 return true;
             }
         }
-        return false
+        return false;
     }
 
     /// Profiling hook:
@@ -305,7 +328,10 @@ impl SetGate {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn prefilter_present(&self, line: &[u8]) -> bool {
+    pub fn prefilter_present(
+        &self,
+        line: &[u8],
+    ) -> bool {
         match &self.prefilter {
             Some(prefilter) => return prefilter.find(line, Span::from(0..line.len())).is_some(),
             None => return false,
@@ -332,9 +358,13 @@ impl SetGate {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn prefilter_find_from(&self, buf: &[u8], at: usize) -> Option<usize> {
+    pub fn prefilter_find_from(
+        &self,
+        buf: &[u8],
+        at: usize,
+    ) -> Option<usize> {
         let prefilter = self.prefilter.as_ref()?;
-        return prefilter.find(buf, Span::from(at..buf.len())).map(start_of)
+        return prefilter.find(buf, Span::from(at..buf.len())).map(start_of);
     }
 
     /// Calls `visit` for each seeded rule whose literal occurs in `line`.
@@ -353,7 +383,11 @@ impl SetGate {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn for_each_candidate(&self, line: &[u8], visit: &mut impl CandidateVisit) {
+    pub fn for_each_candidate(
+        &self,
+        line: &[u8],
+        visit: &mut impl CandidateVisit,
+    ) {
         if let Some(matcher) = &self.matcher {
             for found in matcher.find_overlapping_iter(line) {
                 visit.visit(self.literal_rule[found.pattern().as_usize()], found.start());

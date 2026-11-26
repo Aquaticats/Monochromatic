@@ -67,7 +67,11 @@ pub struct Place {
 pub fn measure_places(places: &[(String, std::path::PathBuf)]) -> Vec<Place> {
     let mut measured: Vec<Place> = Vec::new();
     for (label, path) in places {
-        measured.push(Place { label: label.clone(), path: path.clone(), before: free_bytes(path) });
+        measured.push(Place {
+            label: label.clone(),
+            path: path.clone(),
+            before: free_bytes(path),
+        });
     }
     return measured;
 }
@@ -95,7 +99,11 @@ pub fn space_lines(places: &[Place]) -> Vec<String> {
                 if now >= before { "+" } else { "-" },
                 gib(now.abs_diff(before))
             ),
-            _ => format!("free space on {} ({}): not readable", place.label, place.path.display()),
+            _ => format!(
+                "free space on {} ({}): not readable",
+                place.label,
+                place.path.display()
+            ),
         };
         lines.push(text);
     }
@@ -144,7 +152,10 @@ pub fn summary_line(text: &str) {
 /// ```ts
 /// export function emit(log: string[], line: string): void { logLine(line); log.push(line); }
 /// ```
-pub fn emit(log: &mut Vec<String>, line: String) {
+pub fn emit(
+    log: &mut Vec<String>,
+    line: String,
+) {
     log_line(&line);
     log.push(line);
 }

@@ -32,7 +32,10 @@ fn every_byte_matches_the_standard_lowercase_formatting() {
 #[test]
 fn slice_spelling_pairs_the_high_nibble_first() {
     assert_eq!(bytes_as_lowercase_hex(b""), "");
-    assert_eq!(bytes_as_lowercase_hex(b"\x00\x0f\xa5\xff\x10"), "000fa5ff10");
+    assert_eq!(
+        bytes_as_lowercase_hex(b"\x00\x0f\xa5\xff\x10"),
+        "000fa5ff10"
+    );
 }
 
 /// The redacted label of a pathname with invalid UTF-8 spells those bytes with the shared digits.

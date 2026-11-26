@@ -72,12 +72,18 @@ use std::path::PathBuf;
 /// ```ts
 /// import { find_verb, words_before_double_dash } from 'crate/verb';
 /// ```
-use crate::verb::{find_verb, words_before_double_dash};
+use crate::verb::{
+    find_verb,
+    words_before_double_dash,
+};
 
 /// The value of an option written `--name value` or `--name=value`;
 /// the last one wins,
 /// as in cargo.
-fn long_option_value(words: &[String], name: &str) -> Option<String> {
+fn long_option_value(
+    words: &[String],
+    name: &str,
+) -> Option<String> {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
     //
@@ -209,7 +215,10 @@ pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
 /// ```ts
 /// const shortOptionValue = (words: string[], name: string) => words[words.lastIndexOf(name) + 1];
 /// ```
-fn short_option_value(words: &[String], name: &str) -> Option<String> {
+fn short_option_value(
+    words: &[String],
+    name: &str,
+) -> Option<String> {
     // `None`: the present or the absent value of an `Option`.
     // `let mut`: a binding that may change.
     // Typed binding: `found: Option<String>`.
@@ -308,5 +317,8 @@ pub fn asserts_lock(arguments: &[OsString]) -> bool {
     // ```ts
     // for (const item of list) { ... }  // or list.map(...)
     // ```
-    return words_before_double_dash(arguments).iter().map(String::as_str).any(is_locked_or_frozen);
+    return words_before_double_dash(arguments)
+        .iter()
+        .map(String::as_str)
+        .any(is_locked_or_frozen);
 }

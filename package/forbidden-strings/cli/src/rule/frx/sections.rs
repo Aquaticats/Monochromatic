@@ -25,7 +25,10 @@
 use super::error::LoadError;
 
 /// Imports the shared significance test and the two-form single-line compiler.
-use super::format::{is_significant, significant_line_rule};
+use super::format::{
+    is_significant,
+    significant_line_rule,
+};
 
 /// Imports the name-to-line map backing duplicate-name enforcement.
 use std::collections::HashMap;
@@ -108,7 +111,9 @@ fn is_name_char(ch: char) -> bool {
 ///  every other shape
 /// returns `None`.
 fn strict_name(line: &str) -> Option<String> {
-    let middle = line.strip_prefix(HEADER_PREFIX)?.strip_suffix(HEADER_SUFFIX)?;
+    let middle = line
+        .strip_prefix(HEADER_PREFIX)?
+        .strip_suffix(HEADER_SUFFIX)?;
     let first = middle.chars().next()?;
     if !is_name_start(first) || !middle.chars().all(is_name_char) {
         return None;
@@ -199,17 +204,21 @@ pub(super) fn detect_tail_format(text: &str) -> bool {
 ///  comments and interior blanks included,
 ///  for
 /// the always-verbose engine to consume.
-fn finish_section(section: OpenSection<'_>, index: usize) -> Result<ParsedRule, LoadError> {
+fn finish_section(
+    section: OpenSection<'_>,
+    index: usize,
+) -> Result<ParsedRule, LoadError> {
     let end = section
         .body
         .iter()
         .rposition(is_filled_line)
         .map_or(0, one_past);
     let body = &section.body[..end];
-    let significant: Vec<&str> =
-        body.iter().copied().filter(is_significant_line).collect();
+    let significant: Vec<&str> = body.iter().copied().filter(is_significant_line).collect();
     if significant.is_empty() {
-        return Err(LoadError::EmptySection { line: section.name_line });
+        return Err(LoadError::EmptySection {
+            line: section.name_line,
+        });
     }
     if significant.len() == 1 {
         let classified = significant_line_rule(significant[0], index)?;
@@ -223,7 +232,7 @@ fn finish_section(section: OpenSection<'_>, index: usize) -> Result<ParsedRule, 
         name: Some(section.name),
         pattern: body.join("\n"),
         literal: None,
-    })
+    });
 }
 
 /// Closes one open section into the parallel rule and header-line lists.
@@ -274,16 +283,24 @@ pub(super) fn parse_sections(text: &str) -> Result<Vec<ParsedRule>, LoadError> {
                 if let Some(section) = current.take() {
                     close_section(section, &mut rules, &mut name_lines)?;
                 }
-                current = Some(OpenSection { name, name_line: line_number, body: Vec::new() });
+                current = Some(OpenSection {
+                    name,
+                    name_line: line_number,
+                    body: Vec::new(),
+                });
             }
             HeaderKind::Near => {
-                return Err(LoadError::NearHeader { line: line_number });
+                return Err(LoadError::NearHeader {
+                    line: line_number,
+                });
             }
             HeaderKind::NotHeader => match current.as_mut() {
                 Some(section) => section.body.push(line),
                 None => {
                     if is_significant(line) {
-                        return Err(LoadError::PreHeaderContent { line: line_number });
+                        return Err(LoadError::PreHeaderContent {
+                            line: line_number,
+                        });
                     }
                 }
             },
@@ -307,7 +324,10 @@ pub(super) fn parse_sections(text: &str) -> Result<Vec<ParsedRule>, LoadError> {
             continue;
         };
         if let Some(&first_line) = seen.get(name) {
-            return Err(LoadError::DuplicateName { first_line, line: name_line });
+            return Err(LoadError::DuplicateName {
+                first_line,
+                line: name_line,
+            });
         }
         seen.insert(name, name_line);
     }

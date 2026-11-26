@@ -1,0 +1,12 @@
+/root/rustup-init: OK
+cargo 1.100.0 (3acc79c0c 2026-11-05)
+cargo-nextest 0.9.152 (26ebeda79 2026-11-13)
+release: 0.9.152
+commit-hash: 26ebeda79b9ae1d008cf64ddb01984bcaa6e1239
+commit-date: 2026-11-13
+host: x86_64-unknown-linux-gnu
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100 20.3M  100 20.3M    0     0  44.3M      0 --:--:-- --:--:-- --:--:-- 44.3M

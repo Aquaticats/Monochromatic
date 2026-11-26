@@ -53,7 +53,10 @@ impl FinishError {
     /// static outputs(source: Error): FinishError
     /// ```
     pub fn outputs(source: io::Error) -> FinishError {
-        return FinishError { phase: Phase::Outputs, source };
+        return FinishError {
+            phase: Phase::Outputs,
+            source,
+        };
     }
 
     /// What:
@@ -68,7 +71,10 @@ impl FinishError {
     /// static completion(source: Error): FinishError
     /// ```
     pub fn completion(source: io::Error) -> FinishError {
-        return FinishError { phase: Phase::Completion, source };
+        return FinishError {
+            phase: Phase::Completion,
+            source,
+        };
     }
 
     /// What:
@@ -82,7 +88,10 @@ impl FinishError {
     /// static cleanup(source: Error): FinishError
     /// ```
     pub fn cleanup(source: io::Error) -> FinishError {
-        return FinishError { phase: Phase::Cleanup, source };
+        return FinishError {
+            phase: Phase::Cleanup,
+            source,
+        };
     }
 
     /// What:
@@ -110,9 +119,16 @@ impl fmt::Display for FinishError {
     /// ```ts
     /// toString(): string
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self.phase {
-            Phase::Cleanup => write!(formatter, "the transaction journal could not be removed ({}); the next run removes it", self.source),
+            Phase::Cleanup => write!(
+                formatter,
+                "the transaction journal could not be removed ({}); the next run removes it",
+                self.source
+            ),
             Phase::Completion => write!(
                 formatter,
                 "the completion of the transaction could not be made durable ({}); the journal was kept and the next run settles it",
@@ -167,7 +183,9 @@ pub(crate) fn settle_finish(
     // A failure of a mandatory phase never lets an earlier error stand alone: both are reported (round 7, 6c R1).
     let standing = match (outcome, &finished) {
         (Err(original), Err(error)) if !error.cleanup_only() => {
-            return Err(crate::update::other_text(format!("{original}\n{error}; run the command again")));
+            return Err(crate::update::other_text(format!(
+                "{original}\n{error}; run the command again"
+            )));
         }
         (kept, _) => kept,
     };
@@ -180,7 +198,9 @@ pub(crate) fn settle_finish(
             report.problems.push(error.to_string());
             Ok(report)
         }
-        Err(error) if !error.cleanup_only() => Err(crate::update::other_text(format!("{error}; run the command again"))),
+        Err(error) if !error.cleanup_only() => Err(crate::update::other_text(format!(
+            "{error}; run the command again"
+        ))),
         Err(error) => {
             report.warnings.push(error.to_string());
             Ok(report)

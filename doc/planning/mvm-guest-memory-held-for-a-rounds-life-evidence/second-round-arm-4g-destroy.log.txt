@@ -1,0 +1,2 @@
+[info] [2026-11-26T01:59:01.311Z] [mvm] [destroy] destroying VM mem-second-4g
+[info] [2026-11-26T01:59:02.165Z] [mvm] [destroy] VM mem-second-4g destroyed

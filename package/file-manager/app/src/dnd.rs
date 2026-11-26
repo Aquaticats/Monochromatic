@@ -19,19 +19,19 @@
 /// Why:
 ///  outbound takes a path by reference;
 ///  inbound recovery returns an owned `PathBuf`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-/// What:
-///  imports the GTK widget-extension traits (`add_controller`,
-///  file/uri helpers).
-/// Why:
-///  drop targets and drag sources are added as controllers via prelude traits.
-use gtk4::prelude::*;
 /// What:
 ///  imports the drag-action flags and the file-list content type.
 /// Why:
 ///  the drop target accepts a `FileList` with a copy action.
-use gtk4::gdk::{DragAction, FileList};
+use gtk4::gdk::{
+    DragAction,
+    FileList,
+};
 /// What:
 ///  imports the gio module for its `File` type.
 /// Why:
@@ -42,13 +42,25 @@ use gtk4::gio;
 /// Why:
 ///  the drop callback receives the payload as a `glib::Value`,
 ///  and URI recovery uses `glib::Uri`.
-use gtk4::glib::{self, Value};
+use gtk4::glib::{
+    self,
+    Value,
+};
+/// What:
+///  imports the GTK widget-extension traits (`add_controller`,
+///  file/uri helpers).
+/// Why:
+///  drop targets and drag sources are added as controllers via prelude traits.
+use gtk4::prelude::*;
 /// What:
 ///  imports the drop-target and base widget types.
 /// Why:
 ///  inbound attaches a `DropTarget`;
 ///  outbound takes any `Widget`.
-use gtk4::{DropTarget, Widget};
+use gtk4::{
+    DropTarget,
+    Widget,
+};
 
 /// What:
 ///  imports the Wayland outbound-drag types (drag source,
@@ -60,7 +72,11 @@ use gtk4::{DropTarget, Widget};
 ///      Windows/macOS,
 ///  which take the shim path instead.
 #[cfg(all(not(windows), not(target_os = "macos")))]
-use gtk4::{DragSource, gdk::ContentProvider, glib::Bytes};
+use gtk4::{
+    DragSource,
+    gdk::ContentProvider,
+    glib::Bytes,
+};
 
 /// What:
 ///  imports the drag gesture that triggers the native outbound shims.
@@ -87,8 +103,13 @@ pub(crate) fn install_drop_target(widget: &impl IsA<Widget>) {
 /// Why:
 ///  GTK needs a `'static` callable that captures nothing here,
 ///  so a named function replaces the closure that only forwarded to `handle_drop`.
-fn on_drop_signal(_target: &DropTarget, value: &Value, _x: f64, _y: f64) -> bool {
-    return handle_drop(value)
+fn on_drop_signal(
+    _target: &DropTarget,
+    value: &Value,
+    _x: f64,
+    _y: f64,
+) -> bool {
+    return handle_drop(value);
 }
 
 /// What:
@@ -103,11 +124,11 @@ fn handle_drop(value: &Value) -> bool {
             for file in files.files() {
                 tracing::info!(path = ?recover_path(&file), uri = %file.uri(), "inbound file drop");
             }
-            return true
+            return true;
         }
         Err(error) => {
             tracing::warn!(%error, "drop value was not a file list");
-            return false
+            return false;
         }
     }
 }
@@ -124,7 +145,7 @@ fn recover_path(file: &gio::File) -> Option<PathBuf> {
         return Some(path);
     }
     let fixed = glib::Uri::unescape_string(&file.uri(), None)?;
-    return gio::File::for_uri(&fixed).path()
+    return gio::File::for_uri(&fixed).path();
 }
 
 /// What:
@@ -135,7 +156,10 @@ fn recover_path(file: &gio::File) -> Option<PathBuf> {
 ///  Wayland delivers files natively;
 ///  Windows and macOS take the shim variants below.
 #[cfg(all(not(windows), not(target_os = "macos")))]
-pub(crate) fn install_file_drag(widget: &impl IsA<Widget>, path: &Path) {
+pub(crate) fn install_file_drag(
+    widget: &impl IsA<Widget>,
+    path: &Path,
+) {
     let uri = gio::File::for_path(path).uri();
     let payload = format!("{uri}\r\n");
     let provider = ContentProvider::for_bytes("text/uri-list", &Bytes::from(payload.as_bytes()));
@@ -153,7 +177,10 @@ pub(crate) fn install_file_drag(widget: &impl IsA<Widget>, path: &Path) {
 ///  so a `GtkGestureDrag` triggers
 ///      the OLE shim on drag-begin.
 #[cfg(windows)]
-pub(crate) fn install_file_drag(widget: &impl IsA<Widget>, path: &Path) {
+pub(crate) fn install_file_drag(
+    widget: &impl IsA<Widget>,
+    path: &Path,
+) {
     let gesture = GestureDrag::new();
     let path = path.to_path_buf();
     gesture.connect_drag_begin(move |_, _, _| {
@@ -169,7 +196,10 @@ pub(crate) fn install_file_drag(widget: &impl IsA<Widget>, path: &Path) {
 ///  so a `GtkGestureDrag` triggers
 ///      the AppKit shim on drag-begin.
 #[cfg(target_os = "macos")]
-pub(crate) fn install_file_drag(widget: &impl IsA<Widget>, path: &Path) {
+pub(crate) fn install_file_drag(
+    widget: &impl IsA<Widget>,
+    path: &Path,
+) {
     let gesture = GestureDrag::new();
     let path = path.to_string_lossy().into_owned();
     gesture.connect_drag_begin(move |_, _, _| {

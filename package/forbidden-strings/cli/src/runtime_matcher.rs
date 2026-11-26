@@ -7,14 +7,25 @@
 //! Both subset-local matchers map back to original runtime rule ids before findings.
 
 /// Imports overlapping multi-literal matcher.
-use aho_corasick::{AhoCorasick, MatchKind};
+use aho_corasick::{
+    AhoCorasick,
+    MatchKind,
+};
 /// Imports engine set and static compile reason.
-use forbidden_regex::{CompileError, RegexSet};
+use forbidden_regex::{
+    CompileError,
+    RegexSet,
+};
 /// Imports literal de-duplication map.
 use std::collections::HashMap;
 
 /// Imports parser output retaining exact-literal kind.
-use crate::rule::frx::{parse_runtime_rules, LoadError, RuntimeRuleInput, RuntimeRuleKind};
+use crate::rule::frx::{
+    LoadError,
+    RuntimeRuleInput,
+    RuntimeRuleKind,
+    parse_runtime_rules,
+};
 
 /// Bare literals shorter than this byte count retain incumbent word-boundary gating.
 const SHORT_LITERAL_THRESHOLD: usize = 8;
@@ -77,7 +88,9 @@ fn name_of_input(input: &RuntimeRuleInput) -> Option<String> {
 
 /// The matcher error for a regex subset the engine rejected as a whole.
 fn regex_set_failure(reason: CompileError) -> RuntimeMatcherError {
-    return RuntimeMatcherError::RegexSet { reason };
+    return RuntimeMatcherError::RegexSet {
+        reason,
+    };
 }
 
 /// Hybrid matcher construction,
@@ -87,7 +100,7 @@ impl RuntimeRules {
     /// Parses and compiles authoritative runtime source.
     pub(crate) fn compile(text: &str) -> Result<Self, RuntimeMatcherError> {
         let inputs = parse_runtime_rules(text).map_err(RuntimeMatcherError::Load)?;
-        return Self::from_inputs(inputs)
+        return Self::from_inputs(inputs);
     }
 
     /// Rebuilds runtime-only Aho matcher around decoded artifact data.
@@ -105,7 +118,7 @@ impl RuntimeRules {
             literal_matcher,
             regex_set,
             regex_rule_ids,
-        })
+        });
     }
 
     /// Builds both matcher subsets from parsed rules in original order.
@@ -124,12 +137,18 @@ impl RuntimeRules {
                     } else {
                         let group_index = literal_groups.len();
                         literal_indices.insert(bytes.clone(), group_index);
-                        literal_groups.push(LiteralGroup { bytes, rule_ids: vec![rule_id] });
+                        literal_groups.push(LiteralGroup {
+                            bytes,
+                            rule_ids: vec![rule_id],
+                        });
                     }
                 }
                 RuntimeRuleKind::RestrictedRegex(pattern) => {
                     if let Err(reason) = RegexSet::new(std::slice::from_ref(&pattern)) {
-                        return Err(RuntimeMatcherError::Regex { index: rule_id, reason });
+                        return Err(RuntimeMatcherError::Regex {
+                            index: rule_id,
+                            reason,
+                        });
                     }
                     regex_patterns.push(pattern);
                     regex_rule_ids.push(rule_id);
@@ -142,36 +161,40 @@ impl RuntimeRules {
         } else {
             Some(RegexSet::new(&regex_patterns).map_err(regex_set_failure)?)
         };
-        return Self::from_artifact(names, literal_groups, regex_set, regex_rule_ids)
+        return Self::from_artifact(names, literal_groups, regex_set, regex_rule_ids);
     }
 
     /// Returns ordered rule identities for finding attribution.
     pub(crate) fn names(&self) -> &[Option<String>] {
-        return &self.names
+        return &self.names;
     }
 
     /// Returns unique literal groups for artifact encoding.
     pub(crate) fn literal_groups(&self) -> &[LiteralGroup] {
-        return &self.literal_groups
+        return &self.literal_groups;
     }
 
     /// Returns optional regex-only engine set for artifact encoding.
     pub(crate) fn regex_set(&self) -> Option<&RegexSet> {
-        return self.regex_set.as_ref()
+        return self.regex_set.as_ref();
     }
 
     /// Returns regex subset mapping for artifact encoding.
     pub(crate) fn regex_rule_ids(&self) -> &[usize] {
-        return &self.regex_rule_ids
+        return &self.regex_rule_ids;
     }
 
     /// Returns original runtime rule count.
     pub(crate) fn len(&self) -> usize {
-        return self.names.len()
+        return self.names.len();
     }
 
     /// Reports every `(line index, original rule id)` pair in stable order.
-    pub(crate) fn line_matches(&self, buf: &[u8], starts: &[usize]) -> Vec<(usize, usize)> {
+    pub(crate) fn line_matches(
+        &self,
+        buf: &[u8],
+        starts: &[usize],
+    ) -> Vec<(usize, usize)> {
         let mut hits = self.regex_pairs(buf, starts);
         for line_index in 0..starts.len() {
             let start = starts[line_index];
@@ -183,11 +206,15 @@ impl RuntimeRules {
         }
         hits.sort_unstable();
         hits.dedup();
-        return hits
+        return hits;
     }
 
     /// Maps regex subset pairs back to original runtime ids.
-    fn regex_pairs(&self, buf: &[u8], starts: &[usize]) -> Vec<(usize, usize)> {
+    fn regex_pairs(
+        &self,
+        buf: &[u8],
+        starts: &[usize],
+    ) -> Vec<(usize, usize)> {
         let Some(regex_set) = &self.regex_set else {
             return Vec::new();
         };
@@ -232,7 +259,7 @@ fn literal_build_failed<Cause>(_cause: Cause) -> RuntimeMatcherError {
 
 /// Builds overlapping standard matcher over unique literal groups.
 fn build_literal_matcher(
-    groups: &[LiteralGroup],
+    groups: &[LiteralGroup]
 ) -> Result<Option<AhoCorasick>, RuntimeMatcherError> {
     if groups.is_empty() {
         return Ok(None);
@@ -242,7 +269,7 @@ fn build_literal_matcher(
         .match_kind(MatchKind::Standard)
         .build(&patterns)
         .map_err(literal_build_failed)?;
-    return Ok(Some(matcher))
+    return Ok(Some(matcher));
 }
 
 /// Validates decoded global-id mappings before matcher construction.
@@ -281,11 +308,15 @@ fn validate_mappings(
     if seen_rule_ids.contains(&false) {
         return Err(RuntimeMatcherError::InvalidArtifact);
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Returns line content end excluding one LF and one preceding CR.
-fn line_end(buf: &[u8], starts: &[usize], line_index: usize) -> usize {
+fn line_end(
+    buf: &[u8],
+    starts: &[usize],
+    line_index: usize,
+) -> usize {
     let start = starts[line_index];
     let mut end = starts.get(line_index + 1).copied().unwrap_or(buf.len());
     if end > start && buf[end - 1] == b'\n' {
@@ -294,12 +325,12 @@ fn line_end(buf: &[u8], starts: &[usize], line_index: usize) -> usize {
     if end > start && buf[end - 1] == b'\r' {
         end -= 1;
     }
-    return end
+    return end;
 }
 
 /// Reports whether byte belongs to incumbent ASCII word-boundary alphabet.
 fn is_word_byte(byte: u8) -> bool {
-    return byte.is_ascii_alphanumeric() || byte == b'_'
+    return byte.is_ascii_alphanumeric() || byte == b'_';
 }
 
 /// Applies short bare-literal boundary semantics to one exact Aho match.
@@ -313,22 +344,33 @@ fn literal_boundaries_match(
         return true;
     }
     let left_ok = !is_word_byte(literal[0]) || start == 0 || !is_word_byte(line[start - 1]);
-    let right_ok = !is_word_byte(literal[literal.len() - 1])
-        || end == line.len()
-        || !is_word_byte(line[end]);
-    return left_ok && right_ok
+    let right_ok =
+        !is_word_byte(literal[literal.len() - 1]) || end == line.len() || !is_word_byte(line[end]);
+    return left_ok && right_ok;
 }
 
 /// Renders only redacted construction reasons.
 impl std::fmt::Display for RuntimeMatcherError {
     /// Writes existing redacted parser or engine reason without literal bytes.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
             Self::Load(error) => return write!(formatter, "{error}"),
-            Self::Regex { index, reason } => return write!(formatter, "rule {index}: {reason}"),
-            Self::RegexSet { reason } => return write!(formatter, "runtime regex set: {reason}"),
-            Self::LiteralBuild => return formatter.write_str("runtime literal matcher build failed"),
-            Self::InvalidArtifact => return formatter.write_str("runtime matcher artifact is invalid"),
+            Self::Regex {
+                index,
+                reason,
+            } => return write!(formatter, "rule {index}: {reason}"),
+            Self::RegexSet {
+                reason,
+            } => return write!(formatter, "runtime regex set: {reason}"),
+            Self::LiteralBuild => {
+                return formatter.write_str("runtime literal matcher build failed");
+            }
+            Self::InvalidArtifact => {
+                return formatter.write_str("runtime matcher artifact is invalid");
+            }
         }
     }
 }

@@ -14,6 +14,8 @@
 //!  The marker is compiled into the release executable,
 //! but only the explicit variable arms it,
 //!  and a malformed value fails the invocation at every phase it reaches instead of being ignored.
+//!  The read of that variable is compiled out of any build the release ships,
+//!  so only a build made for a control can arm a marker.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -514,7 +516,8 @@ pub(crate) fn reach_with_value(
 /// await reachTransactionPhase({ phase: 'merge-intent' });
 /// ```
 pub fn reach_transaction_phase(phase: Phase, occurrence: Option<u64>) -> Result<(), PhaseMarkerError> {
-    let value: Option<String> = std::env::var_os(PHASE_SIGNAL_VARIABLE).map(lossy_text);
+    // The marker a control armed, which a release build never reads.
+    let value: Option<String> = crate::test_only_switches::value(PHASE_SIGNAL_VARIABLE).map(lossy_text);
     return reach_with_value(value.as_deref(), phase, occurrence);
 }
 

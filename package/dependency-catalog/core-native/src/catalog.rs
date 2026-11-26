@@ -14,16 +14,27 @@
 //! ```
 
 /// Imports `toml_edit::{DocumentMut, Item, TableLike}`.
-use toml_edit::{DocumentMut, Item, TableLike};
+use toml_edit::{
+    DocumentMut,
+    Item,
+    TableLike,
+};
 
 /// Imports `crate::catalog_entry::parse_catalog_table`.
 use crate::catalog_entry::parse_catalog_table;
 /// Imports `crate::catalog_settings::read_settings`.
 use crate::catalog_settings::read_settings;
 /// Imports `crate::error::{CatalogIssue, Error}`.
-use crate::error::{CatalogIssue, Error};
+use crate::error::{
+    CatalogIssue,
+    Error,
+};
 /// Imports `crate::types::{CatalogDocument, EntryMap, Settings}`.
-use crate::types::{CatalogDocument, EntryMap, Settings};
+use crate::types::{
+    CatalogDocument,
+    EntryMap,
+    Settings,
+};
 
 /// Top-level keys the catalog file may declare,
 /// in the order the error message lists them.
@@ -44,7 +55,10 @@ const TOP_LEVEL_KEYS: [&str; 13] = [
 ];
 
 /// Validates the `[catalogs.<name>]` tables into named catalogs in source order.
-fn parse_named_catalogs(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Vec<(String, EntryMap)> {
+fn parse_named_catalogs(
+    item: Option<&Item>,
+    issues: &mut Vec<CatalogIssue>,
+) -> Vec<(String, EntryMap)> {
     let mut catalogs: Vec<(String, EntryMap)> = Vec::new();
     let Some(present) = item else {
         return catalogs;
@@ -85,7 +99,10 @@ fn parse_named_catalogs(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> 
 /// ```ts
 /// export function parseRustCatalog(args: { source: string; sourcePath: string }): RustCatalogDocument // throws RustCatalogError | TomlEditError
 /// ```
-pub fn parse_catalog(source: &str, source_path: &str) -> Result<CatalogDocument, Error> {
+pub fn parse_catalog(
+    source: &str,
+    source_path: &str,
+) -> Result<CatalogDocument, Error> {
     let parsed: Result<DocumentMut, toml_edit::TomlError> = source.parse::<DocumentMut>();
     let document: DocumentMut = match parsed {
         Ok(value) => value,
@@ -103,7 +120,10 @@ pub fn parse_catalog(source: &str, source_path: &str) -> Result<CatalogDocument,
             issues.push(CatalogIssue {
                 location: key.to_string(),
                 problem: "is not a catalog table or a supported setting".to_string(),
-                remedy: format!("remove it; supported keys are {}", TOP_LEVEL_KEYS.join(", ")),
+                remedy: format!(
+                    "remove it; supported keys are {}",
+                    TOP_LEVEL_KEYS.join(", ")
+                ),
             });
         }
     }

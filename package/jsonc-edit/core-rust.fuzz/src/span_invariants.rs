@@ -23,7 +23,13 @@
 /// import { parseJsonc, parseJsoncWithSpans, jsoncPositionAt, JsoncKey, JsoncKind, JsoncSpanned, JsoncValue } from 'monochromatic-jsonc-edit';
 /// ```
 use monochromatic_jsonc_edit::{
-    jsonc_position_at, parse_jsonc, parse_jsonc_with_spans, JsoncKey, JsoncKind, JsoncSpanned, JsoncValue,
+    JsoncKey,
+    JsoncKind,
+    JsoncSpanned,
+    JsoncValue,
+    jsonc_position_at,
+    parse_jsonc,
+    parse_jsonc_with_spans,
 };
 
 /// What:
@@ -67,7 +73,10 @@ enum Step<'a> {
 /// ```ts
 /// export function assertSpansMatch(source: string, spanned: JsoncSpanned): void;
 /// ```
-pub fn assert_spans_match(source: &str, spanned: &JsoncSpanned) {
+pub fn assert_spans_match(
+    source: &str,
+    spanned: &JsoncSpanned,
+) {
     let spans = &spanned.spans;
     let mut value_index = 0;
     let mut key_index = 0;
@@ -76,31 +85,78 @@ pub fn assert_spans_match(source: &str, spanned: &JsoncSpanned) {
     while let Some((step, parent_end)) = stack.pop() {
         match step {
             Step::Key(key) => {
-                let span = *spans.keys.get(key_index).unwrap_or_else(|| panic!("a key has no span"));
+                let span = *spans
+                    .keys
+                    .get(key_index)
+                    .unwrap_or_else(|| panic!("a key has no span"));
                 key_index += 1;
-                assert_eq!(&source[span.start.offset..span.end.offset], key.raw, "key span does not slice to its token");
-                assert!(span.end.offset <= parent_end, "key span leaves its container");
-                assert_eq!(jsonc_position_at(source, span.start.offset), span.start, "key start position disagrees");
+                assert_eq!(
+                    &source[span.start.offset..span.end.offset],
+                    key.raw,
+                    "key span does not slice to its token"
+                );
+                assert!(
+                    span.end.offset <= parent_end,
+                    "key span leaves its container"
+                );
+                assert_eq!(
+                    jsonc_position_at(source, span.start.offset),
+                    span.start,
+                    "key start position disagrees"
+                );
             }
             Step::Value(value) => {
-                let span = *spans.values.get(value_index).unwrap_or_else(|| panic!("a value has no span"));
+                let span = *spans
+                    .values
+                    .get(value_index)
+                    .unwrap_or_else(|| panic!("a value has no span"));
                 value_index += 1;
                 let slice = &source[span.start.offset..span.end.offset];
-                assert!(span.end.offset <= parent_end, "value span leaves its container");
-                assert_eq!(jsonc_position_at(source, span.start.offset), span.start, "value start position disagrees");
-                assert_eq!(jsonc_position_at(source, span.end.offset), span.end, "value end position disagrees");
+                assert!(
+                    span.end.offset <= parent_end,
+                    "value span leaves its container"
+                );
+                assert_eq!(
+                    jsonc_position_at(source, span.start.offset),
+                    span.start,
+                    "value start position disagrees"
+                );
+                assert_eq!(
+                    jsonc_position_at(source, span.end.offset),
+                    span.end,
+                    "value end position disagrees"
+                );
                 match &value.kind {
-                    JsoncKind::Text { raw, .. } | JsoncKind::Number { raw, .. } => assert_eq!(slice, raw, "scalar span"),
-                    JsoncKind::Boolean { value: flag } => assert_eq!(slice, if *flag { "true" } else { "false" }),
+                    JsoncKind::Text {
+                        raw,
+                        ..
+                    }
+                    | JsoncKind::Number {
+                        raw,
+                        ..
+                    } => assert_eq!(slice, raw, "scalar span"),
+                    JsoncKind::Boolean {
+                        value: flag,
+                    } => assert_eq!(slice, if *flag { "true" } else { "false" }),
                     JsoncKind::Null => assert_eq!(slice, "null"),
-                    JsoncKind::Array { elements } => {
-                        assert!(slice.starts_with('[') && slice.ends_with(']'), "array span {slice:?}");
+                    JsoncKind::Array {
+                        elements,
+                    } => {
+                        assert!(
+                            slice.starts_with('[') && slice.ends_with(']'),
+                            "array span {slice:?}"
+                        );
                         for element in elements.iter().rev() {
                             stack.push((Step::Value(element), span.end.offset));
                         }
                     }
-                    JsoncKind::Record { entries } => {
-                        assert!(slice.starts_with('{') && slice.ends_with('}'), "record span {slice:?}");
+                    JsoncKind::Record {
+                        entries,
+                    } => {
+                        assert!(
+                            slice.starts_with('{') && slice.ends_with('}'),
+                            "record span {slice:?}"
+                        );
                         for entry in entries.iter().rev() {
                             stack.push((Step::Value(&entry.value), span.end.offset));
                             stack.push((Step::Key(&entry.key), span.end.offset));
@@ -129,8 +185,13 @@ pub fn assert_spans_match(source: &str, spanned: &JsoncSpanned) {
 /// export function assertSpansConsistent(source: string): void;
 /// ```
 pub fn assert_spans_consistent(source: &str) {
-    let spanned = parse_jsonc_with_spans(source).unwrap_or_else(|error| panic!("spanned parse must accept: {error}"));
-    let plain = parse_jsonc(source).unwrap_or_else(|error| panic!("plain parse must accept: {error}"));
-    assert!(spanned.value == plain, "the spanned parse produced a different tree");
+    let spanned = parse_jsonc_with_spans(source)
+        .unwrap_or_else(|error| panic!("spanned parse must accept: {error}"));
+    let plain =
+        parse_jsonc(source).unwrap_or_else(|error| panic!("plain parse must accept: {error}"));
+    assert!(
+        spanned.value == plain,
+        "the spanned parse produced a different tree"
+    );
     assert_spans_match(source, &spanned);
 }

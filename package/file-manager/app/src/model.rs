@@ -22,7 +22,10 @@ use std::collections::HashMap;
 ///  imports the pane identity and location domain types.
 /// Why:
 ///  the state machine keys panes by `PaneId` and deduplicates by `PaneLocation`.
-use crate::types::{PaneId, PaneLocation};
+use crate::types::{
+    PaneId,
+    PaneLocation,
+};
 
 /// What:
 ///  one pane in the strip:
@@ -94,7 +97,7 @@ impl PaneStripState {
     /// Why:
     ///  a fresh session (or a not-yet-restored one) starts with no panes.
     pub fn new() -> Self {
-        return Self::default()
+        return Self::default();
     }
 
     /// What:
@@ -105,14 +108,17 @@ impl PaneStripState {
     ///  if a
     ///      pane already shows this location,
     ///  focus it instead of spawning a second.
-    pub fn open_root(&mut self, location: PaneLocation) -> PaneId {
+    pub fn open_root(
+        &mut self,
+        location: PaneLocation,
+    ) -> PaneId {
         if let Some(&existing) = self.dedup.get(&location) {
             self.active = Some(existing);
             return existing;
         }
         let id = self.insert_pane(location, 0, None, true);
         self.relayout();
-        return id
+        return id;
     }
 
     /// What:
@@ -130,9 +136,7 @@ impl PaneStripState {
         location: PaneLocation,
         force_duplicate: bool,
     ) -> PaneId {
-        if !force_duplicate
-            && let Some(&existing) = self.dedup.get(&location)
-        {
+        if !force_duplicate && let Some(&existing) = self.dedup.get(&location) {
             self.active = Some(existing);
             return existing;
         }
@@ -143,7 +147,7 @@ impl PaneStripState {
         let column = parent_column + 1;
         let id = self.insert_pane(location, column, Some(parent), !force_duplicate);
         self.relayout();
-        return id
+        return id;
     }
 
     /// What:
@@ -151,7 +155,10 @@ impl PaneStripState {
     /// Why:
     ///  keyboard and pointer selection move the active pane;
     ///  a stale id is ignored.
-    pub fn focus(&mut self, id: PaneId) {
+    pub fn focus(
+        &mut self,
+        id: PaneId,
+    ) {
         if self.panes.contains_key(&id) {
             self.active = Some(id);
         }
@@ -164,7 +171,10 @@ impl PaneStripState {
     ///  the layout closes the gap and any children
     ///      of the closed pane become roots (no automatic pruning,
     ///  per the plan).
-    pub fn close(&mut self, id: PaneId) {
+    pub fn close(
+        &mut self,
+        id: PaneId,
+    ) {
         self.remove_pane(id);
         self.relayout();
     }
@@ -175,7 +185,10 @@ impl PaneStripState {
     /// Why:
     ///  spawn-on-descent accumulates panes,
     ///  so bulk-close is required early.
-    pub fn close_column(&mut self, column: usize) {
+    pub fn close_column(
+        &mut self,
+        column: usize,
+    ) {
         for id in self.ids_in_column(column) {
             self.remove_pane(id);
         }
@@ -188,7 +201,10 @@ impl PaneStripState {
     /// Why:
     ///  descending then backing up leaves a tail of panes;
     ///  one gesture clears the tail.
-    pub fn close_right_of(&mut self, column: usize) {
+    pub fn close_right_of(
+        &mut self,
+        column: usize,
+    ) {
         for id in self.ids_right_of(column) {
             self.remove_pane(id);
         }
@@ -201,15 +217,18 @@ impl PaneStripState {
     /// Why:
     ///  the renderer highlights it and routes keyboard input to it.
     pub fn active(&self) -> Option<PaneId> {
-        return self.active
+        return self.active;
     }
 
     /// What:
     ///  borrow a pane by id.
     /// Why:
     ///  the renderer reads a pane's location and position to place and fill it.
-    pub fn pane(&self, id: PaneId) -> Option<&Pane> {
-        return self.panes.get(&id)
+    pub fn pane(
+        &self,
+        id: PaneId,
+    ) -> Option<&Pane> {
+        return self.panes.get(&id);
     }
 
     /// What:
@@ -217,7 +236,7 @@ impl PaneStripState {
     /// Why:
     ///  the fixed-canvas renderer walks panes to place each at its `(column, row)` slot.
     pub fn panes(&self) -> impl Iterator<Item = &Pane> {
-        return self.panes.values()
+        return self.panes.values();
     }
 
     /// What:
@@ -230,7 +249,7 @@ impl PaneStripState {
         for pane in self.panes.values() {
             count = count.max(pane.column + 1);
         }
-        return count
+        return count;
     }
 
     /// What:
@@ -238,7 +257,10 @@ impl PaneStripState {
     ///  if any.
     /// Why:
     ///  Left/Right navigation moves focus to a column's first (lowest-row) pane.
-    pub fn first_pane_in_column(&self, column: usize) -> Option<PaneId> {
+    pub fn first_pane_in_column(
+        &self,
+        column: usize,
+    ) -> Option<PaneId> {
         let mut first: Option<&Pane> = None;
         for pane in self.panes.values() {
             if pane.column != column {
@@ -249,7 +271,7 @@ impl PaneStripState {
                 _ => first = Some(pane),
             }
         }
-        return Some(first?.id)
+        return Some(first?.id);
     }
 
     /// What:
@@ -257,7 +279,7 @@ impl PaneStripState {
     /// Why:
     ///  cheap invariant check for tests and instrumentation.
     pub fn len(&self) -> usize {
-        return self.panes.len()
+        return self.panes.len();
     }
 
     /// What:
@@ -265,7 +287,7 @@ impl PaneStripState {
     /// Why:
     ///  pairs with `len` (clippy) and gates first-open behavior.
     pub fn is_empty(&self) -> bool {
-        return self.panes.is_empty()
+        return self.panes.is_empty();
     }
 
     /// What:
@@ -277,7 +299,10 @@ impl PaneStripState {
     /// Why:
     ///  the shared removal step for `close`/`close_column`/`close_right_of`,
     ///  which relayout once.
-    fn remove_pane(&mut self, id: PaneId) {
+    fn remove_pane(
+        &mut self,
+        id: PaneId,
+    ) {
         let Some(pane) = self.panes.remove(&id) else {
             return;
         };
@@ -295,14 +320,17 @@ impl PaneStripState {
     /// Why:
     ///  `close_column` mutates the map while closing,
     ///  so the ids are collected first.
-    fn ids_in_column(&self, column: usize) -> Vec<PaneId> {
+    fn ids_in_column(
+        &self,
+        column: usize,
+    ) -> Vec<PaneId> {
         let mut ids = Vec::new();
         for pane in self.panes.values() {
             if pane.column == column {
                 ids.push(pane.id);
             }
         }
-        return ids
+        return ids;
     }
 
     /// What:
@@ -311,14 +339,17 @@ impl PaneStripState {
     /// Why:
     ///  `close_right_of` mutates the map while closing,
     ///  so the ids are collected first.
-    fn ids_right_of(&self, column: usize) -> Vec<PaneId> {
+    fn ids_right_of(
+        &self,
+        column: usize,
+    ) -> Vec<PaneId> {
         let mut ids = Vec::new();
         for pane in self.panes.values() {
             if pane.column > column {
                 ids.push(pane.id);
             }
         }
-        return ids
+        return ids;
     }
 
     /// What:
@@ -328,7 +359,10 @@ impl PaneStripState {
     ///  the layout visits siblings top-to-bottom by spawn order;
     ///  a pane whose parent was closed
     ///      counts as a root.
-    fn ordered_children(&self, parent: Option<PaneId>) -> Vec<PaneId> {
+    fn ordered_children(
+        &self,
+        parent: Option<PaneId>,
+    ) -> Vec<PaneId> {
         let mut children: Vec<PaneId> = Vec::new();
         for pane in self.panes.values() {
             if self.effective_parent(pane) == parent {
@@ -336,7 +370,7 @@ impl PaneStripState {
             }
         }
         children.sort();
-        return children
+        return children;
     }
 
     /// What:
@@ -345,7 +379,10 @@ impl PaneStripState {
     /// Why:
     ///  closing a parent orphans its children;
     ///  they lay out as roots rather than vanish.
-    fn effective_parent(&self, pane: &Pane) -> Option<PaneId> {
+    fn effective_parent(
+        &self,
+        pane: &Pane,
+    ) -> Option<PaneId> {
         match pane.parent {
             Some(id) if self.panes.contains_key(&id) => return Some(id),
             _ => return None,
@@ -389,7 +426,7 @@ impl PaneStripState {
     fn mint_id(&mut self) -> PaneId {
         let id = PaneId(self.next_id);
         self.next_id += 1;
-        return id
+        return id;
     }
 
     /// What:
@@ -421,6 +458,6 @@ impl PaneStripState {
             },
         );
         self.active = Some(id);
-        return id
+        return id;
     }
 }
