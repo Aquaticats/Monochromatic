@@ -531,7 +531,7 @@ fn a_removal_that_names_no_bound_slot_is_git_s_own() {
             "HEAD",
         ],
     );
-    let words: Vec<OsString> = text(&[
+    let removal: Vec<OsString> = text(&[
         "-C",
         bound.common.to_str().expect("utf-8"),
         "worktree",
@@ -540,12 +540,12 @@ fn a_removal_that_names_no_bound_slot_is_git_s_own() {
         "two",
     ]);
     let facts: CopyFacts = settled_facts(plan_invocation(
-        words.as_slice(),
+        removal.as_slice(),
         &[],
         &inputs(bound.root.as_path()),
     ));
     assert_eq!(
-        run_the_removal(&facts, words.as_slice()),
+        run_the_removal(&facts, removal.as_slice()),
         ForwardedRun::Ran(0),
         "the removal Git was asked for ends well"
     );

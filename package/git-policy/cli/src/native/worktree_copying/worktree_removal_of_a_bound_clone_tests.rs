@@ -227,9 +227,7 @@ fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalRefusal> {
         intents: &intents,
     };
     // A command that names no worktree to remove answers nothing, whatever its repository holds.
-    let Some((target, common)): Option<(PathBuf, PathBuf)> = the_slot_and_its_common(facts) else {
-        return None;
-    };
+    let (target, common): (PathBuf, PathBuf) = the_slot_and_its_common(facts)?;
     return refuse_the_removal_with(
         target.as_path(),
         common.as_path(),
@@ -772,7 +770,7 @@ fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
         ),
         "one",
     );
-    let plain: PathBuf = bound.root.join("elsewhere").join("one");
+    let plain_made: PathBuf = bound.root.join("elsewhere").join("one");
     std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
     git(
         bound.repository.as_path(),
@@ -781,11 +779,12 @@ fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
             "add",
             "--quiet",
             "--no-checkout",
-            plain.to_str().expect("utf-8"),
+            plain_made.to_str().expect("utf-8"),
             "HEAD",
         ],
     );
-    let plain: PathBuf = std::fs::canonicalize(plain.as_path()).expect("canonical plain worktree");
+    let plain: PathBuf =
+        std::fs::canonicalize(plain_made.as_path()).expect("canonical plain worktree");
     let mounts: ScriptedMountTable = nothing_is_mounted();
     let sources: SlotReadingSources<'_> = SlotReadingSources {
         mounts: &mounts,
