@@ -175,6 +175,11 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
     let session: libc::pid_t = unsafe { libc::setsid() };
     // SAFETY: `getpid` takes no argument and reads one number; in this child it is the pid the parent knows.
     let mine: libc::pid_t = unsafe { libc::getpid() };
+    // SAFETY: `getsid` reads one pid and writes nothing of ours.
+    let now: libc::pid_t = unsafe { libc::getsid(0) };
+    let said: String = format!("HOLDER pid={mine} setsid={session} getsid={now} errno={}\n", std::io::Error::last_os_error());
+    // SAFETY: the bytes are this call's own and the descriptor is the child's inherited standard output.
+    let _written: libc::ssize_t = unsafe { libc::write(1, said.as_ptr().cast::<libc::c_void>(), said.len()) };
     assert_eq!(session, mine, "the holder's own session: {}", std::io::Error::last_os_error());
     match shape {
         AShape::NamespaceOfItsOwnAndShared => make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own"),
