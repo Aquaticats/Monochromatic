@@ -651,56 +651,57 @@ fn a_record_of_this_process_is_read_even_when_an_older_marker_sits_above() {
     //       so it runs in a child of its own.
     // Why:  closing the record of a test process that shares it with the run's other tests leaves them writing into a
     //       closed descriptor; a child of its own makes the record this body holds its own.
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_record_of_this_process_is_read_even_when_an_older_marker_sits_above",
-    ) {
-        return;
-    }
-    crate::process_wide_state_child_test_support::refuse_outside_the_child(
-        "the chain record this process holds",
+        || {
+            crate::process_wide_state_child_test_support::refuse_outside_the_child(
+                "the chain record this process holds",
+            );
+            // What: every record this process inherited is closed before the control makes its own.
+            // Why:  the test process holds a record, and every child of it inherits that memory file under the name of the
+            //       record this control makes; the lookup answers with the first one it finds, so a process holding two had the
+            //       guard read the test process's record instead of this one (issue 6514, measured: the inherited record at
+            //       descriptor 3 named the parent, the control's at 4 named the child, and the lookup answered 3).
+            while let Some(inherited) = crate::chain_starts_record::inherited_descriptor() {
+                // SAFETY: `close` takes one descriptor this process holds, reads no memory of it, and cannot fail.
+                let _closed = unsafe { libc::close(inherited) };
+            }
+            let identity: String = crate::process_identity::current_birth_identity()
+                .expect("this process has an identity");
+            // What: the one record this process makes, which the guard then reads.
+            // Why:  a launcher that `exec`s the wrapper out of its own process leaves no second process to ask, so the marker
+            //       of that re-entering start survives only in this record.
+            let inherited: i32 =
+                crate::chain_starts_record::create_descriptor().expect("a record is made");
+            assert_eq!(
+                crate::chain_starts_record::inherited_descriptor(),
+                Some(inherited),
+                "this process holds the record it made and no other, which is the one the guard reads"
+            );
+            let written: String =
+                marker_value(StartMode::Replace, std::process::id(), identity.as_str(), 2)
+                    .to_string_lossy()
+                    .into_owned();
+            assert!(
+                crate::chain_starts_record::write_marker_for_controls(inherited, written.as_str()),
+                "the record holds the marker this start wrote"
+            );
+            // The chain's older marker names another process and matches nothing here.
+            let above: Vec<(OsString, OsString)> = vec![(
+                OsString::from(STARTED_AS_GIT_VARIABLE),
+                marker_value(StartMode::Child, 4242, "linux:1", 1),
+            )];
+            let said: String = refusal_when_started_as_git_among(
+                Vec::new().as_slice(),
+                Path::new("/wrapper"),
+                std::slice::from_ref(&above),
+            )
+            .expect("the record names this process, which started itself again");
+            assert!(said.contains("replaced with this program"), "{said}");
+            assert!(said.contains("/wrapper"), "{said}");
+        },
     );
-    // What: every record this process inherited is closed before the control makes its own.
-    // Why:  the test process holds a record, and every child of it inherits that memory file under the name of the
-    //       record this control makes; the lookup answers with the first one it finds, so a process holding two had the
-    //       guard read the test process's record instead of this one (issue 6514, measured: the inherited record at
-    //       descriptor 3 named the parent, the control's at 4 named the child, and the lookup answered 3).
-    while let Some(inherited) = crate::chain_starts_record::inherited_descriptor() {
-        // SAFETY: `close` takes one descriptor this process holds, reads no memory of it, and cannot fail.
-        let _closed = unsafe { libc::close(inherited) };
-    }
-    let identity: String =
-        crate::process_identity::current_birth_identity().expect("this process has an identity");
-    // What: the one record this process makes, which the guard then reads.
-    // Why:  a launcher that `exec`s the wrapper out of its own process leaves no second process to ask, so the marker
-    //       of that re-entering start survives only in this record.
-    let inherited: i32 = crate::chain_starts_record::create_descriptor().expect("a record is made");
-    assert_eq!(
-        crate::chain_starts_record::inherited_descriptor(),
-        Some(inherited),
-        "this process holds the record it made and no other, which is the one the guard reads"
-    );
-    let written: String =
-        marker_value(StartMode::Replace, std::process::id(), identity.as_str(), 2)
-            .to_string_lossy()
-            .into_owned();
-    assert!(
-        crate::chain_starts_record::write_marker_for_controls(inherited, written.as_str()),
-        "the record holds the marker this start wrote"
-    );
-    // The chain's older marker names another process and matches nothing here.
-    let above: Vec<(OsString, OsString)> = vec![(
-        OsString::from(STARTED_AS_GIT_VARIABLE),
-        marker_value(StartMode::Child, 4242, "linux:1", 1),
-    )];
-    let said: String = refusal_when_started_as_git_among(
-        Vec::new().as_slice(),
-        Path::new("/wrapper"),
-        std::slice::from_ref(&above),
-    )
-    .expect("the record names this process, which started itself again");
-    assert!(said.contains("replaced with this program"), "{said}");
-    assert!(said.contains("/wrapper"), "{said}");
 }
 
 /// What:
