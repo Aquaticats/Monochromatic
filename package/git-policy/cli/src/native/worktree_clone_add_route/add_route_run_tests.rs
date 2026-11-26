@@ -36,7 +36,7 @@ use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 use crate::worktree_clone_binding_record::registration_home::{
-    binding_name,
+    binding_path,
     home_folder,
     plans_folder,
 };
@@ -253,8 +253,8 @@ fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
 ///  resume,
 ///  and its sentence names the record's own file.
 /// Why:
-///  The sentence used to say `git worktree remove` removed the worktree "and its
-///  records",
+///  The sentence said `git worktree remove` removed the worktree and its
+///  records,
 ///  and Git's removal deletes the registration and the slot folder while the
 ///  binding record stays,
 ///  so a person who followed it was left with a slot that refused every add and
@@ -300,8 +300,7 @@ fn a_record_written_for_another_request_names_the_file_git_leaves_behind() {
     let refusal: StepRefusal = resume_the_record(&route, &plan, arguments.as_slice(), record, 7)
         .expect_err("another request refuses the resume");
     let message: &str = refusal.message.as_str();
-    let record_path: PathBuf =
-        home_folder(route.common_dir.as_path()).join(binding_name(route.slot.as_str()));
+    let record_path: PathBuf = binding_path(route.common_dir.as_path(), route.slot.as_str());
     assert!(
         message.contains("git worktree remove topic"),
         "the worktree's removal is named: {message}"

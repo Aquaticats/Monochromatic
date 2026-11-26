@@ -9,8 +9,9 @@
 //!  exactly as it was
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10, and
 //!  `super::add_source_the_restore_cannot_prove` for the sources the route leaves
-//!  to the ladder until the removal's writing path is reachable: its Git settle is
-//!  plan step 16's, and no command of this release reaches it).
+//!  to the ladder until the removal's writing path is reachable:
+//!  its Git settle is plan step 16's,
+//!  and no command of this release reaches it).
 //!  A failed or killed add keeps the claim, the slot and the locked
 //!  registration, and the next add at the slot reads the record's phase and
 //!  continues from it
@@ -60,7 +61,7 @@ use crate::worktree_clone_binding_record::record_publication::{
     read_binding,
 };
 use crate::worktree_clone_binding_record::registration_home::{
-    binding_name,
+    binding_path,
     claim_generation_of,
     claim_prefix,
     home_folder,
@@ -365,14 +366,12 @@ fn resume_the_record(
     }
     let request = request_of(plan, arguments).map_err(StepRefusal::refused)?;
     if record.request != request {
-        let record_path: std::path::PathBuf =
-            home_folder(route.common_dir.as_path()).join(binding_name(route.slot.as_str()));
         return Err(StepRefusal::refused(format!(
             "the record was written by an add given `{}` and this add was given `{}`; Ways forward: run the same add again, which continues that record, or remove the worktree with `git worktree remove {}` and then delete the binding record at {} yourself, because Git's removal leaves that record and no command of this release removes it",
             record.request.encode(),
             request.encode(),
             route.slot,
-            record_path.display()
+            binding_path(route.common_dir.as_path(), route.slot.as_str()).display()
         )));
     }
     record.claim = generation;
