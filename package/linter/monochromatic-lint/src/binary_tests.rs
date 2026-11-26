@@ -2509,10 +2509,11 @@ fn layout_the_own_file_loop_finding_is_keyed_by_its_use() {
         CONFIG,
         r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
     );
-    // Every finding of the tree except the loop, which no `uses` line can record.
+    // Every finding of the tree except the loop's own-file use, which no `uses` line can record,
+    // and the use inside the loop, which its own `uses` line records.
     fixture.write(
         "folder.txt",
-        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\n",
+        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nuses src/a -> src/grp/g2\n",
     );
     let keyless: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(keyless.status, 1, "{}", keyless.stderr);
@@ -2531,10 +2532,10 @@ fn layout_the_own_file_loop_finding_is_keyed_by_its_use() {
         "{}",
         keyless.stderr
     );
-    // The line names that use, so the list holds every finding of this tree.
+    // The line names that use, and the loop's other use has its own line, so the list holds every finding of this tree.
     fixture.write(
         "folder.txt",
-        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nown-file-loop src/grp -> src/a\n",
+        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nown-file-loop src/grp -> src/a\nuses src/a -> src/grp/g2\n",
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(
@@ -2707,10 +2708,10 @@ fn layout_a_use_that_joins_a_listed_own_file_loop_is_reported() {
     fixture.write("src/a/mod.rs", "pub mod x;\n");
     fixture.write("src/a/x.rs", "use crate::g1::c1::Y;\npub struct Z;\n");
     uses_link(&fixture.path, "src/a/uses/c1", "../../g1/c1");
-    // The list holds today's findings: the group's own file and the use that closes the loop.
+    // The list holds today's findings: the group's own file, the use that closes the loop, and the other use inside it.
     fixture.write(
         "folder.txt",
-        "group-file src/g1 own.rs\nown-file-loop src/g1 -> src/a\n",
+        "group-file src/g1 own.rs\nown-file-loop src/g1 -> src/a\nuses src/a -> src/g1/c1\n",
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(
@@ -2845,7 +2846,7 @@ fn layout_the_own_file_loop_key_names_the_used_folder() {
     );
     fixture.write(
         "folder.txt",
-        "own-file-loop src/g -> src/h/c1\ngroup-file src/g own.rs\n",
+        "own-file-loop src/g -> src/h/c1\ngroup-file src/g own.rs\nuses src/h/c1 -> src/g/c1\n",
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(
@@ -3093,6 +3094,843 @@ fn layout_a_top_doc_entry_that_names_nothing_is_keyed_without_the_name() {
         "{}",
         listed.stderr
     );
+}
+
+/// A configuration selecting the folder rule with a list beside the fixture.
+const FOLDER_RULES: &str = r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#;
+
+/// A configuration selecting the file rule with a list beside the fixture.
+const FILE_RULES: &str = r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "file.txt" } } }]"#;
+
+/// Write the package of a group whose own file closes a loop that two routes reach `g` by:
+///  one through `a`, one through `c` and `d`.
+fn write_two_route_loop(fixture: &Fixture) {
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod c;\nmod d;\nmod g;\nmod x;\n");
+    fixture.write("src/g/mod.rs", "pub mod c0;\npub mod own;\n");
+    fixture.write("src/g/c0/mod.rs", "pub struct G;\n");
+    fixture.write("src/g/own.rs", "use crate::x::X;\n");
+    fixture.write("src/x/mod.rs", "pub mod f;\n");
+    fixture.write(
+        "src/x/f.rs",
+        "use crate::a::A;\nuse crate::c::C;\npub struct X;\n",
+    );
+    fixture.write("src/a/mod.rs", "pub mod f;\n");
+    fixture.write("src/a/f.rs", "use crate::g::c0::G;\npub struct A;\n");
+    fixture.write("src/c/mod.rs", "pub mod f;\n");
+    fixture.write("src/c/f.rs", "use crate::d::D;\npub struct C;\n");
+    fixture.write("src/d/mod.rs", "pub mod f;\n");
+    fixture.write("src/d/f.rs", "use crate::g::c0::G;\npub struct D;\n");
+    uses_link(&fixture.path, "src/x/uses/a", "../../a");
+    uses_link(&fixture.path, "src/x/uses/c", "../../c");
+    uses_link(&fixture.path, "src/a/uses/c0", "../../g/c0");
+    uses_link(&fixture.path, "src/c/uses/d", "../../d");
+    uses_link(&fixture.path, "src/d/uses/c0", "../../g/c0");
+}
+
+/// The shapes one `uses` line of the loop above writes.
+const TWO_ROUTE_USES: [&str; 5] = [
+    "uses src/x -> src/a",
+    "uses src/x -> src/c",
+    "uses src/a -> src/g/c0",
+    "uses src/c -> src/d",
+    "uses src/d -> src/g/c0",
+];
+
+/// Write the smallest package the release pass made for this defect:
+///  a group's own file uses `x`, `x` reaches `g` by two routes,
+///  one directly and one through `a`.
+fn write_two_route_min(fixture: &Fixture) {
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod g;\nmod x;\n");
+    fixture.write("src/g/mod.rs", "pub mod c0;\npub mod own;\n");
+    fixture.write("src/g/c0/mod.rs", "pub struct G;\n");
+    fixture.write("src/g/own.rs", "use crate::x::X;\n");
+    fixture.write("src/x/mod.rs", "pub mod f;\n");
+    fixture.write(
+        "src/x/f.rs",
+        "use crate::a::A;\nuse crate::g::c0::G;\npub struct X;\n",
+    );
+    fixture.write("src/a/mod.rs", "pub mod f;\n");
+    fixture.write("src/a/f.rs", "use crate::g::c0::G;\npub struct A;\n");
+    uses_link(&fixture.path, "src/x/uses/a", "../../a");
+    uses_link(&fixture.path, "src/x/uses/c0", "../../g/c0");
+    uses_link(&fixture.path, "src/a/uses/c0", "../../g/c0");
+}
+
+/// The shapes one `uses` line of the smallest loop writes.
+const TWO_ROUTE_MIN_USES: [&str; 3] = [
+    "uses src/x -> src/a",
+    "uses src/x -> src/g/c0",
+    "uses src/a -> src/g/c0",
+];
+
+/// A loop a group's own file closes is held by one line per use inside it,
+///  so the keys of a tree's own run write the whole loop and a second run has nothing to report.
+///  Both the smallest tree the release pass made and the one that makes the longer route visible are run.
+#[cfg(unix)]
+#[test]
+fn layout_the_printed_keys_hold_an_own_file_loop_with_two_routes() {
+    let min: Fixture = Fixture::new();
+    write_two_route_min(&min);
+    let (min_keys, min_held): (Vec<String>, Run) = run_with_its_printed_keys(&min, "folder.txt");
+    assert!(
+        min_keys
+            .iter()
+            .any(|key| return key == "own-file-loop src/g -> src/x"),
+        "{min_keys:?}"
+    );
+    for key in TWO_ROUTE_MIN_USES {
+        assert!(
+            min_keys.iter().any(|printed| return printed == key),
+            "{key} missing in {min_keys:?}"
+        );
+    }
+    assert_eq!(
+        (min_held.status, min_held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        min_held.stdout,
+        min_held.stderr
+    );
+    let fixture: Fixture = Fixture::new();
+    write_two_route_loop(&fixture);
+    fixture.write("folder.txt", "");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "own-file-loop src/g -> src/x"),
+        "{keys:?}"
+    );
+    for key in TWO_ROUTE_USES {
+        assert!(
+            keys.iter().any(|printed| return printed == key),
+            "{key} missing in {keys:?}"
+        );
+    }
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// A `uses` line that records one use inside a loop a group's own file closes stays alive,
+///  so the loop can be written down and the line is not reported as dead.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_on_the_list_stays_alive_inside_an_own_file_loop() {
+    let fixture: Fixture = Fixture::new();
+    write_two_route_loop(&fixture);
+    let mut list: String = String::from("group-file src/g own.rs\nown-file-loop src/g -> src/x\n");
+    for line in TWO_ROUTE_USES {
+        list.push_str(format!("{line}\n").as_str());
+    }
+    fixture.write("folder.txt", list.as_str());
+    let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (listed.status, listed.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        listed.stdout,
+        listed.stderr
+    );
+}
+
+/// A use added between two entries a recorded loop already names is a finding,
+///  because the `uses` lines record the folder pairs the loop had and not the entry pair alone.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_added_between_two_entries_a_recorded_loop_names_is_reported() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod g;\n");
+    fixture.write("src/g/mod.rs", "pub mod c1;\npub mod c2;\npub mod own;\n");
+    fixture.write("src/g/own.rs", "use crate::a::Z;\n");
+    fixture.write("src/g/c1/mod.rs", "pub struct Y;\n");
+    fixture.write("src/g/c2/mod.rs", "pub struct W;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    fixture.write("src/a/x.rs", "use crate::g::c1::Y;\npub struct Z;\n");
+    uses_link(&fixture.path, "src/a/uses/c1", "../../g/c1");
+    let (_, listed): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert_eq!(
+        (listed.status, listed.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        listed.stdout,
+        listed.stderr
+    );
+    // New code adds a second use between the same two entries, from a folder pair no line records.
+    fixture.write("src/a/mod.rs", "pub mod x;\npub mod z;\n");
+    fixture.write("src/a/z.rs", "use crate::g::c2::W;\n");
+    uses_link(&fixture.path, "src/a/uses/c2", "../../g/c2");
+    let grown: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(grown.status, 1, "{} {}", grown.stdout, grown.stderr);
+    assert!(
+        grown.stdout.contains("src/a uses the folder src/g/c2"),
+        "{}",
+        grown.stdout
+    );
+    assert!(
+        grown.stdout.contains("a tolerated loop may only lose uses"),
+        "{}",
+        grown.stdout
+    );
+    assert!(
+        !grown.stdout.contains("tolerates nothing any more"),
+        "{}",
+        grown.stdout
+    );
+}
+
+/// A dense loop that many groups close through one folder is written down in one round:
+///  every use inside it is printed as the line that records it, and the second run is clean.
+#[cfg(unix)]
+#[test]
+fn layout_the_printed_keys_hold_a_dense_own_file_loop() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    let entries: usize = 4;
+    let mut lib: String = String::new();
+    for index in 0..entries {
+        lib.push_str(format!("mod f{index};\nmod g{index};\n").as_str());
+    }
+    fixture.write("src/lib.rs", lib.as_str());
+    for index in 0..entries {
+        // What: one group whose own file uses `f0`, and one child folder it holds.
+        // Why: every group's own use enters `f0`, and `f0` uses every group's child, so all of them make one loop.
+        fixture.write(
+            format!("src/g{index}/mod.rs").as_str(),
+            format!("pub mod c{index};\npub mod own;\n").as_str(),
+        );
+        fixture.write(
+            format!("src/g{index}/own.rs").as_str(),
+            "use crate::f0::X;\n",
+        );
+        fixture.write(
+            format!("src/g{index}/c{index}/mod.rs").as_str(),
+            "pub struct X;\n",
+        );
+        // What: one plain folder that uses every group's child and every later plain folder.
+        // Why: those uses are inside the one loop, so the round trip has to record every one of them.
+        let mut body: String = String::new();
+        for group in 0..entries {
+            body.push_str(format!("use crate::g{group}::c{group}::X;\n").as_str());
+        }
+        for later in index + 1..entries {
+            body.push_str(format!("use crate::f{later}::X;\n").as_str());
+        }
+        body.push_str("pub struct X;\n");
+        fixture.write(format!("src/f{index}/mod.rs").as_str(), body.as_str());
+        for group in 0..entries {
+            let link: String = format!("src/f{index}/uses/c{group}");
+            let target: String = format!("../../g{group}/c{group}");
+            uses_link(&fixture.path, link.as_str(), target.as_str());
+        }
+        for later in index + 1..entries {
+            let link: String = format!("src/f{index}/uses/f{later}");
+            let target: String = format!("../../f{later}");
+            uses_link(&fixture.path, link.as_str(), target.as_str());
+        }
+    }
+    fixture.write("folder.txt", "");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    let loops: usize = keys
+        .iter()
+        .filter(|key| return key.starts_with("own-file-loop "))
+        .count();
+    assert_eq!(loops, entries, "{keys:?}");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "uses src/f0 -> src/g0/c0"),
+        "{keys:?}"
+    );
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// Many generated packages whose loops a group's own file closes are written down in one round each,
+///  and the control proves the run reaches some of them.
+#[cfg(unix)]
+#[test]
+fn layout_the_printed_keys_hold_random_own_file_trees() {
+    let mut with_a_loop: usize = 0;
+    for seed in 0..12 {
+        let fixture: Fixture = Fixture::new();
+        fixture.write(
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+        );
+        fixture.write(CONFIG, FOLDER_RULES);
+        fixture.write("folder.txt", "");
+        write_generated_tree(&fixture, seed);
+        let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+        if keys
+            .iter()
+            .any(|key| return key.starts_with("own-file-loop "))
+        {
+            with_a_loop += 1;
+        }
+        assert_eq!(
+            (held.status, held.stdout.as_str()),
+            (0, ""),
+            "seed {seed}: keys {keys:?}, stdout {}, stderr {}",
+            held.stdout,
+            held.stderr
+        );
+    }
+    assert!(
+        with_a_loop > 0,
+        "no generated package held a loop, so the run proves nothing"
+    );
+}
+
+/// The ABI string of an `extern` block is keyed with every run of whitespace squeezed to one space,
+///  so a key never holds a line break and a list line can record the finding.
+#[test]
+fn layout_an_extern_block_abi_string_holding_a_line_break_is_keyed_on_one_line() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write("file.txt", "");
+    fixture.write("src/lib.rs", "mod m;\n");
+    fixture.write(
+        "src/m/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\nextern \"C\nx\" { }\n",
+    );
+    fixture.write("src/m/one.rs", "pub struct One;\n");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "file.txt");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "index-item src/m/mod.rs extern-block-\"C x\""),
+        "{keys:?}"
+    );
+    for key in &keys {
+        assert!(!key.contains('\n'), "{key:?} holds a line break");
+    }
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// A `uses` entry whose name holds a line break is refused before any check,
+///  because no list line could hold a key that names it.
+#[cfg(unix)]
+#[test]
+fn layout_a_uses_entry_name_that_holds_a_line_break_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write("src/lib.rs", "mod a;\nmod b;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    fixture.write("src/a/x.rs", "use crate::b::B;\npub struct X;\n");
+    fixture.write("src/b/mod.rs", "pub struct B;\n");
+    uses_link(&fixture.path, "src/a/uses/b\nc", "../../b");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in [
+        "The layout rules stop at src/a/uses/b\\u{a}c,",
+        "holds a line break, which ends a list line",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A use of an entry the loop does not reach is not a use that joins the loop,
+///  so a recorded loop reports nothing about it.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_of_an_entry_outside_a_recorded_own_file_loop_is_not_reported() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod g1;\nmod z;\n");
+    fixture.write("src/g1/mod.rs", "pub mod c1;\npub mod c2;\npub mod own;\n");
+    fixture.write("src/g1/own.rs", "use crate::a::Z;\n");
+    fixture.write("src/g1/c1/mod.rs", "pub struct Y;\n");
+    fixture.write("src/g1/c2/mod.rs", "pub struct W;\n");
+    fixture.write("src/z/mod.rs", "pub struct Q;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    // `a` closes the loop through `g1/c1` and also uses `z`, which sits outside every loop.
+    fixture.write(
+        "src/a/x.rs",
+        "use crate::g1::c1::Y;\nuse crate::z::Q;\npub struct Z;\n",
+    );
+    uses_link(&fixture.path, "src/a/uses/c1", "../../g1/c1");
+    uses_link(&fixture.path, "src/a/uses/z", "../../z");
+    fixture.write("folder.txt", "");
+    let (_, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// A use that a loop of plain folders reports is not reported again by the check for a loop
+///  a group's own file closes.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_a_folder_loop_reports_is_not_reported_again() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod b;\nmod g1;\n");
+    fixture.write("src/g1/mod.rs", "pub mod c1;\npub mod c2;\npub mod own;\n");
+    fixture.write("src/g1/own.rs", "use crate::a::Z;\n");
+    fixture.write("src/g1/c1/mod.rs", "pub struct Y;\n");
+    fixture.write("src/g1/c2/mod.rs", "pub struct W;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    // `a` and `b` use each other, so the folder loop reports that use itself.
+    fixture.write(
+        "src/a/x.rs",
+        "use crate::g1::c1::Y;\nuse crate::b::B;\npub struct Z;\n",
+    );
+    fixture.write("src/b/mod.rs", "use crate::a::Z;\npub struct B;\n");
+    uses_link(&fixture.path, "src/a/uses/b", "../../b");
+    uses_link(&fixture.path, "src/a/uses/c1", "../../g1/c1");
+    uses_link(&fixture.path, "src/b/uses/a", "../../a");
+    fixture.write(
+        "folder.txt",
+        "group-file src/g1 own.rs\nown-file-loop src/g1 -> src/a\nuses src/a -> src/g1/c1\n",
+    );
+    let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    let reported: Vec<serde_json::Value> = records(listed.stdout.as_str());
+    let joining: usize = reported
+        .iter()
+        .filter(|record| {
+            return record["message"]
+                .as_str()
+                .expect("message")
+                .contains("a tolerated loop may only lose uses");
+        })
+        .count();
+    assert_eq!(joining, 0, "{}", listed.stdout);
+    let loops: usize = reported
+        .iter()
+        .filter(|record| {
+            return record["message"]
+                .as_str()
+                .expect("message")
+                .contains("These folders use each other in a loop");
+        })
+        .count();
+    assert_eq!(loops, 1, "{}", listed.stdout);
+}
+
+/// A use between two folders of one entry makes no edge of the entry graph,
+///  so the check for a loop a group's own file closes reports nothing about it.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_between_two_folders_of_one_entry_is_not_reported() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod g1;\n");
+    fixture.write("src/g1/mod.rs", "pub mod c1;\npub mod c2;\npub mod own;\n");
+    fixture.write("src/g1/own.rs", "use crate::a::Z;\n");
+    fixture.write("src/g1/c1/mod.rs", "pub struct Y;\n");
+    // One child of the group uses another, which joins no two entries.
+    fixture.write("src/g1/c2/mod.rs", "use crate::g1::c1::Y;\npub struct W;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    fixture.write("src/a/x.rs", "use crate::g1::c1::Y;\npub struct Z;\n");
+    uses_link(&fixture.path, "src/a/uses/c1", "../../g1/c1");
+    uses_link(&fixture.path, "src/g1/c2/uses/c1", "../../c1");
+    fixture.write("folder.txt", "");
+    let (_, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// A loop one of whose own-file findings the list does not record is still reported,
+///  and the uses inside it are printed as the lines that record them.
+#[cfg(unix)]
+#[test]
+fn layout_a_loop_with_one_own_file_finding_off_the_list_keys_its_uses() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod e;\nmod g1;\nmod g2;\n");
+    fixture.write("src/g1/mod.rs", "pub mod c1;\npub mod own;\n");
+    fixture.write("src/g1/c1/mod.rs", "pub struct Y;\n");
+    fixture.write("src/g2/mod.rs", "pub mod c2;\npub mod own;\n");
+    fixture.write("src/g2/c2/mod.rs", "use crate::e::E;\npub struct W;\n");
+    fixture.write("src/e/mod.rs", "use crate::g1::c1::Y;\npub struct E;\n");
+    // Each group's own file uses the other's child, so one loop holds both own-file findings.
+    fixture.write("src/g1/own.rs", "use crate::g2::c2::W;\n");
+    fixture.write("src/g2/own.rs", "use crate::g1::c1::Y;\n");
+    uses_link(&fixture.path, "src/e/uses/c1", "../../g1/c1");
+    uses_link(&fixture.path, "src/g2/c2/uses/e", "../../e");
+    uses_link(&fixture.path, "src/g2/uses/e", "../../e");
+    let (keys, _): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    let loops: usize = keys
+        .iter()
+        .filter(|key| return key.starts_with("own-file-loop "))
+        .count();
+    assert_eq!(loops, 2, "{keys:?}");
+    // The list records one of the two own-file findings, so the loop is still reported,
+    // and the uses inside it are printed as the lines that record them.
+    fixture.write(
+        "folder.txt",
+        "group-file src/g1 own.rs\ngroup-file src/g2 own.rs\nown-file-loop src/g2 -> src/g1/c1\n",
+    );
+    let partial: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(partial.status, 1, "{}", partial.stderr);
+    let partial_keys: Vec<String> = printed_keys(partial.stderr.as_str());
+    assert!(
+        partial_keys
+            .iter()
+            .any(|key| return key == "uses src/e -> src/g1/c1"),
+        "{partial_keys:?}"
+    );
+    assert!(
+        partial
+            .stdout
+            .contains("These entries use each other in a loop"),
+        "{}",
+        partial.stdout
+    );
+    // A reported loop holds no use of its own: the uses inside it are the lines that record it,
+    // so none of them is a use that joins a loop the list tolerates.
+    let joining: usize = records(partial.stdout.as_str())
+        .iter()
+        .filter(|record| {
+            return record["message"]
+                .as_str()
+                .expect("message")
+                .contains("a tolerated loop may only lose uses");
+        })
+        .count();
+    assert_eq!(joining, 0, "{}", partial.stdout);
+}
+
+/// A loop that two groups' own files close reports one finding for each of them,
+///  and the walk of the outer group's own file steps over the nested group's own use.
+#[cfg(unix)]
+#[test]
+fn layout_a_loop_through_two_groups_own_files_reports_each_own_file() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write("src/lib.rs", "mod g;\nmod h;\n");
+    fixture.write("src/g/mod.rs", "pub mod c;\npub mod inner;\n");
+    fixture.write("src/g/c/mod.rs", "pub struct C;\n");
+    fixture.write("src/g/inner/mod.rs", "pub mod d;\npub mod own;\n");
+    fixture.write("src/g/inner/d/mod.rs", "pub struct D;\n");
+    fixture.write("src/g/inner/own.rs", "use crate::h::c2::W;\n");
+    fixture.write("src/h/mod.rs", "pub mod c2;\npub mod own;\n");
+    fixture.write("src/h/c2/mod.rs", "pub struct W;\n");
+    fixture.write("src/h/own.rs", "use crate::g::c::C;\n");
+    let (keys, _): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    for key in [
+        "own-file-loop src/g/inner -> src/h/c2",
+        "own-file-loop src/h -> src/g/c",
+    ] {
+        assert!(
+            keys.iter().any(|printed| return printed == key),
+            "{key} missing in {keys:?}"
+        );
+    }
+}
+
+/// A folder whose name holds a line break is refused before any check,
+///  because a key about a file inside it would hold that name.
+#[cfg(unix)]
+#[test]
+fn layout_a_folder_name_that_holds_a_line_break_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write("file.txt", "");
+    fixture.write("src/lib.rs", "#[path = \"m\nn/mod.rs\"] mod m;\n");
+    fixture.write(
+        "src/m\nn/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `y.rs`: one.\nmod y;\n",
+    );
+    fixture.write("src/m\nn/y.rs", "pub struct Y;\n");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    assert!(
+        message.contains("The layout rules stop at src/m\\u{a}n/mod.rs,"),
+        "{message}"
+    );
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// The allow-list keys one `--debug` run printed, in the order it printed them.
+fn printed_keys(text: &str) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::<String>::new();
+    for line in text.lines() {
+        if let Some((_, key)) = line.split_once("allow-list key: ") {
+            keys.push(key.to_string());
+        }
+    }
+    return keys;
+}
+
+/// Write the keys a `--debug` run printed as the fixture's list, then run again.
+/// Why:
+///  This is what a round does with a rule it switches on,
+///  and a tree's own findings must survive it.
+///  The list starts empty, so the first run reports every finding of the tree.
+fn run_with_its_printed_keys(
+    fixture: &Fixture,
+    list: &str,
+) -> (Vec<String>, Run) {
+    fixture.write(list, "");
+    let first: Run = run(&fixture.path, &["--debug", "src"], b"");
+    let keys: Vec<String> = printed_keys(first.stderr.as_str());
+    let mut text: String = keys.join("\n");
+    if !text.is_empty() {
+        text.push('\n');
+    }
+    fixture.write(list, text.as_str());
+    let second: Run = run(&fixture.path, &["--debug", "src"], b"");
+    return (keys, second);
+}
+
+/// A deterministic stand-in for a random generator,
+///  so a control over many generated packages builds the same packages on every run.
+struct Rolls {
+    /// The generator's whole state.
+    state: u64,
+}
+
+impl Rolls {
+    /// Start one sequence at a seed.
+    fn new(seed: u64) -> Rolls {
+        return Rolls {
+            state: seed
+                .wrapping_mul(2_863_933_555_777_941_757)
+                .wrapping_add(3_037_000_493),
+        };
+    }
+
+    /// The next value.
+    fn next(&mut self) -> u64 {
+        self.state = self
+            .state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        return self.state >> 33;
+    }
+
+    /// A value below one bound.
+    fn below(
+        &mut self,
+        bound: usize,
+    ) -> usize {
+        return (self.next() % bound as u64) as usize;
+    }
+
+    /// Whether a chance of one in a hundred came up.
+    fn chance(
+        &mut self,
+        percent: u64,
+    ) -> bool {
+        return self.next() % 100 < percent;
+    }
+}
+
+/// Write one generated package:
+///  one-folder entries and groups whose own files may use any entry,
+///  while every other use points at an entry later in one random order,
+///  so a loop can only arise through a group's own file.
+///  No `uses` link is written,
+///  so the round trip of its printed keys records the missing links too.
+fn write_generated_tree(
+    fixture: &Fixture,
+    seed: u64,
+) {
+    let mut rolls: Rolls = Rolls::new(seed);
+    let plain: usize = 2 + rolls.below(4);
+    let groups: usize = 1 + rolls.below(2);
+    let mut children: Vec<usize> = Vec::<usize>::new();
+    for _ in 0..groups {
+        children.push(1 + rolls.below(2));
+    }
+    // What: every entry, in a random order.
+    // Why: a use written outside a group's own file may only point at a later entry,
+    // so a loop can only be closed by a group's own file.
+    let mut order: Vec<String> = Vec::<String>::new();
+    for index in 0..plain {
+        order.push(format!("p{index}"));
+    }
+    for index in 0..groups {
+        order.push(format!("g{index}"));
+    }
+    for index in (1..order.len()).rev() {
+        let other: usize = rolls.below(index + 1);
+        order.swap(index, other);
+    }
+    // What: the position of each entry in that order.
+    // Why: "later" is the only direction a use outside a group's own file may take.
+    let mut rank: Vec<(String, usize)> = Vec::<(String, usize)>::new();
+    for (position, name) in order.iter().enumerate() {
+        rank.push((name.clone(), position));
+    }
+    let position_of = |name: &str| -> usize {
+        for (known, position) in &rank {
+            if known == name {
+                return *position;
+            }
+        }
+        return usize::MAX;
+    };
+    let mut lib: String = String::new();
+    for name in &order {
+        lib.push_str(format!("mod {name};\n").as_str());
+    }
+    fixture.write("src/lib.rs", lib.as_str());
+    for name in &order {
+        // What: one entry's module file, with the uses it is allowed to write.
+        // Why: `own` is a group's own file, which may use any entry, and `forward_only` is every other file.
+        let mut body: String = String::from("//! One entry.\n");
+        for other in &order {
+            if other == name {
+                continue;
+            }
+            if position_of(other) <= position_of(name) {
+                continue;
+            }
+            if other.starts_with('p') {
+                if rolls.chance(35) {
+                    body.push_str(format!("use crate::{other}::X;\n").as_str());
+                }
+                continue;
+            }
+            let index: usize = other[1..].parse::<usize>().expect("numbered group");
+            let child: usize = rolls.below(children[index]);
+            if rolls.chance(35) {
+                body.push_str(format!("use crate::{other}::c{child}::X;\n").as_str());
+            }
+        }
+        if name.starts_with('p') {
+            fixture.write(format!("src/{name}/mod.rs").as_str(), body.as_str());
+            continue;
+        }
+        let index: usize = name[1..].parse::<usize>().expect("numbered group");
+        let mut index_file: String = String::from("//! One group.\npub mod own;\n");
+        for child in 0..children[index] {
+            index_file.push_str(format!("pub mod c{child};\n").as_str());
+            fixture.write(
+                format!("src/{name}/c{child}/mod.rs").as_str(),
+                "//! One child.\npub struct X;\n",
+            );
+        }
+        fixture.write(format!("src/{name}/mod.rs").as_str(), index_file.as_str());
+        // What: the group's own file, which may use any entry, so it may close a loop.
+        // Why: the rule reports a use in a group's own file that closes one, and it is what the round trip records.
+        let mut own: String = String::from("//! The group's own file.\n");
+        for other in &order {
+            if other == name {
+                continue;
+            }
+            let target: String = if other.starts_with('p') {
+                format!("crate::{other}::X")
+            } else {
+                let other_index: usize = other[1..].parse::<usize>().expect("numbered group");
+                let child: usize = rolls.below(children[other_index]);
+                format!("crate::{other}::c{child}::X")
+            };
+            if rolls.chance(40) {
+                own.push_str(format!("use {target};\n").as_str());
+            }
+        }
+        fixture.write(format!("src/{name}/own.rs").as_str(), own.as_str());
+        // What: the same entry's child folders, which may only point forward.
+        // Why: their uses can never close a loop, so only a group's own file can.
+        for child in 0..children[index] {
+            let mut child_body: String = String::from("//! One child.\n");
+            for other in &order {
+                if position_of(other) <= position_of(name) {
+                    continue;
+                }
+                let target: String = if other.starts_with('p') {
+                    format!("crate::{other}::X")
+                } else {
+                    let other_index: usize = other[1..].parse::<usize>().expect("numbered group");
+                    let chosen: usize = rolls.below(children[other_index]);
+                    format!("crate::{other}::c{chosen}::X")
+                };
+                if rolls.chance(30) {
+                    child_body.push_str(format!("use {target};\n").as_str());
+                }
+            }
+            child_body.push_str("pub struct X;\n");
+            fixture.write(
+                format!("src/{name}/c{child}/mod.rs").as_str(),
+                child_body.as_str(),
+            );
+        }
+    }
 }
 
 /// The unit-test scratch root,

@@ -22494,14 +22494,21 @@ orphan-notice and relink-notice folders,
 the owed index records,
 the service's `<instance>.git-dir` notes and its journal records,
 the kept-reference records,
+the merge intent records and the landed reading beside each of them,
+the repository link identity file,
 and the `.git` pointer that a removal or a snapshot request reads.
 A named pipe at one of those names is a record this command cannot read rather than a wait:
 opening a pipe for reading waits for a writer that may never come,
 which held every wrapped command in such a repository for ever (issue 6415).
+The merge record folder's first read runs on the start of every wrapped command,
+so a pipe at a record's name stops the command with a line naming that record,
+and a pipe at the identity file's name is an identity this command cannot use,
+which it says before the command goes on.
 An entry of the queue that is not a plain file is moved to `failed` with a line naming it,
 where nothing runs it again.
-`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
-and reads with a call that can wait.
+`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders or files
+and reads with a call that can wait,
+so a waiting read this folder gains again fails there.
 
 Every file this wrapper reads from a Git directory is opened as a plain file (`foundation/plain_file.rs`) too:
 opening a pipe for reading waits for a writer that may never come,
@@ -22530,6 +22537,9 @@ a record the wrapper wrote into a folder of its own,
 a file Git wrote in a Git directory,
 a path the person's own project holds,
 or a file a control's stand-in process writes.
+A record a command's own start reads is never the own-record class:
+a pipe at such a name holds every command,
+so it is read through `foundation/plain_file.rs` and named in `records_read_without_blocking_tests` rather than kept here.
 
 Limits:
 machines cloned with one machine ID cannot be told apart,

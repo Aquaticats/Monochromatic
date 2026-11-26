@@ -12,53 +12,37 @@ import type {
 } from '@earendil-works/pi-ai';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { memberOptions, } from './member-attempt-options.ts';
+import { refusalOf, } from './attempt-refusal.ts';
+import {
+  admissionOf,
+} from './member-admission.ts';
 import {
   capacityOf,
   noteRateLimit,
-  observedCeiling,
+  noteUnreachable,
+  occupySeat,
   readAtRefusal,
-  type MemberCapacity,
 } from './member-capacity.ts';
 import {
   poolMembers,
   type Member,
 } from './model-pools.ts';
 import { policyStopMessage, } from './policy-stop-message.ts';
-import type { RoutingRegistry, } from './quota-endpoints.ts';
+import { NO_TRANSPORT_CODE, } from './provider-wire-text.ts';
+import {
+  PoolDispatchError,
+  type RoutingSession,
+} from './routing-session.ts';
 import {
   hasOpenAiPolicyOpening,
   refusalReset,
   headerReset,
   isPolicyStop,
-  isRateLimit,
-  isTransientRefusal,
+  type ResponseEvidence,
+  UNREACHABLE_MEMBER_HOLD_MS,
 } from './rate-limit-evidence.ts';
 
-//region Session state and routing errors
-
-/**
- Session-scoped registry and the retry evidence collected from it.
- */
-export type RoutingSession = {
-  /**
-   Registry supplied by Pi, not by a credential loader.
-   */
-  readonly registry: RoutingRegistry;
-  /**
-   Capacity and reset evidence keyed by exact physical model.
-   */
-  readonly members: Map<string, MemberCapacity>;
-};
-
-/**
- Failure before any member could produce a terminal event.
- */
-export class PoolDispatchError extends Error {
-  /**
-   Distinguishes pool dispatch failures from errors raised by member adapters.
-   */
-  override readonly name = 'PoolDispatchError';
-}
+//region Logging
 
 /**
  Logger for dispatch decisions. It names members, decisions and the policy stop's own text; it never
@@ -67,7 +51,7 @@ export class PoolDispatchError extends Error {
  */
 const l = tagged({ tag: 'rate-limit-fallback', },);
 
-//endregion Session state and routing errors
+//endregion Logging
 
 //region Request stream
 
@@ -143,6 +127,15 @@ export async function* dispatchRequest({
     admissionStops: string[];
   } = { admissionStops: [], };
   /**
+   Members this request passes over because their last request could not be delivered, kept so the
+   pool can ask them anyway when no other member was tried.
+   */
+  const deferred: Member[] = [];
+  /**
+   What this request has done so far, held in one object so no name leaks past its step.
+   */
+  const progress = { attempts: 0, };
+  /**
    Options to share with request preparation, omitting an absent argument.
    */
   const supplied = options === undefined ? {} : { options, };
@@ -151,9 +144,17 @@ export async function* dispatchRequest({
 
    @param member - next provider and model from the ordered pool
 
+   @param askHeld - whether a member held after an undelivered request is asked anyway
+
    @returns whether the stream emitted a result that ends this logical request
    */
-  async function* tryMember(member: Member,): AsyncGenerator<AssistantMessageEvent, boolean> {
+  async function* tryMember({
+    member,
+    askHeld,
+  }: {
+    readonly member: Member;
+    readonly askHeld: boolean;
+  },): AsyncGenerator<AssistantMessageEvent, boolean> {
     signal?.throwIfAborted();
     /**
      Exact member from Pi's current model registry.
@@ -186,48 +187,22 @@ export async function* dispatchRequest({
       label,
     },);
     /**
-     Admission time, shared by the hold and observed-cap checks.
+     Whether this member may be dispatched now.
      */
-    const admittedAt = Date.now();
-    if (capacity.retryAt > admittedAt) {
-      rl.debug(`${id}: ${label} has a provider-reported retry window`,);
-      unavailable.admissionStops
-        .push(`${label} is held until ${new Date(capacity.retryAt,).toISOString()}`,);
+    const admission = admissionOf({
+      capacity,
+      now: Date.now(),
+      id,
+      label,
+      askHeld,
+    },);
+    if (admission.deferMember) {
+      deferred.push(member,);
       return false;
     }
-    /**
-     A refusal's own cap when one is in force, else the published ceiling an earlier refusal read.
-
-     The observed cap governs alone: the refusal describes the account as it stands, while the
-     published number is the plan's promise, which an exception such as NeuralWatt's pay-as-you-go
-     mode overrides.
-     */
-    const observed = observedCeiling({
-      capacity,
-      now: admittedAt,
-    },);
-    /**
-     Published ceiling from an earlier refusal's reading, absent until then.
-     */
-    const published = capacity.evidence
-      .concurrency;
-    /**
-     Cap this admission must stay under; unbounded when nothing has been learned yet.
-     */
-    const ceiling = Number.isNaN(observed,) ? (published ?? Infinity) : observed;
-    if (capacity.active >= ceiling) {
-      if (ceiling === 0) {
-        // A reading that reports no capacity excludes the member for the rest of the session, because
-        // admission never dispatches it again and so no later refusal reads a fresh ceiling. The turn
-        // says nothing about this when another member answers, so the record names the member, the
-        // ceiling and the reading's time at a level a person reads.
-        rl.info(`${id}: ${label} is excluded for the rest of this session: the reading at ${new Date(capacity.concurrencyReadAt,).toISOString()} reported a concurrency ceiling of zero`,);
-      }
-      rl.debug(`${id}: ${label} local concurrency reached published or observed cap ${ceiling}`,);
+    if (admission.stop !== '') {
       unavailable.admissionStops
-        .push(ceiling === 0
-          ? `${label} has a published concurrency ceiling of zero`
-          : `${label} is at its local concurrency ceiling (${capacity.active} of ${ceiling} in use)`,);
+        .push(admission.stop,);
       return false;
     }
     rl.debug(`${id}: dispatching to ${label}`,);
@@ -241,34 +216,12 @@ export async function* dispatchRequest({
     /**
      Response evidence shared between the callback and stream consumer.
      */
-    const evidence: {
-      /**
-       Provider-supplied deadline, or zero if unavailable.
-       */
-      resetAt: number;
-      /**
-       HTTP status exposed by the physical adapter.
-       */
-      status?: number;
-    } = { resetAt: 0, };
-    capacity.active += 1;
+    const evidence: ResponseEvidence = { resetAt: 0, };
+    progress.attempts += 1;
     /**
      Local admission held until that physical stream terminates.
      */
-    const seat = {
-      occupied: true,
-      release(): void {
-        if (!seat.occupied)
-          return;
-        seat.occupied = false;
-        capacity.active -= 1;
-      },
-      [Symbol.dispose](): void { seat.release(); },
-    };
-    /**
-     Idempotent cleanup for cancellation, error, and terminal output.
-     */
-    using lease = seat;
+    using lease = occupySeat(capacity,);
     {
       /**
        Normalized stream whose terminal event decides whether to stop or hand off.
@@ -316,27 +269,38 @@ export async function* dispatchRequest({
           buffered.start = event;
           continue;
         }
+        if (event.type !== 'error') {
+          if (buffered.start !== undefined) {
+            yield buffered.start;
+            delete buffered.start;
+          }
+          if ((event.type === 'done') && (evidence.resetAt > Date.now()))
+            capacity.retryAt = Math.max(
+              capacity.retryAt,
+              evidence.resetAt,
+            );
+          if (event.type === 'done') {
+            lease.release();
+            yield event;
+            return true;
+          }
+          // A content event is now exposed, so a later failure ends the request at this member.
+          yield event;
+          committed = true;
+          continue;
+        }
         /**
          A 429 or a transient status takes precedence over generic policy labels, but not OpenAI's
-         policy opening.
+         policy opening; a transport failure carries neither.
          */
-        const rateLimited = (event.type === 'error') && isRateLimit({
+        const refusal = refusalOf({
           message: event.error,
           ...(evidence.status === undefined ? {} : { status: evidence.status, }),
         },);
-        /**
-         Whether this attempt refused with a transient provider status.
-         */
-        const transient = (event.type === 'error')
-          && (!rateLimited)
-          && isTransientRefusal({
-            message: event.error,
-            ...(evidence.status === undefined ? {} : { status: evidence.status, }),
-          },);
-        if ((event.type === 'error') && isPolicyStop({
+        if (isPolicyStop({
           message: event.error,
-          rateLimited,
-          transient,
+          rateLimited: refusal.rateLimited,
+          transient: refusal.transient,
         },)) {
           /**
            Terminal record naming the member and keeping the advisory, with retry wording removed so
@@ -383,7 +347,7 @@ export async function* dispatchRequest({
          A provider that cannot serve this request now, but may serve the next: the owner's decision
          of 2026-11-19 moves it on like a 429, so Pi's own retry never restarts at that member.
          */
-        if (transient && (!committed)
+        if (refusal.transient && (!committed)
           && (event.error
             .content
             .length
@@ -403,7 +367,7 @@ export async function* dispatchRequest({
           unavailable.lastRefusal = event;
           return false;
         }
-        if (rateLimited && (!committed)
+        if (refusal.rateLimited && (!committed)
           && (event.error
             .content
             .length
@@ -445,29 +409,51 @@ export async function* dispatchRequest({
           unavailable.lastRefusal = event;
           return false;
         }
-        if (buffered.start !== undefined) {
-          yield buffered.start;
-          delete buffered.start;
+        /**
+         A request that never reached the member, which the owner's decision covers by the same rule:
+         nothing was shown, so another member may answer, and Pi's own retry would ask the same
+         unreachable member again.
+         */
+        if ((refusal.unreachableCode !== NO_TRANSPORT_CODE) && (!committed)
+          && (event.error
+            .content
+            .length
+            === 0))
+          {
+          signal?.throwIfAborted();
+          noteUnreachable({
+            capacity,
+            now: Date.now(),
+          },);
+          rl.warn(`${id}: ${label} could not be reached before any output (${refusal.unreachableCode}); holding it ${UNREACHABLE_MEMBER_HOLD_MS} ms and trying the next member`,);
+          unavailable.lastRefusal = event;
+          return false;
         }
-        if ((event.type === 'done') && (evidence.resetAt > Date.now()))
-          capacity.retryAt = Math.max(
-            capacity.retryAt,
-            evidence.resetAt,
-          );
-        if ((event.type === 'done') || (event.type === 'error')) {
-          lease.release();
-          yield event;
-          return true;
-        }
+        // A terminal failure Pi may not re-ask elsewhere: the request ends at this member.
+        lease.release();
         yield event;
-        committed = true;
+        return true;
       }
       throw new PoolDispatchError(`${label} closed without a terminal assistant event`,);
     }
   }
   for (const member of members) {
-    if (yield* tryMember(member,))
+    if (yield* tryMember({
+      member,
+      askHeld: false,
+    },))
       return;
+  }
+  // No member was dispatched at all: ask the ones held after an undelivered request, so a request no
+  // member answered still ends on the refusal that member gave.
+  if ((progress.attempts === 0) && (deferred.length > 0)) {
+    for (const member of deferred) {
+      if (yield* tryMember({
+        member,
+        askHeld: true,
+      },))
+        return;
+    }
   }
   /**
    The failure the pool owes: a stop it set aside, which ends the run so Pi's own retry cannot
