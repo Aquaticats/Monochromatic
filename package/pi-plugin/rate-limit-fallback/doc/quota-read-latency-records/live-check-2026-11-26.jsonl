@@ -1,0 +1,16 @@
+{"kind":"deadline","deadlineMs":2000,"rounds":3}
+{"kind":"live","member":"qwen-token-plan-individual/deepseek-v4.1-flash-1017","round":1,"elapsedMs":0,"outcome":"no-endpoint","endpointExpected":false,"inferred":false}
+{"kind":"live","member":"qwen-token-plan-individual/deepseek-v4.1-flash-1017","round":2,"elapsedMs":0,"outcome":"no-endpoint","endpointExpected":false,"inferred":false}
+{"kind":"live","member":"qwen-token-plan-individual/deepseek-v4.1-flash-1017","round":3,"elapsedMs":0,"outcome":"no-endpoint","endpointExpected":false,"inferred":false}
+{"kind":"live","member":"opencode-go/deepseek-v4.1-flash","round":1,"elapsedMs":0,"outcome":"no-endpoint","endpointExpected":false,"inferred":false}
+{"kind":"live","member":"opencode-go/deepseek-v4.1-flash","round":2,"elapsedMs":0,"outcome":"no-endpoint","endpointExpected":false,"inferred":false}
+{"kind":"live","member":"opencode-go/deepseek-v4.1-flash","round":3,"elapsedMs":0,"outcome":"no-endpoint","endpointExpected":false,"inferred":false}
+{"kind":"live","member":"neuralwatt/deepseek-v4.1-flash-flex","round":1,"elapsedMs":117,"outcome":"evidence","endpointExpected":true,"inferred":true}
+{"kind":"live","member":"neuralwatt/deepseek-v4.1-flash-flex","round":2,"elapsedMs":379,"outcome":"evidence","endpointExpected":true,"inferred":true}
+{"kind":"live","member":"neuralwatt/deepseek-v4.1-flash-flex","round":3,"elapsedMs":118,"outcome":"evidence","endpointExpected":true,"inferred":true}
+{"kind":"live","member":"synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017","round":1,"elapsedMs":118,"outcome":"evidence","endpointExpected":true,"inferred":true}
+{"kind":"live","member":"synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017","round":2,"elapsedMs":108,"outcome":"evidence","endpointExpected":true,"inferred":true}
+{"kind":"live","member":"synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017","round":3,"elapsedMs":48,"outcome":"evidence","endpointExpected":true,"inferred":true}
+{"kind":"control-start","found":true}
+{"kind":"control","member":"neuralwatt/deepseek-v4.1-flash-flex","elapsedMs":2000,"settled":true,"abandoned":true}
+{"kind":"done"}

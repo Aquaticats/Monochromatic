@@ -270,3 +270,72 @@ three requests to a local server delayed by 250 ms measured 255.4 ms,
 251.1 ms and 252.5 ms.
 
 [nw-rates]: https://docs.neuralwatt.com/guides/rate-limits.md
+
+## Live check of the deadline, 2026-11-26
+
+The package README carried one open precondition before writer rounds use the pool:
+"a live check of the quota read's deadline".
+This section is that check,
+run before the writers' order of 2026-11-26 took effect,
+and its records are `doc/quota-read-latency-records/live-check-2026-11-26.jsonl`.
+
+### What was measured
+
+- The read under test is the shipped `readQuotaWithinDeadline` (`src/member-capacity.ts`),
+  imported from the built package,
+  so the bound is `QUOTA_READ_TIMEOUT_MS` itself rather than a copy of its number.
+  Each call carried `AbortSignal.timeout(QUOTA_READ_TIMEOUT_MS)` with no caller timeout,
+  which is what `quotaSignal` gives when a caller sets none.
+- The registry was the live `modelRegistry` of a started Pi session,
+  so `ModelRegistry.getApiKeyAndHeaders` resolved each member's credential as the read itself does.
+  The measuring code read no credential file and printed no header, key or token.
+  It ran inside a Pi extension loaded with `pi -e` in a scratch folder outside the repository,
+  in `--mode rpc` with no prompt,
+  so no model turn was made and nothing was sent to a provider except the quota reads themselves.
+- Members: every distinct member of both pools, in the order the pools ask them.
+  `qwen-token-plan-individual/deepseek-v4.1-flash-1017` and `opencode-go/deepseek-v4.1-flash`
+  publish no quota endpoint,
+  so `probeQuota` returns empty evidence at its provider test and sends no request:
+  those arms are reported as `no-endpoint`, and their 0 ms is that early return.
+- Rounds: three per member.
+  A NeuralWatt read waits at least 1,100 ms after the previous one,
+  because its `/v1/rate_limits` asks clients to poll at most once per second.
+- Control arm: the same shipped call with a transport that never answers,
+  which is what shows the bound can abandon a read.
+  `AbortSignal.timeout`'s own timer is unref'd,
+  so the control held the event loop with a referenced timer,
+  as the in-flight model request holds it on the dispatch path,
+  and a promise with a further four seconds of grace turned a read that never settled into a recorded result.
+
+### Results
+
+Every live read returned parsed evidence, and none hit the deadline:
+
+- `neuralwatt/deepseek-v4.1-flash-flex`:
+  117 ms, 379 ms, 118 ms.
+  This lane's read is `/v1/rate_limits?model=deepseek-v4.1-flash-flex` and `/v1/quota`, issued together.
+- `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`:
+  118 ms, 108 ms, 48 ms.
+- `qwen-token-plan-individual/deepseek-v4.1-flash-1017` and `opencode-go/deepseek-v4.1-flash`:
+  no endpoint, no request, 0 ms, in every round.
+- Control: a transport that never answered was abandoned after 2,000 ms,
+  which is the deadline itself, and the call resolved `QUOTA_UNAVAILABLE`.
+
+The highest live reading was 379 ms,
+so the two seconds cover it five times over,
+which is the same order as the 2026-11-19 measurement's highest reading of 464.4 ms.
+Both figures are sample maxima over few reads, not tail bounds.
+
+### What this check does not decide
+
+- Three rounds per member over one network path is a spot check of one evening,
+  not a distribution:
+  it shows the deadline was ample on this day, not that no read will ever exceed it.
+  What keeps an overrun cheap is the failure mode,
+  which the control arm exercised: at the deadline the wait stops and routing continues on the evidence
+  already held, so an overrun costs the reading and never the request.
+- The reads were made beside a running desktop and other agent work,
+  not on an idle host, and the host's own noise is not separated from the endpoints' here.
+- Neither provider's read is paired with a same-host listing this time,
+  so these are absolute readings only;
+  the paired ratios that argue two seconds is not merely generous stay in the 2026-11-19 record above.

@@ -83,6 +83,14 @@ export { neuralWattEvidence, } from './quota-endpoints.ts';
 export { QUOTA_READ_INTERVAL_MS, } from './member-capacity.ts';
 
 /**
+ The shipped quota-read deadline and the read that runs it, exported so a live check reads the same bound
+ the dispatch path uses rather than a copy of its number.
+
+ @internal
+ */
+export { QUOTA_READ_TIMEOUT_MS, readQuotaWithinDeadline, } from './member-capacity.ts';
+
+/**
  Reads one member's limits from the session registry.
 
  @param registry - the session's live model registry

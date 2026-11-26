@@ -79,6 +79,15 @@ moved verbatim on 2026-11-23:
   live check of the quota read's deadline,
   is still open.
 
+That last sentence is met as of 2026-11-26.
+The check read every pool member's live quota endpoint under the shipped two-second deadline,
+from a started Pi session's own registry,
+and a control arm showed the deadline abandoning a transport that never answers.
+Every live read returned evidence and none came near the bound:
+the highest took 379 ms of the 2,000 ms allowed.
+[`doc/quota-read-latency.md`](doc/quota-read-latency.md) records the method, the figures and what the check leaves undecided,
+with its raw lines in `doc/quota-read-latency-records/live-check-2026-11-26.jsonl`.
+
 ## Order and refusal policy
 
 The owner set these writers on 2026-11-26,
@@ -497,6 +506,10 @@ so two seconds covers the highest reading four times over,
 and still covers it once the host's control spread after the warm-up round
 (325 ms) is added on top (790 ms).
 `doc/quota-read-latency.md` records the method and the per-arm figures.
+A live check of the deadline on 2026-11-26 read the members' own endpoints again,
+through the shipped `readQuotaWithinDeadline`,
+and the highest of its twelve live reads took 379 ms of the same two seconds
+(that file, "Live check of the deadline, 2026-11-26").
 
 ### Provider sources
 
