@@ -481,6 +481,12 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
 /// everything ends up where a fold with no kill puts it.
 #[test]
 fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result",
+    ) {
+        return;
+    }
     let steps: Vec<&'static str> = steps_of_one_fold();
     assert!(
         !steps.is_empty(),

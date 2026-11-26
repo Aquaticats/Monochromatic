@@ -8,16 +8,14 @@
 //! and a lane set that leaves an item out is refused.
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::{
-    budgeted_blocking_jobs,
-    hold_blocking_jobs_to,
-};
+use crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs;
 use crate::no_threads_child_test_support::ran_in_child;
 use crate::parallel_runner::Event;
 use crate::parallel_test_support::{
     PATIENCE,
     Rendezvous,
 };
+use crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to;
 use std::sync::atomic::{
     AtomicUsize,
     Ordering,
@@ -287,7 +285,13 @@ impl OrderedEvents<u64> for CountEnds {
 /// one place means one item at a time and a run as long as the items one after another.
 #[test]
 fn the_process_bound_holds_the_items_to_one_at_a_time() {
-    hold_blocking_jobs_to(ONE_PLACE);
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_process_bound_holds_the_items_to_one_at_a_time",
+    ) {
+        return;
+    }
+    hold_the_blocking_jobs_to(ONE_PLACE);
     let shared: Arc<Concurrency> = Arc::new(Concurrency {
         live: AtomicUsize::new(0),
         most: AtomicUsize::new(0),

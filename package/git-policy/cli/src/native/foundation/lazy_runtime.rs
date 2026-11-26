@@ -508,8 +508,17 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
     cap_malloc_arenas();
     let host: crate::parallel_budget::HostResources = crate::parallel_budget::HostResources::read();
     let limits: crate::runtime_limits::RuntimeLimits = crate::runtime_limits::RuntimeLimits::read();
+    // What:     the workers this process builds with: the room a control gave it, or the budget bounded by the limits.
+    // Why:      the room is this process's own fact, applied here at the one moment the runtime is made, so that a
+    //           control which plans a fixed host of its own reads only that host.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const workers = workersForThisProcess(host, limits);
+    // ```
+    let workers: usize = crate::runtime_plan::workers_for_this_process(&host, &limits);
     let plan: RuntimePlan = crate::runtime_plan::capped_at(
-        crate::runtime_plan::plan_runtime(&host, &limits),
+        crate::runtime_plan::plan_with_workers(workers),
         WORKER_CAP.load(std::sync::atomic::Ordering::SeqCst),
     );
     let began: std::time::Instant = std::time::Instant::now();
