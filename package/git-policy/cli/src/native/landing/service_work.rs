@@ -892,7 +892,7 @@ impl WorkHandlers for GitHandlers {
         &self,
         item: &WorkItem,
     ) -> Verdict {
-        return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+        return crate::worktree_remove_hand_over_service_removal::delete_subvolume_of(item);
     }
 
     /// What:
@@ -933,8 +933,11 @@ impl WorkHandlers for GitHandlers {
                 .name(String::from(REMOVAL_THREAD_NAME))
                 .spawn(move || {
                     // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
-                    let _sent =
-                        sender.send(crate::worktree_remove_hand_over::delete_subvolume_of(&held));
+                    let _sent = sender.send(
+                        crate::worktree_remove_hand_over_service_removal::delete_subvolume_of(
+                            &held,
+                        ),
+                    );
                 });
             if started.is_err() {
                 return Verdict::Retry(format!(

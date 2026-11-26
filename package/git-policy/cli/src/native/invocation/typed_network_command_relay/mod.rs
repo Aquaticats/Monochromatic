@@ -15,6 +15,10 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `a_remote_url_s_words_a_sentence_may_print.rs`:
+//!   where a remote URL's host ends,
+//!   whether a number after it is a port,
+//!   and the bytes a host name or a user name may hold.
 //! - `a_target_the_sentence_may_name.rs`:
 //!   the host a remote names as the person typed it,
 //!   and the words an `ssh` command needs to connect there.
@@ -44,6 +48,10 @@
 //! // relayWhenSshCarries(git, argv, env) : { outcome, code } | undefined  // undefined = keep today's process replacement
 //! ```
 
+/// Where a remote URL's host ends,
+/// whether a number after it is a port,
+/// and the bytes a host name or a user name may hold.
+pub mod a_remote_url_s_words_a_sentence_may_print;
 /// The host a remote names as the person typed it, and the words an `ssh` command needs to connect there.
 pub mod a_target_the_sentence_may_name;
 /// The pseudo-terminal a child writes its error stream to when this process's standard error is a terminal.
@@ -283,13 +291,14 @@ pub fn relay_when_ssh_carries(
     let shape: ErrorStreamShape = shape_of_this_process();
     // What: `git_command` builds the child exactly as the process replacement would have, so the arguments, the hooks-off
     //       prefix and the marker are the same in both shapes.
-    // Why:   A relayed command must be the same command, with one stream connected differently.
+    // Why:   A relayed command must be the same command, with one stream connected differently, and the relay takes it by
+    //        value so this process's own handle on that stream is closed once the child runs.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const command = gitCommand(git, argv, overlay, owner);
     // ```
-    let mut git_to_run: std::process::Command = git_command(real_git, arguments, overlay, owner);
+    let git_to_run: std::process::Command = git_command(real_git, arguments, overlay, owner);
     // What: `Err(io::Error)` is the failure variant: the operating system refused the start, which the caller reports.
     // Why:   A refused start is an engine failure and not a Git answer.
     //
@@ -298,7 +307,7 @@ pub fn relay_when_ssh_carries(
     // let start; try { start = startRelaying(shape, guard, command); } catch (error) { return { error }; }
     // ```
     let started: git_error_stream_relayed_as_it_arrives::RelayedStart =
-        match start_relaying(shape, Some(&guard), &mut git_to_run) {
+        match start_relaying(shape, Some(&guard), git_to_run) {
             Ok(running) => running,
             Err(error) => return Some(Err(error)),
         };

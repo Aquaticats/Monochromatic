@@ -35,14 +35,14 @@ use std::{
 
 /// What:
 ///  The most bytes of one file this reader reads to answer its lines:
-///  two mebibytes.
+///  eight mebibytes.
 /// Why:
 ///  Lines are answered for the files a finding is reported in,
 ///  which are the Rust files of the package
 ///  and the layout rule's allow list:
 ///  this repository's largest tracked Rust file was 176,292 bytes on 2026-11-26,
-///  and a list cannot be over one mebibyte (`layout_allow_list::MAX_BYTES`).
-///  Two mebibytes is about eleven times that largest file and twice that cap,
+///  and a list cannot be over four mebibytes (`layout_allow_list::MAX_BYTES`).
+///  Eight mebibytes is about 47 times that largest file and twice that cap,
 ///  so every file this repository can hold keeps its finding's line,
 ///  while a path that turns out to be a device or a file that grew is never read whole.
 ///  A line the bound cuts off reports the file start,
@@ -52,9 +52,9 @@ use std::{
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAX_SPAN_BYTES = 2 * 1024 * 1024;
+/// const MAX_SPAN_BYTES = 8 * 1024 * 1024;
 /// ```
-const MAX_SPAN_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_SPAN_BYTES: u64 = 8 * 1024 * 1024;
 
 /// What:
 ///  The line spans of each file already read,

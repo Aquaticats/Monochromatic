@@ -40,7 +40,17 @@ use super::support::{
     git,
     repository,
 };
+/// The full pipe nobody drains,
+/// the bytes it still holds and the bounded wait for a command given one.
+use super::support_a_full_standard_error::{
+    PipeNobodyDrains,
+    pending_bytes,
+    started_on_a_full_pipe,
+    wait_bounded,
+};
 use std::ffi::OsStr;
+/// The descriptor whose waiting bytes a control counts.
+use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 use std::process::Output;
 
@@ -707,4 +717,72 @@ fn the_claim_follows_the_conflict_marker_size_attribute() {
         let _waited = service.wait();
         remove_settled(&fixture);
     }
+}
+
+/// What:
+///  The commit that finishes a conflicted merge,
+///  whose standard error is a full pipe nobody drains,
+///  returns and lands the merge commit with the markers.
+/// Why:
+///   The warning about a committed conflict marker is a note of the landing report,
+///  printed once the branch has moved,
+///  and it used to be written on the commit's own thread:
+///  a reader that stopped draining held a commit that had already landed (issue 6421).
+///  The notes of the landing report go to the thread that writes standard error,
+///  so the command returns and the marker warning is what the stopped reader costs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('markers', () => { const repo = conflictedMerge(); const { child, pipe } = startedOnAFullPipe(wrappedCommit(repo, ['commit', '-m', 'finish the merge'])); expect(waitBounded(child)).toBe(0); expect(mergeHeadExists()).toBe(false) })
+/// ```
+#[test]
+fn a_committed_conflict_marker_holds_nobody_with_its_standard_error_full() {
+    let fixture: Fixture = fixture("commit-conflicted-path-stalled");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    let name: String = format!("ccps-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let head_before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    let mut command: std::process::Command = super::commit::wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--message=finish the merge"],
+    );
+    command.env(
+        "XDG_RUNTIME_DIR",
+        super::service_commit::runtime_for(name.as_str()),
+    );
+    let (child, pipe): (std::process::Child, PipeNobodyDrains) =
+        started_on_a_full_pipe(&mut command);
+    // The commit's own bound is `COMMIT_BOUND_SECONDS` (120 s), and a `SIGKILL`ed command is reaped in
+    //  a grace past it, so a control that reached this bound fails with what it waited for.
+    let status: std::process::ExitStatus =
+        wait_bounded(child, std::time::Duration::from_secs(150), "the commit");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "a commit whose marker warning nobody reads still lands"
+    );
+    assert_ne!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(),
+        head_before,
+        "the merge commit landed"
+    );
+    assert!(
+        git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"),
+        "the committed blob holds the markers"
+    );
+    assert!(
+        !repo.join(".git/MERGE_HEAD").exists(),
+        "the merge is finished"
+    );
+    assert_eq!(
+        pending_bytes(pipe.read_end.as_raw_fd()),
+        pipe.capacity,
+        "the pipe was read by nobody, so every byte this control put in it is still there"
+    );
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
 }

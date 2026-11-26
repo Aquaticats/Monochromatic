@@ -205,6 +205,81 @@ pub(super) fn held_commit(
     };
 }
 
+/// What:
+///  Starts a wrapped commit and holds it at the marker between its preparation and the service,
+///  with a standard error nobody drains.
+/// Why:
+///   A note written after the landing is written on the commit's own thread,
+///  so a control of such a note must give the command a stream that refuses every byte:
+///  the shared held commit reads its standard error through a pipe this process drains.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [held, pipe] = heldCommitOnAFullPipe(fixture, repo, name, markers, hold);
+/// ```
+pub(super) fn held_commit_whose_standard_error_is_a_full_pipe(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+    markers: &Path,
+    hold: &Hold<'_>,
+) -> (Held, super::support_a_full_standard_error::PipeNobodyDrains) {
+    let mut command: Command = bounded_for(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+        HELD_BOUND_SECONDS,
+    );
+    command.current_dir(repo).args(hold.arguments);
+    for (variable, value) in hold.environment {
+        command.env(variable, value);
+    }
+    command
+        .env("XDG_RUNTIME_DIR", runtime_for(name))
+        .env(
+            PHASE_SIGNAL_VARIABLE,
+            format!("service-prepared:pause:{}", markers.display()),
+        )
+        .stdout(Stdio::null())
+        .stdin(Stdio::null());
+    // What: The command's standard error is a full pipe nobody reads, and the child is this process's to end.
+    // Why:  A note written on the commit's own thread waits there, which is what the control measures.
+    let (child, pipe) = super::support_a_full_standard_error::started_on_a_full_pipe(&mut command);
+    let idle: IdleHold = hold_idle_judgment(child.id());
+    let held: Held = Held {
+        child,
+        stderr: None,
+        markers: markers.to_path_buf(),
+        hold: Some(idle),
+    };
+    return (held, pipe);
+}
+
+/// What:
+///  Lets a held commit go on to the service,
+///  waits for it no longer than `within`,
+///  and answers the status it ended with.
+/// Why:
+///   A control whose commit has a standard error nobody drains cannot read the ending through a pipe,
+///  and a commit that never returns must fail the control at a bound rather than hold the run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const releasedWithin = (held, within) => { release(held); return waitBounded(held.child, within, 'the held commit').code };
+/// ```
+pub(super) fn released_within(
+    mut held: Held,
+    within: Duration,
+) -> Option<i32> {
+    std::fs::write(held.markers.join("service-prepared-1.release"), "").expect("release");
+    // The guard judges the commit again once this control is no longer holding it.
+    let hold: Option<IdleHold> = held.hold.take();
+    let status =
+        super::support_a_full_standard_error::wait_bounded(held.child, within, "the held commit");
+    drop(hold);
+    return status.code();
+}
+
 /// Waits until the commit is held at the marker between its preparation and its landing,
 /// and fails the control with the commit's own words when it instead ended.
 pub(super) fn wait_held(held: &mut Held) {
