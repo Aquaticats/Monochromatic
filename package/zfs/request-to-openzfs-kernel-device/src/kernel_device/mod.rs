@@ -69,7 +69,10 @@ pub use device_error::DeviceError;
 /// The path of the one device file OpenZFS serves requests on.
 pub use device_path::DEVICE_PATH;
 /// The one step of a listing.
-pub use listed_object::{DatasetIdentity, ListedObject};
+pub use listed_object::{
+    DatasetIdentity,
+    ListedObject,
+};
 
 /// The guest fixture the live tests build their pools in,
 /// compiled for tests only.

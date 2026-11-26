@@ -20,10 +20,13 @@
 //! const clone = cloneTheOrigin(device, target, origin, guid);
 //! ```
 
+use crate::doctor_zfs_route::zfs_checks::LEGACY_MOUNTPOINT;
 use crate::doctor_zfs_route::{Grant, grants_of};
 use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
 use crate::worktree_clone_managed_lock::dataset_guid_reads::DatasetGuidReads;
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, MOUNTPOINT_PROPERTY, PropertyValue, facts_of as facts_from_the_reply};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
+use crate::worktree_clone_mount_protocol::local_user_property::{PropertyReading, read_local_property};
 use crate::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
@@ -47,6 +50,27 @@ pub struct ObjectIdentity {
     pub guid: DatasetGuid,
     /// The transaction group that created it.
     pub createtxg: u64,
+}
+
+/// What:
+///  What one clone request answered:
+///  the identity the record keeps,
+///  and the properties the add reads to report a clone it cannot use.
+/// Why:
+///  The kernel's own reply for the clone carries every property with its value
+///  and its source,
+///  so the add judges the clone without asking the pool a second question
+///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CloneMade = { identity: ObjectIdentity; facts: CloneObjectFacts };
+/// ```
+pub struct CloneMade {
+    /// The clone's own identity, which the record writes.
+    pub identity: ObjectIdentity,
+    /// The clone's properties, read from the same reply.
+    pub facts: CloneObjectFacts,
 }
 
 /// What:
@@ -94,24 +118,34 @@ impl OpenedDevice {
         return read_identity(&self.device, snapshot);
     }
 
-    /// Clone the origin snapshot and read the clone's identity back.
+    /// One dataset's properties as the kernel's reply for it carries them.
+    ///
+    /// # Errors
+    /// The dataset does not answer the pool.
+    pub fn facts_of(&self, name: &str) -> Result<CloneObjectFacts, String> {
+        let identity: DatasetIdentity = self.device.objset_stats(name).map_err(|error| return format!("{name} does not answer the pool ({error})"))?;
+        return Ok(facts_from_the_reply(name, &identity));
+    }
+
+    /// Clone the origin snapshot, read the clone's identity back,
+    /// and keep the properties that reply carries.
     ///
     /// # Errors
     /// The kernel refused the write or reported a per-name failure,
     /// or the clone does not answer afterwards.
-    pub fn clone_the_origin(&self, target: &str, origin: &str) -> Result<ObjectIdentity, String> {
-        // A clone inherits the origin's `mountpoint` unless it sets its own, and
-        // the design keeps every clone at a legacy mountpoint no automatic mount
-        // reaches (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-        // "Dataset and path layout"), so the property is written with the
-        // creation. `canmount` is not: the probe saw the container's local
-        // `canmount=off` not reach its child, and a legacy dataset is never
-        // mounted by itself whatever it says.
-        let mut properties: NvList = NvList::new();
-        properties.add_str("mountpoint", "legacy");
-        let reply: Option<NvList> = self.device.clone(target, origin, Some(&properties)).map_err(|error| return format!("the clone {target} was refused ({error}); the pool may be full, and the origin snapshot's identity is recorded"))?;
+    pub fn clone_the_origin(&self, target: &str, origin: &str) -> Result<CloneMade, String> {
+        // No property is sent with the request. A clone inherits its parent's
+        // `mountpoint`, which is the clone container and not the origin
+        // (`doc/planning/cli-git-zfs-clone-mountpoint-without-the-forbidden-grant.md`,
+        // "Where a clone's properties actually come from"), and the accepted
+        // design keeps the container at `mountpoint=legacy`
+        // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+        // "Dataset and path layout"). Sending `mountpoint` needs a delegation
+        // the design forbids this account, so the request it carries is refused
+        // (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+        let reply: Option<NvList> = self.device.clone(target, origin, None).map_err(|error| return format!("the clone {target} was refused ({error}); the pool may be full, and the origin snapshot's identity is recorded"))?;
         refuse_any_element(reply.as_ref(), "the clone")?;
-        return read_identity(&self.device, target);
+        return read_the_clone(&self.device, target);
     }
 
     /// The origin dataset's snapshots at or below `bounds_createtxg`, and its
@@ -205,6 +239,52 @@ impl DatasetGuidReads for OpenedDevice {
 fn read_identity(device: &ZfsDevice, name: &str) -> Result<ObjectIdentity, String> {
     let identity: DatasetIdentity = device.objset_stats(name).map_err(|error| return format!("{name} does not answer the pool ({error})"))?;
     return Ok(ObjectIdentity { guid: guid_of(identity.stats.dds_guid, name)?, createtxg: identity.stats.dds_creation_txg });
+}
+
+/// What:
+///  A clone's identity and its properties from the one reply that follows the
+///  clone request.
+/// Why:
+///  The record needs the identity and the add's report needs the properties,
+///  and the kernel gave both in this reply,
+///  so the clone costs one read rather than two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made: CloneMade = { identity: identityOf(reply), facts: factsOf(name, reply) };
+/// ```
+fn read_the_clone(device: &ZfsDevice, name: &str) -> Result<CloneMade, String> {
+    let identity: DatasetIdentity = device.objset_stats(name).map_err(|error| return format!("{name} does not answer the pool ({error})"))?;
+    let object: ObjectIdentity = ObjectIdentity { guid: guid_of(identity.stats.dds_guid, name)?, createtxg: identity.stats.dds_creation_txg };
+    return Ok(CloneMade { identity: object, facts: facts_from_the_reply(name, &identity) });
+}
+
+/// What:
+///  The sentence for a clone whose `mountpoint` is not `legacy` inherited from
+///  the container,
+///  or nothing when it is.
+/// Why:
+///  The design has the add report such a clone and destroy nothing
+///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`),
+///  and a clone whose property moved is not one this route may mount.
+///  The value and the source are read from the reply the pool already gave,
+///  so a person learns which dataset set the value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failure = theClonesMountpointFailure(facts, container); // string | undefined
+/// ```
+pub fn the_clones_mountpoint_failure(facts: &CloneObjectFacts, container: &str) -> Option<String> {
+    let value: PropertyValue = facts.mountpoint.clone();
+    let source: PropertyReading<'_> = read_local_property(Some(&facts.properties), facts.name.as_str(), MOUNTPOINT_PROPERTY);
+    let required: String = format!("a clone must read `{MOUNTPOINT_PROPERTY}` `{LEGACY_MOUNTPOINT}` inherited from its container `{container}`");
+    return match &source {
+        PropertyReading::Inherited { from } if from == container && value.text() == Some(LEGACY_MOUNTPOINT) => None,
+        PropertyReading::Inherited { from } => Some(format!("the clone `{}`: {}, inherited from `{from}`, and {required}", facts.name, value.describe(MOUNTPOINT_PROPERTY))),
+        PropertyReading::Local { .. } => Some(format!("the clone `{}`: {}, set on the clone itself, and {required}", facts.name, value.describe(MOUNTPOINT_PROPERTY))),
+        PropertyReading::Absent => Some(format!("the clone `{}` answers no `{MOUNTPOINT_PROPERTY}` property, and {required}", facts.name)),
+        PropertyReading::Malformed(refusal) => Some(refusal.message(MOUNTPOINT_PROPERTY)),
+    };
 }
 
 /// A GUID the kernel reported, refused when it is zero,

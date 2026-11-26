@@ -12,7 +12,10 @@
 //! so each variant's text and error number must be its own.
 
 use super::device_error::DeviceError;
-use crate::requests::{Error, Operation};
+use crate::requests::{
+    Error,
+    Operation,
+};
 
 #[test]
 fn an_unopenable_device_names_the_path_and_the_number() {

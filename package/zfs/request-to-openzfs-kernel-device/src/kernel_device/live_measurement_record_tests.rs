@@ -22,12 +22,20 @@
 use super::ZfsDevice;
 use super::fixture::Fixture;
 use super::fixture_pool::FixturePool;
-use super::fixture_reply::{bookmark_identity, listing_names, property_u64};
+use super::fixture_reply::{
+    bookmark_identity,
+    listing_names,
+    property_u64,
+};
 use super::read_reply::ReadAttempt;
 use super::write_requests::Promotion;
 use crate::kernel_device::DatasetIdentity;
 use crate::nvlist::NvList;
-use crate::requests::{INITIAL_REPLY_SIZE, Request, objset_stats};
+use crate::requests::{
+    INITIAL_REPLY_SIZE,
+    Request,
+    objset_stats,
+};
 
 /// The bytes each padding property's value holds.
 const PAD_VALUE_BYTES: usize = 3_000;
@@ -75,7 +83,10 @@ fn the_plan_items_report_what_the_crate_received() {
     let first: ReadAttempt = device
         .attempt_read(&mut request)
         .expect("the read is answered");
-    if let ReadAttempt::NeedsBiggerReply { requested } = first {
+    if let ReadAttempt::NeedsBiggerReply {
+        requested,
+    } = first
+    {
         println!(
             "MEASUREMENT reply initial={INITIAL_REPLY_SIZE} requested={requested} \
              properties={padded} value_bytes={PAD_VALUE_BYTES}"

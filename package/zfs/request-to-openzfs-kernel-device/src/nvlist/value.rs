@@ -26,13 +26,34 @@
 /// type numbers,
 /// alignment and version check.
 use super::data_type::{
-    DATA_TYPE_BOOLEAN, DATA_TYPE_BOOLEAN_ARRAY, DATA_TYPE_BOOLEAN_VALUE, DATA_TYPE_BYTE,
-    DATA_TYPE_BYTE_ARRAY, DATA_TYPE_DOUBLE, DATA_TYPE_HRTIME, DATA_TYPE_INT8, DATA_TYPE_INT8_ARRAY,
-    DATA_TYPE_INT16, DATA_TYPE_INT16_ARRAY, DATA_TYPE_INT32, DATA_TYPE_INT32_ARRAY,
-    DATA_TYPE_INT64, DATA_TYPE_INT64_ARRAY, DATA_TYPE_NVLIST, DATA_TYPE_NVLIST_ARRAY,
-    DATA_TYPE_STRING, DATA_TYPE_STRING_ARRAY, DATA_TYPE_UINT8, DATA_TYPE_UINT8_ARRAY,
-    DATA_TYPE_UINT16, DATA_TYPE_UINT16_ARRAY, DATA_TYPE_UINT32, DATA_TYPE_UINT32_ARRAY,
-    DATA_TYPE_UINT64, DATA_TYPE_UINT64_ARRAY, NV_UNIQUE_NAME,
+    DATA_TYPE_BOOLEAN,
+    DATA_TYPE_BOOLEAN_ARRAY,
+    DATA_TYPE_BOOLEAN_VALUE,
+    DATA_TYPE_BYTE,
+    DATA_TYPE_BYTE_ARRAY,
+    DATA_TYPE_DOUBLE,
+    DATA_TYPE_HRTIME,
+    DATA_TYPE_INT8,
+    DATA_TYPE_INT8_ARRAY,
+    DATA_TYPE_INT16,
+    DATA_TYPE_INT16_ARRAY,
+    DATA_TYPE_INT32,
+    DATA_TYPE_INT32_ARRAY,
+    DATA_TYPE_INT64,
+    DATA_TYPE_INT64_ARRAY,
+    DATA_TYPE_NVLIST,
+    DATA_TYPE_NVLIST_ARRAY,
+    DATA_TYPE_STRING,
+    DATA_TYPE_STRING_ARRAY,
+    DATA_TYPE_UINT8,
+    DATA_TYPE_UINT8_ARRAY,
+    DATA_TYPE_UINT16,
+    DATA_TYPE_UINT16_ARRAY,
+    DATA_TYPE_UINT32,
+    DATA_TYPE_UINT32_ARRAY,
+    DATA_TYPE_UINT64,
+    DATA_TYPE_UINT64_ARRAY,
+    NV_UNIQUE_NAME,
 };
 
 /// The value of one pair,
@@ -196,33 +217,88 @@ impl NvData {
     pub fn data_type(&self) -> i32 {
         return match self {
             NvData::BooleanFlag => DATA_TYPE_BOOLEAN,
-            NvData::Boolean { value: _ } => DATA_TYPE_BOOLEAN_VALUE,
-            NvData::Byte { value: _ } => DATA_TYPE_BYTE,
-            NvData::Int8 { value: _ } => DATA_TYPE_INT8,
-            NvData::Uint8 { value: _ } => DATA_TYPE_UINT8,
-            NvData::Int16 { value: _ } => DATA_TYPE_INT16,
-            NvData::Uint16 { value: _ } => DATA_TYPE_UINT16,
-            NvData::Int32 { value: _ } => DATA_TYPE_INT32,
-            NvData::Uint32 { value: _ } => DATA_TYPE_UINT32,
-            NvData::Int64 { value: _ } => DATA_TYPE_INT64,
-            NvData::Uint64 { value: _ } => DATA_TYPE_UINT64,
-            NvData::HrTime { value: _ } => DATA_TYPE_HRTIME,
-            NvData::Double { value: _ } => DATA_TYPE_DOUBLE,
-            NvData::Str { value: _ } => DATA_TYPE_STRING,
-            NvData::ByteArray { value: _ } => DATA_TYPE_BYTE_ARRAY,
-            NvData::Int8Array { value: _ } => DATA_TYPE_INT8_ARRAY,
-            NvData::Uint8Array { value: _ } => DATA_TYPE_UINT8_ARRAY,
-            NvData::Int16Array { value: _ } => DATA_TYPE_INT16_ARRAY,
-            NvData::Uint16Array { value: _ } => DATA_TYPE_UINT16_ARRAY,
-            NvData::Int32Array { value: _ } => DATA_TYPE_INT32_ARRAY,
-            NvData::Uint32Array { value: _ } => DATA_TYPE_UINT32_ARRAY,
-            NvData::Int64Array { value: _ } => DATA_TYPE_INT64_ARRAY,
-            NvData::Uint64Array { value: _ } => DATA_TYPE_UINT64_ARRAY,
-            NvData::BooleanArray { value: _ } => DATA_TYPE_BOOLEAN_ARRAY,
-            NvData::StrArray { value: _ } => DATA_TYPE_STRING_ARRAY,
-            NvData::List { value: _ } => DATA_TYPE_NVLIST,
-            NvData::ListArray { value: _ } => DATA_TYPE_NVLIST_ARRAY,
-            NvData::Unknown { dtype, .. } => *dtype,
+            NvData::Boolean {
+                value: _,
+            } => DATA_TYPE_BOOLEAN_VALUE,
+            NvData::Byte {
+                value: _,
+            } => DATA_TYPE_BYTE,
+            NvData::Int8 {
+                value: _,
+            } => DATA_TYPE_INT8,
+            NvData::Uint8 {
+                value: _,
+            } => DATA_TYPE_UINT8,
+            NvData::Int16 {
+                value: _,
+            } => DATA_TYPE_INT16,
+            NvData::Uint16 {
+                value: _,
+            } => DATA_TYPE_UINT16,
+            NvData::Int32 {
+                value: _,
+            } => DATA_TYPE_INT32,
+            NvData::Uint32 {
+                value: _,
+            } => DATA_TYPE_UINT32,
+            NvData::Int64 {
+                value: _,
+            } => DATA_TYPE_INT64,
+            NvData::Uint64 {
+                value: _,
+            } => DATA_TYPE_UINT64,
+            NvData::HrTime {
+                value: _,
+            } => DATA_TYPE_HRTIME,
+            NvData::Double {
+                value: _,
+            } => DATA_TYPE_DOUBLE,
+            NvData::Str {
+                value: _,
+            } => DATA_TYPE_STRING,
+            NvData::ByteArray {
+                value: _,
+            } => DATA_TYPE_BYTE_ARRAY,
+            NvData::Int8Array {
+                value: _,
+            } => DATA_TYPE_INT8_ARRAY,
+            NvData::Uint8Array {
+                value: _,
+            } => DATA_TYPE_UINT8_ARRAY,
+            NvData::Int16Array {
+                value: _,
+            } => DATA_TYPE_INT16_ARRAY,
+            NvData::Uint16Array {
+                value: _,
+            } => DATA_TYPE_UINT16_ARRAY,
+            NvData::Int32Array {
+                value: _,
+            } => DATA_TYPE_INT32_ARRAY,
+            NvData::Uint32Array {
+                value: _,
+            } => DATA_TYPE_UINT32_ARRAY,
+            NvData::Int64Array {
+                value: _,
+            } => DATA_TYPE_INT64_ARRAY,
+            NvData::Uint64Array {
+                value: _,
+            } => DATA_TYPE_UINT64_ARRAY,
+            NvData::BooleanArray {
+                value: _,
+            } => DATA_TYPE_BOOLEAN_ARRAY,
+            NvData::StrArray {
+                value: _,
+            } => DATA_TYPE_STRING_ARRAY,
+            NvData::List {
+                value: _,
+            } => DATA_TYPE_NVLIST,
+            NvData::ListArray {
+                value: _,
+            } => DATA_TYPE_NVLIST_ARRAY,
+            NvData::Unknown {
+                dtype,
+                ..
+            } => *dtype,
         };
     }
 }
@@ -279,7 +355,10 @@ impl NvList {
     /// The value of the last pair named `name`,
     /// which is the one the kernel's
     /// `NV_UNIQUE_NAME` decode keeps when a list carries the name twice.
-    pub fn get(&self, name: &str) -> Option<&NvData> {
+    pub fn get(
+        &self,
+        name: &str,
+    ) -> Option<&NvData> {
         return self
             .pairs
             .iter()
@@ -293,36 +372,56 @@ impl NvList {
 
     /// The `u64` value of a pair named `name`,
     /// if that is what it holds.
-    pub fn get_u64(&self, name: &str) -> Option<u64> {
+    pub fn get_u64(
+        &self,
+        name: &str,
+    ) -> Option<u64> {
         return match self.get(name)? {
-            NvData::Uint64 { value } => Some(*value),
+            NvData::Uint64 {
+                value,
+            } => Some(*value),
             _ => None,
         };
     }
 
     /// The string value of a pair named `name`,
     /// if that is what it holds.
-    pub fn get_str(&self, name: &str) -> Option<&str> {
+    pub fn get_str(
+        &self,
+        name: &str,
+    ) -> Option<&str> {
         return match self.get(name)? {
-            NvData::Str { value } => Some(value),
+            NvData::Str {
+                value,
+            } => Some(value),
             _ => None,
         };
     }
 
     /// The embedded list of a pair named `name`,
     /// if that is what it holds.
-    pub fn get_list(&self, name: &str) -> Option<&NvList> {
+    pub fn get_list(
+        &self,
+        name: &str,
+    ) -> Option<&NvList> {
         return match self.get(name)? {
-            NvData::List { value } => Some(value),
+            NvData::List {
+                value,
+            } => Some(value),
             _ => None,
         };
     }
 
     /// The embedded list array of a pair named `name`,
     /// if that is what it holds.
-    pub fn get_list_array(&self, name: &str) -> Option<&[NvList]> {
+    pub fn get_list_array(
+        &self,
+        name: &str,
+    ) -> Option<&[NvList]> {
         return match self.get(name)? {
-            NvData::ListArray { value } => Some(value),
+            NvData::ListArray {
+                value,
+            } => Some(value),
             _ => None,
         };
     }
@@ -331,7 +430,11 @@ impl NvList {
     /// replacing an earlier pair of the same name when
     /// `NV_UNIQUE_NAME` is set,
     /// as the kernel's own add does.
-    pub fn push(&mut self, name: impl Into<String>, data: NvData) -> &mut NvList {
+    pub fn push(
+        &mut self,
+        name: impl Into<String>,
+        data: NvData,
+    ) -> &mut NvList {
         let pair_name: String = name.into();
         if self.nvflag & NV_UNIQUE_NAME != 0 {
             self.pairs.retain(|pair| {
@@ -346,12 +449,25 @@ impl NvList {
     }
 
     /// Append a `u64` pair.
-    pub fn add_u64(&mut self, name: impl Into<String>, value: u64) -> &mut NvList {
-        return self.push(name, NvData::Uint64 { value });
+    pub fn add_u64(
+        &mut self,
+        name: impl Into<String>,
+        value: u64,
+    ) -> &mut NvList {
+        return self.push(
+            name,
+            NvData::Uint64 {
+                value,
+            },
+        );
     }
 
     /// Append a string pair.
-    pub fn add_str(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut NvList {
+    pub fn add_str(
+        &mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> &mut NvList {
         return self.push(
             name,
             NvData::Str {
@@ -361,33 +477,81 @@ impl NvList {
     }
 
     /// Append a `DATA_TYPE_BOOLEAN_VALUE` pair.
-    pub fn add_boolean(&mut self, name: impl Into<String>, value: bool) -> &mut NvList {
-        return self.push(name, NvData::Boolean { value });
+    pub fn add_boolean(
+        &mut self,
+        name: impl Into<String>,
+        value: bool,
+    ) -> &mut NvList {
+        return self.push(
+            name,
+            NvData::Boolean {
+                value,
+            },
+        );
     }
 
     /// Append a valueless `DATA_TYPE_BOOLEAN` flag.
-    pub fn add_bool_flag(&mut self, name: impl Into<String>) -> &mut NvList {
+    pub fn add_bool_flag(
+        &mut self,
+        name: impl Into<String>,
+    ) -> &mut NvList {
         return self.push(name, NvData::BooleanFlag);
     }
 
     /// Append an `i32` pair.
-    pub fn add_i32(&mut self, name: impl Into<String>, value: i32) -> &mut NvList {
-        return self.push(name, NvData::Int32 { value });
+    pub fn add_i32(
+        &mut self,
+        name: impl Into<String>,
+        value: i32,
+    ) -> &mut NvList {
+        return self.push(
+            name,
+            NvData::Int32 {
+                value,
+            },
+        );
     }
 
     /// Append a `u64` array pair.
-    pub fn add_u64_array(&mut self, name: impl Into<String>, value: Vec<u64>) -> &mut NvList {
-        return self.push(name, NvData::Uint64Array { value });
+    pub fn add_u64_array(
+        &mut self,
+        name: impl Into<String>,
+        value: Vec<u64>,
+    ) -> &mut NvList {
+        return self.push(
+            name,
+            NvData::Uint64Array {
+                value,
+            },
+        );
     }
 
     /// Append a string array pair.
-    pub fn add_str_array(&mut self, name: impl Into<String>, value: Vec<String>) -> &mut NvList {
-        return self.push(name, NvData::StrArray { value });
+    pub fn add_str_array(
+        &mut self,
+        name: impl Into<String>,
+        value: Vec<String>,
+    ) -> &mut NvList {
+        return self.push(
+            name,
+            NvData::StrArray {
+                value,
+            },
+        );
     }
 
     /// Append an embedded list pair.
-    pub fn add_nvlist(&mut self, name: impl Into<String>, value: NvList) -> &mut NvList {
-        return self.push(name, NvData::List { value });
+    pub fn add_nvlist(
+        &mut self,
+        name: impl Into<String>,
+        value: NvList,
+    ) -> &mut NvList {
+        return self.push(
+            name,
+            NvData::List {
+                value,
+            },
+        );
     }
 }
 

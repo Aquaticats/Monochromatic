@@ -14,14 +14,32 @@
 //! this reader is what makes the difference visible.
 
 use super::*;
-use crate::nvlist::{NvData, NvList};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
 
 #[test]
 fn the_three_integer_shapes_are_read() {
     let mut list: NvList = NvList::new();
-    list.push("int32", NvData::Int32 { value: 1 });
-    list.push("int64", NvData::Int64 { value: 2 });
-    list.push("uint64", NvData::Uint64 { value: 3 });
+    list.push(
+        "int32",
+        NvData::Int32 {
+            value: 1,
+        },
+    );
+    list.push(
+        "int64",
+        NvData::Int64 {
+            value: 2,
+        },
+    );
+    list.push(
+        "uint64",
+        NvData::Uint64 {
+            value: 3,
+        },
+    );
     let elements: Vec<ElementError> = element_errors(&list);
     assert_eq!(
         elements,
@@ -45,8 +63,18 @@ fn the_three_integer_shapes_are_read() {
 #[test]
 fn a_zero_error_number_means_the_element_succeeded() {
     let mut list: NvList = NvList::new();
-    list.push("ok", NvData::Int32 { value: 0 });
-    list.push("failed", NvData::Int32 { value: 5 });
+    list.push(
+        "ok",
+        NvData::Int32 {
+            value: 0,
+        },
+    );
+    list.push(
+        "failed",
+        NvData::Int32 {
+            value: 5,
+        },
+    );
     let elements: Vec<ElementError> = element_errors(&list);
     assert_eq!(elements.len(), 1);
     assert_eq!(elements[0].name, "failed");
@@ -58,7 +86,12 @@ fn a_property_error_unwraps_its_value() {
     property.add_u64("value", 13);
     property.add_u64("source", 0);
     let mut list: NvList = NvList::new();
-    list.push("readonly", NvData::List { value: property });
+    list.push(
+        "readonly",
+        NvData::List {
+            value: property,
+        },
+    );
     let elements: Vec<ElementError> = element_errors(&list);
     assert_eq!(
         elements,
@@ -72,9 +105,19 @@ fn a_property_error_unwraps_its_value() {
 #[test]
 fn an_ordinary_nested_list_is_read_in_turn() {
     let mut nested: NvList = NvList::new();
-    nested.push("inner", NvData::Int32 { value: 21 });
+    nested.push(
+        "inner",
+        NvData::Int32 {
+            value: 21,
+        },
+    );
     let mut list: NvList = NvList::new();
-    list.push("outer", NvData::List { value: nested });
+    list.push(
+        "outer",
+        NvData::List {
+            value: nested,
+        },
+    );
     let elements: Vec<ElementError> = element_errors(&list);
     assert_eq!(
         elements,
@@ -91,8 +134,18 @@ fn values_that_are_not_error_numbers_are_skipped() {
     list.add_str("text", "not an error");
     list.add_str_array("strings", vec!["a".to_string()]);
     list.add_bool_flag("flag");
-    list.push("bytes", NvData::ByteArray { value: vec![1] });
-    list.push("real", NvData::Int32 { value: 2 });
+    list.push(
+        "bytes",
+        NvData::ByteArray {
+            value: vec![1],
+        },
+    );
+    list.push(
+        "real",
+        NvData::Int32 {
+            value: 2,
+        },
+    );
     let elements: Vec<ElementError> = element_errors(&list);
     assert_eq!(
         elements,
@@ -107,7 +160,12 @@ fn values_that_are_not_error_numbers_are_skipped() {
 fn the_reader_keeps_at_most_the_documented_cap() {
     let mut list: NvList = NvList::new();
     for index in 0..(MAXIMUM_ELEMENTS_KEPT + 10) {
-        list.push(format!("snapshot-{index}"), NvData::Int32 { value: 2 });
+        list.push(
+            format!("snapshot-{index}"),
+            NvData::Int32 {
+                value: 2,
+            },
+        );
     }
     let elements: Vec<ElementError> = element_errors(&list);
     assert_eq!(elements.len(), MAXIMUM_ELEMENTS_KEPT);

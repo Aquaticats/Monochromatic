@@ -1,0 +1,25 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/garage-file-sync-linux-client",
+  "description": "Starts the Garage bisync run as soon as a file in ~/Plain changes, through directory-watcher, a trigger unit and a five-minute timer, with desktop alerts on failure and recovery.",
+  "type": "module",
+  "files": [
+    "src",
+    "systemd",
+    "config",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/garage-file-sync/linux-client"
+  },
+  "private": true,
+  "sideEffects": false
+}

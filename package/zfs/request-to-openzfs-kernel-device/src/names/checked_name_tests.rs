@@ -28,7 +28,12 @@ fn an_empty_name_is_refused_with_einval() {
 fn an_interior_nul_is_refused_with_its_offset() {
     let error: NameError =
         CheckedName::new(NameField::CommandName, "pool/a\0b").expect_err("a NUL is refused");
-    assert_eq!(error.problem, NameProblem::InteriorNul { at: 6 });
+    assert_eq!(
+        error.problem,
+        NameProblem::InteriorNul {
+            at: 6
+        }
+    );
     assert_eq!(error.errno(), libc::EINVAL);
     assert!(error.to_string().contains("NUL byte at offset 6"));
 }

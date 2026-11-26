@@ -120,6 +120,24 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
 /// The command with every stream inherited,
 /// as a forwarded command runs when nothing needs to be kept.
 fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
+    // What: A typed network command whose remote ssh carries relays Git's error stream here too, on the attempt that follows a
+    //       lock the service held.
+    // Why:  This is a fifth place a typed command reaches Git, and a `pull` that takes the index lock passes through it, so a
+    //       relay that skipped it would name no next step for the command that matters most.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const relayed = relayWhenSshCarries(git, argv, env, 'person'); if (relayed?.value) return forwardedRun(relayed.value);
+    // ```
+    #[cfg(unix)]
+    match crate::typed_network_command_relay::relay_when_ssh_carries(real_git, arguments, overlay, StartOwner::Person) {
+        Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code))) => return ForwardedRun::Ran(code),
+        Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(signal))) => return ForwardedRun::Killed(signal),
+        Some(Err(error)) => {
+            return ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
+        }
+        None => {}
+    }
     return match run_real_git(real_git, arguments, overlay, StartOwner::Person) {
         Ok(ChildOutcome::Exited(code)) => ForwardedRun::Ran(code),
         Ok(ChildOutcome::Signaled(signal)) => ForwardedRun::Killed(signal),
