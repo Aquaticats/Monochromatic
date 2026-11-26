@@ -30,6 +30,10 @@
 //!  for the lines it handed over,
 //!  because `std::process::exit` ends the thread where it stands
 //!  and the last lines of a refusal are the whole of what a person gets.
+//!  A process whose process limit refuses that thread writes every line where it is said instead,
+//!  and says once which limit refused it:
+//! a commit at its process limit failed on 2026-11-25 saying nothing at all,
+//!  because its refusal waited in a queue that no thread would ever write (issue 6476).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -126,6 +130,14 @@ struct Queue {
     /// a write that failed for any reason other than a momentary lack of room
     /// leaves a stream that no wait can bring back.
     stream_is_gone: bool,
+    /// Whether the system refused the thread that writes these lines,
+    /// with the line that says which limit refused it,
+    /// and nothing where a thread was started.
+    /// Why the refusal is kept and not retried:
+    ///  a process limit that refused the thread once refuses every later start too,
+    ///  so a line waiting for a new one would never reach the person,
+    ///  and the sentence waits here until a line is said, which is when a control's stream is in place.
+    thread_refusal: Option<String>,
     /// Where a control's lines go,
     /// or nothing when they go to this process's standard error.
     writer: Option<Box<dyn Write + Send>>,
@@ -182,15 +194,26 @@ fn start_the_queue() -> &'static TheQueueOfThisProcess {
             writing: false,
             reader_stopped: false,
             stream_is_gone: false,
+            thread_refusal: None,
             writer: None,
         }),
         Condvar::new(),
     )));
-    // The thread holds the queue for as long as this process runs. A refusal leaves every line of this process unwritten,
-    //  which is the one state this file cannot report on the stream it cannot reach, so it is not reported at all.
-    let _spawned = std::thread::Builder::new().name(String::from("cli-git-diagnostic-lines")).spawn(move || {
+    // What: the start of the one thread that writes these lines, whose refusal is a value here rather than a panic.
+    let started_writing = std::thread::Builder::new().name(String::from("cli-git-diagnostic-lines")).spawn(move || {
         write_every_line(started);
     });
+    // A refusal leaves every line of this process unwritten if nothing answers it, which is how the refusal of a commit
+    //  at its process limit was lost (issue 6476), so the refusal is kept here and every line is written where it is said.
+    if let Err(refusal) = started_writing {
+        let said: String = format!(
+            "monochromatic-git-policy-cli: {}. Every line this command says is written on the thread that says it, so nothing \
+             it says is lost while this limit stands.\n",
+            crate::scoped_start::refused_thread_sentence("write this command's own lines", &refusal)
+        );
+        let mut held = started.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        held.thread_refusal = Some(said);
+    }
     return started;
 }
 
@@ -370,6 +393,14 @@ pub fn write_bytes(line: &[u8]) {
     let (queue, ready) = queue();
     let ticket: u64 = {
         let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        // No thread was given these lines, so no caller waits for a line number here: the refusal, once, and then this
+        //  line are written now.
+        if let Some(said) = held.thread_refusal.take() {
+            drop(held);
+            write_where_it_is_said(queue, said.as_bytes());
+            write_where_it_is_said(queue, line);
+            return;
+        }
         let ticket: u64 = held.next_ticket;
         if held.lines.len() >= QUEUED_LINES {
             held.dropped = held.dropped.saturating_add(1);
@@ -382,6 +413,88 @@ pub fn write_bytes(line: &[u8]) {
         ticket
     };
     wait_until_written(queue, ready, ticket);
+}
+
+/// What:
+///  Writes one line on the thread that says it,
+///  where the system refused the thread that would have written it.
+/// Why:
+///   A process whose process limit refuses this file's thread still has to say why it failed:
+/// the refusal of a commit at its process limit reached nobody on 2026-11-25 (issue 6476),
+///  because every line waited in a queue that nothing would ever write.
+///  The line is written without waiting for a reader:
+/// one write is made only where the stream has room now,
+/// so a stream nobody drains costs the line and never the command,
+///  which is the same promise the queue keeps when its room runs out.
+///  A control's own stream is written as it stands,
+/// because a control's stream is the control's memory and never a reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeWhereItIsSaid = (line) => { const writer = takeTheControlsStream() ?? (roomNow() ? stderrDescriptor : null); if (!writer) return; writer.write(line); giveBack(writer) }
+/// ```
+fn write_where_it_is_said(queue: &'static Mutex<Queue>, line: &[u8]) {
+    // What: the stream a control gave this queue, taken out so that the write runs outside the queue's lock.
+    let given: Option<Box<dyn Write + Send>> = {
+        let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        held.writer.take()
+    };
+    // What: the stream this line goes to: the control's, or this process's own standard error where it takes a write now.
+    let mut writer: Box<dyn Write + Send> = match given {
+        Some(control) => control,
+        None => {
+            if !the_stream_has_room_now() {
+                return;
+            }
+            Box::new(StandardErrorDescriptor)
+        }
+    };
+    // What: one write of the line, whose refusal or short take is dropped: a stream that took nothing keeps nothing.
+    let _took: std::io::Result<usize> = writer.write(line);
+    let _flushed: std::io::Result<()> = writer.flush();
+    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if held.writer.is_none() {
+        held.writer = Some(writer);
+    }
+}
+
+/// What:
+///  Whether this process's standard error takes a write now,
+///  asked without waiting for the reader.
+/// Why:
+///   A line written where it is said must still keep the promise that no caller waits for a reader,
+/// and a stream with no room now is one a write would wait on;
+///  a regular file, a terminal and a pipe being drained all answer that they have room,
+///  so the ordinary case is written and the stopped reader costs the line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const roomNow = () => poll([{ fd: 2, events: POLLOUT }], 0) > 0
+/// ```
+#[cfg(unix)]
+fn the_stream_has_room_now() -> bool {
+    // What: one descriptor watched for room to write in it, and for no time at all.
+    let mut watched: libc::pollfd = libc::pollfd { fd: libc::STDERR_FILENO, events: libc::POLLOUT, revents: 0 };
+    // SAFETY: `poll` reads and writes only the one structure given to it here, and waits for no time.
+    let answered: libc::c_int = unsafe { libc::poll(&mut watched, 1, 0) };
+    // What: whether the stream reported room, and not an error or a hang-up instead.
+    return answered > 0 && watched.revents & libc::POLLOUT != 0;
+}
+
+/// What:
+///  Whether this process's standard error takes a write now,
+///  on a platform whose descriptors carry no such question: it is written and waited for.
+/// Why:
+///   Every platform this program is released on has the question above;
+/// this answer keeps the build of the other platforms and is measured by no control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const roomNow = () => true
+/// ```
+#[cfg(not(unix))]
+fn the_stream_has_room_now() -> bool {
+    return true;
 }
 
 /// What:
