@@ -1114,10 +1114,10 @@ fn the_own_stat_line_verdict() -> Vec<String> {
     let stat_path: String = format!("/proc/self/task/{reader}/stat");
     // Read before the first look, so what that read costs is in the baseline both looks share; the read after the
     //  second look is taken off the look after it, and never judged here.
-    let Ok(stat) = std::fs::read_to_string(stat_path.as_str()) else {
-        return vec![String::from("this system has a stat line")];
+    let before_length: usize = match std::fs::read_to_string(stat_path.as_str()) {
+        Ok(stat) => stat.len(),
+        Err(error) => return vec![format!("this system has a stat line: {error}")],
     };
-    let before_length: usize = stat.len();
     let Some(before): Option<Look> = look(reader) else {
         return vec![String::from("this system counts work")];
     };
@@ -1125,10 +1125,10 @@ fn the_own_stat_line_verdict() -> Vec<String> {
     let Some(after): Option<Look> = look(reader) else {
         return vec![String::from("still readable")];
     };
-    let Ok(stat) = std::fs::read_to_string(stat_path.as_str()) else {
-        return vec![String::from("this system has a stat line")];
+    let after_length: usize = match std::fs::read_to_string(stat_path.as_str()) {
+        Ok(stat) => stat.len(),
+        Err(error) => return vec![format!("this system has a stat line: {error}")],
     };
-    let after_length: usize = stat.len();
     let mut failures: Vec<String> = Vec::new();
     if !(renamed && after_length < before_length) {
         failures.push(format!(
