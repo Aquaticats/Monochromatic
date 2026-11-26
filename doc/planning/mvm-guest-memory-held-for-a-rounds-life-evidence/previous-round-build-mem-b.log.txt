@@ -1,0 +1,7 @@
+Setting up swapspace version 1, size = 6 GiB (6442446848 bytes)
+no label, UUID=bdbe841c-5815-4a8a-9481-c255e2e91e3e
+   Compiling similar v3.2.1
+   Compiling monochromatic-git-policy-cli v0.6.1-alpha.46 (/root/build-b/package/git-policy/cli)
+    Finished `release` profile [optimized] target(s) in 33m 32s
+BUILD=0
+DONE=0

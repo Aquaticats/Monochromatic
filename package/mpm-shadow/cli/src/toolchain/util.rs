@@ -21,7 +21,10 @@ use std::ffi::OsString;
 /// Imports the file-system module the atomic write uses.
 use std::fs;
 /// Imports `Path` and `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the toolchain error type.
 use super::error::ToolchainError;
@@ -47,7 +50,10 @@ pub fn starts_with_ascii_digit(text: &str) -> bool {
 }
 
 /// Whether `text` contains any of `needles`.
-pub fn contains_any(text: &str, needles: &[&str]) -> bool {
+pub fn contains_any(
+    text: &str,
+    needles: &[&str],
+) -> bool {
     for needle in needles {
         if text.contains(needle) {
             return true;
@@ -57,7 +63,10 @@ pub fn contains_any(text: &str, needles: &[&str]) -> bool {
 }
 
 /// Whether `text` ends with any of `suffixes`.
-pub fn ends_with_any(text: &str, suffixes: &[&str]) -> bool {
+pub fn ends_with_any(
+    text: &str,
+    suffixes: &[&str],
+) -> bool {
     for suffix in suffixes {
         if text.ends_with(suffix) {
             return true;
@@ -68,7 +77,10 @@ pub fn ends_with_any(text: &str, suffixes: &[&str]) -> bool {
 
 /// The tool with this id,
 /// or `None`.
-pub fn find_tool<'a>(tools: &'a [LockedTool], id: &str) -> Option<&'a LockedTool> {
+pub fn find_tool<'a>(
+    tools: &'a [LockedTool],
+    id: &str,
+) -> Option<&'a LockedTool> {
     for tool in tools {
         if tool.declaration.id == id {
             return Some(tool);
@@ -154,7 +166,10 @@ fn temporary_of(target: &Path) -> PathBuf {
 /// function openTemporary(temporary: string, mode?: number): FileHandle
 /// ```
 #[cfg(unix)]
-fn open_temporary(temporary: &Path, mode: Option<u32>) -> std::io::Result<fs::File> {
+fn open_temporary(
+    temporary: &Path,
+    mode: Option<u32>,
+) -> std::io::Result<fs::File> {
     /// Imports `OpenOptionsExt` from `std::os::unix::fs`,
     /// which carries the mode a created file is asked for.
     use std::os::unix::fs::OpenOptionsExt;
@@ -169,8 +184,15 @@ fn open_temporary(temporary: &Path, mode: Option<u32>) -> std::io::Result<fs::Fi
 /// Opens the temporary beside `target`;
 /// a platform without modes creates it with whatever a new file gets.
 #[cfg(not(unix))]
-fn open_temporary(temporary: &Path, _mode: Option<u32>) -> std::io::Result<fs::File> {
-    return fs::OpenOptions::new().write(true).create(true).truncate(true).open(temporary);
+fn open_temporary(
+    temporary: &Path,
+    _mode: Option<u32>,
+) -> std::io::Result<fs::File> {
+    return fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(temporary);
 }
 
 /// What:
@@ -189,7 +211,10 @@ fn open_temporary(temporary: &Path, _mode: Option<u32>) -> std::io::Result<fs::F
 /// function keepMode(temporary: FileHandle, mode?: number): void
 /// ```
 #[cfg(unix)]
-fn keep_mode(temporary: &fs::File, mode: Option<u32>) -> std::io::Result<()> {
+fn keep_mode(
+    temporary: &fs::File,
+    mode: Option<u32>,
+) -> std::io::Result<()> {
     /// Imports `PermissionsExt` from `std::os::unix::fs`.
     use std::os::unix::fs::PermissionsExt;
     return match mode {
@@ -201,7 +226,10 @@ fn keep_mode(temporary: &fs::File, mode: Option<u32>) -> std::io::Result<()> {
 /// Puts `mode` on the open temporary;
 /// a platform without modes has none to put.
 #[cfg(not(unix))]
-fn keep_mode(_temporary: &fs::File, _mode: Option<u32>) -> std::io::Result<()> {
+fn keep_mode(
+    _temporary: &fs::File,
+    _mode: Option<u32>,
+) -> std::io::Result<()> {
     return Ok(());
 }
 
@@ -290,7 +318,10 @@ fn remove_temporaries_of_gone_processes(target: &Path) {
 /// ```ts
 /// export function writeAtomically(target: string, bytes: Uint8Array): void
 /// ```
-pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainError> {
+pub fn write_atomically(
+    target: &Path,
+    bytes: &[u8],
+) -> Result<(), ToolchainError> {
     return write_atomically_with_mode(target, bytes, None);
 }
 
@@ -323,7 +354,11 @@ pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainErro
 /// ```ts
 /// export function writeAtomicallyWithMode(target: string, bytes: Uint8Array, mode?: number): void
 /// ```
-pub fn write_atomically_with_mode(target: &Path, bytes: &[u8], mode: Option<u32>) -> Result<(), ToolchainError> {
+pub fn write_atomically_with_mode(
+    target: &Path,
+    bytes: &[u8],
+    mode: Option<u32>,
+) -> Result<(), ToolchainError> {
     return write_atomically_at(target, bytes, mode, &no_step);
 }
 
@@ -352,17 +387,26 @@ pub(crate) fn write_atomically_at(
     let mut file: fs::File = match open_temporary(&temporary, mode) {
         Ok(opened) => opened,
         Err(error) => {
-            return Err(ToolchainError::failure(format!("cannot write {}: {error}", temporary.display())));
+            return Err(ToolchainError::failure(format!(
+                "cannot write {}: {error}",
+                temporary.display()
+            )));
         }
     };
     if let Err(error) = keep_mode(&file, mode) {
         // Best effort: an empty temporary with the wrong mode is useless, and the error below is what matters.
         let _ = fs::remove_file(&temporary);
-        return Err(ToolchainError::failure(format!("cannot give {} its mode: {error}", temporary.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot give {} its mode: {error}",
+            temporary.display()
+        )));
     }
     if let Err(error) = file.write_all(bytes) {
         let _ = fs::remove_file(&temporary);
-        return Err(ToolchainError::failure(format!("cannot write {}: {error}", temporary.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot write {}: {error}",
+            temporary.display()
+        )));
     }
     // The descriptor is closed before the rename, so a failure to flush the last bytes is this write's failure and
     // not a surprise for whoever reads the target afterwards.
@@ -373,7 +417,10 @@ pub(crate) fn write_atomically_at(
     if let Err(error) = fs::rename(&temporary, target) {
         // Best effort: the temporary file is useless now, and a failed removal changes nothing for the caller.
         let _ = fs::remove_file(&temporary);
-        return Err(ToolchainError::failure(format!("cannot replace {}: {error}", target.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot replace {}: {error}",
+            target.display()
+        )));
     }
     return Ok(());
 }

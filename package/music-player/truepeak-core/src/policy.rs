@@ -34,7 +34,10 @@
 /// ```ts
 /// import { BucketProbe, BucketTable } from "./bucketpolicy";
 /// ```
-use crate::bucketpolicy::{BucketProbe, BucketTable};
+use crate::bucketpolicy::{
+    BucketProbe,
+    BucketTable,
+};
 
 /// What:
 ///      `const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;`.
@@ -106,8 +109,7 @@ pub const SCHEMA_VERSION: u32 = 2;
 /// ```ts
 /// const METER_DESCRIPTION = "catmull-rom ...";
 /// ```
-const METER_DESCRIPTION: &str =
-    "catmull-rom q/h/tq; 4-sample window; per-channel cursor across chunk seams; interpolate only at 4 real samples; no synthetic end padding; v1";
+const METER_DESCRIPTION: &str = "catmull-rom q/h/tq; 4-sample window; per-channel cursor across chunk seams; interpolate only at 4 real samples; no synthetic end padding; v1";
 
 /// What:
 ///      `const SHORT_SCAN_MAX_SECS: f64 = 90.0;`.
@@ -203,7 +205,10 @@ const BONES_TOP_SLOTS: usize = 40;
 /// ```ts
 /// const LOSSLESS_PROBE = { coverageFraction: 0.10, probeMarginDb: 0.45 };
 /// ```
-const LOSSLESS_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.10, probe_margin_db: 0.45 };
+const LOSSLESS_PROBE: BucketProbe = BucketProbe {
+    coverage_fraction: 0.10,
+    probe_margin_db: 0.45,
+};
 
 /// What:
 ///      `const LOSSLESS_BONES_PROBE: BucketProbe = ...;`.
@@ -218,8 +223,10 @@ const LOSSLESS_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.10, probe
 /// ```ts
 /// const LOSSLESS_BONES_PROBE = { coverageFraction: 0.07, probeMarginDb: 0.45 };
 /// ```
-const LOSSLESS_BONES_PROBE: BucketProbe =
-    BucketProbe { coverage_fraction: 0.07, probe_margin_db: 0.45 };
+const LOSSLESS_BONES_PROBE: BucketProbe = BucketProbe {
+    coverage_fraction: 0.07,
+    probe_margin_db: 0.45,
+};
 
 /// What:
 ///      `const STORE_PROBE: BucketProbe = ...;`.
@@ -235,7 +242,10 @@ const LOSSLESS_BONES_PROBE: BucketProbe =
 /// ```ts
 /// const STORE_PROBE = { coverageFraction: 0.32, probeMarginDb: 0.30 };
 /// ```
-const STORE_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.32, probe_margin_db: 0.30 };
+const STORE_PROBE: BucketProbe = BucketProbe {
+    coverage_fraction: 0.32,
+    probe_margin_db: 0.30,
+};
 
 /// What:
 ///      `const YOUTUBE_PROBE: BucketProbe = ...;`.
@@ -249,7 +259,10 @@ const STORE_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.32, probe_ma
 /// ```ts
 /// const YOUTUBE_PROBE = { coverageFraction: 0.14, probeMarginDb: 0.50 };
 /// ```
-const YOUTUBE_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.14, probe_margin_db: 0.50 };
+const YOUTUBE_PROBE: BucketProbe = BucketProbe {
+    coverage_fraction: 0.14,
+    probe_margin_db: 0.50,
+};
 
 /// What:
 ///      `const BARE_PROBE: BucketProbe = ...;`.
@@ -265,7 +278,10 @@ const YOUTUBE_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.14, probe_
 /// ```ts
 /// const BARE_PROBE = { coverageFraction: 0.34, probeMarginDb: 0.50 };
 /// ```
-const BARE_PROBE: BucketProbe = BucketProbe { coverage_fraction: 0.34, probe_margin_db: 0.50 };
+const BARE_PROBE: BucketProbe = BucketProbe {
+    coverage_fraction: 0.34,
+    probe_margin_db: 0.50,
+};
 
 /// What:
 ///      `const CEILING_DBTP: f64 = -1.0;`.
@@ -316,7 +332,10 @@ const MAX_TOO_QUIET_DB: f64 = -2.0;
 
 /// Folds one byte into a running FNV-1a hash,
 /// the step `mix` and the byte hash repeat.
-fn fold_byte(hash: u64, byte: &u8) -> u64 {
+fn fold_byte(
+    hash: u64,
+    byte: &u8,
+) -> u64 {
     return (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME);
 }
 
@@ -333,7 +352,10 @@ fn fold_byte(hash: u64, byte: &u8) -> u64 {
 /// ```ts
 /// function mix(hash: bigint, word: bigint): bigint { ... }
 /// ```
-fn mix(hash: u64, word: u64) -> u64 {
+fn mix(
+    hash: u64,
+    word: u64,
+) -> u64 {
     // What:     `word.to_le_bytes().iter().fold(hash, |accumulator, &byte| ...)`.
     //           `.to_le_bytes()` turns the `u64` into its 8 little-endian bytes;
     //           `.iter()` borrows each; `&byte` copies it out; `.fold(seed, closure)`
@@ -347,13 +369,14 @@ fn mix(hash: u64, word: u64) -> u64 {
     // for (const byte of toLeBytes(word)) h = (h ^ BigInt(byte)) * FNV_PRIME;
     // return h;
     // ```
-    return word.to_le_bytes()
-        .iter()
-        .fold(hash, fold_byte)
+    return word.to_le_bytes().iter().fold(hash, fold_byte);
 }
 
 /// Folds one word into a running hash by way of `mix`.
-fn fold_word(hash: u64, word: &u64) -> u64 {
+fn fold_word(
+    hash: u64,
+    word: &u64,
+) -> u64 {
     return mix(hash, *word);
 }
 
@@ -377,7 +400,7 @@ fn hash_words(words: &[u64]) -> u64 {
     // ```ts
     // return words.reduce((hash, word) => mix(hash, word), FNV_OFFSET);
     // ```
-    return words.iter().fold(FNV_OFFSET, fold_word)
+    return words.iter().fold(FNV_OFFSET, fold_word);
 }
 
 /// What:
@@ -403,9 +426,7 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     // ```ts
     // return bytes.reduce((hash, byte) => (hash ^ BigInt(byte)) * FNV_PRIME, FNV_OFFSET);
     // ```
-    return bytes
-        .iter()
-        .fold(FNV_OFFSET, fold_byte)
+    return bytes.iter().fold(FNV_OFFSET, fold_byte);
 }
 
 /// What:
@@ -431,7 +452,7 @@ pub fn meter_id() -> u64 {
     // ```ts
     // return hashBytes(utf8(METER_DESCRIPTION));
     // ```
-    return hash_bytes(METER_DESCRIPTION.as_bytes())
+    return hash_bytes(METER_DESCRIPTION.as_bytes());
 }
 
 /// What:
@@ -457,7 +478,7 @@ pub fn stack_id(description: &str) -> u64 {
     // ```ts
     // return hashBytes(utf8(description));
     // ```
-    return hash_bytes(description.as_bytes())
+    return hash_bytes(description.as_bytes());
 }
 
 /// What:
@@ -666,7 +687,7 @@ impl Policy {
         // ```ts
         // return hashWords(words);
         // ```
-        return hash_words(&words)
+        return hash_words(&words);
     }
 
     /// What:
@@ -682,7 +703,10 @@ impl Policy {
     /// ```ts
     /// cacheIdentity(decoderStackId): CacheIdentity { ... }
     /// ```
-    pub fn cache_identity(&self, decoder_stack_id: u64) -> CacheIdentity {
+    pub fn cache_identity(
+        &self,
+        decoder_stack_id: u64,
+    ) -> CacheIdentity {
         // What:     `CacheIdentity { ... }`. The struct literal pairing this policy's id
         //           and meter id with the platform decoder id and the schema version.
         //           Tail -> return.
@@ -697,7 +721,7 @@ impl Policy {
             meter_id: meter_id(),
             decoder_stack_id,
             schema_version: SCHEMA_VERSION,
-        }
+        };
     }
 }
 
@@ -806,7 +830,7 @@ pub fn default_policy() -> Policy {
         ceiling_dbtp: CEILING_DBTP,
         max_too_loud_db: MAX_TOO_LOUD_DB,
         max_too_quiet_db: MAX_TOO_QUIET_DB,
-    }
+    };
 }
 
 /// What:

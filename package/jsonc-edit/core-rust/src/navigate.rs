@@ -27,7 +27,11 @@
 /// ```ts
 /// import { JsoncEditError, JsoncPathNotFoundError, JsoncTypeError } from './error';
 /// ```
-use crate::error::{JsoncEditError, JsoncPathNotFoundError, JsoncTypeError};
+use crate::error::{
+    JsoncEditError,
+    JsoncPathNotFoundError,
+    JsoncTypeError,
+};
 /// What:
 ///      Import the address segment type.
 /// Why:
@@ -48,7 +52,12 @@ use crate::path::JsoncPathSegment;
 /// ```ts
 /// import type { JsoncEntry, JsoncKey, JsoncKind, JsoncValue } from './value';
 /// ```
-use crate::value::{JsoncEntry, JsoncKey, JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncEntry,
+    JsoncKey,
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///      Encode ordinary Rust text as UTF-16 code units.
@@ -84,7 +93,10 @@ pub(crate) fn key_units(key: &str) -> Vec<u16> {
 /// ```ts
 /// function findEntryIndex(entries: JsoncEntry[], key: string): number | undefined;
 /// ```
-pub(crate) fn find_entry_index(entries: &[JsoncEntry], key: &str) -> Option<usize> {
+pub(crate) fn find_entry_index(
+    entries: &[JsoncEntry],
+    key: &str,
+) -> Option<usize> {
     let wanted = key_units(key);
     // What:     `enumerate` pairs each position with its member while iterating in source order.
     // Why:      The last match wins, so the walk keeps the highest matching position.
@@ -121,8 +133,12 @@ pub(crate) fn child_at<'a>(
     segment: &JsoncPathSegment,
 ) -> Result<Option<&'a JsoncValue>, JsoncTypeError> {
     return match segment {
-        JsoncPathSegment::Key { key } => match &value.kind {
-            JsoncKind::Record { entries } => {
+        JsoncPathSegment::Key {
+            key,
+        } => match &value.kind {
+            JsoncKind::Record {
+                entries,
+            } => {
                 let index = match find_entry_index(entries, key) {
                     Some(found) => found,
                     None => return Ok(None),
@@ -143,16 +159,24 @@ pub(crate) fn child_at<'a>(
                 };
                 return Ok(Some(&entry.value));
             }
-            JsoncKind::Array { .. } => Err(JsoncTypeError {
+            JsoncKind::Array {
+                ..
+            } => Err(JsoncTypeError {
                 message: format!("jsonc lookup: cannot index an array with key {key:?}"),
             }),
             _ => Err(JsoncTypeError {
                 message: String::from("jsonc lookup: cannot index a scalar value"),
             }),
         },
-        JsoncPathSegment::Index { index } => match &value.kind {
-            JsoncKind::Array { elements } => Ok(elements.get(*index)),
-            JsoncKind::Record { .. } => Err(JsoncTypeError {
+        JsoncPathSegment::Index {
+            index,
+        } => match &value.kind {
+            JsoncKind::Array {
+                elements,
+            } => Ok(elements.get(*index)),
+            JsoncKind::Record {
+                ..
+            } => Err(JsoncTypeError {
                 message: format!("jsonc lookup: cannot index an object with position {index}"),
             }),
             _ => Err(JsoncTypeError {
@@ -186,11 +210,17 @@ pub(crate) fn resolve<'a>(
     for segment in path {
         let found = match child_at(current, segment) {
             Ok(found) => found,
-            Err(error) => return Err(JsoncEditError::Type { error }),
+            Err(error) => {
+                return Err(JsoncEditError::Type {
+                    error,
+                });
+            }
         };
         let Some(next) = found else {
             return Err(JsoncEditError::PathNotFound {
-                error: JsoncPathNotFoundError { path: Vec::from(path) },
+                error: JsoncPathNotFoundError {
+                    path: Vec::from(path),
+                },
             });
         };
         current = next;
@@ -231,7 +261,10 @@ pub fn jsonc_lookup<'a>(
 /// ```ts
 /// function jsoncHas(state: JsoncEditState, path: JsoncPathSegment[]): boolean;
 /// ```
-pub fn jsonc_has(root: &JsoncValue, path: &[JsoncPathSegment]) -> bool {
+pub fn jsonc_has(
+    root: &JsoncValue,
+    path: &[JsoncPathSegment],
+) -> bool {
     return resolve(root, path).is_ok();
 }
 
@@ -255,9 +288,14 @@ pub fn jsonc_keys<'a>(
     path: &[JsoncPathSegment],
 ) -> Result<Vec<&'a JsoncKey>, JsoncEditError> {
     let target = resolve(root, path)?;
-    let JsoncKind::Record { entries } = &target.kind else {
+    let JsoncKind::Record {
+        entries,
+    } = &target.kind
+    else {
         return Err(JsoncEditError::Type {
-            error: JsoncTypeError { message: String::from("jsonc keys: target is not an object") },
+            error: JsoncTypeError {
+                message: String::from("jsonc keys: target is not an object"),
+            },
         });
     };
     // What:     A loop pushes a borrowed reference to each member key into an owned vector.

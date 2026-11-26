@@ -12,21 +12,10 @@
 #[cfg(not(target_endian = "little"))]
 compile_error!("wg-quicker-exempt currently supports little-endian Linux targets only");
 
-/// Standard I/O error type used for syscall failures.
-use std::io;
-/// Owned descriptor that closes automatically when its value leaves scope.
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 /// Stable Linux command constants,
 ///  attributes,
 ///  and syscall wrapper.
 use crate::bpf_uapi::{
-    bpf,
-    BpfAttr,
-    LinkCreateAttr,
-    MapCreateAttr,
-    MapUpdateAttr,
-    ObjPinAttr,
-    ProgLoadAttr,
     BPF_CGROUP_INET4_CONNECT,
     BPF_CGROUP_INET6_CONNECT,
     BPF_CGROUP_UDP4_SENDMSG,
@@ -38,6 +27,21 @@ use crate::bpf_uapi::{
     BPF_OBJ_PIN,
     BPF_PROG_LOAD,
     BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+    BpfAttr,
+    LinkCreateAttr,
+    MapCreateAttr,
+    MapUpdateAttr,
+    ObjPinAttr,
+    ProgLoadAttr,
+    bpf,
+};
+/// Standard I/O error type used for syscall failures.
+use std::io;
+/// Owned descriptor that closes automatically when its value leaves scope.
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
 };
 
 /// eBPF instruction matching kernel `struct bpf_insn`.
@@ -57,7 +61,13 @@ struct BpfInsn {
 /// Instruction construction for [`BpfInsn`].
 impl BpfInsn {
     /// Builds one instruction.
-    const fn new(code: u8, dst: u8, src: u8, off: i16, imm: i32) -> Self {
+    const fn new(
+        code: u8,
+        dst: u8,
+        src: u8,
+        off: i16,
+        imm: i32,
+    ) -> Self {
         return Self {
             code,
             dst_src: (src << 4) | dst,
@@ -191,7 +201,10 @@ fn create_mark_map(mark: u32) -> io::Result<OwnedFd> {
 }
 
 /// Loads the mark program for one hook and returns its fd.
-fn load_prog(map_fd: &OwnedFd, attach_type: u32) -> io::Result<OwnedFd> {
+fn load_prog(
+    map_fd: &OwnedFd,
+    attach_type: u32,
+) -> io::Result<OwnedFd> {
     let prog = mark_program(map_fd.as_raw_fd());
     let mut logbuf = vec![0u8; 65536];
     let license = b"GPL\0";
@@ -217,7 +230,10 @@ fn load_prog(map_fd: &OwnedFd, attach_type: u32) -> io::Result<OwnedFd> {
         Ok(fd) => fd,
         Err(error) => {
             let log = String::from_utf8_lossy(&logbuf);
-            return Err(io::Error::new(error.kind(), format!("{error}; verifier log: {log}")));
+            return Err(io::Error::new(
+                error.kind(),
+                format!("{error}; verifier log: {log}"),
+            ));
         }
     };
     // SAFETY: successful BPF_PROG_LOAD returns a new descriptor owned by this process.
@@ -230,7 +246,10 @@ fn pin_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
 }
 
 /// Pins a bpf object fd to a path in the bpf filesystem so it survives process exit.
-fn pin_obj(fd: &OwnedFd, path: &std::ffi::CStr) -> io::Result<()> {
+fn pin_obj(
+    fd: &OwnedFd,
+    path: &std::ffi::CStr,
+) -> io::Result<()> {
     let mut attr = BpfAttr {
         bytes: [0; 168],
     };
@@ -259,7 +278,11 @@ fn pin_obj(fd: &OwnedFd, path: &std::ffi::CStr) -> io::Result<()> {
 
 /// Attaches a program to a cgroup via `BPF_LINK_CREATE`,
 ///  returning the link fd.
-fn attach_link(prog_fd: &OwnedFd, cgroup_fd: i32, attach_type: u32) -> io::Result<OwnedFd> {
+fn attach_link(
+    prog_fd: &OwnedFd,
+    cgroup_fd: i32,
+    attach_type: u32,
+) -> io::Result<OwnedFd> {
     let mut attr = BpfAttr {
         bytes: [0; 168],
     };
@@ -287,12 +310,7 @@ pub const HOOKS: [u32; 4] = [
 
 /// Hook names used for pinned-link file names,
 ///  parallel to [`HOOKS`].
-pub const HOOK_NAMES: [&str; 4] = [
-    "connect4",
-    "connect6",
-    "udp4_sendmsg",
-    "udp6_sendmsg",
-];
+pub const HOOK_NAMES: [&str; 4] = ["connect4", "connect6", "udp4_sendmsg", "udp6_sendmsg"];
 
 /// Owns unpinned links so dropping this value atomically detaches its marker.
 pub struct MarkerLinks {
@@ -302,7 +320,11 @@ pub struct MarkerLinks {
 
 /// Loads and attaches one hook,
 ///  returning link descriptor that owns attachment.
-fn create_link(map_fd: &OwnedFd, cgroup_fd: i32, hook: u32) -> io::Result<OwnedFd> {
+fn create_link(
+    map_fd: &OwnedFd,
+    cgroup_fd: i32,
+    hook: u32,
+) -> io::Result<OwnedFd> {
     let prog_fd = load_prog(map_fd, hook)?;
     return attach_link(&prog_fd, cgroup_fd, hook);
 }
@@ -357,11 +379,16 @@ fn attach_marker_unpinned_until(
             return Err(io::Error::other("injected partial-link failure"));
         }
     }
-    return Ok(MarkerLinks { _links: links });
+    return Ok(MarkerLinks {
+        _links: links,
+    });
 }
 
 /// Attaches all marker hooks without persistence for privileged protocol verification.
-pub fn attach_marker_unpinned(cgroup_fd: i32, mark: u32) -> io::Result<MarkerLinks> {
+pub fn attach_marker_unpinned(
+    cgroup_fd: i32,
+    mark: u32,
+) -> io::Result<MarkerLinks> {
     return attach_marker_unpinned_until(cgroup_fd, mark, None);
 }
 
@@ -380,7 +407,11 @@ pub fn attach_marker_unpinned_failing_after(
 ///
 /// A failed hook removes every earlier pin,
 ///  so no partial attachment survives.
-pub fn attach_marker(cgroup_fd: i32, mark: u32, pin_dir: &str) -> io::Result<Vec<String>> {
+pub fn attach_marker(
+    cgroup_fd: i32,
+    mark: u32,
+    pin_dir: &str,
+) -> io::Result<Vec<String>> {
     let map_fd = create_mark_map(mark)?;
     let mut pinned = Vec::with_capacity(HOOKS.len());
     for (index, hook) in HOOKS.iter().enumerate() {

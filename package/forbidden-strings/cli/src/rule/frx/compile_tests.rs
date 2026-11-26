@@ -1,8 +1,16 @@
 // Compile, redaction, and precompiled round-trip tests for the frx rule compiler.
 
 use super::format::parse_patterns;
-use super::{compile_from_text, compile_rules, load_precompiled, LoadError};
-use forbidden_regex::{CompileError, RegexSet};
+use super::{
+    LoadError,
+    compile_from_text,
+    compile_rules,
+    load_precompiled,
+};
+use forbidden_regex::{
+    CompileError,
+    RegexSet,
+};
 use rayon::prelude::*;
 
 // The staged builtin baseline (crate data) and the repo-root append file.
@@ -20,7 +28,7 @@ fn error_rules() -> [String; 4] {
         format!("/{SENTINEL}*/"),        // dialect rejection: '*' unsupported
         format!("/(?:{SENTINEL})?/"),    // empty-matchable: whole pattern nullable
         format!("/{SENTINEL}{{2000}}/"), // oversized repetition: count over the cap
-    ]
+    ];
 }
 
 #[test]
@@ -34,10 +42,15 @@ fn builtin_ported_all_compile() {
         .par_iter()
         .enumerate()
         .filter_map(|(index, pattern)| {
-            return RegexSet::new(std::slice::from_ref(pattern)).err().map(|_| return index)
+            return RegexSet::new(std::slice::from_ref(pattern))
+                .err()
+                .map(|_| return index);
         })
         .collect();
-    assert!(failures.is_empty(), "builtin ported rules failed at indices {failures:?}");
+    assert!(
+        failures.is_empty(),
+        "builtin ported rules failed at indices {failures:?}"
+    );
 }
 
 #[test]
@@ -51,23 +64,50 @@ fn append_ported_compiles_end_to_end() {
 #[test]
 fn each_error_path_is_exercised() {
     let bad_flag = compile_from_text(&format!("/{SENTINEL}/i")).expect_err("flag");
-    assert!(matches!(bad_flag, LoadError::UnsupportedFlag { flag: 'i', .. }));
+    assert!(matches!(
+        bad_flag,
+        LoadError::UnsupportedFlag {
+            flag: 'i',
+            ..
+        }
+    ));
 
     let dialect = compile_from_text(&format!("/{SENTINEL}*/")).expect_err("dialect");
-    assert!(matches!(dialect, LoadError::Compile { reason: CompileError::Syntax { .. }, .. }));
+    assert!(matches!(
+        dialect,
+        LoadError::Compile {
+            reason: CompileError::Syntax { .. },
+            ..
+        }
+    ));
 
     let empty = compile_from_text(&format!("/(?:{SENTINEL})?/")).expect_err("empty");
-    assert!(matches!(empty, LoadError::Compile { reason: CompileError::EmptyMatchable, .. }));
+    assert!(matches!(
+        empty,
+        LoadError::Compile {
+            reason: CompileError::EmptyMatchable,
+            ..
+        }
+    ));
 
     let oversized = compile_from_text(&format!("/{SENTINEL}{{2000}}/")).expect_err("oversized");
-    assert!(matches!(oversized, LoadError::Compile { reason: CompileError::Syntax { .. }, .. }));
+    assert!(matches!(
+        oversized,
+        LoadError::Compile {
+            reason: CompileError::Syntax { .. },
+            ..
+        }
+    ));
 }
 
 #[test]
 fn sentinel_never_leaks_through_a_diagnostic() {
     for rule in error_rules() {
         let err = compile_from_text(&rule).expect_err("must fail closed");
-        assert!(!format!("{err}").contains(SENTINEL), "sentinel in Display of {err:?}");
+        assert!(
+            !format!("{err}").contains(SENTINEL),
+            "sentinel in Display of {err:?}"
+        );
         assert!(!format!("{err:?}").contains(SENTINEL), "sentinel in Debug");
     }
 }
@@ -77,19 +117,22 @@ fn sentinel_never_leaks_through_a_diagnostic() {
 struct BufSink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl std::io::Write for BufSink {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        data: &[u8],
+    ) -> std::io::Result<usize> {
         self.0.lock().expect("sink lock").extend_from_slice(data);
-        return Ok(data.len())
+        return Ok(data.len());
     }
     fn flush(&mut self) -> std::io::Result<()> {
-        return Ok(())
+        return Ok(());
     }
 }
 
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for BufSink {
     type Writer = BufSink;
     fn make_writer(&'a self) -> BufSink {
-        return self.clone()
+        return self.clone();
     }
 }
 
@@ -109,7 +152,10 @@ fn sentinel_never_reaches_a_tracing_subscriber() {
         }
     });
     let captured = String::from_utf8_lossy(&buf.lock().expect("sink lock")).into_owned();
-    assert!(!captured.contains(SENTINEL), "sentinel reached the tracing/stderr path");
+    assert!(
+        !captured.contains(SENTINEL),
+        "sentinel reached the tracing/stderr path"
+    );
 }
 
 #[test]
@@ -119,8 +165,11 @@ fn compile_rules_carries_names_per_format() {
     let tail = compile_rules("==> qqq-one <==\n/foo[0-9]/\n==> qqq-two <==\nabcdefgh\n")
         .expect("tail compiles");
     assert_eq!(tail.set.len(), 2);
-    let tail_names: Vec<Option<&str>> =
-        tail.names.iter().map(|name| return name.as_deref()).collect();
+    let tail_names: Vec<Option<&str>> = tail
+        .names
+        .iter()
+        .map(|name| return name.as_deref())
+        .collect();
     assert_eq!(tail_names, vec![Some("qqq-one"), Some("qqq-two")]);
 
     let legacy = compile_rules("/foo[0-9]/\nabcdefgh\n").expect("legacy compiles");

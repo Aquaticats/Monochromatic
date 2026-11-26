@@ -1,9 +1,12 @@
 //! Commands about the keyboard repeat announcement and window closing.
 
-/// Error text that is built only on failure.
-use crate::lazy_error_text::{option_or_text, result_or_text};
 /// Sibling modules of this crate.
 use super::Command;
+/// Error text that is built only on failure.
+use crate::lazy_error_text::{
+    option_or_text,
+    result_or_text,
+};
 
 /// Largest repeat rate and delay accepted.
 ///
@@ -50,11 +53,14 @@ pub const MAX_REPEAT_DELAY_MS: i32 = 10_000;
 /// ```
 pub(super) fn parse_repeat_info(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
     let Some(rate_text) = tokens.next() else {
-        return Ok(Command::RepeatInfo(None))
+        return Ok(Command::RepeatInfo(None));
     };
-    let delay_text = option_or_text(tokens.next(), format_args!("repeat-info expects RATE DELAY_MS or nothing"))?;
+    let delay_text = option_or_text(
+        tokens.next(),
+        format_args!("repeat-info expects RATE DELAY_MS or nothing"),
+    )?;
     if tokens.next().is_some() {
-        return Err("repeat-info expects RATE DELAY_MS or nothing".to_string())
+        return Err("repeat-info expects RATE DELAY_MS or nothing".to_string());
     }
     let rate = result_or_text(
         rate_text.parse::<i32>(),
@@ -65,12 +71,16 @@ pub(super) fn parse_repeat_info(tokens: &mut std::str::SplitWhitespace) -> Resul
         format_args!("repeat-info delay is not a whole number: {delay_text}"),
     )?;
     if !(0..=MAX_REPEAT_RATE).contains(&rate) {
-        return Err(format!("repeat-info rate must be from 0 to {MAX_REPEAT_RATE} per second, got: {rate}"))
+        return Err(format!(
+            "repeat-info rate must be from 0 to {MAX_REPEAT_RATE} per second, got: {rate}"
+        ));
     }
     if !(0..=MAX_REPEAT_DELAY_MS).contains(&delay) {
-        return Err(format!("repeat-info delay must be from 0 to {MAX_REPEAT_DELAY_MS} milliseconds, got: {delay}"))
+        return Err(format!(
+            "repeat-info delay must be from 0 to {MAX_REPEAT_DELAY_MS} milliseconds, got: {delay}"
+        ));
     }
-    return Ok(Command::RepeatInfo(Some((rate, delay))))
+    return Ok(Command::RepeatInfo(Some((rate, delay))));
 }
 
 /// Parse `close [INDEX]`.
@@ -95,7 +105,7 @@ pub(super) fn parse_close(tokens: &mut std::str::SplitWhitespace) -> Result<Comm
         )?),
     };
     if tokens.next().is_some() {
-        return Err("close takes at most a window index".to_string())
+        return Err("close takes at most a window index".to_string());
     }
-    return Ok(Command::CloseWindow(index))
+    return Ok(Command::CloseWindow(index));
 }

@@ -4,7 +4,12 @@
 /// The production window whose scroll and caret state is read back.
 use super::AppWindow;
 /// The complete reader fixture and real key-event helpers shared with the find tests.
-use super::find_tests::{Reader, chord, key, reader};
+use super::find_tests::{
+    Reader,
+    chord,
+    key,
+    reader,
+};
 /// What:
 ///  `Key` names toolkit special keys;
 ///  `WindowEvent` is what a seat delivers to the window.
@@ -17,7 +22,10 @@ use super::find_tests::{Reader, chord, key, reader};
 /// ```
 use slint::{
     ComponentHandle,
-    platform::{Key, WindowEvent},
+    platform::{
+        Key,
+        WindowEvent,
+    },
 };
 /// Disposable project files back every native window in these tests.
 use std::fs;
@@ -43,7 +51,10 @@ pub(super) fn position(reader: &Reader) -> (usize, usize) {
 
 /// Hold Control and Shift around one key,
 ///  releasing both afterwards.
-fn control_shift(window: &AppWindow, target: Key) {
+fn control_shift(
+    window: &AppWindow,
+    target: Key,
+) {
     window.window().dispatch_event(WindowEvent::KeyPressed {
         text: Key::Control.into(),
     });
@@ -54,7 +65,11 @@ fn control_shift(window: &AppWindow, target: Key) {
 }
 
 /// Press one key `count` times.
-fn repeat(window: &AppWindow, target: Key, count: usize) {
+fn repeat(
+    window: &AppWindow,
+    target: Key,
+    count: usize,
+) {
     for _ in 0..count {
         key(window, target);
     }

@@ -18,11 +18,24 @@ fn rust_tool(rig: &Rig) -> LockedTool {
 
 /// Answers the sample toolchain's two listings with these texts,
 /// then reconciles the tool.
-fn reconcile_with(rig: &Rig, tool: &LockedTool, targets: &str, components: &str) -> Result<Vec<String>, super::error::ToolchainError> {
-    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", targets, 0);
-    rig.runner.answer("rustup component list --installed --toolchain nightly-2026-10-30", components, 0);
+fn reconcile_with(
+    rig: &Rig,
+    tool: &LockedTool,
+    targets: &str,
+    components: &str,
+) -> Result<Vec<String>, super::error::ToolchainError> {
+    rig.runner.answer(
+        "rustup target list --installed --toolchain nightly-2026-10-30",
+        targets,
+        0,
+    );
+    rig.runner.answer(
+        "rustup component list --installed --toolchain nightly-2026-10-30",
+        components,
+        0,
+    );
     let mut added: Vec<String> = Vec::new();
-    return reconcile_rust_parts(&rig.context(), tool, &mut added).map(|()| return added)
+    return reconcile_rust_parts(&rig.context(), tool, &mut added).map(|()| return added);
 }
 
 #[test]
@@ -36,13 +49,21 @@ fn a_component_listed_with_its_host_triple_counts_as_installed() {
     )
     .expect("listed");
     assert!(added.is_empty(), "{added:?}");
-    assert!(!rig.runner.lines().iter().any(|line| return line.contains(" add ")), "{:?}", rig.runner.lines());
+    assert!(
+        !rig.runner
+            .lines()
+            .iter()
+            .any(|line| return line.contains(" add ")),
+        "{:?}",
+        rig.runner.lines()
+    );
 }
 
 #[test]
 fn every_declared_part_counts_as_missing_when_rustup_lists_none() {
     let rig = Rig::new();
-    let added: Vec<String> = reconcile_with(&rig, &rust_tool(&rig), "", "").expect("an empty listing is a listing");
+    let added: Vec<String> =
+        reconcile_with(&rig, &rust_tool(&rig), "", "").expect("an empty listing is a listing");
     assert_eq!(added.len(), 3, "{added:?}");
     assert_eq!(
         rig.runner.lines(),
@@ -63,12 +84,24 @@ fn a_longer_installed_target_name_is_not_the_declared_target() {
     let mut tool: LockedTool = rust_tool(&rig);
     tool.declaration.options.rust_targets = Some(vec!["wasm32-wasip1".to_string()]);
     tool.declaration.options.rust_components = None;
-    let added: Vec<String> = reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\nwasm32-wasip1-threads\n", "rust-src\n")
-        .expect("listed");
+    let added: Vec<String> = reconcile_with(
+        &rig,
+        &tool,
+        "x86_64-unknown-linux-gnu\nwasm32-wasip1-threads\n",
+        "rust-src\n",
+    )
+    .expect("listed");
     assert_eq!(added.len(), 1, "{added:?}");
-    assert!(added[0].contains("added the declared target wasm32-wasip1,"), "{added:?}");
     assert!(
-        rig.runner.lines().iter().any(|line| return line == "rustup target add wasm32-wasip1 --toolchain nightly-2026-10-30"),
+        added[0].contains("added the declared target wasm32-wasip1,"),
+        "{added:?}"
+    );
+    assert!(
+        rig.runner
+            .lines()
+            .iter()
+            .any(|line| return line
+                == "rustup target add wasm32-wasip1 --toolchain nightly-2026-10-30"),
         "{:?}",
         rig.runner.lines()
     );
@@ -81,10 +114,18 @@ fn a_component_whose_listed_name_only_shares_its_prefix_is_missing() {
     // `rustc-dev` is a different component from `rustc`, and its listing starts with the latter's name.
     tool.declaration.options.rust_components = Some(vec!["rustc".to_string()]);
     tool.declaration.options.rust_targets = None;
-    let added: Vec<String> =
-        reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rustc-dev-x86_64-unknown-linux-gnu\n").expect("listed");
+    let added: Vec<String> = reconcile_with(
+        &rig,
+        &tool,
+        "x86_64-unknown-linux-gnu\n",
+        "rustc-dev-x86_64-unknown-linux-gnu\n",
+    )
+    .expect("listed");
     assert_eq!(added.len(), 1, "{added:?}");
-    assert!(added[0].contains("added the declared component rustc,"), "{added:?}");
+    assert!(
+        added[0].contains("added the declared component rustc,"),
+        "{added:?}"
+    );
 }
 
 #[test]
@@ -94,30 +135,60 @@ fn a_component_suffixed_with_a_triple_the_toolchain_does_not_have_is_missing() {
     tool.declaration.options.rust_components = Some(vec!["clippy".to_string()]);
     tool.declaration.options.rust_targets = None;
     // The listed suffix is no target of this toolchain, so it names some other build of `clippy`.
-    let added: Vec<String> = reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "clippy-aarch64-unknown-linux-gnu\n")
-        .expect("listed");
+    let added: Vec<String> = reconcile_with(
+        &rig,
+        &tool,
+        "x86_64-unknown-linux-gnu\n",
+        "clippy-aarch64-unknown-linux-gnu\n",
+    )
+    .expect("listed");
     assert_eq!(added.len(), 1, "{added:?}");
 }
 
 #[test]
 fn a_failed_target_listing_fails_the_tool_before_any_add_runs() {
     let rig = Rig::new();
-    rig.runner.fail("rustup target list --installed", "error: no installed toolchains");
+    rig.runner.fail(
+        "rustup target list --installed",
+        "error: no installed toolchains",
+    );
     let mut added: Vec<String> = Vec::new();
-    let error = reconcile_rust_parts(&rig.context(), &rust_tool(&rig), &mut added).expect_err("the listing failed");
-    assert!(error.message.contains("rustup target list --installed failed for rust: error: no installed toolchains"), "{error}");
+    let error = reconcile_rust_parts(&rig.context(), &rust_tool(&rig), &mut added)
+        .expect_err("the listing failed");
+    assert!(
+        error.message.contains(
+            "rustup target list --installed failed for rust: error: no installed toolchains"
+        ),
+        "{error}"
+    );
     assert!(added.is_empty());
-    assert_eq!(rig.runner.lines(), vec!["rustup target list --installed --toolchain nightly-2026-10-30".to_string()]);
+    assert_eq!(
+        rig.runner.lines(),
+        vec!["rustup target list --installed --toolchain nightly-2026-10-30".to_string()]
+    );
 }
 
 #[test]
 fn a_failed_component_listing_fails_the_tool_after_the_target_listing() {
     let rig = Rig::new();
-    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\n", 0);
-    rig.runner.fail("rustup component list --installed", "error: metadata is corrupt");
+    rig.runner.answer(
+        "rustup target list --installed --toolchain nightly-2026-10-30",
+        "x86_64-unknown-linux-gnu\n",
+        0,
+    );
+    rig.runner.fail(
+        "rustup component list --installed",
+        "error: metadata is corrupt",
+    );
     let mut added: Vec<String> = Vec::new();
-    let error = reconcile_rust_parts(&rig.context(), &rust_tool(&rig), &mut added).expect_err("the component listing failed");
-    assert!(error.message.contains("rustup component list --installed failed for rust: error: metadata is corrupt"), "{error}");
+    let error = reconcile_rust_parts(&rig.context(), &rust_tool(&rig), &mut added)
+        .expect_err("the component listing failed");
+    assert!(
+        error.message.contains(
+            "rustup component list --installed failed for rust: error: metadata is corrupt"
+        ),
+        "{error}"
+    );
     assert_eq!(
         rig.runner.lines(),
         vec![
@@ -140,7 +211,10 @@ fn a_tool_that_declares_no_parts_asks_rustup_nothing() {
     let mut empty: Vec<String> = Vec::new();
     reconcile_rust_parts(&rig.context(), &tool, &mut empty).expect("nothing to do");
     assert!(absent.is_empty() && empty.is_empty());
-    assert!(rig.runner.calls().is_empty(), "no listing is needed when the lock declares no part");
+    assert!(
+        rig.runner.calls().is_empty(),
+        "no listing is needed when the lock declares no part"
+    );
 }
 
 #[test]
@@ -148,8 +222,16 @@ fn a_component_add_rereads_the_target_listing_before_adding_a_target() {
     let rig = Rig::new();
     // The first target listing lacks the declared triple; adding the component brings its standard library,
     // so the second listing has it and no target add runs.
-    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\n", 0);
-    rig.runner.answer("rustup component list --installed --toolchain nightly-2026-10-30", "rust-src\n", 0);
+    rig.runner.answer(
+        "rustup target list --installed --toolchain nightly-2026-10-30",
+        "x86_64-unknown-linux-gnu\n",
+        0,
+    );
+    rig.runner.answer(
+        "rustup component list --installed --toolchain nightly-2026-10-30",
+        "rust-src\n",
+        0,
+    );
     rig.runner.answer_after(
         "rustup component add clippy",
         "rustup target list --installed --toolchain nightly-2026-10-30",
@@ -157,9 +239,17 @@ fn a_component_add_rereads_the_target_listing_before_adding_a_target() {
         0,
     );
     let mut added: Vec<String> = Vec::new();
-    reconcile_rust_parts(&rig.context(), &rust_tool(&rig), &mut added).expect("the component was added");
+    reconcile_rust_parts(&rig.context(), &rust_tool(&rig), &mut added)
+        .expect("the component was added");
     assert_eq!(added.len(), 1, "only the component was added: {added:?}");
-    assert!(!rig.runner.lines().iter().any(|line| return line.starts_with("rustup target add")), "{:?}", rig.runner.lines());
+    assert!(
+        !rig.runner
+            .lines()
+            .iter()
+            .any(|line| return line.starts_with("rustup target add")),
+        "{:?}",
+        rig.runner.lines()
+    );
 }
 
 #[test]
@@ -172,14 +262,24 @@ fn two_declarations_that_name_one_part_add_it_once() {
         "rust-std-x86_64-unknown-linux-gnu".to_string(),
         "rust-std".to_string(),
     ]);
-    tool.declaration.options.rust_targets = Some(vec!["aarch64-linux-android".to_string(), "aarch64-linux-android".to_string()]);
-    let added: Vec<String> = reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
+    tool.declaration.options.rust_targets = Some(vec![
+        "aarch64-linux-android".to_string(),
+        "aarch64-linux-android".to_string(),
+    ]);
+    let added: Vec<String> =
+        reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
     assert_eq!(added.len(), 2, "one component and one target: {added:?}");
-    let adds: Vec<String> = rig.runner.lines().into_iter().filter(|line| return line.contains(" add ")).collect();
+    let adds: Vec<String> = rig
+        .runner
+        .lines()
+        .into_iter()
+        .filter(|line| return line.contains(" add "))
+        .collect();
     assert_eq!(
         adds,
         vec![
-            "rustup component add rust-std-x86_64-unknown-linux-gnu --toolchain nightly-2026-10-30".to_string(),
+            "rustup component add rust-std-x86_64-unknown-linux-gnu --toolchain nightly-2026-10-30"
+                .to_string(),
             "rustup target add aarch64-linux-android --toolchain nightly-2026-10-30".to_string(),
         ]
     );
@@ -190,12 +290,24 @@ fn a_bare_declaration_added_first_covers_the_qualified_declaration_after_it() {
     let rig = Rig::new();
     let mut tool: LockedTool = rust_tool(&rig);
     // The first declaration names the component bare, the second names the same part with its triple.
-    tool.declaration.options.rust_components = Some(vec!["clippy".to_string(), "clippy-x86_64-unknown-linux-gnu".to_string()]);
+    tool.declaration.options.rust_components = Some(vec![
+        "clippy".to_string(),
+        "clippy-x86_64-unknown-linux-gnu".to_string(),
+    ]);
     tool.declaration.options.rust_targets = None;
-    let added: Vec<String> = reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "").expect("listed");
+    let added: Vec<String> =
+        reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "").expect("listed");
     assert_eq!(added.len(), 1, "{added:?}");
-    let adds: Vec<String> = rig.runner.lines().into_iter().filter(|line| return line.contains(" add ")).collect();
-    assert_eq!(adds, vec!["rustup component add clippy --toolchain nightly-2026-10-30".to_string()]);
+    let adds: Vec<String> = rig
+        .runner
+        .lines()
+        .into_iter()
+        .filter(|line| return line.contains(" add "))
+        .collect();
+    assert_eq!(
+        adds,
+        vec!["rustup component add clippy --toolchain nightly-2026-10-30".to_string()]
+    );
 }
 
 /// The listing that decides which parts are missing must never install a toolchain:
@@ -205,9 +317,23 @@ fn a_bare_declaration_added_first_covers_the_qualified_declaration_after_it() {
 #[test]
 fn the_installed_parts_listings_ask_rustup_not_to_install_a_missing_toolchain() {
     let rig = Rig::new();
-    reconcile_with(&rig, &rust_tool(&rig), "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
-    let listings: Vec<RunRequest> = rig.runner.calls().into_iter().filter(|call| return call.args.iter().any(|argument| return argument == "list")).collect();
-    assert!(!listings.is_empty(), "the reconcile asks rustup what it holds: {listings:?}");
+    reconcile_with(
+        &rig,
+        &rust_tool(&rig),
+        "x86_64-unknown-linux-gnu\n",
+        "rust-src\n",
+    )
+    .expect("listed");
+    let listings: Vec<RunRequest> = rig
+        .runner
+        .calls()
+        .into_iter()
+        .filter(|call| return call.args.iter().any(|argument| return argument == "list"))
+        .collect();
+    assert!(
+        !listings.is_empty(),
+        "the reconcile asks rustup what it holds: {listings:?}"
+    );
     for listing in listings {
         let env = listing.env.as_ref().expect("an explicit environment");
         assert_eq!(
@@ -221,7 +347,13 @@ fn the_installed_parts_listings_ask_rustup_not_to_install_a_missing_toolchain() 
 #[test]
 fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
     let rig = Rig::new();
-    let added: Vec<String> = reconcile_with(&rig, &rust_tool(&rig), "aarch64-linux-android\n", "rust-src\n").expect("one component added");
+    let added: Vec<String> = reconcile_with(
+        &rig,
+        &rust_tool(&rig),
+        "aarch64-linux-android\n",
+        "rust-src\n",
+    )
+    .expect("one component added");
     assert_eq!(
         added,
         vec![
@@ -242,7 +374,9 @@ fn the_installed_parts_are_listed_for_the_package_id_channel() {
     reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
     let lines: Vec<String> = rig.runner.lines();
     assert!(
-        lines.iter().all(|line| return line.ends_with("--toolchain nightly")),
+        lines
+            .iter()
+            .all(|line| return line.ends_with("--toolchain nightly")),
         "every listing and add names the installed channel: {lines:?}"
     );
 }

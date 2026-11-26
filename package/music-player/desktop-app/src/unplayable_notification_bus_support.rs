@@ -10,13 +10,23 @@
 /// Imports the map type of the hints that a recorded call carries.
 use std::collections::HashMap;
 /// Imports the line reader that reads the daemon's address.
-use std::io::{BufRead, BufReader};
+use std::io::{
+    BufRead,
+    BufReader,
+};
 /// Imports the path type of the daemon's socket folder.
 use std::path::PathBuf;
 /// Imports the process types that start the daemon.
-use std::process::{Child, Command, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 /// Imports the shared ownership and lock types that share the recorded calls.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 /// Imports the duration type of the service's reply delay.
 use std::time::Duration;
 
@@ -24,7 +34,11 @@ use std::time::Duration;
 use futures_util::StreamExt;
 /// Imports the connection,
 /// message stream and variant types of the D-Bus client.
-use zbus::{Connection, MessageStream, OwnedVariant};
+use zbus::{
+    Connection,
+    MessageStream,
+    OwnedVariant,
+};
 
 /// One recorded `Notify` call,
 /// reduced to what the tests assert.
@@ -65,16 +79,40 @@ pub(crate) type Calls = Arc<Mutex<Vec<Call>>>;
 
 /// What the `Notify` call carries on the wire,
 /// in the order the specification gives.
-type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, OwnedVariant>, i32);
+type NotifyBody = (
+    String,
+    u32,
+    String,
+    String,
+    String,
+    Vec<String>,
+    HashMap<String, OwnedVariant>,
+    i32,
+);
 
 /// Reduces a decoded `Notify` body to the fields the tests assert.
 fn record(body: NotifyBody) -> Call {
     let (app_name, replaces_id, app_icon, summary, text, actions, hints, expire_timeout) = body;
     let mut hint_names: Vec<String> = hints.keys().cloned().collect();
     hint_names.sort();
-    let urgency = hints.get("urgency").and_then(|value| return u8::try_from(value).ok());
-    let desktop_entry = hints.get("desktop-entry").and_then(|value| return String::try_from(value.clone()).ok());
-    return Call { app_name, replaces_id, app_icon, summary, body: text, actions, hint_names, urgency, desktop_entry, expire_timeout };
+    let urgency = hints
+        .get("urgency")
+        .and_then(|value| return u8::try_from(value).ok());
+    let desktop_entry = hints
+        .get("desktop-entry")
+        .and_then(|value| return String::try_from(value.clone()).ok());
+    return Call {
+        app_name,
+        replaces_id,
+        app_icon,
+        summary,
+        body: text,
+        actions,
+        hint_names,
+        urgency,
+        desktop_entry,
+        expire_timeout,
+    };
 }
 
 /// How a recording service misbehaves:
@@ -93,15 +131,27 @@ pub(crate) struct Behavior {
 /// recording each and replying with the call count
 /// after the delay of `behavior`;
 /// the first `refuse_first` calls get an error reply instead.
-fn answer_notify_calls(connection: &Connection, incoming: MessageStream, calls: &Calls, behavior: Behavior) {
-    zbus::block_on(answer_notify_calls_async(connection, incoming, calls, behavior));
+fn answer_notify_calls(
+    connection: &Connection,
+    incoming: MessageStream,
+    calls: &Calls,
+    behavior: Behavior,
+) {
+    zbus::block_on(answer_notify_calls_async(
+        connection, incoming, calls, behavior,
+    ));
 }
 
 /// The body of `answer_notify_calls`,
 /// run inside one `zbus::block_on` call on the service thread.
 /// The delay is a blocking sleep on purpose:
 /// it stands for a service that stopped answering.
-async fn answer_notify_calls_async(connection: &Connection, mut incoming: MessageStream, calls: &Calls, behavior: Behavior) {
+async fn answer_notify_calls_async(
+    connection: &Connection,
+    mut incoming: MessageStream,
+    calls: &Calls,
+    behavior: Behavior,
+) {
     let mut refused = 0;
     while let Some(received) = incoming.next().await {
         let Ok(message) = received else {
@@ -117,13 +167,23 @@ async fn answer_notify_calls_async(connection: &Connection, mut incoming: Messag
         std::thread::sleep(behavior.delay);
         if refused < behavior.refuse_first {
             refused += 1;
-            if connection.reply_error(&header, "org.freedesktop.DBus.Error.Failed", &("refused on purpose",)).await.is_err() {
+            if connection
+                .reply_error(
+                    &header,
+                    "org.freedesktop.DBus.Error.Failed",
+                    &("refused on purpose",),
+                )
+                .await
+                .is_err()
+            {
                 return;
             }
             continue;
         }
         let id = {
-            let mut recorded = calls.lock().expect("the recorded calls lock is not poisoned");
+            let mut recorded = calls
+                .lock()
+                .expect("the recorded calls lock is not poisoned");
             recorded.push(record(body));
             u32::try_from(recorded.len()).expect("a test makes few calls")
         };
@@ -156,11 +216,16 @@ impl PrivateBus {
     /// When `dbus-daemon` is not installed or does not print an address;
     /// the tests need it and say so.
     pub(crate) fn start(label: &str) -> PrivateBus {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("clock after 1970").as_nanos();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after 1970")
+            .as_nanos();
         // The daemon creates its socket inside this folder, and a Unix socket path holds at most 107 bytes, which the
         // build directory's path already exceeds, so the folder lives in the per-user runtime directory.
-        let runtime = std::env::var_os("XDG_RUNTIME_DIR").expect("XDG_RUNTIME_DIR holds the short socket directory");
-        let folder = std::path::PathBuf::from(runtime).join(format!("mp_bus_{label}_{}_{nanos}", std::process::id()));
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+            .expect("XDG_RUNTIME_DIR holds the short socket directory");
+        let folder = std::path::PathBuf::from(runtime)
+            .join(format!("mp_bus_{label}_{}_{nanos}", std::process::id()));
         std::fs::create_dir_all(&folder).expect("the scratch folder is made");
         let config = folder.join("bus.conf");
         let text = format!(
@@ -181,27 +246,52 @@ impl PrivateBus {
             .expect("dbus-daemon must be installed to run the notification bus tests");
         let stdout = child.stdout.take().expect("the daemon's stdout is piped");
         let mut printed = String::new();
-        BufReader::new(stdout).read_line(&mut printed).expect("the daemon prints its address");
+        BufReader::new(stdout)
+            .read_line(&mut printed)
+            .expect("the daemon prints its address");
         let address = printed.trim().to_string();
-        assert!(address.starts_with("unix:"), "the private bus address is {address:?}");
-        return PrivateBus { child, folder, address };
+        assert!(
+            address.starts_with("unix:"),
+            "the private bus address is {address:?}"
+        );
+        return PrivateBus {
+            child,
+            folder,
+            address,
+        };
     }
 
     /// Connects a client to this bus with a bounded reply wait.
-    pub(crate) fn connect(&self, timeout: Duration) -> zbus::Result<Connection> {
-        return crate::dbus_step_bound::connect(zbus::connection::Builder::address(self.address.as_str()), timeout);
+    pub(crate) fn connect(
+        &self,
+        timeout: Duration,
+    ) -> zbus::Result<Connection> {
+        return crate::dbus_step_bound::connect(
+            zbus::connection::Builder::address(self.address.as_str()),
+            timeout,
+        );
     }
 
     /// Starts a recording notification service on this bus and returns its connection and calls.
-    pub(crate) fn serve_notifications(&self, delay: Duration) -> (Connection, Calls) {
-        return self.serve_notifications_with(Behavior { delay, refuse_first: 0 });
+    pub(crate) fn serve_notifications(
+        &self,
+        delay: Duration,
+    ) -> (Connection, Calls) {
+        return self.serve_notifications_with(Behavior {
+            delay,
+            refuse_first: 0,
+        });
     }
 
     /// Starts a recording notification service that misbehaves as `behavior` says.
-    pub(crate) fn serve_notifications_with(&self, behavior: Behavior) -> (Connection, Calls) {
+    pub(crate) fn serve_notifications_with(
+        &self,
+        behavior: Behavior,
+    ) -> (Connection, Calls) {
         let calls: Calls = Arc::new(Mutex::new(Vec::new()));
         let connection = crate::dbus_step_bound::connect(
-            zbus::connection::Builder::address(self.address.as_str()).name("org.freedesktop.Notifications"),
+            zbus::connection::Builder::address(self.address.as_str())
+                .name("org.freedesktop.Notifications"),
             crate::dbus_step_bound::DBUS_STEP_BOUND,
         )
         .expect("the recording notification service starts");

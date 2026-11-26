@@ -14,17 +14,34 @@ use super::gpu_snapshot::install_gpu_platform;
 ///  source state,
 ///  and every binding the shipped application installs.
 use super::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, find, navigation,
-    reload, render,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    find,
+    navigation,
+    reload,
+    render,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// The canonical project boundary is created only over disposable fixtures.
 use ide_app::workspace::Workspace;
 /// Real toolkit key events reach the same capture scopes as seat input.
 use slint::{
-    ComponentHandle, Model, SharedString, Timer,
-    platform::{Key, WindowEvent},
+    ComponentHandle,
+    Model,
+    SharedString,
+    Timer,
+    platform::{
+        Key,
+        WindowEvent,
+    },
 };
 /// What:
 ///  `Rc<RefCell<State>>` is the window's shared source state;
@@ -41,7 +58,10 @@ use std::{
     fs,
     path::Path,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A complete reader:
@@ -110,7 +130,10 @@ pub(super) fn memory_project(prefix: &str) -> tempfile::TempDir {
 /// ```ts
 /// function replaceFile(path: string, text: string): void { writeFileSync(sibling, text); renameSync(sibling, path); }
 /// ```
-pub(super) fn replace_file(path: &Path, text: &str) {
+pub(super) fn replace_file(
+    path: &Path,
+    text: &str,
+) {
     // `file_name` is the last path component; `to_string_lossy` reads it as text for the sibling's name.
     let name = path.file_name().expect("file name").to_string_lossy();
     let sibling = path.with_file_name(format!(".{name}.replacement"));
@@ -149,7 +172,10 @@ pub(super) fn wait_for_highlighting(source: &Rc<RefCell<State>>) {
 }
 
 /// Open `name` inside the disposable project with every production binding installed.
-pub(super) fn reader(root: &Path, name: &str) -> Reader {
+pub(super) fn reader(
+    root: &Path,
+    name: &str,
+) -> Reader {
     let path = root.join(name);
     // What: `expect` extracts a successful value or fails the test with this message.
     // Why: Fixture setup failures are test defects, not behavior under test.
@@ -203,19 +229,26 @@ pub(super) fn reader(root: &Path, name: &str) -> Reader {
 
 /// Press and release one key through the window,
 ///  exactly like a seat key event.
-pub(super) fn key(window: &AppWindow, text: impl Into<SharedString>) {
+pub(super) fn key(
+    window: &AppWindow,
+    text: impl Into<SharedString>,
+) {
     let encoded: SharedString = text.into();
     window.window().dispatch_event(WindowEvent::KeyPressed {
         text: encoded.clone(),
     });
-    window
-        .window()
-        .dispatch_event(WindowEvent::KeyReleased { text: encoded });
+    window.window().dispatch_event(WindowEvent::KeyReleased {
+        text: encoded,
+    });
 }
 
 /// Hold one modifier around one key,
 ///  releasing it afterwards.
-pub(super) fn chord(window: &AppWindow, modifier: Key, text: impl Into<SharedString>) {
+pub(super) fn chord(
+    window: &AppWindow,
+    modifier: Key,
+    text: impl Into<SharedString>,
+) {
     window.window().dispatch_event(WindowEvent::KeyPressed {
         text: modifier.into(),
     });
@@ -226,14 +259,20 @@ pub(super) fn chord(window: &AppWindow, modifier: Key, text: impl Into<SharedStr
 }
 
 /// Type text one character at a time into whatever has keyboard focus.
-pub(super) fn type_text(window: &AppWindow, text: &str) {
+pub(super) fn type_text(
+    window: &AppWindow,
+    text: &str,
+) {
     for character in text.chars() {
         key(window, SharedString::from(character.to_string()));
     }
 }
 
 /// Wait until the bar shows exactly this count text.
-pub(super) fn status(window: &AppWindow, expected: &str) {
+pub(super) fn status(
+    window: &AppWindow,
+    expected: &str,
+) {
     {
         let mut waiting = Waiting::eventually();
         while !(window.get_find_status() == expected) {
@@ -272,7 +311,11 @@ pub(super) fn status(window: &AppWindow, expected: &str) {
 ///     window.selectedText.toLowerCase() === query.toLowerCase());
 /// }
 /// ```
-pub(super) fn status_for(window: &AppWindow, query: &str, expected: &str) {
+pub(super) fn status_for(
+    window: &AppWindow,
+    query: &str,
+    expected: &str,
+) {
     // What: `format!` builds a `String` from a template, like a TS template literal.
     // Why: The failure message names the query whose results never arrived.
     //

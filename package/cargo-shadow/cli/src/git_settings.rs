@@ -31,15 +31,27 @@ use std::cell::Cell;
 // // TS has one type for this: string
 // ```
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 // Imports `crate::git_base::system_config_of_git`.
 /// Imports `crate::git_base::system_config_of_git` for this file.
 use crate::git_base::system_config_of_git;
 
 /// Imports the configuration types and the lexer entry point.
-use crate::git_config::{ConfigEntry, ParsedConfig, parse_bool, parse_config};
+use crate::git_config::{
+    ConfigEntry,
+    ParsedConfig,
+    parse_bool,
+    parse_config,
+};
 /// Imports the layout and environment types and the file readers.
-use crate::git_refs::{GitLayout, NativeEnvironment, read_optional};
+use crate::git_refs::{
+    GitLayout,
+    NativeEnvironment,
+    read_optional,
+};
 /// Imports the refspec check.
 use crate::git_refspec::check_refspec;
 
@@ -57,13 +69,36 @@ pub(crate) fn is_extension(entry: &&ConfigEntry) -> bool {
 }
 
 /// The `remote.<name>.<key>` keys whose value is a plain string.
-const REMOTE_STRING_KEYS: [&str; 9] = ["url", "pushurl", "tagopt", "proxy", "proxyauthmethod", "vcs", "receivepack", "uploadpack", "partialclonefilter"];
+const REMOTE_STRING_KEYS: [&str; 9] = [
+    "url",
+    "pushurl",
+    "tagopt",
+    "proxy",
+    "proxyauthmethod",
+    "vcs",
+    "receivepack",
+    "uploadpack",
+    "partialclonefilter",
+];
 
 /// The `remote.<name>.<key>` keys whose value is a Git boolean.
-const REMOTE_BOOLEAN_KEYS: [&str; 6] = ["mirror", "skipdefaultupdate", "skipfetchall", "prune", "prunetags", "promisor"];
+const REMOTE_BOOLEAN_KEYS: [&str; 6] = [
+    "mirror",
+    "skipdefaultupdate",
+    "skipfetchall",
+    "prune",
+    "prunetags",
+    "promisor",
+];
 
 /// The `branch.<name>.<key>` keys whose value is a plain string.
-const BRANCH_STRING_KEYS: [&str; 5] = ["remote", "merge", "pushremote", "description", "mergeoptions"];
+const BRANCH_STRING_KEYS: [&str; 5] = [
+    "remote",
+    "merge",
+    "pushremote",
+    "description",
+    "mergeoptions",
+];
 
 /// The words `branch.<name>.rebase` takes besides a boolean.
 const REBASE_WORDS: [&str; 3] = ["merges", "interactive", "i"];
@@ -75,7 +110,10 @@ const REBASE_WORDS: [&str; 3] = ["merges", "interactive", "i"];
 /// and that Git rejects it or this reader cannot judge it.
 /// Why:
 /// A function replaces the closure that captured the entry.
-fn rejected_entry(name: &str, why: &str) -> String {
+fn rejected_entry(
+    name: &str,
+    why: &str,
+) -> String {
     return format!("{name} {why}, which Git rejects or this reader cannot judge");
 }
 
@@ -171,13 +209,21 @@ pub(crate) fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<
                     && !REBASE_WORDS.contains(&text)
                 {
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    return Err(rejected_entry(&entry.name, "is neither a boolean nor a rebase mode"));
+                    return Err(rejected_entry(
+                        &entry.name,
+                        "is neither a boolean nor a rebase mode",
+                    ));
                 }
             }
             // Borrow `&key`: lends the value without copying or giving it away.
             ("branch", false) if ["autosetupmerge", "autosetuprebase", "sort"].contains(&key) => {}
             // `Err(...)`: builds the success or the failure variant of a `Result`.
-            _ => return Err(rejected_entry(&entry.name, "is a setting this reader has no class for")),
+            _ => {
+                return Err(rejected_entry(
+                    &entry.name,
+                    "is a setting this reader has no class for",
+                ));
+            }
         }
     }
     return Ok(());
@@ -204,7 +250,10 @@ pub(crate) fn check_repository_settings(config: &ParsedConfig) -> Result<(), Str
     if let Some(entry) = config.entries.iter().find(is_extension) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("the configuration sets {}, a repository extension that only Git applies", entry.name));
+        return Err(format!(
+            "the configuration sets {}, a repository extension that only Git applies",
+            entry.name
+        ));
     }
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
@@ -215,7 +264,11 @@ pub(crate) fn check_repository_settings(config: &ParsedConfig) -> Result<(), Str
             Some("0" | "1") => {}
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            other => return Err(format!("core.repositoryformatversion is {other:?}, which only Git judges")),
+            other => {
+                return Err(format!(
+                    "core.repositoryformatversion is {other:?}, which only Git judges"
+                ));
+            }
         }
     }
     return Ok(());
@@ -236,7 +289,12 @@ pub(crate) fn check_repository_settings(config: &ParsedConfig) -> Result<(), Str
 /// ```ts
 /// export function readConfig(layout: GitLayout, env: NativeEnvironment): ParsedConfig  // throws: ask Git
 /// ```
-pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> Result<ParsedConfig, String> {
+pub fn read_config(
+    layout: &GitLayout,
+    environment: &NativeEnvironment,
+    root: &Path,
+    starts: &Cell<u32>,
+) -> Result<ParsedConfig, String> {
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&environment.system_config`: lends the value without copying or giving it away.
     // Typed binding: `system: PathBuf`.
@@ -295,11 +353,14 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment, root: &P
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `parsed: ParsedConfig`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let parsed: ParsedConfig = parse_config(&text).described(format_args!("{}", file.display()))?;
+        let parsed: ParsedConfig =
+            parse_config(&text).described(format_args!("{}", file.display()))?;
         merged.extend_with(parsed);
     }
     if merged.has_include {
-        return Err("a configuration file has include or includeIf, which only Git follows".to_string());
+        return Err(
+            "a configuration file has include or includeIf, which only Git follows".to_string(),
+        );
     }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&merged`: lends the value without copying or giving it away.

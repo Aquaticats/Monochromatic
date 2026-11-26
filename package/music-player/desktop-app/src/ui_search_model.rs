@@ -11,13 +11,21 @@
 
 /// Imports the search page text and emphasis helpers.
 use music_player::search_page_model::{
-    is_current_track_result, search_emphasis_spans, search_row_kind_label, search_row_second_line, search_status_line,
+    is_current_track_result,
+    search_emphasis_spans,
+    search_row_kind_label,
+    search_row_second_line,
+    search_status_line,
 };
-/// Imports the result and state types that the view shows.
-use music_player::search_results::{SearchResult, SearchResultKind, SearchState};
 /// Imports the library search that the tests drive.
 #[cfg(test)]
 use music_player::search_results::search_library;
+/// Imports the result and state types that the view shows.
+use music_player::search_results::{
+    SearchResult,
+    SearchResultKind,
+    SearchState,
+};
 /// Imports the track type that the tests search.
 #[cfg(test)]
 use music_player::track::Track;
@@ -114,7 +122,10 @@ pub struct SearchView {
 /// ```ts
 /// const segments = (text: string, spans: Span[]): Segment[] => { ... };
 /// ```
-pub fn segments(text: &str, highlights: &[music_player::search_matcher::SearchHighlight]) -> Vec<Segment> {
+pub fn segments(
+    text: &str,
+    highlights: &[music_player::search_matcher::SearchHighlight],
+) -> Vec<Segment> {
     let spans = search_emphasis_spans(text, highlights);
     let mut pieces: Vec<Segment> = Vec::new();
     for (position, ch) in text.chars().enumerate() {
@@ -153,7 +164,11 @@ pub fn segments(text: &str, highlights: &[music_player::search_matcher::SearchHi
 /// ```ts
 /// const spokenLabel = (name: string, kind: string, parent?: string) => [name, kind, parent].filter(Boolean).join(", ");
 /// ```
-fn spoken_label(name: &str, kind: &str, parent: Option<&str>) -> String {
+fn spoken_label(
+    name: &str,
+    kind: &str,
+    parent: Option<&str>,
+) -> String {
     return match parent {
         Some(parent_text) => format!("{name}, {kind}, {parent_text}"),
         None => format!("{name}, {kind}"),
@@ -165,7 +180,12 @@ fn spoken_label(name: &str, kind: &str, parent: Option<&str>) -> String {
 /// Why:
 /// folder and track results share one row shape,
 /// with the track-only fields left empty for folders.
-fn row_view(result: &SearchResult, position: usize, current_index: Option<usize>, playing: bool) -> SearchRowView {
+fn row_view(
+    result: &SearchResult,
+    position: usize,
+    current_index: Option<usize>,
+    playing: bool,
+) -> SearchRowView {
     let current = is_current_track_result(result, current_index);
     let parent_text = search_row_second_line(result);
     let parent_segments = match &parent_text {
@@ -182,7 +202,11 @@ fn row_view(result: &SearchResult, position: usize, current_index: Option<usize>
         has_parent: parent_text.is_some(),
         current,
         playing: current && playing,
-        spoken: spoken_label(&result.name, search_row_kind_label(result), parent_text.as_deref()),
+        spoken: spoken_label(
+            &result.name,
+            search_row_kind_label(result),
+            parent_text.as_deref(),
+        ),
         index: i32::try_from(position).unwrap_or(-1),
     };
 }
@@ -209,10 +233,17 @@ pub const SEARCH_SCANNING_DETAIL: &str = "Results appear here as more music is f
 /// Why:
 /// an unfinished scan turns the two "nothing here" verdicts into the scanning copy (D69,
 /// D111).
-fn status_for(state: &SearchState, complete: bool) -> (String, String) {
-    let unfinished_nothing = !complete && matches!(state, SearchState::NoMatch(_) | SearchState::EmptyInventory);
+fn status_for(
+    state: &SearchState,
+    complete: bool,
+) -> (String, String) {
+    let unfinished_nothing =
+        !complete && matches!(state, SearchState::NoMatch(_) | SearchState::EmptyInventory);
     if unfinished_nothing {
-        return (SEARCH_SCANNING_TITLE.to_string(), SEARCH_SCANNING_DETAIL.to_string());
+        return (
+            SEARCH_SCANNING_TITLE.to_string(),
+            SEARCH_SCANNING_DETAIL.to_string(),
+        );
     }
     return match search_status_line(state) {
         Some(line) => (line.title, line.detail.unwrap_or("").to_string()),
@@ -230,9 +261,17 @@ fn status_for(state: &SearchState, complete: bool) -> (String, String) {
 /// ```ts
 /// const searchViewOf = (state: SearchState, current?: number, playing?: boolean, complete?: boolean): SearchView => { ... };
 /// ```
-pub fn search_view_of(state: &SearchState, current_index: Option<usize>, playing: bool, complete: bool) -> SearchView {
+pub fn search_view_of(
+    state: &SearchState,
+    current_index: Option<usize>,
+    playing: bool,
+    complete: bool,
+) -> SearchView {
     let results: Vec<SearchResult> = match state {
-        SearchState::Results { items, .. } => items.clone(),
+        SearchState::Results {
+            items,
+            ..
+        } => items.clone(),
         _ => Vec::new(),
     };
     let mut rows: Vec<SearchRowView> = Vec::with_capacity(results.len());
@@ -262,8 +301,18 @@ pub fn search_view_of(state: &SearchState, current_index: Option<usize>, playing
 /// const searchView = (query: string, tracks: Track[], current?: number, playing?: boolean): SearchView => { ... };
 /// ```
 #[cfg(test)]
-pub fn search_view(query: &str, tracks: &[Track], current_index: Option<usize>, playing: bool) -> SearchView {
-    return search_view_of(&search_library(query, tracks, true), current_index, playing, true);
+pub fn search_view(
+    query: &str,
+    tracks: &[Track],
+    current_index: Option<usize>,
+    playing: bool,
+) -> SearchView {
+    return search_view_of(
+        &search_library(query, tracks, true),
+        current_index,
+        playing,
+        true,
+    );
 }
 
 /// Unit tests of `ui_search_model`,

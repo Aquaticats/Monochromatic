@@ -17,14 +17,31 @@
 
 /// Imports the failure steps and the pure text and decisions that this module shows.
 use crate::startup_failure::{
-    StartupStep, failure_message, failure_title, message_box_wanted, panic_detail, without_nul,
+    StartupStep,
+    failure_message,
+    failure_title,
+    message_box_wanted,
+    panic_detail,
+    without_nul,
 };
 /// Imports the standard error handle and its identifier that tell whether a console exists.
-use windows::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE};
+use windows::Win32::System::Console::{
+    GetStdHandle,
+    STD_ERROR_HANDLE,
+};
 /// Imports the message box call and the flags that show the failure window.
-use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MB_TASKMODAL, MessageBoxW};
+use windows::Win32::UI::WindowsAndMessaging::{
+    MB_ICONERROR,
+    MB_OK,
+    MB_SETFOREGROUND,
+    MB_TASKMODAL,
+    MessageBoxW,
+};
 /// Imports the wide string types that the message box call takes.
-use windows::core::{HSTRING, PCWSTR};
+use windows::core::{
+    HSTRING,
+    PCWSTR,
+};
 
 /// What:
 ///      `fn stderr_handle() -> Option<isize>`.
@@ -35,7 +52,9 @@ use windows::core::{HSTRING, PCWSTR};
 /// after the console attach repaired what it could.
 fn stderr_handle() -> Option<isize> {
     // SAFETY: `GetStdHandle` only reads the process parameters and has no preconditions.
-    return unsafe { GetStdHandle(STD_ERROR_HANDLE) }.ok().map(|handle| return handle.0 as isize);
+    return unsafe { GetStdHandle(STD_ERROR_HANDLE) }
+        .ok()
+        .map(|handle| return handle.0 as isize);
 }
 
 /// What:
@@ -61,7 +80,10 @@ fn executable_path() -> String {
 ///  Shows a modal error message box and returns when it is closed.
 /// Why:
 ///       The only way to tell a person who double-clicked the program what failed.
-fn show_message_box(title: &str, text: &str) {
+fn show_message_box(
+    title: &str,
+    text: &str,
+) {
     let wide_title = HSTRING::from(without_nul(title));
     let wide_text = HSTRING::from(without_nul(text));
     // SAFETY: both pointers are NUL-terminated wide strings owned by the two `HSTRING`s, which outlive the call.
@@ -73,7 +95,10 @@ fn show_message_box(title: &str, text: &str) {
             MB_ICONERROR | MB_OK | MB_SETFOREGROUND | MB_TASKMODAL,
         )
     };
-    tracing::debug!(pressed = pressed.0, "the startup failure message box was closed");
+    tracing::debug!(
+        pressed = pressed.0,
+        "the startup failure message box was closed"
+    );
 }
 
 /// What:
@@ -92,7 +117,10 @@ fn show_message_box(title: &str, text: &str) {
 /// ```ts
 /// function reportStartupFailure(step: StartupStep, detail: string): void { ... }
 /// ```
-pub fn report_startup_failure(step: StartupStep, detail: &str) {
+pub fn report_startup_failure(
+    step: StartupStep,
+    detail: &str,
+) {
     tracing::error!(?step, detail, "startup failed");
     let message = failure_message(step, detail, &executable_path());
     if message_box_wanted(stderr_handle()) {

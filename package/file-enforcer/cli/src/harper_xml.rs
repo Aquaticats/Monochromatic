@@ -20,7 +20,12 @@ use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// `XmlElementId`,
 /// `XmlElementSpec`,
 /// `parse_xml` from `monochromatic_xml_edit`.
-use monochromatic_xml_edit::{XmlDocument, XmlElementId, XmlElementSpec, parse_xml};
+use monochromatic_xml_edit::{
+    XmlDocument,
+    XmlElementId,
+    XmlElementSpec,
+    parse_xml,
+};
 
 /// The element that holds one server's options in `LanguageServersSettings.xml`.
 pub const LANGUAGE_CONTAINER: &str = "LanguageServerDefinitionSettings";
@@ -48,8 +53,11 @@ pub struct BaseServerMatch {
 }
 
 /// The base server the Harper policy derives from.
-pub const HARPER_MATCH: BaseServerMatch =
-    BaseServerMatch { template_id: "harper-ls", server_name: "Harper Language Server", command_line_includes: "harper-ls" };
+pub const HARPER_MATCH: BaseServerMatch = BaseServerMatch {
+    template_id: "harper-ls",
+    server_name: "Harper Language Server",
+    command_line_includes: "harper-ls",
+};
 
 /// What:
 ///  Parse a settings file,
@@ -61,7 +69,10 @@ pub const HARPER_MATCH: BaseServerMatch =
 /// ```ts
 /// function parse(path: string, text: string): XmlDocument
 /// ```
-pub fn parse(path: &str, text: &str) -> Result<XmlDocument, Diagnostic> {
+pub fn parse(
+    path: &str,
+    text: &str,
+) -> Result<XmlDocument, Diagnostic> {
     match parse_xml(text) {
         Ok(document) => return Ok(document),
         Err(error) => {
@@ -72,7 +83,10 @@ pub fn parse(path: &str, text: &str) -> Result<XmlDocument, Diagnostic> {
 }
 
 /// Report an edit refusal with the file's path.
-pub fn edit_failure(path: &str, error: &dyn std::fmt::Display) -> Diagnostic {
+pub fn edit_failure(
+    path: &str,
+    error: &dyn std::fmt::Display,
+) -> Diagnostic {
     let message = format!("{path}: the settings edit was refused: {error}");
     return Diagnostic::new("harper-xml-edit-failed", &message).with_path(path);
 }
@@ -87,7 +101,11 @@ pub fn edit_failure(path: &str, error: &dyn std::fmt::Display) -> Diagnostic {
 /// ```ts
 /// function optionValue(doc: XmlDocument, scope: ElementId, name: string): string | undefined
 /// ```
-pub fn option_value(document: &XmlDocument, scope: XmlElementId, name: &str) -> Option<String> {
+pub fn option_value(
+    document: &XmlDocument,
+    scope: XmlElementId,
+    name: &str,
+) -> Option<String> {
     for option in document.descendants_named(scope, "option") {
         if document.attribute(option, "name") == Some(name) {
             return document.attribute(option, "value").map(str::to_string);
@@ -98,7 +116,10 @@ pub fn option_value(document: &XmlDocument, scope: XmlElementId, name: &str) -> 
 
 /// The first `entry` element with this decoded `key`,
 /// wherever it sits.
-pub fn find_entry(document: &XmlDocument, key: &str) -> Option<XmlElementId> {
+pub fn find_entry(
+    document: &XmlDocument,
+    key: &str,
+) -> Option<XmlElementId> {
     for entry in document.descendants_named(document.root(), "entry") {
         if document.attribute(entry, "key") == Some(key) {
             return Some(entry);
@@ -108,7 +129,10 @@ pub fn find_entry(document: &XmlDocument, key: &str) -> Option<XmlElementId> {
 }
 
 /// Whether a list of server keys holds the key.
-fn lists_key(keys: &[String], key: &str) -> bool {
+fn lists_key(
+    keys: &[String],
+    key: &str,
+) -> bool {
     for candidate in keys {
         if candidate == key {
             return true;
@@ -126,9 +150,14 @@ fn lists_key(keys: &[String], key: &str) -> bool {
 /// ```ts
 /// function findBaseServer(doc: XmlDocument, excluded: string[]): { id: ElementId; key: string } | undefined
 /// ```
-pub fn find_base_entry(document: &XmlDocument, excluded: &[String]) -> Option<(XmlElementId, String)> {
+pub fn find_base_entry(
+    document: &XmlDocument,
+    excluded: &[String],
+) -> Option<(XmlElementId, String)> {
     for entry in document.descendants_named(document.root(), "entry") {
-        let Some(key) = document.attribute(entry, "key") else { continue };
+        let Some(key) = document.attribute(entry, "key") else {
+            continue;
+        };
         if lists_key(excluded, key) {
             continue;
         }
@@ -149,8 +178,13 @@ pub fn find_base_entry(document: &XmlDocument, excluded: &[String]) -> Option<(X
 }
 
 /// One `<option name=".." value=".." />` description.
-pub fn option_spec(name: &str, value: &str) -> XmlElementSpec {
-    return XmlElementSpec::named("option").with_attribute("name", name).with_attribute("value", value);
+pub fn option_spec(
+    name: &str,
+    value: &str,
+) -> XmlElementSpec {
+    return XmlElementSpec::named("option")
+        .with_attribute("name", name)
+        .with_attribute("value", value);
 }
 
 /// What:
@@ -162,26 +196,38 @@ pub fn option_spec(name: &str, value: &str) -> XmlElementSpec {
 /// ```ts
 /// function mappingsSpec(languageId: string, fileNames: string[]): ElementSpec
 /// ```
-pub fn mappings_spec(language_id: &str, file_names: &[String]) -> XmlElementSpec {
+pub fn mappings_spec(
+    language_id: &str,
+    file_names: &[String],
+) -> XmlElementSpec {
     let mut patterns = XmlElementSpec::named("option").with_attribute("name", "patterns");
     for file_name in file_names {
-        patterns = patterns.with_child(XmlElementSpec::named("option").with_attribute("value", file_name));
+        patterns =
+            patterns.with_child(XmlElementSpec::named("option").with_attribute("value", file_name));
     }
     let settings = XmlElementSpec::named("FileTypeSettings").with_child(patterns);
     let mapping = XmlElementSpec::named("ServerMappingSettings")
         .with_attribute("languageId", language_id)
         .with_child(XmlElementSpec::named("fileType").with_child(settings));
-    return XmlElementSpec::named("option").with_attribute("name", "mappings").with_child(mapping);
+    return XmlElementSpec::named("option")
+        .with_attribute("name", "mappings")
+        .with_child(mapping);
 }
 
 /// An `entry` description:
 /// a key and the `value` element holding one container of options.
-pub fn entry_spec(key: &str, container: &str, options: Vec<XmlElementSpec>) -> XmlElementSpec {
+pub fn entry_spec(
+    key: &str,
+    container: &str,
+    options: Vec<XmlElementSpec>,
+) -> XmlElementSpec {
     let mut holder = XmlElementSpec::named(container);
     for option in options {
         holder = holder.with_child(option);
     }
-    return XmlElementSpec::named("entry").with_attribute("key", key).with_child(XmlElementSpec::named("value").with_child(holder));
+    return XmlElementSpec::named("entry")
+        .with_attribute("key", key)
+        .with_child(XmlElementSpec::named("value").with_child(holder));
 }
 
 /// Tests for the XML helpers.

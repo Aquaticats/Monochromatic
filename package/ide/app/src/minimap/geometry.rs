@@ -9,9 +9,15 @@
 /// How many bands cover the text,
 /// and which way the view is heading,
 /// which names the bands beyond the track.
-use super::plan::{Heading, band_count};
+use super::plan::{
+    Heading,
+    band_count,
+};
 /// The vertical mapping the minimap's rows come from and go back to.
-use crate::row_map::{CODE_ROW, RowMap};
+use crate::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// The bands to keep are a range of numbers.
 use std::ops::Range;
 
@@ -155,7 +161,10 @@ pub struct Geometry {
 impl Geometry {
     /// The geometry of a text `content` pixels tall in a view `view` pixels tall;
     /// negative inputs count as zero.
-    pub fn new(content: f32, view: f32) -> Self {
+    pub fn new(
+        content: f32,
+        view: f32,
+    ) -> Self {
         return Self {
             content: content.max(0.0),
             view: view.max(0.0),
@@ -182,7 +191,10 @@ impl Geometry {
     ///  the picture's overhang past the track,
     /// by the offset's share of the scroll range.
     ///  Zero for a text that fits.
-    pub fn slide(&self, offset: f32) -> f32 {
+    pub fn slide(
+        &self,
+        offset: f32,
+    ) -> f32 {
         let range = self.max_offset();
         if range <= 0.0 {
             return 0.0;
@@ -216,7 +228,10 @@ impl Geometry {
     ///  the offset's share of the scroll range,
     /// as a share of the box's room.
     ///  The first offset puts the box at the top and the last at the bottom of the track.
-    pub fn box_top(&self, offset: f32) -> f32 {
+    pub fn box_top(
+        &self,
+        offset: f32,
+    ) -> f32 {
         let range = self.max_offset();
         if range <= 0.0 {
             return 0.0;
@@ -228,7 +243,11 @@ impl Geometry {
     /// in logical pixels from its top,
     /// the minimap position `y` shows with the view scrolled to `offset`.
     ///  A position above or below the track is clamped to its ends.
-    pub fn content_y(&self, y: f32, offset: f32) -> f32 {
+    pub fn content_y(
+        &self,
+        y: f32,
+        offset: f32,
+    ) -> f32 {
         let track = self.track();
         if track <= 0.0 {
             return 0.0;
@@ -238,7 +257,11 @@ impl Geometry {
 
     /// The minimap position of the text position `content_y` with the view scrolled to `offset`,
     /// held to the track.
-    pub fn y_of(&self, content_y: f32, offset: f32) -> f32 {
+    pub fn y_of(
+        &self,
+        content_y: f32,
+        offset: f32,
+    ) -> f32 {
         let y = content_y.clamp(0.0, self.content) * self.scale() - self.slide(offset);
         return y.clamp(0.0, self.track());
     }
@@ -257,7 +280,12 @@ impl Geometry {
     /// ```ts
     /// dragOffset(startOffset: number, startY: number, y: number): number;
     /// ```
-    pub fn drag_offset(&self, start_offset: f32, start_y: f32, y: f32) -> f32 {
+    pub fn drag_offset(
+        &self,
+        start_offset: f32,
+        start_y: f32,
+        y: f32,
+    ) -> f32 {
         let room = self.room();
         let range = self.max_offset();
         if room <= 0.0 {
@@ -278,13 +306,21 @@ impl Geometry {
     /// ```ts
     /// centered(contentY: number): number;
     /// ```
-    pub fn centered(&self, content_y: f32) -> f32 {
+    pub fn centered(
+        &self,
+        content_y: f32,
+    ) -> f32 {
         return (content_y - self.view / 2.0).clamp(0.0, self.max_offset());
     }
 
     /// The visual row of `map` the minimap position `y` shows with the view scrolled to `offset`.
     ///  A position in the virtual rows above a line shows that line's first row.
-    pub fn target(&self, map: &RowMap, y: f32, offset: f32) -> Target {
+    pub fn target(
+        &self,
+        map: &RowMap,
+        y: f32,
+        offset: f32,
+    ) -> Target {
         let content_y = self.content_y(y, offset);
         let place = map.locate(content_y);
         let row = if place.in_block {
@@ -300,7 +336,12 @@ impl Geometry {
 
     /// The minimap position of the top of `target`'s visual row with the view scrolled to `offset`:
     /// the inverse of [`Self::target`] up to the pixel.
-    pub fn y_of_row(&self, map: &RowMap, target: Target, offset: f32) -> f32 {
+    pub fn y_of_row(
+        &self,
+        map: &RowMap,
+        target: Target,
+        offset: f32,
+    ) -> f32 {
         let line = target.line.min(map.lines() - 1);
         let row = target.row.min(map.rows_of(line) - 1);
         return self.y_of(map.code_top(line) + row as f32 * CODE_ROW, offset);
@@ -326,8 +367,20 @@ impl Geometry {
     /// ```ts
     /// bandsFor(offset: number, step: number, most: number): [number, number];
     /// ```
-    pub fn bands_for(&self, offset: f32, step: f32, most: usize) -> Range<usize> {
-        return self.bands_toward(offset, step, most, Heading::Still { at: 0.0 });
+    pub fn bands_for(
+        &self,
+        offset: f32,
+        step: f32,
+        most: usize,
+    ) -> Range<usize> {
+        return self.bands_toward(
+            offset,
+            step,
+            most,
+            Heading::Still {
+                at: 0.0,
+            },
+        );
     }
 
     /// What:
@@ -342,7 +395,10 @@ impl Geometry {
     /// ```ts
     /// trackTop(offset: number): number;
     /// ```
-    pub fn track_top(&self, offset: f32) -> f32 {
+    pub fn track_top(
+        &self,
+        offset: f32,
+    ) -> f32 {
         return self.slide(offset) / self.scale();
     }
 

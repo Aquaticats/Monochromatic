@@ -9,14 +9,26 @@
 /// The walk under test,
 /// the rope view the lookups run on,
 /// and the flat walk that serves as the reference.
-use super::{FLAT_LINE_BYTES, StopVisitor, caret_stops, caret_stops_visiting, project_line};
+use super::{
+    FLAT_LINE_BYTES,
+    StopVisitor,
+    caret_stops,
+    caret_stops_visiting,
+    project_line,
+};
 /// Helix's grapheme walk and rope view,
 /// used by the reference walk.
-use helix_core::{RopeSlice, graphemes::next_grapheme_boundary};
+use helix_core::{
+    RopeSlice,
+    graphemes::next_grapheme_boundary,
+};
 
 /// The stops a flat walk over the whole line finds:
 /// the walk every line took before long lines were chunked.
-fn reference_stops(source: &str, visible: usize) -> Vec<usize> {
+fn reference_stops(
+    source: &str,
+    visible: usize,
+) -> Vec<usize> {
     let slice = RopeSlice::from(source);
     let mut stops = vec![0];
     let mut position = 0;
@@ -92,7 +104,9 @@ fn stops_equal_the_flat_walk_on_either_side_of_the_chunking_limit() {
 /// summed over the walk.
 fn scanned(source: &str) -> (u64, usize) {
     let visible = source.chars().count();
-    let mut counter = ScanBytes { total: 0 };
+    let mut counter = ScanBytes {
+        total: 0,
+    };
     let stops = caret_stops_visiting(source, visible, &mut counter);
     return (counter.total, stops.len());
 }
@@ -104,7 +118,11 @@ struct ScanBytes {
 }
 
 impl StopVisitor for &mut ScanBytes {
-    fn visit(&mut self, slice: RopeSlice<'_>, position: usize) {
+    fn visit(
+        &mut self,
+        slice: RopeSlice<'_>,
+        position: usize,
+    ) {
         self.total += slice.chunk_at_char(position).0.len() as u64;
     }
 }

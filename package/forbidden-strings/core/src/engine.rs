@@ -23,7 +23,10 @@
 /// ```ts
 /// import { Deserialize, Serialize } from "serde";
 /// ```
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// What:
 ///     Imports the counting NFA back-end.
@@ -288,13 +291,16 @@ impl Engine {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn new(kind: EngineKind, seeds: Vec<Vec<u8>>) -> Engine {
+    pub fn new(
+        kind: EngineKind,
+        seeds: Vec<Vec<u8>>,
+    ) -> Engine {
         let prefilter = Prefilter::from_seeds(&seeds);
         return Engine {
             kind,
             seeds,
             prefilter,
-        }
+        };
     }
 
     /// Reports whether the pattern matches some substring of `line`.
@@ -313,8 +319,11 @@ impl Engine {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match(&self, line: &[u8]) -> bool {
-        return self.prefilter.allows(line) && self.matches(line)
+    pub fn is_match(
+        &self,
+        line: &[u8],
+    ) -> bool {
+        return self.prefilter.allows(line) && self.matches(line);
     }
 
     /// Runs the back-end matcher on `line`,
@@ -334,8 +343,11 @@ impl Engine {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn matches_only(&self, line: &[u8]) -> bool {
-        return self.matches(line)
+    pub fn matches_only(
+        &self,
+        line: &[u8],
+    ) -> bool {
+        return self.matches(line);
     }
 
     /// Runs the back-end matcher on `line`.
@@ -352,7 +364,10 @@ impl Engine {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn matches(&self, line: &[u8]) -> bool {
+    fn matches(
+        &self,
+        line: &[u8],
+    ) -> bool {
         match &self.kind {
             EngineKind::Table(dfa) => return dfa.is_match(line),
             EngineKind::Nfa(nfa) => return nfa.is_match(line),
@@ -415,8 +430,13 @@ impl Engine {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch(&self, lines: &[&[u8]], out: &mut [bool]) {
-        if self.seeds.is_empty() && lines.len() >= SHENG_BATCH_FLOOR
+    pub fn is_match_batch(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
+        if self.seeds.is_empty()
+            && lines.len() >= SHENG_BATCH_FLOOR
             && let EngineKind::Table(dfa) = &self.kind
         {
             dfa.is_match_batch_sheng2(lines, out);
@@ -445,9 +465,9 @@ impl Engine {
     /// ```
     pub fn seeds(&self) -> Option<Vec<Vec<u8>>> {
         if self.seeds.is_empty() {
-            return None
+            return None;
         } else {
-            return Some(self.seeds.clone())
+            return Some(self.seeds.clone());
         }
     }
 
@@ -495,7 +515,10 @@ impl Engine {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn mark_first_bytes(&self, set: &mut crate::charset::ByteSet) {
+    pub fn mark_first_bytes(
+        &self,
+        set: &mut crate::charset::ByteSet,
+    ) {
         match &self.kind {
             EngineKind::Table(dfa) => dfa.mark_first_bytes(set),
             _ => set.union_with(&crate::charset::ByteSet::all_bytes()),

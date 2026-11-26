@@ -17,7 +17,11 @@ use crate::diagnostic::Diagnostic;
 /// Imports `Change`,
 /// `Rule`,
 /// `RulePlan` from `crate::rule`.
-use crate::rule::{Change, Rule, RulePlan};
+use crate::rule::{
+    Change,
+    Rule,
+    RulePlan,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 
@@ -59,8 +63,16 @@ impl ModeOnlyRule {
     /// ```ts
     /// new ModeOnlyRule(id, path, mode)
     /// ```
-    pub fn new(id: &str, path: &str, mode: &str) -> ModeOnlyRule {
-        return ModeOnlyRule { id: id.to_string(), path: path.to_string(), mode: parse_mode(mode) };
+    pub fn new(
+        id: &str,
+        path: &str,
+        mode: &str,
+    ) -> ModeOnlyRule {
+        return ModeOnlyRule {
+            id: id.to_string(),
+            path: path.to_string(),
+            mode: parse_mode(mode),
+        };
     }
 }
 
@@ -98,10 +110,16 @@ impl Rule for ModeOnlyRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let mut plan = RulePlan::default();
         if view.mode_of(&self.path)?.is_some() {
-            plan.changes.push(Change::SetMode { path: self.path.clone(), mode: self.mode });
+            plan.changes.push(Change::SetMode {
+                path: self.path.clone(),
+                mode: self.mode,
+            });
         }
         return Ok(plan);
     }

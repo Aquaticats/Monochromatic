@@ -5,14 +5,23 @@
 /// The map refresh that follows holding.
 use super::refresh;
 /// The stamp of the displayed text.
-use crate::native::{State, annotate::displayed};
+use crate::native::{
+    State,
+    annotate::displayed,
+};
 /// `ChangeSet` is Helix's edit list,
 ///  and `Assoc` says which side of inserted text a mapped position stays on.
-use helix_core::{Assoc, ChangeSet};
+use helix_core::{
+    Assoc,
+    ChangeSet,
+};
 /// Space held open above a line of a reloaded text.
 use ide_app::annotation::Held;
 /// `Duration` and `Instant` time held space.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  How long the space of a replaced text's virtual rows stays open while nothing is painted in it.
@@ -43,7 +52,10 @@ const ROW_HOLD: Duration = Duration::from_millis(1000);
 /// ```ts
 /// function carried(current: State, changes: ChangeSet): [position: number, hints: number, messages: number][];
 /// ```
-pub(in crate::native) fn carried(current: &State, changes: &ChangeSet) -> Vec<(usize, f32, f32)> {
+pub(in crate::native) fn carried(
+    current: &State,
+    changes: &ChangeSet,
+) -> Vec<(usize, f32, f32)> {
     let text = current.document.text();
     let mut kept = Vec::new();
     for block in &current.blocks {
@@ -71,7 +83,11 @@ pub(in crate::native) fn carried(current: &State, changes: &ChangeSet) -> Vec<(u
 /// ```ts
 /// function hold(current: State, carried: [number, number, number][], scale: number): void;
 /// ```
-pub(in crate::native) fn hold(current: &mut State, carried: Vec<(usize, f32, f32)>, scale: f32) {
+pub(in crate::native) fn hold(
+    current: &mut State,
+    carried: Vec<(usize, f32, f32)>,
+    scale: f32,
+) {
     let text = current.document.text();
     let length = text.len_chars();
     let mut parts: Vec<Held> = Vec::new();

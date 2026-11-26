@@ -6,10 +6,16 @@
 //! The former `page_control_style` key is ignored on read and no longer written.
 
 /// Owned filesystem path used for the source root and selected track.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Serde derives used by current output and the private migration input.
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Current four-state playback model.
 use crate::command::PlaybackMode;
@@ -19,7 +25,11 @@ use crate::identity;
 
 /// The four text sizes the Settings page changes,
 /// and the rule that reads one stored field.
-use crate::text_size::{size_or_default, TextElement, TextSizes};
+use crate::text_size::{
+    TextElement,
+    TextSizes,
+    size_or_default,
+};
 
 /// Current session shape written to disk.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -137,7 +147,10 @@ impl Default for Session {
 ///  and saves sessions.
 impl Session {
     /// Converts permissive input into current state and reports whether to rewrite.
-    fn from_stored(stored: StoredSession, has_current_mode: bool) -> (Session, bool) {
+    fn from_stored(
+        stored: StoredSession,
+        has_current_mode: bool,
+    ) -> (Session, bool) {
         let should_rewrite =
             !has_current_mode || stored.shuffle.is_some() || stored.repeat_track.is_some();
         let current_mode = stored.playback_mode.as_deref();
@@ -192,7 +205,8 @@ impl Session {
     /// Parses permissive input while preserving whether the current key was present.
     fn parse_stored(text: &str) -> Result<(StoredSession, bool), serde_json::Error> {
         let value: serde_json::Value = serde_json::from_str(text)?;
-        let has_current_mode = matches!(value.as_object(), Some(object) if object.contains_key("playback_mode"));
+        let has_current_mode =
+            matches!(value.as_object(), Some(object) if object.contains_key("playback_mode"));
         let mut text_sizes: [Option<serde_json::Value>; 4] = Default::default();
         for (position, element) in TextElement::ALL.iter().enumerate() {
             text_sizes[position] = match value.as_object() {
@@ -239,7 +253,9 @@ impl Session {
     fn load_at(path: &Path) -> Session {
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Session::default(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Session::default();
+            }
             Err(error) => {
                 tracing::warn!(?error, path = %path.display(), "failed to read the playback session; using defaults");
                 return Session::default();
@@ -275,7 +291,10 @@ impl Session {
     /// Why:
     /// the template editor saves here,
     /// and the playback record is rewritten by the controller separately.
-    pub fn save_templates(track_rows: Option<&str>, playing: Option<&str>) -> std::io::Result<()> {
+    pub fn save_templates(
+        track_rows: Option<&str>,
+        playing: Option<&str>,
+    ) -> std::io::Result<()> {
         let mut session = Session::load();
         session.track_rows_template = track_rows.map(str::to_string);
         session.playing_template = playing.map(str::to_string);
@@ -312,7 +331,10 @@ impl Session {
     /// Why:
     /// the persistence tests write a file in a temporary directory,
     /// never the user's own session file.
-    fn save_auto_play_on_select_at(path: &Path, enabled: bool) -> std::io::Result<()> {
+    fn save_auto_play_on_select_at(
+        path: &Path,
+        enabled: bool,
+    ) -> std::io::Result<()> {
         let mut session = Session::load_at(path);
         session.auto_play_on_select = enabled;
         return session.save_at(path);
@@ -347,7 +369,10 @@ impl Session {
     /// Why:
     /// the persistence tests write a file in a temporary directory,
     /// never the user's own session file.
-    fn save_text_sizes_at(path: &Path, sizes: TextSizes) -> std::io::Result<()> {
+    fn save_text_sizes_at(
+        path: &Path,
+        sizes: TextSizes,
+    ) -> std::io::Result<()> {
         let mut session = Session::load_at(path);
         session.text_sizes = sizes;
         return session.save_at(path);
@@ -372,7 +397,10 @@ impl Session {
     /// and it replaces the file whole (see `replace_file`),
     /// so
     /// an interrupted save leaves the previous complete session.
-    fn save_at(&self, path: &Path) -> std::io::Result<()> {
+    fn save_at(
+        &self,
+        path: &Path,
+    ) -> std::io::Result<()> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -406,7 +434,10 @@ static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// A failed save removes its temporary file and leaves `path` as it was;
 /// a temporary file left by a killed save is
 /// truncated by the next one.
-fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn replace_file(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let Some(name) = path.file_name() else {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -416,7 +447,9 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut temporary_name = name.to_os_string();
     temporary_name.push(".tmp");
     let temporary = path.with_file_name(temporary_name);
-    let _guard = SAVE_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _guard = SAVE_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let written = match write_synced(&temporary, bytes) {
         Ok(()) => std::fs::rename(&temporary, path),
         Err(error) => Err(error),
@@ -437,7 +470,10 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// the rename in `replace_file` must only publish bytes that already reached the disk,
 /// or a power loss after the
 /// rename could leave the new name on an empty file.
-fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn write_synced(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     /// Imports the write trait that the synced file write needs.
     use std::io::Write;
     let mut file = std::fs::File::create(path)?;
@@ -477,7 +513,10 @@ pub(crate) fn use_disposable_config_home(test: &str) -> PathBuf {
         std::env::set_var("XDG_CONFIG_HOME", &home);
     }
     let path = session_path().expect("the config home resolves");
-    assert!(path.starts_with(&home), "the session file {path:?} is not inside the disposable home {home:?}");
+    assert!(
+        path.starts_with(&home),
+        "the session file {path:?} is not inside the disposable home {home:?}"
+    );
     return path;
 }
 

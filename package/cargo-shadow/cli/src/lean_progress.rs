@@ -29,14 +29,33 @@
 /// paths,
 /// the descriptor the record files are opened on,
 /// and the count that makes each staging name this run's own.
-use std::{fs, io::{self, Write}, os::fd::OwnedFd, path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
+use std::{
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    os::fd::OwnedFd,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
+};
 
 /// The bounded read that waits on nothing and follows no link.
 use crate::lean_text::read_unlinked_small_text;
 
 /// Imports `rustix::fs::{Mode, OFlags, open}` for this file:
 /// both record files are opened with the flags that make a link and a pipe answer at once.
-use rustix::fs::{Mode, OFlags, open};
+use rustix::fs::{
+    Mode,
+    OFlags,
+    open,
+};
 
 /// The directory under the state home that holds this tool's own records.
 pub const STATE_DIRECTORY_NAME: &str = "cargo-shadow";
@@ -110,7 +129,9 @@ pub fn state_directory() -> Option<PathBuf> {
     if let Some(chosen) = std::env::var_os("XDG_STATE_HOME").filter(is_named) {
         return Some(PathBuf::from(chosen).join(STATE_DIRECTORY_NAME));
     }
-    let home: PathBuf = std::env::var_os("HOME").filter(is_named).map(PathBuf::from)?;
+    let home: PathBuf = std::env::var_os("HOME")
+        .filter(is_named)
+        .map(PathBuf::from)?;
     return Some(home.join(".local").join("state").join(STATE_DIRECTORY_NAME));
 }
 
@@ -187,7 +208,10 @@ fn unescape(text: &str) -> String {
 /// ```ts
 /// export const resumeIndex = (keys: string[], after?: string): number => after === undefined ? 0 : keys.findIndex((key) => key > after) === -1 ? keys.length : keys.findIndex((key) => key > after);
 /// ```
-pub fn resume_index(keys: &[PathBuf], after: Option<&Path>) -> usize {
+pub fn resume_index(
+    keys: &[PathBuf],
+    after: Option<&Path>,
+) -> usize {
     let Some(recorded) = after else { return 0 };
     let mut start: usize = 0;
     while start < keys.len() && keys[start].as_path() <= recorded {
@@ -243,16 +267,34 @@ const RECORD_READ_LIMIT: usize = 64 * 1024;
 fn read_record(path: &Path) -> ReadRecord {
     let text: String = match read_unlinked_small_text(path, RECORD_READ_LIMIT) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return ReadRecord { progress: Progress::default(), failure: None },
-        Err(error) => return ReadRecord { progress: Progress::default(), failure: Some(format!("{}: {error}", path.display())) },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return ReadRecord {
+                progress: Progress::default(),
+                failure: None,
+            };
+        }
+        Err(error) => {
+            return ReadRecord {
+                progress: Progress::default(),
+                failure: Some(format!("{}: {error}", path.display())),
+            };
+        }
     };
     let mut lines = text.lines();
     if lines.next() != Some(HEADER) {
-        return ReadRecord { progress: Progress::default(), failure: Some(format!("{}: not a record this version reads", path.display())) };
+        return ReadRecord {
+            progress: Progress::default(),
+            failure: Some(format!(
+                "{}: not a record this version reads",
+                path.display()
+            )),
+        };
     }
     let mut progress: Progress = Progress::default();
     for line in lines {
-        let Some((tag, value)) = line.split_once(' ') else { continue };
+        let Some((tag, value)) = line.split_once(' ') else {
+            continue;
+        };
         let found: PathBuf = PathBuf::from(unescape(value));
         if tag == TREES_TAG {
             progress.trees = Some(found);
@@ -260,7 +302,10 @@ fn read_record(path: &Path) -> ReadRecord {
             progress.units = Some(found);
         }
     }
-    return ReadRecord { progress, failure: None };
+    return ReadRecord {
+        progress,
+        failure: None,
+    };
 }
 
 /// What:
@@ -279,7 +324,9 @@ pub fn read(directory: &Path) -> (Progress, Vec<String>) {
     let record = read_record(&directory.join(PROGRESS_FILE_NAME));
     let mut notes: Vec<String> = Vec::new();
     if let Some(failure) = record.failure {
-        notes.push(format!("lean progress: {failure}, so every pass starts at the front"));
+        notes.push(format!(
+            "lean progress: {failure}, so every pass starts at the front"
+        ));
     }
     return (record.progress, notes);
 }
@@ -310,7 +357,10 @@ pub enum LongPass {
 /// ```
 fn staging_name(directory: &Path) -> PathBuf {
     let count: u64 = STAGING_COUNT.fetch_add(1, Ordering::Relaxed);
-    return directory.join(format!("{STAGING_PREFIX}{}-{count}{STAGING_SUFFIX}", std::process::id()));
+    return directory.join(format!(
+        "{STAGING_PREFIX}{}-{count}{STAGING_SUFFIX}",
+        std::process::id()
+    ));
 }
 
 /// What:
@@ -329,9 +379,13 @@ fn staging_name(directory: &Path) -> PathBuf {
 /// ```ts
 /// const writeStaging = (staging: string, text: string): void => writeFileSync(staging, text, { flag: 'wx', mode: 0o600 });
 /// ```
-fn write_staging(staging: &Path, text: &str) -> io::Result<()> {
+fn write_staging(
+    staging: &Path,
+    text: &str,
+) -> io::Result<()> {
     let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC;
-    let opened: OwnedFd = open(staging, flags, Mode::from_raw_mode(RECORD_MODE)).map_err(io::Error::from)?;
+    let opened: OwnedFd =
+        open(staging, flags, Mode::from_raw_mode(RECORD_MODE)).map_err(io::Error::from)?;
     let mut file: fs::File = fs::File::from(opened);
     file.write_all(text.as_bytes())?;
     return Ok(());
@@ -342,7 +396,10 @@ fn write_staging(staging: &Path, text: &str) -> io::Result<()> {
 impl Progress {
     /// Where the given pass continues after,
     /// when its last run did not finish.
-    pub fn after(&self, pass: LongPass) -> Option<&Path> {
+    pub fn after(
+        &self,
+        pass: LongPass,
+    ) -> Option<&Path> {
         return match pass {
             LongPass::Trees => self.trees.as_deref(),
             LongPass::Units => self.units.as_deref(),
@@ -351,7 +408,11 @@ impl Progress {
 
     /// Records where the given pass stopped,
     /// or that it finished its list and the next run starts at the front.
-    pub fn set(&mut self, pass: LongPass, after: Option<PathBuf>) {
+    pub fn set(
+        &mut self,
+        pass: LongPass,
+        after: Option<PathBuf>,
+    ) {
         match pass {
             LongPass::Trees => self.trees = after,
             LongPass::Units => self.units = after,
@@ -374,7 +435,10 @@ impl Progress {
     /// ```ts
     /// const save = (directory: string, progress: Progress): void  // throws
     /// ```
-    pub fn save(&self, directory: &Path) -> Result<(), String> {
+    pub fn save(
+        &self,
+        directory: &Path,
+    ) -> Result<(), String> {
         if let Err(error) = fs::create_dir_all(directory) {
             return Err(format!("{}: {error}", directory.display()));
         }
@@ -400,6 +464,9 @@ impl Progress {
                 Err(error) => Err(format!("{}: {error}", path.display())),
             };
         }
-        return Err(format!("{}: no name this run made was free to stage the record under", directory.display()));
+        return Err(format!(
+            "{}: no name this run made was free to stage the record under",
+            directory.display()
+        ));
     }
 }

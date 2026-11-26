@@ -2,13 +2,19 @@
 
 /// Private fields expose only an in-memory worker fixture,
 ///  never an application debug callback.
-use super::{SearchReply, SearchWorker};
+use super::{
+    SearchReply,
+    SearchWorker,
+};
 /// Empty successful streams make reply identity,
 ///  rather than filesystem content,
 ///  the variable under test.
 use crate::search::SearchResults;
 /// Shared immutable replies keep their allocation alive across the watch-slot handoff.
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 /// Watch channels retain one value and a changed bit rather than an unbounded message queue.
 use tokio::sync::watch;
 

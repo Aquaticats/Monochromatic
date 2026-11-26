@@ -20,7 +20,10 @@
 //!  and the engine thread only reads it.
 
 /// Imports the duration and instant types that the clock extrapolates with.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the conversion from a frame count to seconds.
 use crate::playback::frames_to_secs;
@@ -155,11 +158,14 @@ pub(crate) struct PlaybackClock {
 ///   return channels === 0 ? 0 : Math.floor(samples / channels);
 /// }
 /// ```
-pub(crate) fn frames_of_samples(samples: usize, channels: u16) -> u64 {
+pub(crate) fn frames_of_samples(
+    samples: usize,
+    channels: u16,
+) -> u64 {
     if channels == 0 {
         return 0;
     }
-    return samples as u64 / u64::from(channels)
+    return samples as u64 / u64::from(channels);
 }
 
 /// Methods of `PlaybackClock` that record pushed and drained frames and read the audible position.
@@ -183,7 +189,7 @@ impl PlaybackClock {
             last_emit_frames: 0,
             drained_since: None,
             draining: false,
-        }
+        };
     }
 
     /// What:
@@ -201,7 +207,10 @@ impl PlaybackClock {
     /// ```ts
     /// restart(baseFrames: number): void { ... }
     /// ```
-    pub(crate) fn restart(&mut self, base_frames: u64) {
+    pub(crate) fn restart(
+        &mut self,
+        base_frames: u64,
+    ) {
         self.base_frames = base_frames;
         self.pushed_frames = 0;
         self.consumed_offset = 0;
@@ -221,7 +230,10 @@ impl PlaybackClock {
     /// ```ts
     /// recordPushed(frames: number): void { this.pushedFrames += frames; }
     /// ```
-    pub(crate) fn record_pushed(&mut self, frames: u64) {
+    pub(crate) fn record_pushed(
+        &mut self,
+        frames: u64,
+    ) {
         self.pushed_frames += frames;
     }
 
@@ -241,9 +253,12 @@ impl PlaybackClock {
     ///   return this.baseFrames + Math.max(0, consumed - this.consumedOffset);
     /// }
     /// ```
-    pub(crate) fn audible_frames(&self, queued_frames: u64) -> u64 {
+    pub(crate) fn audible_frames(
+        &self,
+        queued_frames: u64,
+    ) -> u64 {
         let consumed = self.pushed_frames.saturating_sub(queued_frames);
-        return self.base_frames + consumed.saturating_sub(self.consumed_offset)
+        return self.base_frames + consumed.saturating_sub(self.consumed_offset);
     }
 
     /// What:
@@ -256,8 +271,12 @@ impl PlaybackClock {
     /// ```ts
     /// audibleSecs(queuedFrames: number, rate: number): number { return framesToSecs(this.audibleFrames(queuedFrames), rate); }
     /// ```
-    pub(crate) fn audible_secs(&self, queued_frames: u64, rate: u32) -> f64 {
-        return frames_to_secs(self.audible_frames(queued_frames), rate)
+    pub(crate) fn audible_secs(
+        &self,
+        queued_frames: u64,
+        rate: u32,
+    ) -> f64 {
+        return frames_to_secs(self.audible_frames(queued_frames), rate);
     }
 
     /// What:
@@ -273,7 +292,11 @@ impl PlaybackClock {
     /// ```ts
     /// positionToEmit(queuedFrames: number, rate: number): number | null { ... }
     /// ```
-    pub(crate) fn position_to_emit(&mut self, queued_frames: u64, rate: u32) -> Option<f64> {
+    pub(crate) fn position_to_emit(
+        &mut self,
+        queued_frames: u64,
+        rate: u32,
+    ) -> Option<f64> {
         if rate == 0 {
             return None;
         }
@@ -283,7 +306,7 @@ impl PlaybackClock {
             return None;
         }
         self.last_emit_frames = frames;
-        return Some(frames_to_secs(frames, rate))
+        return Some(frames_to_secs(frames, rate));
     }
 
     /// What:
@@ -313,7 +336,7 @@ impl PlaybackClock {
     /// hasBoundary(): boolean { return this.boundaryFrames !== null; }
     /// ```
     pub(crate) fn has_boundary(&self) -> bool {
-        return self.boundary_frames.is_some()
+        return self.boundary_frames.is_some();
     }
 
     /// What:
@@ -327,12 +350,15 @@ impl PlaybackClock {
     /// ```ts
     /// boundaryReached(queuedFrames: number): boolean { return this.boundaryFrames !== null && this.pushedFrames - queuedFrames >= this.boundaryFrames; }
     /// ```
-    pub(crate) fn boundary_reached(&self, queued_frames: u64) -> bool {
+    pub(crate) fn boundary_reached(
+        &self,
+        queued_frames: u64,
+    ) -> bool {
         let consumed = self.pushed_frames.saturating_sub(queued_frames);
         return match self.boundary_frames {
             Some(boundary) => consumed >= boundary,
             None => false,
-        }
+        };
     }
 
     /// What:
@@ -371,7 +397,7 @@ impl PlaybackClock {
     pub(crate) fn begin_drain(&mut self) -> bool {
         let started = !self.draining;
         self.draining = true;
-        return started
+        return started;
     }
 
     /// What:
@@ -402,7 +428,7 @@ impl PlaybackClock {
     /// isDraining(): boolean { return this.draining; }
     /// ```
     pub(crate) fn is_draining(&self) -> bool {
-        return self.draining
+        return self.draining;
     }
 
     /// What:
@@ -421,7 +447,12 @@ impl PlaybackClock {
     /// ```ts
     /// drainFinished(queuedFrames: number, now: number, hold: number): boolean { ... }
     /// ```
-    pub(crate) fn drain_finished(&mut self, queued_frames: u64, now: Instant, hold: Duration) -> bool {
+    pub(crate) fn drain_finished(
+        &mut self,
+        queued_frames: u64,
+        now: Instant,
+        hold: Duration,
+    ) -> bool {
         if !self.draining {
             return false;
         }
@@ -430,7 +461,7 @@ impl PlaybackClock {
             return false;
         }
         let since = *self.drained_since.get_or_insert(now);
-        return now.saturating_duration_since(since) >= hold
+        return now.saturating_duration_since(since) >= hold;
     }
 
     /// What:
@@ -445,9 +476,13 @@ impl PlaybackClock {
     /// ```ts
     /// drainWait(now: number, hold: number): number | null { ... }
     /// ```
-    pub(crate) fn drain_wait(&self, now: Instant, hold: Duration) -> Option<Duration> {
+    pub(crate) fn drain_wait(
+        &self,
+        now: Instant,
+        hold: Duration,
+    ) -> Option<Duration> {
         let since = self.drained_since?;
-        return Some(hold.saturating_sub(now.saturating_duration_since(since)))
+        return Some(hold.saturating_sub(now.saturating_duration_since(since)));
     }
 }
 
@@ -464,7 +499,7 @@ impl Default for PlaybackClock {
     /// static default(): PlaybackClock { return PlaybackClock.create(); }
     /// ```
     fn default() -> PlaybackClock {
-        return PlaybackClock::new()
+        return PlaybackClock::new();
     }
 }
 

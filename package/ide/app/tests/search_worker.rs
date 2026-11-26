@@ -9,21 +9,40 @@ mod memory_fixture;
 
 /// Search replies preserve typed source locations and stream-specific errors.
 use ide_app::{
-    search::{MAX_CONTENT_RESULTS, MAX_PATH_RESULTS, MAX_SEARCH_RECORD, SearchHit, SearchKind},
-    search_worker::{SearchReply, SearchWorker},
+    search::{
+        MAX_CONTENT_RESULTS,
+        MAX_PATH_RESULTS,
+        MAX_SEARCH_RECORD,
+        SearchHit,
+        SearchKind,
+    },
+    search_worker::{
+        SearchReply,
+        SearchWorker,
+    },
     workspace::Workspace,
 };
 /// Fixtures are disposable and waits are bounded independently of child output timing.
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
     os::unix::ffi::OsStringExt,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Whether some hit is the unabridged content match on this line with this preview.
-fn has_content_hit(hits: &[SearchHit], line: usize, preview: &str) -> bool {
+fn has_content_hit(
+    hits: &[SearchHit],
+    line: usize,
+    preview: &str,
+) -> bool {
     let wanted = SearchKind::Content {
         line,
         preview: preview.to_string(),
@@ -40,7 +59,13 @@ fn has_content_hit(hits: &[SearchHit], line: usize, preview: &str) -> bool {
 /// Whether every hit is a content match on the first line of its file.
 fn all_on_first_line(hits: &[SearchHit]) -> bool {
     for hit in hits {
-        if !matches!(hit.kind, SearchKind::Content { line: 1, .. }) {
+        if !matches!(
+            hit.kind,
+            SearchKind::Content {
+                line: 1,
+                ..
+            }
+        ) {
             return false;
         }
     }
@@ -48,7 +73,10 @@ fn all_on_first_line(hits: &[SearchHit]) -> bool {
 }
 
 /// Whether some hit is a file of exactly this name.
-fn has_file_name(hits: &[SearchHit], name: &OsStr) -> bool {
+fn has_file_name(
+    hits: &[SearchHit],
+    name: &OsStr,
+) -> bool {
     for hit in hits {
         if hit.path.file_name() == Some(name) {
             return true;
@@ -58,7 +86,10 @@ fn has_file_name(hits: &[SearchHit], name: &OsStr) -> bool {
 }
 
 /// Whether some hit's path ends with these components.
-fn has_path_ending(hits: &[SearchHit], tail: &str) -> bool {
+fn has_path_ending(
+    hits: &[SearchHit],
+    tail: &str,
+) -> bool {
     for hit in hits {
         if hit.path.ends_with(tail) {
             return true;

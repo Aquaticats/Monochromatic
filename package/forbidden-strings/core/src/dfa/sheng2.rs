@@ -56,8 +56,13 @@
 /// ```
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    __m512i, _mm512_loadu_si512, _mm512_or_si512, _mm512_permutexvar_epi8, _mm512_set1_epi8,
-    _mm512_setzero_si512, _mm512_test_epi8_mask,
+    __m512i,
+    _mm512_loadu_si512,
+    _mm512_or_si512,
+    _mm512_permutexvar_epi8,
+    _mm512_set1_epi8,
+    _mm512_setzero_si512,
+    _mm512_test_epi8_mask,
 };
 
 /// What:
@@ -82,7 +87,13 @@ use std::arch::x86_64::{
 /// } from "std/arch/aarch64";
 /// ```
 #[cfg(target_arch = "aarch64")]
-use std::arch::aarch64::{vdupq_n_u8, vld1q_u8_x4, vmaxvq_u8, vorrq_u8, vqtbl4q_u8};
+use std::arch::aarch64::{
+    vdupq_n_u8,
+    vld1q_u8_x4,
+    vmaxvq_u8,
+    vorrq_u8,
+    vqtbl4q_u8,
+};
 
 /// What:
 ///     Imports the DFA table.
@@ -321,7 +332,15 @@ impl Dfa {
         }
         let mut class_map = [0u8; 256];
         class_map.copy_from_slice(&self.class_map);
-        return Some(Sheng2Tables { t2, a2, trans1, accept, class_map, nc, start: self.start as u8 })
+        return Some(Sheng2Tables {
+            t2,
+            a2,
+            trans1,
+            accept,
+            class_map,
+            nc,
+            start: self.start as u8,
+        });
     }
 
     /// Fills `out[i]` with whether the DFA matches `lines[i]`,
@@ -342,7 +361,11 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch_sheng2(&self, lines: &[&[u8]], out: &mut [bool]) {
+    pub fn is_match_batch_sheng2(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         let qualifies = self.build_sheng2();
         #[cfg(target_arch = "x86_64")]
         if let Some(tables) = qualifies
@@ -418,7 +441,11 @@ impl Dfa {
 /// ```
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f,avx512bw,avx512vbmi")]
-unsafe fn sheng2_all_avx512(tables: &Sheng2Tables, lines: &[&[u8]], out: &mut [bool]) {
+unsafe fn sheng2_all_avx512(
+    tables: &Sheng2Tables,
+    lines: &[&[u8]],
+    out: &mut [bool],
+) {
     let accept = unsafe { _mm512_loadu_si512(tables.accept.as_ptr().cast::<__m512i>()) };
     let nc = tables.nc;
     for (line, slot) in lines.iter().zip(out.iter_mut()) {
@@ -429,8 +456,7 @@ unsafe fn sheng2_all_avx512(tables: &Sheng2Tables, lines: &[&[u8]], out: &mut [b
         while index + 1 < bytes.len() {
             let pair = tables.class_map[bytes[index] as usize] as usize * nc
                 + tables.class_map[bytes[index + 1] as usize] as usize;
-            let accepts =
-                unsafe { _mm512_loadu_si512(tables.a2[pair].as_ptr().cast::<__m512i>()) };
+            let accepts = unsafe { _mm512_loadu_si512(tables.a2[pair].as_ptr().cast::<__m512i>()) };
             acc = _mm512_or_si512(acc, _mm512_permutexvar_epi8(state, accepts));
             let step = unsafe { _mm512_loadu_si512(tables.t2[pair].as_ptr().cast::<__m512i>()) };
             state = _mm512_permutexvar_epi8(state, step);
@@ -439,7 +465,8 @@ unsafe fn sheng2_all_avx512(tables: &Sheng2Tables, lines: &[&[u8]], out: &mut [b
         if index < bytes.len() {
             let class = tables.class_map[bytes[index] as usize] as usize;
             acc = _mm512_or_si512(acc, _mm512_permutexvar_epi8(state, accept));
-            let step = unsafe { _mm512_loadu_si512(tables.trans1[class].as_ptr().cast::<__m512i>()) };
+            let step =
+                unsafe { _mm512_loadu_si512(tables.trans1[class].as_ptr().cast::<__m512i>()) };
             state = _mm512_permutexvar_epi8(state, step);
         }
         acc = _mm512_or_si512(acc, _mm512_permutexvar_epi8(state, accept));
@@ -471,7 +498,10 @@ unsafe fn sheng2_all_avx512(tables: &Sheng2Tables, lines: &[&[u8]], out: &mut [b
 /// ```
 #[cfg(target_arch = "aarch64")]
 #[inline]
-unsafe fn sheng2_line_neon(tables: &Sheng2Tables, line: &[u8]) -> bool {
+unsafe fn sheng2_line_neon(
+    tables: &Sheng2Tables,
+    line: &[u8],
+) -> bool {
     unsafe {
         let accept = vld1q_u8_x4(tables.accept.as_ptr());
         let nc = tables.nc;
@@ -481,7 +511,10 @@ unsafe fn sheng2_line_neon(tables: &Sheng2Tables, line: &[u8]) -> bool {
         while index + 1 < line.len() {
             let pair = tables.class_map[line[index] as usize] as usize * nc
                 + tables.class_map[line[index + 1] as usize] as usize;
-            acc = vorrq_u8(acc, vqtbl4q_u8(vld1q_u8_x4(tables.a2[pair].as_ptr()), state));
+            acc = vorrq_u8(
+                acc,
+                vqtbl4q_u8(vld1q_u8_x4(tables.a2[pair].as_ptr()), state),
+            );
             state = vqtbl4q_u8(vld1q_u8_x4(tables.t2[pair].as_ptr()), state);
             index += 2;
         }

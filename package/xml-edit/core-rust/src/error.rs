@@ -60,7 +60,11 @@ impl XmlParseError {
     /// ```ts
     /// function at(source: string, offset: number, message: string): XmlParseError;
     /// ```
-    pub fn at(source: &str, offset: usize, message: &str) -> XmlParseError {
+    pub fn at(
+        source: &str,
+        offset: usize,
+        message: &str,
+    ) -> XmlParseError {
         // What: `usize` is the unsigned integer wide enough to index any byte (siblings `u32`, `u64`).
         // Why: Slicing and `char_indices` offsets are `usize`, so line and column counters match them.
         //
@@ -107,7 +111,12 @@ impl XmlParseError {
         // ```ts
         // return { offset, line, column, message };
         // ```
-        return XmlParseError { offset, line, column, message: message.to_string() };
+        return XmlParseError {
+            offset,
+            line,
+            column,
+            message: message.to_string(),
+        };
     }
 }
 
@@ -131,7 +140,10 @@ impl std::fmt::Display for XmlParseError {
     /// ```ts
     /// toString(): string { return `${this.message} (line ...)`; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(
             formatter,
             "{} (line {}, column {}, byte offset {})",
@@ -231,7 +243,10 @@ impl std::fmt::Display for XmlEditError {
     /// ```ts
     /// toString(): string { /* switch on kind */ }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // What: `match self { Variant => ..., }` picks the arm whose variant `self` holds, like a `switch` on a
         //  tagged union; the compiler rejects a match that forgets a variant.
         // Why: Each variant needs its own sentence, and exhaustiveness keeps new variants from going unprinted.
@@ -242,29 +257,52 @@ impl std::fmt::Display for XmlEditError {
         // ```
         match self {
             XmlEditError::UnknownElement => {
-                return write!(formatter, "the element handle does not belong to this document");
+                return write!(
+                    formatter,
+                    "the element handle does not belong to this document"
+                );
             }
-            XmlEditError::AttributeNotFound { name } => {
+            XmlEditError::AttributeNotFound {
+                name,
+            } => {
                 return write!(formatter, "the element has no attribute named {name:?}");
             }
-            XmlEditError::InvalidName { name } => {
+            XmlEditError::InvalidName {
+                name,
+            } => {
                 return write!(formatter, "{name:?} is not a valid XML name");
             }
-            XmlEditError::DuplicateAttribute { name } => {
-                return write!(formatter, "the new element lists attribute {name:?} more than once");
+            XmlEditError::DuplicateAttribute {
+                name,
+            } => {
+                return write!(
+                    formatter,
+                    "the new element lists attribute {name:?} more than once"
+                );
             }
-            XmlEditError::InvalidCharacter { context, character } => {
+            XmlEditError::InvalidCharacter {
+                context,
+                character,
+            } => {
                 return write!(
                     formatter,
                     "U+{:04X} cannot be written in {context} because XML 1.0 has no representation for it",
                     u32::from(*character)
                 );
             }
-            XmlEditError::MixedContent { element } => {
-                return write!(formatter, "element {element:?} holds text beside child elements, comments or instructions, so the edit is ambiguous");
+            XmlEditError::MixedContent {
+                element,
+            } => {
+                return write!(
+                    formatter,
+                    "element {element:?} holds text beside child elements, comments or instructions, so the edit is ambiguous"
+                );
             }
             XmlEditError::CannotRemoveRoot => {
-                return write!(formatter, "the root element cannot be removed because the document would have no root");
+                return write!(
+                    formatter,
+                    "the root element cannot be removed because the document would have no root"
+                );
             }
             XmlEditError::RejectedResult(error) => {
                 return write!(formatter, "the edit would produce invalid XML: {error}");

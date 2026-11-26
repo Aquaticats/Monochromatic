@@ -13,36 +13,75 @@
 
 /// Where the text area starts in a window,
 /// and the window's own type.
-use super::{AppWindow, sidebar_tests::TEXT_LEFT};
+use super::{
+    AppWindow,
+    sidebar_tests::TEXT_LEFT,
+};
 /// The tile the GPU draws,
 /// read back without a window,
 /// and how far two renders may differ.
 use super::{
     annotation_scene_tests::block,
-    gpu_snapshot::{install_gpu_platform, snapshot},
-    gpu_tile::{SLICE_LISTS_SET, render_scene, render_stack},
+    gpu_snapshot::{
+        install_gpu_platform,
+        snapshot,
+    },
+    gpu_tile::{
+        SLICE_LISTS_SET,
+        render_scene,
+        render_stack,
+    },
     tall_window_tests::settled_tile,
     tile_reads::same_pixels,
-    wrap_tests::{long_text, open, settled},
+    wrap_tests::{
+        long_text,
+        open,
+        settled,
+    },
 };
 /// The document with a selection,
 /// the rows of a tile,
 /// the shaper that lays them out,
 /// and the stack.
 use ide_app::{
-    annotation::{Mark, Visible},
-    annotation_layout::{AnnotationColors, lay_out},
+    annotation::{
+        Mark,
+        Visible,
+    },
+    annotation_layout::{
+        AnnotationColors,
+        lay_out,
+    },
     code_colors::CodeColors,
-    document::{Document, ReadingAffinity, ReadingPosition},
+    document::{
+        Document,
+        ReadingAffinity,
+        ReadingPosition,
+    },
     language::diagnostics::Severity,
-    row_map::{CODE_ROW, RowMap},
-    shaped_text::{ShapedView, TextShaper, Viewport, set_texture_dimension, stack_rows},
-    tile_scene::{paint_stack, paint_tile},
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+        Viewport,
+        set_texture_dimension,
+        stack_rows,
+    },
+    tile_scene::{
+        paint_stack,
+        paint_tile,
+    },
 };
 /// The pixels the GPU drew,
 /// and the window's events.
 use slint::{
-    ComponentHandle, Rgba8Pixel, SharedPixelBuffer, platform::update_timers_and_animations,
+    ComponentHandle,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    platform::update_timers_and_animations,
 };
 /// Counters are atomic.
 use std::sync::atomic::Ordering;
@@ -89,7 +128,10 @@ fn code(lines: usize) -> String {
 }
 
 /// The shaped rows of `lines` lines with the first `selected` of them selected.
-fn shaped(lines: usize, selected: usize) -> (ShapedView, Document) {
+fn shaped(
+    lines: usize,
+    selected: usize,
+) -> (ShapedView, Document) {
     let mut document = Document::new(&code(lines));
     if selected > 0 {
         let head = if selected >= lines {
@@ -134,7 +176,11 @@ fn seams(heights: &[u32]) -> Vec<usize> {
 }
 
 /// How many texels of the rows `from..to` are inked at all.
-fn inked_in(pixels: &SharedPixelBuffer<Rgba8Pixel>, from: usize, to: usize) -> usize {
+fn inked_in(
+    pixels: &SharedPixelBuffer<Rgba8Pixel>,
+    from: usize,
+    to: usize,
+) -> usize {
     let width = pixels.width() as usize;
     return pixels.as_slice()[from * width..to * width]
         .iter()
@@ -144,7 +190,11 @@ fn inked_in(pixels: &SharedPixelBuffer<Rgba8Pixel>, from: usize, to: usize) -> u
 
 /// Whether `stacked` is `whole` shifted down by one row of `width` texels,
 /// which no picture of text equals.
-fn shifted_equals(whole: &[Rgba8Pixel], stacked: &[Rgba8Pixel], width: usize) -> bool {
+fn shifted_equals(
+    whole: &[Rgba8Pixel],
+    stacked: &[Rgba8Pixel],
+    width: usize,
+) -> bool {
     return same_pixels(&whole[width..], &stacked[..stacked.len() - width]);
 }
 
@@ -154,7 +204,11 @@ fn shifted_equals(whole: &[Rgba8Pixel], stacked: &[Rgba8Pixel], width: usize) ->
 /// counted,
 /// the first few of them with the first differing column and the two texels there,
 /// and the largest difference of one channel.
-fn describe_difference(left: &[Rgba8Pixel], right: &[Rgba8Pixel], width: usize) -> String {
+fn describe_difference(
+    left: &[Rgba8Pixel],
+    right: &[Rgba8Pixel],
+    width: usize,
+) -> String {
     let mut rows = Vec::new();
     let mut largest = 0;
     for (row, (one, other)) in left.chunks(width).zip(right.chunks(width)).enumerate() {
@@ -193,7 +247,10 @@ const FRINGE_TEXELS: usize = 64;
 /// How many texels differ between two reads by more than the fringe of a stroke allows,
 /// and how many differ only in a fringe,
 /// both texels being fainter than [`FRINGE_ALPHA`].
-fn differences(left: &[Rgba8Pixel], right: &[Rgba8Pixel]) -> (usize, usize) {
+fn differences(
+    left: &[Rgba8Pixel],
+    right: &[Rgba8Pixel],
+) -> (usize, usize) {
     let mut beyond = 0;
     let mut fringe = 0;
     for (a, b) in left.iter().zip(right) {
@@ -357,7 +414,11 @@ fn annotated(padding: usize) -> ShapedView {
 }
 
 /// How many texels of the rows `from..to` carry one of the annotation inks.
-fn annotation_ink_in(pixels: &SharedPixelBuffer<Rgba8Pixel>, from: usize, to: usize) -> usize {
+fn annotation_ink_in(
+    pixels: &SharedPixelBuffer<Rgba8Pixel>,
+    from: usize,
+    to: usize,
+) -> usize {
     let width = pixels.width() as usize;
     let mut found = 0;
     for pixel in &pixels.as_slice()[from * width..to * width] {

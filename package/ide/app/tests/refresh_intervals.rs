@@ -19,8 +19,12 @@
 use ide_app::{
     change_watch::SourceChange,
     refresh_policy::{
-        DirectoryRefresh, SAFETY_SWEEP, SourceRefresh, UNWATCHED_DIRECTORY_POLL,
-        UNWATCHED_SOURCE_POLL, WRITE_QUIET,
+        DirectoryRefresh,
+        SAFETY_SWEEP,
+        SourceRefresh,
+        UNWATCHED_DIRECTORY_POLL,
+        UNWATCHED_SOURCE_POLL,
+        WRITE_QUIET,
     },
 };
 /// What:
@@ -34,9 +38,15 @@ use ide_app::{
 /// const lastRead = new Map<string, number>();
 /// ```
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::PathBuf,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// One native timer tick;
@@ -46,7 +56,10 @@ const TICK: Duration = Duration::from_millis(20);
 /// Longest time any of `folders` shown folders goes without a reread when nothing is notified.
 /// `watched` false gives the folders no live watch,
 ///  so the unwatched timer runs beside the sweep.
-fn longest_reread_interval(folders: u32, watched: bool) -> Duration {
+fn longest_reread_interval(
+    folders: u32,
+    watched: bool,
+) -> Duration {
     let start = Instant::now();
     let mut shown = Vec::new();
     for index in 0..folders {

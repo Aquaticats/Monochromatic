@@ -7,9 +7,16 @@
 ///  the production shaper,
 ///  and the vertical movement under test.
 use ide_app::{
-    document::{Document, ReadingAffinity, ReadingPosition},
+    document::{
+        Document,
+        ReadingAffinity,
+        ReadingPosition,
+    },
     shaped_text::TextShaper,
-    vertical_motion::{PreferredColumn, vertical},
+    vertical_motion::{
+        PreferredColumn,
+        vertical,
+    },
 };
 
 /// What:
@@ -24,7 +31,10 @@ use ide_app::{
 /// ```ts
 /// function at(source: string, head: number): Document;
 /// ```
-fn at(source: &str, head: usize) -> Document {
+fn at(
+    source: &str,
+    head: usize,
+) -> Document {
     let mut document = Document::new(source);
     document.select(ReadingPosition {
         anchor: head,
@@ -47,7 +57,11 @@ fn at(source: &str, head: usize) -> Document {
 /// ```ts
 /// function travel(source: string, head: number, steps: number[]): number[];
 /// ```
-fn travel(source: &str, head: usize, steps: &[isize]) -> Vec<usize> {
+fn travel(
+    source: &str,
+    head: usize,
+    steps: &[isize],
+) -> Vec<usize> {
     let mut document = at(source, head);
     let mut shaper = TextShaper::new();
     // What: `None` is the absent value of `Option` (TypeScript's `undefined`).

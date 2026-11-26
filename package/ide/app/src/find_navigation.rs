@@ -1,7 +1,11 @@
 //! Relate accepted in-file matches to the reading selection without owning either.
 
 /// Match ranges and their shared list come from the single matching function.
-use crate::find::{FindMatches, FindRange, FindRanges};
+use crate::find::{
+    FindMatches,
+    FindRange,
+    FindRanges,
+};
 /// Accepted results keep the tag of the request that produced them.
 use crate::find_worker::FindIdentity;
 /// What:
@@ -24,7 +28,10 @@ use std::sync::Arc;
 /// ```ts
 /// const startsBefore = (range: FindRange, limit: number) => range.start < limit;
 /// ```
-fn starts_before(range: &FindRange, limit: usize) -> bool {
+fn starts_before(
+    range: &FindRange,
+    limit: usize,
+) -> bool {
     return range.start < limit;
 }
 
@@ -37,7 +44,10 @@ fn starts_before(range: &FindRange, limit: usize) -> bool {
 /// ```ts
 /// const endsBy = (range: FindRange, limit: number) => range.end <= limit;
 /// ```
-fn ends_by(range: &FindRange, limit: usize) -> bool {
+fn ends_by(
+    range: &FindRange,
+    limit: usize,
+) -> bool {
     return range.end <= limit;
 }
 
@@ -84,7 +94,11 @@ fn first_not_before(
 /// ```ts
 /// function active(ranges: FindRange[], start: number, end: number): number | undefined;
 /// ```
-pub fn active(ranges: &[FindRange], start: usize, end: usize) -> Option<usize> {
+pub fn active(
+    ranges: &[FindRange],
+    start: usize,
+    end: usize,
+) -> Option<usize> {
     // What: `first_not_before` binary-searches a sorted list; `starts_before` is the named test it applies.
     // Why: Up to ten thousand ranges are consulted on every selection change.
     //
@@ -115,7 +129,10 @@ pub fn active(ranges: &[FindRange], start: usize, end: usize) -> Option<usize> {
 ///  wrapping to the first match of the document.
 /// Incremental typing passes the selection start;
 ///  Enter passes the selection end.
-pub fn at_or_after(ranges: &[FindRange], origin: usize) -> Option<usize> {
+pub fn at_or_after(
+    ranges: &[FindRange],
+    origin: usize,
+) -> Option<usize> {
     if ranges.is_empty() {
         return None;
     }
@@ -129,7 +146,10 @@ pub fn at_or_after(ranges: &[FindRange], origin: usize) -> Option<usize> {
 /// Last match ending at or before `origin`,
 ///  wrapping to the last match of the document.
 /// Shift+Enter passes the selection start.
-pub fn at_or_before(ranges: &[FindRange], origin: usize) -> Option<usize> {
+pub fn at_or_before(
+    ranges: &[FindRange],
+    origin: usize,
+) -> Option<usize> {
     if ranges.is_empty() {
         return None;
     }
@@ -149,7 +169,11 @@ pub fn at_or_before(ranges: &[FindRange], origin: usize) -> Option<usize> {
 /// ```ts
 /// function visible(ranges: FindRange[], start: number, end: number): FindRange[];
 /// ```
-pub fn visible(ranges: &[FindRange], start: usize, end: usize) -> &[FindRange] {
+pub fn visible(
+    ranges: &[FindRange],
+    start: usize,
+    end: usize,
+) -> &[FindRange] {
     let first = first_not_before(ranges, start, ends_by);
     let last = first_not_before(ranges, end, starts_before);
     if last <= first {
@@ -182,7 +206,10 @@ pub struct FindStatus {
 }
 
 /// Describe accepted matches relative to the optional active index.
-pub fn status(matches: &FindMatches, active_index: Option<usize>) -> FindStatus {
+pub fn status(
+    matches: &FindMatches,
+    active_index: Option<usize>,
+) -> FindStatus {
     let total = matches.ranges.len();
     if total == 0 {
         // What: `to_string` copies a literal into an owned `String`.
@@ -240,14 +267,24 @@ pub struct FindResults {
 ///  so stale positions cannot be painted or navigated.
 impl FindResults {
     /// Record matches together with the identity of the reply that carried them.
-    pub fn new(identity: FindIdentity, matches: FindMatches) -> Self {
-        return Self { identity, matches };
+    pub fn new(
+        identity: FindIdentity,
+        matches: FindMatches,
+    ) -> Self {
+        return Self {
+            identity,
+            matches,
+        };
     }
 
     /// Lend matches while their positions describe the displayed document.
     /// The query may be one edit behind:
     ///  its highlights stay until the newer reply replaces them.
-    pub fn positioned(&self, file: u64, revision: u64) -> Option<&FindMatches> {
+    pub fn positioned(
+        &self,
+        file: u64,
+        revision: u64,
+    ) -> Option<&FindMatches> {
         if self.identity.file == file && self.identity.revision == revision {
             return Some(&self.matches);
         }
@@ -259,7 +296,10 @@ impl FindResults {
     ///  and current find text.
     /// Enter and Shift+Enter use this,
     ///  so they never step through matches of a superseded query.
-    pub fn navigable(&self, wanted: FindIdentity) -> Option<&FindMatches> {
+    pub fn navigable(
+        &self,
+        wanted: FindIdentity,
+    ) -> Option<&FindMatches> {
         // What: `&wanted` lends the copied tag to the three-part comparison.
         // Why: One comparison function decides staleness for worker replies and for navigation.
         //
@@ -311,7 +351,11 @@ pub fn navigable_matches(
 
 /// Ranges to paint for the displayed document;
 ///  stale or absent results paint nothing.
-pub fn paint_ranges(results: &Option<FindResults>, file: u64, revision: u64) -> FindRanges {
+pub fn paint_ranges(
+    results: &Option<FindResults>,
+    file: u64,
+    revision: u64,
+) -> FindRanges {
     if let Some(matches) = positioned_matches(results, file, revision) {
         // What: `Arc::clone` copies the pointer, not the ranges.
         // Why: The frame stamp keeps the same allocation and can compare identity cheaply.

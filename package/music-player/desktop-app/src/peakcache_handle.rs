@@ -91,7 +91,12 @@ use tokio::sync::oneshot;
 /// ```ts
 /// import * as service from "./peakcache_service";
 /// ```
-use super::service::{self, Read, Upsert, Write};
+use super::service::{
+    self,
+    Read,
+    Upsert,
+    Write,
+};
 
 /// What:
 ///      `#[derive(Clone)] pub(crate) struct CacheHandle { .. }`.
@@ -175,7 +180,10 @@ impl CacheHandle {
         // ```ts
         // return { readTx, writeTx };
         // ```
-        return CacheHandle { read_tx, write_tx }
+        return CacheHandle {
+            read_tx,
+            write_tx,
+        };
     }
 
     /// What:
@@ -207,7 +215,10 @@ impl CacheHandle {
         // ```ts
         // return { readTx, writeTx };
         // ```
-        return CacheHandle { read_tx, write_tx }
+        return CacheHandle {
+            read_tx,
+            write_tx,
+        };
     }
 
     /// What:
@@ -245,7 +256,10 @@ impl CacheHandle {
         // ```ts
         // return { readTx, writeTx };
         // ```
-        return CacheHandle { read_tx, write_tx }
+        return CacheHandle {
+            read_tx,
+            write_tx,
+        };
     }
 
     /// What:
@@ -260,7 +274,10 @@ impl CacheHandle {
     /// ```ts
     /// get(fingerprint: bigint): Decision | null { ... }
     /// ```
-    pub(crate) fn get(&self, fingerprint: u64) -> Option<Decision> {
+    pub(crate) fn get(
+        &self,
+        fingerprint: u64,
+    ) -> Option<Decision> {
         // What:     Make the reply pair; send `Get` with the key.
         // Why:      The actor answers on `reply_tx`.
         //
@@ -293,7 +310,7 @@ impl CacheHandle {
         // ```ts
         // return (await replyRx) ?? null;
         // ```
-        return reply_rx.blocking_recv().ok().flatten()
+        return reply_rx.blocking_recv().ok().flatten();
     }
 
     /// What:
@@ -307,7 +324,11 @@ impl CacheHandle {
     /// ```ts
     /// upsert(fingerprint: bigint, decision: Decision): void { ... }
     /// ```
-    pub(crate) fn upsert(&self, fingerprint: u64, decision: Decision) {
+    pub(crate) fn upsert(
+        &self,
+        fingerprint: u64,
+        decision: Decision,
+    ) {
         // What:     Send the write; ignore a closed actor.
         // Why:      A dropped cache thread just means nothing is persisted.
         //
@@ -315,7 +336,10 @@ impl CacheHandle {
         // ```ts
         // writeTx.send(Write.Put({ fingerprint, decision }));
         // ```
-        let _ = self.write_tx.send(Write::Put(Upsert { fingerprint, decision }));
+        let _ = self.write_tx.send(Write::Put(Upsert {
+            fingerprint,
+            decision,
+        }));
     }
 
     /// What:
@@ -346,7 +370,13 @@ impl CacheHandle {
         // ```ts
         // if (!readTx.send({ kind: "known", reply: replyTx })) return new Set();
         // ```
-        if self.read_tx.send(Read::Known { reply: reply_tx }).is_err() {
+        if self
+            .read_tx
+            .send(Read::Known {
+                reply: reply_tx,
+            })
+            .is_err()
+        {
             return HashSet::new();
         }
         // What:     Block for the snapshot; any failure => empty set.
@@ -356,6 +386,6 @@ impl CacheHandle {
         // ```ts
         // return (await replyRx) ?? new Set();
         // ```
-        return reply_rx.blocking_recv().unwrap_or_default()
+        return reply_rx.blocking_recv().unwrap_or_default();
     }
 }

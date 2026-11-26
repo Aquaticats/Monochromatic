@@ -20,7 +20,10 @@
 /// ```ts
 /// const now = performance.now();
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Wait before the first sweep retry after the limit was reached.
 pub const FIRST_LIMIT_RETRY: Duration = Duration::from_secs(2);
@@ -53,14 +56,20 @@ impl LimitBackoff {
     }
 
     /// True when a sweep may retry now.
-    pub fn may_retry(&self, now: Instant) -> bool {
+    pub fn may_retry(
+        &self,
+        now: Instant,
+    ) -> bool {
         return now >= self.next_retry;
     }
 
     /// A sweep retry hit the limit again:
     ///  wait twice as long,
     ///  up to `LONGEST_LIMIT_RETRY`.
-    pub fn failed_again(&mut self, now: Instant) {
+    pub fn failed_again(
+        &mut self,
+        now: Instant,
+    ) {
         // What: `saturating_mul` doubles without overflowing; `min` caps the result.
         // Why: The wait grows quickly while the limit stays reached, but a retry still happens about every minute.
         //
@@ -74,7 +83,10 @@ impl LimitBackoff {
 
     /// How long until a retry is allowed;
     ///  zero once it is.
-    pub fn until_retry(&self, now: Instant) -> Duration {
+    pub fn until_retry(
+        &self,
+        now: Instant,
+    ) -> Duration {
         // `saturating_duration_since` gives zero instead of failing when `now` is already past.
         return self.next_retry.saturating_duration_since(now);
     }

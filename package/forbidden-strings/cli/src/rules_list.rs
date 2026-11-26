@@ -82,16 +82,29 @@ pub enum RulesListError {
 impl std::fmt::Display for RulesListError {
     /// Writes the refusal with the entry position,
     /// so a long list stays diagnosable.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
-            Self::Empty => return write!(formatter, "the rules list is empty; name at least one rules file"),
-            Self::EmptyEntry { position } => {
+            Self::Empty => {
+                return write!(
+                    formatter,
+                    "the rules list is empty; name at least one rules file"
+                );
+            }
+            Self::EmptyEntry {
+                position,
+            } => {
                 return write!(
                     formatter,
                     "rules list entry {position} names no file (an empty entry between commas, or a bare '?')",
                 );
             }
-            Self::DuplicatePath { first, position } => {
+            Self::DuplicatePath {
+                first,
+                position,
+            } => {
                 return write!(
                     formatter,
                     "rules list entry {position} names the same file as entry {first}",
@@ -128,13 +141,21 @@ pub fn parse_rules_list(value: &str) -> Result<Vec<RulesEntry>, RulesListError> 
             None => (raw, false),
         };
         if name.is_empty() {
-            return Err(RulesListError::EmptyEntry { position });
+            return Err(RulesListError::EmptyEntry {
+                position,
+            });
         }
         if let Some(&first) = first_positions.get(name) {
-            return Err(RulesListError::DuplicatePath { first, position });
+            return Err(RulesListError::DuplicatePath {
+                first,
+                position,
+            });
         }
         first_positions.insert(name, position);
-        entries.push(RulesEntry { path: PathBuf::from(name), optional });
+        entries.push(RulesEntry {
+            path: PathBuf::from(name),
+            optional,
+        });
     }
     return Ok(entries);
 }

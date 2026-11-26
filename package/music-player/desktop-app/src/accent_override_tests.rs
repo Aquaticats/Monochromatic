@@ -11,7 +11,11 @@ fn unset_and_empty_follow_the_system() {
 
 #[test]
 fn six_digits_with_or_without_a_hash_give_the_color() {
-    let expected: Option<Srgb8> = Some(Srgb8 { red: 0x60, green: 0x60, blue: 0xC0 });
+    let expected: Option<Srgb8> = Some(Srgb8 {
+        red: 0x60,
+        green: 0x60,
+        blue: 0xC0,
+    });
     assert_eq!(accent_override(Some("6060C0")), Ok(expected));
     assert_eq!(accent_override(Some("#6060c0")), Ok(expected));
 }

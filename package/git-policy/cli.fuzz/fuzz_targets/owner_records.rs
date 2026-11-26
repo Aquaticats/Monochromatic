@@ -18,7 +18,10 @@
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
 use git_policy_cli_fuzz::owners::{
-    check_copy_owner_token, check_generated_copy_owner_token, check_owner_file_names, check_stat,
+    check_copy_owner_token,
+    check_generated_copy_owner_token,
+    check_owner_file_names,
+    check_stat,
     check_transaction_owner,
 };
 use libfuzzer_sys::fuzz_target;

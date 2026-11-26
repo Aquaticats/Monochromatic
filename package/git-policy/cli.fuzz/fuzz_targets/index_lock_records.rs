@@ -12,7 +12,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's index-lock checks.
-use git_policy_cli_fuzz::index_lock::{check_linux_stat, check_pid_file_text};
+use git_policy_cli_fuzz::index_lock::{
+    check_linux_stat,
+    check_pid_file_text,
+};
 use libfuzzer_sys::fuzz_target;
 
 // The `|data: &[u8]|` form is the macro's input grammar, not a closure.

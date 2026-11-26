@@ -13,7 +13,10 @@ use super::SHENG_MAX_STATES;
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
 use crate::dfa::table::Dfa;
-use crate::dfa::{build_dfa_within, minimize};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 use crate::parse::parse;
 
 // What:    Builds the same unanchored search DFA an engine would for `pattern`.
@@ -28,7 +31,7 @@ use crate::parse::parse;
 // ```
 fn search_dfa(pattern: &str) -> Dfa {
     let node = concat(vec![Node::Top, parse(pattern).expect("pattern parses")]);
-    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"))
+    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"));
 }
 
 // What:    Asserts the Sheng kernel agrees with the per-line scalar oracle on `lines`.
@@ -41,7 +44,10 @@ fn search_dfa(pattern: &str) -> Dfa {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn sheng_agrees(pattern: &str, lines: &[&[u8]]) {
+fn sheng_agrees(
+    pattern: &str,
+    lines: &[&[u8]],
+) {
     let dfa = search_dfa(pattern);
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
     let mut out = vec![false; lines.len()];
@@ -65,7 +71,15 @@ fn literal_and_class_pattern() {
 
 #[test]
 fn word_boundary_anchors() {
-    let lines: &[&[u8]] = &[b"cat", b"a cat sat", b"category", b"scatter", b"cat!", b"dog", b" cat "];
+    let lines: &[&[u8]] = &[
+        b"cat",
+        b"a cat sat",
+        b"category",
+        b"scatter",
+        b"cat!",
+        b"dog",
+        b" cat ",
+    ];
     sheng_agrees(r"\bcat\b", lines);
 }
 
@@ -108,7 +122,10 @@ fn hex_run_full_scan() {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn flat_dfa(num_states: u16, nclasses: u32) -> Dfa {
+fn flat_dfa(
+    num_states: u16,
+    nclasses: u32,
+) -> Dfa {
     let nc = nclasses as usize;
     let class_map: Vec<u8> = (0..256usize).map(|b| return (b % nc) as u8).collect();
     return Dfa::from_parts(
@@ -120,7 +137,7 @@ fn flat_dfa(num_states: u16, nclasses: u32) -> Dfa {
         vec![0u8; num_states as usize],
         0,
         num_states,
-    )
+    );
 }
 
 #[test]
@@ -136,13 +153,18 @@ fn build_sheng_eligibility_is_bounded_at_64_states() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(search_dfa("AKIA[A-Z2-7]{4}").build_sheng().is_some(), "a small DFA is eligible");
+    assert!(
+        search_dfa("AKIA[A-Z2-7]{4}").build_sheng().is_some(),
+        "a small DFA is eligible"
+    );
     assert!(
         flat_dfa(SHENG_MAX_STATES as u16, 1).build_sheng().is_some(),
         "{SHENG_MAX_STATES} states is the inclusive maximum"
     );
     assert!(
-        flat_dfa(SHENG_MAX_STATES as u16 + 1, 1).build_sheng().is_none(),
+        flat_dfa(SHENG_MAX_STATES as u16 + 1, 1)
+            .build_sheng()
+            .is_none(),
         "{} states is over the permute width",
         SHENG_MAX_STATES + 1
     );

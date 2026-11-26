@@ -2,7 +2,10 @@
 //!  which range to ask for and how labels are shaped.
 
 /// Hints name the text and the server process they were computed for.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// Hint positions pass through the shared converter with its line-bound check.
 use super::position::from_lsp_position;
 /// What:
@@ -16,7 +19,10 @@ use super::position::from_lsp_position;
 /// ```
 use helix_core::Rope;
 /// The protocol's hint record and the column unit of the answering server.
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 
 /// What kind of information a hint adds.
 ///
@@ -133,7 +139,10 @@ pub struct HintsSnapshot {
 ///   return [Math.min(first, last), last];
 /// }
 /// ```
-pub fn request_lines(window: HintWindow, line_count: usize) -> (usize, usize) {
+pub fn request_lines(
+    window: HintWindow,
+    line_count: usize,
+) -> (usize, usize) {
     // What: `saturating_sub` subtracts and stops at zero instead of wrapping below it;
     //       `saturating_add` and `saturating_mul` stop at the largest value instead of overflowing.
     // Why: Unsigned integers cannot be negative, and a huge window must not overflow.

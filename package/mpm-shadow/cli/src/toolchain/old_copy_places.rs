@@ -27,16 +27,24 @@ use std::fs;
 /// Imports `ErrorKind` from `std::io`.
 use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `cargo_bin_dir` from `super::layout`.
 use super::layout::cargo_bin_dir;
-/// Imports `listed_worktrees` from `super::worktrees`.
-use super::worktrees::listed_worktrees;
 /// Imports `Runner` from `super::runner`.
 use super::runner::Runner;
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope, ScopeKind, global_scope};
+use super::scope::{
+    EnvMap,
+    Scope,
+    ScopeKind,
+    global_scope,
+};
+/// Imports `listed_worktrees` from `super::worktrees`.
+use super::worktrees::listed_worktrees;
 
 /// The suffix of the link directories a checkout keeps under `.cache`
 /// (`monochromatic-git-policy-cli-bin`,
@@ -124,13 +132,18 @@ fn resolved(path: &Path) -> PathBuf {
 }
 
 /// Adds `kind` places for the `.cache/*-bin` directories of one checkout.
-fn add_checkout_directories(checkout: &Path, places: &mut Places) {
+fn add_checkout_directories(
+    checkout: &Path,
+    places: &mut Places,
+) {
     let cache: PathBuf = checkout.join(".cache");
     let entries = match fs::read_dir(&cache) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return,
         Err(error) => {
-            places.incomplete.push(format!("{} cannot be listed: {error}", cache.display()));
+            places
+                .incomplete
+                .push(format!("{} cannot be listed: {error}", cache.display()));
             return;
         }
     };
@@ -143,7 +156,10 @@ fn add_checkout_directories(checkout: &Path, places: &mut Places) {
     }
     directories.sort();
     for directory in directories {
-        places.directories.push(Place { kind: PlaceKind::Checkout, directory });
+        places.directories.push(Place {
+            kind: PlaceKind::Checkout,
+            directory,
+        });
     }
 }
 
@@ -160,7 +176,11 @@ fn add_checkout_directories(checkout: &Path, places: &mut Places) {
 /// ```ts
 /// function visibleCheckouts(scope: Scope, runner: Runner, places: Places): string[]
 /// ```
-fn visible_checkouts(scope: &Scope, runner: &dyn Runner, places: &mut Places) -> Vec<PathBuf> {
+fn visible_checkouts(
+    scope: &Scope,
+    runner: &dyn Runner,
+    places: &mut Places,
+) -> Vec<PathBuf> {
     if scope.kind == ScopeKind::Global {
         places.incomplete.push(
             "a global install does not search the repository's checkouts; run `mpm-shadow install` inside a checkout to include them"
@@ -207,13 +227,26 @@ fn visible_checkouts(scope: &Scope, runner: &dyn Runner, places: &mut Places) ->
 /// ```ts
 /// export function knownPlaces(scope: Scope, env: EnvMap, runner: Runner): Places
 /// ```
-pub fn known_places(scope: &Scope, env: &EnvMap, runner: &dyn Runner) -> Places {
+pub fn known_places(
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+) -> Places {
     let mut places: Places = Places::default();
     match global_scope(env) {
         Ok(global) => {
-            places.directories.push(Place { kind: PlaceKind::LocalBin, directory: global.link_dir });
-            places.directories.push(Place { kind: PlaceKind::GlobalFarm, directory: global.exposure_dir });
-            places.directories.push(Place { kind: PlaceKind::CargoBin, directory: cargo_bin_dir(env, &global.home) });
+            places.directories.push(Place {
+                kind: PlaceKind::LocalBin,
+                directory: global.link_dir,
+            });
+            places.directories.push(Place {
+                kind: PlaceKind::GlobalFarm,
+                directory: global.exposure_dir,
+            });
+            places.directories.push(Place {
+                kind: PlaceKind::CargoBin,
+                directory: cargo_bin_dir(env, &global.home),
+            });
         }
         Err(error) => places.incomplete.push(error.message),
     }
@@ -238,7 +271,10 @@ pub fn known_places(scope: &Scope, env: &EnvMap, runner: &dyn Runner) -> Places 
 /// ```ts
 /// export function linksToCopy(places: Places, copy: string): { found: FoundLink[]; unreadable: string[] }
 /// ```
-pub fn links_to_copy(places: &Places, copy: &Path) -> LinkScan {
+pub fn links_to_copy(
+    places: &Places,
+    copy: &Path,
+) -> LinkScan {
     let mut scan: LinkScan = LinkScan::default();
     let Ok(target) = fs::canonicalize(copy) else {
         return scan;
@@ -263,7 +299,10 @@ pub fn links_to_copy(places: &Places, copy: &Path) -> LinkScan {
             if let Ok(resolved_link) = fs::canonicalize(entry.path())
                 && resolved_link == target
             {
-                scan.found.push(FoundLink { path: entry.path(), kind: place.kind });
+                scan.found.push(FoundLink {
+                    path: entry.path(),
+                    kind: place.kind,
+                });
             }
         }
     }
@@ -282,7 +321,12 @@ pub fn links_to_copy(places: &Places, copy: &Path) -> LinkScan {
 /// ```ts
 /// export function placesOf(slot: { places?: Places }, ctx: Context): Places
 /// ```
-pub fn places_of<'a>(slot: &'a mut Option<Places>, scope: &Scope, env: &EnvMap, runner: &dyn Runner) -> &'a Places {
+pub fn places_of<'a>(
+    slot: &'a mut Option<Places>,
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+) -> &'a Places {
     if slot.is_none() {
         *slot = Some(known_places(scope, env, runner));
     }

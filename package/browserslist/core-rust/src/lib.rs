@@ -99,16 +99,6 @@ pub mod error;
 #[cfg(test)]
 mod fake_registry;
 /// What:
-///  Firefox ESR value parsing.
-/// Why:
-///  Shared by the lock and the update step.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export * from './firefoxEsr';
-/// ```
-pub mod firefox_esr;
-/// What:
 ///  The bounded blocking HTTP GET.
 /// Why:
 ///  Used inside the crate;
@@ -119,6 +109,16 @@ pub mod firefox_esr;
 /// // private module './fetch'
 /// ```
 mod fetch;
+/// What:
+///  Firefox ESR value parsing.
+/// Why:
+///  Shared by the lock and the update step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './firefoxEsr';
+/// ```
+pub mod firefox_esr;
 /// What:
 ///  Test-only fixtures and helpers.
 /// Why:
@@ -271,7 +271,10 @@ pub mod update;
 /// ```ts
 /// import { renderBrowserslistrc, resolveBrowserslistrc } from 'api';
 /// ```
-pub use api::{render_browserslistrc, resolve_browserslistrc};
+pub use api::{
+    render_browserslistrc,
+    resolve_browserslistrc,
+};
 /// What:
 ///  Re-export `BrowserData, DataFiles` from `data`.
 /// Why:
@@ -281,7 +284,10 @@ pub use api::{render_browserslistrc, resolve_browserslistrc};
 /// ```ts
 /// import { BrowserData, DataFiles } from 'data';
 /// ```
-pub use data::{BrowserData, DataFiles};
+pub use data::{
+    BrowserData,
+    DataFiles,
+};
 /// What:
 ///  Re-export `BrowserslistError, Outcome` from `error`.
 /// Why:
@@ -291,7 +297,10 @@ pub use data::{BrowserData, DataFiles};
 /// ```ts
 /// import { BrowserslistError, Outcome } from 'error';
 /// ```
-pub use error::{BrowserslistError, Outcome};
+pub use error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Re-export `DataLock, PinnedPackage` from `lock`.
 /// Why:
@@ -301,7 +310,10 @@ pub use error::{BrowserslistError, Outcome};
 /// ```ts
 /// import { DataLock, PinnedPackage } from 'lock';
 /// ```
-pub use lock::{DataLock, PinnedPackage};
+pub use lock::{
+    DataLock,
+    PinnedPackage,
+};
 /// What:
 ///  Re-export `render_resolved_json` from `render::render_resolved_json`.
 /// Why:
@@ -321,7 +333,10 @@ pub use render::render_resolved_json;
 /// ```ts
 /// import { finalize, resolveConfigText } from 'resolve';
 /// ```
-pub use resolve::{finalize, resolve_config_text};
+pub use resolve::{
+    finalize,
+    resolve_config_text,
+};
 /// What:
 ///  Re-export `DataSource` from `source::DataSource`.
 /// Why:

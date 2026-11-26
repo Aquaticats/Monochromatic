@@ -12,11 +12,18 @@
 //! ```
 
 /// Imports `crate::crate_info::{CrateInfo, ManifestFile, read_crate_info}`.
-use crate::crate_info::{CrateInfo, ManifestFile, read_crate_info};
+use crate::crate_info::{
+    CrateInfo,
+    ManifestFile,
+    read_crate_info,
+};
 /// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
 /// Imports `crate::site::{SiteKind, UseSite}`.
-use crate::site::{SiteKind, UseSite};
+use crate::site::{
+    SiteKind,
+    UseSite,
+};
 /// Imports `crate::sync_test_support::issues`.
 use crate::sync_test_support::issues;
 /// Imports `crate::types::Entry`.
@@ -41,7 +48,11 @@ fn sites(lines: &[&str]) -> Vec<UseSite> {
 
 /// Problems reported for a manifest as `location: problem` text.
 fn problems(lines: &[&str]) -> Vec<String> {
-    return read(lines).1.into_iter().map(|issue| return format!("{}: {}", issue.location, issue.problem)).collect();
+    return read(lines)
+        .1
+        .into_iter()
+        .map(|issue| return format!("{}: {}", issue.location, issue.problem))
+        .collect();
 }
 
 /// Strings,
@@ -59,10 +70,32 @@ fn classifies_every_shape() {
         "inherited = { workspace = true, features = [\"a\"], optional = true }",
     ]);
     let kinds: Vec<SiteKind> = found.iter().map(|site| return site.kind).collect();
-    assert_eq!(kinds, vec![SiteKind::Literal, SiteKind::Literal, SiteKind::Literal, SiteKind::Path, SiteKind::Catalog]);
-    assert_eq!(found[1].literal, Entry::Registry { version: "1".to_string(), package: Some("real".to_string()) });
+    assert_eq!(
+        kinds,
+        vec![
+            SiteKind::Literal,
+            SiteKind::Literal,
+            SiteKind::Literal,
+            SiteKind::Path,
+            SiteKind::Catalog
+        ]
+    );
+    assert_eq!(
+        found[1].literal,
+        Entry::Registry {
+            version: "1".to_string(),
+            package: Some("real".to_string())
+        }
+    );
     assert!(found[1].disables_default_features);
-    assert_eq!(found[2].literal, Entry::Git { git: "https://x".to_string(), rev: "r".to_string(), package: Some("real".to_string()) });
+    assert_eq!(
+        found[2].literal,
+        Entry::Git {
+            git: "https://x".to_string(),
+            rev: "r".to_string(),
+            package: Some("real".to_string())
+        }
+    );
     assert_eq!(found[3].path, "../b");
     assert!(!found[0].disables_default_features);
     assert_eq!(found[0].location(), "dependencies.plain");
@@ -148,7 +181,10 @@ fn reads_identity_and_selections() {
     assert_eq!(info.selection("windows"), Some("legacy"));
     assert_eq!(info.selection("broken"), None);
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0].location, "package.metadata.rust-catalog.catalogs.broken");
+    assert_eq!(
+        found[0].location,
+        "package.metadata.rust-catalog.catalogs.broken"
+    );
 }
 
 /// A manifest without a package table has empty identity.
@@ -162,9 +198,18 @@ fn missing_package_table_has_empty_identity() {
 /// A hand-written `workspace.dependencies` in any non-standard form is reported once.
 #[test]
 fn reports_hand_written_workspace_dependencies() {
-    assert_eq!(problems(&["[workspace]", "dependencies = { a = \"1\" }"]).len(), 1);
-    assert_eq!(problems(&["[workspace]", "dependencies.a = \"1\""]).len(), 1);
-    assert_eq!(problems(&["[workspace.dependencies.a]", "version = \"1\""]).len(), 1);
+    assert_eq!(
+        problems(&["[workspace]", "dependencies = { a = \"1\" }"]).len(),
+        1
+    );
+    assert_eq!(
+        problems(&["[workspace]", "dependencies.a = \"1\""]).len(),
+        1
+    );
+    assert_eq!(
+        problems(&["[workspace.dependencies.a]", "version = \"1\""]).len(),
+        1
+    );
     assert_eq!(problems(&["[workspace]", "dependencies = 3"]).len(), 1);
     assert!(problems(&["[workspace.dependencies]", "a = \"1\""]).is_empty());
     assert!(problems(&["[workspace]"]).is_empty());
@@ -174,7 +219,10 @@ fn reports_hand_written_workspace_dependencies() {
 /// Invalid manifest TOML names the file.
 #[test]
 fn invalid_toml_is_a_hard_error() {
-    let manifest = ManifestFile { path: "x/Cargo.toml".to_string(), source: "[".to_string() };
+    let manifest = ManifestFile {
+        path: "x/Cargo.toml".to_string(),
+        source: "[".to_string(),
+    };
     let mut found: Vec<SyncIssue> = Vec::new();
     assert!(read_crate_info(&manifest, &mut found).is_err());
 }
@@ -184,7 +232,11 @@ fn invalid_toml_is_a_hard_error() {
 fn sync_reports_classification_problems() {
     let manifest = ManifestFile {
         path: "package/cli/a/Cargo.toml".to_string(),
-        source: "[package]\nname = \"a\"\nversion = \"0.1.0\"\n[dependencies]\nnumber = 3\n".to_string(),
+        source: "[package]\nname = \"a\"\nversion = \"0.1.0\"\n[dependencies]\nnumber = 3\n"
+            .to_string(),
     };
-    assert_eq!(issues(&["[catalog]"], &[manifest]), vec!["package/cli/a/Cargo.toml dependencies.number".to_string()]);
+    assert_eq!(
+        issues(&["[catalog]"], &[manifest]),
+        vec!["package/cli/a/Cargo.toml dependencies.number".to_string()]
+    );
 }

@@ -6,7 +6,16 @@ use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
 
 use super::fixtures::sample_lock;
-use super::util::{all_ascii_digits, contains_any, ends_with_any, file_name_os, file_name_text, find_tool, number_or_zero, starts_with_ascii_digit};
+use super::util::{
+    all_ascii_digits,
+    contains_any,
+    ends_with_any,
+    file_name_os,
+    file_name_text,
+    find_tool,
+    number_or_zero,
+    starts_with_ascii_digit,
+};
 
 #[test]
 fn digit_predicates_accept_only_ascii_digits() {
@@ -31,7 +40,10 @@ fn any_of_predicates_match_substrings_and_endings() {
 #[test]
 fn a_tool_is_found_by_its_id() {
     let lock = sample_lock();
-    assert_eq!(find_tool(&lock.tools, "node").map(|tool| return tool.version.as_str()), Some("1.2.3"));
+    assert_eq!(
+        find_tool(&lock.tools, "node").map(|tool| return tool.version.as_str()),
+        Some("1.2.3")
+    );
     assert!(find_tool(&lock.tools, "absent").is_none());
 }
 
@@ -97,7 +109,10 @@ fn temporaries_beside(target: &Path) -> Vec<std::path::PathBuf> {
     let parent = target.parent().expect("a parent directory");
     let prefix = format!(".{}.", file_name_text(target));
     let mut found: Vec<std::path::PathBuf> = Vec::new();
-    for entry in std::fs::read_dir(parent).expect("read the directory").flatten() {
+    for entry in std::fs::read_dir(parent)
+        .expect("read the directory")
+        .flatten()
+    {
         let name = entry.file_name().to_string_lossy().to_string();
         if name.starts_with(&prefix) && name.ends_with(".tmp") {
             found.push(entry.path());
@@ -110,7 +125,11 @@ fn temporaries_beside(target: &Path) -> Vec<std::path::PathBuf> {
 #[cfg(unix)]
 fn mode_of(path: &Path) -> u32 {
     use std::os::unix::fs::PermissionsExt;
-    return std::fs::metadata(path).expect("the file exists").permissions().mode() & 0o7777;
+    return std::fs::metadata(path)
+        .expect("the file exists")
+        .permissions()
+        .mode()
+        & 0o7777;
 }
 
 /// What:
@@ -141,7 +160,8 @@ fn the_new_content_is_only_ever_in_a_file_of_the_kept_mode_whatever_the_umask() 
         let directory = crate::test_scratch::scratch();
         let target = directory.path().join("toolchain.plan.jsonc");
         std::fs::write(&target, "the plan the person wrote\n").expect("write the plan");
-        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(kept)).expect("set the plan's mode");
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(kept))
+            .expect("set the plan's mode");
         let plan = "the plan the person wrote, plus the entry this run adds\n";
         let seen: RefCell<Option<(u32, String)>> = RefCell::new(None);
         let _umask = umask_asked.map(set_umask);
@@ -150,10 +170,16 @@ fn the_new_content_is_only_ever_in_a_file_of_the_kept_mode_whatever_the_umask() 
             *seen.borrow_mut() = Some((mode_of(temporary), content));
             return Ok(());
         };
-        super::util::write_atomically_at(&target, plan.as_bytes(), Some(kept), &reader).expect("the write lands");
-        let (seen_mode, seen_content) = seen.borrow().clone().expect("the kill point ran while the temporary held the bytes");
+        super::util::write_atomically_at(&target, plan.as_bytes(), Some(kept), &reader)
+            .expect("the write lands");
+        let (seen_mode, seen_content) = seen
+            .borrow()
+            .clone()
+            .expect("the kill point ran while the temporary held the bytes");
         if seen_content != plan {
-            problems.push(format!("the temporary holds every byte of the new plan (kept mode {kept:o})"));
+            problems.push(format!(
+                "the temporary holds every byte of the new plan (kept mode {kept:o})"
+            ));
         }
         if seen_mode != kept {
             problems.push(format!(
@@ -161,10 +187,15 @@ fn the_new_content_is_only_ever_in_a_file_of_the_kept_mode_whatever_the_umask() 
             ));
         }
         if mode_of(&target) != kept {
-            problems.push(format!("the renamed plan keeps the mode {kept:o}, and it has {:o}", mode_of(&target)));
+            problems.push(format!(
+                "the renamed plan keeps the mode {kept:o}, and it has {:o}",
+                mode_of(&target)
+            ));
         }
         if std::fs::read_to_string(&target).expect("read the plan") != plan {
-            problems.push(format!("the renamed plan holds the new content (kept mode {kept:o})"));
+            problems.push(format!(
+                "the renamed plan holds the new content (kept mode {kept:o})"
+            ));
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -191,21 +222,40 @@ fn a_killed_write_leaves_a_copy_no_wider_than_the_plan_and_the_next_write_remove
     let directory = crate::test_scratch::scratch();
     let target = directory.path().join("toolchain.plan.jsonc");
     std::fs::write(&target, "the plan the person wrote\n").expect("write the plan");
-    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).expect("set the plan's mode");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600))
+        .expect("set the plan's mode");
     let plan = "the plan the person wrote, plus the entry this run adds\n";
     let killed = |_temporary: &Path| -> Result<(), crate::toolchain::error::ToolchainError> {
-        return Err(crate::toolchain::error::ToolchainError::failure("killed between the write and the rename"));
+        return Err(crate::toolchain::error::ToolchainError::failure(
+            "killed between the write and the rename",
+        ));
     };
-    super::util::write_atomically_at(&target, plan.as_bytes(), Some(0o600), &killed).expect_err("the run ends");
-    assert_eq!(std::fs::read_to_string(&target).expect("read the plan"), "the plan the person wrote\n", "the plan is the old one");
+    super::util::write_atomically_at(&target, plan.as_bytes(), Some(0o600), &killed)
+        .expect_err("the run ends");
+    assert_eq!(
+        std::fs::read_to_string(&target).expect("read the plan"),
+        "the plan the person wrote\n",
+        "the plan is the old one"
+    );
     let left = temporaries_beside(&target);
     assert_eq!(left.len(), 1, "one temporary is left: {left:?}");
-    assert_eq!(mode_of(&left[0]), 0o600, "another account cannot read the plan a kill left behind");
-    assert_eq!(std::fs::read_to_string(&left[0]).expect("read the leftover"), plan);
+    assert_eq!(
+        mode_of(&left[0]),
+        0o600,
+        "another account cannot read the plan a kill left behind"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&left[0]).expect("read the leftover"),
+        plan
+    );
     // The leftover carries this process's pid, so this process is the one that will rename it: the next write
     // of the same plan reuses that name and leaves nothing behind.
-    super::util::write_atomically_with_mode(&target, b"the plan after the next run\n", Some(0o600)).expect("the write lands");
-    assert!(temporaries_beside(&target).is_empty(), "the next write leaves no temporary behind");
+    super::util::write_atomically_with_mode(&target, b"the plan after the next run\n", Some(0o600))
+        .expect("the write lands");
+    assert!(
+        temporaries_beside(&target).is_empty(),
+        "the next write leaves no temporary behind"
+    );
     assert_eq!(mode_of(&target), 0o600);
 }
 
@@ -226,19 +276,38 @@ fn the_next_write_clears_a_temporary_of_a_process_that_is_gone_and_keeps_a_live_
     let directory = crate::test_scratch::scratch();
     let target = directory.path().join("toolchain.lock.json");
     std::fs::write(&target, "the old lock\n").expect("write the lock");
-    let gone = directory.path().join(format!(".{}.{}.tmp", file_name_text(&target), super::fixtures::pid_of_a_process_that_ended()));
+    let gone = directory.path().join(format!(
+        ".{}.{}.tmp",
+        file_name_text(&target),
+        super::fixtures::pid_of_a_process_that_ended()
+    ));
     std::fs::write(&gone, "what a killed run left\n").expect("write the leftover");
     // Another writer that is still running: a program of its own, so this write's temporary name differs from it.
-    let mut other = std::process::Command::new("sleep").arg("30").spawn().expect("start a program that stays");
-    let live = directory.path().join(format!(".{}.{}.tmp", file_name_text(&target), other.id()));
+    let mut other = std::process::Command::new("sleep")
+        .arg("30")
+        .spawn()
+        .expect("start a program that stays");
+    let live = directory
+        .path()
+        .join(format!(".{}.{}.tmp", file_name_text(&target), other.id()));
     std::fs::write(&live, "another writer's temporary\n").expect("write the live temporary");
     super::util::write_atomically(&target, b"the new lock\n").expect("the write lands");
     let kept = std::fs::read_to_string(&live);
     let _ = other.kill();
     let _ = other.wait();
-    assert!(!gone.exists(), "the leftover of a process that is gone is removed");
-    assert_eq!(kept.expect("read the live temporary"), "another writer's temporary\n", "a live run's temporary stays");
-    assert_eq!(std::fs::read_to_string(&target).expect("read the lock"), "the new lock\n");
+    assert!(
+        !gone.exists(),
+        "the leftover of a process that is gone is removed"
+    );
+    assert_eq!(
+        kept.expect("read the live temporary"),
+        "another writer's temporary\n",
+        "a live run's temporary stays"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&target).expect("read the lock"),
+        "the new lock\n"
+    );
 }
 
 //endregion The mode of the temporary an atomic write builds

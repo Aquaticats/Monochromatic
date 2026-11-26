@@ -22,7 +22,10 @@ use serde_json::Value;
 use std::os::unix::fs::MetadataExt;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The canonical form of a path (symlinks and `..` resolved),
@@ -62,7 +65,10 @@ pub fn canonical_or_same(path: &Path) -> PathBuf {
 pub fn build_identity() -> String {
     let version = env!("CARGO_PKG_VERSION");
     let (size, modified) = match std::env::current_exe().and_then(std::fs::metadata) {
-        Ok(metadata) => (metadata.len(), metadata.mtime_nsec() + metadata.mtime() * 1_000_000_000),
+        Ok(metadata) => (
+            metadata.len(),
+            metadata.mtime_nsec() + metadata.mtime() * 1_000_000_000,
+        ),
         Err(_) => (0, 0),
     };
     return format!("{version}:{size}:{modified}");
@@ -84,14 +90,20 @@ pub fn worktree_identity(root: &Path) -> Result<Value, Diagnostic> {
     let canonical = match std::fs::canonicalize(root) {
         Ok(canonical) => canonical,
         Err(error) => {
-            let message = format!("cannot resolve the worktree root {}: {error}", root.display());
+            let message = format!(
+                "cannot resolve the worktree root {}: {error}",
+                root.display()
+            );
             return Err(Diagnostic::new("root-missing", &message));
         }
     };
     let metadata = match std::fs::metadata(&canonical) {
         Ok(metadata) => metadata,
         Err(error) => {
-            let message = format!("cannot inspect the worktree root {}: {error}", canonical.display());
+            let message = format!(
+                "cannot inspect the worktree root {}: {error}",
+                canonical.display()
+            );
             return Err(Diagnostic::new("root-missing", &message));
         }
     };

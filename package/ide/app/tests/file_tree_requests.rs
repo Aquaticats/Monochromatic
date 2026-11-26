@@ -1,12 +1,19 @@
 //! Directory requests are single-use identities independent of document revisions and path reuse.
 
 /// Opaque read requests carry native paths while snapshots retain dirent ordering.
-use ide_app::{file_tree::FileTree, workspace::DirectoryEntry};
+use ide_app::{
+    file_tree::FileTree,
+    workspace::DirectoryEntry,
+};
 /// Synthetic roots keep asynchronous-state tests independent of filesystem timing.
 use std::path::Path;
 
 /// Build a synthetic child without performing filesystem I/O.
-fn child(parent: &str, name: &str, is_directory: bool) -> DirectoryEntry {
+fn child(
+    parent: &str,
+    name: &str,
+    is_directory: bool,
+) -> DirectoryEntry {
     // into owns the filename; join retains the exact native path under the supplied parent.
     return DirectoryEntry {
         name: name.into(),

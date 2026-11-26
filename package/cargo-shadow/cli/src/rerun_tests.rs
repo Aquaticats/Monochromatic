@@ -22,9 +22,16 @@ fn arguments(texts: &[&str]) -> Vec<OsString> {
 /// an argument with a space stays one argument.
 #[test]
 fn an_argument_with_a_space_is_quoted() {
-    let line = rerun_command(&arguments(&["build", "--manifest-path", "project with spaces/Cargo.toml"]));
+    let line = rerun_command(&arguments(&[
+        "build",
+        "--manifest-path",
+        "project with spaces/Cargo.toml",
+    ]));
 
-    assert_eq!(line, "cargo build --manifest-path 'project with spaces/Cargo.toml'");
+    assert_eq!(
+        line,
+        "cargo build --manifest-path 'project with spaces/Cargo.toml'"
+    );
 }
 
 /// Round 6 (5c N5):
@@ -40,7 +47,13 @@ fn quotes_and_shell_characters_are_escaped() {
 /// plain arguments are left alone.
 #[test]
 fn plain_arguments_are_not_quoted() {
-    let line = rerun_command(&arguments(&["build", "--release", "-p", "a-b_c.d", "--features=x,y"]));
+    let line = rerun_command(&arguments(&[
+        "build",
+        "--release",
+        "-p",
+        "a-b_c.d",
+        "--features=x,y",
+    ]));
 
     assert_eq!(line, "cargo build --release -p a-b_c.d --features=x,y");
 }

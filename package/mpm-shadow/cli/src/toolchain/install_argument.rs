@@ -28,21 +28,38 @@ use serde_json::Value;
 /// Imports `GET` and JSON decoding from the resolver helpers,
 /// and the registry name check.
 use super::update_registry::registry_path_name;
-use super::update_resolve::{ResolveError, get_json, text_at};
+use super::update_resolve::{
+    ResolveError,
+    get_json,
+    text_at,
+};
 
-/// Imports `ToolchainError` from `super::error`.
-use super::error::ToolchainError;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
+use super::error::ToolchainError;
 /// Imports the model types an entry is built from.
-use super::model::{Declaration, Options, Request, Route};
+use super::model::{
+    Declaration,
+    Options,
+    Request,
+    Route,
+};
 /// Imports the plan the argument is looked up in,
 /// and the reader that decodes the plan text.
-use super::plan::{Plan, parse_plan};
+use super::plan::{
+    Plan,
+    parse_plan,
+};
 /// Imports the splice into the plan's text.
 use super::plan_insert::plan_with_entries;
 /// Imports the guarded write of the plan.
-use super::publish::{Revision, publish_plan, read_optional, revision_of};
+use super::publish::{
+    Revision,
+    publish_plan,
+    read_optional,
+    revision_of,
+};
 
 /// Where the binaries of a tool a request describes come from.
 /// Why:
@@ -88,13 +105,32 @@ pub struct AddableRoute {
 /// in the order the refusal message lists them.
 pub const ADDABLE_ROUTES: [AddableRoute; 3] = [
     // `cargo binstall` needs no plan entry: the crates it installs come from the `cargo` on the machine.
-    AddableRoute { prefix: "cargo:", route: Route::CargoBinstall, bins_from: BinsFrom::CrateRegistry, installs_with: None },
-    AddableRoute { prefix: "npm:", route: Route::MpmPnpm, bins_from: BinsFrom::NpmRegistry, installs_with: Some("pnpm") },
-    AddableRoute { prefix: "go:", route: Route::GoInstall, bins_from: BinsFrom::GoModulePath, installs_with: Some("go") },
+    AddableRoute {
+        prefix: "cargo:",
+        route: Route::CargoBinstall,
+        bins_from: BinsFrom::CrateRegistry,
+        installs_with: None,
+    },
+    AddableRoute {
+        prefix: "npm:",
+        route: Route::MpmPnpm,
+        bins_from: BinsFrom::NpmRegistry,
+        installs_with: Some("pnpm"),
+    },
+    AddableRoute {
+        prefix: "go:",
+        route: Route::GoInstall,
+        bins_from: BinsFrom::GoModulePath,
+        installs_with: Some("go"),
+    },
 ];
 
 /// The sentence for a plan that lacks the tool a route installs with.
-fn missing_installer(argument: &str, installer: &str, label: &str) -> ToolchainError {
+fn missing_installer(
+    argument: &str,
+    installer: &str,
+    label: &str,
+) -> ToolchainError {
     return ToolchainError::config(format!(
         "{argument:?} was not added: its route installs with `{installer}`, and {label} holds no `{installer}` entry, so \
          the entry would be added and never install. Add the `{installer}` entry to {label} first (this repository's \
@@ -104,7 +140,8 @@ fn missing_installer(argument: &str, installer: &str, label: &str) -> ToolchainE
 
 /// The README section that shows every entry's shape,
 /// named in every refusal so the person knows where to look.
-const ENTRY_SHAPES: &str = "package/mpm-shadow/cli/README.md, section \"Adding a tool with install\"";
+const ENTRY_SHAPES: &str =
+    "package/mpm-shadow/cli/README.md, section \"Adding a tool with install\"";
 
 /// What:
 /// What one argument names,
@@ -247,8 +284,14 @@ fn unaddable_reason(source: &str) -> String {
 }
 
 /// The sentence for an argument that is neither an id the plan holds nor a request the command can add.
-fn neither(id: &str, label: &str) -> ToolchainError {
-    let prefixes: Vec<&str> = ADDABLE_ROUTES.iter().map(|route| return route.prefix).collect();
+fn neither(
+    id: &str,
+    label: &str,
+) -> ToolchainError {
+    let prefixes: Vec<&str> = ADDABLE_ROUTES
+        .iter()
+        .map(|route| return route.prefix)
+        .collect();
     return ToolchainError::config(format!(
         "{id:?} is neither a tool id in {label} nor a request this command can add; a request starts with one of the \
          prefixes {}, each with an optional @<version> (the newest when none is given). To add a tool on any other route, \
@@ -258,7 +301,11 @@ fn neither(id: &str, label: &str) -> ToolchainError {
 }
 
 /// The sentence for a request whose route cannot be added from a request.
-fn unaddable(argument: &str, source: &str, label: &str) -> ToolchainError {
+fn unaddable(
+    argument: &str,
+    source: &str,
+    label: &str,
+) -> ToolchainError {
     return ToolchainError::config(format!(
         "{argument:?} names `{source}`, which this command cannot add: {}. Edit {label} by hand for that tool; the entry \
          shapes are in {ENTRY_SHAPES}",
@@ -268,7 +315,10 @@ fn unaddable(argument: &str, source: &str, label: &str) -> ToolchainError {
 
 /// The registry answer as JSON,
 /// or a failure naming the URL.
-fn fetch(context: &Context, url: &str) -> Result<Value, ToolchainError> {
+fn fetch(
+    context: &Context,
+    url: &str,
+) -> Result<Value, ToolchainError> {
     return match get_json(context, url, &[]) {
         Ok(document) => Ok(document),
         Err(ResolveError::Failed(message)) => Err(ToolchainError::failure(message)),
@@ -294,7 +344,10 @@ fn text_list(value: Option<&Value>) -> Vec<String> {
 
 /// The `bin_names` of one version row in a crates.io crate document,
 /// or `None` when the document does not hold that version.
-fn crate_row_bin_names(document: &Value, version: &str) -> Option<Vec<String>> {
+fn crate_row_bin_names(
+    document: &Value,
+    version: &str,
+) -> Option<Vec<String>> {
     let rows: &Vec<Value> = document.get("versions")?.as_array()?;
     for row in rows {
         if text_at(row, &["num"]) == Some(version) {
@@ -324,19 +377,33 @@ fn sorted(names: Vec<String>) -> Vec<String> {
 /// so a person never lists them by hand;
 /// a crate with no binary target has none,
 /// and the caller refuses it rather than writing an entry that exposes nothing.
-fn crate_bin_names(context: &Context, name: &str, range: &str) -> Result<Vec<String>, ToolchainError> {
+fn crate_bin_names(
+    context: &Context,
+    name: &str,
+    range: &str,
+) -> Result<Vec<String>, ToolchainError> {
     let path: String = match registry_path_name(name) {
         Ok(text) => text,
-        Err(ResolveError::Failed(message)) => return Err(ToolchainError::config(format!("cargo:{name}: {message}"))),
+        Err(ResolveError::Failed(message)) => {
+            return Err(ToolchainError::config(format!("cargo:{name}: {message}")));
+        }
     };
     let base: String = format!("https://crates.io/api/v1/crates/{path}");
     if range != "latest" {
         let version_path: String = match registry_path_name(range) {
             Ok(text) => text,
-            Err(ResolveError::Failed(message)) => return Err(ToolchainError::config(format!("cargo:{name}@{range}: {message}"))),
+            Err(ResolveError::Failed(message)) => {
+                return Err(ToolchainError::config(format!(
+                    "cargo:{name}@{range}: {message}"
+                )));
+            }
         };
         let document: Value = fetch(context, &format!("{base}/{version_path}"))?;
-        return Ok(sorted(text_list(document.get("version").and_then(|row| return row.get("bin_names")))));
+        return Ok(sorted(text_list(
+            document
+                .get("version")
+                .and_then(|row| return row.get("bin_names")),
+        )));
     }
     let document: Value = fetch(context, &base)?;
     let Some(version) = text_at(&document, &["crate", "max_stable_version"]) else {
@@ -348,7 +415,11 @@ fn crate_bin_names(context: &Context, name: &str, range: &str) -> Result<Vec<Str
         return Ok(sorted(names));
     }
     let version_document: Value = fetch(context, &format!("{base}/{version}"))?;
-    return Ok(sorted(text_list(version_document.get("version").and_then(|row| return row.get("bin_names")))));
+    return Ok(sorted(text_list(
+        version_document
+            .get("version")
+            .and_then(|row| return row.get("bin_names")),
+    )));
 }
 
 /// The package's own name in an npm manifest,
@@ -368,16 +439,29 @@ fn npm_package_name(name: &str) -> String {
 /// npm publishes the command names in the package's own `bin` field,
 /// so they are read rather than guessed,
 /// and a package with no `bin` field has none.
-fn npm_bin_names(context: &Context, name: &str, range: &str) -> Result<Vec<String>, ToolchainError> {
+fn npm_bin_names(
+    context: &Context,
+    name: &str,
+    range: &str,
+) -> Result<Vec<String>, ToolchainError> {
     let path: String = match registry_path_name(name) {
         Ok(text) => text,
-        Err(ResolveError::Failed(message)) => return Err(ToolchainError::config(format!("npm:{name}: {message}"))),
+        Err(ResolveError::Failed(message)) => {
+            return Err(ToolchainError::config(format!("npm:{name}: {message}")));
+        }
     };
     let tag_path: String = match registry_path_name(range) {
         Ok(text) => text,
-        Err(ResolveError::Failed(message)) => return Err(ToolchainError::config(format!("npm:{name}@{range}: {message}"))),
+        Err(ResolveError::Failed(message)) => {
+            return Err(ToolchainError::config(format!(
+                "npm:{name}@{range}: {message}"
+            )));
+        }
     };
-    let manifest: Value = fetch(context, &format!("https://registry.npmjs.org/{path}/{tag_path}"))?;
+    let manifest: Value = fetch(
+        context,
+        &format!("https://registry.npmjs.org/{path}/{tag_path}"),
+    )?;
     return match manifest.get("bin") {
         Some(Value::Object(entries)) => {
             let mut names: Vec<String> = Vec::new();
@@ -397,7 +481,10 @@ fn is_major_version_suffix(segment: &str) -> bool {
     let Some(rest) = segment.strip_prefix('v') else {
         return false;
     };
-    return !rest.is_empty() && rest.chars().all(|character| return character.is_ascii_digit());
+    return !rest.is_empty()
+        && rest
+            .chars()
+            .all(|character| return character.is_ascii_digit());
 }
 
 /// Whether every character of `segment` may appear in a program name.
@@ -405,7 +492,9 @@ fn is_program_name(segment: &str) -> bool {
     if segment.is_empty() || segment.starts_with('-') || segment.contains("..") {
         return false;
     }
-    return segment.chars().all(|character| return character.is_ascii_alphanumeric() || "._-".contains(character));
+    return segment
+        .chars()
+        .all(|character| return character.is_ascii_alphanumeric() || "._-".contains(character));
 }
 
 /// What:
@@ -439,7 +528,11 @@ fn go_bin_name(module: &str) -> Result<String, ToolchainError> {
 
 /// The `bins` of a new entry,
 /// from the source its route owns.
-fn bins_for(context: &Context, route: &AddableRoute, request: &Request) -> Result<Vec<String>, ToolchainError> {
+fn bins_for(
+    context: &Context,
+    route: &AddableRoute,
+    request: &Request,
+) -> Result<Vec<String>, ToolchainError> {
     let range: &str = &request.range;
     let names: Vec<String> = match &route.bins_from {
         BinsFrom::CrateRegistry => match request.origin() {
@@ -478,10 +571,15 @@ fn bins_for(context: &Context, route: &AddableRoute, request: &Request) -> Resul
 /// ```ts
 /// function entryFromRequest(context: Context, request: Request): Declaration  // throws
 /// ```
-fn entry_from_request(context: &Context, request: Request) -> Result<Declaration, ToolchainError> {
+fn entry_from_request(
+    context: &Context,
+    request: Request,
+) -> Result<Declaration, ToolchainError> {
     let source: String = request.source.clone();
     let Some(route) = addable_route(&source) else {
-        return Err(ToolchainError::config(format!("{source} selects no route this command can add")));
+        return Err(ToolchainError::config(format!(
+            "{source} selects no route this command can add"
+        )));
     };
     let bins: Vec<String> = bins_for(context, route, &request)?;
     return Ok(Declaration {
@@ -512,7 +610,11 @@ fn entry_from_request(context: &Context, request: Request) -> Result<Declaration
 /// ```ts
 /// export function target(plan: Plan, argument: string, label: string): { kind: 'existing'; id: string } | { kind: 'request'; request: Request }
 /// ```
-pub fn target(plan: &Plan, argument: &str, label: &str) -> Result<Target, ToolchainError> {
+pub fn target(
+    plan: &Plan,
+    argument: &str,
+    label: &str,
+) -> Result<Target, ToolchainError> {
     for declaration in &plan.tools {
         if declaration.id == argument {
             return Ok(Target::Existing(argument.to_string()));
@@ -538,7 +640,12 @@ pub fn target(plan: &Plan, argument: &str, label: &str) -> Result<Target, Toolch
 /// ```ts
 /// export function named(plan: Plan, context: Context, argument: string, label: string): Named
 /// ```
-pub fn named(plan: &Plan, context: &Context, argument: &str, label: &str) -> Result<Named, ToolchainError> {
+pub fn named(
+    plan: &Plan,
+    context: &Context,
+    argument: &str,
+    label: &str,
+) -> Result<Named, ToolchainError> {
     return match target(plan, argument, label)? {
         Target::Existing(id) => Ok(Named::Existing(id)),
         Target::Request(request) => Ok(Named::New(Box::new(entry_from_request(context, request)?))),
@@ -549,19 +656,41 @@ pub fn named(plan: &Plan, context: &Context, argument: &str, label: &str) -> Res
 /// or `None`:
 /// the tool id every entry shares,
 /// and each binary name.
-fn collision(plan: &Plan, pending: &[Declaration]) -> Option<String> {
+fn collision(
+    plan: &Plan,
+    pending: &[Declaration],
+) -> Option<String> {
     for declaration in pending {
-        if plan.tools.iter().any(|existing| return existing.id == declaration.id) {
+        if plan
+            .tools
+            .iter()
+            .any(|existing| return existing.id == declaration.id)
+        {
             return Some(declaration.id.clone());
         }
-        if let Some(existing) = plan.tools.iter().find(|existing| return existing.bins.iter().any(|bin| return declaration.bins.contains(bin))) {
-            return Some(format!("{} (the binary names overlap with those of {})", declaration.id, existing.id));
+        if let Some(existing) = plan.tools.iter().find(|existing| {
+            return existing
+                .bins
+                .iter()
+                .any(|bin| return declaration.bins.contains(bin));
+        }) {
+            return Some(format!(
+                "{} (the binary names overlap with those of {})",
+                declaration.id, existing.id
+            ));
         }
     }
     for (index, declaration) in pending.iter().enumerate() {
         for other in &pending[index + 1..] {
-            if declaration.bins.iter().any(|bin| return other.bins.contains(bin)) {
-                return Some(format!("{} (the binary names overlap with those of {})", other.id, declaration.id));
+            if declaration
+                .bins
+                .iter()
+                .any(|bin| return other.bins.contains(bin))
+            {
+                return Some(format!(
+                    "{} (the binary names overlap with those of {})",
+                    other.id, declaration.id
+                ));
             }
         }
     }
@@ -613,11 +742,17 @@ where
     let label: String = scope.plan_file.display().to_string();
     let bytes: Option<Vec<u8>> = read_optional(&scope.plan_file)?;
     let Some(content) = bytes else {
-        return Err(ToolchainError::config(format!("the toolchain plan {label} does not exist")));
+        return Err(ToolchainError::config(format!(
+            "the toolchain plan {label} does not exist"
+        )));
     };
     let text: String = match String::from_utf8(content.clone()) {
         Ok(decoded) => decoded,
-        Err(error) => return Err(ToolchainError::config(format!("{label} is not valid UTF-8: {error}"))),
+        Err(error) => {
+            return Err(ToolchainError::config(format!(
+                "{label} is not valid UTF-8: {error}"
+            )));
+        }
     };
     let plan: Plan = parse_plan(&text, &label)?;
     let mut report: AddReport = AddReport::default();
@@ -630,9 +765,17 @@ where
             }
             Target::Request(request) => {
                 if let Some(reason) = refusal {
-                    return Err(ToolchainError::config(format!("{} was not added: {}", request.text(), reason.reason())));
+                    return Err(ToolchainError::config(format!(
+                        "{} was not added: {}",
+                        request.text(),
+                        reason.reason()
+                    )));
                 }
-                if report.added.iter().any(|added| return added.id == request.source) {
+                if report
+                    .added
+                    .iter()
+                    .any(|added| return added.id == request.source)
+                {
                     continue;
                 }
                 if let Some(route) = addable_route(&request.source)

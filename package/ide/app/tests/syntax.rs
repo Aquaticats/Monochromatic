@@ -3,13 +3,20 @@
 /// Canonical text and the application-owned Helix adapter.
 use helix_core::Rope;
 /// Parser roles must address source characters rather than UTF-8 byte offsets.
-use ide_app::{source_style::StyleSpan, syntax::SyntaxEngine};
+use ide_app::{
+    source_style::StyleSpan,
+    syntax::SyntaxEngine,
+};
 /// Paths drive Helix's built-in filename and shebang recognition.
 use std::path::Path;
 
 /// The source text of every span painted with one style,
 ///  in source order.
-fn styled(spans: &[StyleSpan], text: &Rope, style: usize) -> Vec<String> {
+fn styled(
+    spans: &[StyleSpan],
+    text: &Rope,
+    style: usize,
+) -> Vec<String> {
     let mut texts: Vec<String> = Vec::new();
     for span in spans.iter() {
         if span.style == style {
@@ -20,7 +27,10 @@ fn styled(spans: &[StyleSpan], text: &Rope, style: usize) -> Vec<String> {
 }
 
 /// Whether some text contains the fragment.
-fn some_contains(texts: &[String], fragment: &str) -> bool {
+fn some_contains(
+    texts: &[String],
+    fragment: &str,
+) -> bool {
     for text in texts {
         if text.contains(fragment) {
             return true;

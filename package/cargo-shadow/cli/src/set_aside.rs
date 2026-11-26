@@ -18,8 +18,6 @@
 //! export async function setAsideUntilClean(args): Promise<string[]>  // warnings
 //! ```
 
-/// The owned path type of the directory a recorded cargo command runs in.
-use std::path::PathBuf;
 /// Imports `RefCell`,
 /// a list or value that can be changed through a shared reference;
 /// it holds the record of the lockfiles this run wrote.
@@ -46,6 +44,8 @@ use std::collections::BTreeSet;
 /// import { Path } from 'std/path';
 /// ```
 use std::path::Path;
+/// The owned path type of the directory a recorded cargo command runs in.
+use std::path::PathBuf;
 
 /// What:
 /// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
@@ -59,6 +59,26 @@ use std::path::Path;
 use monochromatic_dependency_catalog::Settings;
 
 /// What:
+/// `use crate::adapt::message_of;` imports `message_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `message_of` is used by `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { message_of } from 'crate/adapt';
+/// ```
+use crate::adapt::message_of;
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
+/// What:
 /// `use crate::cargo_run::CargoRunner;` imports `CargoRunner` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `CargoRunner` is used by `SetAsideRequest`.
@@ -67,7 +87,10 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { CargoRunner } from 'crate/cargo_run';
 /// ```
-use crate::cargo_run::{CargoOutcome, CargoRunner};
+use crate::cargo_run::{
+    CargoOutcome,
+    CargoRunner,
+};
 /// What:
 /// `use crate::checks::{TrustRefusal, group_by_name, trust_refusals};` imports `TrustRefusal`,
 /// `group_by_name`,
@@ -85,7 +108,11 @@ use crate::cargo_run::{CargoOutcome, CargoRunner};
 /// ```ts
 /// import { TrustRefusal, group_by_name, trust_refusals } from 'crate/checks';
 /// ```
-use crate::checks::{TrustRefusal, group_by_name, trust_refusals};
+use crate::checks::{
+    TrustRefusal,
+    group_by_name,
+    trust_refusals,
+};
 /// What:
 /// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
 /// `read_locks` from another module of this crate so this file can name them unqualified.
@@ -98,10 +125,10 @@ use crate::checks::{TrustRefusal, group_by_name, trust_refusals};
 /// ```ts
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
-use crate::crates::{LockSnapshot, read_locks};
-/// Imports `run_recording`,
-/// which runs a child and records the lockfile this run's cargo wrote.
-use crate::journal::run_recording;
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
 /// Imports `Claim`,
 /// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
@@ -116,6 +143,9 @@ use crate::file_owner::Claim;
 /// import { RegistryError } from 'crate/http';
 /// ```
 use crate::http::RegistryError;
+/// Imports `run_recording`,
+/// which runs a child and records the lockfile this run's cargo wrote.
+use crate::journal::run_recording;
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, registry_versions};` imports `LockedVersion`,
 /// `added_versions`,
@@ -130,7 +160,11 @@ use crate::http::RegistryError;
 /// ```ts
 /// import { LockedVersion, added_versions, registry_versions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, added_versions, registry_versions};
+use crate::lockfile::{
+    LockedVersion,
+    added_versions,
+    registry_versions,
+};
 /// What:
 /// `use crate::policy::{VersionRecord, release_age_problems, trust_problems};` imports `VersionRecord`,
 /// `release_age_problems`,
@@ -145,7 +179,11 @@ use crate::lockfile::{LockedVersion, added_versions, registry_versions};
 /// ```ts
 /// import { VersionRecord, release_age_problems, trust_problems } from 'crate/policy';
 /// ```
-use crate::policy::{VersionRecord, release_age_problems, trust_problems};
+use crate::policy::{
+    VersionRecord,
+    release_age_problems,
+    trust_problems,
+};
 /// What:
 /// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -171,27 +209,11 @@ use crate::registry::Registry;
 /// ```ts
 /// import { caret_compatible, compare_texts, is_prerelease_text } from 'crate/version_order';
 /// ```
-use crate::version_order::{caret_compatible, compare_texts, is_prerelease_text};
-/// What:
-/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `text_of` is used by `set_aside_until_clean`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { text_of } from 'crate/adapt';
-/// ```
-use crate::adapt::text_of;
-/// What:
-/// `use crate::adapt::message_of;` imports `message_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `message_of` is used by `set_aside_until_clean`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { message_of } from 'crate/adapt';
-/// ```
-use crate::adapt::message_of;
+use crate::version_order::{
+    caret_compatible,
+    compare_texts,
+    is_prerelease_text,
+};
 
 /// How many rounds of moving refused crates are tried.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
@@ -267,7 +289,10 @@ impl crate::file_owner::RecordedWork<Result<CargoOutcome, String>> for RunnerWor
 /// `fn locks_key(versions: &[LockedVersion], key: &str) -> bool` says whether any locked version has the key.
 /// Why:
 /// A loop replaces the `any` closure that captured the key.
-fn locks_key(versions: &[LockedVersion], key: &str) -> bool {
+fn locks_key(
+    versions: &[LockedVersion],
+    key: &str,
+) -> bool {
     for locked in versions {
         if locked.key() == key {
             return true;
@@ -280,7 +305,10 @@ fn locks_key(versions: &[LockedVersion], key: &str) -> bool {
 /// `fn is_pending(pending: &[TrustRefusal], refusal: &TrustRefusal) -> bool` says whether a refusal of the same name and version is already pending.
 /// Why:
 /// A loop replaces the `any` closure that captured the refusal.
-fn is_pending(pending: &[TrustRefusal], refusal: &TrustRefusal) -> bool {
+fn is_pending(
+    pending: &[TrustRefusal],
+    refusal: &TrustRefusal,
+) -> bool {
     for known in pending {
         if known.name == refusal.name && known.version == refusal.version {
             return true;
@@ -305,7 +333,10 @@ fn is_pending(pending: &[TrustRefusal], refusal: &TrustRefusal) -> bool {
 /// ```ts
 /// function ageRefusals(added: LockedVersion[], request: SetAsideRequest): TrustRefusal[]  // throws RegistryError
 /// ```
-fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Vec<TrustRefusal>, RegistryError> {
+fn age_refusals(
+    added: &[LockedVersion],
+    request: &SetAsideRequest,
+) -> Result<Vec<TrustRefusal>, RegistryError> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
@@ -399,7 +430,8 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
             let pubtime: &str = times.get(&version).map(String::as_str).unwrap_or("");
             // Borrow `&name`: lends the value without copying or giving it away.
             // Typed binding: `problems: Vec<String>`.
-            let problems: Vec<String> = release_age_problems(&name, &version, pubtime, request.settings, request.now);
+            let problems: Vec<String> =
+                release_age_problems(&name, &version, pubtime, request.settings, request.now);
             if !problems.is_empty() {
                 // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
                 // Why:      The copy can be stored or moved elsewhere while the original stays in place.
@@ -409,7 +441,11 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
                 // ```ts
                 // structuredClone(value)  // or [...list] / {...object}
                 // ```
-                refusals.push(TrustRefusal { name: name.clone(), version, problems });
+                refusals.push(TrustRefusal {
+                    name: name.clone(),
+                    version,
+                    problems,
+                });
             }
         }
     }
@@ -435,13 +471,23 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
 ///   return !strict || releaseAgeProblems(refused.name, record.num, record.createdAt, settings, now).length === 0;
 /// }
 /// ```
-fn age_allows(record: &VersionRecord, refused: &TrustRefusal, request: &SetAsideRequest) -> bool {
+fn age_allows(
+    record: &VersionRecord,
+    refused: &TrustRefusal,
+    request: &SetAsideRequest,
+) -> bool {
     if request.settings.minimum_release_age == 0 || !request.settings.minimum_release_age_strict {
         return true;
     }
     // Borrow `&refused.name`: lends the value without copying or giving it away.
     // Typed binding: `problems: Vec<String>`.
-    let problems: Vec<String> = release_age_problems(&refused.name, &record.num, &record.created_at, request.settings, request.now);
+    let problems: Vec<String> = release_age_problems(
+        &refused.name,
+        &record.num,
+        &record.created_at,
+        request.settings,
+        request.now,
+    );
     return problems.is_empty();
 }
 
@@ -464,8 +510,17 @@ fn age_allows(record: &VersionRecord, refused: &TrustRefusal, request: &SetAside
 /// ```ts
 /// function isCandidate(args): boolean
 /// ```
-fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allowed: bool, yanked: &BTreeSet<String>, rejected: &BTreeSet<String>, request: &SetAsideRequest) -> bool {
-    if yanked.contains(&record.num) || rejected.contains(&format!("{}@{}", refused.name, record.num)) {
+fn is_candidate(
+    record: &VersionRecord,
+    refused: &TrustRefusal,
+    prerelease_allowed: bool,
+    yanked: &BTreeSet<String>,
+    rejected: &BTreeSet<String>,
+    request: &SetAsideRequest,
+) -> bool {
+    if yanked.contains(&record.num)
+        || rejected.contains(&format!("{}@{}", refused.name, record.num))
+    {
         return false;
     }
     if !age_allows(record, refused, request) {
@@ -508,7 +563,8 @@ fn sort_newest_first(list: &mut [String]) {
         // Typed binding: `inner: usize`.
         let mut inner: usize = position;
         // Borrow `&list`: lends the value without copying or giving it away.
-        while inner > 0 && compare_texts(&list[inner - 1], &list[inner]) == std::cmp::Ordering::Less {
+        while inner > 0 && compare_texts(&list[inner - 1], &list[inner]) == std::cmp::Ordering::Less
+        {
             list.swap(inner - 1, inner);
             inner -= 1;
         }
@@ -537,8 +593,14 @@ fn sort_newest_first(list: &mut [String]) {
 /// ```ts
 /// export async function setAsideCandidates({ refusal, registry, settings, now, rejected }): Promise<string[]>
 /// ```
-pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, rejected: &BTreeSet<String>) -> Result<Vec<String>, RegistryError> {
-    let history: Vec<VersionRecord> = request.registry.history(&refused.name, std::slice::from_ref(&refused.version))?;
+pub fn set_aside_candidates(
+    refused: &TrustRefusal,
+    request: &SetAsideRequest,
+    rejected: &BTreeSet<String>,
+) -> Result<Vec<String>, RegistryError> {
+    let history: Vec<VersionRecord> = request
+        .registry
+        .history(&refused.name, std::slice::from_ref(&refused.version))?;
     let yanked: BTreeSet<String> = request.registry.yanked(&refused.name)?;
     // Owners raise levels, so the candidate is judged with them, exactly as the final check judges it.
     let owners: BTreeSet<String> = request.registry.owners(&refused.name)?;
@@ -553,12 +615,26 @@ pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, r
     let mut other_class: Vec<String> = Vec::new();
     for record in &history {
         // Borrow `&yanked`: lends the value without copying or giving it away.
-        if !is_candidate(record, refused, prerelease_allowed, &yanked, rejected, request) {
+        if !is_candidate(
+            record,
+            refused,
+            prerelease_allowed,
+            &yanked,
+            rejected,
+            request,
+        ) {
             continue;
         }
         // Borrow `&refused.name`: lends the value without copying or giving it away.
         // Typed binding: `trust: Vec<String>`.
-        let trust: Vec<String> = trust_problems(&refused.name, &record.num, &history, request.settings, request.now, &owners);
+        let trust: Vec<String> = trust_problems(
+            &refused.name,
+            &record.num,
+            &history,
+            request.settings,
+            request.now,
+            &owners,
+        );
         if !trust.is_empty() {
             continue;
         }
@@ -594,7 +670,10 @@ pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, r
 /// ```ts
 /// function cratesLocking(snapshots: LockSnapshot[], key: string): string[]
 /// ```
-fn crates_locking(snapshots: &[LockSnapshot], key: &str) -> Vec<String> {
+fn crates_locking(
+    snapshots: &[LockSnapshot],
+    key: &str,
+) -> Vec<String> {
     // `let mut`: a binding that may change.
     // Typed binding: `dirs: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -639,7 +718,12 @@ fn crates_locking(snapshots: &[LockSnapshot], key: &str) -> Vec<String> {
 /// ```ts
 /// async function moveCrate(args): Promise<string>
 /// ```
-fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal, candidates: &[String]) -> Result<String, String> {
+fn move_crate(
+    request: &SetAsideRequest,
+    crate_dir: &str,
+    refused: &TrustRefusal,
+    candidates: &[String],
+) -> Result<String, String> {
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     for candidate in candidates.iter().take(PRECISE_ATTEMPTS) {
         // `let mut`: a binding that may change.
@@ -680,7 +764,11 @@ fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal
             return Ok(candidate.clone());
         }
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: {crate_dir}: cargo refused {} {candidate} ({})", refused.name, outcome.output.trim());
+        eprintln!(
+            "cargo-shadow: {crate_dir}: cargo refused {} {candidate} ({})",
+            refused.name,
+            outcome.output.trim()
+        );
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Constructor `String::new()`: an empty owned collection or a boxed value.
@@ -723,7 +811,8 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
         // try { ... } catch (error) { throw new MyError(String(error)); }
         // ```
         // Typed binding: `current: Vec<LockSnapshot>`.
-        let current: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(text_of)?;
+        let current: Vec<LockSnapshot> =
+            read_locks(request.root, request.crate_dirs).map_err(text_of)?;
         // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
         // `.clone()`: an independent owned copy.
         // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
@@ -752,7 +841,9 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // Borrow `&added`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        for refusal in trust_refusals(&added, request.settings, request.registry, request.now).map_err(message_of)? {
+        for refusal in trust_refusals(&added, request.settings, request.registry, request.now)
+            .map_err(message_of)?
+        {
             // Closure `|known|`: an anonymous function, like a TS arrow function.
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
             if !is_pending(&pending, &refusal) {
@@ -789,7 +880,8 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
             // Borrow `&rejected`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Typed binding: `candidates: Vec<String>`.
-            let candidates: Vec<String> = set_aside_candidates(refusal, request, &rejected).map_err(message_of)?;
+            let candidates: Vec<String> =
+                set_aside_candidates(refusal, request, &rejected).map_err(message_of)?;
             if candidates.is_empty() {
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: no older release can replace {key}; its finding stands");
@@ -800,7 +892,8 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Typed binding: `snapshots: Vec<LockSnapshot>`.
-            let snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(text_of)?;
+            let snapshots: Vec<LockSnapshot> =
+                read_locks(request.root, request.crate_dirs).map_err(text_of)?;
             // Borrow `&snapshots`: lends the value without copying or giving it away.
             for crate_dir in crates_locking(&snapshots, &key) {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -809,7 +902,9 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
                 let instead: String = move_crate(request, &crate_dir, refusal, &candidates)?;
                 if instead.is_empty() {
                     // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                    eprintln!("cargo-shadow: {crate_dir}: no candidate for {key} resolved; its finding stands");
+                    eprintln!(
+                        "cargo-shadow: {crate_dir}: no candidate for {key} resolved; its finding stands"
+                    );
                     continue;
                 }
                 moved_any = true;

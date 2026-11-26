@@ -55,12 +55,21 @@ use zbus::names::BusName;
 /// message stream,
 /// object path,
 /// proxy and variant types of the D-Bus client.
-use zbus::{Connection, MessageStream, OwnedObjectPath, Proxy, Variant};
+use zbus::{
+    Connection,
+    MessageStream,
+    OwnedObjectPath,
+    Proxy,
+    Variant,
+};
 
 /// Imports the identity that names the player to the notification service.
 use crate::analysis_notification::Identity;
 /// Imports the view and the outcome that the wire calls translate to and from bus messages.
-use crate::analysis_notification_logic::{IndicatorView, Outcome};
+use crate::analysis_notification_logic::{
+    IndicatorView,
+    Outcome,
+};
 /// Imports the time-bounded step that stops a bus call from blocking its thread for ever.
 use crate::dbus_step_bound::step;
 
@@ -269,8 +278,14 @@ pub struct FdoNotification {
 /// and `transient` makes Plasma remove a finished job without notice.
 pub fn job_request_hints(identity: &Identity) -> HashMap<&'static str, Variant<'_>> {
     return HashMap::from([
-        ("application-display-name", Variant::from(identity.app_name.as_str())),
-        ("application-icon-name", Variant::from(identity.app_icon.as_str())),
+        (
+            "application-display-name",
+            Variant::from(identity.app_name.as_str()),
+        ),
+        (
+            "application-icon-name",
+            Variant::from(identity.app_icon.as_str()),
+        ),
         ("transient", Variant::from(true)),
     ]);
 }
@@ -284,7 +299,10 @@ pub fn job_request_hints(identity: &Identity) -> HashMap<&'static str, Variant<'
 /// which
 /// Plasma never does itself.
 /// The title is sent only at the open.
-pub fn job_update_properties(view: &IndicatorView, with_title: bool) -> HashMap<&'static str, Variant<'_>> {
+pub fn job_update_properties(
+    view: &IndicatorView,
+    with_title: bool,
+) -> HashMap<&'static str, Variant<'_>> {
     let mut properties = HashMap::from([
         ("infoMessage", Variant::from(view.text.as_str())),
         ("percent", Variant::from(view.percent)),
@@ -319,14 +337,20 @@ pub fn terminate_arguments(outcome: &Outcome) -> (u32, String) {
 /// `desktop-entry` names the app;
 /// `resident` keeps the notification when its action button is pressed,
 /// which the spec says removes it otherwise.
-pub fn notification_hints<'a>(identity: &'a Identity, view: &IndicatorView) -> HashMap<&'static str, Variant<'a>> {
+pub fn notification_hints<'a>(
+    identity: &'a Identity,
+    view: &IndicatorView,
+) -> HashMap<&'static str, Variant<'a>> {
     let percent = i32::try_from(view.percent).unwrap_or(i32::MAX);
     return HashMap::from([
         ("value", Variant::I32(percent)),
         ("urgency", Variant::U8(0)),
         ("suppress-sound", Variant::Bool(true)),
         ("category", Variant::from("transfer")),
-        ("desktop-entry", Variant::from(identity.desktop_entry.as_str())),
+        (
+            "desktop-entry",
+            Variant::from(identity.desktop_entry.as_str()),
+        ),
         ("resident", Variant::Bool(true)),
     ]);
 }
@@ -337,7 +361,10 @@ pub fn notification_hints<'a>(identity: &'a Identity, view: &IndicatorView) -> H
 /// a suspendable indicator offers Pause,
 /// or Resume while paused;
 /// otherwise there is no button.
-pub fn notification_actions(suspendable: bool, view: &IndicatorView) -> Vec<&'static str> {
+pub fn notification_actions(
+    suspendable: bool,
+    view: &IndicatorView,
+) -> Vec<&'static str> {
     if !suspendable {
         return Vec::new();
     }
@@ -353,17 +380,25 @@ pub fn notification_actions(suspendable: bool, view: &IndicatorView) -> Vec<&'st
 /// Why:
 /// a plain method call to an activatable name could start a stray process;
 /// this only reads the bus.
-pub fn has_owner(connection: &Connection, name: &str) -> zbus::Result<bool> {
+pub fn has_owner(
+    connection: &Connection,
+    name: &str,
+) -> zbus::Result<bool> {
     let bus = step(DBusProxy::new(connection))?;
     let bus_name = BusName::try_from(name)?;
-    return Ok(step(async { return Ok(bus.name_has_owner(bus_name).await?) })?);
+    return Ok(step(async {
+        return Ok(bus.name_has_owner(bus_name).await?);
+    })?);
 }
 
 /// What:
 /// `owner_of` returns the unique name that owns `name`.
 /// Why:
 /// signals are trusted only from the process that answered the request.
-fn owner_of(connection: &Connection, name: &str) -> zbus::Result<String> {
+fn owner_of(
+    connection: &Connection,
+    name: &str,
+) -> zbus::Result<String> {
     let bus = step(DBusProxy::new(connection))?;
     let bus_name = BusName::try_from(name)?;
     return Ok(step(async { return Ok(bus.get_name_owner(bus_name).await?) })?.to_string());
@@ -385,15 +420,35 @@ impl JobView {
         view: &IndicatorView,
     ) -> zbus::Result<JobView> {
         let owner = owner_of(connection, KUISERVER)?;
-        let server = step(Proxy::new(connection, KUISERVER, JOB_SERVER_PATH, JOB_SERVER_INTERFACE))?;
-        let capabilities = if suspendable { CAPABILITY_SUSPENDABLE } else { 0 };
+        let server = step(Proxy::new(
+            connection,
+            KUISERVER,
+            JOB_SERVER_PATH,
+            JOB_SERVER_INTERFACE,
+        ))?;
+        let capabilities = if suspendable {
+            CAPABILITY_SUSPENDABLE
+        } else {
+            0
+        };
         let hints = job_request_hints(identity);
-        let reply: OwnedObjectPath =
-            step(server.call("requestView", &(identity.desktop_entry.as_str(), capabilities, hints)))?;
+        let reply: OwnedObjectPath = step(server.call(
+            "requestView",
+            &(identity.desktop_entry.as_str(), capabilities, hints),
+        ))?;
         let path = reply.to_string();
         tracing::info!(path = %path, owner = %owner, suspendable, "analysis job view granted by Plasma");
-        let proxy = step(Proxy::new(connection, KUISERVER, path.clone(), JOB_VIEW_INTERFACE))?;
-        let job = JobView { proxy, path, owner };
+        let proxy = step(Proxy::new(
+            connection,
+            KUISERVER,
+            path.clone(),
+            JOB_VIEW_INTERFACE,
+        ))?;
+        let job = JobView {
+            proxy,
+            path,
+            owner,
+        };
         job.update(view, true)?;
         return Ok(job);
     }
@@ -405,8 +460,15 @@ impl JobView {
     /// Why:
     /// updates are fire-and-forget in the protocol,
     /// and waiting would stall the thread for no information.
-    pub fn update(&self, view: &IndicatorView, with_title: bool) -> zbus::Result<()> {
-        return step(self.proxy.call_noreply("update", &(job_update_properties(view, with_title),)));
+    pub fn update(
+        &self,
+        view: &IndicatorView,
+        with_title: bool,
+    ) -> zbus::Result<()> {
+        return step(
+            self.proxy
+                .call_noreply("update", &(job_update_properties(view, with_title),)),
+        );
     }
 
     /// What:
@@ -414,11 +476,17 @@ impl JobView {
     /// Why:
     /// it removes the view;
     /// a failure shows its message.
-    pub fn terminate(&self, outcome: &Outcome) -> zbus::Result<()> {
+    pub fn terminate(
+        &self,
+        outcome: &Outcome,
+    ) -> zbus::Result<()> {
         let (code, message) = terminate_arguments(outcome);
         let hints: HashMap<&str, Variant<'_>> = HashMap::new();
         tracing::info!(path = %self.path, code, "analysis job view terminates");
-        return step(self.proxy.call_noreply("terminate", &(code, message, hints)));
+        return step(
+            self.proxy
+                .call_noreply("terminate", &(code, message, hints)),
+        );
     }
 
     /// What:
@@ -427,7 +495,11 @@ impl JobView {
     /// another app's job signals,
     /// or a different path,
     /// must not pause the analysis.
-    pub fn owns(&self, sender: &str, path: &str) -> bool {
+    pub fn owns(
+        &self,
+        sender: &str,
+        path: &str,
+    ) -> bool {
         return self.owner == sender && self.path == path;
     }
 }
@@ -474,18 +546,32 @@ impl FdoNotification {
         suspendable: bool,
         view: &IndicatorView,
     ) -> zbus::Result<FdoNotification> {
-        let proxy = step(Proxy::new(connection, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE))?;
+        let proxy = step(Proxy::new(
+            connection,
+            NOTIFICATIONS_NAME,
+            NOTIFICATIONS_PATH,
+            NOTIFICATIONS_INTERFACE,
+        ))?;
         let id = FdoNotification::notify(&proxy, 0, identity, suspendable, view)?;
         let owner = owner_of(connection, NOTIFICATIONS_NAME)?;
         tracing::info!(id, owner = %owner, "analysis notification posted");
-        return Ok(FdoNotification { proxy, id, owner });
+        return Ok(FdoNotification {
+            proxy,
+            id,
+            owner,
+        });
     }
 
     /// What:
     /// `update` replaces the notification with `view`.
     /// Why:
     /// the returned id is kept in case a server answers with a different one.
-    pub fn update(&mut self, identity: &Identity, suspendable: bool, view: &IndicatorView) -> zbus::Result<()> {
+    pub fn update(
+        &mut self,
+        identity: &Identity,
+        suspendable: bool,
+        view: &IndicatorView,
+    ) -> zbus::Result<()> {
         self.id = FdoNotification::notify(&self.proxy, self.id, identity, suspendable, view)?;
         return Ok(());
     }
@@ -503,7 +589,11 @@ impl FdoNotification {
     /// `owns` is true when a signal came from this service about this notification.
     /// Why:
     /// another app's notification ids must not be taken for ours.
-    pub fn owns(&self, sender: &str, id: u32) -> bool {
+    pub fn owns(
+        &self,
+        sender: &str,
+        id: u32,
+    ) -> bool {
         return self.owner == sender && self.id == id;
     }
 }
@@ -519,15 +609,29 @@ fn decode_signal(message: &zbus::Message) -> Option<BusSignal> {
     let member = header.member().map(ToString::to_string)?;
     let path = header.path().map(ToString::to_string).unwrap_or_default();
     return match member.as_str() {
-        "suspendRequested" => Some(BusSignal::JobSuspend { sender, path }),
-        "resumeRequested" => Some(BusSignal::JobResume { sender, path }),
+        "suspendRequested" => Some(BusSignal::JobSuspend {
+            sender,
+            path,
+        }),
+        "resumeRequested" => Some(BusSignal::JobResume {
+            sender,
+            path,
+        }),
         "ActionInvoked" => {
             let (id, key): (u32, String) = message.body().deserialize().ok()?;
-            Some(BusSignal::ActionInvoked { sender, id, key })
+            Some(BusSignal::ActionInvoked {
+                sender,
+                id,
+                key,
+            })
         }
         "NotificationClosed" => {
             let (id, reason): (u32, u32) = message.body().deserialize().ok()?;
-            Some(BusSignal::NotificationClosed { sender, id, reason })
+            Some(BusSignal::NotificationClosed {
+                sender,
+                id,
+                reason,
+            })
         }
         _ => None,
     };
@@ -547,8 +651,11 @@ const SIGNAL_QUEUE: usize = 64;
 /// Why:
 /// the listener thread's whole body,
 /// run inside one `zbus::block_on` call.
-async fn read_signals<F>(mut stream: MessageStream, interface: &str, forward: F)
-where
+async fn read_signals<F>(
+    mut stream: MessageStream,
+    interface: &str,
+    forward: F,
+) where
     F: Fn(BusSignal) -> bool,
 {
     while let Some(received) = stream.next().await {
@@ -580,7 +687,11 @@ where
 /// connection closes.
 /// It subscribes before the first request,
 /// so an early button press is not lost.
-pub fn spawn_listener<F>(connection: &Connection, backend: Backend, forward: F) -> zbus::Result<JoinHandle<()>>
+pub fn spawn_listener<F>(
+    connection: &Connection,
+    backend: Backend,
+    forward: F,
+) -> zbus::Result<JoinHandle<()>>
 where
     F: Fn(BusSignal) -> bool + Send + 'static,
 {
@@ -588,8 +699,15 @@ where
         Backend::Job => JOB_VIEW_INTERFACE,
         Backend::Notification => NOTIFICATIONS_INTERFACE,
     };
-    let rule = MatchRule::builder().msg_type(Type::Signal).interface(interface).build()?;
-    let stream = step(MessageStream::for_match_rule(rule, connection, NonZeroUsize::new(SIGNAL_QUEUE)))?;
+    let rule = MatchRule::builder()
+        .msg_type(Type::Signal)
+        .interface(interface)
+        .build()?;
+    let stream = step(MessageStream::for_match_rule(
+        rule,
+        connection,
+        NonZeroUsize::new(SIGNAL_QUEUE),
+    ))?;
     tracing::debug!(interface, "analysis indicator listening for signals");
     let handle = std::thread::Builder::new()
         .name(format!("analysis-signals-{interface}"))

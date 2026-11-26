@@ -38,7 +38,10 @@ use std::cell::Cell;
 /// ```ts
 /// import { Path } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use crate::git_refs::NativeEnvironment;` imports the description of where the user configuration lives and whether the environment forbids reading the files.
@@ -70,13 +73,19 @@ pub(crate) const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-con
 /// ```ts
 /// function findProgram(program: string, search: string, workingDirectory: string): string | undefined
 /// ```
-pub(crate) fn find_program(program: &Path, search: &str, working_directory: &Path) -> Option<PathBuf> {
+pub(crate) fn find_program(
+    program: &Path,
+    search: &str,
+    working_directory: &Path,
+) -> Option<PathBuf> {
     if program.components().count() > 1 {
         let anchored: PathBuf = working_directory.join(program);
         return Some(anchored);
     }
     for directory in search.split(':') {
-        let candidate: PathBuf = working_directory.join(if directory.is_empty() { "." } else { directory }).join(program);
+        let candidate: PathBuf = working_directory
+            .join(if directory.is_empty() { "." } else { directory })
+            .join(program);
         if crate::control_group::is_executable_file(&candidate) {
             return Some(candidate);
         }
@@ -91,7 +100,10 @@ pub(crate) fn find_program(program: &Path, search: &str, working_directory: &Pat
 /// else an empty string.
 /// Why:
 /// A function replaces the closure that captured the environment.
-pub(crate) fn seen_variable(environment: &NativeEnvironment, name: &str) -> String {
+pub(crate) fn seen_variable(
+    environment: &NativeEnvironment,
+    name: &str,
+) -> String {
     for (key, value) in environment.git.environment.iter().rev() {
         if key == name {
             return value.clone();
@@ -124,7 +136,11 @@ pub(crate) fn seen_variable(environment: &NativeEnvironment, name: &str) -> Stri
 /// ```ts
 /// export function systemConfigOfGit(environment: NativeEnvironment, root: string, starts: { count: number }): string  // throws: ask Git
 /// ```
-pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> Result<PathBuf, String> {
+pub(crate) fn system_config_of_git(
+    environment: &NativeEnvironment,
+    root: &Path,
+    starts: &Cell<u32>,
+) -> Result<PathBuf, String> {
     // Typed binding: `search: String`.
     // The variable set on the command wins; without one, a run that keeps the caller's environment reads the caller's PATH.
     let mut search: String = String::new();
@@ -151,7 +167,11 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     // ```ts
     // // TS has one type for this: string
     // ```
-    let program: PathBuf = find_program(&environment.git.program, &search, root).or_text(format_args!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()))?;
+    let program: PathBuf =
+        find_program(&environment.git.program, &search, root).or_text(format_args!(
+            "{} was not found on the search path, so its system configuration is unknown",
+            environment.git.program.display()
+        ))?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&program`: lends the value without copying or giving it away.
@@ -169,7 +189,12 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     // Macro `format!`: builds or prints text (or a list) from a template.
     let metadata = match std::fs::metadata(&canonical) {
         Ok(found) => found,
-        Err(error) => return Err(format!("{} cannot be inspected: {error}", canonical.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be inspected: {error}",
+                canonical.display()
+            ));
+        }
     };
     // Closure `|time|`: an anonymous function, like a TS arrow function.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -203,7 +228,8 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
             std::os::unix::fs::MetadataExt::dev(&metadata),
             std::os::unix::fs::MetadataExt::ino(&metadata),
             metadata.len(),
-            std::os::unix::fs::MetadataExt::ctime_nsec(&metadata) + std::os::unix::fs::MetadataExt::ctime(&metadata) * 1_000_000_000,
+            std::os::unix::fs::MetadataExt::ctime_nsec(&metadata)
+                + std::os::unix::fs::MetadataExt::ctime(&metadata) * 1_000_000_000,
             seen_variable(environment, "GIT_CONFIG_SYSTEM"),
             seen_variable(environment, "GIT_CONFIG_NOSYSTEM"),
             seen_variable(environment, "GIT_EXEC_PATH")
@@ -239,7 +265,10 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     if !asked.status.success() || reported.is_empty() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err("the Git that answers does not report its system configuration, so it is not assumed".to_string());
+        return Err(
+            "the Git that answers does not report its system configuration, so it is not assumed"
+                .to_string(),
+        );
     }
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.

@@ -2,8 +2,16 @@
 // Why:      Issue 1010: the file dialog library reports a chooser failure through `log`, and ICU's CJK-segmentation
 //           warnings arrive through the same facade. The bridge must carry the first and not the second.
 
-use super::{DEFAULT_LEVEL, SILENT_TARGETS, directives, install_with};
-use crate::logging::log_capture::{Capture, capture_records};
+use super::{
+    DEFAULT_LEVEL,
+    SILENT_TARGETS,
+    directives,
+    install_with,
+};
+use crate::logging::log_capture::{
+    Capture,
+    capture_records,
+};
 
 /// What:
 ///     Emits one probe per target a filter has to decide about,
@@ -46,7 +54,10 @@ fn a_chooser_failure_from_the_log_facade_reaches_the_log() {
 #[test]
 fn icu_segmentation_warnings_stay_silent() {
     let records = written(None);
-    assert!(!records.contains("probe=icu-warn"), "ICU warnings must stay out of the log; got {records:?}");
+    assert!(
+        !records.contains("probe=icu-warn"),
+        "ICU warnings must stay out of the log; got {records:?}"
+    );
     assert!(
         !records.contains("probe=icu-segmentation-warn"),
         "ICU segmentation warnings must stay out of the log; got {records:?}",
@@ -56,8 +67,14 @@ fn icu_segmentation_warnings_stay_silent() {
 #[test]
 fn the_default_level_is_info() {
     let records = written(None);
-    assert!(records.contains("probe=app-info"), "info is the default; got {records:?}");
-    assert!(!records.contains("probe=app-debug"), "debug needs RUST_LOG; got {records:?}");
+    assert!(
+        records.contains("probe=app-info"),
+        "info is the default; got {records:?}"
+    );
+    assert!(
+        !records.contains("probe=app-debug"),
+        "debug needs RUST_LOG; got {records:?}"
+    );
 }
 
 #[test]
@@ -76,22 +93,43 @@ fn naming_a_silenced_target_in_rust_log_turns_it_back_on() {
 #[test]
 fn a_rust_log_override_needs_no_second_directive_to_keep_the_silence() {
     let records = written(Some("music_player=debug"));
-    assert!(records.contains("probe=app-debug"), "the override applies; got {records:?}");
-    assert!(!records.contains("probe=icu-warn"), "the silence survives an override; got {records:?}");
+    assert!(
+        records.contains("probe=app-debug"),
+        "the override applies; got {records:?}"
+    );
+    assert!(
+        !records.contains("probe=icu-warn"),
+        "the silence survives an override; got {records:?}"
+    );
 }
 
 #[test]
 fn an_invalid_rust_log_falls_back_to_the_default_level() {
     let records = written(Some("music_player=nonsense"));
-    assert!(records.contains("probe=app-info"), "a typo must not silence the player; got {records:?}");
-    assert!(!records.contains("probe=icu-warn"), "the silence survives a typo; got {records:?}");
+    assert!(
+        records.contains("probe=app-info"),
+        "a typo must not silence the player; got {records:?}"
+    );
+    assert!(
+        !records.contains("probe=icu-warn"),
+        "the silence survives a typo; got {records:?}"
+    );
 }
 
 #[test]
 fn directives_put_the_operator_last_so_the_override_wins() {
-    assert_eq!(directives(None), format!("{SILENT_TARGETS},{DEFAULT_LEVEL}"));
-    assert_eq!(directives(Some("   ")), format!("{SILENT_TARGETS},{DEFAULT_LEVEL}"));
-    assert_eq!(directives(Some("  rfd=debug  ")), format!("{SILENT_TARGETS},rfd=debug"));
+    assert_eq!(
+        directives(None),
+        format!("{SILENT_TARGETS},{DEFAULT_LEVEL}")
+    );
+    assert_eq!(
+        directives(Some("   ")),
+        format!("{SILENT_TARGETS},{DEFAULT_LEVEL}")
+    );
+    assert_eq!(
+        directives(Some("  rfd=debug  ")),
+        format!("{SILENT_TARGETS},rfd=debug")
+    );
     assert!(
         directives(Some("icu_provider=debug")).ends_with(",icu_provider=debug"),
         "the operator's directive must come after the silence it overrides",
@@ -100,8 +138,14 @@ fn directives_put_the_operator_last_so_the_override_wins() {
 
 #[test]
 fn the_silence_names_both_icu_crates() {
-    assert!(SILENT_TARGETS.contains("icu_provider=off"), "got {SILENT_TARGETS:?}");
-    assert!(SILENT_TARGETS.contains("icu_segmenter=off"), "got {SILENT_TARGETS:?}");
+    assert!(
+        SILENT_TARGETS.contains("icu_provider=off"),
+        "got {SILENT_TARGETS:?}"
+    );
+    assert!(
+        SILENT_TARGETS.contains("icu_segmenter=off"),
+        "got {SILENT_TARGETS:?}"
+    );
 }
 
 #[test]
@@ -114,10 +158,15 @@ fn a_record_from_the_log_facade_reaches_the_installed_pipeline() {
     let sink = Capture {
         buffer: std::sync::Arc::clone(&buffer),
     };
-    assert!(install_with(sink, None), "the test binary installs the pipeline first");
+    assert!(
+        install_with(sink, None),
+        "the test binary installs the pipeline first"
+    );
     icu_provider::log::warn!("probe=facade-warn");
     icu_provider::log::warn!(target: "icu_provider", "probe=icu-warn");
-    let records: String = String::from_utf8_lossy(&buffer.lock().expect("the capture buffer is readable")).into_owned();
+    let records: String =
+        String::from_utf8_lossy(&buffer.lock().expect("the capture buffer is readable"))
+            .into_owned();
     assert!(
         records.contains("probe=facade-warn"),
         "a `log` record must reach the sink through the bridge; got {records:?}",

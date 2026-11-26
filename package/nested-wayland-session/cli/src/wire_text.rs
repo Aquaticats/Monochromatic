@@ -48,7 +48,7 @@ fn is_plain(byte: u8) -> bool {
 /// encodeText("Done; 100 %"); // => "Done%3B%20100%20%25"
 /// ```
 pub fn encode_text(text: &str) -> String {
-    return percent_escape(text.as_bytes(), is_plain)
+    return percent_escape(text.as_bytes(), is_plain);
 }
 
 /// Joins already-formatted records the way `launcher-log` does:

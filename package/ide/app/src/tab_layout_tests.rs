@@ -7,9 +7,17 @@
 //! so the checks do not depend on the host's load.
 
 /// The bound under test.
-use super::{TAB_BUDGET, TAB_MIN_PASSES, TAB_PASSES, passes_for};
+use super::{
+    TAB_BUDGET,
+    TAB_MIN_PASSES,
+    TAB_PASSES,
+    passes_for,
+};
 /// Canonical source and the shaper whose passes are counted.
-use crate::{document::Document, shaped_text::TextShaper};
+use crate::{
+    document::Document,
+    shaped_text::TextShaper,
+};
 
 /// A line of about `length` characters with a tab every few characters,
 /// which keeps correcting for many passes.

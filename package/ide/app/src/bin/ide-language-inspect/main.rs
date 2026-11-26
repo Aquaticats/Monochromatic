@@ -16,7 +16,11 @@ mod render;
 mod session;
 
 /// Failures name the operation that failed.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// The production setup and the unconfined control setup.
 use ide_app::language::config::LanguageSetup;
 /// What:

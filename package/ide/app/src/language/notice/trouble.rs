@@ -40,7 +40,10 @@ pub(in crate::language) struct Trouble {
 /// ```
 pub(super) fn failure_text(failure: &RequestFailure) -> String {
     return match failure {
-        RequestFailure::Rpc { code, message } => {
+        RequestFailure::Rpc {
+            code,
+            message,
+        } => {
             format!("the server answered with error {code}: {message}")
         }
         RequestFailure::Timeout => "the server did not answer in time".to_string(),

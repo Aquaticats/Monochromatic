@@ -72,7 +72,7 @@ fn non_ignored_files(root: &PathBuf) -> Vec<PathBuf> {
         .filter_map(Result::ok)
         .filter(|entry| return entry.file_type().is_some_and(|kind| return kind.is_file()))
         .map(|entry| return entry.into_path())
-        .collect()
+        .collect();
 }
 
 /// Appends one file's usable text lines to `lines`.
@@ -84,7 +84,10 @@ fn non_ignored_files(root: &PathBuf) -> Vec<PathBuf> {
 ///  Why:
 ///  keeps the corpus to real,
 ///  scannable text lines.
-fn gather_file(path: &PathBuf, lines: &mut Vec<Vec<u8>>) {
+fn gather_file(
+    path: &PathBuf,
+    lines: &mut Vec<Vec<u8>>,
+) {
     let Ok(bytes) = std::fs::read(path) else {
         return;
     };
@@ -122,5 +125,5 @@ pub fn build_corpus() -> Vec<Vec<u8>> {
     if lines.is_empty() {
         panic!("gathered no corpus lines from the repo");
     }
-    return lines
+    return lines;
 }

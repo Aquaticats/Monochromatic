@@ -34,15 +34,25 @@ use ide_app::refresh_policy::SourceRefresh;
 /// The one vertical mapping between pixels and source lines.
 use ide_app::row_map::RowMap;
 /// Shared shaping replaces terminal-column assumptions in native hit testing.
-use ide_app::shaped_text::{Clip, ShapedView, TextShaper};
+use ide_app::shaped_text::{
+    Clip,
+    ShapedView,
+    TextShaper,
+};
 /// Paint identity prevents caret movement from rebuilding source pixels.
 use ide_app::source_frame::FrameStamp;
 /// One line's block of virtual rows.
 use ide_app::virtual_row::Block;
 /// Source and display geometry use the same library interface tested headlessly.
-use ide_app::{document::Document, source_style::SourceStyles};
+use ide_app::{
+    document::Document,
+    source_style::SourceStyles,
+};
 /// Toolkit handles and models bridge owned Rust state to the window.
-use slint::{Timer, VecModel};
+use slint::{
+    Timer,
+    VecModel,
+};
 /// What:
 ///  Rc shares one UI-thread owner;
 ///  RefCell permits checked mutable borrowing.
@@ -53,7 +63,12 @@ use slint::{Timer, VecModel};
 /// ```ts
 /// const shared = { current: state };
 /// ```
-use std::{path::PathBuf, rc::Rc, sync::Arc, time::Instant};
+use std::{
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 /// Native window and model row generated from the UI declaration.
 use ui::AppWindow;
 
@@ -448,7 +463,10 @@ use ide_app::wrap_sign::Sign;
 /// Bind pointer selection.
 use input::bind_pointer;
 /// Shared rendering entry point.
-use render::{bind_appearance, render};
+use render::{
+    bind_appearance,
+    render,
+};
 /// The one entry point of the native window.
 pub use start::run;
 /// Tile bounds of the displayed and requested windows.

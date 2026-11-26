@@ -17,7 +17,10 @@
 ///  imports cells for closure-captured GTK state.
 /// Why:
 ///  focus state and scroll epochs mutate from signal handlers.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 /// What:
 ///  imports the hash-map container.
 /// Why:
@@ -50,13 +53,25 @@ use gtk4::prelude::*;
 ///  fixed canvases,
 ///  widgets,
 ///      and key controllers.
-use gtk4::{Box as GtkBox, EventControllerKey, Fixed, Orientation, Overlay, PolicyType, ScrolledWindow, Widget};
+use gtk4::{
+    Box as GtkBox,
+    EventControllerKey,
+    Fixed,
+    Orientation,
+    Overlay,
+    PolicyType,
+    ScrolledWindow,
+    Widget,
+};
 
 /// What:
 ///  imports pane geometry constants.
 /// Why:
 ///  every placement and lane calculation uses one pane-size source of truth.
-use crate::constants::{PANE_HEIGHT, PANE_WIDTH};
+use crate::constants::{
+    PANE_HEIGHT,
+    PANE_WIDTH,
+};
 /// What:
 ///  imports debug-tint helpers.
 /// Why:
@@ -98,7 +113,10 @@ pub(crate) trait PaneWidgetBuilder {
     /// Why:
     ///  the layout owns placement,
     ///  the implementor owns what a pane shows.
-    fn build_widget(&self, id: PaneId) -> Widget;
+    fn build_widget(
+        &self,
+        id: PaneId,
+    ) -> Widget;
 }
 
 /// What:
@@ -200,7 +218,7 @@ impl StripLayout {
             focused_column: Cell::new(0),
         });
         layout.install_app_scroll_sync();
-        return layout
+        return layout;
     }
 
     /// What:
@@ -208,7 +226,7 @@ impl StripLayout {
     /// Why:
     ///  callers should not know the root happens to be a `GtkScrolledWindow`.
     pub(crate) fn widget(&self) -> Widget {
-        return self.outer.clone().upcast::<Widget>()
+        return self.outer.clone().upcast::<Widget>();
     }
 
     /// What:
@@ -216,7 +234,10 @@ impl StripLayout {
     /// Why:
     ///  keyboard navigation is installed by `keys.rs`,
     ///  but the concrete root widget stays hidden.
-    pub(crate) fn add_column_key_controller(&self, controller: EventControllerKey) {
+    pub(crate) fn add_column_key_controller(
+        &self,
+        controller: EventControllerKey,
+    ) {
         self.outer.add_controller(controller);
     }
 
@@ -225,14 +246,17 @@ impl StripLayout {
     /// Why:
     ///  Left/Right navigation computes its target relative to this value.
     pub(crate) fn focused_column(&self) -> usize {
-        return self.focused_column.get()
+        return self.focused_column.get();
     }
 
     /// What:
     ///  record the column that just received pane focus.
     /// Why:
     ///  spawn and keyboard navigation both update the origin for the next Left/Right move.
-    pub(crate) fn set_focused_column(&self, column: usize) {
+    pub(crate) fn set_focused_column(
+        &self,
+        column: usize,
+    ) {
         self.focused_column.set(column);
     }
 
@@ -241,12 +265,15 @@ impl StripLayout {
     ///  returning whether it existed.
     /// Why:
     ///  keyboard navigation can stop event propagation only when focus actually moved.
-    pub(crate) fn focus_widget(&self, id: PaneId) -> bool {
+    pub(crate) fn focus_widget(
+        &self,
+        id: PaneId,
+    ) -> bool {
         let Some(widget) = self.widgets.borrow().get(&id).cloned() else {
             return false;
         };
         widget.grab_focus();
-        return true
+        return true;
     }
 
     /// What:
@@ -286,7 +313,10 @@ impl StripLayout {
     ///  descending adds columns and bulk-close removes them;
     ///  each column owns a fixed pane canvas
     ///      but no vertical scroller.
-    fn ensure_columns(self: &Rc<Self>, count: usize) {
+    fn ensure_columns(
+        self: &Rc<Self>,
+        count: usize,
+    ) {
         let mut columns = self.columns.borrow_mut();
         while columns.len() < count {
             let index = columns.len();
@@ -295,15 +325,15 @@ impl StripLayout {
             fixed.set_vexpand(true);
             fixed.add_css_class("fm-canvas");
             let canvas_detail = format!("column={index}");
-            let root = debug_tint::wrap(
-                &fixed,
-                debug_tint::V6C_COLUMN_CANVAS,
-                Some(&canvas_detail),
-            );
+            let root =
+                debug_tint::wrap(&fixed, debug_tint::V6C_COLUMN_CANVAS, Some(&canvas_detail));
             root.set_width_request(PANE_WIDTH);
             root.add_css_class("fm-column-root");
             self.columns_box.append(&root);
-            columns.push(ColumnView { root, fixed });
+            columns.push(ColumnView {
+                root,
+                fixed,
+            });
         }
         while columns.len() > count {
             if let Some(view) = columns.pop() {
@@ -316,7 +346,10 @@ impl StripLayout {
     ///  remove pane widgets whose ids no longer appear in `live`.
     /// Why:
     ///  closed panes must leave their column canvas and the widget map.
-    fn remove_stale(&self, live: &HashMap<PaneId, (usize, usize)>) {
+    fn remove_stale(
+        &self,
+        live: &HashMap<PaneId, (usize, usize)>,
+    ) {
         let mut stale: Vec<PaneId> = Vec::new();
         for id in self.widgets.borrow().keys() {
             if !live.contains_key(id) {
@@ -359,7 +392,10 @@ impl StripLayout {
     /// Why:
     ///  columns keep the shared row coordinate for alignment without adding vertical scroll
     ///      state of their own.
-    fn set_content_height(&self, live: &HashMap<PaneId, (usize, usize)>) {
+    fn set_content_height(
+        &self,
+        live: &HashMap<PaneId, (usize, usize)>,
+    ) {
         for (index, view) in self.columns.borrow().iter().enumerate() {
             let max_row = placement_queries::deepest_row_in_column(live, index);
             let height = (scroll::row_y(max_row) + f64::from(PANE_HEIGHT)) as i32;

@@ -33,7 +33,10 @@ fn init_platform() {
 /// Why:
 /// every test starts from the same window construction,
 /// so only the width and scheme differ.
-fn window_at(width: f32, scheme: i32) -> AppWindow {
+fn window_at(
+    width: f32,
+    scheme: i32,
+) -> AppWindow {
     init_platform();
     let app = AppWindow::new().expect("the window should build on the testing backend");
     app.window().set_size(slint::LogicalSize::new(width, 900.0));
@@ -44,26 +47,57 @@ fn window_at(width: f32, scheme: i32) -> AppWindow {
 
 /// What:
 /// `count_of` counts the elements of one component type under the window.
-fn count_of(app: &AppWindow, type_name: &str) -> usize {
+fn count_of(
+    app: &AppWindow,
+    type_name: &str,
+) -> usize {
     return ElementHandle::find_by_element_type_name(app, type_name).count();
 }
 
 fn check_cover_width_elements() {
     for scheme in [1, 2] {
         let app = window_at(443.0, scheme);
-        assert_eq!(count_of(&app, "CoverTopRow"), 1, "scheme {scheme}: cover top row");
-        assert_eq!(count_of(&app, "TrackListPane"), 1, "scheme {scheme}: track list");
-        assert_eq!(count_of(&app, "TransportDeck"), 1, "scheme {scheme}: transport deck");
+        assert_eq!(
+            count_of(&app, "CoverTopRow"),
+            1,
+            "scheme {scheme}: cover top row"
+        );
+        assert_eq!(
+            count_of(&app, "TrackListPane"),
+            1,
+            "scheme {scheme}: track list"
+        );
+        assert_eq!(
+            count_of(&app, "TransportDeck"),
+            1,
+            "scheme {scheme}: transport deck"
+        );
     }
 }
 
 fn check_unfolded_width_elements() {
     for scheme in [1, 2] {
         let app = window_at(850.0, scheme);
-        assert_eq!(count_of(&app, "UnfoldedFoldersHeader"), 1, "scheme {scheme}: left header");
-        assert_eq!(count_of(&app, "UnfoldedTrackHeader"), 1, "scheme {scheme}: right header");
-        assert_eq!(count_of(&app, "FolderPickerPane"), 1, "scheme {scheme}: folder picker");
-        assert_eq!(count_of(&app, "TrackListPane"), 1, "scheme {scheme}: track list");
+        assert_eq!(
+            count_of(&app, "UnfoldedFoldersHeader"),
+            1,
+            "scheme {scheme}: left header"
+        );
+        assert_eq!(
+            count_of(&app, "UnfoldedTrackHeader"),
+            1,
+            "scheme {scheme}: right header"
+        );
+        assert_eq!(
+            count_of(&app, "FolderPickerPane"),
+            1,
+            "scheme {scheme}: folder picker"
+        );
+        assert_eq!(
+            count_of(&app, "TrackListPane"),
+            1,
+            "scheme {scheme}: track list"
+        );
     }
 }
 
@@ -72,19 +106,35 @@ fn check_track_list_widths() {
     let cover_list = ElementHandle::find_by_element_type_name(&cover, "TrackListPane")
         .next()
         .expect("cover track list should exist");
-    assert!((cover_list.size().width - 443.0).abs() < 1.0, "cover list width {}", cover_list.size().width);
+    assert!(
+        (cover_list.size().width - 443.0).abs() < 1.0,
+        "cover list width {}",
+        cover_list.size().width
+    );
     let unfolded = window_at(850.0, 2);
     let right_list = ElementHandle::find_by_element_type_name(&unfolded, "TrackListPane")
         .next()
         .expect("unfolded track list should exist");
-    assert!(right_list.size().width < 850.0 * 0.6, "unfolded right pane width {}", right_list.size().width);
+    assert!(
+        right_list.size().width < 850.0 * 0.6,
+        "unfolded right pane width {}",
+        right_list.size().width
+    );
 }
 
 fn check_search_route() {
     let app = window_at(443.0, 1);
-    assert_eq!(count_of(&app, "SearchPage"), 0, "search hidden on the player route");
+    assert_eq!(
+        count_of(&app, "SearchPage"),
+        0,
+        "search hidden on the player route"
+    );
     app.set_route(Route::Search.to_int());
-    assert_eq!(count_of(&app, "SearchPage"), 1, "search shown on the search route");
+    assert_eq!(
+        count_of(&app, "SearchPage"),
+        1,
+        "search shown on the search route"
+    );
 }
 
 /// What:

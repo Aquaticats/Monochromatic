@@ -22,8 +22,14 @@ What follows is what that skill does not cover: how this crate's tests and child
 The container gate runs each test in a process of its own,
 so a test that only holds alone passes the gate and fails every threaded run.
 Before you report, run each module you touched threaded
-(`cargo test --locked --offline --lib <module> -- --skip guest --skip _arm_tests`, default threads, guest arms skipped)
+(`cargo test --locked --offline --lib --features test-only-switches <module> -- --skip guest --skip _arm_tests`, default threads, guest arms skipped)
 and name the run's `test result` line.
+The `test-only-switches` feature is what lets a control arm a `CLI_GIT_TEST_ONLY_*` variable,
+which a build without it never reads (`foundation/test_only_switches.rs`);
+`native:test:host` and the gate pass it,
+and the one control that proves a release ignores the switches,
+`testing::no_switch_is_read_without_its_feature`,
+runs in a build without it.
 A test that passes alone and fails threaded is a defect of that test until a measurement shows otherwise
 (`AGENTS.md`'s SUF);
 report its cause, never host load.

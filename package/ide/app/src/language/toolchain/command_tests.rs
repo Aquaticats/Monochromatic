@@ -1,10 +1,20 @@
 //! The sandbox request's contents.
 
-use super::{Invocation, LOCATION_VARIABLES, launch_request};
-use crate::language::{confine::recipe::recipe, toolchain::ToolchainRequest};
+use super::{
+    Invocation,
+    LOCATION_VARIABLES,
+    launch_request,
+};
+use crate::language::{
+    confine::recipe::recipe,
+    toolchain::ToolchainRequest,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The program the lookup would run:
@@ -32,7 +42,10 @@ fn lookup(root: &str) -> Invocation {
 }
 
 /// The exact arguments bubblewrap gets for a lookup run.
-fn arguments(root: &str, locations: &[(String, String)]) -> Vec<String> {
+fn arguments(
+    root: &str,
+    locations: &[(String, String)],
+) -> Vec<String> {
     let request = launch_request(&lookup(root), &project(root), locations);
     let inherited = vec![("HOME".to_string(), "/home/someone".to_string())];
     return recipe(
@@ -57,7 +70,10 @@ fn separator(args: &[String]) -> usize {
 }
 
 /// The index where the arguments `wanted` first appear in a row.
-fn position(args: &[String], wanted: &[&str]) -> Option<usize> {
+fn position(
+    args: &[String],
+    wanted: &[&str],
+) -> Option<usize> {
     for (index, window) in args.windows(wanted.len()).enumerate() {
         let mut same = true;
         for (argument, expected) in window.iter().zip(wanted.iter()) {
@@ -73,7 +89,10 @@ fn position(args: &[String], wanted: &[&str]) -> Option<usize> {
     return None;
 }
 
-fn setenv(arguments: &[String], name: &str) -> Option<String> {
+fn setenv(
+    arguments: &[String],
+    name: &str,
+) -> Option<String> {
     for window in arguments.windows(3) {
         if window[0] == "--setenv" && window[1] == name {
             return Some(window[2].clone());
@@ -208,10 +227,6 @@ fn a_location_variable_below_a_replaced_directory_is_shown_again_read_only() {
         )],
     );
     assert_eq!(request.read_only_binds, [data]);
-    let none = launch_request(
-        &lookup("/work/project"),
-        &project("/work/project"),
-        &[],
-    );
+    let none = launch_request(&lookup("/work/project"), &project("/work/project"), &[]);
     assert!(none.read_only_binds.is_empty());
 }

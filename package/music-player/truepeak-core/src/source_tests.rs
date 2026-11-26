@@ -1,24 +1,47 @@
 //! Unit tests for the source contract and stream descriptor.
 
 use super::*;
-use crate::meter::{TruePeakMeter, true_peak_interleaved};
+use crate::meter::{
+    TruePeakMeter,
+    true_peak_interleaved,
+};
 
 // A finite duration is "known"; zero, negative, NaN, and infinity are not.
 #[test]
 fn duration_known_rejects_degenerate_values() {
-    let known = AudioSpec { rate: 48000, channels: 2, duration_secs: 123.4 };
+    let known = AudioSpec {
+        rate: 48000,
+        channels: 2,
+        duration_secs: 123.4,
+    };
     assert!(known.duration_known());
 
-    let zero = AudioSpec { rate: 48000, channels: 2, duration_secs: 0.0 };
+    let zero = AudioSpec {
+        rate: 48000,
+        channels: 2,
+        duration_secs: 0.0,
+    };
     assert!(!zero.duration_known());
 
-    let negative = AudioSpec { rate: 48000, channels: 2, duration_secs: -5.0 };
+    let negative = AudioSpec {
+        rate: 48000,
+        channels: 2,
+        duration_secs: -5.0,
+    };
     assert!(!negative.duration_known());
 
-    let nan = AudioSpec { rate: 48000, channels: 2, duration_secs: f64::NAN };
+    let nan = AudioSpec {
+        rate: 48000,
+        channels: 2,
+        duration_secs: f64::NAN,
+    };
     assert!(!nan.duration_known());
 
-    let infinite = AudioSpec { rate: 48000, channels: 2, duration_secs: f64::INFINITY };
+    let infinite = AudioSpec {
+        rate: 48000,
+        channels: 2,
+        duration_secs: f64::INFINITY,
+    };
     assert!(!infinite.duration_known());
 }
 
@@ -37,7 +60,7 @@ impl TruePeakSource for FakeSource {
             rate: self.rate,
             channels: self.channels,
             duration_secs: self.samples.len() as f64 / (self.rate as f64 * self.channels as f64),
-        }
+        };
     }
 
     fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError> {
@@ -47,17 +70,22 @@ impl TruePeakSource for FakeSource {
         let end = (self.cursor + self.chunk).min(self.samples.len());
         let block = self.samples[self.cursor..end].to_vec();
         self.cursor = end;
-        return Ok(block)
+        return Ok(block);
     }
 
-    fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError> {
+    fn seek_to_frame(
+        &mut self,
+        frame: u64,
+    ) -> Result<(), TruePeakError> {
         // Frame -> interleaved sample index lands exactly on a frame boundary.
         let target = frame as usize * self.channels as usize;
         if target > self.samples.len() {
-            return Err(TruePeakError::Seek { message: format!("frame {frame} past end") });
+            return Err(TruePeakError::Seek {
+                message: format!("frame {frame} past end"),
+            });
         }
         self.cursor = target;
-        return Ok(())
+        return Ok(());
     }
 }
 
@@ -76,7 +104,9 @@ fn boxed_source_drives_the_meter() {
 
     let mut meter = TruePeakMeter::new(source.spec().channels as usize);
     loop {
-        let chunk = source.next_chunk().expect("in-memory source should yield a chunk");
+        let chunk = source
+            .next_chunk()
+            .expect("in-memory source should yield a chunk");
         if chunk.is_empty() {
             break;
         }
@@ -101,7 +131,9 @@ fn seek_to_frame_repositions_and_guards_end() {
     source
         .seek_to_frame(1)
         .expect("in-memory source should seek to an existing frame");
-    let chunk = source.next_chunk().expect("in-memory source should yield the sought chunk");
+    let chunk = source
+        .next_chunk()
+        .expect("in-memory source should yield the sought chunk");
     assert_eq!(chunk, vec![0.3, 0.4]);
 
     assert!(source.seek_to_frame(99).is_err());

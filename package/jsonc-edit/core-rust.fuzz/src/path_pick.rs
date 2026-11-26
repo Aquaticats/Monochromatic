@@ -13,7 +13,10 @@
 /// ```ts
 /// import { Unstructured } from 'arbitrary';
 /// ```
-use arbitrary::{Result as ArbitraryResult, Unstructured};
+use arbitrary::{
+    Result as ArbitraryResult,
+    Unstructured,
+};
 
 /// What:
 ///      Import the address model and the text conversion used to name keys.
@@ -24,7 +27,12 @@ use arbitrary::{Result as ArbitraryResult, Unstructured};
 /// ```ts
 /// import { JsoncPathSegment, JsoncValue, unitsToString } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{units_to_string, JsoncKind, JsoncPathSegment, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncPathSegment,
+    JsoncValue,
+    units_to_string,
+};
 
 /// What:
 ///      Cap on generated address length.
@@ -51,11 +59,17 @@ pub(crate) const MAX_SEGMENTS: usize = 6;
 /// ```ts
 /// export function randomPath(root: JsoncValue, u: Unstructured): JsoncPathSegment[];
 /// ```
-pub fn random_path(root: &JsoncValue, u: &mut Unstructured<'_>) -> ArbitraryResult<Vec<JsoncPathSegment>> {
+pub fn random_path(
+    root: &JsoncValue,
+    u: &mut Unstructured<'_>,
+) -> ArbitraryResult<Vec<JsoncPathSegment>> {
     let mut path: Vec<JsoncPathSegment> = Vec::new();
     let mut current = root;
     while path.len() < MAX_SEGMENTS {
-        if let JsoncKind::Record { entries } = &current.kind {
+        if let JsoncKind::Record {
+            entries,
+        } = &current.kind
+        {
             if entries.is_empty() || !u.arbitrary::<bool>()? {
                 break;
             }
@@ -64,16 +78,23 @@ pub fn random_path(root: &JsoncValue, u: &mut Unstructured<'_>) -> ArbitraryResu
                 break;
             };
             current = &entries[index].value;
-            path.push(JsoncPathSegment::Key { key });
+            path.push(JsoncPathSegment::Key {
+                key,
+            });
             continue;
         }
-        if let JsoncKind::Array { elements } = &current.kind {
+        if let JsoncKind::Array {
+            elements,
+        } = &current.kind
+        {
             if elements.is_empty() || !u.arbitrary::<bool>()? {
                 break;
             }
             let index = u.int_in_range(0..=(elements.len() - 1))?;
             current = &elements[index];
-            path.push(JsoncPathSegment::Index { index });
+            path.push(JsoncPathSegment::Index {
+                index,
+            });
             continue;
         }
         break;

@@ -100,7 +100,10 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { CargoOutcome, CargoRunner } from 'crate/cargo_run';
 /// ```
-use crate::cargo_run::{CargoOutcome, CargoRunner};
+use crate::cargo_run::{
+    CargoOutcome,
+    CargoRunner,
+};
 /// What:
 /// `use crate::checks::{CheckOutcome, check_policy};` imports `CheckOutcome`,
 /// `check_policy` from another module of this crate so this file can name them unqualified.
@@ -112,7 +115,10 @@ use crate::cargo_run::{CargoOutcome, CargoRunner};
 /// ```ts
 /// import { CheckOutcome, checkPolicy } from 'crate/checks';
 /// ```
-use crate::checks::{CheckOutcome, check_policy};
+use crate::checks::{
+    CheckOutcome,
+    check_policy,
+};
 /// What:
 /// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
 /// `read_locks` from another module of this crate so this file can name them unqualified.
@@ -128,7 +134,10 @@ use crate::checks::{CheckOutcome, check_policy};
 /// ```ts
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
-use crate::crates::{LockSnapshot, read_locks};
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
 /// What:
 /// `use crate::journal::{begin, finish, run_recording, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
@@ -148,10 +157,16 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { begin, finish, run_recording, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::journal::{begin, recover_report, restore_if_unchanged, run_recording};
+use crate::journal::{
+    begin,
+    recover_report,
+    restore_if_unchanged,
+    run_recording,
+};
 
-/// Imports `crate::journal_finish::FinishError` for this file.
-use crate::journal_finish::FinishError;
+/// Imports `Claim`,
+/// what the ownership evidence says about a file a child wrote.
+use crate::file_owner::Claim;
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -165,7 +180,48 @@ use crate::journal_finish::FinishError;
 /// Re-exports the error type (it lives in `install_error.rs`).
 pub use crate::install_error::InstallError;
 /// Imports the helpers that classify a failure into an install error.
-use crate::install_error::{invalid_lock_toml, io_error, io_message, registry_error, unapproved_roots};
+use crate::install_error::{
+    invalid_lock_toml,
+    io_error,
+    io_message,
+    registry_error,
+    unapproved_roots,
+};
+/// What:
+/// `pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};` imports and
+/// re-exports the helpers split out of this file,
+/// so callers keep writing `crate::install::verification_cached`.
+/// Why:
+/// The file was split to stay under the line limit;
+/// the callers and the tests are unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { LockBaseFactory, LockBaseReader, verificationCached, verificationScope } from './install-verify.ts';
+/// ```
+pub use crate::install_verify::{
+    LockBaseFactory,
+    LockBaseReader,
+    PolicyJudge,
+    policy_findings,
+    verification_cached,
+    verification_scope,
+};
+/// What:
+/// `use crate::install_verify::{base_reader, set_aside_pass};` imports the two helpers that only this crate calls.
+/// Why:
+/// `update_stale_roots` and `install_rust_lockfiles` read the base revision and set refused releases aside with them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { baseReader, setAsidePass } from 'crate/install_verify';
+/// ```
+use crate::install_verify::{
+    base_reader,
+    set_aside_pass,
+};
+/// Imports `crate::journal_finish::FinishError` for this file.
+use crate::journal_finish::FinishError;
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions};` imports `LockedVersion`,
 /// `added_versions` from another module of this crate so this file can name them unqualified.
@@ -180,7 +236,10 @@ use crate::install_error::{invalid_lock_toml, io_error, io_message, registry_err
 /// ```ts
 /// import { LockedVersion, added_versions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, added_versions};
+use crate::lockfile::{
+    LockedVersion,
+    added_versions,
+};
 /// What:
 /// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -209,33 +268,12 @@ use crate::registry::Registry;
 /// ```ts
 /// import { isVerified, markVerified, verifyAddedSinceBase, verifyLockedEntries } from 'crate/verify';
 /// ```
-use crate::verify::{is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome};
-/// What:
-/// `pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};` imports and
-/// re-exports the helpers split out of this file,
-/// so callers keep writing `crate::install::verification_cached`.
-/// Why:
-/// The file was split to stay under the line limit;
-/// the callers and the tests are unchanged.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export { LockBaseFactory, LockBaseReader, verificationCached, verificationScope } from './install-verify.ts';
-/// ```
-pub use crate::install_verify::{LockBaseFactory, LockBaseReader, PolicyJudge, policy_findings, verification_cached, verification_scope};
-/// What:
-/// `use crate::install_verify::{base_reader, set_aside_pass};` imports the two helpers that only this crate calls.
-/// Why:
-/// `update_stale_roots` and `install_rust_lockfiles` read the base revision and set refused releases aside with them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { baseReader, setAsidePass } from 'crate/install_verify';
-/// ```
-use crate::install_verify::{base_reader, set_aside_pass};
-/// Imports `Claim`,
-/// what the ownership evidence says about a file a child wrote.
-use crate::file_owner::Claim;
+use crate::verify::{
+    is_verified,
+    mark_verified,
+    verify_added_since_base_outcome,
+    verify_locked_entries_outcome,
+};
 
 /// Asks whether the lockfile satisfies the manifests:
 /// exits 0 without writing when it does.
@@ -263,7 +301,10 @@ pub const VERIFY_ARGS: [&str; 5] = ["metadata", "--locked", "--offline", "--form
 /// ```ts
 /// export const argumentsFor = (args: string[], offline: boolean) => offline ? args : args.filter((a) => a !== '--offline');
 /// ```
-pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String> {
+pub fn arguments_for(
+    args: &[&str],
+    offline: bool,
+) -> Vec<String> {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      `arguments_for` drops `--offline` from the argument list when the run may use the network (CI), and that rule is a small callback per argument.
     //
@@ -389,15 +430,20 @@ pub struct InstallRequest<'a> {
     pub known_consistent: bool,
 }
 
-
-
 /// Runs cargo in a crate root;
 /// a start failure is an `Io` error.
-fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result<CargoOutcome, InstallError> {
+fn run_cargo(
+    request: &InstallRequest,
+    crate_dir: &str,
+    args: &[&str],
+) -> Result<CargoOutcome, InstallError> {
     return request
         .runner
         // Borrow `&request.root.join`: lends the value without copying or giving it away.
-        .run(&request.root.join(crate_dir), &arguments_for(args, request.offline))
+        .run(
+            &request.root.join(crate_dir),
+            &arguments_for(args, request.offline),
+        )
         // Closure `|message|`: an anonymous function, like a TS arrow function.
         // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
         // Why:      `io_message` converts the `String` error of `read_locks` into `InstallError::Io`, the error type `install_rust_lockfiles` returns, so `?` can pass it on.
@@ -411,7 +457,10 @@ fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result
 
 /// Whether a crate root's lockfile no longer satisfies its manifests,
 /// without writing anything.
-pub fn is_stale(request: &InstallRequest, crate_dir: &str) -> Result<bool, InstallError> {
+pub fn is_stale(
+    request: &InstallRequest,
+    crate_dir: &str,
+) -> Result<bool, InstallError> {
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
     // Why:      `is_stale` answers with a plain boolean, and a cargo that cannot even start comes back as an `InstallError`, never as a stale lockfile.
     //
@@ -452,7 +501,11 @@ impl crate::file_owner::RecordedWork<Result<(), InstallError>> for UpdateOffline
 }
 
 /// Runs one cargo command in a crate root and fails with the crate named when it exits non-zero.
-fn run_or_fail(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result<(), InstallError> {
+fn run_or_fail(
+    request: &InstallRequest,
+    crate_dir: &str,
+    args: &[&str],
+) -> Result<(), InstallError> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      `outcome` is declared as `CargoOutcome` so the reader sees a non-zero exit is data here, tested with `.ok`, not an error by itself.
@@ -558,7 +611,11 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
 /// ```ts
 /// async function updateStaleRoots(request, before, produced): Promise<InstallReport>
 /// ```
-fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>) -> Result<InstallReport, InstallError> {
+fn update_stale_roots(
+    request: &InstallRequest,
+    before: &[LockSnapshot],
+    produced: &RefCell<Vec<LockSnapshot>>,
+) -> Result<InstallReport, InstallError> {
     let mut stale: Vec<String> = Vec::new();
     for crate_dir in request.crate_dirs {
         // The stamp already showed this root consistent, so no cargo call is spent on asking again.
@@ -569,7 +626,16 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         eprintln!("cargo-shadow: {crate_dir}: lockfile is stale, updating the workspace offline");
         // The call is recorded whether it succeeds or fails: a cargo that wrote a lockfile and then exited with an error left that
         // lockfile behind, and the rollback must know it is this run's.
-        let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(request.root, crate_dir, produced, UpdateOffline { request, crate_dir }).map_err(io_error)?;
+        let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(
+            request.root,
+            crate_dir,
+            produced,
+            UpdateOffline {
+                request,
+                crate_dir,
+            },
+        )
+        .map_err(io_error)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         updated?;
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
@@ -595,7 +661,13 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // The existing entries, unless a remembered pass covers this exact lockfile text, policy and base.
     let scope: String = verification_scope(request.settings, false, request.trust_base);
     // Typed binding: `covered: bool`.
-    let covered: bool = verification_cached(request.root, request.crate_dirs, request.settings, false, request.trust_base);
+    let covered: bool = verification_cached(
+        request.root,
+        request.crate_dirs,
+        request.settings,
+        false,
+        request.trust_base,
+    );
     if !covered {
         // Typed binding: `baseline: Vec<String>`.
         let baseline: Vec<String> = if request.settings.trust_lockfile {
@@ -622,7 +694,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `after: Vec<LockSnapshot>`.
-    let after: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
+    let after: Vec<LockSnapshot> =
+        read_locks(request.root, request.crate_dirs).map_err(io_error)?;
     // Borrow `&after`: lends the value without copying or giving it away.
     // Typed binding: `after_sources: Vec<String>`.
     let after_sources: Vec<String> = sources_of(&after);
@@ -630,7 +703,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // Borrow `&before_sources`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `added: Vec<LockedVersion>`.
-    let added: Vec<LockedVersion> = added_versions(&before_sources, &after_sources).map_err(invalid_lock_toml)?;
+    let added: Vec<LockedVersion> =
+        added_versions(&before_sources, &after_sources).map_err(invalid_lock_toml)?;
     // Everything either baseline did not hold is checked, once.
     let mut checked: BTreeSet<LockedVersion> = BTreeSet::new();
     // Borrow `&baselines`: lends the value without copying or giving it away.
@@ -647,7 +721,11 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // Typed binding: `versions: Vec<LockedVersion>`.
     let versions: Vec<LockedVersion> = checked.into_iter().collect();
     // Typed binding: `age: CheckOutcome`.
-    let outcome: CheckOutcome = if versions.is_empty() { CheckOutcome::default() } else { check_policy(&versions, request.settings, request.registry, request.now)? };
+    let outcome: CheckOutcome = if versions.is_empty() {
+        CheckOutcome::default()
+    } else {
+        check_policy(&versions, request.settings, request.registry, request.now)?
+    };
     // Typed binding: `problems: Vec<String>`.
     let problems: Vec<String> = outcome.problems;
     // Only a pass is remembered, and only for the text that is live now.
@@ -673,7 +751,6 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         written: keep,
     });
 }
-
 
 /// What:
 /// `pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError>` runs the install over the
@@ -705,15 +782,21 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             let stale: Vec<String> = stale_roots(request)?;
             if !stale.is_empty() {
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: frozen install: {} stale lockfiles, nothing written", stale.len());
+                eprintln!(
+                    "cargo-shadow: frozen install: {} stale lockfiles, nothing written",
+                    stale.len()
+                );
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
-                return Err(InstallError::Stale { stale_dirs: stale });
+                return Err(InstallError::Stale {
+                    stale_dirs: stale,
+                });
             }
         }
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `locks: Vec<LockSnapshot>`.
-        let locks: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
+        let locks: Vec<LockSnapshot> =
+            read_locks(request.root, request.crate_dirs).map_err(io_error)?;
         // Typed binding: `outcome: CheckOutcome`.
         let outcome: CheckOutcome = if request.settings.trust_lockfile {
             // Typed binding: `scope: String`.
@@ -741,7 +824,14 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
                 // Borrow `&pending`: lends the value without copying or giving it away.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 // Typed binding: `found: Vec<String>`.
-                let found: CheckOutcome = verify_added_since_base_outcome(&pending, &*read_base, request.settings, request.registry, request.now).map_err(registry_error)?;
+                let found: CheckOutcome = verify_added_since_base_outcome(
+                    &pending,
+                    &*read_base,
+                    request.settings,
+                    request.registry,
+                    request.now,
+                )
+                .map_err(registry_error)?;
                 // A pass with a warning is not remembered, so the warning is shown again.
                 if found.problems.is_empty() && found.warnings.is_empty() {
                     // Borrow `&pending`: lends the value without copying or giving it away.
@@ -756,7 +846,14 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&locks`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            verify_locked_entries_outcome(request.root, &locks, request.settings, request.registry, request.now).map_err(registry_error)?
+            verify_locked_entries_outcome(
+                request.root,
+                &locks,
+                request.settings,
+                request.registry,
+                request.now,
+            )
+            .map_err(registry_error)?
         };
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
@@ -766,10 +863,22 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // ```ts
         // [...slice]
         // ```
-        return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems: outcome.problems, warnings: outcome.warnings, ..InstallReport::default() });
+        return Ok(InstallReport {
+            crate_dirs: request.crate_dirs.to_vec(),
+            problems: outcome.problems,
+            warnings: outcome.warnings,
+            ..InstallReport::default()
+        });
     }
     // Typed binding: `recovered: Vec<String>`.
-    let recovery = recover_report(request.root, &PolicyJudge { settings: request.settings, registry: request.registry, now: request.now });
+    let recovery = recover_report(
+        request.root,
+        &PolicyJudge {
+            settings: request.settings,
+            registry: request.registry,
+            now: request.now,
+        },
+    );
     let mandatory_recovery_failure: bool = recovery.mandatory_failure;
     let recovered: Vec<String> = recovery.messages;
     // Borrow `&recovered`: lends the value without copying or giving it away.
@@ -810,7 +919,8 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     let produced: RefCell<Vec<LockSnapshot>> = RefCell::new(Vec::new());
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<InstallReport, InstallError>`.
-    let outcome: Result<InstallReport, InstallError> = update_stale_roots(request, &before, &produced);
+    let outcome: Result<InstallReport, InstallError> =
+        update_stale_roots(request, &before, &produced);
     // A process that cargo started could not be stopped: it may still write the lockfiles, so they are neither rolled back nor
     // accepted. The transaction is dropped without `finish`, the journal stays, and the command does not run (round 6, 5c N2).
     if transaction.writers_may_remain() {
@@ -835,12 +945,16 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        let (restore_found, restore_failure) = restore_if_unchanged(request.root, &before, &produced.borrow());
+        let (restore_found, restore_failure) =
+            restore_if_unchanged(request.root, &before, &produced.borrow());
         // A failed root must not hide what the other roots reported: the warnings travel in the failure's text.
         let restored: std::io::Result<Vec<String>> = match restore_failure {
             None => Ok(restore_found),
             Some(error) if restore_found.is_empty() => Err(error),
-            Some(error) => Err(std::io::Error::other(format!("{error}; the other lockfiles reported: {}", restore_found.join("; ")))),
+            Some(error) => Err(std::io::Error::other(format!(
+                "{error}; the other lockfiles reported: {}",
+                restore_found.join("; ")
+            ))),
         };
         // Review finding (2c 1): output of this run's cargo that is still live after the rollback is unapproved, and the shim's
         // `--locked` fallback would build it, so the step stops instead of reporting an operational failure.
@@ -854,7 +968,9 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             let refusal: String = match &outcome {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 // Macro `format!`: builds or prints text (or a list) from a template.
-                Ok(report) if !report.problems.is_empty() => format!("\nThe policy refused it: {}", report.problems.join("; ")),
+                Ok(report) if !report.problems.is_empty() => {
+                    format!("\nThe policy refused it: {}", report.problems.join("; "))
+                }
                 // The command's own failure came first: the rollback failure is added to it, never put in its place.
                 Err(original) => format!("\nThe run had already failed: {original}"),
                 // Constructor `String::new()`: an empty owned collection or a boxed value.
@@ -864,7 +980,11 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
                 message: format!(
                     "cargo-shadow: this run's cargo changed {} and the change could not be put back ({}), so the command was not run{refusal}",
                     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-                    if still_live.is_empty() { "a lockfile".to_string() } else { still_live.join(", ") },
+                    if still_live.is_empty() {
+                        "a lockfile".to_string()
+                    } else {
+                        still_live.join(", ")
+                    },
                     match &restored {
                         Ok(warnings) => warnings.join("; "),
                         Err(error) => error.to_string(),
@@ -919,7 +1039,9 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // An operational error alone lets the shim run the command again with `--locked`; a failed mandatory phase of finishing
         // forbids that, so both diagnostics travel in the stopping error (round 7, 6c R1).
         (Err(original), Err(error)) if !error.cleanup_only() => Err(InstallError::Unsettled {
-            message: format!("cargo-shadow: {error}; the command was not run, so run it again\nThe install step had also failed: {original}"),
+            message: format!(
+                "cargo-shadow: {error}; the command was not run, so run it again\nThe install step had also failed: {original}"
+            ),
         }),
         (Err(error), _) => Err(error),
     };

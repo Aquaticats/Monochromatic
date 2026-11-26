@@ -23,6 +23,33 @@
 //! ```
 
 /// What:
+/// `use rustix::fs::{CWD, RenameFlags, renameat_with};` imports the safe wrapper of `renameat2`:
+/// the flags,
+/// and the current directory as the base of relative names.
+/// Why:
+/// The exchange needs `RENAME_EXCHANGE` and the put-back needs `RENAME_NOREPLACE`,
+/// which the standard library does not expose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // no Node API; the kernel call is renameat2
+/// ```
+use rustix::fs::{
+    CWD,
+    RenameFlags,
+    renameat_with,
+};
+/// What:
+/// `use rustix::io::Errno;` imports the operating-system error code type.
+/// Why:
+/// "The filesystem cannot exchange" and "the target vanished" are told apart by code.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // error.code === 'ENOENT'
+/// ```
+use rustix::io::Errno;
+/// What:
 /// `use std::fs::{self, File, OpenOptions};` imports the file-system module,
 /// the open-file type and the builder that opens a file with chosen flags.
 /// Why:
@@ -34,7 +61,11 @@
 /// ```ts
 /// import { openSync, writeSync, fsyncSync, linkSync, unlinkSync } from 'node:fs';
 /// ```
-use std::fs::{self, File, OpenOptions};
+use std::fs::{
+    self,
+    File,
+    OpenOptions,
+};
 /// What:
 /// `use std::io::{self, Write};` imports the error module and the trait that adds `write_all` to an open file.
 /// Why:
@@ -44,7 +75,10 @@ use std::fs::{self, File, OpenOptions};
 /// ```ts
 /// // errors are thrown in Node; writeSync is a free function
 /// ```
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 /// What:
 /// `use std::os::unix::fs::MetadataExt;` imports the trait that adds `ino` and `dev` to file metadata.
 /// Why:
@@ -64,7 +98,10 @@ use std::os::unix::fs::MetadataExt;
 /// ```ts
 /// // TS has one type for this: string
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 /// `use std::sync::atomic::{AtomicU64, Ordering};` imports a counter that threads can add to safely.
 /// Why:
@@ -76,30 +113,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// let counter = 0; // single-threaded in Node
 /// ```
-use std::sync::atomic::{AtomicU64, Ordering};
-/// What:
-/// `use rustix::fs::{CWD, RenameFlags, renameat_with};` imports the safe wrapper of `renameat2`:
-/// the flags,
-/// and the current directory as the base of relative names.
-/// Why:
-/// The exchange needs `RENAME_EXCHANGE` and the put-back needs `RENAME_NOREPLACE`,
-/// which the standard library does not expose.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // no Node API; the kernel call is renameat2
-/// ```
-use rustix::fs::{CWD, RenameFlags, renameat_with};
-/// What:
-/// `use rustix::io::Errno;` imports the operating-system error code type.
-/// Why:
-/// "The filesystem cannot exchange" and "the target vanished" are told apart by code.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // error.code === 'ENOENT'
-/// ```
-use rustix::io::Errno;
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 /// `use crate::file_owner::observe;` imports the read that separates absence from failure.
@@ -113,7 +130,11 @@ use rustix::io::Errno;
 use crate::file_owner::observe;
 
 /// Keeping the displaced file under a surviving name (split out of the journal replacement module).
-pub(crate) use crate::journal_replace_preserve::{keep_name, sync_directory_and_parent, keep_and_unlink};
+pub(crate) use crate::journal_replace_preserve::{
+    keep_and_unlink,
+    keep_name,
+    sync_directory_and_parent,
+};
 
 /// Counts the temporary names made by this process.
 static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -185,7 +206,10 @@ impl KeepAs {
         // ```ts
         // String(value)  // JS strings are always owned values
         // ```
-        return KeepAs { directory: None, suffix: suffix.to_string() };
+        return KeepAs {
+            directory: None,
+            suffix: suffix.to_string(),
+        };
     }
 
     /// What:
@@ -198,10 +222,16 @@ impl KeepAs {
     /// ```ts
     /// static inDirectory(directory: string, suffix: string): KeepAs
     /// ```
-    pub fn in_directory(directory: &Path, suffix: &str) -> KeepAs {
+    pub fn in_directory(
+        directory: &Path,
+        suffix: &str,
+    ) -> KeepAs {
         // `Some`: the present or the absent value of an `Option`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return KeepAs { directory: Some(directory.to_path_buf()), suffix: suffix.to_string() };
+        return KeepAs {
+            directory: Some(directory.to_path_buf()),
+            suffix: suffix.to_string(),
+        };
     }
 }
 
@@ -215,13 +245,19 @@ impl KeepAs {
 /// ```ts
 /// function exchange(first: string, second: string): void  // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
 /// ```
-pub fn exchange_paths(first: &Path, second: &Path) -> io::Result<()> {
+pub fn exchange_paths(
+    first: &Path,
+    second: &Path,
+) -> io::Result<()> {
     return exchange(first, second);
 }
 
 /// The exchange primitive,
 /// private to the protocol.
-fn exchange(first: &Path, second: &Path) -> io::Result<()> {
+fn exchange(
+    first: &Path,
+    second: &Path,
+) -> io::Result<()> {
     // `match`: picks the arm whose pattern fits the value.
     return match renameat_with(CWD, first, CWD, second, RenameFlags::EXCHANGE) {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -238,7 +274,14 @@ fn exchange(first: &Path, second: &Path) -> io::Result<()> {
             // console.error(text);   // eprintln!
             // [a, b]            // vec![a, b]
             // ```
-            Err(io::Error::new(io::ErrorKind::Unsupported, format!("this filesystem cannot exchange {} and {} atomically ({code})", first.display(), second.display())))
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "this filesystem cannot exchange {} and {} atomically ({code})",
+                    first.display(),
+                    second.display()
+                ),
+            ))
         }
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(code) => Err(io::Error::from(code)),
@@ -325,9 +368,22 @@ pub fn file_name_text(path: &Path) -> String {
 /// ```ts
 /// export function replaceIfHolds(path: string, expected: string, newText: string, between: (path: string) => void): ReplaceOutcome
 /// ```
-pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+pub fn replace_if_holds(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    between: &dyn Fn(&Path),
+) -> io::Result<ReplaceOutcome> {
     // Borrow `&KeepAs`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, &no_hook, &Ops::standard());
+    return replace_core(
+        path,
+        expected,
+        new_text,
+        &KeepAs::next_to_target(".displaced"),
+        between,
+        &no_hook,
+        &Ops::standard(),
+    );
 }
 
 /// What:
@@ -342,9 +398,23 @@ pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &d
 /// ```ts
 /// export function replaceIfHoldsWithHooks(path, expected, newText, between, afterExchange): ReplaceOutcome
 /// ```
-pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+pub fn replace_if_holds_with_hooks(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    between: &dyn Fn(&Path),
+    after_exchange: &dyn Fn(&Path),
+) -> io::Result<ReplaceOutcome> {
     // Borrow `&KeepAs`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, after_exchange, &Ops::standard());
+    return replace_core(
+        path,
+        expected,
+        new_text,
+        &KeepAs::next_to_target(".displaced"),
+        between,
+        after_exchange,
+        &Ops::standard(),
+    );
 }
 
 /// What:
@@ -358,9 +428,22 @@ pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, 
 /// ```ts
 /// export function replaceKeeping(path: string, expected: string, newText: string, keep: KeepAs): ReplaceOutcome
 /// ```
-pub fn replace_keeping(path: &Path, expected: &str, new_text: &str, keep: &KeepAs) -> io::Result<ReplaceOutcome> {
+pub fn replace_keeping(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    keep: &KeepAs,
+) -> io::Result<ReplaceOutcome> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, &Ops::standard());
+    return replace_core(
+        path,
+        expected,
+        new_text,
+        keep,
+        &no_hook,
+        &no_hook,
+        &Ops::standard(),
+    );
 }
 
 /// What:
@@ -372,9 +455,23 @@ pub fn replace_keeping(path: &Path, expected: &str, new_text: &str, keep: &KeepA
 /// ```ts
 /// export function replaceKeepingWithHook(path, expected, newText, keep, between): ReplaceOutcome
 /// ```
-pub fn replace_keeping_with_hook(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+pub fn replace_keeping_with_hook(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    keep: &KeepAs,
+    between: &dyn Fn(&Path),
+) -> io::Result<ReplaceOutcome> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, between, &no_hook, &Ops::standard());
+    return replace_core(
+        path,
+        expected,
+        new_text,
+        keep,
+        between,
+        &no_hook,
+        &Ops::standard(),
+    );
 }
 
 /// What:
@@ -388,9 +485,26 @@ pub fn replace_keeping_with_hook(path: &Path, expected: &str, new_text: &str, ke
 /// ```ts
 /// export function replaceWithSwap(path, expected, newText, keep, swap): ReplaceOutcome
 /// ```
-pub fn replace_with_swap(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, swap: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<ReplaceOutcome> {
+pub fn replace_with_swap(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    keep: &KeepAs,
+    swap: &dyn Fn(&Path, &Path) -> io::Result<()>,
+) -> io::Result<ReplaceOutcome> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, &Ops { swap, ..Ops::standard() });
+    return replace_core(
+        path,
+        expected,
+        new_text,
+        keep,
+        &no_hook,
+        &no_hook,
+        &Ops {
+            swap,
+            ..Ops::standard()
+        },
+    );
 }
 
 /// What:
@@ -402,7 +516,10 @@ pub fn replace_with_swap(path: &Path, expected: &str, new_text: &str, keep: &Kee
 /// ```ts
 /// const realLink = (existing: string, name: string): void => linkSync(existing, name);
 /// ```
-fn real_link(existing: &Path, new: &Path) -> io::Result<()> {
+fn real_link(
+    existing: &Path,
+    new: &Path,
+) -> io::Result<()> {
     return fs::hard_link(existing, new);
 }
 
@@ -442,7 +559,8 @@ pub(crate) const MAX_NAME_ATTEMPTS: u32 = 10_000;
 /// such a directory is not treated as durable merely because it exists now.
 /// The registry lives as long as the process;
 /// across processes a directory left unsynced is a pre-existing directory and assumption b applies to it.
-static UNSYNCED: std::sync::Mutex<std::collections::BTreeSet<PathBuf>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+static UNSYNCED: std::sync::Mutex<std::collections::BTreeSet<PathBuf>> =
+    std::sync::Mutex::new(std::collections::BTreeSet::new());
 
 /// Set when the registry could not be updated because another thread held it:
 /// knowledge may be missing,
@@ -564,7 +682,10 @@ pub(crate) fn registry_calls_for_test(directory: &Path) -> bool {
 /// ```ts
 /// export function createDirectoriesWith(path: string, syncDir: (p: string) => void): string[]  // mkdir each missing ancestor, fsync it and its parent
 /// ```
-pub fn create_directories_with(path: &Path, sync_dir: &dyn Fn(&Path) -> io::Result<()>) -> io::Result<Vec<PathBuf>> {
+pub fn create_directories_with(
+    path: &Path,
+    sync_dir: &dyn Fn(&Path) -> io::Result<()>,
+) -> io::Result<Vec<PathBuf>> {
     let mut missing: Vec<PathBuf> = Vec::new();
     for ancestor in path.ancestors() {
         if ancestor.as_os_str().is_empty() || ancestor.exists() {
@@ -616,7 +737,13 @@ pub fn create_directories_synced(path: &Path) -> io::Result<()> {
 /// ```ts
 /// export function createExclusive(directory: string, base: string, text: string, mode: number, nextName: () => string): [string, bigint, bigint]
 /// ```
-pub fn create_exclusive(directory: &Path, base: &str, text: &str, mode: u32, next_name: &mut dyn FnMut() -> String) -> io::Result<(PathBuf, u64, u64)> {
+pub fn create_exclusive(
+    directory: &Path,
+    base: &str,
+    text: &str,
+    mode: u32,
+    next_name: &mut dyn FnMut() -> String,
+) -> io::Result<(PathBuf, u64, u64)> {
     /// Imports `std::os::unix::fs::OpenOptionsExt` for this file.
     use std::os::unix::fs::OpenOptionsExt;
     for _attempt in 0..MAX_NAME_ATTEMPTS {
@@ -625,7 +752,12 @@ pub fn create_exclusive(directory: &Path, base: &str, text: &str, mode: u32, nex
         let candidate: PathBuf = directory.join(format!(".{base}.shadow-{}.tmp", next_name()));
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&candidate`: lends the value without copying or giving it away.
-        match OpenOptions::new().write(true).create_new(true).mode(mode & 0o777).open(&candidate) {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode & 0o777)
+            .open(&candidate)
+        {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(mut file) => {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -697,9 +829,19 @@ pub fn unique_suffix() -> String {
 /// ```ts
 /// function createTemporary(target: string, text: string, mode: number): [string, bigint, bigint]
 /// ```
-fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf, u64, u64)> {
+fn create_temporary(
+    target: &Path,
+    text: &str,
+    mode: u32,
+) -> io::Result<(PathBuf, u64, u64)> {
     // Borrow `&parent_of`: lends the value without copying or giving it away.
-    return create_exclusive(&parent_of(target), &file_name_text(target), text, mode, &mut unique_suffix);
+    return create_exclusive(
+        &parent_of(target),
+        &file_name_text(target),
+        text,
+        mode,
+        &mut unique_suffix,
+    );
 }
 
 /// The operations the protocol is built from,
@@ -742,7 +884,12 @@ impl Ops<'static> {
     /// static standard(): Ops
     /// ```
     pub(crate) fn standard() -> Ops<'static> {
-        return Ops { swap: &exchange, link: &real_link, sync_file: &sync_file_data, sync_dir: &sync_directory };
+        return Ops {
+            swap: &exchange,
+            link: &real_link,
+            sync_file: &sync_file_data,
+            sync_dir: &sync_directory,
+        };
     }
 }
 
@@ -763,7 +910,15 @@ impl Ops<'static> {
 /// ```ts
 /// function replaceCore(path: string, expected: string, newText: string, keep: KeepAs, hooks: Hooks, ops: Ops): ReplaceOutcome
 /// ```
-fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path), ops: &Ops) -> io::Result<ReplaceOutcome> {
+fn replace_core(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    keep: &KeepAs,
+    between: &dyn Fn(&Path),
+    after_exchange: &dyn Fn(&Path),
+    ops: &Ops,
+) -> io::Result<ReplaceOutcome> {
     let first = match observe(path)? {
         Some(found) => found,
         None => return Ok(ReplaceOutcome::LeftAlone),
@@ -802,17 +957,21 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
     // Borrow `&temporary`: lends the value without copying or giving it away.
     if (ops.swap)(&temporary, path).is_err() {
         // The replacement stays live and the unexpected file is at the temporary name.
-        return Ok(ReplaceOutcome::Displaced(match keep_and_unlink(&temporary, path, keep, ops)? {
-            Ok(kept) => kept,
-            Err(left) => left,
-        }));
+        return Ok(ReplaceOutcome::Displaced(
+            match keep_and_unlink(&temporary, path, keep, ops)? {
+                Ok(kept) => kept,
+                Err(left) => left,
+            },
+        ));
     }
     // The exchange is undone: the other writer's file is live again, and the replacement (live for a moment, possibly open
     // elsewhere) is kept, not deleted.
-    return Ok(ReplaceOutcome::Undone(match keep_and_unlink(&temporary, path, keep, ops)? {
-        Ok(kept) => kept,
-        Err(left) => left,
-    }));
+    return Ok(ReplaceOutcome::Undone(
+        match keep_and_unlink(&temporary, path, keep, ops)? {
+            Ok(kept) => kept,
+            Err(left) => left,
+        },
+    ));
 }
 
 /// What:
@@ -826,11 +985,30 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
 /// ```ts
 /// export function replaceWithSeams(path: string, expected: string, newText: string, keep: KeepAs, seams: Seams): ReplaceOutcome
 /// ```
-pub fn replace_with_seams(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, seams: &Seams) -> io::Result<ReplaceOutcome> {
+pub fn replace_with_seams(
+    path: &Path,
+    expected: &str,
+    new_text: &str,
+    keep: &KeepAs,
+    seams: &Seams,
+) -> io::Result<ReplaceOutcome> {
     // Typed binding: `ops: Ops`.
-    let ops: Ops = Ops { swap: seams.swap, link: seams.link, sync_file: seams.sync_file, sync_dir: seams.sync_dir };
+    let ops: Ops = Ops {
+        swap: seams.swap,
+        link: seams.link,
+        sync_file: seams.sync_file,
+        sync_dir: seams.sync_dir,
+    };
     // Borrow `&ops`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, seams.between, seams.after_exchange, &ops);
+    return replace_core(
+        path,
+        expected,
+        new_text,
+        keep,
+        seams.between,
+        seams.after_exchange,
+        &ops,
+    );
 }
 
 /// What:
@@ -843,7 +1021,10 @@ pub fn replace_with_seams(path: &Path, expected: &str, new_text: &str, keep: &Ke
 /// ```ts
 /// function namesExhaustedMessage(directory: string, base: string): string
 /// ```
-pub(crate) fn names_exhausted_message(directory: &Path, base: &str) -> String {
+pub(crate) fn names_exhausted_message(
+    directory: &Path,
+    base: &str,
+) -> String {
     return format!(
         "{} holds {MAX_NAME_ATTEMPTS} temporary files named after {base}; those files can be the only names of data another writer produced, so keep them. Renaming one inside the same file system keeps its data; copying one elsewhere and deleting the original does not, because a program that still has the original open keeps writing to it. Close every program that may have one open before you move or remove any, then run the command again",
         directory.display()

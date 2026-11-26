@@ -19,15 +19,15 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// What:
-///  imports GTK widget traits.
-/// Why:
-///  lane sync moves fixed children and places debug overlays.
-use gtk4::prelude::*;
-/// What:
 ///  imports concrete GTK alignment type used by debug overlay positioning.
 /// Why:
 ///  debug rails need explicit alignment inside the strip overlay.
 use gtk4::Align;
+/// What:
+///  imports GTK widget traits.
+/// Why:
+///  lane sync moves fixed children and places debug overlays.
+use gtk4::prelude::*;
 
 /// What:
 ///  imports pane and viewport geometry constants.
@@ -35,7 +35,12 @@ use gtk4::Align;
 ///  lane boxes,
 ///  sticky offsets,
 ///  and clamping share the same pixel grid.
-use crate::constants::{DEFAULT_HEIGHT, PANE_GAP, PANE_HEIGHT, PANE_WIDTH};
+use crate::constants::{
+    DEFAULT_HEIGHT,
+    PANE_GAP,
+    PANE_HEIGHT,
+    PANE_WIDTH,
+};
 /// What:
 ///  imports debug-tint helpers.
 /// Why:
@@ -51,7 +56,11 @@ use crate::types::PaneId;
 ///  imports parent layout types and row-coordinate helper.
 /// Why:
 ///  lane methods extend `StripLayout` and use `PanePlacement` snapshots.
-use super::{PanePlacement, StripLayout, scroll};
+use super::{
+    PanePlacement,
+    StripLayout,
+    scroll,
+};
 
 /// What:
 ///  lane geometry helpers.
@@ -62,17 +71,29 @@ use super::{PanePlacement, StripLayout, scroll};
 ///      under the max-lines budget.
 mod geometry;
 /// What:
-///  imports lane geometry helper functions and rectangle type.
-/// Why:
-///  app-scroll sync uses these helpers while keeping GTK-specific code in this file.
-use geometry::{LaneRect, direct_child_groups, lane_base_bottom, lane_width, lowered_bound, raised_bound};
-/// What:
 ///  imports the placement queries that replace iterator-adapter closures.
 /// Why:
 ///  lookups,
 ///  extents and sort keys over placement snapshots are named loop functions.
 use super::placement_queries::{
-    last_column_of, last_row_of, lane_contains, parent_of, placement_by_id, row_then_id,
+    lane_contains,
+    last_column_of,
+    last_row_of,
+    parent_of,
+    placement_by_id,
+    row_then_id,
+};
+/// What:
+///  imports lane geometry helper functions and rectangle type.
+/// Why:
+///  app-scroll sync uses these helpers while keeping GTK-specific code in this file.
+use geometry::{
+    LaneRect,
+    direct_child_groups,
+    lane_base_bottom,
+    lane_width,
+    lowered_bound,
+    raised_bound,
 };
 
 /// What:
@@ -121,7 +142,12 @@ impl StripLayout {
                 && let Some(children) = groups.get(&parent)
             {
                 let max = self.lane_max_offset(parent_placement, children);
-                let current = self.lane_offsets.borrow().get(&parent).copied().unwrap_or(0.0);
+                let current = self
+                    .lane_offsets
+                    .borrow()
+                    .get(&parent)
+                    .copied()
+                    .unwrap_or(0.0);
                 updates.push((parent, current.clamp(0.0, max)));
             }
         }
@@ -191,7 +217,10 @@ impl StripLayout {
     ///  reveal `placement` vertically by adjusting the whole-app vertical scroller.
     /// Why:
     ///  spawning a child should bring that child into view while lanes react to app scroll.
-    pub(super) fn reveal_lane_member(&self, placement: PanePlacement) -> bool {
+    pub(super) fn reveal_lane_member(
+        &self,
+        placement: PanePlacement,
+    ) -> bool {
         let adj = self.outer.vadjustment();
         let page = adj.page_size();
         let value = adj.value();
@@ -211,7 +240,7 @@ impl StripLayout {
         // Recomputed after the scroll settled; the name differs from the pre-scroll
         // `start` so the second measurement never shadows the first.
         let final_start = self.visual_y_for_pane(placement);
-        return final_start >= settled && final_start + f64::from(PANE_HEIGHT) <= settled + page
+        return final_start >= settled && final_start + f64::from(PANE_HEIGHT) <= settled + page;
     }
 
     /// What:
@@ -244,16 +273,23 @@ impl StripLayout {
     ///  choose the maximum scroll offset for a lane.
     /// Why:
     ///  at max offset the lane's deepest direct child bottom reaches the viewport bottom.
-    fn lane_max_offset(&self, parent: PanePlacement, children: &[PanePlacement]) -> f64 {
+    fn lane_max_offset(
+        &self,
+        parent: PanePlacement,
+        children: &[PanePlacement],
+    ) -> f64 {
         let bottom = lane_base_bottom(parent, children);
-        return (bottom - self.viewport_height()).max(0.0)
+        return (bottom - self.viewport_height()).max(0.0);
     }
 
     /// What:
     ///  compute `placement`'s resolved content y-coordinate.
     /// Why:
     ///  reveal code needs the same non-overlap and rail-bound position used by rendering.
-    pub(super) fn visual_y_for_pane(&self, placement: PanePlacement) -> f64 {
+    pub(super) fn visual_y_for_pane(
+        &self,
+        placement: PanePlacement,
+    ) -> f64 {
         let placements = self.placements.borrow().clone();
         match self.resolved_y_positions(&placements).get(&placement.id) {
             Some(resolved) => return *resolved,
@@ -267,11 +303,17 @@ impl StripLayout {
     ///  individual clamping can collapse siblings onto one boundary;
     ///  resolving per column keeps
     ///      the row stack ordered while respecting each pane's rail interval.
-    fn resolved_y_positions(&self, placements: &[PanePlacement]) -> HashMap<PaneId, f64> {
+    fn resolved_y_positions(
+        &self,
+        placements: &[PanePlacement],
+    ) -> HashMap<PaneId, f64> {
         let groups = direct_child_groups(placements);
         let mut columns: HashMap<usize, Vec<PanePlacement>> = HashMap::new();
         for placement in placements {
-            columns.entry(placement.column).or_default().push(*placement);
+            columns
+                .entry(placement.column)
+                .or_default()
+                .push(*placement);
         }
         let mut positions = HashMap::new();
         for (_, mut column) in columns {
@@ -281,7 +323,7 @@ impl StripLayout {
                 positions.insert(id, y);
             }
         }
-        return positions
+        return positions;
     }
 
     /// What:
@@ -317,7 +359,7 @@ impl StripLayout {
         for (id, y, _, _) in rows {
             resolved.push((id, y));
         }
-        return resolved
+        return resolved;
     }
 
     /// What:
@@ -325,8 +367,11 @@ impl StripLayout {
     /// Why:
     ///  resolved layout starts from the sticky target,
     ///  then constrains it.
-    fn desired_y_for_pane(&self, placement: PanePlacement) -> f64 {
-        return scroll::row_y(placement.row) + self.effective_offset_for_pane(placement.id)
+    fn desired_y_for_pane(
+        &self,
+        placement: PanePlacement,
+    ) -> f64 {
+        return scroll::row_y(placement.row) + self.effective_offset_for_pane(placement.id);
     }
 
     /// What:
@@ -355,7 +400,7 @@ impl StripLayout {
             max_y = Some(lowered_bound(max_y, bottom));
         }
         let (top_bound, bottom_bound) = (min_y?, max_y?);
-        return Some((top_bound, bottom_bound.max(top_bound)))
+        return Some((top_bound, bottom_bound.max(top_bound)));
     }
 
     /// What:
@@ -365,7 +410,10 @@ impl StripLayout {
     ///  root panes have no parent lane,
     ///  so they use their
     ///      own root lane.
-    fn effective_offset_for_pane(&self, id: PaneId) -> f64 {
+    fn effective_offset_for_pane(
+        &self,
+        id: PaneId,
+    ) -> f64 {
         let placements = self.placements.borrow();
         let offsets = self.lane_offsets.borrow();
         let Some(placement) = placement_by_id(&placements, id) else {
@@ -377,7 +425,7 @@ impl StripLayout {
             total += offsets.get(&pane_id).copied().unwrap_or(0.0);
             current = parent_of(&placements, pane_id);
         }
-        return total
+        return total;
     }
 
     /// What:
@@ -387,7 +435,11 @@ impl StripLayout {
     ///  panes may stick inside them,
     ///  but the boxes
     ///      themselves must not receive sticky offsets.
-    fn lane_rect(&self, parent: PanePlacement, children: &[PanePlacement]) -> LaneRect {
+    fn lane_rect(
+        &self,
+        parent: PanePlacement,
+        children: &[PanePlacement],
+    ) -> LaneRect {
         let end_column = last_column_of(children, parent.column);
         let column_span = end_column - parent.column + 1;
         let x = parent.column as f64 * f64::from(PANE_WIDTH + PANE_GAP);
@@ -399,7 +451,7 @@ impl StripLayout {
             y,
             width,
             height,
-        }
+        };
     }
 
     /// What:
@@ -408,7 +460,11 @@ impl StripLayout {
     ///  a lane spans from the parent column through the child column and from the parent row
     ///      down to the deepest direct child's bottom,
     ///  including empty grid cells in that span.
-    fn add_child_lane(&self, parent: PanePlacement, children: &[PanePlacement]) {
+    fn add_child_lane(
+        &self,
+        parent: PanePlacement,
+        children: &[PanePlacement],
+    ) {
         let rect = self.lane_rect(parent, children);
         let max_child_row = last_row_of(children, parent.row);
         let end_column = last_column_of(children, parent.column);
@@ -447,6 +503,6 @@ impl StripLayout {
         if height > 0 {
             return f64::from(height);
         }
-        return f64::from(DEFAULT_HEIGHT)
+        return f64::from(DEFAULT_HEIGHT);
     }
 }

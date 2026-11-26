@@ -4,20 +4,36 @@
 use std::time::Duration;
 
 /// Error handling with context.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// Structured logging.
-use tracing::{debug, warn};
+use tracing::{
+    debug,
+    warn,
+};
 /// The D-Bus client and server library.
-use zbus::{Connection, OwnedObjectPath, Proxy};
+use zbus::{
+    Connection,
+    OwnedObjectPath,
+    Proxy,
+};
 
 /// Sibling modules of this crate.
 use crate::{
-    lazy_error_text::with_message,
-    a11y_service::{A11yService, Application},
+    a11y_service::{
+        A11yService,
+        Application,
+    },
     bus_step_bound::block_on_within,
+    lazy_error_text::with_message,
     protocol::Response,
     state::Compositor,
-    wire_text::{encode_text, format_records},
+    wire_text::{
+        encode_text,
+        format_records,
+    },
 };
 
 /// Deepest level the reader descends to.
@@ -129,25 +145,136 @@ const STATE_NAMES: &[(u32, &str)] = &[
 /// const ROLE_NAMES = ["invalid", "accelerator label", "alert", ...];
 /// ```
 const ROLE_NAMES: &[&str] = &[
-    "invalid", "accelerator label", "alert", "animation", "arrow", "calendar", "canvas", "check box",
-    "check menu item", "color chooser", "column header", "combo box", "date editor", "desktop icon",
-    "desktop frame", "dial", "dialog", "directory pane", "drawing area", "file chooser", "filler",
-    "focus traversable", "font chooser", "frame", "glass pane", "html container", "icon", "image",
-    "internal frame", "label", "layered pane", "list", "list item", "menu", "menu bar", "menu item",
-    "option pane", "page tab", "page tab list", "panel", "password text", "popup menu", "progress bar",
-    "push button", "radio button", "radio menu item", "root pane", "row header", "scroll bar",
-    "scroll pane", "separator", "slider", "spin button", "split pane", "status bar", "table",
-    "table cell", "table column header", "table row header", "tearoff menu item", "terminal", "text",
-    "toggle button", "tool bar", "tool tip", "tree", "tree table", "unknown", "viewport", "window",
-    "extended", "header", "footer", "paragraph", "ruler", "application", "autocomplete", "edit bar",
-    "embedded", "entry", "chart", "caption", "document frame", "heading", "page", "section",
-    "redundant object", "form", "link", "input method window", "table row", "tree item",
-    "document spreadsheet", "document presentation", "document text", "document web", "document email",
-    "comment", "list box", "grouping", "image map", "notification", "info bar", "level bar", "title bar",
-    "block quote", "audio", "video", "definition", "article", "landmark", "log", "marquee", "math",
-    "rating", "timer", "static", "math fraction", "math root", "subscript", "superscript",
-    "description list", "description term", "description value", "footnote", "content deletion",
-    "content insertion", "mark", "suggestion", "push button menu",
+    "invalid",
+    "accelerator label",
+    "alert",
+    "animation",
+    "arrow",
+    "calendar",
+    "canvas",
+    "check box",
+    "check menu item",
+    "color chooser",
+    "column header",
+    "combo box",
+    "date editor",
+    "desktop icon",
+    "desktop frame",
+    "dial",
+    "dialog",
+    "directory pane",
+    "drawing area",
+    "file chooser",
+    "filler",
+    "focus traversable",
+    "font chooser",
+    "frame",
+    "glass pane",
+    "html container",
+    "icon",
+    "image",
+    "internal frame",
+    "label",
+    "layered pane",
+    "list",
+    "list item",
+    "menu",
+    "menu bar",
+    "menu item",
+    "option pane",
+    "page tab",
+    "page tab list",
+    "panel",
+    "password text",
+    "popup menu",
+    "progress bar",
+    "push button",
+    "radio button",
+    "radio menu item",
+    "root pane",
+    "row header",
+    "scroll bar",
+    "scroll pane",
+    "separator",
+    "slider",
+    "spin button",
+    "split pane",
+    "status bar",
+    "table",
+    "table cell",
+    "table column header",
+    "table row header",
+    "tearoff menu item",
+    "terminal",
+    "text",
+    "toggle button",
+    "tool bar",
+    "tool tip",
+    "tree",
+    "tree table",
+    "unknown",
+    "viewport",
+    "window",
+    "extended",
+    "header",
+    "footer",
+    "paragraph",
+    "ruler",
+    "application",
+    "autocomplete",
+    "edit bar",
+    "embedded",
+    "entry",
+    "chart",
+    "caption",
+    "document frame",
+    "heading",
+    "page",
+    "section",
+    "redundant object",
+    "form",
+    "link",
+    "input method window",
+    "table row",
+    "tree item",
+    "document spreadsheet",
+    "document presentation",
+    "document text",
+    "document web",
+    "document email",
+    "comment",
+    "list box",
+    "grouping",
+    "image map",
+    "notification",
+    "info bar",
+    "level bar",
+    "title bar",
+    "block quote",
+    "audio",
+    "video",
+    "definition",
+    "article",
+    "landmark",
+    "log",
+    "marquee",
+    "math",
+    "rating",
+    "timer",
+    "static",
+    "math fraction",
+    "math root",
+    "subscript",
+    "superscript",
+    "description list",
+    "description term",
+    "description value",
+    "footnote",
+    "content deletion",
+    "content insertion",
+    "mark",
+    "suggestion",
+    "push button menu",
 ];
 
 /// Name an AT-SPI role number.
@@ -192,7 +319,7 @@ pub fn state_names(words: &[u32]) -> Vec<&'static str> {
             names.push(*name);
         }
     }
-    return names
+    return names;
 }
 
 /// Format one node as a record.
@@ -219,7 +346,7 @@ fn format_node(node: &Node) -> String {
         encode_text(&node.role),
         encode_text(&node.name),
         node.states.join(","),
-    )
+    );
 }
 
 /// Format the `a11y` answer.
@@ -236,7 +363,7 @@ fn format_node(node: &Node) -> String {
 #[must_use]
 pub fn format_tree(nodes: &[Node]) -> String {
     let records: Vec<String> = nodes.iter().map(format_node).collect();
-    return format_records(&records)
+    return format_records(&records);
 }
 
 /// Build a proxy for one AT-SPI interface of one object.
@@ -250,11 +377,16 @@ pub fn format_tree(nodes: &[Node]) -> String {
 /// ```ts
 /// function proxy(connection: Connection, busName: string, path: string, iface: string): Proxy { ... }
 /// ```
-async fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interface: &'a str) -> Result<Proxy<'a>> {
+async fn proxy<'a>(
+    connection: &Connection,
+    bus_name: &'a str,
+    path: &'a str,
+    interface: &'a str,
+) -> Result<Proxy<'a>> {
     return with_message(
         Proxy::new(connection, bus_name, path, interface).await,
         format_args!("opening {interface} of {path} on {bus_name}"),
-    )
+    );
 }
 
 /// Read one node and queue its children.
@@ -269,25 +401,47 @@ async fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, in
 /// ```ts
 /// function readNode(connection: Connection, busName: string, path: string, depth: number): [Node, Child[]] { ... }
 /// ```
-async fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: usize) -> Result<(Node, Vec<(String, String)>)> {
+async fn read_node(
+    connection: &Connection,
+    bus_name: &str,
+    path: &str,
+    depth: usize,
+) -> Result<(Node, Vec<(String, String)>)> {
     let accessible = proxy(connection, bus_name, path, "org.a11y.atspi.Accessible").await?;
-    let role = role_name(accessible.call::<_, _, u32>("GetRole", &()).await.context("GetRole")?);
+    let role = role_name(
+        accessible
+            .call::<_, _, u32>("GetRole", &())
+            .await
+            .context("GetRole")?,
+    );
     let name: String = accessible.get_property("Name").await.unwrap_or_default();
     let states: Vec<u32> = accessible.call("GetState", &()).await.unwrap_or_default();
-    let children: Vec<(String, OwnedObjectPath)> = accessible.call("GetChildren", &()).await.unwrap_or_default();
+    let children: Vec<(String, OwnedObjectPath)> = accessible
+        .call("GetChildren", &())
+        .await
+        .unwrap_or_default();
     let bounds = match proxy(connection, bus_name, path, "org.a11y.atspi.Component").await {
-        Ok(component) => component.call::<_, _, (i32, i32, i32, i32)>("GetExtents", &(0_u32,)).await.ok(),
+        Ok(component) => component
+            .call::<_, _, (i32, i32, i32, i32)>("GetExtents", &(0_u32,))
+            .await
+            .ok(),
         Err(error) => {
             debug!("no component interface for {path}: {error:#}");
             None
         }
     };
-    let node = Node { depth, role, name, states: state_names(&states), bounds };
+    let node = Node {
+        depth,
+        role,
+        name,
+        states: state_names(&states),
+        bounds,
+    };
     let mut queued: Vec<(String, String)> = Vec::new();
     for (child_bus, child_path) in children {
         queued.push((child_bus, child_path.as_str().to_string()));
     }
-    return Ok((node, queued))
+    return Ok((node, queued));
 }
 
 /// Read the whole tree of one application.
@@ -304,9 +458,16 @@ async fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: u
 /// ```ts
 /// function readApplication(connection: Connection, application: Application): Node[] { ... }
 /// ```
-async fn read_application(connection: &Connection, application: &Application) -> Result<Vec<Node>> {
+async fn read_application(
+    connection: &Connection,
+    application: &Application,
+) -> Result<Vec<Node>> {
     let mut nodes = Vec::new();
-    let mut pending = vec![(application.bus_name.clone(), application.path.clone(), 0_usize)];
+    let mut pending = vec![(
+        application.bus_name.clone(),
+        application.path.clone(),
+        0_usize,
+    )];
     while let Some((bus_name, path, depth)) = pending.pop() {
         if nodes.len() >= MAX_NODES || depth > MAX_DEPTH {
             warn!("accessibility tree read stopped at the node or depth limit");
@@ -318,7 +479,7 @@ async fn read_application(connection: &Connection, application: &Application) ->
             pending.push((child_bus, child_path, depth + 1));
         }
     }
-    return Ok(nodes)
+    return Ok(nodes);
 }
 
 /// Read every registered application on the calling thread inside a time budget.
@@ -349,7 +510,10 @@ pub fn read_all(service: &A11yService) -> Result<Vec<Node>> {
 /// Why:
 ///       `read_all` fixes the budget at `READ_BUDGET`;
 ///  a test names a short one to see a stalled application end the read.
-pub fn read_all_within(service: &A11yService, budget: Duration) -> Result<Vec<Node>> {
+pub fn read_all_within(
+    service: &A11yService,
+    budget: Duration,
+) -> Result<Vec<Node>> {
     let connection = service.connection().clone();
     let applications = service.applications();
     let walk = async move {
@@ -378,7 +542,7 @@ pub fn read_all_within(service: &A11yService, budget: Duration) -> Result<Vec<No
 #[must_use]
 pub fn response(state: &Compositor) -> Response {
     let Some(service) = state.a11y.as_ref() else {
-        return Response::Err("no accessibility service (start with --accessibility)".to_string())
+        return Response::Err("no accessibility service (start with --accessibility)".to_string());
     };
     match read_all(service) {
         Ok(nodes) => return Response::OkWith(format_tree(&nodes)),

@@ -5,18 +5,30 @@
 //! disposable `dbus-daemon` that has no service directories.
 
 use std::{
-    sync::{mpsc, Arc},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        mpsc,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use nested_wayland_session::{
-    bus_test_client::{connect, Proxy},
+    bus_test_client::{
+        Proxy,
+        connect,
+    },
     notification_mode::NotificationMode,
     plasma_services::PlasmaServices,
     private_bus::PrivateBus,
     protocol::Response,
 };
-use zbus::{Connection, DBusError};
+use zbus::{
+    Connection,
+    DBusError,
+};
 
 /// Bounds how long a test waits for something that must already be on the bus.
 pub const WAIT: Duration = Duration::from_secs(5);
@@ -43,12 +55,21 @@ pub fn start(mode: NotificationMode) -> anyhow::Result<Fixture> {
     let services = PlasmaServices::start(mode, Arc::clone(&bus), Instant::now())?
         .ok_or_else(|| return anyhow::anyhow!("mode {mode:?} serves nothing"))?;
     let client = connect(bus.address())?;
-    return Ok(Fixture { services, client, _bus: bus });
+    return Ok(Fixture {
+        services,
+        client,
+        _bus: bus,
+    });
 }
 
 /// Opens a proxy to a service the way a hosted app does:
 ///  by well-known name.
-pub fn proxy(client: &Connection, name: &'static str, path: &str, interface: &'static str) -> anyhow::Result<Proxy<'static>> {
+pub fn proxy(
+    client: &Connection,
+    name: &'static str,
+    path: &str,
+    interface: &'static str,
+) -> anyhow::Result<Proxy<'static>> {
     return Ok(Proxy::new(client, name, path.to_owned(), interface)?);
 }
 
@@ -63,8 +84,13 @@ pub fn proxy(client: &Connection, name: &'static str, path: &str, interface: &'s
 ///  `None` for an error that is not a bus reply.
 pub fn error_reply(error: &zbus::Error) -> Option<(String, Option<String>)> {
     return match error {
-        zbus::Error::MethodError(name, description, _) => Some((name.to_string(), description.clone())),
-        zbus::Error::FDO(reply) => Some((DBusError::name(&**reply).to_string(), DBusError::description(&**reply).map(str::to_owned))),
+        zbus::Error::MethodError(name, description, _) => {
+            Some((name.to_string(), description.clone()))
+        }
+        zbus::Error::FDO(reply) => Some((
+            DBusError::name(&**reply).to_string(),
+            DBusError::description(&**reply).map(str::to_owned),
+        )),
         _ => None,
     };
 }
@@ -89,14 +115,22 @@ pub fn err_message(response: Response) -> String {
 }
 
 /// Reads the value of `name=` in a space-separated record.
-pub fn field<'a>(record: &'a str, name: &str) -> Option<&'a str> {
+pub fn field<'a>(
+    record: &'a str,
+    name: &str,
+) -> Option<&'a str> {
     let prefix = format!("{name}=");
-    return record.split(' ').find_map(|part| return part.strip_prefix(prefix.as_str()));
+    return record
+        .split(' ')
+        .find_map(|part| return part.strip_prefix(prefix.as_str()));
 }
 
 /// Polls `condition` until it holds,
 ///  or fails the test at the timeout.
-pub fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+pub fn wait_until(
+    what: &str,
+    mut condition: impl FnMut() -> bool,
+) {
     let started = Instant::now();
     while started.elapsed() < WAIT {
         if condition() {
@@ -118,22 +152,32 @@ pub struct Signals {
 impl Signals {
     /// Subscribes to `member` through `proxy`;
     ///  the match rule is registered before this returns.
-    pub fn subscribe(proxy: &Proxy<'static>, member: &'static str) -> anyhow::Result<Self> {
+    pub fn subscribe(
+        proxy: &Proxy<'static>,
+        member: &'static str,
+    ) -> anyhow::Result<Self> {
         let iterator = proxy.receive_signal(member)?;
         let (sender, receiver) = mpsc::sync_channel(32);
-        std::thread::Builder::new().name(format!("signals-{member}")).spawn(move || {
-            for message in iterator {
-                if sender.send(message).is_err() {
-                    return;
+        std::thread::Builder::new()
+            .name(format!("signals-{member}"))
+            .spawn(move || {
+                for message in iterator {
+                    if sender.send(message).is_err() {
+                        return;
+                    }
                 }
-            }
-        })?;
-        return Ok(Self { receiver });
+            })?;
+        return Ok(Self {
+            receiver,
+        });
     }
 
     /// Waits for the next message,
     ///  or fails the test at the timeout.
-    pub fn next(&self, what: &str) -> zbus::Message {
+    pub fn next(
+        &self,
+        what: &str,
+    ) -> zbus::Message {
         return self
             .receiver
             .recv_timeout(WAIT)
@@ -142,6 +186,9 @@ impl Signals {
 
     /// Tells whether another message arrives within a short grace period.
     pub fn arrives_soon(&self) -> bool {
-        return self.receiver.recv_timeout(Duration::from_millis(250)).is_ok();
+        return self
+            .receiver
+            .recv_timeout(Duration::from_millis(250))
+            .is_ok();
     }
 }

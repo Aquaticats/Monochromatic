@@ -13,7 +13,11 @@
 /// import { projectLine } from 'ide-app/text-projection';
 /// ```
 use ide_app::{
-    tab_stop::{TAB_SPACES, tab_advance, tab_spacings},
+    tab_stop::{
+        TAB_SPACES,
+        tab_advance,
+        tab_spacings,
+    },
     text_projection::project_line,
 };
 

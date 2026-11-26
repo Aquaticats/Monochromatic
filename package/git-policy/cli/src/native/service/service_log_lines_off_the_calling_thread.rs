@@ -35,6 +35,9 @@
 //! for the lines it handed over,
 //! because `std::process::exit` ends the thread where it stands
 //! and a refusal's last line is the whole of what a person gets.
+//!  A thread the limit on this process refuses leaves no writer at all,
+//! and the wrapper's service exists to answer after the limit struck:
+//! the queue says once which limit refused the thread and writes every line where it is said (issue 6476).
 //!  A line is the thread's until all of its bytes are in the stream:
 //! a write a stream refused leaves the rest of the line here,
 //! and nothing else is written until the rest of it is,
@@ -155,11 +158,12 @@ fn default_stream() -> Box<dyn Write + Send> {
 /// The service's log queue:
 ///  its callers never wait,
 ///  a refused write waits for the next ask rather than a tick,
-///  and a stream that is gone leaves the thread running.
+///  a stream that is gone leaves the thread running,
+///  and a thread the process limit refuses has its lines written where they are said.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_POLICY = { threadName: 'service log lines', droppedNotice, defaultStream, callersWaitForTheirLine: false, retriesOnATick: false, endsWhenTheStreamIsGone: false, threadRefused: ['serviceLog', '...'], tag: 'serviceLog' };
+/// const THE_POLICY = { threadName: 'service log lines', droppedNotice, defaultStream, callersWaitForTheirLine: false, retriesOnATick: false, endsWhenTheStreamIsGone: false, refusedThreadPurpose: "write this service's log lines", tag: 'serviceLog' };
 /// ```
 static THE_POLICY: QueuePolicy = QueuePolicy {
     thread_name: "service log lines",
@@ -168,10 +172,9 @@ static THE_POLICY: QueuePolicy = QueuePolicy {
     callers_wait_for_their_line: false,
     retries_on_a_tick: false,
     ends_when_the_stream_is_gone: false,
-    thread_refused: Some((
-        "serviceLog",
-        "the thread that writes the service's log lines could not be started",
-    )),
+    // The same limit that refuses a command's diagnostic thread refuses this one,
+    //  so the journal is told which limit it was and the log lines are written where they are said.
+    refused_thread_purpose: Some("write this service's log lines"),
     tag: "serviceLog",
 };
 

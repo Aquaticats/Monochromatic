@@ -7,14 +7,26 @@ use crate::native::minimap_worker::Reply;
 /// The window,
 ///  its state,
 ///  and the displayed text's stamp.
-use crate::native::{AppWindow, State, annotate::displayed};
+use crate::native::{
+    AppWindow,
+    State,
+    annotate::displayed,
+};
 /// The list of the picture's textures,
 ///  weak handles,
 ///  and the timers.
-use slint::{ComponentHandle, ModelRc, TimerMode};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    TimerMode,
+};
 /// Shared state and its cell,
 ///  and the poll period.
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Duration,
+};
 
 /// Poll period of the worker's replies,
 /// the same as the other background pollers.
@@ -60,7 +72,10 @@ pub(in crate::native) static PICTURE_FRAMES_ASKED: std::sync::atomic::AtomicU64 
 /// ```ts
 /// function askForAFrameUnlessOneComes(window: AppWindow, state: Shared<State>): void;
 /// ```
-fn ask_for_a_frame_unless_one_comes(window: &AppWindow, state: &Rc<RefCell<State>>) {
+fn ask_for_a_frame_unless_one_comes(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let weak_window = window.as_weak();
     let weak_state = Rc::downgrade(state);
     state
@@ -104,7 +119,11 @@ fn ask_for_a_frame(window: &AppWindow) {
 /// ```ts
 /// function apply(window: AppWindow, state: Shared<State>, reply: Reply): void;
 /// ```
-pub(in crate::native) fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, reply: Reply) {
+pub(in crate::native) fn apply(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    reply: Reply,
+) {
     let mut current = state.borrow_mut();
     if reply.id == current.minimap.awaited {
         current.minimap.awaited = 0;
@@ -151,7 +170,10 @@ pub(in crate::native) fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, r
 
 /// Take in the finished pictures:
 /// each one that is still valid for the displayed text is set on the window.
-fn poll(window: &AppWindow, state: &Rc<RefCell<State>>) {
+fn poll(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let replies = {
         let mut current = state.borrow_mut();
         let Some(worker) = current.minimap.worker.as_mut() else {
@@ -180,7 +202,11 @@ fn poll(window: &AppWindow, state: &Rc<RefCell<State>>) {
 }
 
 /// Start the repeated poll of the worker's replies unless it is already running.
-pub(super) fn start_poll(window: &AppWindow, state: &Rc<RefCell<State>>, current: &mut State) {
+pub(super) fn start_poll(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    current: &mut State,
+) {
     if current.minimap.poll.running() {
         return;
     }

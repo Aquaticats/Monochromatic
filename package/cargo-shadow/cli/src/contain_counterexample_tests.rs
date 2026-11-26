@@ -15,16 +15,38 @@
 //! ```
 
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use rustix::process::{Pid, Signal, kill_process};
+use rustix::process::{
+    Pid,
+    Signal,
+    kill_process,
+};
 
-use crate::bounded_run::{Bound, output_within};
-use crate::cgroup_test_support::{assert_ran_in_recorded_scope, wrapper_group};
+use crate::bounded_run::{
+    Bound,
+    output_within,
+};
+use crate::cgroup_test_support::{
+    assert_ran_in_recorded_scope,
+    wrapper_group,
+};
 use crate::crates::LockSnapshot;
-use crate::journal::{begin, recover};
+use crate::journal::{
+    begin,
+    recover,
+};
 use crate::journal_support::journal_dirs;
 use crate::test_scratch::scratch;
 
@@ -65,7 +87,16 @@ fn a_child_is_alive() -> bool {
             return true;
         };
         for child in children.split_whitespace() {
-            let state: String = std::fs::read_to_string(format!("/proc/{child}/stat")).ok().and_then(|text| { return text.rsplit(')').next().map(|after| { return after.trim_start().chars().next().unwrap_or('?').to_string(); }); }).unwrap_or_else(|| { return "?".to_string(); });
+            let state: String = std::fs::read_to_string(format!("/proc/{child}/stat"))
+                .ok()
+                .and_then(|text| {
+                    return text.rsplit(')').next().map(|after| {
+                        return after.trim_start().chars().next().unwrap_or('?').to_string();
+                    });
+                })
+                .unwrap_or_else(|| {
+                    return "?".to_string();
+                });
             if state != "Z" && state != "X" {
                 return true;
             }
@@ -80,16 +111,28 @@ fn a_child_is_alive() -> bool {
 /// Why:
 /// A wait that follows its helper cannot mistake a slow host for a hung helper,
 /// and a helper that died is reported without waiting.
-fn wait_while_a_helper_lives(what: &Path, ready: &dyn Fn() -> bool, verb: &str) {
+fn wait_while_a_helper_lives(
+    what: &Path,
+    ready: &dyn Fn() -> bool,
+    verb: &str,
+) {
     let started: Instant = Instant::now();
     let mut without_helper_since: Option<Instant> = None;
     while !ready() {
-        assert!(started.elapsed() < FILE_WAIT, "{} {verb}: a helper lives but did not make it within {FILE_WAIT:?}", what.display());
+        assert!(
+            started.elapsed() < FILE_WAIT,
+            "{} {verb}: a helper lives but did not make it within {FILE_WAIT:?}",
+            what.display()
+        );
         if a_child_is_alive() {
             without_helper_since = None;
         } else {
             let since: Instant = *without_helper_since.get_or_insert_with(Instant::now);
-            assert!(since.elapsed() < NO_HELPER_GRACE, "{} {verb}: no helper is alive to make it", what.display());
+            assert!(
+                since.elapsed() < NO_HELPER_GRACE,
+                "{} {verb}: no helper is alive to make it",
+                what.display()
+            );
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -153,19 +196,39 @@ int main(int count, char **arguments) {
 
 /// A bound for the commands of these tests.
 fn bound(limit: Duration) -> Bound {
-    return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
+    return Bound {
+        limit,
+        what: "the contained command".to_string(),
+        rerun: "contained-command".to_string(),
+    };
 }
 
 /// Waits until a file exists,
 /// up to `FILE_WAIT`.
 pub(crate) fn wait_for_file(path: &Path) {
-    wait_while_a_helper_lives(path, &|| { return path.exists(); }, "did not appear");
+    wait_while_a_helper_lives(
+        path,
+        &|| {
+            return path.exists();
+        },
+        "did not appear",
+    );
 }
 
 /// Reads a process id a helper wrote.
 pub(crate) fn read_pid(path: &Path) -> i32 {
-    let read = || -> Option<i32> { return std::fs::read_to_string(path).ok().and_then(|text| { return text.trim().parse::<i32>().ok(); }); };
-    wait_while_a_helper_lives(path, &|| { return read().is_some(); }, "never held a process id");
+    let read = || -> Option<i32> {
+        return std::fs::read_to_string(path).ok().and_then(|text| {
+            return text.trim().parse::<i32>().ok();
+        });
+    };
+    wait_while_a_helper_lives(
+        path,
+        &|| {
+            return read().is_some();
+        },
+        "never held a process id",
+    );
     return read().expect("the process id was read a moment ago");
 }
 
@@ -177,7 +240,9 @@ pub(crate) fn read_pid(path: &Path) -> i32 {
 /// (a procfs that numbers processes as another namespace does,
 /// an unreadable entry) stops the test instead of reading as "gone".
 pub(crate) fn is_running(pid: i32) -> bool {
-    return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| { panic!("whether process {pid} runs cannot be told: {reason}"); });
+    return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| {
+        panic!("whether process {pid} runs cannot be told: {reason}");
+    });
 }
 
 /// Asserts that the wrapper (this process) can no longer wait for the child with this id:
@@ -189,10 +254,19 @@ pub(crate) fn is_running(pid: i32) -> bool {
 /// or seeing it exit,
 /// does not show that it was reaped:
 /// a zombie still answers a wait (certification group 1).
-pub(crate) fn assert_reaped(pid: i32, what: &str) {
-    use rustix::process::{WaitOptions, waitpid};
+pub(crate) fn assert_reaped(
+    pid: i32,
+    what: &str,
+) {
+    use rustix::process::{
+        WaitOptions,
+        waitpid,
+    };
     let result = waitpid(Pid::from_raw(pid), WaitOptions::NOHANG);
-    assert!(matches!(result, Err(rustix::io::Errno::CHILD)), "{what}: the direct child {pid} can still be waited for, so it was not reaped: {result:?}");
+    assert!(
+        matches!(result, Err(rustix::io::Errno::CHILD)),
+        "{what}: the direct child {pid} can still be waited for, so it was not reaped: {result:?}"
+    );
 }
 
 /// The process id of the direct child the run spawned,
@@ -204,16 +278,34 @@ pub(crate) fn assert_reaped(pid: i32, what: &str) {
 /// pass,
 /// group 1).
 pub(crate) fn spawned_direct_child(events: &[String]) -> i32 {
-    let spawned: Vec<i32> = events.iter().filter_map(|event| { return event.strip_prefix("spawned ").and_then(|text| { return text.parse::<i32>().ok(); }); }).collect();
-    assert_eq!(spawned.len(), 1, "the run did not spawn exactly one direct child: {events:?}");
+    let spawned: Vec<i32> = events
+        .iter()
+        .filter_map(|event| {
+            return event.strip_prefix("spawned ").and_then(|text| {
+                return text.parse::<i32>().ok();
+            });
+        })
+        .collect();
+    assert_eq!(
+        spawned.len(),
+        1,
+        "the run did not spawn exactly one direct child: {events:?}"
+    );
     return spawned[0];
 }
 
 /// Asserts that the process id the program published is the direct child the run spawned,
 /// and that this child was reaped.
-pub(crate) fn assert_spawned_child_is_the_program_and_reaped(program_pid: i32, events: &[String], what: &str) {
+pub(crate) fn assert_spawned_child_is_the_program_and_reaped(
+    program_pid: i32,
+    events: &[String],
+    what: &str,
+) {
     let spawned: i32 = spawned_direct_child(events);
-    assert_eq!(program_pid, spawned, "{what}: the program is not the process this run spawned (a launcher forked it), so its id says nothing about the reap");
+    assert_eq!(
+        program_pid, spawned,
+        "{what}: the program is not the process this run spawned (a launcher forked it), so its id says nothing about the reap"
+    );
     assert_reaped(spawned, what);
 }
 
@@ -246,10 +338,22 @@ pub(crate) fn thread_is_alive(tid: i32) -> bool {
     }
     let stat: String = match fs::read_to_string(format!("/proc/{tid}/stat")) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => return false,
-        Err(error) => panic!("/proc/{tid}/stat cannot be read ({error}): the state of the thread is unknown, not stopped"),
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) =>
+        {
+            return false;
+        }
+        Err(error) => panic!(
+            "/proc/{tid}/stat cannot be read ({error}): the state of the thread is unknown, not stopped"
+        ),
     };
-    let state: char = stat.rsplit(')').next().and_then(|rest| { return rest.trim_start().chars().next(); }).unwrap_or_else(|| { panic!("/proc/{tid}/stat cannot be parsed: {stat:?}") });
+    let state: char = stat
+        .rsplit(')')
+        .next()
+        .and_then(|rest| {
+            return rest.trim_start().chars().next();
+        })
+        .unwrap_or_else(|| panic!("/proc/{tid}/stat cannot be parsed: {stat:?}"));
     return state != 'Z' && state != 'X';
 }
 
@@ -269,16 +373,30 @@ fn the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end() {
     let directory = scratch();
     let leader: PathBuf = compile_leader(directory.path());
     let ready: PathBuf = directory.path().join("ready");
-    let mut process = Command::new(&leader).arg(&ready).spawn().expect("starts the fixture");
+    let mut process = Command::new(&leader)
+        .arg(&ready)
+        .spawn()
+        .expect("starts the fixture");
     let tid: i32 = worker_tid(&ready);
-    let leader_state: char = fs::read_to_string(format!("/proc/{}/stat", process.id())).expect("the leader's stat").rsplit(')').next().expect("a state").trim_start().chars().next().expect("a letter");
+    let leader_state: char = fs::read_to_string(format!("/proc/{}/stat", process.id()))
+        .expect("the leader's stat")
+        .rsplit(')')
+        .next()
+        .expect("a state")
+        .trim_start()
+        .chars()
+        .next()
+        .expect("a letter");
 
     let alive_before: bool = thread_is_alive(tid);
     process.kill().expect("kill the fixture");
     let _ = process.wait();
     let alive_after: bool = thread_is_alive(tid);
 
-    assert_eq!(leader_state, 'Z', "the fixture's leader is not a zombie, so the control shows nothing");
+    assert_eq!(
+        leader_state, 'Z',
+        "the fixture's leader is not a zombie, so the control shows nothing"
+    );
     assert!(alive_before, "the oracle did not see the live worker");
     assert!(!alive_after, "the oracle did not see the worker end");
 }
@@ -320,10 +438,25 @@ fn zombie_leader_run(at_the_bound: bool) {
     let group_file: PathBuf = directory.path().join("group");
     let direct_file: PathBuf = directory.path().join("direct");
     let workspace = recorded_workspace();
-    let transaction = begin(workspace.path(), &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "lock".to_string() }], false).expect("begin");
-    let journal: PathBuf = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
+    let transaction = begin(
+        workspace.path(),
+        &[LockSnapshot {
+            crate_dir: CRATE_DIR.to_string(),
+            source: "lock".to_string(),
+        }],
+        false,
+    )
+    .expect("begin");
+    let journal: PathBuf = journal_dirs(workspace.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
     let wrapper: String = wrapper_group();
-    let finish: &str = if at_the_bound { "sleep 600" } else { "echo done" };
+    let finish: &str = if at_the_bound {
+        "sleep 600"
+    } else {
+        "echo done"
+    };
     let script: String = format!(
         "echo $$ > {direct}; cat /proc/self/cgroup > {group}; setsid {leader} {ready} </dev/null >/dev/null 2>&1 & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; {finish}",
         direct = direct_file.display(),
@@ -332,26 +465,65 @@ fn zombie_leader_run(at_the_bound: bool) {
         ready = ready.display(),
         pid = pid_file.display(),
     );
-    let limit: Duration = if at_the_bound { Duration::from_secs(8) } else { Duration::from_secs(30) };
+    let limit: Duration = if at_the_bound {
+        Duration::from_secs(8)
+    } else {
+        Duration::from_secs(30)
+    };
 
     let _ = crate::bounded_run::take_trace_for_test();
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
+    let result = output_within(
+        Command::new("sh").args(["-c", &script]),
+        None,
+        &bound(limit),
+    );
     // The stop went through the authoritative emptiness proof before the run returned (fourth certification pass): the kernel's
     // `populated 0` after the kill (or a verified absence), not a snapshot of the members that were signalled.
     let events: Vec<String> = crate::bounded_run::take_trace_for_test();
-    let proofs: Vec<String> = events.iter().filter(|event| { return event.starts_with("scope proved "); }).cloned().collect();
-    assert_eq!(proofs.len(), 1, "the stop did not go through the emptiness proof exactly once (at the bound: {at_the_bound}): {proofs:?}");
+    let proofs: Vec<String> = events
+        .iter()
+        .filter(|event| {
+            return event.starts_with("scope proved ");
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        proofs.len(),
+        1,
+        "the stop did not go through the emptiness proof exactly once (at the bound: {at_the_bound}): {proofs:?}"
+    );
 
     let tid: i32 = worker_tid(&ready);
     if at_the_bound {
-        assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the program was not stopped at the bound: {result:?}");
+        assert!(
+            matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })),
+            "the program was not stopped at the bound: {result:?}"
+        );
     } else {
-        assert_eq!(String::from_utf8_lossy(&result.expect("runs").stdout).trim(), "done");
+        assert_eq!(
+            String::from_utf8_lossy(&result.expect("runs").stdout).trim(),
+            "done"
+        );
     }
-    assert!(!thread_is_alive(tid), "the worker thread of a process whose leader had ended is still alive after the run returned (at the bound: {at_the_bound})");
+    assert!(
+        !thread_is_alive(tid),
+        "the worker thread of a process whose leader had ended is still alive after the run returned (at the bound: {at_the_bound})"
+    );
     let _ = read_pid(&pid_file);
-    assert_ran_in_recorded_scope(&journal.join("groups").display().to_string(), &fs::read_to_string(&group_file).expect("the program's group"), &wrapper);
-    assert_spawned_child_is_the_program_and_reaped(read_pid(&direct_file), &events, if at_the_bound { "at the bound" } else { "after a normal exit" });
+    assert_ran_in_recorded_scope(
+        &journal.join("groups").display().to_string(),
+        &fs::read_to_string(&group_file).expect("the program's group"),
+        &wrapper,
+    );
+    assert_spawned_child_is_the_program_and_reaped(
+        read_pid(&direct_file),
+        &events,
+        if at_the_bound {
+            "at the bound"
+        } else {
+            "after a normal exit"
+        },
+    );
     drop(transaction);
 }
 
@@ -375,8 +547,19 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
     let pids: PathBuf = directory.path().join("pids");
     let group_file: PathBuf = directory.path().join("group");
     let workspace = recorded_workspace();
-    let transaction = begin(workspace.path(), &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "lock".to_string() }], false).expect("begin");
-    let journal: PathBuf = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
+    let transaction = begin(
+        workspace.path(),
+        &[LockSnapshot {
+            crate_dir: CRATE_DIR.to_string(),
+            source: "lock".to_string(),
+        }],
+        false,
+    )
+    .expect("begin");
+    let journal: PathBuf = journal_dirs(workspace.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
     let wrapper: String = wrapper_group();
     // Forty orphans: each double-forked child records its process id and lives on; the program waits until all forty have.
     let script: String = format!(
@@ -386,16 +569,49 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
         group = group_file.display()
     );
 
-    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30))).expect("runs");
+    let output = output_within(
+        Command::new("sh").args(["-c", &script]),
+        None,
+        &bound(Duration::from_secs(30)),
+    )
+    .expect("runs");
 
-    let recorded: Vec<i32> = fs::read_to_string(&pids).expect("the orphans' process ids").lines().filter_map(|line| { return line.trim().parse::<i32>().ok(); }).collect();
+    let recorded: Vec<i32> = fs::read_to_string(&pids)
+        .expect("the orphans' process ids")
+        .lines()
+        .filter_map(|line| {
+            return line.trim().parse::<i32>().ok();
+        })
+        .collect();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
     let distinct: std::collections::BTreeSet<i32> = recorded.iter().copied().collect();
     assert_eq!(recorded.len(), 40);
-    assert_eq!(distinct.len(), 40, "the orphans did not record their own process ids: {recorded:?}");
-    let alive: Vec<(i32, String)> = recorded.iter().filter(|pid| { return is_running(**pid); }).map(|pid| { return (*pid, fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default()); }).collect();
-    assert!(alive.is_empty(), "an orphan of the run is still running after the run returned: {alive:?}");
-    assert_ran_in_recorded_scope(&journal.join("groups").display().to_string(), &fs::read_to_string(&group_file).expect("the program's group"), &wrapper);
+    assert_eq!(
+        distinct.len(),
+        40,
+        "the orphans did not record their own process ids: {recorded:?}"
+    );
+    let alive: Vec<(i32, String)> = recorded
+        .iter()
+        .filter(|pid| {
+            return is_running(**pid);
+        })
+        .map(|pid| {
+            return (
+                *pid,
+                fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default(),
+            );
+        })
+        .collect();
+    assert!(
+        alive.is_empty(),
+        "an orphan of the run is still running after the run returned: {alive:?}"
+    );
+    assert_ran_in_recorded_scope(
+        &journal.join("groups").display().to_string(),
+        &fs::read_to_string(&group_file).expect("the program's group"),
+        &wrapper,
+    );
     drop(transaction);
 }
 
@@ -408,17 +624,28 @@ fn a_grandchild_adopted_during_the_run_that_the_run_did_not_start_survives() {
     let directory = scratch();
     let pid_file: PathBuf = directory.path().join("grandchild.pid");
     let script: String = format!("sleep 30 & echo $! > {}; sleep 1", pid_file.display());
-    let mut earlier: Child = Command::new("sh").args(["-c", &script]).spawn().expect("a child the caller already had");
+    let mut earlier: Child = Command::new("sh")
+        .args(["-c", &script])
+        .spawn()
+        .expect("a child the caller already had");
     wait_for_file(&pid_file);
     std::thread::sleep(Duration::from_millis(100));
     let grandchild: i32 = read_pid(&pid_file);
 
-    output_within(Command::new("sleep").arg("2"), None, &bound(Duration::from_secs(20))).expect("runs");
+    output_within(
+        Command::new("sleep").arg("2"),
+        None,
+        &bound(Duration::from_secs(20)),
+    )
+    .expect("runs");
     let alive: bool = is_running(grandchild);
     stop_quietly(grandchild);
     let _ = earlier.wait();
 
-    assert!(alive, "a process the run did not start was stopped when its parent exited during the run");
+    assert!(
+        alive,
+        "a process the run did not start was stopped when its parent exited during the run"
+    );
 }
 
 /// Round 7 (6a R3):
@@ -427,16 +654,27 @@ fn a_grandchild_adopted_during_the_run_that_the_run_did_not_start_survives() {
 fn a_subprocess_another_thread_starts_during_the_run_survives() {
     let starter = std::thread::spawn(|| {
         std::thread::sleep(Duration::from_millis(300));
-        return Command::new("sleep").arg("30").spawn().expect("an unrelated child");
+        return Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("an unrelated child");
     });
 
-    output_within(Command::new("sleep").arg("1.5"), None, &bound(Duration::from_secs(20))).expect("runs");
+    output_within(
+        Command::new("sleep").arg("1.5"),
+        None,
+        &bound(Duration::from_secs(20)),
+    )
+    .expect("runs");
     let mut unrelated: Child = starter.join().expect("the starting thread");
     let alive: bool = is_running(i32::try_from(unrelated.id()).expect("a process id"));
     let _ = unrelated.kill();
     let _ = unrelated.wait();
 
-    assert!(alive, "a process another thread started was stopped by a run it was not part of");
+    assert!(
+        alive,
+        "a process another thread started was stopped by a run it was not part of"
+    );
 }
 
 /// The helper process of the crash test below:
@@ -449,8 +687,12 @@ fn wrapper_with_an_escaped_writer_fixture() {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
-    let snapshot: LockSnapshot = LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() };
-    let _transaction = crate::journal::begin(&root, std::slice::from_ref(&snapshot), false).expect("begin");
+    let snapshot: LockSnapshot = LockSnapshot {
+        crate_dir: CRATE_DIR.to_string(),
+        source: "original".to_string(),
+    };
+    let _transaction =
+        crate::journal::begin(&root, std::slice::from_ref(&snapshot), false).expect("begin");
     let directory: PathBuf = root.join("fixture");
     let script: String = format!(
         "echo $$ > {shell}; setsid sh -c 'exec </dev/null >/dev/null 2>&1; echo $$ > {writer}; : > {ready}; sleep 20; echo late > {target}' & \
@@ -460,7 +702,11 @@ fn wrapper_with_an_escaped_writer_fixture() {
         ready = directory.join("ready").display(),
         target = directory.join("target").display()
     );
-    let _ = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(300)));
+    let _ = output_within(
+        Command::new("sh").args(["-c", &script]),
+        None,
+        &bound(Duration::from_secs(300)),
+    );
 }
 
 /// Round 7 (6a R2,
@@ -479,7 +725,12 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     let lock: PathBuf = root.path().join(CRATE_DIR).join("Cargo.lock");
     fs::write(&lock, "original").expect("lock");
     let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "contain_counterexample_tests::wrapper_with_an_escaped_writer_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "contain_counterexample_tests::wrapper_with_an_escaped_writer_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_ROOT, root.path())
         .spawn()
         .expect("the wrapper helper");
@@ -493,35 +744,79 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     // The recorded launcher (the shell, which is the program) is established gone before the recovery, by the launcher question and
     // not by an elapsed sleep (certification group 1): an unreaped zombie launcher would itself be alive and block, so the refusal
     // below is attributable to the scope's member only once the launcher is classified gone.
-    let journal_for_launcher: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
-    let launcher_record: String = fs::read_to_string(journal_for_launcher.join("groups")).expect("the records");
-    let Some(Ok(crate::control_group::Record::Launcher { pid: launcher_pid, start: launcher_start, pid_namespace, path: recorded_scope })) =
-        launcher_record.lines().map(crate::control_group::parse_record).find(|parsed| { return matches!(parsed, Ok(crate::control_group::Record::Launcher { .. })); })
+    let journal_for_launcher: PathBuf = crate::journal_support::journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
+    let launcher_record: String =
+        fs::read_to_string(journal_for_launcher.join("groups")).expect("the records");
+    let Some(Ok(crate::control_group::Record::Launcher {
+        pid: launcher_pid,
+        start: launcher_start,
+        pid_namespace,
+        path: recorded_scope,
+    })) = launcher_record
+        .lines()
+        .map(crate::control_group::parse_record)
+        .find(|parsed| {
+            return matches!(parsed, Ok(crate::control_group::Record::Launcher { .. }));
+        })
     else {
         panic!("no launcher record: {launcher_record:?}");
     };
-    assert_eq!(launcher_pid, shell, "the recorded launcher is not the shell that ran the program");
-    crate::cgroup_test_support::wait_until("the recorded launcher to be classified gone", &|| { return crate::control_group::launcher_state(launcher_pid, launcher_start, pid_namespace) == crate::control_group::LauncherState::Gone; });
+    assert_eq!(
+        launcher_pid, shell,
+        "the recorded launcher is not the shell that ran the program"
+    );
+    crate::cgroup_test_support::wait_until("the recorded launcher to be classified gone", &|| {
+        return crate::control_group::launcher_state(launcher_pid, launcher_start, pid_namespace)
+            == crate::control_group::LauncherState::Gone;
+    });
 
-    let messages: Vec<String> = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages: Vec<String> = recover(
+        root.path(),
+        &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| {
+            return vec!["dep@1.0.1 refused".to_string()];
+        },
+    );
     let writer_alive: bool = is_running(writer);
     stop_quietly(writer);
     // The scope is stopped as a whole, so the writer's own children do not outlive the test.
     if let Some(journal) = crate::journal_support::journal_dirs(root.path()).first()
         && let Ok(text) = fs::read_to_string(journal.join("groups"))
-        && let Some(Ok(crate::control_group::Record::Scope { path, .. })) = text.lines().next().map(crate::control_group::parse_record)
+        && let Some(Ok(crate::control_group::Record::Scope {
+            path,
+            ..
+        })) = text.lines().next().map(crate::control_group::parse_record)
     {
         let _ = fs::write(path.join("cgroup.kill"), "1");
     }
 
-    assert!(writer_alive, "the escaped writer died by itself; the test proves nothing");
-    assert_eq!(fs::read_to_string(&lock).expect("lock"), "unchecked output of the killed run", "a recovery restored a file a live writer may change: {messages:?}");
+    assert!(
+        writer_alive,
+        "the escaped writer died by itself; the test proves nothing"
+    );
+    assert_eq!(
+        fs::read_to_string(&lock).expect("lock"),
+        "unchecked output of the killed run",
+        "a recovery restored a file a live writer may change: {messages:?}"
+    );
     // The refusal is for the intended reason, the journal is retained, and the run used a delegated scope.
     assert!(
-        messages.iter().any(|message| { return message.contains("a process in the scope") && message.contains(&recorded_scope.display().to_string()) && message.contains("still running"); }),
+        messages.iter().any(|message| {
+            return message.contains("a process in the scope")
+                && message.contains(&recorded_scope.display().to_string())
+                && message.contains("still running");
+        }),
         "the recovery did not refuse because a member of the recorded scope lives: {messages:?}"
     );
     let journals: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
-    assert_eq!(journals.len(), 1, "the journal was not retained: {journals:?}");
-    crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
+    assert_eq!(
+        journals.len(),
+        1,
+        "the journal was not retained: {journals:?}"
+    );
+    crate::cgroup_test_support::assert_scope_record(
+        &journals[0].join("groups").display().to_string(),
+    );
 }

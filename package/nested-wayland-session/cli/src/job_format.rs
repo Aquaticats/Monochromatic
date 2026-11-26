@@ -6,9 +6,15 @@
 /// Imports the items this module uses from `crate`.
 use crate::{
     event_ring::Timed,
-    job_store::{JobEvent, JobRecord},
+    job_store::{
+        JobEvent,
+        JobRecord,
+    },
     value_summary::format_summaries,
-    wire_text::{encode_text, format_records},
+    wire_text::{
+        encode_text,
+        format_records,
+    },
 };
 
 /// Formats one job.
@@ -45,7 +51,11 @@ pub fn format_job(job: &JobRecord) -> String {
     );
     return match &job.termination {
         None => format!("{base} terminated=false"),
-        Some(ended) => format!("{base} terminated=true code={} message={}", ended.code, encode_text(&ended.message)),
+        Some(ended) => format!(
+            "{base} terminated=true code={} message={}",
+            ended.code,
+            encode_text(&ended.message)
+        ),
     };
 }
 
@@ -76,22 +86,51 @@ pub fn format_job_list(jobs: &[JobRecord]) -> String {
 #[must_use]
 pub fn format_job_event(timed: &Timed<JobEvent>) -> String {
     let detail = match &timed.event {
-        JobEvent::RequestView { id, api, desktop_entry, capabilities, hints } => format!(
+        JobEvent::RequestView {
+            id,
+            api,
+            desktop_entry,
+            capabilities,
+            hints,
+        } => format!(
             "request-view id={id} api={api} entry={} capabilities={capabilities} hints={}",
             encode_text(desktop_entry),
             format_summaries(hints),
         ),
-        JobEvent::Update { id, no_reply, properties } => {
-            format!("update id={id} no-reply={no_reply} properties={}", format_summaries(properties))
+        JobEvent::Update {
+            id,
+            no_reply,
+            properties,
+        } => {
+            format!(
+                "update id={id} no-reply={no_reply} properties={}",
+                format_summaries(properties)
+            )
         }
-        JobEvent::Terminate { id, no_reply, code, message, hints } => format!(
+        JobEvent::Terminate {
+            id,
+            no_reply,
+            code,
+            message,
+            hints,
+        } => format!(
             "terminate id={id} no-reply={no_reply} code={code} message={} hints={}",
             encode_text(message),
             format_summaries(hints),
         ),
-        JobEvent::Signal { id, name } => format!("signal id={id} name={}", encode_text(name)),
-        JobEvent::KuiserverCall { method, detail } => {
-            format!("kuiserver method={} detail={}", encode_text(method), encode_text(detail))
+        JobEvent::Signal {
+            id,
+            name,
+        } => format!("signal id={id} name={}", encode_text(name)),
+        JobEvent::KuiserverCall {
+            method,
+            detail,
+        } => {
+            format!(
+                "kuiserver method={} detail={}",
+                encode_text(method),
+                encode_text(detail)
+            )
         }
     };
     return format!("t={} {detail}", timed.at_ms);

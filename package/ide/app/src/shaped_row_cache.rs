@@ -70,7 +70,10 @@ impl Default for RowCache {
 }
 
 /// Wrap widths are compared by their exact bits.
-fn same_wrap(left: Option<f32>, right: Option<f32>) -> bool {
+fn same_wrap(
+    left: Option<f32>,
+    right: Option<f32>,
+) -> bool {
     return left.map(f32::to_bits) == right.map(f32::to_bits);
 }
 
@@ -88,7 +91,10 @@ impl RowCache {
 
     /// Change how many lines the cache keeps;
     ///  rows beyond it are evicted by `trim`.
-    pub fn set_capacity(&mut self, capacity: usize) {
+    pub fn set_capacity(
+        &mut self,
+        capacity: usize,
+    ) {
         self.capacity = capacity.max(1);
     }
 
@@ -103,7 +109,11 @@ impl RowCache {
     }
 
     /// Empty the cache unless it was shaped for this text revision and scale.
-    pub fn sync(&mut self, revision: u64, scale: f32) {
+    pub fn sync(
+        &mut self,
+        revision: u64,
+        scale: f32,
+    ) {
         // What: `to_bits` compares the scale exactly, so two equal scales always produce the same key.
         // Why: A scale change alters every glyph advance, so no row shaped at another scale may be reused.
         //
@@ -120,7 +130,11 @@ impl RowCache {
 
     /// The shaped row of `line`,
     /// if it was shaped for the synced text and scale and broken at `wrap`.
-    pub fn get(&self, line: usize, wrap: Option<f32>) -> Option<&ShapedRow> {
+    pub fn get(
+        &self,
+        line: usize,
+        wrap: Option<f32>,
+    ) -> Option<&ShapedRow> {
         let row = self.rows.get(&line)?;
         if same_wrap(row.wrap, wrap) {
             return Some(row);
@@ -129,17 +143,26 @@ impl RowCache {
     }
 
     /// Whether a row is kept for `line` at any width.
-    pub fn contains(&self, line: usize) -> bool {
+    pub fn contains(
+        &self,
+        line: usize,
+    ) -> bool {
         return self.rows.contains_key(&line);
     }
 
     /// Keep a freshly shaped row under its line.
-    pub fn insert(&mut self, row: ShapedRow) {
+    pub fn insert(
+        &mut self,
+        row: ShapedRow,
+    ) {
         self.rows.insert(row.row, row);
     }
 
     /// Take the row of `line` out of the cache.
-    pub fn remove(&mut self, line: usize) -> Option<ShapedRow> {
+    pub fn remove(
+        &mut self,
+        line: usize,
+    ) -> Option<ShapedRow> {
         return self.rows.remove(&line);
     }
 
@@ -154,7 +177,10 @@ impl RowCache {
     /// ```ts
     /// function trim(centre: number): void;
     /// ```
-    pub fn trim(&mut self, centre: usize) {
+    pub fn trim(
+        &mut self,
+        centre: usize,
+    ) {
         while self.rows.len() > self.capacity {
             let first = self.rows.keys().next().copied();
             let last = self.rows.keys().next_back().copied();

@@ -14,18 +14,27 @@
 //! a worker thread sends it,
 //! and a later notification of the same kind replaces the earlier one on the desktop.
 
-/// Non-panicking log and escaping.
-use crate::log_line::{log_line, sanitize};
 /// The desktop notification channel.
 use crate::desktop_notification::DesktopChannel;
+/// Non-panicking log and escaping.
+use crate::log_line::{
+    log_line,
+    sanitize,
+};
 /// The cause of a failure line.
-use crate::report_cause::{held_suffix, normalized_cause};
+use crate::report_cause::{
+    held_suffix,
+    normalized_cause,
+};
 /// The client run as the watched user.
 use crate::user_client::UserClient;
 /// Rate-limit bookkeeping.
 use std::collections::HashMap;
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// One log line per distinct cause of a failure kind per this interval,
 /// for the first few causes of each kind.
@@ -68,7 +77,11 @@ pub trait ReportChannel {
     fn name(&self) -> &'static str;
     /// Delivers one line of the given failure kind,
     /// or names why it could not.
-    fn deliver(&self, kind: &str, line: &str) -> Result<(), String>;
+    fn deliver(
+        &self,
+        kind: &str,
+        line: &str,
+    ) -> Result<(), String>;
     /// Waits until everything handed to the channel has been sent,
     /// for a process that is about to exit.
     fn finish(&self) {}
@@ -100,7 +113,11 @@ impl ReportChannel for LogChannel {
     }
 
     /// Writes the line to standard error without panicking.
-    fn deliver(&self, _kind: &str, line: &str) -> Result<(), String> {
+    fn deliver(
+        &self,
+        _kind: &str,
+        line: &str,
+    ) -> Result<(), String> {
         log_line(line);
         return Ok(());
     }
@@ -119,7 +136,11 @@ impl ReportChannel for JournalChannel {
     /// Sends the line at error level under the identifier `wg-quicker-exempt`.
     /// Control characters are escaped,
     /// so untrusted text cannot start a second journal line.
-    fn deliver(&self, _kind: &str, line: &str) -> Result<(), String> {
+    fn deliver(
+        &self,
+        _kind: &str,
+        line: &str,
+    ) -> Result<(), String> {
         let text = match std::ffi::CString::new(sanitize(line)) {
             Ok(text) => text,
             Err(error) => return Err(error.to_string()),
@@ -154,7 +175,12 @@ struct Tier {
 
 /// Counts one extra cause against the global cap of the interval.
 /// Returns whether it may be delivered.
-fn take_extra_cause(started: &mut Option<Instant>, admitted: &mut usize, interval: Duration, now: Instant) -> bool {
+fn take_extra_cause(
+    started: &mut Option<Instant>,
+    admitted: &mut usize,
+    interval: Duration,
+    now: Instant,
+) -> bool {
     let expired = match started {
         Some(when) => now.duration_since(*when) >= interval,
         None => true,
@@ -184,7 +210,10 @@ struct KindWindow {
 /// Limiting for one channel.
 impl Tier {
     /// Drops the kinds whose interval is over.
-    fn forget_expired(&mut self, now: Instant) {
+    fn forget_expired(
+        &mut self,
+        now: Instant,
+    ) {
         let mut kept: HashMap<String, KindWindow> = HashMap::new();
         for (kind, window) in self.last_delivery.drain() {
             if now.duration_since(window.started) < self.interval {
@@ -197,7 +226,10 @@ impl Tier {
     /// Makes room for one more kind:
     /// drops the kinds whose interval is over,
     /// and the oldest one when none is.
-    fn make_room(&mut self, now: Instant) {
+    fn make_room(
+        &mut self,
+        now: Instant,
+    ) {
         self.forget_expired(now);
         if self.last_delivery.len() < MAX_REMEMBERED_KINDS {
             return;
@@ -221,14 +253,24 @@ impl Tier {
     /// the rest are counted.
     /// A delivery after held-back repeats says how many there were,
     /// so no occurrence is lost from the record.
-    fn deliver_limited(&mut self, kind: &str, line: &str, now: Instant) -> Result<(), String> {
+    fn deliver_limited(
+        &mut self,
+        kind: &str,
+        line: &str,
+        now: Instant,
+    ) -> Result<(), String> {
         let cause = normalized_cause(line);
         let mut held = 0;
         if let Some(window) = self.last_delivery.get_mut(kind) {
             if now.duration_since(window.started) < self.interval {
                 if window.causes.len() < MAX_CAUSES_PER_KIND
                     && !window.causes.contains(&cause)
-                    && take_extra_cause(&mut self.extra_started, &mut self.extra_admitted, self.interval, now)
+                    && take_extra_cause(
+                        &mut self.extra_started,
+                        &mut self.extra_admitted,
+                        self.interval,
+                        now,
+                    )
                 {
                     window.causes.push(cause);
                     return self.channel.deliver(kind, line);
@@ -238,14 +280,25 @@ impl Tier {
             }
             held = window.held;
         }
-        if self.last_delivery.len() >= MAX_REMEMBERED_KINDS && !self.last_delivery.contains_key(kind) {
+        if self.last_delivery.len() >= MAX_REMEMBERED_KINDS
+            && !self.last_delivery.contains_key(kind)
+        {
             self.make_room(now);
         }
-        self.last_delivery.insert(kind.to_string(), KindWindow { started: now, held: 0, causes: vec![cause] });
+        self.last_delivery.insert(
+            kind.to_string(),
+            KindWindow {
+                started: now,
+                held: 0,
+                causes: vec![cause],
+            },
+        );
         if held == 0 {
             return self.channel.deliver(kind, line);
         }
-        return self.channel.deliver(kind, &format!("{line}{}", held_suffix(held)));
+        return self
+            .channel
+            .deliver(kind, &format!("{line}{}", held_suffix(held)));
     }
 }
 
@@ -264,11 +317,17 @@ impl RuntimeReporter {
     /// the log file once per kind per ten seconds,
     /// the journal once per kind per minute,
     /// and the desktop once per kind per ten minutes.
-    pub fn new(uid: u32, gid: u32) -> RuntimeReporter {
+    pub fn new(
+        uid: u32,
+        gid: u32,
+    ) -> RuntimeReporter {
         return RuntimeReporter::with_channels(vec![
             (Box::new(LogChannel), LOG_INTERVAL),
             (Box::new(JournalChannel), JOURNAL_INTERVAL),
-            (Box::new(DesktopChannel::new(UserClient::new("busctl"), uid, gid)), NOTIFICATION_INTERVAL),
+            (
+                Box::new(DesktopChannel::new(UserClient::new("busctl"), uid, gid)),
+                NOTIFICATION_INTERVAL,
+            ),
         ]);
     }
 
@@ -277,9 +336,18 @@ impl RuntimeReporter {
     pub fn with_channels(channels: Vec<(Box<dyn ReportChannel>, Duration)>) -> RuntimeReporter {
         let mut tiers: Vec<Tier> = Vec::new();
         for (channel, interval) in channels {
-            tiers.push(Tier { channel, interval, last_delivery: HashMap::new(), extra_started: None, extra_admitted: 0 });
+            tiers.push(Tier {
+                channel,
+                interval,
+                last_delivery: HashMap::new(),
+                extra_started: None,
+                extra_admitted: 0,
+            });
         }
-        return RuntimeReporter { tiers, starting: false };
+        return RuntimeReporter {
+            tiers,
+            starting: false,
+        };
     }
 
     /// Delivers a failure line of `kind` at `now`.
@@ -290,7 +358,12 @@ impl RuntimeReporter {
     /// so a name chosen by a user cannot make every line look new.
     /// Every channel is tried whatever the others returned.
     /// The result lists the channels that failed.
-    pub fn report_failure_at(&mut self, kind: &str, line: &str, now: Instant) -> Vec<String> {
+    pub fn report_failure_at(
+        &mut self,
+        kind: &str,
+        line: &str,
+        now: Instant,
+    ) -> Vec<String> {
         let mut failed: Vec<String> = Vec::new();
         let starting = self.starting;
         for tier in &mut self.tiers {
@@ -335,7 +408,11 @@ impl RuntimeReporter {
     }
 
     /// Delivers a failure line of `kind` now.
-    pub fn report_failure(&mut self, kind: &str, line: &str) -> Vec<String> {
+    pub fn report_failure(
+        &mut self,
+        kind: &str,
+        line: &str,
+    ) -> Vec<String> {
         return self.report_failure_at(kind, line, Instant::now());
     }
 }

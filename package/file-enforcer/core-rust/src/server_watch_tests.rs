@@ -12,21 +12,52 @@
 //! describe('watch and disconnects', () => { it('notices a directory being created', async () => { ... }); });
 //! ```
 
-use crate::client::{ClientOptions, connect};
+use crate::client::{
+    ClientOptions,
+    connect,
+};
 use crate::config_decode::ConfigScope;
-use crate::event::{CollectingSink, Event, EventSink};
+use crate::event::{
+    CollectingSink,
+    Event,
+    EventSink,
+};
 use crate::json_build::object;
 use crate::launch::ServerLaunch;
-use crate::rpc_protocol::{notification_line, result_line};
-use crate::server_tests::{TestServer, short_runtime_dir};
-use crate::test_support::{read_text, scratch_dir, write_files};
+use crate::rpc_protocol::{
+    notification_line,
+    result_line,
+};
+use crate::server_tests::{
+    TestServer,
+    short_runtime_dir,
+};
+use crate::test_support::{
+    read_text,
+    scratch_dir,
+    write_files,
+};
 use serde_json::Value;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
 use std::os::unix::net::UnixListener;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::mpsc::{
+    Receiver,
+    Sender,
+    channel,
+};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  An event sink that forwards every event into a channel.
@@ -58,7 +89,10 @@ struct ChannelSink {
 impl EventSink for ChannelSink {
     /// Send the event;
     /// ignore a closed channel.
-    fn emit(&mut self, event: Event) {
+    fn emit(
+        &mut self,
+        event: Event,
+    ) {
         let _ = self.sender.send(event);
     }
 }
@@ -95,22 +129,42 @@ struct WatchClient {
 /// ```
 impl WatchClient {
     /// Connect to the server and send a `watch` request for `config` from a new thread.
-    fn start(options: &ClientOptions, config: &Path) -> WatchClient {
+    fn start(
+        options: &ClientOptions,
+        config: &Path,
+    ) -> WatchClient {
         let mut connection = connect(options).expect("the watch client handshakes");
-        let params = object(&[("mode", Value::from("write")), ("configPath", Value::from(config.display().to_string()))]);
+        let params = object(&[
+            ("mode", Value::from("write")),
+            ("configPath", Value::from(config.display().to_string())),
+        ]);
         let (sender, events) = channel();
         let (done_sender, done) = channel();
         let thread = std::thread::spawn(move || {
-            let code = connection.request("watch", params, &mut ChannelSink { sender });
+            let code = connection.request(
+                "watch",
+                params,
+                &mut ChannelSink {
+                    sender,
+                },
+            );
             let _ = done_sender.send(code);
         });
-        return WatchClient { events, done, thread: Some(thread) };
+        return WatchClient {
+            events,
+            done,
+            thread: Some(thread),
+        };
     }
 
     /// Wait up to `seconds` for an event with `code`,
     /// returning it;
     /// earlier events are skipped.
-    fn wait_for(&self, code: &str, seconds: u64) -> Event {
+    fn wait_for(
+        &self,
+        code: &str,
+        seconds: u64,
+    ) -> Event {
         return match self.try_wait_for(code, Duration::from_secs(seconds)) {
             Ok(event) => event,
             Err(skipped) => panic!("no {code} event within {seconds} seconds; saw {skipped:?}"),
@@ -118,7 +172,11 @@ impl WatchClient {
     }
 
     /// Like `wait_for` but returns the messages of the events skipped on timeout.
-    fn try_wait_for(&self, code: &str, limit: Duration) -> Result<Event, Vec<String>> {
+    fn try_wait_for(
+        &self,
+        code: &str,
+        limit: Duration,
+    ) -> Result<Event, Vec<String>> {
         let deadline = Instant::now() + limit;
         let mut skipped: Vec<String> = Vec::new();
         while Instant::now() < deadline {
@@ -135,7 +193,10 @@ impl WatchClient {
     /// Wait for the request to return after the server was asked to stop,
     /// and join its thread.
     fn finish(mut self) -> i32 {
-        let code = self.done.recv_timeout(Duration::from_secs(15)).expect("the watch request returns after shutdown");
+        let code = self
+            .done
+            .recv_timeout(Duration::from_secs(15))
+            .expect("the watch request returns after shutdown");
         if let Some(thread) = self.thread.take() {
             thread.join().expect("the watch thread ends cleanly");
         }
@@ -158,13 +219,20 @@ impl WatchClient {
 /// ```ts
 /// function retryUntil(watch: WatchClient, code: string, action: (attempt: number) => void): boolean
 /// ```
-fn retry_until(watch: &WatchClient, code: &str, mut action: impl FnMut(usize)) -> bool {
+fn retry_until(
+    watch: &WatchClient,
+    code: &str,
+    mut action: impl FnMut(usize),
+) -> bool {
     let deadline = Instant::now() + Duration::from_secs(20);
     let mut attempt = 0;
     while Instant::now() < deadline {
         attempt += 1;
         action(attempt);
-        if watch.try_wait_for(code, Duration::from_millis(1500)).is_ok() {
+        if watch
+            .try_wait_for(code, Duration::from_millis(1500))
+            .is_ok()
+        {
             return true;
         }
     }
@@ -201,18 +269,33 @@ fn watch_notices_an_absent_directory_being_created_and_then_a_file_inside_it() {
     // The worktree root is watched only after the first run finishes, so a change made right now can be missed;
     // touching an unrelated file until another run happens proves the root is watched before the real step.
     let root_watched = retry_until(&watch, "input-missing", |attempt| {
-        std::fs::write(dir.path().join("probe.txt"), format!("probe {attempt}")).expect("touch an unrelated file");
+        std::fs::write(dir.path().join("probe.txt"), format!("probe {attempt}"))
+            .expect("touch an unrelated file");
     });
-    assert!(root_watched, "the worktree root was never watched: it is the nearest existing ancestor of the absent input");
+    assert!(
+        root_watched,
+        "the worktree root was never watched: it is the nearest existing ancestor of the absent input"
+    );
     // Creating the absent directory is a change to that ancestor, which the watch must notice.
     std::fs::create_dir_all(dir.path().join("later")).expect("create the absent directory");
     watch.wait_for("input-missing", 10);
     // The new directory is watched only after the next loop pass, so a write made too early is missed.
     let written = retry_until(&watch, "file-written", |attempt| {
-        std::fs::write(dir.path().join("later/in.txt"), format!("created {attempt}")).expect("write the input");
+        std::fs::write(
+            dir.path().join("later/in.txt"),
+            format!("created {attempt}"),
+        )
+        .expect("write the input");
     });
-    assert!(written, "the file created inside the new directory was never noticed");
-    assert!(read_text(dir.path(), "out.txt").starts_with("created "), "{}", read_text(dir.path(), "out.txt"));
+    assert!(
+        written,
+        "the file created inside the new directory was never noticed"
+    );
+    assert!(
+        read_text(dir.path(), "out.txt").starts_with("created "),
+        "{}",
+        read_text(dir.path(), "out.txt")
+    );
     stop(server);
     assert_eq!(watch.finish(), 0);
 }
@@ -235,7 +318,10 @@ fn a_change_made_right_after_the_first_run_is_not_lost() {
     let runtime = short_runtime_dir();
     let dir = scratch_dir();
     let text = r#"{"rules": [{"kind": "concat", "id": "c", "output": "out.txt", "parts": [{"file": "in.txt"}]}]}"#;
-    write_files(dir.path(), &[("file-enforcer.config.jsonc", text), ("in.txt", "first\n")]);
+    write_files(
+        dir.path(),
+        &[("file-enforcer.config.jsonc", text), ("in.txt", "first\n")],
+    );
     let config = dir.path().join("file-enforcer.config.jsonc");
     let server = TestServer::start(dir.path(), runtime.path(), Duration::from_secs(60));
     let watch = WatchClient::start(&server.client(), &config);
@@ -243,7 +329,11 @@ fn a_change_made_right_after_the_first_run_is_not_lost() {
     watch.wait_for("file-written", 10);
     std::fs::write(dir.path().join("in.txt"), "second\n").expect("rewrite the input");
     watch.wait_for("file-written", 30);
-    assert!(read_text(dir.path(), "out.txt").contains("second"), "{}", read_text(dir.path(), "out.txt"));
+    assert!(
+        read_text(dir.path(), "out.txt").contains("second"),
+        "{}",
+        read_text(dir.path(), "out.txt")
+    );
     stop(server);
     assert_eq!(watch.finish(), 0);
 }
@@ -254,7 +344,12 @@ fn watch_on_the_per_user_server_follows_the_user_config() {
     let home = scratch_dir();
     let config = home.path().join("user.config.jsonc");
     std::fs::write(&config, r#"{"rules": []}"#).expect("the user config");
-    let server = TestServer::start_scoped(home.path(), runtime.path(), Duration::from_secs(60), ConfigScope::User);
+    let server = TestServer::start_scoped(
+        home.path(),
+        runtime.path(),
+        Duration::from_secs(60),
+        ConfigScope::User,
+    );
     let watch = WatchClient::start(&server.client(), &config);
     watch.wait_for("watch-started", 10);
     // A repository-only kind in the per-user config is a decode problem only the user scope reports.
@@ -263,10 +358,18 @@ fn watch_on_the_per_user_server_follows_the_user_config() {
     let mut seen: Option<Event> = None;
     while seen.is_none() && Instant::now() < deadline {
         std::fs::write(&config, misplaced).expect("rewrite the user config");
-        seen = watch.try_wait_for("config-invalid", Duration::from_millis(1500)).ok();
+        seen = watch
+            .try_wait_for("config-invalid", Duration::from_millis(1500))
+            .ok();
     }
     let event = seen.expect("changing the per-user config was never noticed");
-    assert!(event.message.contains("belongs in the repository config, not the per-user config"), "{}", event.message);
+    assert!(
+        event
+            .message
+            .contains("belongs in the repository config, not the per-user config"),
+        "{}",
+        event.message
+    );
     stop(server);
     assert_eq!(watch.finish(), 0);
 }
@@ -284,24 +387,38 @@ fn watch_on_the_per_user_server_follows_the_user_config() {
 /// ```ts
 /// function fakeServer(socket: string, events: number): Promise<void>
 /// ```
-fn fake_server(socket: PathBuf, events: usize, answer_request: bool) -> JoinHandle<()> {
+fn fake_server(
+    socket: PathBuf,
+    events: usize,
+    answer_request: bool,
+) -> JoinHandle<()> {
     let listener = UnixListener::bind(&socket).expect("bind the fake server");
     return std::thread::spawn(move || {
-        let Ok((stream, _)) = listener.accept() else { return };
+        let Ok((stream, _)) = listener.accept() else {
+            return;
+        };
         let mut reader = BufReader::new(stream.try_clone().expect("clone"));
         let mut writer = stream;
         let mut line = String::new();
         reader.read_line(&mut line).expect("the handshake request");
-        let reply = result_line(&Value::from(1), object(&[("ok", Value::Bool(true)), ("pid", Value::from(0))]));
-        writer.write_all(reply.as_bytes()).expect("the handshake reply");
+        let reply = result_line(
+            &Value::from(1),
+            object(&[("ok", Value::Bool(true)), ("pid", Value::from(0))]),
+        );
+        writer
+            .write_all(reply.as_bytes())
+            .expect("the handshake reply");
         if !answer_request {
             return;
         }
         line.clear();
         reader.read_line(&mut line).expect("the run request");
         for index in 0..events {
-            let payload = Event::new("progress", "fake-progress", &format!("event {index}")).to_json(0);
-            writer.write_all(notification_line("event", payload).as_bytes()).expect("an event");
+            let payload =
+                Event::new("progress", "fake-progress", &format!("event {index}")).to_json(0);
+            writer
+                .write_all(notification_line("event", payload).as_bytes())
+                .expect("an event");
         }
     });
 }
@@ -312,19 +429,44 @@ fn a_server_that_hangs_up_mid_request_is_reported_as_disconnected_and_never_repl
     let dir = scratch_dir();
     let socket = runtime.path().join("fake.sock");
     let server = fake_server(socket.clone(), 1, true);
-    let launch = ServerLaunch { program: PathBuf::from("/bin/false"), args: Vec::new() };
-    let options = ClientOptions { root: dir.path().to_path_buf(), socket, launch, deadline: Duration::from_secs(5) };
+    let launch = ServerLaunch {
+        program: PathBuf::from("/bin/false"),
+        args: Vec::new(),
+    };
+    let options = ClientOptions {
+        root: dir.path().to_path_buf(),
+        socket,
+        launch,
+        deadline: Duration::from_secs(5),
+    };
     let mut connection = connect(&options).expect("the fake server answers the handshake");
     let mut sink = CollectingSink::default();
     let code = connection.request("run", object(&[("mode", Value::from("write"))]), &mut sink);
     server.join().expect("the fake server ends");
     assert_eq!(code, 1);
-    let codes: Vec<&str> = sink.events.iter().map(|event| return event.code.as_str()).collect();
-    assert_eq!(codes, vec!["fake-progress", "server-disconnected"], "events seen before the hang-up are kept: {codes:?}");
+    let codes: Vec<&str> = sink
+        .events
+        .iter()
+        .map(|event| return event.code.as_str())
+        .collect();
+    assert_eq!(
+        codes,
+        vec!["fake-progress", "server-disconnected"],
+        "events seen before the hang-up are kept: {codes:?}"
+    );
     let last = sink.events.last().expect("the disconnect event");
     assert_eq!(last.event_type, "error");
-    assert!(last.message.contains("whether it wrote any file is unknown"), "{}", last.message);
-    assert!(last.hint.as_deref().is_some_and(|hint| return hint.contains("file-enforcer check")));
+    assert!(
+        last.message
+            .contains("whether it wrote any file is unknown"),
+        "{}",
+        last.message
+    );
+    assert!(
+        last.hint
+            .as_deref()
+            .is_some_and(|hint| return hint.contains("file-enforcer check"))
+    );
 }
 
 #[test]
@@ -333,10 +475,20 @@ fn a_server_that_hangs_up_right_after_the_handshake_is_also_reported() {
     let dir = scratch_dir();
     let socket = runtime.path().join("fake.sock");
     let server = fake_server(socket.clone(), 0, false);
-    let launch = ServerLaunch { program: PathBuf::from("/bin/false"), args: Vec::new() };
-    let options = ClientOptions { root: dir.path().to_path_buf(), socket, launch, deadline: Duration::from_secs(5) };
+    let launch = ServerLaunch {
+        program: PathBuf::from("/bin/false"),
+        args: Vec::new(),
+    };
+    let options = ClientOptions {
+        root: dir.path().to_path_buf(),
+        socket,
+        launch,
+        deadline: Duration::from_secs(5),
+    };
     let mut connection = connect(&options).expect("the fake server answers the handshake");
-    server.join().expect("the fake server ends and closes its end");
+    server
+        .join()
+        .expect("the fake server ends and closes its end");
     let mut sink = CollectingSink::default();
     let code = connection.request("run", object(&[("mode", Value::from("write"))]), &mut sink);
     assert_eq!(code, 1);

@@ -1,6 +1,10 @@
 //! Deterministic local Responses endpoint;
 //! no model or external network calls.
 
+/// Import the fixed-fixture parser and dynamic values for field assignment.
+use crate::rpc::parse;
+/// JSON scalars own their data independently of the transmitted text.
+use serde_json::Value;
 /// What:
 /// `use` imports I/O,
 /// networking,
@@ -13,11 +17,17 @@
 /// ```ts
 /// import { createServer } from 'node:http';
 /// ```
-use std::{io::{self, BufRead, BufReader, Read, Write}, net::TcpListener, time::Duration};
-/// Import the fixed-fixture parser and dynamic values for field assignment.
-use crate::rpc::parse;
-/// JSON scalars own their data independently of the transmitted text.
-use serde_json::Value;
+use std::{
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+        Write,
+    },
+    net::TcpListener,
+    time::Duration,
+};
 
 /// What:
 /// `pub fn` exports a function;
@@ -31,7 +41,10 @@ use serde_json::Value;
 /// ```ts
 /// export function serve(listener: Server, count: number): void { ... }
 /// ```
-pub fn serve(listener: TcpListener, count: usize) -> io::Result<()> {
+pub fn serve(
+    listener: TcpListener,
+    count: usize,
+) -> io::Result<()> {
     for index in 0..=count {
         // What: `?` propagates socket errors; `mut` permits writing the accepted connection.
         // Why: Each request receives a complete SSE response and closes its connection.
@@ -52,9 +65,13 @@ pub fn serve(listener: TcpListener, count: usize) -> io::Result<()> {
             // Lend the buffer exclusively while reading it.
             if reader.read_line(&mut line)? == 0 {
                 // Err is the failure variant paired with successful Ok.
-                return Err(io::Error::other("local provider request ended before its headers"));
+                return Err(io::Error::other(
+                    "local provider request ended before its headers",
+                ));
             }
-            if line == "\r\n" { break; }
+            if line == "\r\n" {
+                break;
+            }
             // if let extracts a present Option prefix; absent prefixes continue the loop.
             if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
                 length = value.trim().parse::<usize>().map_err(io::Error::other)?;
@@ -70,25 +87,33 @@ pub fn serve(listener: TcpListener, count: usize) -> io::Result<()> {
             assert!(request.contains("host-payload-executed"), "{request}");
         }
         // Decode fixed syntax; field assignment supplies dynamic values without source interpolation.
-        let mut events: Vec<Value> = vec![parse(r#"{"type":"response.created","response":{"id":"fixture"}}"#)?];
+        let mut events: Vec<Value> = vec![parse(
+            r#"{"type":"response.created","response":{"id":"fixture"}}"#,
+        )?];
         if index < count {
             // format! creates the distinct call ID required by the real host tool loop.
             let call_id = format!("fixture-{index}");
             // Raw string literals retain JSON backslashes; Value assignment owns the dynamic call ID.
-            let mut event = parse(r#"{"type":"response.output_item.done","item":{
+            let mut event = parse(
+                r#"{"type":"response.output_item.done","item":{
                 "type":"function_call","call_id":"","name":"exec_command",
                 "arguments":"{\"cmd\":\"printf host-payload-executed\",\"login\":false,\"max_output_tokens\":100}"
-            }}"#)?;
+            }}"#,
+            )?;
             event["item"]["call_id"] = Value::from(call_id);
             events.push(event);
         } else {
-            events.push(parse(r#"{"type":"response.output_item.done","item":{
+            events.push(parse(
+                r#"{"type":"response.output_item.done","item":{
                 "type":"message","role":"assistant","id":"done",
                 "content":[{"type":"output_text","text":"fixture completed"}]
-            }}"#)?);
+            }}"#,
+            )?);
         }
-        events.push(parse(r#"{"type":"response.completed","response":{"id":"fixture",
-            "usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}"#)?);
+        events.push(parse(
+            r#"{"type":"response.completed","response":{"id":"fixture",
+            "usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}"#,
+        )?);
         // Build the SSE body in owned text so Content-Length describes exact transmitted bytes.
         let mut response = String::new();
         for event in events {
@@ -97,7 +122,10 @@ pub fn serve(listener: TcpListener, count: usize) -> io::Result<()> {
             response.push_str(&event.to_string());
             response.push_str("\n\n");
         }
-        let header = format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", response.len());
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            response.len()
+        );
         stream.write_all(header.as_bytes())?;
         stream.write_all(response.as_bytes())?;
     }

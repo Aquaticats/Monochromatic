@@ -4,10 +4,22 @@
 /// Waits,
 ///  kernel probes,
 ///  and fixture helpers shared by this crate.
-use super::support::{Arrival, kernel_watches, not_watching, quiet, set, settle, start, watching};
+use super::support::{
+    Arrival,
+    kernel_watches,
+    not_watching,
+    quiet,
+    set,
+    settle,
+    start,
+    watching,
+};
 /// The watcher under test,
 ///  and how it classifies the displayed file's changes.
-use ide_app::change_watch::{ChangeWatcher, SourceChange};
+use ide_app::change_watch::{
+    ChangeWatcher,
+    SourceChange,
+};
 /// What:
 ///  `PermissionsExt` adds `from_mode`,
 ///  the Unix way to build permission bits from an octal number.
@@ -20,7 +32,10 @@ use ide_app::change_watch::{ChangeWatcher, SourceChange};
 /// ```
 use std::os::unix::fs::PermissionsExt;
 /// Fixture writes and renames happen through the ordinary filesystem API.
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Require a report for `folder` without a full reread,
 ///  after the caller drained earlier notifications and made one filesystem change.
@@ -34,7 +49,11 @@ use std::{fs, path::Path};
 /// ```ts
 /// function expectReport(watcher, folder, name) { ... }
 /// ```
-fn expect_report(watcher: &mut ChangeWatcher, folder: &Path, name: &str) {
+fn expect_report(
+    watcher: &mut ChangeWatcher,
+    folder: &Path,
+    name: &str,
+) {
     let record = {
         let mut arrival = Arrival::begin(watcher, name);
         while !(arrival.record.directories.contains(folder)) {

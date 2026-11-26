@@ -12,7 +12,10 @@ use std::io::Write;
 /// Shared budget state.
 use std::sync::Mutex;
 /// Window timing.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Words that start every notice about the log file itself,
 /// so the start of `up` relays them next to the loud reports:
@@ -69,7 +72,11 @@ pub struct LogBudget {
 /// Admission of lines.
 impl LogBudget {
     /// Builds a budget of `limit` bytes per `window` and `total_limit` bytes in all.
-    pub const fn new(limit: u64, window: Duration, total_limit: u64) -> LogBudget {
+    pub const fn new(
+        limit: u64,
+        window: Duration,
+        total_limit: u64,
+    ) -> LogBudget {
         return LogBudget {
             limit,
             total_limit,
@@ -83,7 +90,11 @@ impl LogBudget {
     }
 
     /// Decides whether a line of `bytes` bytes is written at `now`.
-    pub fn admit(&mut self, bytes: u64, now: Instant) -> Admission {
+    pub fn admit(
+        &mut self,
+        bytes: u64,
+        now: Instant,
+    ) -> Admission {
         let expired = match self.window_start {
             Some(start) => now.duration_since(start) >= self.window,
             None => true,
@@ -102,7 +113,9 @@ impl LogBudget {
             self.total += bytes;
             let dropped_before = self.dropped;
             self.dropped = 0;
-            return Admission::Write { dropped_before };
+            return Admission::Write {
+                dropped_before,
+            };
         }
         if window_fits {
             // The window has room and the whole life has not:
@@ -119,7 +132,11 @@ impl LogBudget {
 }
 
 /// Budget of this process's log file.
-static BUDGET: Mutex<LogBudget> = Mutex::new(LogBudget::new(LOG_BYTES_PER_WINDOW, LOG_WINDOW, LOG_BYTES_TOTAL));
+static BUDGET: Mutex<LogBudget> = Mutex::new(LogBudget::new(
+    LOG_BYTES_PER_WINDOW,
+    LOG_WINDOW,
+    LOG_BYTES_TOTAL,
+));
 
 /// Writes one line to standard error and ignores a failed write.
 pub fn write_unchecked(line: &str) {
@@ -132,10 +149,14 @@ pub fn write_unchecked(line: &str) {
 pub fn log_line(line: &str) {
     let admission = match BUDGET.lock() {
         Ok(mut budget) => budget.admit(line.len() as u64 + 1, Instant::now()),
-        Err(_poisoned) => Admission::Write { dropped_before: 0 },
+        Err(_poisoned) => Admission::Write {
+            dropped_before: 0,
+        },
     };
     match admission {
-        Admission::Write { dropped_before } => {
+        Admission::Write {
+            dropped_before,
+        } => {
             if dropped_before > 0 {
                 write_unchecked(&format!(
                     "wg-quicker-exempt: {LOG_NOTICE_MARKER}: {dropped_before} log line(s) were dropped because the log budget of {LOG_BYTES_PER_WINDOW} bytes per hour was reached"

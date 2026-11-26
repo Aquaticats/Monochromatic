@@ -56,27 +56,66 @@ mod shape;
 /// The cut of the paint items into chunks.
 pub use chunks::cut;
 /// The fill inks and the items that draw the marks.
-pub use fills::{Fills, fill_items};
+pub use fills::{
+    Fills,
+    fill_items,
+};
 /// The geometry's sizes,
 ///  the target of a position,
 ///  and the maps between pixels and visual rows.
 pub use geometry::{
-    Geometry, MIN_BOX, NARROWEST, PIXELS_PER_ROW, Target, VIEW_SHARE, WIDTH, width_for,
+    Geometry,
+    MIN_BOX,
+    NARROWEST,
+    PIXELS_PER_ROW,
+    Target,
+    VIEW_SHARE,
+    WIDTH,
+    width_for,
 };
 /// A position across the minimap and the text's width.
-pub use horizontal::{text_span, text_x};
+pub use horizontal::{
+    text_span,
+    text_x,
+};
 /// The shaped lines the builds keep.
-pub use line_cache::{LineCache, LineKey, line_key};
+pub use line_cache::{
+    LineCache,
+    LineKey,
+    line_key,
+};
 /// The bands,
 /// and the chunks a slice is rendered in.
 pub use plan::{
-    BAND, CHUNK_ROWS, Heading, LEAD, MIN_SCALE, band_count, chunk_rows, most_bands, picture_rows,
-    slice_rows, texture_rows, texture_runs,
+    BAND,
+    CHUNK_ROWS,
+    Heading,
+    LEAD,
+    MIN_SCALE,
+    band_count,
+    chunk_rows,
+    most_bands,
+    picture_rows,
+    slice_rows,
+    texture_rows,
+    texture_runs,
 };
 /// The picture's build,
 ///  its inputs,
 ///  its work budget,
 ///  and what it reports.
-pub use scene::{BUILD_WORK, Built, Cancel, Input, Source, Stats, build, slice_items};
+pub use scene::{
+    BUILD_WORK,
+    Built,
+    Cancel,
+    Input,
+    Source,
+    Stats,
+    build,
+    slice_items,
+};
 /// The blocks and marks that belong to a run of lines.
-pub use shape::{blocks_between, marks_between};
+pub use shape::{
+    blocks_between,
+    marks_between,
+};

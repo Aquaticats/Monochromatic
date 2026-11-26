@@ -95,7 +95,10 @@ impl Scanner<'_> {
         }
         let value_start: usize = self.offset + 1;
         let Some(length) = self.source[value_start..].find(char::from(quote_byte)) else {
-            return Err(self.fail(self.offset, "this declaration value is never closed with its quote"));
+            return Err(self.fail(
+                self.offset,
+                "this declaration value is never closed with its quote",
+            ));
         };
         let value: String = self.source[value_start..value_start + length].to_string();
         self.offset = value_start + length + 1;
@@ -124,19 +127,24 @@ impl Scanner<'_> {
                 break;
             }
             if gap == 0 {
-                return Err(self.fail(self.offset, "declaration fields must be separated by whitespace"));
+                return Err(self.fail(
+                    self.offset,
+                    "declaration fields must be separated by whitespace",
+                ));
             }
             let field_offset: usize = self.offset;
             let (name, value): (String, String) = self.scan_pseudo_attribute()?;
             if name == "version" && rank == 0 {
                 if value != "1.0" {
-                    let message: String = format!("XML version {value:?} is unsupported: only 1.0 is in scope");
+                    let message: String =
+                        format!("XML version {value:?} is unsupported: only 1.0 is in scope");
                     return Err(self.fail(field_offset, &message));
                 }
                 rank = 1;
             } else if name == "encoding" && rank == 1 {
                 if !value.eq_ignore_ascii_case("utf-8") {
-                    let message: String = format!("encoding {value:?} is unsupported: the editor reads UTF-8 text");
+                    let message: String =
+                        format!("encoding {value:?} is unsupported: the editor reads UTF-8 text");
                     return Err(self.fail(field_offset, &message));
                 }
                 rank = 2;
@@ -146,7 +154,8 @@ impl Scanner<'_> {
                 }
                 rank = 3;
             } else {
-                let message: String = format!("unexpected or out-of-order declaration field {name:?}");
+                let message: String =
+                    format!("unexpected or out-of-order declaration field {name:?}");
                 return Err(self.fail(field_offset, &message));
             }
         }
@@ -154,6 +163,9 @@ impl Scanner<'_> {
             return Err(self.fail(start, "an XML declaration must start with version=\"1.0\""));
         }
         self.offset += 2;
-        return Ok(XmlSpan { start, end: self.offset });
+        return Ok(XmlSpan {
+            start,
+            end: self.offset,
+        });
     }
 }

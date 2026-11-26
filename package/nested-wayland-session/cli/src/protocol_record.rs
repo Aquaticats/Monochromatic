@@ -1,7 +1,10 @@
 //! Parse the arguments of the `record` control verb.
 
 /// Error text that is built only on failure.
-use crate::lazy_error_text::{option_or_text, result_or_text};
+use crate::lazy_error_text::{
+    option_or_text,
+    result_or_text,
+};
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
@@ -22,7 +25,10 @@ pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, S
     // What:     `let first = tokens.next().ok_or_else(|| "record requires a directory or
     //           'stop'".to_string())?;`. Require the first token.
     // Why:      A bare `record` is ambiguous.
-    let first = option_or_text(tokens.next(), format_args!("record requires a directory or 'stop'"))?;
+    let first = option_or_text(
+        tokens.next(),
+        format_args!("record requires a directory or 'stop'"),
+    )?;
 
     // What:     `if first == "stop" { if tokens.next().is_some() { return Err(...); } return
     //           Ok(Command::RecordStop); }`. Handle the stop form (which takes no more args).
@@ -43,7 +49,10 @@ pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, S
     //           Optional fps, defaulting to 60.
     // Why:      The requested capture rate.
     let fps = match tokens.next() {
-        Some(text) => result_or_text(text.parse::<f64>(), format_args!("record fps is not a number"))?,
+        Some(text) => result_or_text(
+            text.parse::<f64>(),
+            format_args!("record fps is not a number"),
+        )?,
         None => 60.0,
     };
 
@@ -61,5 +70,9 @@ pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, S
     // What:     `Ok(Command::Record { dir, fps, format })`. Build the command (tail
     //           expression).
     // Why:      Return the parsed record request.
-    return Ok(Command::Record { dir, fps, format })
+    return Ok(Command::Record {
+        dir,
+        fps,
+        format,
+    });
 }

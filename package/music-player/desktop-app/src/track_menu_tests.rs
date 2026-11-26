@@ -38,7 +38,10 @@ fn play_label_is_play() {
 // Why:      The accepted D7 wording must be reproduced exactly, including case and spacing.
 #[test]
 fn shuffle_label_is_accepted() {
-    assert_eq!(label(TrackMenuAction::ShuffleFromHere), "Start shuffle from here");
+    assert_eq!(
+        label(TrackMenuAction::ShuffleFromHere),
+        "Start shuffle from here"
+    );
 }
 
 // What:     `#[test] fn details_label_is_accepted()` checks the file details action's wording.
@@ -54,7 +57,10 @@ fn details_label_is_accepted() {
 fn no_row_offers_to_analyze_again() {
     for action in track_menu_actions_for() {
         let text = label(*action).to_lowercase();
-        assert!(!text.contains("analy") && !text.contains("rescan") && !text.contains("refresh"), "{text}");
+        assert!(
+            !text.contains("analy") && !text.contains("rescan") && !text.contains("refresh"),
+            "{text}"
+        );
     }
 }
 
@@ -62,7 +68,10 @@ fn no_row_offers_to_analyze_again() {
 // Why:      The accepted D7 wording names the file manager explicitly.
 #[test]
 fn show_label_is_accepted() {
-    assert_eq!(label(TrackMenuAction::ShowInFileManager), "Show in file manager");
+    assert_eq!(
+        label(TrackMenuAction::ShowInFileManager),
+        "Show in file manager"
+    );
 }
 
 // What:     `#[test] fn copy_label_is_accepted()` checks the copy action's wording.
@@ -100,7 +109,12 @@ fn groups_never_decrease() {
         .map(|action| return action.group())
         .collect();
     for pair in groups.windows(2) {
-        assert!(pair[0] <= pair[1], "group {} followed by {}", pair[0], pair[1]);
+        assert!(
+            pair[0] <= pair[1],
+            "group {} followed by {}",
+            pair[0],
+            pair[1]
+        );
     }
 }
 
@@ -196,7 +210,10 @@ fn details_suffix_joins_value_with_separator() {
 // Why:      The analysed value must appear exactly as authored, including its own spacing.
 #[test]
 fn details_suffix_keeps_value_exact() {
-    assert_eq!(track_menu_details_suffix(Some(" -1.2 dBTP ")), " ·  -1.2 dBTP ");
+    assert_eq!(
+        track_menu_details_suffix(Some(" -1.2 dBTP ")),
+        " ·  -1.2 dBTP "
+    );
 }
 
 // What:     `#[test] fn every_row_has_one_unique_access_letter_taken_from_its_own_label()` checks the access table.
@@ -206,8 +223,15 @@ fn every_row_has_one_unique_access_letter_taken_from_its_own_label() {
     let mut seen: HashSet<char> = HashSet::new();
     for action in track_menu_actions_for() {
         let letter = access_key(*action);
-        assert!(letter.is_alphabetic() && letter.is_lowercase(), "{action:?} has the access letter {letter:?}");
-        assert!(label(*action).to_lowercase().contains(letter), "{letter} is a letter of {}", label(*action));
+        assert!(
+            letter.is_alphabetic() && letter.is_lowercase(),
+            "{action:?} has the access letter {letter:?}"
+        );
+        assert!(
+            label(*action).to_lowercase().contains(letter),
+            "{letter} is a letter of {}",
+            label(*action)
+        );
         assert!(seen.insert(letter), "{letter} is used by two rows");
     }
     assert_eq!(seen.len(), track_menu_actions_for().len());
@@ -235,6 +259,9 @@ fn the_label_splits_around_its_access_letter_and_joins_back() {
         assert_eq!(format!("{before}{key}{after}"), label(*action));
         assert_eq!(key.to_lowercase(), access_key(*action).to_string());
     }
-    assert_eq!(access_label(TrackMenuAction::Details), ("File ".to_string(), "d".to_string(), "etails".to_string()));
+    assert_eq!(
+        access_label(TrackMenuAction::Details),
+        ("File ".to_string(), "d".to_string(), "etails".to_string())
+    );
     assert_eq!(access_label(TrackMenuAction::ShowInFileManager).1, "f");
 }

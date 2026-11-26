@@ -7,7 +7,8 @@
 //!  start the built executable under `RLIMIT_NPROC` and `RLIMIT_AS` reach the builder through this entry,
 //! as
 //!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` reaches the transaction phases.
-//! Nothing in production sets the variable.
+//! Nothing in production sets the variable,
+//! and no release build reads it, so only a build made for a control takes this entry.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,13 +23,24 @@ use std::ffi::OsString;
 pub const RUNTIME_PROBE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_PROBE";
 
 /// Whether `environment` asks for the probe.
+/// Why:
+///  The variable is read from the environment the command was started with,
+///  which a release build never reads,
+///  so only a build made for a control answers yes here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const probe = switchValueIn(environment, 'CLI_GIT_TEST_ONLY_RUNTIME_PROBE') !== undefined
+/// ```
 pub fn is_requested(environment: &[(OsString, OsString)]) -> bool {
-    for (name, _value) in environment {
-        if name.as_os_str() == RUNTIME_PROBE_VARIABLE {
-            return true;
-        }
-    }
-    return false;
+    // What:     `.is_some()` answers whether the `Option` holds a value at all, dropping the value itself.
+    // Why:      The probe is asked for by the variable being present, whatever it says.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return switchValueIn(environment, 'CLI_GIT_TEST_ONLY_RUNTIME_PROBE') !== undefined;
+    // ```
+    return crate::test_only_switches::value_in(environment, RUNTIME_PROBE_VARIABLE).is_some();
 }
 
 /// The text of a flavor,

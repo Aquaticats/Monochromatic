@@ -7,16 +7,30 @@ use music_player::template_model::TrackFields;
 /// `identity_at(state, position)` is the identity of the page at a display position.
 /// Why:
 /// the tests choose a page by position and the state keeps pages in the page index.
-fn identity_at(state: &ScreenState, position: usize) -> String {
-    return state.current_pages().page(position).map(|page| return page.identity.clone()).unwrap_or_default();
+fn identity_at(
+    state: &ScreenState,
+    position: usize,
+) -> String {
+    return state
+        .current_pages()
+        .page(position)
+        .map(|page| return page.identity.clone())
+        .unwrap_or_default();
 }
 
 /// What:
 /// `label_at(state, position)` is the label of the page at a display position.
 /// Why:
 /// the picker chooses a folder by label.
-fn label_at(state: &ScreenState, position: usize) -> String {
-    return state.current_pages().page(position).map(|page| return page.label.clone()).unwrap_or_default();
+fn label_at(
+    state: &ScreenState,
+    position: usize,
+) -> String {
+    return state
+        .current_pages()
+        .page(position)
+        .map(|page| return page.label.clone())
+        .unwrap_or_default();
 }
 
 /// What:
@@ -27,7 +41,10 @@ fn no_supporting_line(_track: &TrackFields) -> Option<String> {
 
 /// What:
 /// `state_with(names, current)` builds a state over the given queue names.
-fn state_with(names: &[&str], current: Option<usize>) -> ScreenState {
+fn state_with(
+    names: &[&str],
+    current: Option<usize>,
+) -> ScreenState {
     return ScreenState {
         paths: Vec::new(),
         names: std::sync::Arc::new(names.iter().map(|name| return name.to_string()).collect()),
@@ -73,7 +90,10 @@ fn view_marks_the_playing_row_and_names_the_selected_page() {
 
 #[test]
 fn view_page_key_is_empty_without_pages() {
-    assert_eq!(view(&ScreenState::default(), &no_supporting_line).page_key, "");
+    assert_eq!(
+        view(&ScreenState::default(), &no_supporting_line).page_key,
+        ""
+    );
 }
 
 #[test]
@@ -147,7 +167,10 @@ fn library_heading_falls_back_to_folders_without_an_opened_folder() {
 /// Why:
 /// the deck folder and the folder scroll row both read the playing track's directory.
 fn playing_state() -> ScreenState {
-    let mut state = state_with(&["Camellia/Live/Ghost.flac", "Camellia/Ghost.flac"], Some(0));
+    let mut state = state_with(
+        &["Camellia/Live/Ghost.flac", "Camellia/Ghost.flac"],
+        Some(0),
+    );
     state.track_name = "Camellia/Live/Ghost.flac".to_string();
     return state;
 }
@@ -169,19 +192,30 @@ fn view_deck_folder_is_empty_without_a_playing_track() {
 fn view_deck_folder_of_a_root_track_is_its_page_label() {
     let mut state = state_with(&["Loose.flac"], Some(0));
     state.track_name = "Loose.flac".to_string();
-    assert_eq!(view(&state, &no_supporting_line).deck_folder, "L", "loose files sit in the virtual folder of their letter");
+    assert_eq!(
+        view(&state, &no_supporting_line).deck_folder,
+        "L",
+        "loose files sit in the virtual folder of their letter"
+    );
 }
 
 #[test]
 fn view_deck_title_loses_the_prefix_the_playing_folder_shares_and_does_not_repeat_the_folder() {
     let mut state = state_with(
-        &["かめりあ(Camellia)/かめりあ(Camellia) - Aegis.wav", "かめりあ(Camellia)/かめりあ(Camellia) - Another.wav", "Beta/two.mp3"],
+        &[
+            "かめりあ(Camellia)/かめりあ(Camellia) - Aegis.wav",
+            "かめりあ(Camellia)/かめりあ(Camellia) - Another.wav",
+            "Beta/two.mp3",
+        ],
         Some(0),
     );
     state.track_name = "かめりあ(Camellia)/かめりあ(Camellia) - Aegis.wav".to_string();
     state.selected_key = identity_at(&state, 1);
     let shown = view(&state, &no_supporting_line);
-    assert_eq!(shown.deck_title, "Aegis", "the deck folder is shown beside it, so the title does not repeat it");
+    assert_eq!(
+        shown.deck_title, "Aegis",
+        "the deck folder is shown beside it, so the title does not repeat it"
+    );
     assert_eq!(shown.deck_folder, "かめりあ(Camellia)");
 }
 
@@ -190,17 +224,35 @@ fn view_rows_lose_the_prefix_their_folder_shares() {
     let mut state = state_with(&["Abba/Abba - one.mp3", "Abba/Abba - two.mp3"], None);
     state.selected_key = identity_at(&state, 0);
     let shown = view(&state, &no_supporting_line);
-    let titles: Vec<&str> = shown.rows.iter().map(|row| return row.title.as_str()).collect();
+    let titles: Vec<&str> = shown
+        .rows
+        .iter()
+        .map(|row| return row.title.as_str())
+        .collect();
     assert_eq!(titles, vec!["one", "two"]);
 }
 
 #[test]
 fn loose_tracks_sit_in_virtual_letter_folders_in_natural_order() {
     let mut state = ScreenState::default();
-    state.set_names(&["Loose 10.wav".to_string(), "Loose 2.wav".to_string(), "Rock/x.wav".to_string(), "alpha.wav".to_string()]);
+    state.set_names(&[
+        "Loose 10.wav".to_string(),
+        "Loose 2.wav".to_string(),
+        "Rock/x.wav".to_string(),
+        "alpha.wav".to_string(),
+    ]);
     let shown = view(&state, &no_supporting_line);
-    let cells: Vec<&str> = shown.picker.cells.iter().map(|cell| return cell.label.as_str()).collect();
-    assert_eq!(cells, vec!["A", "L", "R"], "the rail files the virtual folders by letter");
+    let cells: Vec<&str> = shown
+        .picker
+        .cells
+        .iter()
+        .map(|cell| return cell.label.as_str())
+        .collect();
+    assert_eq!(
+        cells,
+        vec!["A", "L", "R"],
+        "the rail files the virtual folders by letter"
+    );
     let mut loose = state.clone();
     loose.selected_key = identity_at(&state, 1);
     let letter = view(&loose, &no_supporting_line);
@@ -211,8 +263,16 @@ fn loose_tracks_sit_in_virtual_letter_folders_in_natural_order() {
         view(&l, &no_supporting_line)
     };
     assert_eq!(l_page.folder_title, "L");
-    let titles: Vec<&str> = l_page.rows.iter().map(|row| return row.title.as_str()).collect();
-    assert_eq!(titles, vec!["10", "2"], "the shared word is dropped (D86); queue order is the walk's order and the view keeps it");
+    let titles: Vec<&str> = l_page
+        .rows
+        .iter()
+        .map(|row| return row.title.as_str())
+        .collect();
+    assert_eq!(
+        titles,
+        vec!["10", "2"],
+        "the shared word is dropped (D86); queue order is the walk's order and the view keeps it"
+    );
 }
 
 #[test]

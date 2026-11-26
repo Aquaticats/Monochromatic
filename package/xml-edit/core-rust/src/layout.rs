@@ -59,7 +59,10 @@ pub fn detect_eol(source: &str) -> &'static str {
 /// ```ts
 /// function lineStart(source: string, offset: number): number;
 /// ```
-pub fn line_start(source: &str, offset: usize) -> usize {
+pub fn line_start(
+    source: &str,
+    offset: usize,
+) -> usize {
     let bytes: &[u8] = source.as_bytes();
     let mut index: usize = offset;
     while index > 0 && bytes[index - 1] != b'\n' && bytes[index - 1] != b'\r' {
@@ -77,7 +80,10 @@ pub fn line_start(source: &str, offset: usize) -> usize {
 /// ```ts
 /// function lineIndent(source: string, offset: number): string;
 /// ```
-pub fn line_indent(source: &str, offset: usize) -> &str {
+pub fn line_indent(
+    source: &str,
+    offset: usize,
+) -> &str {
     let start: usize = line_start(source, offset);
     let bytes: &[u8] = source.as_bytes();
     let mut end: usize = start;
@@ -96,7 +102,10 @@ pub fn line_indent(source: &str, offset: usize) -> &str {
 /// ```ts
 /// function startsOwnLine(source: string, offset: number): boolean;
 /// ```
-pub fn starts_own_line(source: &str, offset: usize) -> bool {
+pub fn starts_own_line(
+    source: &str,
+    offset: usize,
+) -> bool {
     let start: usize = line_start(source, offset);
     return line_indent(source, offset).len() == offset - start;
 }
@@ -140,10 +149,17 @@ pub fn detect_indent_unit(source: &str) -> String {
 /// ```ts
 /// function blankTailEnd(source: string, offset: number): number | undefined;
 /// ```
-pub fn blank_tail_end(source: &str, offset: usize) -> Option<usize> {
+pub fn blank_tail_end(
+    source: &str,
+    offset: usize,
+) -> Option<usize> {
     let bytes: &[u8] = source.as_bytes();
     let mut index: usize = offset;
-    while index < bytes.len() && is_xml_space(bytes[index]) && bytes[index] != b'\n' && bytes[index] != b'\r' {
+    while index < bytes.len()
+        && is_xml_space(bytes[index])
+        && bytes[index] != b'\n'
+        && bytes[index] != b'\r'
+    {
         index += 1;
     }
     if index >= bytes.len() {

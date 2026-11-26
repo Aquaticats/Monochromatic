@@ -8,9 +8,19 @@
 ///  the production shaper,
 ///  and the font-free stop arithmetic it must agree with.
 use ide_app::{
-    document::{Document, ReadingPosition},
-    shaped_text::{ShapedView, TextShaper, Viewport},
-    tab_stop::{TAB_SPACES, tab_advance},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+        Viewport,
+    },
+    tab_stop::{
+        TAB_SPACES,
+        tab_advance,
+    },
 };
 
 /// What:
@@ -23,7 +33,10 @@ use ide_app::{
 /// ```ts
 /// function shaped(source: string, scale: number): [Document, ShapedView];
 /// ```
-fn shaped(source: &str, scale: f32) -> (Document, ShapedView) {
+fn shaped(
+    source: &str,
+    scale: f32,
+) -> (Document, ShapedView) {
     let document = Document::new(source);
     let mut shaper = TextShaper::new();
     let viewport = Viewport {
@@ -46,7 +59,11 @@ fn shaped(source: &str, scale: f32) -> (Document, ShapedView) {
 }
 
 /// Logical caret x before character `position` of a one-line source.
-fn caret_x(source: &str, position: usize, scale: f32) -> f32 {
+fn caret_x(
+    source: &str,
+    position: usize,
+    scale: f32,
+) -> f32 {
     let (_, view) = shaped(source, scale);
     return view.rows[0].caret_x(position, scale);
 }
@@ -62,7 +79,10 @@ fn space() -> f32 {
 }
 
 /// Compare two pixel positions within a hundredth of a pixel.
-fn close(actual: f32, expected: f32) -> bool {
+fn close(
+    actual: f32,
+    expected: f32,
+) -> bool {
     return (actual - expected).abs() < 0.01;
 }
 

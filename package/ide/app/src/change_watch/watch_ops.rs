@@ -19,7 +19,12 @@ use crate::workspace::Workspace;
 /// ```ts
 /// import { INotifyWatcher, ErrorKind, RecursiveMode } from 'notify';
 /// ```
-use notify::{ErrorKind, INotifyWatcher, RecursiveMode, Watcher};
+use notify::{
+    ErrorKind,
+    INotifyWatcher,
+    RecursiveMode,
+    Watcher,
+};
 /// Borrowed native paths name the affected directory.
 use std::path::Path;
 
@@ -95,7 +100,10 @@ pub(super) fn add(
 
 /// Name the directory;
 ///  the watch limit (`ENOSPC` from `inotify_add_watch`) gets the sysctl that sets it.
-pub(super) fn describe(error: &notify::Error, path: &Path) -> String {
+pub(super) fn describe(
+    error: &notify::Error,
+    path: &Path,
+) -> String {
     if let ErrorKind::MaxFilesWatch = error.kind {
         return format!(
             "Cannot watch {}: the inotify watch limit (fs.inotify.max_user_watches) is reached",
@@ -112,7 +120,10 @@ mod tests;
 
 /// Remove one watch;
 ///  a watch the kernel already dropped (removed directory) is expected and only logged.
-pub(super) fn remove(watcher: &mut INotifyWatcher, path: &Path) {
+pub(super) fn remove(
+    watcher: &mut INotifyWatcher,
+    path: &Path,
+) {
     if let Err(error) = watcher.unwatch(path) {
         tracing::debug!(path = %path.display(), %error, "watch was already gone");
     }

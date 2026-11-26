@@ -3,7 +3,10 @@
 
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory test scratch is created in:
 /// `test-scratch` in the build directory of the running test executable
@@ -12,11 +15,13 @@ use std::path::{Path, PathBuf};
 /// never the system temporary
 /// directory.
 fn scratch_root() -> PathBuf {
-    let target: Option<PathBuf> = std::env::current_exe()
-        .ok()
-        .and_then(|executable| { return executable.ancestors().nth(3).map(Path::to_path_buf); });
+    let target: Option<PathBuf> = std::env::current_exe().ok().and_then(|executable| {
+        return executable.ancestors().nth(3).map(Path::to_path_buf);
+    });
     let root: PathBuf = target
-        .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
+        .unwrap_or_else(|| {
+            return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
+        })
         .join("test-scratch");
     std::fs::create_dir_all(&root).expect("make the scratch root");
     return root;
@@ -49,6 +54,9 @@ pub(crate) const ALLOW_SKIPS: &str = "CARGO_SHADOW_ALLOW_SKIPS";
 /// export function skipOrFail(reason: string): void  // throws unless CARGO_SHADOW_ALLOW_SKIPS is set
 /// ```
 pub(crate) fn skip_or_fail(reason: &str) {
-    assert!(std::env::var_os(ALLOW_SKIPS).is_some(), "this host cannot build the schedule ({reason}); set {ALLOW_SKIPS}=1 to skip the test");
+    assert!(
+        std::env::var_os(ALLOW_SKIPS).is_some(),
+        "this host cannot build the schedule ({reason}); set {ALLOW_SKIPS}=1 to skip the test"
+    );
     eprintln!("skipped: {reason}");
 }

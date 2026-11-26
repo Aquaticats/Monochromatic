@@ -10,16 +10,27 @@
 //!  the compositor's own session-bus environment is never used.
 
 /// Imports buffered address read from `dbus-daemon` stdout.
-use std::io::{BufRead, BufReader};
+use std::io::{
+    BufRead,
+    BufReader,
+};
 
 /// Imports the owned OS-native string that carries the configuration path to `dbus-daemon`.
 use std::ffi::OsString;
 
 /// Imports owned scratch paths for the private bus socket and cleanup.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports private-bus process and pipe construction.
-use std::process::{Child, ChildStdout, Command, Stdio};
+use std::process::{
+    Child,
+    ChildStdout,
+    Command,
+    Stdio,
+};
 
 /// What:
 ///      `use std::sync::{atomic::{AtomicU64, Ordering}, mpsc};`.
@@ -29,7 +40,10 @@ use std::process::{Child, ChildStdout, Command, Stdio};
 ///       The sequence counter keeps fixture paths unique,
 ///  and the channel bounds the private-bus address read.
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
+    atomic::{
+        AtomicU64,
+        Ordering,
+    },
     mpsc,
 };
 
@@ -37,7 +51,10 @@ use std::sync::{
 use std::time::Duration;
 
 /// Imports shared error context and result channel.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// Error text that is built only on failure.
 use crate::lazy_error_text::with_message;
@@ -146,7 +163,10 @@ impl PrivateBus {
             std::process::id(),
         ));
         let created = std::fs::create_dir(&directory);
-        with_message(created, format_args!("creating private D-Bus directory: {}", directory.display()))?;
+        with_message(
+            created,
+            format_args!("creating private D-Bus directory: {}", directory.display()),
+        )?;
         let socket_path = directory.join("bus");
         let config_path = directory.join("bus.conf");
         // Write the service-free configuration beside the socket; clean the directory on failure.
@@ -158,8 +178,10 @@ impl PrivateBus {
                     "failed to clean private D-Bus directory after configuration write error",
                 );
             }
-            return Err(anyhow::Error::new(error)
-                .context(format!("writing private D-Bus configuration: {}", config_path.display())));
+            return Err(anyhow::Error::new(error).context(format!(
+                "writing private D-Bus configuration: {}",
+                config_path.display()
+            )));
         }
         // What:     `OsString::from(...)` starts an owned OS-native string (sibling: UTF-8
         //           `String`); `.push(&config_path)` appends the path's raw bytes, borrowed.
@@ -193,7 +215,11 @@ impl PrivateBus {
             );
         }
         let daemon = spawned.context("starting private dbus-daemon for the nested session")?;
-        let mut bus = Self { daemon, directory, address: String::new() };
+        let mut bus = Self {
+            daemon,
+            directory,
+            address: String::new(),
+        };
         let stdout = bus
             .daemon
             .stdout
@@ -231,13 +257,13 @@ impl PrivateBus {
     /// Returns the address hosted clients receive as `DBUS_SESSION_BUS_ADDRESS`.
     #[must_use]
     pub fn address(&self) -> &str {
-        return self.address.as_str()
+        return self.address.as_str();
     }
 
     /// Returns the scratch directory holding the bus socket and configuration.
     #[must_use]
     pub fn directory(&self) -> &Path {
-        return self.directory.as_path()
+        return self.directory.as_path();
     }
 
     /// Stops and reaps daemon without warning when it already exited.

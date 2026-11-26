@@ -12,14 +12,23 @@
 //! starts only for tracks the cache does not hold.
 
 /// Imports the path types that name the peeked tracks.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the header probe that supplies a missing length.
 use crate::duration_probe::probe_duration_secs;
 /// Imports the peak cache module and its handle that supply a cached decision.
-use crate::peakcache::{self, CacheHandle};
+use crate::peakcache::{
+    self,
+    CacheHandle,
+};
 /// Imports the track measure and the decision conversion that peeking returns.
-use crate::track_measure::{TrackMeasure, measure_from_decision};
+use crate::track_measure::{
+    TrackMeasure,
+    measure_from_decision,
+};
 
 /// What:
 ///      `pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure`.
@@ -37,7 +46,10 @@ use crate::track_measure::{TrackMeasure, measure_from_decision};
 ///   return base.durationSecs !== null ? base : { ...base, durationSecs: probeDurationSecs(path) };
 /// }
 /// ```
-pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure {
+pub(crate) fn peek_measure(
+    path: &Path,
+    cache: &CacheHandle,
+) -> TrackMeasure {
     // What:     `let decision = match fingerprint(path) { Some(key) => cache.get(key), None => None };` reads the
     //           cached decision of the file, or nothing when the file has no fingerprint.
     // Why:      A read is a single indexed lookup, so it is cheap on the sweep thread.
@@ -83,7 +95,10 @@ pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure {
 /// ```ts
 /// const peekMeasures = (tracks: string[], cache: CacheHandle) => tracks.map((p) => [p, peekMeasure(p, cache)]);
 /// ```
-pub(crate) fn peek_measures(tracks: &[PathBuf], cache: &CacheHandle) -> Vec<(PathBuf, TrackMeasure)> {
+pub(crate) fn peek_measures(
+    tracks: &[PathBuf],
+    cache: &CacheHandle,
+) -> Vec<(PathBuf, TrackMeasure)> {
     let mut measures: Vec<(PathBuf, TrackMeasure)> = Vec::with_capacity(tracks.len());
     for path in tracks {
         measures.push((path.clone(), peek_measure(path, cache)));

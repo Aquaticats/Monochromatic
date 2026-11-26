@@ -133,7 +133,10 @@ impl fmt::Display for TruePeakError {
     /// ```ts
     /// toString(): string { ... }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What:     `match self { ... }`. Branch on the variant; no arm is discarded.
         //           `Self::Decode { message }` binds the inner string by reference.
         // Why:      Each variant carries a different message to render.
@@ -151,7 +154,9 @@ impl fmt::Display for TruePeakError {
             // ```ts
             // return `true-peak decode failed: ${message}`;
             // ```
-            Self::Decode { message } => return write!(formatter, "true-peak decode failed: {message}"),
+            Self::Decode {
+                message,
+            } => return write!(formatter, "true-peak decode failed: {message}"),
             // What:     `Self::Seek { message } => write!(...)`. Same shape for seeks.
             // Why:      Surface the seek cause.
             //
@@ -159,7 +164,9 @@ impl fmt::Display for TruePeakError {
             // ```ts
             // return `true-peak seek failed: ${message}`;
             // ```
-            Self::Seek { message } => return write!(formatter, "true-peak seek failed: {message}"),
+            Self::Seek {
+                message,
+            } => return write!(formatter, "true-peak seek failed: {message}"),
         }
     }
 }

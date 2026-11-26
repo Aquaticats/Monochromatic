@@ -21,7 +21,10 @@
 /// ```ts
 /// import { AgentTable, parseAgents } from './caniuse';
 /// ```
-use crate::caniuse::{AgentTable, parse_agents};
+use crate::caniuse::{
+    AgentTable,
+    parse_agents,
+};
 /// What:
 ///  Import `Outcome` from `crate::error::Outcome`.
 /// Why:
@@ -119,10 +122,18 @@ impl BrowserData {
     /// function fromFiles(files: DataFiles): BrowserData;
     /// ```
     pub fn from_files(files: DataFiles<'_>) -> Outcome<Self> {
-        let agents = parse_agents(files.agents_js, files.browsers_js, files.browser_versions_js)?;
+        let agents = parse_agents(
+            files.agents_js,
+            files.browsers_js,
+            files.browser_versions_js,
+        )?;
         let node_versions = parse_node_versions(files.envs_json)?;
         let firefox_esr_major = parse_esr_major(files.firefox_esr)?;
-        return Ok(Self { agents, node_versions, firefox_esr_major });
+        return Ok(Self {
+            agents,
+            node_versions,
+            firefox_esr_major,
+        });
     }
 }
 

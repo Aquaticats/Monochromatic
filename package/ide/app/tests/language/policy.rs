@@ -2,11 +2,21 @@
 //!  every one is answered by policy,
 //!  and every edit is refused.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+};
 /// `json_value!` is `json!` with the one lint allowance the repository's `unwrap` ban needs.
 use ide_app::json_value;
-use ide_app::language::reply::{RequestKind, RequestOutcome};
-use serde_json::{Value, json};
+use ide_app::language::reply::{
+    RequestKind,
+    RequestOutcome,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// True when the scripted server reported the end of its probe.
 fn probe_done(lines: &[Value]) -> bool {
@@ -20,7 +30,10 @@ fn probe_done(lines: &[Value]) -> bool {
 
 /// The reply the scripted server recorded for a method;
 ///  the second `workspace/applyEdit` is the malformed one.
-fn replies(lines: &[Value], method: &str) -> Vec<Value> {
+fn replies(
+    lines: &[Value],
+    method: &str,
+) -> Vec<Value> {
     let mut found = Vec::new();
     for line in lines {
         if line["probe"]["method"] == method {

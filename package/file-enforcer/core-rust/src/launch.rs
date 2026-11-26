@@ -36,13 +36,22 @@ use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports `Command`,
 /// `Stdio` from `std::process`.
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 /// Imports `Duration`,
 /// `Instant` from `std::time`.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  How to start a server:
@@ -141,13 +150,20 @@ fn start_new_session() -> std::io::Result<()> {
 /// ```ts
 /// async function waitForSocket(socket: string, child: ChildProcess, deadline: number): Promise<void>
 /// ```
-fn wait_for_socket(socket: &Path, child: &mut std::process::Child, deadline: Instant) -> Result<(), Diagnostic> {
+fn wait_for_socket(
+    socket: &Path,
+    child: &mut std::process::Child,
+    deadline: Instant,
+) -> Result<(), Diagnostic> {
     while Instant::now() < deadline {
         if UnixStream::connect(socket).is_ok() {
             return Ok(());
         }
         if let Ok(Some(status)) = child.try_wait() {
-            let message = format!("the server process exited with {status} before it listened on {}", socket.display());
+            let message = format!(
+                "the server process exited with {status} before it listened on {}",
+                socket.display()
+            );
             return Err(Diagnostic::new("server-start-failed", &message));
         }
         std::thread::sleep(Duration::from_millis(15));
@@ -171,9 +187,19 @@ fn wait_for_socket(socket: &Path, child: &mut std::process::Child, deadline: Ins
 /// ```ts
 /// async function startServerIfNeeded(socket: string, launch: ServerLaunch, deadline: number): Promise<StartOutcome>
 /// ```
-pub fn start_server_if_needed(socket: &Path, launch: &ServerLaunch, deadline: Instant) -> Result<StartOutcome, Diagnostic> {
+pub fn start_server_if_needed(
+    socket: &Path,
+    launch: &ServerLaunch,
+    deadline: Instant,
+) -> Result<StartOutcome, Diagnostic> {
     let lock = lock_path(socket);
-    let file = match fs::OpenOptions::new().create(true).truncate(false).write(true).mode(0o600).open(&lock) {
+    let file = match fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .mode(0o600)
+        .open(&lock)
+    {
         Ok(file) => file,
         Err(error) => {
             let message = format!("cannot open the startup lock {}: {error}", lock.display());
@@ -201,12 +227,19 @@ pub fn start_server_if_needed(socket: &Path, launch: &ServerLaunch, deadline: In
         }
     }
     let mut command = Command::new(&launch.program);
-    command.args(&launch.args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .args(&launch.args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     detach_session(&mut command);
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            let message = format!("cannot start the server {}: {error}", launch.program.display());
+            let message = format!(
+                "cannot start the server {}: {error}",
+                launch.program.display()
+            );
             return Err(Diagnostic::new("server-start-failed", &message));
         }
     };

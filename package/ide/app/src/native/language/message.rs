@@ -18,8 +18,17 @@ use super::Action;
 ///  and the identity naming the server.
 use ide_app::language::{
     identity::ServerIdentity,
-    reply::{RequestFailure, RequestKind, RequestOutcome},
-    status::{DocumentState, LanguageStatus, ServerState, ServerStatus},
+    reply::{
+        RequestFailure,
+        RequestKind,
+        RequestOutcome,
+    },
+    status::{
+        DocumentState,
+        LanguageStatus,
+        ServerState,
+        ServerStatus,
+    },
 };
 
 /// The feature a request kind provides,
@@ -65,7 +74,10 @@ fn name(server: Option<&ServerIdentity>) -> String {
 /// The work a server reports,
 ///  as " (title)",
 ///  or nothing.
-fn progress(status: &LanguageStatus, server: Option<&ServerIdentity>) -> String {
+fn progress(
+    status: &LanguageStatus,
+    server: Option<&ServerIdentity>,
+) -> String {
     for row in &status.servers {
         // The borrowed identity is tested only when one is present.
         let same_server = match server {
@@ -89,21 +101,30 @@ fn progress(status: &LanguageStatus, server: Option<&ServerIdentity>) -> String 
 /// ```ts
 /// function stateMessage(action: Action, row: ServerStatus): string | undefined
 /// ```
-fn state(action: Action, row: &ServerStatus) -> Option<String> {
+fn state(
+    action: Action,
+    row: &ServerStatus,
+) -> Option<String> {
     let server = &row.server.name;
     let key = action.key();
     let title = heading(action.kind());
     let wanted = feature(action.kind());
     // `Some(format!(...))` returns the sentence for a state that needs one.
     return match &row.state {
-        ServerState::MissingExecutable { reason } => Some(format!(
+        ServerState::MissingExecutable {
+            reason,
+        } => Some(format!(
             "{title} needs {server}, which is not available: {reason}. After installing it, press {key} again."
         )),
         // Every reason the launch policy gives ends with its remedy, so the reason comes last.
-        ServerState::LaunchRefused { reason } => Some(format!(
+        ServerState::LaunchRefused {
+            reason,
+        } => Some(format!(
             "{server} was not started, so {wanted} is not available for this file: {reason}."
         )),
-        ServerState::FailedToStart { reason } => Some(format!(
+        ServerState::FailedToStart {
+            reason,
+        } => Some(format!(
             "{server} failed to start: {reason}. Press {key} again to start it again."
         )),
         ServerState::Unsynchronized => Some(unsynchronized(server, key)),
@@ -111,13 +132,19 @@ fn state(action: Action, row: &ServerStatus) -> Option<String> {
             "{server} stopped. Press {key} again to start it again."
         )),
         // The diagnostics entry states this cause too, so the state owns the sentence.
-        ServerState::RootOutsideProject { .. } => row.state.shared_cause(server),
-        ServerState::WrongWorkingDirectory { directory } => Some(format!(
+        ServerState::RootOutsideProject {
+            ..
+        } => row.state.shared_cause(server),
+        ServerState::WrongWorkingDirectory {
+            directory,
+        } => Some(format!(
             "Language servers cannot start because the working directory {} does not contain the project. Restart the application.",
             directory.display()
         )),
         // The diagnostics entry states this cause too, so the state owns the sentence.
-        ServerState::NotStarted { .. } => row.state.shared_cause(server),
+        ServerState::NotStarted {
+            ..
+        } => row.state.shared_cause(server),
         ServerState::Starting => Some(format!(
             "{server} is still starting. Try again in a moment."
         )),
@@ -127,7 +154,10 @@ fn state(action: Action, row: &ServerStatus) -> Option<String> {
 }
 
 /// The sentence for a server that cannot follow external changes to the displayed file.
-fn unsynchronized(server: &str, key: &str) -> String {
+fn unsynchronized(
+    server: &str,
+    key: &str,
+) -> String {
     return format!(
         "{server} cannot follow changes made to this file outside the IDE, so its answer would point at the wrong place. Press {key} again to give it the current text."
     );
@@ -144,7 +174,10 @@ fn unsynchronized(server: &str, key: &str) -> String {
 /// ```ts
 /// function noServer(action: Action, status: LanguageStatus): string
 /// ```
-fn no_server(action: Action, status: &LanguageStatus) -> String {
+fn no_server(
+    action: Action,
+    status: &LanguageStatus,
+) -> String {
     let wanted = feature(action.kind());
     // `as_deref` lends the language name as `&str`; `unwrap_or` names an unknown one.
     let language = status.language.as_deref().unwrap_or("this language");
@@ -177,12 +210,19 @@ fn no_server(action: Action, status: &LanguageStatus) -> String {
 }
 
 /// Explain a failed request.
-fn failed(action: Action, server: Option<&ServerIdentity>, failure: &RequestFailure) -> String {
+fn failed(
+    action: Action,
+    server: Option<&ServerIdentity>,
+    failure: &RequestFailure,
+) -> String {
     let title = heading(action.kind());
     let who = name(server);
     let key = action.key();
     return match failure {
-        RequestFailure::Rpc { code, message } => format!(
+        RequestFailure::Rpc {
+            code,
+            message,
+        } => format!(
             "{title} failed: {who} answered with error {code}: {message}. Press {key} to try again; if it keeps failing, restart the application."
         ),
         RequestFailure::Timeout => format!(
@@ -200,7 +240,7 @@ fn failed(action: Action, server: Option<&ServerIdentity>, failure: &RequestFail
 /// The answer with the lowest rank,
 ///  or nothing without answers.
 fn most_telling(
-    outcomes: &[(Option<ServerIdentity>, RequestOutcome)],
+    outcomes: &[(Option<ServerIdentity>, RequestOutcome)]
 ) -> Option<&(Option<ServerIdentity>, RequestOutcome)> {
     let mut best: Option<&(Option<ServerIdentity>, RequestOutcome)> = None;
     for candidate in outcomes {
@@ -349,7 +389,10 @@ pub(super) fn changed(action: Action) -> String {
 }
 
 /// The sentence for a location the server named that cannot be opened.
-pub(super) fn unavailable(address: &str, reason: &str) -> String {
+pub(super) fn unavailable(
+    address: &str,
+    reason: &str,
+) -> String {
     return format!("Cannot open {address}: {reason}.");
 }
 

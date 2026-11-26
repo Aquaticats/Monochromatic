@@ -3,9 +3,18 @@
 /// The line style of the run's severity as strokes,
 ///  and the change of ink at the edges of a selection.
 use super::{
-    CULL_MARGIN, Item, row_band, snapped,
-    split::{Place, split},
-    underline::{self, underline_items},
+    CULL_MARGIN,
+    Item,
+    row_band,
+    snapped,
+    split::{
+        Place,
+        split,
+    },
+    underline::{
+        self,
+        underline_items,
+    },
 };
 /// The runs and their inks.
 use crate::annotation_layout::AnnotationFrame;

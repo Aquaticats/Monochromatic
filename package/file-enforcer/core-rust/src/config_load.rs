@@ -38,7 +38,10 @@ use crate::diagnostic::Diagnostic;
 /// ```ts
 /// import { jsoncPositionAt, parseJsoncWithSpans } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{jsonc_position_at, parse_jsonc_with_spans};
+use monochromatic_jsonc_edit::{
+    jsonc_position_at,
+    parse_jsonc_with_spans,
+};
 /// What:
 ///  Imports `Value` from `serde_json`.
 /// Why:
@@ -64,7 +67,10 @@ use std::path::Path;
 /// ```ts
 /// function lineAndColumn(source: string, offset: number): [number, number];
 /// ```
-pub fn line_and_column(source: &str, offset: usize) -> (usize, usize) {
+pub fn line_and_column(
+    source: &str,
+    offset: usize,
+) -> (usize, usize) {
     let position = jsonc_position_at(source, offset);
     return (position.line, position.column);
 }
@@ -101,7 +107,10 @@ pub struct ConfigDocument {
 /// ```ts
 /// function parseConfigText(source: string, displayPath: string): ConfigDocument;
 /// ```
-pub fn parse_config_text(source: &str, display_path: &str) -> Result<ConfigDocument, Diagnostic> {
+pub fn parse_config_text(
+    source: &str,
+    display_path: &str,
+) -> Result<ConfigDocument, Diagnostic> {
     let parsed = match parse_jsonc_with_spans(source) {
         Ok(value) => value,
         Err(error) => {
@@ -111,7 +120,10 @@ pub fn parse_config_text(source: &str, display_path: &str) -> Result<ConfigDocum
         }
     };
     let (value, locations) = convert_document(&parsed.value, &parsed.spans, display_path)?;
-    return Ok(ConfigDocument { value, locations });
+    return Ok(ConfigDocument {
+        value,
+        locations,
+    });
 }
 
 /// What:

@@ -3,7 +3,11 @@
 //!  and path selection tests.
 
 /// Imports production name scanner and logical-path selection.
-use super::{logical_path, scan_path, scan_normalized_records};
+use super::{
+    logical_path,
+    scan_normalized_records,
+    scan_path,
+};
 use crate::ScanFinding;
 
 /// Compiles runtime rules in memory without touching any user-owned cache.
@@ -17,10 +21,13 @@ fn matching_directory_and_filename_mask_every_printed_occurrence() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
     let hit = scan_path("VAULTTOKEN_LONG/VAULTTOKEN_LONG.txt", &loaded);
     assert_eq!(hit.display, "[REDACTED]/[REDACTED]");
-    assert_eq!(hit.findings, vec![
-        "[REDACTED]/[REDACTED]:name:1 rule=0",
-        "[REDACTED]/[REDACTED]:name:2 rule=0",
-    ]);
+    assert_eq!(
+        hit.findings,
+        vec![
+            "[REDACTED]/[REDACTED]:name:1 rule=0",
+            "[REDACTED]/[REDACTED]:name:2 rule=0",
+        ]
+    );
 }
 
 /// A rule containing a slash cannot consume bytes from adjacent components.
@@ -54,7 +61,11 @@ fn short_literal_respects_word_boundaries() {
 #[test]
 fn named_anchored_rule_matches_one_name() {
     let loaded = load_rules("==> qqq-name <==\n/^VAULTTOKEN_LONG$/\n");
-    assert!(scan_path("prefixVAULTTOKEN_LONG", &loaded).findings.is_empty());
+    assert!(
+        scan_path("prefixVAULTTOKEN_LONG", &loaded)
+            .findings
+            .is_empty()
+    );
     let hit = scan_path("src/VAULTTOKEN_LONG", &loaded);
     assert_eq!(hit.findings, vec!["src/[REDACTED]:name:2 rule=qqq-name"]);
 }
@@ -74,7 +85,10 @@ fn line_break_in_name_is_rejected_without_leaking_it() {
     for name in ["src/VAULTTOKEN_LONG\nfile.ts", "src/VAULTTOKEN_LONG\r"] {
         let hit = scan_path(name, &loaded);
         assert_eq!(hit.display, "[REDACTED]");
-        assert_eq!(hit.findings, vec!["[REDACTED]: unsupported pathname line break"]);
+        assert_eq!(
+            hit.findings,
+            vec!["[REDACTED]: unsupported pathname line break"]
+        );
     }
 }
 
@@ -84,7 +98,10 @@ fn colons_in_visible_path_are_encoded() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
     let hit = scan_path("[REDACTED]:name/VAULTTOKEN_LONG", &loaded);
     assert_eq!(hit.display, "[REDACTED]\\x3aname/[REDACTED]");
-    assert_eq!(hit.findings, vec!["[REDACTED]\\x3aname/[REDACTED]:name:2 rule=0"]);
+    assert_eq!(
+        hit.findings,
+        vec!["[REDACTED]\\x3aname/[REDACTED]:name:2 rule=0"]
+    );
 }
 
 /// Navigation markers do not count as directory names in locator positions.
@@ -108,7 +125,8 @@ fn navigation_markers_are_not_segments() {
 #[test]
 fn absolute_path_under_root_uses_relative_name() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
-    let dir: std::path::PathBuf = crate::test_scratch::scratch_root().join(format!("name-root-{}", std::process::id()));
+    let dir: std::path::PathBuf =
+        crate::test_scratch::scratch_root().join(format!("name-root-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("nested")).expect("create path fixture");
     std::fs::write(dir.join("nested").join("test.txt"), "clean").expect("write path fixture");
     let canonical: std::path::PathBuf = std::fs::canonicalize(&dir).expect("canonical root");
@@ -117,8 +135,16 @@ fn absolute_path_under_root_uses_relative_name() {
     for root in [canonical.as_path(), dir.as_path()] {
         let file: std::path::PathBuf = root.join("nested").join("test.txt");
         let logical: String = logical_path(file.to_str().expect("utf8 path"), Some(root));
-        assert_eq!(logical.as_str(), expected.to_str().expect("utf8 expected name"), "root {root:?}");
-        assert_eq!(scan_path(&logical, &loaded).display, "nested/test.txt", "root {root:?}");
+        assert_eq!(
+            logical.as_str(),
+            expected.to_str().expect("utf8 expected name"),
+            "root {root:?}"
+        );
+        assert_eq!(
+            scan_path(&logical, &loaded).display,
+            "nested/test.txt",
+            "root {root:?}"
+        );
     }
     std::fs::remove_dir_all(&dir).expect("remove path fixture");
 }
@@ -134,16 +160,25 @@ fn symlink_name_is_not_replaced_by_target() {
     let link = dir.join("VAULTTOKEN_LONG");
     std::os::unix::fs::symlink(dir.join("clean.txt"), &link).expect("create symlink");
     let root = std::fs::canonicalize(&dir).expect("canonical root");
-    assert_eq!(logical_path(link.to_str().expect("utf8 link"), Some(&root)), "VAULTTOKEN_LONG");
+    assert_eq!(
+        logical_path(link.to_str().expect("utf8 link"), Some(&root)),
+        "VAULTTOKEN_LONG"
+    );
     std::fs::remove_dir_all(dir).expect("remove link fixture");
 }
 
 /// External and standalone positional names retain every supplied segment.
 #[test]
 fn external_name_keeps_supplied_segments() {
-    assert_eq!(logical_path("/external/private/file.txt", None), "/external/private/file.txt");
+    assert_eq!(
+        logical_path("/external/private/file.txt", None),
+        "/external/private/file.txt"
+    );
     let root = std::path::Path::new("/repository");
-    assert_eq!(logical_path("/external/private/file.txt", Some(root)), "/external/private/file.txt");
+    assert_eq!(
+        logical_path("/external/private/file.txt", Some(root)),
+        "/external/private/file.txt"
+    );
 }
 
 /// Explicit native-prefix boundaries exercise shared policy on every verification host.
@@ -152,16 +187,44 @@ fn supplied_volume_prefix_skips_each_part_before_counting_names() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
     let drive = scan_normalized_records(b"C:/VAULTTOKEN_LONG/VAULTTOKEN_LONG", 1, &loaded);
     assert_eq!(drive.display, "C\\x3a/[REDACTED]/[REDACTED]");
-    assert_eq!(drive.findings, vec![
-        ScanFinding::Name { component: 1, rule: String::from("0") },
-        ScanFinding::Name { component: 2, rule: String::from("0") },
-    ]);
-    let network = scan_normalized_records(b"//VAULTTOKEN_LONG/VAULTTOKEN_LONG/VAULTTOKEN_LONG", 2, &loaded);
-    assert_eq!(network.display, "//VAULTTOKEN_LONG/VAULTTOKEN_LONG/[REDACTED]");
-    assert_eq!(network.findings, vec![ScanFinding::Name { component: 1, rule: String::from("0") }]);
+    assert_eq!(
+        drive.findings,
+        vec![
+            ScanFinding::Name {
+                component: 1,
+                rule: String::from("0")
+            },
+            ScanFinding::Name {
+                component: 2,
+                rule: String::from("0")
+            },
+        ]
+    );
+    let network = scan_normalized_records(
+        b"//VAULTTOKEN_LONG/VAULTTOKEN_LONG/VAULTTOKEN_LONG",
+        2,
+        &loaded,
+    );
+    assert_eq!(
+        network.display,
+        "//VAULTTOKEN_LONG/VAULTTOKEN_LONG/[REDACTED]"
+    );
+    assert_eq!(
+        network.findings,
+        vec![ScanFinding::Name {
+            component: 1,
+            rule: String::from("0")
+        }]
+    );
     let navigation = scan_normalized_records(b".//../VAULTTOKEN_LONG", 0, &loaded);
     assert_eq!(navigation.display, ".//../[REDACTED]");
-    assert_eq!(navigation.findings, vec![ScanFinding::Name { component: 1, rule: String::from("0") }]);
+    assert_eq!(
+        navigation.findings,
+        vec![ScanFinding::Name {
+            component: 1,
+            rule: String::from("0")
+        }]
+    );
 }
 
 /// Native Windows volume markers are not searchable directory-name segments.
@@ -170,11 +233,20 @@ fn supplied_volume_prefix_skips_each_part_before_counting_names() {
 fn windows_volume_prefix_is_not_name_segment() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
     let drive = scan_path("C:\\VAULTTOKEN_LONG\\clean.txt", &loaded);
-    assert_eq!(drive.findings, vec!["C\\x3a/[REDACTED]/clean.txt:name:1 rule=0"]);
+    assert_eq!(
+        drive.findings,
+        vec!["C\\x3a/[REDACTED]/clean.txt:name:1 rule=0"]
+    );
     let network = scan_path("\\\\server\\share\\VAULTTOKEN_LONG\\clean.txt", &loaded);
-    assert_eq!(network.findings, vec!["//server/share/[REDACTED]/clean.txt:name:1 rule=0"]);
+    assert_eq!(
+        network.findings,
+        vec!["//server/share/[REDACTED]/clean.txt:name:1 rule=0"]
+    );
     let drive_relative = scan_path("C:VAULTTOKEN_LONG.txt", &loaded);
-    assert_eq!(drive_relative.findings, vec!["C\\x3a/[REDACTED]:name:1 rule=0"]);
+    assert_eq!(
+        drive_relative.findings,
+        vec!["C\\x3a/[REDACTED]:name:1 rule=0"]
+    );
 }
 
 /// Native Windows device-namespace prefixes are skipped exactly,
@@ -184,9 +256,15 @@ fn windows_volume_prefix_is_not_name_segment() {
 fn windows_device_namespace_prefix_is_not_name_segment() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
     let port = scan_path("\\\\.\\COM1\\VAULTTOKEN_LONG\\clean.txt", &loaded);
-    assert_eq!(port.findings, vec!["//./COM1/[REDACTED]/clean.txt:name:1 rule=0"]);
+    assert_eq!(
+        port.findings,
+        vec!["//./COM1/[REDACTED]/clean.txt:name:1 rule=0"]
+    );
     let volume = scan_path("\\\\.\\C:\\VAULTTOKEN_LONG\\clean.txt", &loaded);
-    assert_eq!(volume.findings, vec!["//./C\\x3a/[REDACTED]/clean.txt:name:1 rule=0"]);
+    assert_eq!(
+        volume.findings,
+        vec!["//./C\\x3a/[REDACTED]/clean.txt:name:1 rule=0"]
+    );
     let pipe = scan_path("\\\\.\\pipe\\VAULTTOKEN_LONG.with.dots", &loaded);
     assert_eq!(pipe.findings, vec!["//./pipe/[REDACTED]:name:1 rule=0"]);
     let clean = scan_path("\\\\.\\COM1\\clean\\clean.txt", &loaded);

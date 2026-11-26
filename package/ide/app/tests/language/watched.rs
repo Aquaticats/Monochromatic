@@ -8,14 +8,23 @@
 //!  new folders are followed,
 //!  and a server that registered nothing hears nothing.
 
-use crate::support::{self, Probe};
-use ide_app::{change_watch::ChangeWatcher, workspace::Workspace};
+use crate::support::{
+    self,
+    Probe,
+};
+use ide_app::{
+    change_watch::ChangeWatcher,
+    workspace::Workspace,
+};
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
     fs,
     path::Path,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Longest wait for an expected change.
@@ -46,7 +55,10 @@ impl Watching {
     /// Start both for `root`,
     ///  with the scripted server configured by `variables` (`WATCHERS` is the JSON it
     /// registers after `initialized`).
-    fn new(root: &Path, variables: &[(&str, &str)]) -> Self {
+    fn new(
+        root: &Path,
+        variables: &[(&str, &str)],
+    ) -> Self {
         let probe = Probe::new(root, support::scripted(root, variables, 20));
         let watcher =
             ChangeWatcher::new(Workspace::new(root).expect("workspace")).expect("change watcher");
@@ -75,7 +87,10 @@ impl Watching {
     }
 
     /// Relay until at least `folders` folders are watched for the servers.
-    fn until_watching(&mut self, folders: usize) {
+    fn until_watching(
+        &mut self,
+        folders: usize,
+    ) {
         let start = Instant::now();
         while self.watcher.server_folders() < folders {
             self.relay();
@@ -92,7 +107,11 @@ impl Watching {
     ///  relay once,
     ///  and read the changes the server received.
     /// The caller loops `while !condition { session.step_changes(root); }`.
-    fn wait_for_changes(&mut self, root: &Path, what: &str) {
+    fn wait_for_changes(
+        &mut self,
+        root: &Path,
+        what: &str,
+    ) {
         self.waiting_for = what.to_string();
         self.wait_started = Instant::now();
         self.relay();
@@ -104,7 +123,10 @@ impl Watching {
     ///  else pause,
     ///  relay,
     ///  and read again.
-    fn step_changes(&mut self, root: &Path) {
+    fn step_changes(
+        &mut self,
+        root: &Path,
+    ) {
         assert!(
             self.wait_started.elapsed() < PATIENCE,
             "timed out waiting for {}; notifications: {:?}",
@@ -128,7 +150,10 @@ impl Watching {
 
     /// Relay for `span`,
     ///  so changes that must not arrive have the chance to.
-    fn settle(&mut self, span: Duration) {
+    fn settle(
+        &mut self,
+        span: Duration,
+    ) {
         let start = Instant::now();
         while start.elapsed() < span {
             self.relay();
@@ -152,7 +177,10 @@ fn pulled_after_notification(lines: &[Value]) -> bool {
 }
 
 /// True when every path of the burst of `count` files was reported with its final kind.
-fn burst_complete(changes: &Changes, count: usize) -> bool {
+fn burst_complete(
+    changes: &Changes,
+    count: usize,
+) -> bool {
     let last = changes.last();
     for index in 0..count {
         let kind = last.get(&format!("src/f{index:03}.scripted")).copied();
@@ -195,7 +223,9 @@ impl Changes {
             }
             notifications.push(events);
         }
-        return Self { notifications };
+        return Self {
+            notifications,
+        };
     }
 
     /// The latest kind each path was reported with.
@@ -210,7 +240,11 @@ impl Changes {
     }
 
     /// True when some notification reported `path` with `kind`.
-    fn has(&self, path: &str, kind: i64) -> bool {
+    fn has(
+        &self,
+        path: &str,
+        kind: i64,
+    ) -> bool {
         for events in &self.notifications {
             for (found, found_kind) in events {
                 if found == path && *found_kind == kind {
@@ -222,7 +256,10 @@ impl Changes {
     }
 
     /// True when some notification mentions a path starting with `prefix`.
-    fn mentions(&self, prefix: &str) -> bool {
+    fn mentions(
+        &self,
+        prefix: &str,
+    ) -> bool {
         for events in &self.notifications {
             for (found, _) in events {
                 if found.starts_with(prefix) {

@@ -23,7 +23,10 @@ struct Unit {
 
 /// The vertical extent one item's ink can reach,
 /// with `margin` physical pixels on each side for the part of a glyph a layout box does not hold.
-fn reach_of(item: &Item, margin: f32) -> Option<(f32, f32)> {
+fn reach_of(
+    item: &Item,
+    margin: f32,
+) -> Option<(f32, f32)> {
     return match item {
         Item::Glyphs(run) => {
             let rise = match run.glyphs.first() {
@@ -33,17 +36,28 @@ fn reach_of(item: &Item, margin: f32) -> Option<(f32, f32)> {
             let baseline = run.origin.1 + rise;
             Some((baseline - margin, baseline + margin))
         }
-        Item::Fill { top, bottom, .. } => Some((*top, *bottom)),
+        Item::Fill {
+            top,
+            bottom,
+            ..
+        } => Some((*top, *bottom)),
         Item::Stroke(stroke) => {
             let bounds = stroke.path.bounding_box();
             Some((bounds.y0 as f32 - margin, bounds.y1 as f32 + margin))
         }
-        Item::Clip { .. } | Item::Unclip => None,
+        Item::Clip {
+            ..
+        }
+        | Item::Unclip => None,
     };
 }
 
 /// Widen `reach` by the extent of `item`'s ink.
-fn widen(reach: &mut Option<(f32, f32)>, item: &Item, margin: f32) {
+fn widen(
+    reach: &mut Option<(f32, f32)>,
+    item: &Item,
+    margin: f32,
+) {
     if let Some((low, high)) = reach_of(item, margin) {
         *reach = Some(match *reach {
             Some((from, to)) => (from.min(low), to.max(high)),
@@ -57,7 +71,10 @@ fn widen(reach: &mut Option<(f32, f32)>, item: &Item, margin: f32) {
 /// what it brackets,
 /// and its end are one group,
 /// every other item is a group of its own.
-fn units_of(items: &[Item], margin: f32) -> Vec<Unit> {
+fn units_of(
+    items: &[Item],
+    margin: f32,
+) -> Vec<Unit> {
     let mut units = Vec::new();
     let mut at = 0;
     while at < items.len() {
@@ -99,7 +116,11 @@ fn units_of(items: &[Item], margin: f32) -> Vec<Unit> {
 /// ```ts
 /// function cut(items: Item[], spans: [number, number][], margin: number): Item[][];
 /// ```
-pub fn cut(items: &[Item], spans: &[(f32, f32)], margin: f32) -> Vec<Vec<Item>> {
+pub fn cut(
+    items: &[Item],
+    spans: &[(f32, f32)],
+    margin: f32,
+) -> Vec<Vec<Item>> {
     let units = units_of(items, margin);
     let mut cuts: Vec<Vec<Item>> = Vec::with_capacity(spans.len());
     for (low, high) in spans {

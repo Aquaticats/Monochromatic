@@ -24,7 +24,10 @@
 //!   an engine failure or a dead bus end the indicator and always release a pause.
 
 /// Imports the duration and instant types with which the machine rate-limits updates.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the text of the scan count that the indicator shows.
 use crate::scan_indicator::scan_indicator_count_text;
@@ -198,7 +201,10 @@ fn to_count(value: usize) -> i32 {
 /// `count_text` formats `done` and `total` as `412 of 1,218` with the app's grouping helper.
 /// Why:
 /// the shared helper keeps the grouping rule in one place.
-pub fn count_text(done: usize, total: usize) -> String {
+pub fn count_text(
+    done: usize,
+    total: usize,
+) -> String {
     let done_text = scan_indicator_count_text(to_count(done));
     let total_text = scan_indicator_count_text(to_count(total));
     return format!("{done_text} of {total_text}");
@@ -210,7 +216,10 @@ pub fn count_text(done: usize, total: usize) -> String {
 /// Why:
 /// rounding down never overstates progress,
 /// and the wide multiply cannot overflow on any count.
-pub fn percent_for(done: usize, total: usize) -> u32 {
+pub fn percent_for(
+    done: usize,
+    total: usize,
+) -> u32 {
     if total == 0 {
         return 0;
     }
@@ -224,7 +233,11 @@ pub fn percent_for(done: usize, total: usize) -> u32 {
 /// Why:
 /// the percent and the text derive from the same two counts,
 /// and the paused flag comes from the machine.
-fn view_for(done: usize, total: usize, paused: bool) -> IndicatorView {
+fn view_for(
+    done: usize,
+    total: usize,
+    paused: bool,
+) -> IndicatorView {
     return IndicatorView {
         percent: percent_for(done, total),
         text: count_text(done, total),
@@ -277,7 +290,10 @@ impl Machine {
     /// `interval_elapsed` is true when an ordinary update may be sent at `now`.
     /// Why:
     /// this is the one place the rate limit is decided.
-    fn interval_elapsed(&self, now: Instant) -> bool {
+    fn interval_elapsed(
+        &self,
+        now: Instant,
+    ) -> bool {
         let Some(sent) = self.sent.as_ref() else {
             return true;
         };
@@ -289,7 +305,10 @@ impl Machine {
     /// Why:
     /// whatever ended the indicator,
     /// the engine must not stay paused with no control left to resume it.
-    fn end_session(&mut self, next: Phase) -> Vec<Effect> {
+    fn end_session(
+        &mut self,
+        next: Phase,
+    ) -> Vec<Effect> {
         self.phase = next;
         self.sent = None;
         self.pending = None;
@@ -308,13 +327,21 @@ impl Machine {
     /// a repeat is skipped,
     /// an early change waits for `deadline`,
     /// and a forced change goes at once.
-    fn offer(&mut self, now: Instant, view: IndicatorView, force: bool) -> Vec<Effect> {
+    fn offer(
+        &mut self,
+        now: Instant,
+        view: IndicatorView,
+        force: bool,
+    ) -> Vec<Effect> {
         let unchanged = match self.sent.as_ref() {
             Some(sent) => sent.view == view,
             None => false,
         };
         if unchanged {
-            tracing::trace!(percent = view.percent, "analysis indicator update skipped: view unchanged");
+            tracing::trace!(
+                percent = view.percent,
+                "analysis indicator update skipped: view unchanged"
+            );
             self.pending = None;
             return Vec::new();
         }
@@ -327,7 +354,10 @@ impl Machine {
             tracing::debug!(percent = view.percent, text = %view.text, force, "analysis indicator update sent");
             return vec![Effect::Update(view)];
         }
-        tracing::trace!(percent = view.percent, "analysis indicator update held for the rate limit");
+        tracing::trace!(
+            percent = view.percent,
+            "analysis indicator update held for the rate limit"
+        );
         self.pending = Some(view);
         return Vec::new();
     }
@@ -339,7 +369,12 @@ impl Machine {
     /// it opens the indicator,
     /// updates it,
     /// or finishes it.
-    pub fn progress(&mut self, now: Instant, done: usize, total: usize) -> Vec<Effect> {
+    pub fn progress(
+        &mut self,
+        now: Instant,
+        done: usize,
+        total: usize,
+    ) -> Vec<Effect> {
         if total == 0 {
             tracing::trace!("analysis report ignored: the total is not known yet");
             return Vec::new();
@@ -364,7 +399,9 @@ impl Machine {
             }
             Phase::Dismissed => {
                 if finished {
-                    tracing::info!("sweep ended after the user dismissed the analysis indicator; it may open again");
+                    tracing::info!(
+                        "sweep ended after the user dismissed the analysis indicator; it may open again"
+                    );
                     self.phase = Phase::Idle;
                 }
                 Vec::new()
@@ -403,7 +440,10 @@ impl Machine {
     /// Why:
     /// without it,
     /// a sweep that stalls after a throttled report would leave an old count on screen.
-    pub fn tick(&mut self, now: Instant) -> Vec<Effect> {
+    pub fn tick(
+        &mut self,
+        now: Instant,
+    ) -> Vec<Effect> {
         if self.phase != Phase::Active || !self.interval_elapsed(now) {
             return Vec::new();
         }
@@ -420,7 +460,11 @@ impl Machine {
     /// and the button flips at once,
     /// because Plasma and notification servers only flip it
     /// when the app reports the new state.
-    pub fn set_paused(&mut self, now: Instant, paused: bool) -> Vec<Effect> {
+    pub fn set_paused(
+        &mut self,
+        now: Instant,
+        paused: bool,
+    ) -> Vec<Effect> {
         if !self.suspendable || self.phase != Phase::Active || self.paused == paused {
             tracing::debug!(paused, phase = ?self.phase, "pause request ignored");
             return Vec::new();
@@ -436,7 +480,10 @@ impl Machine {
         let Some(base) = held else {
             return vec![Effect::SetEnginePause(paused)];
         };
-        let flipped = IndicatorView { paused, ..base };
+        let flipped = IndicatorView {
+            paused,
+            ..base
+        };
         let mut effects = vec![Effect::SetEnginePause(paused)];
         effects.extend(self.offer(now, flipped, true));
         return effects;
@@ -460,7 +507,10 @@ impl Machine {
     /// Why:
     /// the user is told why the analysis stopped;
     /// D84 gives them no other way to find out.
-    pub fn failed(&mut self, message: String) -> Vec<Effect> {
+    pub fn failed(
+        &mut self,
+        message: String,
+    ) -> Vec<Effect> {
         if self.phase != Phase::Active {
             return Vec::new();
         }

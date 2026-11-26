@@ -11,14 +11,33 @@
 //!  timeout,
 //!  stale).
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
-    diagnostics::{Freshness, HOLD_FALLBACK},
-    hints::{HintKind, HintWindow},
-    reply::{RequestFailure, RequestKind, RequestOutcome, Target},
+    diagnostics::{
+        Freshness,
+        HOLD_FALLBACK,
+    },
+    hints::{
+        HintKind,
+        HintWindow,
+    },
+    reply::{
+        RequestFailure,
+        RequestKind,
+        RequestOutcome,
+        Target,
+    },
     target::TargetRefusal,
 };
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Line 0 has an accented letter and an astral character before offset 14;
 ///  line 2 starts with both.

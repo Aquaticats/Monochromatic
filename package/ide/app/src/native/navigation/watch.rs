@@ -5,11 +5,18 @@
 
 /// Navigation owns the watcher and the directory schedule;
 ///  the source state owns its own schedule.
-use super::{AppWindow, Navigation, State};
+use super::{
+    AppWindow,
+    Navigation,
+    State,
+};
 /// A full reread asks for a reread of the displayed file once it has been quiet;
 ///  the servers' changes go to
 /// the language worker.
-use ide_app::change_watch::{ServerChange, SourceChange};
+use ide_app::change_watch::{
+    ServerChange,
+    SourceChange,
+};
 /// What:
 ///  `Rc<RefCell<State>>` is the UI-thread shared source state;
 ///  `BTreeSet` is an ordered set.
@@ -24,9 +31,15 @@ use ide_app::change_watch::{ServerChange, SourceChange};
 use std::{
     cell::RefCell,
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 /// What:
 ///  `UnboundedSender` is the sending end of the language worker's queue without a size limit.
@@ -68,7 +81,11 @@ const SCROLL_RETRY_GAP: Duration = Duration::from_secs(1);
 /// backoff;
 ///  while every shown folder is watched,
 ///  scrolling asks for nothing.
-pub(super) fn scrolled(window: &AppWindow, navigation: &mut Navigation, now: Instant) {
+pub(super) fn scrolled(
+    window: &AppWindow,
+    navigation: &mut Navigation,
+    now: Instant,
+) {
     let offset = window.get_tree_scroll_y();
     // What: `f32` comparison of the toolkit's scroll offset with the previous tick's.
     // Why: Any change is a scroll by the user or by a reveal; both mean the tree is in use.
@@ -106,7 +123,10 @@ pub(super) fn scrolled(window: &AppWindow, navigation: &mut Navigation, now: Ins
 /// Collapsed folders drop out,
 ///  so their watches are removed;
 ///  descendants of collapsed folders are not shown.
-pub(super) fn show(source: &Rc<RefCell<State>>, navigation: &mut Navigation) {
+pub(super) fn show(
+    source: &Rc<RefCell<State>>,
+    navigation: &mut Navigation,
+) {
     // `to_path_buf` copies the canonical root; it is always shown, even before its first listing.
     let mut shown = vec![navigation.workspace.root().to_path_buf()];
     for row in &navigation.rows {
@@ -129,7 +149,10 @@ pub(super) fn show(source: &Rc<RefCell<State>>, navigation: &mut Navigation) {
 
 /// Apply notifications:
 ///  notified shown directories and the displayed file become due for a reread.
-pub(super) fn update(source: &Rc<RefCell<State>>, navigation: &mut Navigation) {
+pub(super) fn update(
+    source: &Rc<RefCell<State>>,
+    navigation: &mut Navigation,
+) {
     let changes = navigation.watcher.take();
     let now = Instant::now();
     // What: `if let Some(watched)` moves a newly reported live-watch set into navigation.

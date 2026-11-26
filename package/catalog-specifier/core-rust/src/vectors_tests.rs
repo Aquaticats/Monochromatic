@@ -31,7 +31,13 @@
 use serde_json::Value;
 
 /// Imports the functions and types under test through the crate root.
-use super::{FindingKind, SectionKind, check_manifest_bytes, check_manifest_path, is_allowed_specifier};
+use super::{
+    FindingKind,
+    SectionKind,
+    check_manifest_bytes,
+    check_manifest_path,
+    is_allowed_specifier,
+};
 
 /// What:
 /// `fn vectors() -> Value` loads and parses the vectors file.
@@ -53,7 +59,8 @@ use super::{FindingKind, SectionKind, check_manifest_bytes, check_manifest_path,
 /// const vectors = (): unknown => JSON.parse(readFileSync(new URL('../fixtures/vectors.json', import.meta.url), 'utf8'));
 /// ```
 fn vectors() -> Value {
-    return serde_json::from_str(include_str!("../fixtures/vectors.json")).expect("fixtures/vectors.json is valid JSON");
+    return serde_json::from_str(include_str!("../fixtures/vectors.json"))
+        .expect("fixtures/vectors.json is valid JSON");
 }
 
 /// What:
@@ -71,8 +78,14 @@ fn vectors() -> Value {
 /// ```ts
 /// const texts = (vectors: any, group: string, side: string): string[] => vectors[group][side];
 /// ```
-fn texts(vectors: &Value, group: &str, side: &str) -> Vec<String> {
-    let list = vectors[group][side].as_array().expect("the vector list is an array");
+fn texts(
+    vectors: &Value,
+    group: &str,
+    side: &str,
+) -> Vec<String> {
+    let list = vectors[group][side]
+        .as_array()
+        .expect("the vector list is an array");
     let mut collected: Vec<String> = Vec::new();
     for item in list {
         collected.push(item.as_str().expect("each vector is a string").to_string());
@@ -94,10 +107,16 @@ fn texts(vectors: &Value, group: &str, side: &str) -> Vec<String> {
 fn install_specifier_vectors_hold() {
     let all = vectors();
     for accepted in texts(&all, "install_specifiers", "accepted") {
-        assert!(is_allowed_specifier(SectionKind::Install, &accepted), "install refused {accepted:?}");
+        assert!(
+            is_allowed_specifier(SectionKind::Install, &accepted),
+            "install refused {accepted:?}"
+        );
     }
     for rejected in texts(&all, "install_specifiers", "rejected") {
-        assert!(!is_allowed_specifier(SectionKind::Install, &rejected), "install accepted {rejected:?}");
+        assert!(
+            !is_allowed_specifier(SectionKind::Install, &rejected),
+            "install accepted {rejected:?}"
+        );
     }
 }
 
@@ -106,10 +125,16 @@ fn install_specifier_vectors_hold() {
 fn peer_specifier_vectors_hold() {
     let all = vectors();
     for accepted in texts(&all, "peer_specifiers", "accepted") {
-        assert!(is_allowed_specifier(SectionKind::Peer, &accepted), "peer refused {accepted:?}");
+        assert!(
+            is_allowed_specifier(SectionKind::Peer, &accepted),
+            "peer refused {accepted:?}"
+        );
     }
     for rejected in texts(&all, "peer_specifiers", "rejected") {
-        assert!(!is_allowed_specifier(SectionKind::Peer, &rejected), "peer accepted {rejected:?}");
+        assert!(
+            !is_allowed_specifier(SectionKind::Peer, &rejected),
+            "peer accepted {rejected:?}"
+        );
     }
 }
 
@@ -122,7 +147,11 @@ fn path_vectors_hold() {
         let Some(finding) = check_manifest_path(&path) else {
             panic!("{path:?} was not refused");
         };
-        assert_eq!(finding.kind, FindingKind::UnsupportedManifestFormat, "wrong kind for {path:?}");
+        assert_eq!(
+            finding.kind,
+            FindingKind::UnsupportedManifestFormat,
+            "wrong kind for {path:?}"
+        );
     }
     for path in texts(&all, "paths", "supported") {
         assert!(check_manifest_path(&path).is_none(), "{path:?} was refused");

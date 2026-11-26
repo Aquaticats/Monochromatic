@@ -16,7 +16,13 @@ use crate::template_model::TemplateError;
 ///  imports the token type and the tokenizer helpers.
 /// Why:
 ///  The parser reads the tokens one cursor step at a time.
-use crate::template_tokens::{Token, TokenKind, find_unit, slice_units, tokenize};
+use crate::template_tokens::{
+    Token,
+    TokenKind,
+    find_unit,
+    slice_units,
+    tokenize,
+};
 
 /// What:
 ///  `const DEEPEST_CALL: usize = 12` is the deepest a call may nest.
@@ -221,7 +227,10 @@ impl FormulaParser<'_> {
     /// const operatorSpan = (value: string) =>
     ///   peek()?.kind === "operator" && peek()?.value === value ? [peek().start, peek().end] : undefined;
     /// ```
-    fn operator_span(&self, value: &str) -> Option<(usize, usize)> {
+    fn operator_span(
+        &self,
+        value: &str,
+    ) -> Option<(usize, usize)> {
         let token = self.tokens.get(self.position)?;
         if token.kind == TokenKind::Operator && token.value == value {
             return Some((token.start, token.end));
@@ -243,7 +252,10 @@ impl FormulaParser<'_> {
     /// ```ts
     /// function primary(depth: number): FormulaNode { ... }
     /// ```
-    fn primary(&mut self, depth: usize) -> FormulaNode {
+    fn primary(
+        &mut self,
+        depth: usize,
+    ) -> FormulaNode {
         let Some(token) = self.tokens.get(self.position).cloned() else {
             if !self.abandoned {
                 self.errors.push(TemplateError {
@@ -286,7 +298,12 @@ impl FormulaParser<'_> {
     /// ```ts
     /// function callNode(name: Token, open: Token, depth: number): CallNode { ... }
     /// ```
-    fn call_node(&mut self, name: Token, open: (usize, usize), depth: usize) -> FormulaNode {
+    fn call_node(
+        &mut self,
+        name: Token,
+        open: (usize, usize),
+        depth: usize,
+    ) -> FormulaNode {
         self.position += 1;
         if depth >= DEEPEST_CALL {
             self.errors.push(TemplateError {
@@ -300,7 +317,13 @@ impl FormulaParser<'_> {
         }
         if let Some(close_span) = self.operator_span(")") {
             self.position += 1;
-            return FormulaNode::Call(build_call(name, open, Some(close_span.0), Vec::new(), Vec::new()));
+            return FormulaNode::Call(build_call(
+                name,
+                open,
+                Some(close_span.0),
+                Vec::new(),
+                Vec::new(),
+            ));
         }
         let mut parameters = vec![self.joined(depth + 1)];
         let mut separators = Vec::new();
@@ -311,7 +334,13 @@ impl FormulaParser<'_> {
         }
         if let Some(close_span) = self.operator_span(")") {
             self.position += 1;
-            return FormulaNode::Call(build_call(name, open, Some(close_span.0), parameters, separators));
+            return FormulaNode::Call(build_call(
+                name,
+                open,
+                Some(close_span.0),
+                parameters,
+                separators,
+            ));
         }
         if !self.abandoned {
             self.errors.push(TemplateError {
@@ -333,7 +362,10 @@ impl FormulaParser<'_> {
     /// ```ts
     /// function joined(depth: number): FormulaNode { ... }
     /// ```
-    fn joined(&mut self, depth: usize) -> FormulaNode {
+    fn joined(
+        &mut self,
+        depth: usize,
+    ) -> FormulaNode {
         let mut operands = vec![self.primary(depth)];
         while self.operator_span("+").is_some() {
             self.position += 1;
@@ -406,7 +438,11 @@ fn build_call(
 /// ```ts
 /// function parseFormula(text: string, offset: number, errors: TemplateError[]): FormulaNode { ... }
 /// ```
-fn parse_formula(units: &[u16], offset: usize, errors: &mut Vec<TemplateError>) -> FormulaNode {
+fn parse_formula(
+    units: &[u16],
+    offset: usize,
+    errors: &mut Vec<TemplateError>,
+) -> FormulaNode {
     let tokens = tokenize(units, offset, errors);
     let mut parser = FormulaParser {
         tokens,
@@ -474,8 +510,15 @@ fn append_formula_piece(
 /// ```ts
 /// const inside = caret > part.start && caret <= (part.closed ? part.end - 1 : part.end);
 /// ```
-pub fn formula_holds_caret(formula: &FormulaPart, caret: usize) -> bool {
-    let last = if formula.closed { formula.end.saturating_sub(1) } else { formula.end };
+pub fn formula_holds_caret(
+    formula: &FormulaPart,
+    caret: usize,
+) -> bool {
+    let last = if formula.closed {
+        formula.end.saturating_sub(1)
+    } else {
+        formula.end
+    };
     return caret > formula.start && caret <= last;
 }
 
@@ -497,13 +540,20 @@ pub fn parse_template(text: &str) -> ParsedTemplate {
     while index < units.len() {
         index = match find_unit(&units, index, DOLLAR) {
             None => {
-                parts.push(TemplatePart::Literal(slice_units(&units, index, units.len())));
+                parts.push(TemplatePart::Literal(slice_units(
+                    &units,
+                    index,
+                    units.len(),
+                )));
                 units.len()
             }
             Some(open) => append_formula_piece(&units, index, open, &mut parts, &mut errors),
         };
     }
-    return ParsedTemplate { parts, errors };
+    return ParsedTemplate {
+        parts,
+        errors,
+    };
 }
 
 /// What:

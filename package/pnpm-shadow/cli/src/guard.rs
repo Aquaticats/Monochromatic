@@ -123,7 +123,11 @@ pub fn format_guard(guard: &Guard) -> String {
         GuardKind::Exec => "e",
         GuardKind::Spawn => "s",
     };
-    let mut lines: Vec<String> = vec![kind_letter.to_string(), guard.pid.to_string(), guard.hops.to_string()];
+    let mut lines: Vec<String> = vec![
+        kind_letter.to_string(),
+        guard.pid.to_string(),
+        guard.hops.to_string(),
+    ];
     for path in &guard.skipped {
         lines.push(path.to_string_lossy().to_string());
     }
@@ -162,7 +166,12 @@ pub fn parse_guard(text: &str) -> Option<Guard> {
             skipped.push(PathBuf::from(line));
         }
     }
-    return Some(Guard { kind, pid, hops, skipped });
+    return Some(Guard {
+        kind,
+        pid,
+        hops,
+        skipped,
+    });
 }
 
 /// What:
@@ -179,7 +188,11 @@ pub fn parse_guard(text: &str) -> Option<Guard> {
 /// ```ts
 /// export function isMeantFor(guard: Guard, ownPid: number, parentPid: number): boolean
 /// ```
-pub fn is_meant_for(guard: &Guard, own_pid: u32, parent_pid: u32) -> bool {
+pub fn is_meant_for(
+    guard: &Guard,
+    own_pid: u32,
+    parent_pid: u32,
+) -> bool {
     match guard.kind {
         GuardKind::Exec => return guard.pid == own_pid,
         GuardKind::Spawn => return guard.pid == parent_pid,

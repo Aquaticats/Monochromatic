@@ -23,7 +23,10 @@
 //!  and `page-up` are one key.
 
 /// Sibling modules of this crate.
-use crate::{key_table::EVDEV_KEYS, keymap::char_to_key};
+use crate::{
+    key_table::EVDEV_KEYS,
+    keymap::char_to_key,
+};
 
 /// Highest evdev key code the kernel header defines (`KEY_MAX`).
 ///
@@ -115,7 +118,7 @@ pub fn normalize(name: &str) -> String {
         .chars()
         .filter(is_not_separator)
         .flat_map(char::to_lowercase)
-        .collect()
+        .collect();
 }
 
 /// Whether a character is kept when a key name is normalized:
@@ -126,7 +129,7 @@ pub fn normalize(name: &str) -> String {
 /// Why:
 ///       `Iterator::filter` takes it by path instead of a closure.
 fn is_not_separator(character: &char) -> bool {
-    return *character != '_' && *character != '-'
+    return *character != '_' && *character != '-';
 }
 
 /// Whether a raw key code lies in the accepted range `1..=KEY_CODE_MAX`.
@@ -136,7 +139,7 @@ fn is_not_separator(character: &char) -> bool {
 /// Why:
 ///       `Option::filter` takes it by path instead of a closure.
 fn is_valid_code(code: &u32) -> bool {
-    return (1..=KEY_CODE_MAX).contains(code)
+    return (1..=KEY_CODE_MAX).contains(code);
 }
 
 /// Parse the number of a `code:<n>` key.
@@ -159,7 +162,7 @@ fn raw_code(text: &str) -> Option<u32> {
         Some(hexadecimal) => u32::from_str_radix(hexadecimal, 16).ok(),
         None => text.parse::<u32>().ok(),
     };
-    return parsed.filter(is_valid_code)
+    return parsed.filter(is_valid_code);
 }
 
 /// Resolve one key name to its evdev code.
@@ -191,29 +194,29 @@ fn raw_code(text: &str) -> Option<u32> {
 /// ```
 pub fn resolve(name: &str) -> Option<u32> {
     if let Some(number) = name.to_lowercase().strip_prefix("code:") {
-        return raw_code(number)
+        return raw_code(number);
     }
     if let Some(kernel_name) = name.to_lowercase().strip_prefix("key_") {
-        return resolve(kernel_name)
+        return resolve(kernel_name);
     }
     let normalized = normalize(name);
     for (alias, code) in ALIASES {
         if *alias == normalized {
-            return Some(*code)
+            return Some(*code);
         }
     }
     for (kernel, code) in EVDEV_KEYS {
         if *kernel == normalized {
-            return Some(*code)
+            return Some(*code);
         }
     }
     let mut characters = name.chars();
     let first = characters.next()?;
     if characters.next().is_some() {
-        return None
+        return None;
     }
     let (code, _shift) = char_to_key(first)?;
-    return Some(code)
+    return Some(code);
 }
 
 /// What:

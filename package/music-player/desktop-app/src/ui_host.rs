@@ -45,7 +45,10 @@ pub(crate) trait Host {
     /// mode,
     /// scope,
     /// seek and rescan keys all end as engine commands.
-    fn send(&self, command: Command);
+    fn send(
+        &self,
+        command: Command,
+    );
 
     /// What:
     /// `pick_folder` opens the system folder dialog.
@@ -65,7 +68,11 @@ pub(crate) trait Host {
     /// the row chords (Delete,
     /// copy,
     /// show) and the open menu's Enter share the menu's actions.
-    fn run_row_action(&self, window: &AppWindow, action: TrackMenuAction);
+    fn run_row_action(
+        &self,
+        window: &AppWindow,
+        action: TrackMenuAction,
+    );
 }
 
 /// The production host.
@@ -75,7 +82,10 @@ impl Host for Engine {
     /// Why:
     /// the trait method and the inherent method have the same name;
     /// the inherent one is meant.
-    fn send(&self, command: Command) {
+    fn send(
+        &self,
+        command: Command,
+    ) {
         Engine::send(self, command);
     }
 
@@ -105,7 +115,11 @@ impl Host for Engine {
     /// `run_row_action` runs the menu action for the row the screen state names.
     /// Why:
     /// it is the same function the menu's mouse path uses.
-    fn run_row_action(&self, window: &AppWindow, action: TrackMenuAction) {
+    fn run_row_action(
+        &self,
+        window: &AppWindow,
+        action: TrackMenuAction,
+    ) {
         crate::ui_menu::run_action(window, self, action);
     }
 }

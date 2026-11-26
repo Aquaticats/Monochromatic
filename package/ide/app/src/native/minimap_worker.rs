@@ -7,7 +7,11 @@
 /// The row key of the vertical mapping a picture is built from.
 use super::rows::RowKey;
 /// A worker that cannot start or has stopped is a visible diagnostic.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Hints and diagnostics that decorate the lines.
 use ide_app::annotation::Mark;
 /// The annotation inks.
@@ -18,7 +22,10 @@ use ide_app::code_colors::CodeColors;
 /// cloned as a rope snapshot.
 use ide_app::document::Document;
 /// The matches of the in-file find.
-use ide_app::find::{FindRange, FindRanges};
+use ide_app::find::{
+    FindRange,
+    FindRanges,
+};
 /// Which text a picture is for.
 use ide_app::language::identity::DocumentStamp;
 /// The fill inks.
@@ -39,13 +46,27 @@ use ide_app::tile_scene::TileScene;
 use ide_app::virtual_row::Block;
 /// Owned snapshots and the newest-request flag are shared between the window thread and the worker.
 use std::{
-    panic::{AssertUnwindSafe, catch_unwind},
+    panic::{
+        AssertUnwindSafe,
+        catch_unwind,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
-        mpsc::{Receiver, Sender, TryRecvError, channel},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
+        mpsc::{
+            Receiver,
+            Sender,
+            TryRecvError,
+            channel,
+        },
     },
-    thread::{self, JoinHandle},
+    thread::{
+        self,
+        JoinHandle,
+    },
     time::Duration,
 };
 
@@ -298,7 +319,10 @@ impl MinimapWorker {
 
     /// Make `job` the request the worker builds next,
     /// stopping the build of an older one.
-    pub(super) fn post(&mut self, job: Job) -> Result<()> {
+    pub(super) fn post(
+        &mut self,
+        job: Job,
+    ) -> Result<()> {
         self.newest.store(job.id, Ordering::SeqCst);
         let sender = self
             .jobs

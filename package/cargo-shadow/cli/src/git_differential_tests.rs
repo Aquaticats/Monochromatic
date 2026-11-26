@@ -21,7 +21,10 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 // Imports `std::process::Command`.
 use std::process::Command;
 
@@ -30,7 +33,12 @@ use crate::git_base::resolve_trust_base_with;
 // Imports `crate::git_native::native_base`.
 use crate::git_native::native_base;
 // Imports `crate::git_refs::{NativeBase, NativeEnviron...`.
-use crate::git_refs::{GitProgram, NativeBase, NativeEnvironment, current_user_id};
+use crate::git_refs::{
+    GitProgram,
+    NativeBase,
+    NativeEnvironment,
+    current_user_id,
+};
 // Imports `crate::test_scratch::scratch`.
 use crate::test_scratch::scratch;
 
@@ -57,14 +65,27 @@ pub(crate) struct Fixture {
 }
 
 /// Runs the real Git in a directory with an environment that contains nothing but a disposable home.
-pub(crate) fn run_git(root: &Path, directory: &Path, arguments: &[&str]) -> Option<String> {
+pub(crate) fn run_git(
+    root: &Path,
+    directory: &Path,
+    arguments: &[&str],
+) -> Option<String> {
     let output = Command::new(SYSTEM_GIT)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("LC_ALL", "C")
-        .args(["-c", "user.name=tester", "-c", "user.email=tester@example.invalid", "-c", "commit.gpgsign=false", "-c", "protocol.file.allow=always"])
+        .args([
+            "-c",
+            "user.name=tester",
+            "-c",
+            "user.email=tester@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "protocol.file.allow=always",
+        ])
         .args(arguments)
         .current_dir(directory)
         .output()
@@ -115,7 +136,11 @@ pub(crate) fn run_git(root: &Path, directory: &Path, arguments: &[&str]) -> Opti
 }
 
 /// Runs Git and requires success.
-pub(crate) fn git(fixture_root: &Path, directory: &Path, arguments: &[&str]) -> String {
+pub(crate) fn git(
+    fixture_root: &Path,
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
@@ -126,14 +151,22 @@ pub(crate) fn git(fixture_root: &Path, directory: &Path, arguments: &[&str]) -> 
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    return run_git(fixture_root, directory, arguments).unwrap_or_else(|| panic!("git {arguments:?} failed in {}", directory.display()));
+    return run_git(fixture_root, directory, arguments)
+        .unwrap_or_else(|| panic!("git {arguments:?} failed in {}", directory.display()));
 }
 
 /// The reader's environment:
 /// the disposable home and no system configuration.
 pub(crate) fn environment(root: &Path) -> NativeEnvironment {
     // `Some`: the present or the absent value of an `Option`.
-    return NativeEnvironment { home: Some(root.join("home")), xdg_config_home: None, system_config: Some(root.join("no-system-config")), blocking_variable: None, git: GitProgram::default(), user_id: current_user_id() };
+    return NativeEnvironment {
+        home: Some(root.join("home")),
+        xdg_config_home: None,
+        system_config: Some(root.join("no-system-config")),
+        blocking_variable: None,
+        git: GitProgram::default(),
+        user_id: current_user_id(),
+    };
 }
 
 /// Builds the repository on the branch `branch`.
@@ -160,28 +193,48 @@ pub(crate) fn fixture(branch: &str) -> Fixture {
     // ```ts
     // // TS has one type for this: T[] / Set / Map / number
     // ```
-    git(root.path(), &work, &["init", "--quiet", "--initial-branch", branch]);
+    git(
+        root.path(),
+        &work,
+        &["init", "--quiet", "--initial-branch", branch],
+    );
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(work.join("file"), "one\n").expect("file");
     // Borrow `&work`: lends the value without copying or giving it away.
     git(root.path(), &work, &["add", "file"]);
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(root.path(), &work, &["commit", "--quiet", "--message", "one"]);
+    git(
+        root.path(),
+        &work,
+        &["commit", "--quiet", "--message", "one"],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
     // Typed binding: `first: String`.
     let first: String = git(root.path(), &work, &["rev-parse", "HEAD"]);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(work.join("file"), "two\n").expect("file");
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(root.path(), &work, &["commit", "--quiet", "--all", "--message", "two"]);
+    git(
+        root.path(),
+        &work,
+        &["commit", "--quiet", "--all", "--message", "two"],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
     // Typed binding: `second: String`.
     let second: String = git(root.path(), &work, &["rev-parse", "HEAD"]);
-    return Fixture { root, work, first, second };
+    return Fixture {
+        root,
+        work,
+        first,
+        second,
+    };
 }
 
 /// Replaces the repository configuration with the plain core section followed by `text`.
-pub(crate) fn write_config(fixture: &Fixture, text: &str) {
+pub(crate) fn write_config(
+    fixture: &Fixture,
+    text: &str,
+) {
     // Typed binding: `core: &str`.
     let core: &str = "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n";
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -191,7 +244,11 @@ pub(crate) fn write_config(fixture: &Fixture, text: &str) {
 
 /// Writes a loose reference by hand,
 /// the way a fetch or a broken tool could.
-pub(crate) fn write_ref(directory: &Path, name: &str, object: &str) {
+pub(crate) fn write_ref(
+    directory: &Path,
+    name: &str,
+    object: &str,
+) {
     // Typed binding: `path: PathBuf`.
     let path: PathBuf = directory.join(name);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -204,7 +261,10 @@ pub(crate) fn write_ref(directory: &Path, name: &str, object: &str) {
 /// What Git chooses:
 /// the first candidate that names a commit,
 /// with its commit.
-pub(crate) fn oracle(fixture: &Fixture, directory: &Path) -> Option<(String, String)> {
+pub(crate) fn oracle(
+    fixture: &Fixture,
+    directory: &Path,
+) -> Option<(String, String)> {
     for spelling in CANDIDATES {
         // Typed binding: `revision: String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
@@ -218,7 +278,17 @@ pub(crate) fn oracle(fixture: &Fixture, directory: &Path) -> Option<(String, Str
         // if (value !== undefined) { const inner = value; ... }
         // ```
         // Borrow `&[`: lends the value without copying or giving it away.
-        if let Some(commit) = run_git(fixture.root.path(), directory, &["rev-parse", "--verify", "--quiet", "--end-of-options", &revision]) {
+        if let Some(commit) = run_git(
+            fixture.root.path(),
+            directory,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "--end-of-options",
+                &revision,
+            ],
+        ) {
             // `Some`: the present or the absent value of an `Option`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return Some((spelling.to_string(), commit));
@@ -230,12 +300,17 @@ pub(crate) fn oracle(fixture: &Fixture, directory: &Path) -> Option<(String, Str
 
 /// Requires the reader to decline or to agree with Git,
 /// in the directory `directory`.
-pub(crate) fn assert_agrees_at(fixture: &Fixture, directory: &Path, label: &str) {
+pub(crate) fn assert_agrees_at(
+    fixture: &Fixture,
+    directory: &Path,
+    label: &str,
+) {
     // Typed binding: `expected: Option<(String, String)>`.
     let expected: Option<(String, String)> = oracle(fixture, directory);
     // Borrow `&environment`: lends the value without copying or giving it away.
     // Typed binding: `native: Result<NativeBase, String>`.
-    let native: Result<NativeBase, String> = native_base(directory, false, &environment(fixture.root.path()));
+    let native: Result<NativeBase, String> =
+        native_base(directory, false, &environment(fixture.root.path()));
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
     //
@@ -285,38 +360,58 @@ pub(crate) fn assert_agrees_at(fixture: &Fixture, directory: &Path, label: &str)
             // list.map(f).filter(g)
             // ```
             // Typed binding: `found: Option<(String, String)>`.
-            let found: Option<(String, String)> = base.commit.clone().ok().map(|commit| { return (base.spelling.clone(), commit); });
+            let found: Option<(String, String)> = base.commit.clone().ok().map(|commit| {
+                return (base.spelling.clone(), commit);
+            });
             // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-            assert_eq!(found, expected, "{label}: the reader answered {base:?} but Git chooses {expected:?}");
+            assert_eq!(
+                found, expected,
+                "{label}: the reader answered {base:?} but Git chooses {expected:?}"
+            );
         }
     }
 }
 
 /// Requires the reader to decline or to agree with Git,
 /// in the repository's working directory.
-pub(crate) fn assert_agrees(fixture: &Fixture, label: &str) {
+pub(crate) fn assert_agrees(
+    fixture: &Fixture,
+    label: &str,
+) {
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     assert_agrees_at(fixture, &fixture.work, label);
 }
 
 /// Requires the reader to decline.
-pub(crate) fn assert_declines(fixture: &Fixture, label: &str) {
+pub(crate) fn assert_declines(
+    fixture: &Fixture,
+    label: &str,
+) {
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `native: Result<NativeBase, String>`.
-    let native: Result<NativeBase, String> = native_base(&fixture.work, false, &environment(fixture.root.path()));
+    let native: Result<NativeBase, String> =
+        native_base(&fixture.work, false, &environment(fixture.root.path()));
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(native.is_err(), "{label}: the reader answered {native:?} where only Git can say");
+    assert!(
+        native.is_err(),
+        "{label}: the reader answered {native:?} where only Git can say"
+    );
 }
 
 /// Makes the branch `base` point at the older commit,
 /// so a correct upstream selection is distinguishable from `HEAD`.
 pub(crate) fn base_branch_at_first(fixture: &Fixture) {
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["branch", "base", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["branch", "base", &fixture.first],
+    );
 }
 
 /// The branch section that makes `topic` track `refs/heads/base` of this repository.
-pub(crate) const TOPIC_TRACKS_BASE: &str = "[branch \"topic\"]\n\tremote = .\n\tmerge = refs/heads/base\n";
+pub(crate) const TOPIC_TRACKS_BASE: &str =
+    "[branch \"topic\"]\n\tremote = .\n\tmerge = refs/heads/base\n";
 
 /// A control:
 /// the plain upstream case agrees,
@@ -333,7 +428,8 @@ fn a_plain_local_upstream_agrees_with_git() {
     assert_agrees(&fixture, "plain upstream");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let answered = native_base(&fixture.work, false, &environment(fixture.root.path())).expect("the plain case is answered from the files");
+    let answered = native_base(&fixture.work, false, &environment(fixture.root.path()))
+        .expect("the plain case is answered from the files");
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -355,7 +451,13 @@ fn a_comment_ending_in_a_backslash_does_not_hide_the_include_below_it() {
     fs::write(&included, TOPIC_TRACKS_BASE).expect("included file");
     // Borrow `&fixture`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    write_config(&fixture, &format!("\t# a comment \\\n[include]\n\tpath = {}\n", included.display()));
+    write_config(
+        &fixture,
+        &format!(
+            "\t# a comment \\\n[include]\n\tpath = {}\n",
+            included.display()
+        ),
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "comment then include");
@@ -381,7 +483,8 @@ fn every_true_spelling_of_the_worktree_configuration_extension_is_left_to_git() 
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         .expect("config");
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        fs::write(fixture.work.join(".git/config.worktree"), TOPIC_TRACKS_BASE).expect("worktree config");
+        fs::write(fixture.work.join(".git/config.worktree"), TOPIC_TRACKS_BASE)
+            .expect("worktree config");
 
         // Borrow `&fixture`: lends the value without copying or giving it away.
         assert_agrees(&fixture, spelling);
@@ -398,13 +501,17 @@ fn the_first_of_several_merge_values_is_the_upstream() {
     // Borrow `&fixture`: lends the value without copying or giving it away.
     base_branch_at_first(&fixture);
     // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "[branch \"topic\"]\n\tremote = .\n\tmerge = refs/heads/base\n\tmerge = refs/heads/topic\n");
+    write_config(
+        &fixture,
+        "[branch \"topic\"]\n\tremote = .\n\tmerge = refs/heads/base\n\tmerge = refs/heads/topic\n",
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "two merge values");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let answered = native_base(&fixture.work, false, &environment(fixture.root.path())).expect("answered");
+    let answered =
+        native_base(&fixture.work, false, &environment(fixture.root.path())).expect("answered");
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -417,9 +524,16 @@ fn the_first_of_several_merge_values_is_the_upstream() {
 fn a_dotted_section_with_a_quoted_subsection_names_the_dotted_branch() {
     let fixture = fixture("topic.sub");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["branch", "base", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["branch", "base", &fixture.first],
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "[branch.topic \"sub\"]\n\tremote = .\n\tmerge = refs/heads/base\n");
+    write_config(
+        &fixture,
+        "[branch.topic \"sub\"]\n\tremote = .\n\tmerge = refs/heads/base\n",
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "dotted section and quoted subsection");
@@ -432,9 +546,16 @@ fn a_dotted_section_with_a_quoted_subsection_names_the_dotted_branch() {
 fn a_quoted_subsection_may_hold_a_bracket_an_escaped_quote_and_a_hash() {
     let fixture = fixture("topic\"]#suffix");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["branch", "base", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["branch", "base", &fixture.first],
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "[branch \"topic\\\"]#suffix\"]\n\tremote = .\n\tmerge = refs/heads/base\n");
+    write_config(
+        &fixture,
+        "[branch \"topic\\\"]#suffix\"]\n\tremote = .\n\tmerge = refs/heads/base\n",
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "bracket in subsection");
@@ -447,11 +568,22 @@ fn a_quoted_subsection_may_hold_a_bracket_an_escaped_quote_and_a_hash() {
 fn a_quoted_merge_value_keeps_a_trailing_no_break_space() {
     let fixture = fixture("topic");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["branch", "base", &fixture.second]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["branch", "base", &fixture.second],
+    );
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["branch", "base\u{a0}", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["branch", "base\u{a0}", &fixture.first],
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "[branch \"topic\"]\n\tremote = .\n\tmerge = \"refs/heads/base\u{a0}\"\n");
+    write_config(
+        &fixture,
+        "[branch \"topic\"]\n\tremote = .\n\tmerge = \"refs/heads/base\u{a0}\"\n",
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "no-break space");
@@ -464,9 +596,16 @@ fn a_quoted_merge_value_keeps_a_trailing_no_break_space() {
 fn a_remote_key_without_a_value_is_not_a_remote_named_true() {
     let fixture = fixture("topic");
     // Borrow `&fixture.work.join`: lends the value without copying or giving it away.
-    write_ref(&fixture.work.join(".git"), "refs/remotes/true/base", &fixture.first);
+    write_ref(
+        &fixture.work.join(".git"),
+        "refs/remotes/true/base",
+        &fixture.first,
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "[branch \"topic\"]\n\tremote\n\tmerge = refs/heads/base\n[remote \"true\"]\n\tfetch = +refs/heads/*:refs/remotes/true/*\n");
+    write_config(
+        &fixture,
+        "[branch \"topic\"]\n\tremote\n\tmerge = refs/heads/base\n[remote \"true\"]\n\tfetch = +refs/heads/*:refs/remotes/true/*\n",
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "bare remote key");
@@ -481,11 +620,30 @@ fn a_private_reference_of_a_linked_worktree_is_not_looked_for_in_the_common_dire
     let linked: PathBuf = fixture.root.path().join("linked");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(fixture.root.path(), &fixture.work, &["worktree", "add", "--quiet", "-b", "topic2", linked.to_str().expect("utf8"), "HEAD"]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic2",
+            linked.to_str().expect("utf8"),
+            "HEAD",
+        ],
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "[branch \"topic2\"]\n\tremote = .\n\tmerge = refs/worktree/base\n");
+    write_config(
+        &fixture,
+        "[branch \"topic2\"]\n\tremote = .\n\tmerge = refs/worktree/base\n",
+    );
     // Borrow `&linked`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &linked, &["update-ref", "refs/worktree/base", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &linked,
+        &["update-ref", "refs/worktree/base", &fixture.first],
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees_at(&fixture, &linked, "private reference");
@@ -499,9 +657,25 @@ fn a_short_name_resolves_through_the_remote_head_of_a_remote_named_like_a_branch
     // Typed binding: `dot_git: PathBuf`.
     let dot_git: PathBuf = fixture.work.join(".git");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["update-ref", "refs/remotes/origin/main/stable", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &[
+            "update-ref",
+            "refs/remotes/origin/main/stable",
+            &fixture.first,
+        ],
+    );
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["symbolic-ref", "refs/remotes/origin/main/HEAD", "refs/remotes/origin/main/stable"]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/main/HEAD",
+            "refs/remotes/origin/main/stable",
+        ],
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
     write_config(&fixture, "");
 
@@ -519,27 +693,51 @@ fn a_short_name_resolves_through_the_remote_head_of_a_remote_named_like_a_branch
 fn an_annotated_tag_a_blob_and_a_missing_object_in_a_remote_reference_are_not_taken_for_commits() {
     let tag_fixture = fixture("topic");
     // Borrow `&tag_fixture.work`: lends the value without copying or giving it away.
-    git(tag_fixture.root.path(), &tag_fixture.work, &["tag", "-a", "-m", "tag", "v1", &tag_fixture.first]);
+    git(
+        tag_fixture.root.path(),
+        &tag_fixture.work,
+        &["tag", "-a", "-m", "tag", "v1", &tag_fixture.first],
+    );
     // Borrow `&tag_fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `tag_object: String`.
-    let tag_object: String = git(tag_fixture.root.path(), &tag_fixture.work, &["rev-parse", "v1"]);
+    let tag_object: String = git(
+        tag_fixture.root.path(),
+        &tag_fixture.work,
+        &["rev-parse", "v1"],
+    );
     // Borrow `&tag_fixture.work.join`: lends the value without copying or giving it away.
-    write_ref(&tag_fixture.work.join(".git"), "refs/remotes/origin/main", &tag_object);
+    write_ref(
+        &tag_fixture.work.join(".git"),
+        "refs/remotes/origin/main",
+        &tag_object,
+    );
     // Borrow `&tag_fixture`: lends the value without copying or giving it away.
     assert_agrees(&tag_fixture, "annotated tag");
 
     let blob_fixture = fixture("topic");
     // Borrow `&blob_fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `blob: String`.
-    let blob: String = git(blob_fixture.root.path(), &blob_fixture.work, &["rev-parse", "HEAD:file"]);
+    let blob: String = git(
+        blob_fixture.root.path(),
+        &blob_fixture.work,
+        &["rev-parse", "HEAD:file"],
+    );
     // Borrow `&blob_fixture.work.join`: lends the value without copying or giving it away.
-    write_ref(&blob_fixture.work.join(".git"), "refs/remotes/origin/main", &blob);
+    write_ref(
+        &blob_fixture.work.join(".git"),
+        "refs/remotes/origin/main",
+        &blob,
+    );
     // Borrow `&blob_fixture`: lends the value without copying or giving it away.
     assert_agrees(&blob_fixture, "blob");
 
     let missing_fixture = fixture("topic");
     // Borrow `&missing_fixture.work.join`: lends the value without copying or giving it away.
-    write_ref(&missing_fixture.work.join(".git"), "refs/remotes/origin/main", "1234567890123456789012345678901234567890");
+    write_ref(
+        &missing_fixture.work.join(".git"),
+        "refs/remotes/origin/main",
+        "1234567890123456789012345678901234567890",
+    );
     // Borrow `&missing_fixture`: lends the value without copying or giving it away.
     assert_agrees(&missing_fixture, "missing object");
 }
@@ -557,12 +755,36 @@ fn a_gitdir_pointer_keeps_the_space_in_its_path() {
     fs::create_dir_all(&outer).expect("outer");
     // Borrow `&outer`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(fixture.root.path(), &outer, &["clone", "--quiet", "--bare", fixture.work.to_str().expect("utf8"), "git-a"]);
+    git(
+        fixture.root.path(),
+        &outer,
+        &[
+            "clone",
+            "--quiet",
+            "--bare",
+            fixture.work.to_str().expect("utf8"),
+            "git-a",
+        ],
+    );
     // Borrow `&outer`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(fixture.root.path(), &outer, &["clone", "--quiet", "--bare", fixture.work.to_str().expect("utf8"), " git-a"]);
+    git(
+        fixture.root.path(),
+        &outer,
+        &[
+            "clone",
+            "--quiet",
+            "--bare",
+            fixture.work.to_str().expect("utf8"),
+            " git-a",
+        ],
+    );
     // Borrow `&outer.join`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &outer.join(" git-a"), &["update-ref", "refs/heads/topic", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &outer.join(" git-a"),
+        &["update-ref", "refs/heads/topic", &fixture.first],
+    );
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(outer.join(".git"), "gitdir:  git-a\n").expect("pointer");
 
@@ -581,7 +803,18 @@ fn an_unreadable_commondir_is_not_an_absent_one() {
     let linked: PathBuf = fixture.root.path().join("linked");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    git(fixture.root.path(), &fixture.work, &["worktree", "add", "--quiet", "--detach", linked.to_str().expect("utf8"), "HEAD"]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            linked.to_str().expect("utf8"),
+            "HEAD",
+        ],
+    );
     // Typed binding: `commondir: PathBuf`.
     let commondir: PathBuf = fixture.work.join(".git/worktrees/linked/commondir");
     // Borrow `&commondir`: lends the value without copying or giving it away.
@@ -602,7 +835,11 @@ fn an_unreadable_commondir_is_not_an_absent_one() {
 fn an_unknown_repository_extension_is_left_to_git() {
     let fixture = fixture("topic");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(fixture.work.join(".git/config"), "[core]\n\trepositoryformatversion = 1\n[extensions]\n\tsomethingnew = yes\n").expect("config");
+    fs::write(
+        fixture.work.join(".git/config"),
+        "[core]\n\trepositoryformatversion = 1\n[extensions]\n\tsomethingnew = yes\n",
+    )
+    .expect("config");
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "unknown extension");
@@ -616,7 +853,11 @@ fn an_unknown_repository_extension_is_left_to_git() {
 fn an_invalid_refspec_after_a_matching_one_is_left_to_git() {
     let fixture = fixture("topic");
     // Borrow `&fixture.work.join`: lends the value without copying or giving it away.
-    write_ref(&fixture.work.join(".git"), "refs/remotes/origin/tracked/base", &fixture.first);
+    write_ref(
+        &fixture.work.join(".git"),
+        "refs/remotes/origin/tracked/base",
+        &fixture.first,
+    );
     write_config(
         // Borrow `&fixture`: lends the value without copying or giving it away.
         &fixture,
@@ -640,7 +881,10 @@ fn a_declined_choice_costs_exactly_one_git_start() {
     fs::write(&included, "").expect("included");
     // Borrow `&fixture`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    write_config(&fixture, &format!("[include]\n\tpath = {}\n", included.display()));
+    write_config(
+        &fixture,
+        &format!("[include]\n\tpath = {}\n", included.display()),
+    );
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
@@ -652,10 +896,21 @@ fn a_declined_choice_costs_exactly_one_git_start() {
     // Borrow `&stand_in`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    fs::write(&stand_in, format!("#!/bin/sh\necho \"$@\" >> {}\nexec {SYSTEM_GIT} \"$@\"\n", log.display())).expect("stand-in");
+    fs::write(
+        &stand_in,
+        format!(
+            "#!/bin/sh\necho \"$@\" >> {}\nexec {SYSTEM_GIT} \"$@\"\n",
+            log.display()
+        ),
+    )
+    .expect("stand-in");
     // Borrow `&stand_in`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    fs::set_permissions(
+        &stand_in,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
@@ -681,7 +936,10 @@ fn a_declined_choice_costs_exactly_one_git_start() {
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             ("PATH".to_string(), "/usr/bin:/bin".to_string()),
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            ("HOME".to_string(), fixture.root.path().join("home").display().to_string()),
+            (
+                "HOME".to_string(),
+                fixture.root.path().join("home").display().to_string(),
+            ),
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             ("GIT_CONFIG_NOSYSTEM".to_string(), "1".to_string()),
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
@@ -694,7 +952,14 @@ fn a_declined_choice_costs_exactly_one_git_start() {
     // Borrow `&log`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(&log).expect("the invocation log").lines().count(), 1, "the processes actually started");
+    assert_eq!(
+        fs::read_to_string(&log)
+            .expect("the invocation log")
+            .lines()
+            .count(),
+        1,
+        "the processes actually started"
+    );
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(base.git_starts, 1, "{base:?}");
@@ -716,15 +981,23 @@ fn a_packed_repository_is_answered_from_its_pack_files() {
     // Borrow `&fixture`: lends the value without copying or giving it away.
     write_config(&fixture, TOPIC_TRACKS_BASE);
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["gc", "--quiet", "--aggressive"]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["gc", "--quiet", "--aggressive"],
+    );
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!fixture.work.join(".git/refs/heads/base").exists(), "gc packed the references");
+    assert!(
+        !fixture.work.join(".git/refs/heads/base").exists(),
+        "gc packed the references"
+    );
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "packed repository");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let answered = native_base(&fixture.work, false, &environment(fixture.root.path())).expect("answered from pack files");
+    let answered = native_base(&fixture.work, false, &environment(fixture.root.path()))
+        .expect("answered from pack files");
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -743,9 +1016,23 @@ fn a_sha256_repository_is_left_to_git() {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(&work).expect("work");
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(root.path(), &work, &["init", "--quiet", "--object-format=sha256", "--initial-branch", "topic"]);
+    git(
+        root.path(),
+        &work,
+        &[
+            "init",
+            "--quiet",
+            "--object-format=sha256",
+            "--initial-branch",
+            "topic",
+        ],
+    );
     // Borrow `&work`: lends the value without copying or giving it away.
-    git(root.path(), &work, &["commit", "--quiet", "--allow-empty", "--message", "one"]);
+    git(
+        root.path(),
+        &work,
+        &["commit", "--quiet", "--allow-empty", "--message", "one"],
+    );
     // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
     // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
     //
@@ -753,7 +1040,12 @@ fn a_sha256_repository_is_left_to_git() {
     // ```ts
     // const list: string[] = [];   // or new Set() / new Map()
     // ```
-    let fixture = Fixture { root, work, first: String::new(), second: String::new() };
+    let fixture = Fixture {
+        root,
+        work,
+        first: String::new(),
+        second: String::new(),
+    };
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "sha256");
@@ -773,34 +1065,62 @@ fn only_a_commit_stored_whole_is_confirmed() {
     // Typed binding: `common: PathBuf`.
     let common: PathBuf = fixture.work.join(".git");
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["tag", "-a", "-m", "tag", "v1", &fixture.first]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["tag", "-a", "-m", "tag", "v1", &fixture.first],
+    );
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `tag: String`.
     let tag: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "v1"]);
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `tree: String`.
-    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let tree: String = git(
+        fixture.root.path(),
+        &fixture.work,
+        &["rev-parse", "HEAD^{tree}"],
+    );
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `blob: String`.
-    let blob: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD:file"]);
+    let blob: String = git(
+        fixture.root.path(),
+        &fixture.work,
+        &["rev-parse", "HEAD:file"],
+    );
 
     for loose_or_packed in ["loose", "packed"] {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Borrow `&common`: lends the value without copying or giving it away.
         // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-        assert_eq!(confirm_commit(&common, &fixture.first), Ok(()), "{loose_or_packed}: a commit");
+        assert_eq!(
+            confirm_commit(&common, &fixture.first),
+            Ok(()),
+            "{loose_or_packed}: a commit"
+        );
         // Borrow `&common`: lends the value without copying or giving it away.
         // Macro `assert!`: builds or prints text (or a list) from a template.
-        assert!(confirm_commit(&common, &tag).is_err(), "{loose_or_packed}: a tag");
+        assert!(
+            confirm_commit(&common, &tag).is_err(),
+            "{loose_or_packed}: a tag"
+        );
         // Borrow `&common`: lends the value without copying or giving it away.
         // Macro `assert!`: builds or prints text (or a list) from a template.
-        assert!(confirm_commit(&common, &tree).is_err(), "{loose_or_packed}: a tree");
+        assert!(
+            confirm_commit(&common, &tree).is_err(),
+            "{loose_or_packed}: a tree"
+        );
         // Borrow `&common`: lends the value without copying or giving it away.
         // Macro `assert!`: builds or prints text (or a list) from a template.
-        assert!(confirm_commit(&common, &blob).is_err(), "{loose_or_packed}: a blob");
+        assert!(
+            confirm_commit(&common, &blob).is_err(),
+            "{loose_or_packed}: a blob"
+        );
         // Borrow `&common`: lends the value without copying or giving it away.
         // Macro `assert!`: builds or prints text (or a list) from a template.
-        assert!(confirm_commit(&common, "1234567890123456789012345678901234567890").is_err(), "{loose_or_packed}: a missing object");
+        assert!(
+            confirm_commit(&common, "1234567890123456789012345678901234567890").is_err(),
+            "{loose_or_packed}: a missing object"
+        );
         // Borrow `&fixture.work`: lends the value without copying or giving it away.
         git(fixture.root.path(), &fixture.work, &["gc", "--quiet"]);
     }
@@ -816,7 +1136,11 @@ fn a_replace_reference_is_left_to_git() {
     // Borrow `&fixture`: lends the value without copying or giving it away.
     write_config(&fixture, TOPIC_TRACKS_BASE);
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    git(fixture.root.path(), &fixture.work, &["replace", &fixture.first, &fixture.second]);
+    git(
+        fixture.root.path(),
+        &fixture.work,
+        &["replace", &fixture.first, &fixture.second],
+    );
 
     // Borrow `&fixture`: lends the value without copying or giving it away.
     assert_agrees(&fixture, "replace reference");

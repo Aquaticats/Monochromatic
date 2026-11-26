@@ -23,11 +23,27 @@ use super::context::Context;
 /// Imports the model types the resolvers build.
 use super::model::Artifact;
 /// Imports the GitHub release helpers.
-use super::update_github::{asset_digest, find_asset, release_by_tag};
+use super::update_github::{
+    asset_digest,
+    find_asset,
+    release_by_tag,
+};
 /// Imports the shared resolver helpers.
-use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json, hash_download, is_arm64, is_musl, text_at};
+use super::update_resolve::{
+    LINUX_PLATFORMS,
+    Resolution,
+    ResolveError,
+    get_json,
+    hash_download,
+    is_arm64,
+    is_musl,
+    text_at,
+};
 /// Imports the shared named helpers.
-use super::util::{all_ascii_digits, number_or_zero};
+use super::util::{
+    all_ascii_digits,
+    number_or_zero,
+};
 
 /// The `release_name` of the first record of an Adoptium answer.
 fn first_release_name(records: &Value) -> Option<&str> {
@@ -37,10 +53,21 @@ fn first_release_name(records: &Value) -> Option<&str> {
 }
 
 /// The Adoptium asset name of one platform's JDK archive for a major version and a release core (`21.0.13+9`).
-fn jdk_asset_name(major: &str, core: &str, platform: &str) -> String {
+fn jdk_asset_name(
+    major: &str,
+    core: &str,
+    platform: &str,
+) -> String {
     let arch: &str = if is_arm64(platform) { "aarch64" } else { "x64" };
-    let os: &str = if is_musl(platform) { "alpine-linux" } else { "linux" };
-    return format!("OpenJDK{major}U-jdk_{arch}_{os}_hotspot_{}.tar.gz", core.replace('+', "_"));
+    let os: &str = if is_musl(platform) {
+        "alpine-linux"
+    } else {
+        "linux"
+    };
+    return format!(
+        "OpenJDK{major}U-jdk_{arch}_{os}_hotspot_{}.tar.gz",
+        core.replace('+', "_")
+    );
 }
 
 /// What:
@@ -56,17 +83,26 @@ fn jdk_asset_name(major: &str, core: &str, platform: &str) -> String {
 /// ```ts
 /// export function resolveJava(ctx: Context, range: string): Resolution
 /// ```
-pub fn resolve_java(ctx: &Context, range: &str) -> Result<Resolution, ResolveError> {
+pub fn resolve_java(
+    ctx: &Context,
+    range: &str,
+) -> Result<Resolution, ResolveError> {
     let major: String = range.chars().take_while(char::is_ascii_digit).collect();
     if major.is_empty() {
-        return Err(ResolveError::Failed(format!("{range:?} is not a Java major version or release (write java:temurin@21)")));
+        return Err(ResolveError::Failed(format!(
+            "{range:?} is not a Java major version or release (write java:temurin@21)"
+        )));
     }
     let core: String = if all_ascii_digits(range) {
-        let url: String = format!("https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture=x64&image_type=jdk&os=linux");
+        let url: String = format!(
+            "https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture=x64&image_type=jdk&os=linux"
+        );
         let records: Value = get_json(ctx, &url, &[])?;
         let release_name: Option<&str> = first_release_name(&records);
         let Some(name) = release_name else {
-            return Err(ResolveError::Failed(format!("{url}: Adoptium reports no JDK release")));
+            return Err(ResolveError::Failed(format!(
+                "{url}: Adoptium reports no JDK release"
+            )));
         };
         name.strip_prefix("jdk-").unwrap_or(name).to_string()
     } else {
@@ -78,14 +114,27 @@ pub fn resolve_java(ctx: &Context, range: &str) -> Result<Resolution, ResolveErr
     for platform in LINUX_PLATFORMS {
         let name: String = jdk_asset_name(&major, &core, platform);
         let Some(asset) = find_asset(&release, &name) else {
-            return Err(ResolveError::Failed(format!("github.com/{repo} release jdk-{core} has no asset {name}")));
+            return Err(ResolveError::Failed(format!(
+                "github.com/{repo} release jdk-{core} has no asset {name}"
+            )));
         };
         let Some(url) = text_at(asset, &["browser_download_url"]) else {
-            return Err(ResolveError::Failed(format!("release asset {name} carries no download URL")));
+            return Err(ResolveError::Failed(format!(
+                "release asset {name} carries no download URL"
+            )));
         };
-        artifacts.push((platform.to_string(), Artifact { url: url.to_string(), sha256: asset_digest(ctx, asset, url)? }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url: url.to_string(),
+                sha256: asset_digest(ctx, asset, url)?,
+            },
+        ));
     }
-    return Ok(Resolution { version: format!("temurin-{core}.0.LTS"), artifacts });
+    return Ok(Resolution {
+        version: format!("temurin-{core}.0.LTS"),
+        artifacts,
+    });
 }
 
 /// Whether a tag is `2.<number>.<number>`.
@@ -105,7 +154,11 @@ fn is_stable_v2_tag(tag: &str) -> bool {
 /// The three numbers of a tag that passed `is_stable_v2_tag`.
 fn release_numbers(tag: &str) -> (u64, u64, u64) {
     let mut numbers = tag.split('.').map(number_or_zero);
-    return (numbers.next().unwrap_or(0), numbers.next().unwrap_or(0), numbers.next().unwrap_or(0));
+    return (
+        numbers.next().unwrap_or(0),
+        numbers.next().unwrap_or(0),
+        numbers.next().unwrap_or(0),
+    );
 }
 
 /// What:
@@ -122,7 +175,10 @@ fn release_numbers(tag: &str) -> (u64, u64, u64) {
 /// ```ts
 /// export function resolveAws(ctx: Context, wanted?: string): Resolution
 /// ```
-pub fn resolve_aws(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_aws(
+    ctx: &Context,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     let version: String = match wanted {
         Some(exact) => exact.to_string(),
         None => newest_aws_version(ctx)?,
@@ -130,8 +186,13 @@ pub fn resolve_aws(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, Re
     let mut hashed: Vec<(String, String)> = Vec::new();
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
-        let arch: &str = if is_arm64(platform) { "aarch64" } else { "x86_64" };
-        let url: String = format!("https://awscli.amazonaws.com/awscli-exe-linux-{arch}-{version}.zip");
+        let arch: &str = if is_arm64(platform) {
+            "aarch64"
+        } else {
+            "x86_64"
+        };
+        let url: String =
+            format!("https://awscli.amazonaws.com/awscli-exe-linux-{arch}-{version}.zip");
         let mut known: Option<String> = None;
         for (hashed_url, hash) in &hashed {
             if *hashed_url == url {
@@ -146,9 +207,18 @@ pub fn resolve_aws(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, Re
                 computed
             }
         };
-        artifacts.push((platform.to_string(), Artifact { url, sha256 }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url,
+                sha256,
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }
 
 /// The newest stable 2.x tag in the first hundred tags of `aws/aws-cli`.
@@ -173,6 +243,8 @@ fn newest_aws_version(ctx: &Context) -> Result<String, ResolveError> {
     }
     return match newest {
         Some(version) => Ok(version.to_string()),
-        None => Err(ResolveError::Failed(format!("{url}: no stable 2.x release is listed"))),
+        None => Err(ResolveError::Failed(format!(
+            "{url}: no stable 2.x release is listed"
+        ))),
     };
 }

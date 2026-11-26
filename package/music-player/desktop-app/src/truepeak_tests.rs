@@ -28,8 +28,8 @@ use truepeak_core::DecisionKind;
 fn resolve_full_of_fixture_is_sane() {
     // What:     Full-scan the committed 440 Hz tone.
     // Why:      Exercise a real decode through the desktop adapter into the shared resolver.
-    let decision = resolve_full(Path::new("fixture/tone.flac"))
-        .expect("tone fixture should resolve");
+    let decision =
+        resolve_full(Path::new("fixture/tone.flac")).expect("tone fixture should resolve");
     // What:     `assert_eq!(decision.kind, DecisionKind::ShortFullScan);`. The tiny fixture is
     //           short, so the exact scan tags it short.
     // Why:      Confirm the desktop adapter reports a real duration the policy reads as short.

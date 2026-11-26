@@ -1,15 +1,23 @@
 // Line-splitting edge-case and fail-closed unit tests for the frx scan path.
 
-use super::{line_starts, scan_file, scan_one_set};
+use super::{
+    line_starts,
+    scan_file,
+    scan_one_set,
+};
 use crate::ScanFinding;
 use std::panic::AssertUnwindSafe;
 
 // Creates a fresh temp dir under the test scratch root, keyed by label and pid.
 fn temp_dir(label: &str) -> std::path::PathBuf {
-    let dir = crate::test_scratch::scratch_root().join(format!("frx-scan-{}-{}", label, std::process::id()));
+    let dir = crate::test_scratch::scratch_root().join(format!(
+        "frx-scan-{}-{}",
+        label,
+        std::process::id()
+    ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("create temp dir");
-    return dir
+    return dir;
 }
 
 // Builds LoadedRules from an in-repo temp rules file with no builtin baseline.
@@ -20,7 +28,7 @@ fn load_runtime(rules: &str) -> crate::frx_load::LoadedRules {
     let loaded = crate::frx_load::load(path.to_str().expect("utf8 path"), false, true, b"", "")
         .expect("load runtime rules");
     let _ = std::fs::remove_dir_all(&dir);
-    return loaded
+    return loaded;
 }
 
 #[test]
@@ -68,10 +76,19 @@ fn scan_one_set_normal_return_formats_and_offsets() {
     // Unnamed (line index, rule id) pairs render 1-based with the base offset added.
     let matcher = AssertUnwindSafe(|| vec![(0usize, 0usize), (2usize, 1usize)]);
     let hits = scan_one_set(5, &[], matcher);
-    assert_eq!(hits, vec![
-        ScanFinding::Content { line: 1, rule: String::from("5") },
-        ScanFinding::Content { line: 3, rule: String::from("6") },
-    ]);
+    assert_eq!(
+        hits,
+        vec![
+            ScanFinding::Content {
+                line: 1,
+                rule: String::from("5")
+            },
+            ScanFinding::Content {
+                line: 3,
+                rule: String::from("6")
+            },
+        ]
+    );
     assert_eq!(hits[0].render("a.txt"), "a.txt:1 rule=5");
     assert_eq!(hits[1].render("a.txt"), "a.txt:3 rule=6");
 }
@@ -83,10 +100,19 @@ fn scan_one_set_named_rules_render_names_and_skip_offset() {
     let names = vec![Some("qqq-named".to_string()), None];
     let matcher = AssertUnwindSafe(|| vec![(0usize, 0usize), (1usize, 1usize)]);
     let hits = scan_one_set(5, &names, matcher);
-    assert_eq!(hits, vec![
-        ScanFinding::Content { line: 1, rule: String::from("qqq-named") },
-        ScanFinding::Content { line: 2, rule: String::from("6") },
-    ]);
+    assert_eq!(
+        hits,
+        vec![
+            ScanFinding::Content {
+                line: 1,
+                rule: String::from("qqq-named")
+            },
+            ScanFinding::Content {
+                line: 2,
+                rule: String::from("6")
+            },
+        ]
+    );
     assert_eq!(hits[0].render("a.txt"), "a.txt:1 rule=qqq-named");
     assert_eq!(hits[1].render("a.txt"), "a.txt:2 rule=6");
 }
@@ -109,7 +135,11 @@ fn scan_one_set_engine_panic_fails_closed() {
 fn scan_file_reports_matched_line_numbers() {
     // End-to-end through a real compiled set: a literal on line 3 reports line 3.
     let loaded = load_runtime("NEEDLE_LITERAL_LONG_ENOUGH\n");
-    let hits = scan_file("t.txt", b"clean\nalso clean\nNEEDLE_LITERAL_LONG_ENOUGH\n", &loaded);
+    let hits = scan_file(
+        "t.txt",
+        b"clean\nalso clean\nNEEDLE_LITERAL_LONG_ENOUGH\n",
+        &loaded,
+    );
     assert_eq!(hits, vec!["t.txt:3 rule=0".to_string()]);
 }
 

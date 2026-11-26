@@ -42,7 +42,11 @@ use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 ///  run the drag,
 ///  and free the PIDLs.
 use windows::Win32::UI::Shell::{
-    BHID_DataObject, ILCreateFromPathW, ILFree, SHCreateShellItemArrayFromIDLists, SHDoDragDrop,
+    BHID_DataObject,
+    ILCreateFromPathW,
+    ILFree,
+    SHCreateShellItemArrayFromIDLists,
+    SHDoDragDrop,
 };
 /// What:
 ///  imports the wide-string type.
@@ -86,8 +90,10 @@ fn run_drag(paths: &[&Path]) -> windows::core::Result<()> {
         if owned.is_empty() {
             return Ok(());
         }
-        let pidls: Vec<*const ITEMIDLIST> =
-            owned.iter().map(|pidl| *pidl as *const ITEMIDLIST).collect();
+        let pidls: Vec<*const ITEMIDLIST> = owned
+            .iter()
+            .map(|pidl| *pidl as *const ITEMIDLIST)
+            .collect();
         let array = SHCreateShellItemArrayFromIDLists(&pidls)?;
         let data: IDataObject = array.BindToHandler(None, &BHID_DataObject)?;
         let effect = SHDoDragDrop(None, &data, None, DROPEFFECT_COPY)?;

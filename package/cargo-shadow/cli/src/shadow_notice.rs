@@ -110,7 +110,11 @@ pub fn top_level_request(arguments: &[OsString]) -> TopLevelRequest {
 /// ```
 pub fn version_line(real_cargo: &Path) -> String {
     // `env!("CARGO_PKG_VERSION")` is the crate's version from `Cargo.toml`, read at compile time.
-    return format!("cargo-shadow {}, shadowing cargo at {}\n", env!("CARGO_PKG_VERSION"), real_cargo.display());
+    return format!(
+        "cargo-shadow {}, shadowing cargo at {}\n",
+        env!("CARGO_PKG_VERSION"),
+        real_cargo.display()
+    );
 }
 
 /// What:
@@ -145,7 +149,10 @@ other command goes straight to cargo.\n",
 /// ```ts
 /// export function noticeText(request: TopLevelRequest, realCargo: string): string | undefined
 /// ```
-pub fn notice_text(request: TopLevelRequest, real_cargo: &Path) -> Option<String> {
+pub fn notice_text(
+    request: TopLevelRequest,
+    real_cargo: &Path,
+) -> Option<String> {
     match request {
         TopLevelRequest::Version => return Some(version_line(real_cargo)),
         TopLevelRequest::Help => return Some(help_section(real_cargo)),

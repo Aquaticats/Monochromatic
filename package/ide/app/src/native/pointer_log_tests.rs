@@ -13,7 +13,10 @@ use super::annotation_paint_tests::frame;
 /// Anchor and head of the reading selection.
 use super::caret_tests::position;
 /// The complete reader fixture shared with the find tests.
-use super::find_tests::{Reader, reader};
+use super::find_tests::{
+    Reader,
+    reader,
+};
 /// Where source text starts in the window,
 ///  derived in `sidebar_tests` from the tree,
 ///  divider,
@@ -22,15 +25,25 @@ use super::sidebar_tests::TEXT_LEFT;
 /// Window events as a seat delivers them,
 ///  and a point in logical window pixels.
 use slint::{
-    ComponentHandle, LogicalPosition,
-    platform::{PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    platform::{
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// Disposable project files.
 use std::fs;
 /// A scoped writer the records go to.
 use std::{
-    io::{self, Write},
-    sync::{Arc, Mutex},
+    io::{
+        self,
+        Write,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 /// The same pipeline the application installs,
 ///  under a scoped subscriber.
@@ -47,7 +60,10 @@ const ROW: f32 = 24.0;
 struct Capture(Arc<Mutex<Vec<u8>>>);
 
 impl Write for Capture {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         self.0.lock().expect("capture").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
@@ -79,7 +95,10 @@ fn logged(action: impl FnOnce()) -> Vec<String> {
 }
 
 /// The number after `name=` in a record.
-fn field(record: &str, name: &str) -> f32 {
+fn field(
+    record: &str,
+    name: &str,
+) -> f32 {
     let start = record
         .find(&format!(" {name}="))
         .unwrap_or_else(|| panic!("no `{name}` in {record}"))
@@ -93,7 +112,10 @@ fn field(record: &str, name: &str) -> f32 {
 }
 
 /// The one record of `message` among `lines`.
-fn record<'a>(lines: &'a [String], message: &str) -> &'a str {
+fn record<'a>(
+    lines: &'a [String],
+    message: &str,
+) -> &'a str {
     let found: Vec<&String> = lines
         .iter()
         .filter(|line| return line.contains(&format!("{message} y=")))
@@ -120,7 +142,10 @@ fn numbered(lines: usize) -> (tempfile::TempDir, Reader) {
 }
 
 /// The window point over text row `row` (counted from 0) at the offset the window has now.
-fn point(window: &AppWindow, row: usize) -> LogicalPosition {
+fn point(
+    window: &AppWindow,
+    row: usize,
+) -> LogicalPosition {
     return LogicalPosition::new(
         TEXT_LEFT + 20.0,
         TEXT_TOP + row as f32 * ROW + ROW / 2.0 + window.get_scroll_y(),
@@ -128,7 +153,10 @@ fn point(window: &AppWindow, row: usize) -> LogicalPosition {
 }
 
 /// Press the left button at a window point.
-fn press(window: &AppWindow, position: LogicalPosition) {
+fn press(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position,
         button: PointerEventButton::Left,
@@ -136,7 +164,10 @@ fn press(window: &AppWindow, position: LogicalPosition) {
 }
 
 /// Release the left button at a window point.
-fn release(window: &AppWindow, position: LogicalPosition) {
+fn release(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window
         .window()
         .dispatch_event(WindowEvent::PointerReleased {
@@ -158,12 +189,12 @@ fn a_press_a_drag_and_a_release_name_the_line_they_selected() {
     let target = point(window, 12);
     let lines = logged(|| {
         press(window, start);
-        window
-            .window()
-            .dispatch_event(WindowEvent::PointerMoved { position: target });
-        window
-            .window()
-            .dispatch_event(WindowEvent::PointerMoved { position: target });
+        window.window().dispatch_event(WindowEvent::PointerMoved {
+            position: target,
+        });
+        window.window().dispatch_event(WindowEvent::PointerMoved {
+            position: target,
+        });
         release(window, target);
     });
     let pressed = record(&lines, "source pointer press");

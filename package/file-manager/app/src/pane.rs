@@ -20,16 +20,44 @@
 ///  the Ctrl-at-activation flag is shared between the click/key controllers and activation.
 use std::cell::Cell;
 /// What:
-///  imports the reference-counted pointer.
-/// Why:
-///  that shared Ctrl flag is held by three closures on the same pane.
-use std::rc::Rc;
-/// What:
 ///  imports the borrowed path type.
 /// Why:
 ///  a preview pane takes the previewed file path by reference.
 use std::path::Path;
+/// What:
+///  imports the reference-counted pointer.
+/// Why:
+///  that shared Ctrl flag is held by three closures on the same pane.
+use std::rc::Rc;
 
+/// What:
+///  imports the key symbol and modifier-mask types.
+/// Why:
+///  activation checks whether Ctrl was held and whether a key press was an activation key.
+use gtk4::gdk::{
+    Key,
+    ModifierType,
+};
+/// What:
+///  imports the list-store model type.
+/// Why:
+///  the pane's rows live in a `ListStore` of boxed entries feeding the `ListView`.
+use gtk4::gio::ListStore;
+/// What:
+///  imports the boxed-any wrapper and the event-propagation verdict enum.
+/// Why:
+///  `FileEntry` rides a `BoxedAnyObject` through the model;
+///  the key handler returns `Propagation`.
+use gtk4::glib::{
+    self,
+    BoxedAnyObject,
+    Propagation,
+};
+/// What:
+///  imports the text-ellipsization mode enum.
+/// Why:
+///  a long directory path in the header truncates in the middle rather than widening the pane.
+use gtk4::pango::EllipsizeMode;
 /// What:
 ///  imports the GTK widget-extension traits (builders,
 ///  controllers,
@@ -39,35 +67,26 @@ use std::path::Path;
 ///  all via prelude traits.
 use gtk4::prelude::*;
 /// What:
-///  imports the key symbol and modifier-mask types.
-/// Why:
-///  activation checks whether Ctrl was held and whether a key press was an activation key.
-use gtk4::gdk::{Key, ModifierType};
-/// What:
-///  imports the boxed-any wrapper and the event-propagation verdict enum.
-/// Why:
-///  `FileEntry` rides a `BoxedAnyObject` through the model;
-///  the key handler returns `Propagation`.
-use gtk4::glib::{self, BoxedAnyObject, Propagation};
-/// What:
-///  imports the list-store model type.
-/// Why:
-///  the pane's rows live in a `ListStore` of boxed entries feeding the `ListView`.
-use gtk4::gio::ListStore;
-/// What:
-///  imports the text-ellipsization mode enum.
-/// Why:
-///  a long directory path in the header truncates in the middle rather than widening the pane.
-use gtk4::pango::EllipsizeMode;
-/// What:
 ///  imports the concrete widget,
 ///  controller,
 ///  and factory types the pane is built from.
 /// Why:
 ///  named explicitly so construction reads without a glob import.
 use gtk4::{
-    Box as GtkBox, Button, EventControllerKey, GestureClick, Image, Label, ListItem, ListView,
-    Orientation, Picture, PropagationPhase, ScrolledWindow, SignalListItemFactory, SingleSelection,
+    Box as GtkBox,
+    Button,
+    EventControllerKey,
+    GestureClick,
+    Image,
+    Label,
+    ListItem,
+    ListView,
+    Orientation,
+    Picture,
+    PropagationPhase,
+    ScrolledWindow,
+    SignalListItemFactory,
+    SingleSelection,
     Widget,
 };
 
@@ -80,7 +99,10 @@ use crate::debug_tint;
 ///  imports the thumbnail service and image-detection helper.
 /// Why:
 ///  a preview pane requests an off-thread thumbnail for image files.
-use crate::thumbs::{Thumbnails, is_image};
+use crate::thumbs::{
+    Thumbnails,
+    is_image,
+};
 /// What:
 ///  imports the snapshot,
 ///  entry,
@@ -88,7 +110,11 @@ use crate::thumbs::{Thumbnails, is_image};
 /// Why:
 ///  the pane renders a `DirectorySnapshot` of `FileEntry` rows,
 ///  choosing an icon per `EntryKind`.
-use crate::types::{DirectorySnapshot, EntryKind, FileEntry};
+use crate::types::{
+    DirectorySnapshot,
+    EntryKind,
+    FileEntry,
+};
 
 /// What:
 ///  horizontal gap in pixels between a row's icon and its name label (and header items).
@@ -115,7 +141,11 @@ const PREVIEW_ICON_SIZE: i32 = 96;
 ///      (doc/planning/file-manager.md).
 ///  Arrow keys only move selection,
 ///  so browsing never spawns.
-pub fn build_listing_pane<A, C>(snapshot: &DirectorySnapshot, on_activate: A, on_close: C) -> GtkBox
+pub fn build_listing_pane<A, C>(
+    snapshot: &DirectorySnapshot,
+    on_activate: A,
+    on_close: C,
+) -> GtkBox
 where
     A: Fn(&FileEntry, bool) + 'static,
     C: Fn() + 'static,
@@ -137,9 +167,12 @@ where
     scrolled.add_css_class("fm-list");
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("fm-pane");
-    container.append(&build_pane_header(&snapshot.path.display().to_string(), on_close));
+    container.append(&build_pane_header(
+        &snapshot.path.display().to_string(),
+        on_close,
+    ));
     container.append(&scrolled);
-    return container
+    return container;
 }
 
 /// What:
@@ -151,8 +184,10 @@ where
 ///  so the last pointer/key press before it
 ///      records Ctrl;
 ///  both controllers run before activation (capture phase / key-pressed).
-fn install_force_duplicate_tracking<A>(list: &ListView, on_activate: A)
-where
+fn install_force_duplicate_tracking<A>(
+    list: &ListView,
+    on_activate: A,
+) where
     A: Fn(&FileEntry, bool) + 'static,
 {
     let force_dup = Rc::new(Cell::new(false));
@@ -160,7 +195,11 @@ where
     click.set_propagation_phase(PropagationPhase::Capture);
     let for_click = force_dup.clone();
     click.connect_pressed(move |gesture, _, _, _| {
-        for_click.set(gesture.current_event_state().contains(ModifierType::CONTROL_MASK));
+        for_click.set(
+            gesture
+                .current_event_state()
+                .contains(ModifierType::CONTROL_MASK),
+        );
     });
     list.add_controller(click);
 
@@ -170,7 +209,7 @@ where
         if matches!(key, Key::Return | Key::KP_Enter | Key::space) {
             for_keys.set(state.contains(ModifierType::CONTROL_MASK));
         }
-        return Propagation::Proceed
+        return Propagation::Proceed;
     });
     list.add_controller(keys);
 
@@ -194,7 +233,10 @@ where
 ///  the title expands so the button
 ///      sits at the pane's right edge.
 ///  Shared by listing panes and preview panes.
-pub(crate) fn build_pane_header<C>(path: &str, on_close: C) -> GtkBox
+pub(crate) fn build_pane_header<C>(
+    path: &str,
+    on_close: C,
+) -> GtkBox
 where
     C: Fn() + 'static,
 {
@@ -211,7 +253,7 @@ where
     header.add_css_class("fm-header");
     header.append(&title);
     header.append(&close);
-    return header
+    return header;
 }
 
 /// What:
@@ -224,7 +266,11 @@ where
 ///  other files get a cheap OS-icon
 ///      stand-in.
 ///  `on_close` closes the pane.
-pub(crate) fn build_preview_pane<C>(thumbs: &Thumbnails, path: &Path, on_close: C) -> GtkBox
+pub(crate) fn build_preview_pane<C>(
+    thumbs: &Thumbnails,
+    path: &Path,
+    on_close: C,
+) -> GtkBox
 where
     C: Fn() + 'static,
 {
@@ -232,7 +278,7 @@ where
     container.add_css_class("fm-pane");
     container.append(&build_pane_header(&path.display().to_string(), on_close));
     container.append(&build_preview_body(thumbs, path));
-    return container
+    return container;
 }
 
 /// What:
@@ -244,7 +290,10 @@ where
 ///  only images request a decode;
 ///  the request deduplicates and caches,
 ///  so revisiting is cheap.
-fn build_preview_body(thumbs: &Thumbnails, path: &Path) -> Widget {
+fn build_preview_body(
+    thumbs: &Thumbnails,
+    path: &Path,
+) -> Widget {
     if is_image(path) {
         let picture = Picture::new();
         picture.set_can_shrink(true);
@@ -264,9 +313,15 @@ fn build_preview_body(thumbs: &Thumbnails, path: &Path) -> Widget {
     icon.set_pixel_size(PREVIEW_ICON_SIZE);
     icon.set_vexpand(true);
     body.append(&icon);
-    body.append(&Label::new(path.file_name().and_then(std::ffi::OsStr::to_str)));
+    body.append(&Label::new(
+        path.file_name().and_then(std::ffi::OsStr::to_str),
+    ));
     crate::dnd::install_file_drag(&body, path);
-    return debug_tint::wrap(&body, debug_tint::B6P_PREVIEW_BODY, Some("fallback preview"))
+    return debug_tint::wrap(
+        &body,
+        debug_tint::B6P_PREVIEW_BODY,
+        Some("fallback preview"),
+    );
 }
 
 /// What:
@@ -280,7 +335,7 @@ fn build_row_factory() -> SignalListItemFactory {
     let factory = SignalListItemFactory::new();
     factory.connect_setup(setup_row);
     factory.connect_bind(bind_row);
-    return factory
+    return factory;
 }
 
 /// What:
@@ -290,7 +345,10 @@ fn build_row_factory() -> SignalListItemFactory {
 ///  the factory keeps the handler for its whole life,
 ///  and this one captures nothing,
 ///  so a named function replaces the closure.
-fn setup_row(_factory: &SignalListItemFactory, item: &glib::Object) {
+fn setup_row(
+    _factory: &SignalListItemFactory,
+    item: &glib::Object,
+) {
     let list_item = item.downcast_ref::<ListItem>().expect("list item");
     let row = GtkBox::new(Orientation::Horizontal, ROW_SPACING);
     row.append(&Image::new());
@@ -305,9 +363,15 @@ fn setup_row(_factory: &SignalListItemFactory, item: &glib::Object) {
 ///  only visible rows ever touch a `FileEntry`;
 ///  the handler captures nothing,
 ///  so a named function replaces the closure.
-fn bind_row(_factory: &SignalListItemFactory, item: &glib::Object) {
+fn bind_row(
+    _factory: &SignalListItemFactory,
+    item: &glib::Object,
+) {
     let list_item = item.downcast_ref::<ListItem>().expect("list item");
-    let boxed = list_item.item().and_downcast::<BoxedAnyObject>().expect("boxed entry");
+    let boxed = list_item
+        .item()
+        .and_downcast::<BoxedAnyObject>()
+        .expect("boxed entry");
     let entry = boxed.borrow::<FileEntry>();
     let row = list_item.child().and_downcast::<GtkBox>().expect("row box");
     let icon = row.first_child().and_downcast::<Image>().expect("row icon");

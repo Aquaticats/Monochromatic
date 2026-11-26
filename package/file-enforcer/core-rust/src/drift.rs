@@ -130,7 +130,12 @@ impl Drift {
     /// toEvent(): Event
     /// ```
     pub fn to_event(&self) -> Event {
-        let message = format!("{} differs from what rule {} generates ({})", self.path, self.rule, self.reason.name());
+        let message = format!(
+            "{} differs from what rule {} generates ({})",
+            self.path,
+            self.rule,
+            self.reason.name()
+        );
         let mut event = Event::new("drift", &format!("drift-{}", self.reason.name()), &message);
         event.set_field("path", Value::String(self.path.clone()));
         event.set_field("rule", Value::String(self.rule.clone()));
@@ -162,29 +167,101 @@ pub fn compute_drift(report: &mut PlanReport) -> Result<Vec<Drift>, Diagnostic> 
         let rule = report.owners.get(&path).cloned().unwrap_or_default();
         let real = report.view.observe_file(&path)?;
         match (&state, real) {
-            (Planned::File { content, .. }, RealState::Absent) => {
-                drifts.push(Drift { path, rule, reason: DriftReason::Missing, actual: None, expected: Some(content.clone()) });
+            (
+                Planned::File {
+                    content,
+                    ..
+                },
+                RealState::Absent,
+            ) => {
+                drifts.push(Drift {
+                    path,
+                    rule,
+                    reason: DriftReason::Missing,
+                    actual: None,
+                    expected: Some(content.clone()),
+                });
             }
-            (Planned::File { content, mode }, RealState::File { content: actual, mode: actual_mode }) => {
+            (
+                Planned::File {
+                    content,
+                    mode,
+                },
+                RealState::File {
+                    content: actual,
+                    mode: actual_mode,
+                },
+            ) => {
                 if &actual != content {
-                    drifts.push(Drift { path, rule, reason: DriftReason::Content, actual: Some(actual), expected: Some(content.clone()) });
+                    drifts.push(Drift {
+                        path,
+                        rule,
+                        reason: DriftReason::Content,
+                        actual: Some(actual),
+                        expected: Some(content.clone()),
+                    });
                 } else if mode.is_some() && *mode != Some(actual_mode) {
-                    drifts.push(Drift { path, rule, reason: DriftReason::Mode, actual: Some(actual), expected: Some(content.clone()) });
+                    drifts.push(Drift {
+                        path,
+                        rule,
+                        reason: DriftReason::Mode,
+                        actual: Some(actual),
+                        expected: Some(content.clone()),
+                    });
                 }
             }
-            (Planned::File { content, .. }, RealState::Symlink | RealState::Other) => {
-                drifts.push(Drift { path, rule, reason: DriftReason::ReplaceLink, actual: None, expected: Some(content.clone()) });
+            (
+                Planned::File {
+                    content,
+                    ..
+                },
+                RealState::Symlink | RealState::Other,
+            ) => {
+                drifts.push(Drift {
+                    path,
+                    rule,
+                    reason: DriftReason::ReplaceLink,
+                    actual: None,
+                    expected: Some(content.clone()),
+                });
             }
-            (Planned::File { .. }, RealState::Directory) => {
-                let message = format!("{path} is a directory where rule {rule} wants a file; remove the directory first");
-                return Err(Diagnostic::new("path-blocked", &message).with_path(&path).with_rule(&rule));
+            (
+                Planned::File {
+                    ..
+                },
+                RealState::Directory,
+            ) => {
+                let message = format!(
+                    "{path} is a directory where rule {rule} wants a file; remove the directory first"
+                );
+                return Err(Diagnostic::new("path-blocked", &message)
+                    .with_path(&path)
+                    .with_rule(&rule));
             }
             (Planned::Removed, RealState::Absent) => {}
-            (Planned::Removed, RealState::File { content: actual, .. }) => {
-                drifts.push(Drift { path, rule, reason: DriftReason::Extra, actual: Some(actual), expected: None });
+            (
+                Planned::Removed,
+                RealState::File {
+                    content: actual,
+                    ..
+                },
+            ) => {
+                drifts.push(Drift {
+                    path,
+                    rule,
+                    reason: DriftReason::Extra,
+                    actual: Some(actual),
+                    expected: None,
+                });
             }
             (Planned::Removed, RealState::Symlink | RealState::Other) => {
-                drifts.push(Drift { path, rule, reason: DriftReason::Extra, actual: None, expected: None });
+                drifts.push(Drift {
+                    path,
+                    rule,
+                    reason: DriftReason::Extra,
+                    actual: None,
+                    expected: None,
+                });
             }
             (Planned::Removed, RealState::Directory) => {}
         }
@@ -192,7 +269,13 @@ pub fn compute_drift(report: &mut PlanReport) -> Result<Vec<Drift>, Diagnostic> 
     let directories = report.removed_directories.clone();
     for (path, rule) in directories {
         if report.view.observe_file(&path)? == RealState::Directory {
-            drifts.push(Drift { path, rule, reason: DriftReason::ExtraDirectory, actual: None, expected: None });
+            drifts.push(Drift {
+                path,
+                rule,
+                reason: DriftReason::ExtraDirectory,
+                actual: None,
+                expected: None,
+            });
         }
     }
     return Ok(drifts);

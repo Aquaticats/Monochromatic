@@ -21,9 +21,15 @@
 //! ```
 
 /// Imports the path types that the walk reports.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the duration and instant types that pace the reports.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the natural name comparison that orders each folder's entries.
 use crate::natural_order::natural_cmp;
@@ -95,7 +101,10 @@ fn parse_pause(text: Option<&str>) -> Duration {
 /// ```ts
 /// const byNaturalName = (left: [string, string], right: [string, string]): number => naturalCmp(left[0], right[0]) || compare(left[1], right[1]);
 /// ```
-fn by_natural_name(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ordering {
+fn by_natural_name(
+    left: &(String, PathBuf),
+    right: &(String, PathBuf),
+) -> std::cmp::Ordering {
     let by_name = natural_cmp(&left.0, &right.0);
     if by_name != std::cmp::Ordering::Equal {
         return by_name;
@@ -165,7 +174,10 @@ pub(crate) trait BatchListener {
     /// `on_batch` takes one batch of newly found tracks.
     /// Why:
     /// the walk calls it each time a batch is due.
-    fn on_batch(&mut self, batch: &[PathBuf]);
+    fn on_batch(
+        &mut self,
+        batch: &[PathBuf],
+    );
 }
 
 /// A callable of the same shape is a listener too,
@@ -175,7 +187,10 @@ impl<F: FnMut(&[PathBuf])> BatchListener for F {
     /// `on_batch` calls the callable.
     /// Why:
     /// it lets a plain callable stand in for a listener.
-    fn on_batch(&mut self, batch: &[PathBuf]) {
+    fn on_batch(
+        &mut self,
+        batch: &[PathBuf],
+    ) {
         self(batch);
     }
 }
@@ -192,7 +207,11 @@ impl<F: FnMut(&[PathBuf])> BatchListener for F {
 /// ```ts
 /// function scanStreaming(root: string, batch: number, onBatch: (paths: string[]) => void): string[] { /* DFS */ }
 /// ```
-pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn BatchListener) -> Vec<PathBuf> {
+pub(crate) fn scan_streaming(
+    root: &Path,
+    batch: usize,
+    on_batch: &mut dyn BatchListener,
+) -> Vec<PathBuf> {
     let started: Instant = Instant::now();
     tracing::info!(root = %root.display(), "folder walk started");
     let mut out: Vec<PathBuf> = Vec::new();
@@ -218,7 +237,9 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn Batch
             // that `Path::is_file` makes; on a cold disk cache that call cost about a hundred microseconds per file.
             if file_type.is_dir() {
                 subdirs.push(path);
-            } else if is_audio_file(&path) && (file_type.is_file() || (file_type.is_symlink() && path.is_file())) {
+            } else if is_audio_file(&path)
+                && (file_type.is_file() || (file_type.is_symlink() && path.is_file()))
+            {
                 files.push(path);
             }
         }
@@ -227,9 +248,15 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn Batch
         out.extend(files);
         stack.extend(subdirs.into_iter().rev());
         let waiting: usize = out.len() - reported;
-        let due: bool = waiting >= batch || (reported == 0 && waiting > 0 && started.elapsed() >= FIRST_BATCH_AFTER);
+        let due: bool = waiting >= batch
+            || (reported == 0 && waiting > 0 && started.elapsed() >= FIRST_BATCH_AFTER);
         if due {
-            tracing::debug!(first = reported, found = out.len() - reported, elapsed_ms = started.elapsed().as_millis(), "folder walk reports a batch");
+            tracing::debug!(
+                first = reported,
+                found = out.len() - reported,
+                elapsed_ms = started.elapsed().as_millis(),
+                "folder walk reports a batch"
+            );
             on_batch.on_batch(&out[reported..]);
             reported = out.len();
         }
@@ -237,7 +264,11 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn Batch
     if reported < out.len() {
         on_batch.on_batch(&out[reported..]);
     }
-    tracing::info!(tracks = out.len(), elapsed_ms = started.elapsed().as_millis(), "folder walk finished");
+    tracing::info!(
+        tracks = out.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "folder walk finished"
+    );
     return out;
 }
 
@@ -250,7 +281,10 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn Batch
 /// For a library with more than one top-level entry
 ///  these equal the queue's display names;
 /// the final queue replaces them if they differ.
-pub(crate) fn batch_names(root: &Path, paths: &[PathBuf]) -> Vec<String> {
+pub(crate) fn batch_names(
+    root: &Path,
+    paths: &[PathBuf],
+) -> Vec<String> {
     let mut names: Vec<String> = Vec::with_capacity(paths.len());
     for path in paths {
         let relative: &Path = path.strip_prefix(root).unwrap_or(path);

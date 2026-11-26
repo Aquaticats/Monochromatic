@@ -6,7 +6,10 @@
 /// and the document,
 /// styles,
 /// and wrap width it shapes.
-use super::{ShapedRow, TextShaper};
+use super::{
+    ShapedRow,
+    TextShaper,
+};
 /// The text of the line.
 use crate::document::Document;
 /// Syntax classes by character offset.

@@ -84,8 +84,18 @@ use crate::text_units::units_to_string;
 /// ```ts
 /// import { parseJsonc, emitJsoncValue, jsoncComment, jsoncKeyComment } from './index';
 /// ```
-use crate::value::{JsoncEntry, JsoncKind, JsoncValue};
-use crate::{emit_jsonc_value, jsonc_comment, jsonc_key_comment, jsonc_set, parse_jsonc};
+use crate::value::{
+    JsoncEntry,
+    JsoncKind,
+    JsoncValue,
+};
+use crate::{
+    emit_jsonc_value,
+    jsonc_comment,
+    jsonc_key_comment,
+    jsonc_set,
+    parse_jsonc,
+};
 
 /// What:
 ///      Parse the embedded fixture document once per test.
@@ -113,7 +123,10 @@ fn fixture() -> JsoncValue {
 /// ```ts
 /// function member(value: JsoncValue, key: string): JsoncValue;
 /// ```
-fn member<'a>(value: &'a JsoncValue, key: &str) -> &'a JsoncValue {
+fn member<'a>(
+    value: &'a JsoncValue,
+    key: &str,
+) -> &'a JsoncValue {
     let entries = value.entries().expect("fixture section is a record");
     let wanted: Vec<u16> = key.encode_utf16().collect();
     for entry in entries.iter().rev() {
@@ -138,9 +151,14 @@ fn member<'a>(value: &'a JsoncValue, key: &str) -> &'a JsoncValue {
 /// ```ts
 /// function section(document: JsoncValue, wanted: string): JsoncValue;
 /// ```
-fn section<'a>(document: &'a JsoncValue, wanted: &str) -> &'a JsoncValue {
+fn section<'a>(
+    document: &'a JsoncValue,
+    wanted: &str,
+) -> &'a JsoncValue {
     assert!(
-        CONSUMED_SECTIONS.iter().any(|declared| return *declared == wanted),
+        CONSUMED_SECTIONS
+            .iter()
+            .any(|declared| return *declared == wanted),
         "test reads fixture section {wanted}, which CONSUMED_SECTIONS does not declare"
     );
     return member(document, wanted);
@@ -155,7 +173,10 @@ fn section<'a>(document: &'a JsoncValue, wanted: &str) -> &'a JsoncValue {
 /// ```ts
 /// function text(value: JsoncValue, key: string): string;
 /// ```
-fn text(value: &JsoncValue, key: &str) -> String {
+fn text(
+    value: &JsoncValue,
+    key: &str,
+) -> String {
     let target = member(value, key);
     let units = target.text_units().expect("fixture field is a string");
     return units_to_string(units).expect("fixture text is valid UTF-16");
@@ -170,12 +191,17 @@ fn text(value: &JsoncValue, key: &str) -> String {
 /// ```ts
 /// function optionalText(value: JsoncValue, key: string): string | undefined;
 /// ```
-fn optional_text(value: &JsoncValue, key: &str) -> Option<String> {
+fn optional_text(
+    value: &JsoncValue,
+    key: &str,
+) -> Option<String> {
     let target = member(value, key);
     if matches!(target.kind, JsoncKind::Null) {
         return None;
     }
-    let units = target.text_units().expect("fixture field is a string or null");
+    let units = target
+        .text_units()
+        .expect("fixture field is a string or null");
     return Some(units_to_string(units).expect("fixture text is valid UTF-16"));
 }
 
@@ -189,9 +215,14 @@ fn optional_text(value: &JsoncValue, key: &str) -> Option<String> {
 /// ```ts
 /// function element(value: JsoncValue, index: number): JsoncValue;
 /// ```
-fn element(value: &JsoncValue, index: usize) -> &JsoncValue {
+fn element(
+    value: &JsoncValue,
+    index: usize,
+) -> &JsoncValue {
     let elements = value.elements().expect("fixture section is an array");
-    return elements.get(index).unwrap_or_else(|| panic!("fixture array has no element {index}"));
+    return elements
+        .get(index)
+        .unwrap_or_else(|| panic!("fixture array has no element {index}"));
 }
 
 /// What:
@@ -209,14 +240,24 @@ fn to_path(entries: &[JsoncValue]) -> Vec<JsoncPathSegment> {
     for entry in entries {
         if let Some(units) = entry.text_units() {
             let key = units_to_string(units).expect("fixture path key is valid UTF-16");
-            path.push(JsoncPathSegment::Key { key });
+            path.push(JsoncPathSegment::Key {
+                key,
+            });
             continue;
         }
-        let JsoncKind::Number { raw, .. } = &entry.kind else {
+        let JsoncKind::Number {
+            raw,
+            ..
+        } = &entry.kind
+        else {
             panic!("fixture path entry is neither a key nor an index");
         };
-        let index: usize = raw.parse().expect("fixture path index is a non-negative integer");
-        path.push(JsoncPathSegment::Index { index });
+        let index: usize = raw
+            .parse()
+            .expect("fixture path index is a non-negative integer");
+        path.push(JsoncPathSegment::Index {
+            index,
+        });
     }
     return path;
 }
@@ -231,16 +272,25 @@ fn valid_sources_parse_with_the_expected_shape() {
         let case = element(cases, index);
         let name = text(case, "name");
         let source = text(case, "source");
-        let parsed = parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
+        let parsed =
+            parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
         let expected_kind = text(case, "rootKind");
         let entries = parsed.entries();
         let elements = parsed.elements();
         let actual_kind = if entries.is_some() { "record" } else { "array" };
         assert_eq!(actual_kind, expected_kind, "{name} root kind");
         let members = member(case, "members");
-        let JsoncKind::Number { raw, .. } = &members.kind else { panic!("{name} member count"); };
+        let JsoncKind::Number {
+            raw,
+            ..
+        } = &members.kind
+        else {
+            panic!("{name} member count");
+        };
         let expected: usize = raw.parse().expect("fixture member count");
-        let actual = entries.map(|list| return list.len()).unwrap_or_else(|| return elements.expect("array payload").len());
+        let actual = entries
+            .map(|list| return list.len())
+            .unwrap_or_else(|| return elements.expect("array payload").len());
         assert_eq!(actual, expected, "{name} member count");
     }
 }
@@ -254,7 +304,10 @@ fn invalid_sources_are_rejected() {
         let case = element(cases, index);
         let name = text(case, "name");
         let source = text(case, "source");
-        assert!(parse_jsonc(&source).is_err(), "{name} must be rejected: {source:?}");
+        assert!(
+            parse_jsonc(&source).is_err(),
+            "{name} must be rejected: {source:?}"
+        );
     }
 }
 
@@ -268,9 +321,17 @@ fn comment_ownership_matches_the_fixture() {
         let case = element(cases, index);
         let name = text(case, "name");
         let source = text(case, "source");
-        let parsed = parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
-        let root_comment = parsed.comment.as_ref().map(|comment| return comment.text.clone());
-        assert_eq!(root_comment, optional_text(case, "root"), "{name} root comment");
+        let parsed =
+            parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
+        let root_comment = parsed
+            .comment
+            .as_ref()
+            .map(|comment| return comment.text.clone());
+        assert_eq!(
+            root_comment,
+            optional_text(case, "root"),
+            "{name} root comment"
+        );
         let expectations = member(case, "at");
         for expectation_index in 0..expectations.elements().expect("expectations").len() {
             let expectation = element(expectations, expectation_index);
@@ -279,11 +340,19 @@ fn comment_ownership_matches_the_fixture() {
             let value_comment = jsonc_comment(&parsed, &path)
                 .unwrap_or_else(|error| panic!("{name} value comment query: {error}"))
                 .map(|comment| return comment.text.clone());
-            assert_eq!(value_comment, optional_text(expectation, "value"), "{name} value comment");
+            assert_eq!(
+                value_comment,
+                optional_text(expectation, "value"),
+                "{name} value comment"
+            );
             let key_comment = jsonc_key_comment(&parsed, &path)
                 .map(|comment| return comment.map(|found| return found.text.clone()))
                 .unwrap_or(None);
-            assert_eq!(key_comment, optional_text(expectation, "key"), "{name} key comment");
+            assert_eq!(
+                key_comment,
+                optional_text(expectation, "key"),
+                "{name} key comment"
+            );
         }
     }
 }
@@ -301,10 +370,15 @@ fn number_spellings_survive_emission() {
         let expected = member(case, "emittedContains");
         for expectation_index in 0..expected.elements().expect("expectations").len() {
             let needle = units_to_string(
-                element(expected, expectation_index).text_units().expect("fixture expectation text"),
+                element(expected, expectation_index)
+                    .text_units()
+                    .expect("fixture expectation text"),
             )
             .expect("fixture expectation is valid UTF-16");
-            assert!(emitted.contains(&needle), "{name} lost {needle} in {emitted:?}");
+            assert!(
+                emitted.contains(&needle),
+                "{name} lost {needle} in {emitted:?}"
+            );
         }
     }
 }
@@ -317,9 +391,16 @@ fn number_equality_matches_the_fixture() {
     for index in 0..cases.elements().expect("equality cases").len() {
         let case = element(cases, index);
         let name = text(case, "name");
-        let left = JsoncNumberIdentity::from_token(&text(case, "left")).expect("left token is valid");
-        let right = JsoncNumberIdentity::from_token(&text(case, "right")).expect("right token is valid");
-        let expected = matches!(member(case, "equal").kind, JsoncKind::Boolean { value: true });
+        let left =
+            JsoncNumberIdentity::from_token(&text(case, "left")).expect("left token is valid");
+        let right =
+            JsoncNumberIdentity::from_token(&text(case, "right")).expect("right token is valid");
+        let expected = matches!(
+            member(case, "equal").kind,
+            JsoncKind::Boolean {
+                value: true
+            }
+        );
         assert_eq!(left == right, expected, "{name} equality");
     }
 }
@@ -329,17 +410,32 @@ fn number_equality_matches_the_fixture() {
 fn nesting_boundary_matches_the_fixture() {
     let document = fixture();
     let depth = section(&document, "depth");
-    let JsoncKind::Number { raw: accepted_raw, .. } = &member(depth, "accepted").kind else {
+    let JsoncKind::Number {
+        raw: accepted_raw,
+        ..
+    } = &member(depth, "accepted").kind
+    else {
         panic!("accepted depth must be a number");
     };
-    let JsoncKind::Number { raw: rejected_raw, .. } = &member(depth, "rejected").kind else {
+    let JsoncKind::Number {
+        raw: rejected_raw,
+        ..
+    } = &member(depth, "rejected").kind
+    else {
         panic!("rejected depth must be a number");
     };
     let accepted: usize = accepted_raw.parse().expect("accepted depth");
     let rejected: usize = rejected_raw.parse().expect("rejected depth");
-    assert_eq!(rejected, accepted + 1, "the fixture boundary must be one container apart");
+    assert_eq!(
+        rejected,
+        accepted + 1,
+        "the fixture boundary must be one container apart"
+    );
     let accepted_source = format!("{}0{}", "[".repeat(accepted), "]".repeat(accepted));
-    assert!(parse_jsonc(&accepted_source).is_ok(), "depth {accepted} must parse");
+    assert!(
+        parse_jsonc(&accepted_source).is_ok(),
+        "depth {accepted} must parse"
+    );
     let rejected_source = format!("{}0{}", "[".repeat(rejected), "]".repeat(rejected));
     let error = parse_jsonc(&rejected_source).expect_err("one container past the limit must fail");
     assert_eq!(error.message, "JSONC nesting too deep");
@@ -355,7 +451,10 @@ fn fixture_document_has_every_section() {
         .map(|entry| return units_to_string(&entry.key.units).expect("ascii section name"))
         .collect();
     for required in CONSUMED_SECTIONS {
-        assert!(names.iter().any(|name| return name == *required), "fixture is missing {required}");
+        assert!(
+            names.iter().any(|name| return name == *required),
+            "fixture is missing {required}"
+        );
     }
 }
 
@@ -378,7 +477,10 @@ fn comment_bodies(value: &JsoncValue) -> Vec<String> {
         if let Some(comment) = &current.comment {
             bodies.push(comment.text.clone());
         }
-        if let JsoncKind::Record { entries } = &current.kind {
+        if let JsoncKind::Record {
+            entries,
+        } = &current.kind
+        {
             for entry in entries.iter().rev() {
                 if let Some(comment) = &entry.key.comment {
                     bodies.push(comment.text.clone());
@@ -386,7 +488,10 @@ fn comment_bodies(value: &JsoncValue) -> Vec<String> {
                 stack.push(&entry.value);
             }
         }
-        if let JsoncKind::Array { elements } = &current.kind {
+        if let JsoncKind::Array {
+            elements,
+        } = &current.kind
+        {
             for element in elements.iter().rev() {
                 stack.push(element);
             }
@@ -415,15 +520,25 @@ fn value_for_kind(kind: &str) -> JsoncValue {
             identity: JsoncNumberIdentity::from_token("7").expect("seven is a valid token"),
         }
     } else if kind == "string" {
-        JsoncKind::Text { units: Vec::new(), raw: "\"\"".to_string() }
+        JsoncKind::Text {
+            units: Vec::new(),
+            raw: "\"\"".to_string(),
+        }
     } else if kind == "array" {
-        JsoncKind::Array { elements: Vec::new() }
+        JsoncKind::Array {
+            elements: Vec::new(),
+        }
     } else if kind == "record" {
-        JsoncKind::Record { entries: Vec::new() }
+        JsoncKind::Record {
+            entries: Vec::new(),
+        }
     } else {
         panic!("fixture names an unknown value kind {kind}");
     };
-    return JsoncValue { kind: payload, comment: None };
+    return JsoncValue {
+        kind: payload,
+        comment: None,
+    };
 }
 
 /// Emission must reparse,
@@ -436,14 +551,20 @@ fn round_trip_cases_keep_their_comment_bodies() {
         let case = element(cases, index);
         let name = text(case, "name");
         let source = text(case, "source");
-        let parsed = parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
+        let parsed =
+            parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
         let emitted = emit_jsonc_value(&parsed);
-        let reparsed = parse_jsonc(&emitted).unwrap_or_else(|error| panic!("{name} emission must reparse: {error}"));
+        let reparsed = parse_jsonc(&emitted)
+            .unwrap_or_else(|error| panic!("{name} emission must reparse: {error}"));
         let bodies = comment_bodies(&reparsed);
         let expected = member(case, "commentBodies");
         for expectation in 0..expected.elements().expect("expected bodies").len() {
-            let wanted = units_to_string(element(expected, expectation).text_units().expect("body text"))
-                .expect("fixture body is valid UTF-16");
+            let wanted = units_to_string(
+                element(expected, expectation)
+                    .text_units()
+                    .expect("body text"),
+            )
+            .expect("fixture body is valid UTF-16");
             assert!(
                 bodies.iter().any(|body| return *body == wanted),
                 "{name} lost comment body {wanted:?}; found {bodies:?}"
@@ -464,7 +585,12 @@ fn root_shape_cases_match_the_fixture() {
         let name = text(case, "name");
         let path = to_path(member(case, "path").elements().expect("path entries"));
         let replacement = value_for_kind(&text(case, "valueKind"));
-        let refused = matches!(member(case, "refused").kind, JsoncKind::Boolean { value: true });
+        let refused = matches!(
+            member(case, "refused").kind,
+            JsoncKind::Boolean {
+                value: true
+            }
+        );
         match jsonc_set(&base, &path, replacement) {
             Ok(_) => assert!(!refused, "{name} should have been refused"),
             Err(error) => assert!(refused, "{name} should have been accepted: {error}"),
@@ -482,8 +608,13 @@ fn canonical_layout_matches_the_fixture() {
         let case = element(cases, index);
         let name = text(case, "name");
         let source = text(case, "source");
-        let parsed = parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
+        let parsed =
+            parse_jsonc(&source).unwrap_or_else(|error| panic!("{name} must parse: {error}"));
         let expected = text(case, "emitted");
-        assert_eq!(emit_jsonc_value(&parsed), expected, "{name} canonical layout differs");
+        assert_eq!(
+            emit_jsonc_value(&parsed),
+            expected,
+            "{name} canonical layout differs"
+        );
     }
 }

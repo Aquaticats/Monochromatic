@@ -82,8 +82,14 @@ use crate::decode;
 /// import { AudioSpec, Decision, TruePeakError, TruePeakSource, defaultPolicy, resolveDecision, resolveFullScan } from "truepeak-core";
 /// ```
 use truepeak_core::{
-    AudioSpec, Decision, TruePeakError, TruePeakSource, default_policy, probe_inputs_from_file,
-    resolve_decision_for, resolve_full_scan,
+    AudioSpec,
+    Decision,
+    TruePeakError,
+    TruePeakSource,
+    default_policy,
+    probe_inputs_from_file,
+    resolve_decision_for,
+    resolve_full_scan,
 };
 
 /// What:
@@ -183,7 +189,7 @@ impl TruePeakSource for DesktopSource {
             rate: spec.rate,
             channels: spec.channels,
             duration_secs: spec.duration_secs,
-        }
+        };
     }
 
     /// What:
@@ -211,8 +217,10 @@ impl TruePeakSource for DesktopSource {
         // ```
         return match self.inner.next_chunk() {
             Ok(chunk) => Ok(chunk),
-            Err(error) => Err(TruePeakError::Decode { message: error.to_string() }),
-        }
+            Err(error) => Err(TruePeakError::Decode {
+                message: error.to_string(),
+            }),
+        };
     }
 
     /// What:
@@ -241,7 +249,10 @@ impl TruePeakSource for DesktopSource {
     /// ```ts
     /// seekToFrame(frame) { try { this.inner.seek(frame / this.inner.spec().rate); } catch (e) { throw seekError(e); } }
     /// ```
-    fn seek_to_frame(&mut self, frame: u64) -> Result<(), TruePeakError> {
+    fn seek_to_frame(
+        &mut self,
+        frame: u64,
+    ) -> Result<(), TruePeakError> {
         // What:     `let rate = self.inner.spec().rate;`. Samples per second per channel.
         // Why:      Convert the frame index to a time offset.
         //
@@ -269,8 +280,10 @@ impl TruePeakSource for DesktopSource {
         // ```
         return match self.inner.seek(seconds) {
             Ok(()) => Ok(()),
-            Err(error) => Err(TruePeakError::Seek { message: error.to_string() }),
-        }
+            Err(error) => Err(TruePeakError::Seek {
+                message: error.to_string(),
+            }),
+        };
     }
 }
 
@@ -300,7 +313,11 @@ fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError> {
     // ```
     let inner = match decode::open(path) {
         Ok(inner) => inner,
-        Err(error) => return Err(TruePeakError::Decode { message: error.to_string() }),
+        Err(error) => {
+            return Err(TruePeakError::Decode {
+                message: error.to_string(),
+            });
+        }
     };
     // What:     `Ok(DesktopSource { inner })`. Wrap it. Tail -> return.
     // Why:      Hand back the adapter the resolver drives.
@@ -309,7 +326,9 @@ fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError> {
     // ```ts
     // return new DesktopSource(inner);
     // ```
-    return Ok(DesktopSource { inner })
+    return Ok(DesktopSource {
+        inner,
+    });
 }
 
 /// What:
@@ -362,7 +381,7 @@ pub(crate) fn resolve_current(path: &Path) -> Result<Decision, TruePeakError> {
     // ```ts
     // return resolveDecisionFor(policy, source, provenance, bones);
     // ```
-    return resolve_decision_for(&policy, &mut source, provenance, bones.as_deref())
+    return resolve_decision_for(&policy, &mut source, provenance, bones.as_deref());
 }
 
 /// What:
@@ -400,7 +419,7 @@ pub(crate) fn resolve_full(path: &Path) -> Result<Decision, TruePeakError> {
     // ```ts
     // return resolveFullScan(defaultPolicy(), source);
     // ```
-    return resolve_full_scan(&default_policy(), &mut source)
+    return resolve_full_scan(&default_policy(), &mut source);
 }
 
 /// What:

@@ -5,10 +5,20 @@
 //!  without a server.
 
 use super::store::PushVerdict;
-use super::{DiagnosticStore, Freshness, Severity};
-use crate::language::identity::{DocumentStamp, ServerIdentity};
+use super::{
+    DiagnosticStore,
+    Freshness,
+    Severity,
+};
+use crate::language::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 use helix_core::Rope;
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 
 const FIRST: DocumentStamp = DocumentStamp {
     file: 1,
@@ -26,7 +36,11 @@ fn server(name: &str) -> ServerIdentity {
     };
 }
 
-fn item(line: u32, source: &str, message: &str) -> lsp::Diagnostic {
+fn item(
+    line: u32,
+    source: &str,
+    message: &str,
+) -> lsp::Diagnostic {
     return lsp::Diagnostic {
         range: lsp::Range::new(lsp::Position::new(line, 0), lsp::Position::new(line, 3)),
         severity: Some(lsp::DiagnosticSeverity::ERROR),
@@ -41,7 +55,10 @@ fn text() -> Rope {
     return Rope::from_str("one\ntwo\nthree\n");
 }
 
-fn messages(store: &DiagnosticStore, text: &Rope) -> Vec<String> {
+fn messages(
+    store: &DiagnosticStore,
+    text: &Rope,
+) -> Vec<String> {
     let snapshot = store.snapshot(text).expect("a file is displayed");
     let mut found = Vec::new();
     for group in snapshot.groups {
@@ -392,7 +409,10 @@ fn ranges_use_the_column_unit_of_the_sending_server() {
 }
 
 /// Push one unversioned set from server `a` with a single item on line 0.
-fn push_unversioned(store: &mut DiagnosticStore, message: &str) -> PushVerdict {
+fn push_unversioned(
+    store: &mut DiagnosticStore,
+    message: &str,
+) -> PushVerdict {
     return store.push(
         &server("a"),
         OffsetEncoding::Utf16,

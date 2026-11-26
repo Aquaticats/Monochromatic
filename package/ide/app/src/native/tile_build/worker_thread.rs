@@ -4,11 +4,24 @@
 
 /// The tile job and result types,
 ///  and the construction every build runs.
-use super::job::{TileBuilt, TileJob, build_tile, same_typography};
+use super::job::{
+    TileBuilt,
+    TileJob,
+    build_tile,
+    same_typography,
+};
 /// The messages and shared slots the thread's owner also reads.
-use super::{Command, Shared, WorkerReply};
+use super::{
+    Command,
+    Shared,
+    WorkerReply,
+};
 /// The background measurement of the whole text.
-use crate::native::tile_pass::{PassJob, PassOutput, PassRun};
+use crate::native::tile_pass::{
+    PassJob,
+    PassOutput,
+    PassRun,
+};
 /// Worker-start and build failures stay visible diagnostics.
 use anyhow::Result;
 /// Shaping choices a worker shaper must match.
@@ -22,7 +35,11 @@ use ide_app::source_typography::SourceTypography;
 use std::sync::{
     Arc,
     atomic::Ordering,
-    mpsc::{Receiver, SyncSender, TryRecvError},
+    mpsc::{
+        Receiver,
+        SyncSender,
+        TryRecvError,
+    },
 };
 
 /// What:
@@ -78,7 +95,11 @@ impl Tiler {
     }
 
     /// Make the shaper match `typography` and the cached rows match `styles`.
-    fn adopt(&mut self, typography: &SourceTypography, styles: &SourceStyles) -> Result<()> {
+    fn adopt(
+        &mut self,
+        typography: &SourceTypography,
+        styles: &SourceStyles,
+    ) -> Result<()> {
         if !same_typography(&self.typography, typography) {
             self.shaper = TextShaper::with_typography(typography.clone())?;
             self.shaper.keep_layouts(KEPT_LAYOUTS);
@@ -99,7 +120,10 @@ impl Tiler {
 
     /// Build `job`,
     /// first making the shaper match its typography and styles.
-    fn build(&mut self, job: TileJob) -> Result<TileBuilt> {
+    fn build(
+        &mut self,
+        job: TileJob,
+    ) -> Result<TileBuilt> {
         self.adopt(&job.typography, &job.styles)?;
         return build_tile(&mut self.shaper, job);
     }

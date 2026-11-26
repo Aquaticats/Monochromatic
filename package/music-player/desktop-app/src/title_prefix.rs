@@ -130,7 +130,10 @@ pub fn shared_prefix_len(titles: &[&str]) -> usize {
         }
     }
     if cut == 0 {
-        tracing::trace!(titles = titles.len(), "no shared filename prefix ends at a separator");
+        tracing::trace!(
+            titles = titles.len(),
+            "no shared filename prefix ends at a separator"
+        );
         return 0;
     }
     if !shared[..cut].chars().any(char::is_alphanumeric) {
@@ -148,7 +151,11 @@ pub fn shared_prefix_len(titles: &[&str]) -> usize {
         tracing::trace!("removing the shared prefix would leave a blank title; nothing is removed");
         return 0;
     }
-    tracing::debug!(titles = titles.len(), prefix = &shared[..cut], "a shared filename prefix is removed");
+    tracing::debug!(
+        titles = titles.len(),
+        prefix = &shared[..cut],
+        "a shared filename prefix is removed"
+    );
     return cut;
 }
 
@@ -167,7 +174,10 @@ pub fn shared_prefix_len(titles: &[&str]) -> usize {
 /// ```ts
 /// const stripFolderName = (title: string, folder: string) => { /* case-insensitive startsWith + separator + rest */ };
 /// ```
-pub fn strip_folder_name<'a>(title: &'a str, folder: &str) -> &'a str {
+pub fn strip_folder_name<'a>(
+    title: &'a str,
+    folder: &str,
+) -> &'a str {
     let folder_text: &str = folder.trim();
     if folder_text.is_empty() {
         return title;
@@ -175,7 +185,10 @@ pub fn strip_folder_name<'a>(title: &'a str, folder: &str) -> &'a str {
     let mut title_characters = title.char_indices();
     for folder_character in folder_text.chars() {
         match title_characters.next() {
-            Some((_offset, title_character)) if title_character.to_lowercase().eq(folder_character.to_lowercase()) => {}
+            Some((_offset, title_character))
+                if title_character
+                    .to_lowercase()
+                    .eq(folder_character.to_lowercase()) => {}
             _ => return title,
         }
     }
@@ -208,7 +221,11 @@ pub fn strip_folder_name<'a>(title: &'a str, folder: &str) -> &'a str {
 /// ```ts
 /// const displayTitle = (title: string, prefixLen: number, folder: string) => prefixLen > 0 ? title.slice(prefixLen).trimStart() : stripFolderName(title, folder);
 /// ```
-pub fn display_title<'a>(title: &'a str, prefix_len: usize, folder: &str) -> &'a str {
+pub fn display_title<'a>(
+    title: &'a str,
+    prefix_len: usize,
+    folder: &str,
+) -> &'a str {
     if prefix_len > 0 && title.is_char_boundary(prefix_len) {
         return title[prefix_len..].trim_start();
     }

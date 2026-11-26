@@ -29,7 +29,10 @@
 /// import { ImportMemWl, WinitEvent, EventLoop, Display } from "smithay";
 /// ```
 use smithay::{
-    backend::{renderer::ImportMemWl, winit::WinitEvent},
+    backend::{
+        renderer::ImportMemWl,
+        winit::WinitEvent,
+    },
     reexports::{
         calloop::EventLoop,
         wayland_server::Display,
@@ -41,7 +44,10 @@ use smithay::{
 ///  Error helpers.
 /// Why:
 ///       `run` returns `Result<i32>` and annotates setup failures.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// What:
 ///      Grouped `use` of our own modules' items.
@@ -56,15 +62,25 @@ use anyhow::{Context, Result};
 /// import { initBackend } from "./backend"; import { spawnChild, ... } from "./child"; ...
 /// ```
 use crate::{
-    lazy_error_text::failed_error,
-    appearance_portal::{AppearancePortal, PortalStart},
+    appearance_portal::{
+        AppearancePortal,
+        PortalStart,
+    },
     backend::init_backend,
     backend_headless::init_headless_backend,
-    backend_select::{select_backend, BackendKind, ParentEnvironment},
-    child::{register_exit_poll, spawn_child},
+    backend_select::{
+        BackendKind,
+        ParentEnvironment,
+        select_backend,
+    },
+    child::{
+        register_exit_poll,
+        spawn_child,
+    },
     cli::Config,
     control,
     launcher_listen::LauncherLog,
+    lazy_error_text::failed_error,
     plasma_services::PlasmaServices,
     private_bus::PrivateBus,
     render::redraw,
@@ -333,7 +349,11 @@ pub fn run(config: Config) -> Result<i32> {
 /// ```ts
 /// function onWinitEvent(event, _metadata, state) { handleWinitEvent(event, state); }
 /// ```
-fn on_winit_event(event: WinitEvent, _metadata: &mut (), state: &mut Compositor) {
+fn on_winit_event(
+    event: WinitEvent,
+    _metadata: &mut (),
+    state: &mut Compositor,
+) {
     handle_winit_event(event, state);
 }
 
@@ -348,7 +368,7 @@ fn on_winit_event(event: WinitEvent, _metadata: &mut (), state: &mut Compositor)
 /// const addressOfBus = (bus: PrivateBus): string => bus.address();
 /// ```
 fn address_of_bus(bus: &Arc<PrivateBus>) -> String {
-    return bus.address().to_owned()
+    return bus.address().to_owned();
 }
 
 /// What:
@@ -376,13 +396,19 @@ fn flush_after_dispatch(current: &mut Compositor) {
 /// ```ts
 /// function handleWinitEvent(event, state) { ... }
 /// ```
-fn handle_winit_event(event: WinitEvent, state: &mut Compositor) {
+fn handle_winit_event(
+    event: WinitEvent,
+    state: &mut Compositor,
+) {
     // What:     `match event { ... }`. Match the winit event enum. Only the variants the
     //           fixture cares about are handled; `_ => {}` ignores the rest (including
     //           `Input`, since the fixture injects its own input via the control API).
     // Why:      React to the parent window being resized or closed, and to redraw ticks.
     match event {
-        WinitEvent::Resized { size, .. } => {
+        WinitEvent::Resized {
+            size,
+            ..
+        } => {
             // What:     `WinitEvent::Resized { size, .. }` binds the new framebuffer size and
             //           ignores the other field (`..`), the parent output's scale.
             // Why:      The parent changed the nested window's size. `parent_resized` keeps

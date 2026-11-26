@@ -41,18 +41,26 @@ impl Digest {
 
     /// An empty digest.
     fn new() -> Self {
-        return Self { state: Self::BASIS };
+        return Self {
+            state: Self::BASIS,
+        };
     }
 
     /// Feed `piece`.
-    fn bytes(&mut self, piece: &[u8]) {
+    fn bytes(
+        &mut self,
+        piece: &[u8],
+    ) {
         for byte in piece {
             self.state = (self.state ^ u64::from(*byte)).wrapping_mul(Self::PRIME);
         }
     }
 
     /// Feed `value` as eight bytes.
-    fn number(&mut self, value: usize) {
+    fn number(
+        &mut self,
+        value: usize,
+    ) {
         self.bytes(&(value as u64).to_le_bytes());
     }
 }
@@ -87,7 +95,11 @@ pub struct LineKey {
 /// The digest of the syntax classes that reach the characters `start` to `end`,
 /// each clipped to them and measured from `start`:
 /// what the shaper makes of the classes for that line.
-fn styles_digest(styles: &[StyleSpan], start: usize, end: usize) -> u64 {
+fn styles_digest(
+    styles: &[StyleSpan],
+    start: usize,
+    end: usize,
+) -> u64 {
     // Spans ascend and do not overlap, so a halving search finds the first one that reaches the line.
     let mut reaching = 0;
     let mut high = styles.len();
@@ -210,14 +222,21 @@ impl LineCache {
 
     /// The row kept for `key`,
     /// marked as used by this build.
-    pub fn take(&mut self, key: LineKey) -> Option<ShapedRow> {
+    pub fn take(
+        &mut self,
+        key: LineKey,
+    ) -> Option<ShapedRow> {
         let kept = self.rows.get_mut(&key)?;
         kept.used = self.build;
         return Some(kept.row.clone());
     }
 
     /// Keep `row` for `key`.
-    pub fn put(&mut self, key: LineKey, row: ShapedRow) {
+    pub fn put(
+        &mut self,
+        key: LineKey,
+        row: ShapedRow,
+    ) {
         self.rows.insert(
             key,
             Kept {

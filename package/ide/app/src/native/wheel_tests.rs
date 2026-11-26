@@ -17,26 +17,52 @@ use super::gpu_snapshot::snapshot;
 /// Settling a tile,
 ///  scrolling the window,
 ///  and the counters of the worker.
-use super::overscan_tile_tests::{reset, scroll_to, settle_tile, worker_counts};
+use super::overscan_tile_tests::{
+    reset,
+    scroll_to,
+    settle_tile,
+    worker_counts,
+};
 /// The fixture the window is opened with,
 ///  and the waiting of every test.
 use super::{
-    AppWindow, State,
-    minimap_tests::{lift, press},
-    sidebar_tests::{HEADER, TEXT_LEFT},
+    AppWindow,
+    State,
+    minimap_tests::{
+        lift,
+        press,
+    },
+    sidebar_tests::{
+        HEADER,
+        TEXT_LEFT,
+    },
     waiting_tests::Waiting,
-    wheel::{is_aimed, note_turn},
-    wrap_tests::{open, settled},
+    wheel::{
+        is_aimed,
+        note_turn,
+    },
+    wrap_tests::{
+        open,
+        settled,
+    },
 };
 /// The height of one code row.
 use ide_app::row_map::CODE_ROW;
 /// The window handle and the event types.
 use slint::{
-    ComponentHandle, LogicalPosition,
-    platform::{WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalPosition,
+    platform::{
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Shared state and the clock.
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Duration,
+};
 
 /// Lines of the fixture text;
 ///  the offsets used stay far from both ends.
@@ -83,7 +109,11 @@ fn eased(elapsed: Duration) -> f32 {
 ///  so the ease itself is stepped here,
 ///  by `step_ease`,
 ///  along the curve the toolkit's constant deceleration draws.
-fn begin_turn(window: &AppWindow, state: &Rc<RefCell<State>>, notches: f32) -> (f32, f32) {
+fn begin_turn(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    notches: f32,
+) -> (f32, f32) {
     let distance = notches * NOTCH;
     let start = state.borrow().offset;
     update_timers_and_animations();
@@ -97,7 +127,11 @@ fn begin_turn(window: &AppWindow, state: &Rc<RefCell<State>>, notches: f32) -> (
 ///  however long the host takes for a step:
 ///  the ease is the toolkit's clock,
 ///  and a test that stepped it by the host's clock would see a different ease under load.
-fn step_ease(window: &AppWindow, turn: (f32, f32), from: Duration) {
+fn step_ease(
+    window: &AppWindow,
+    turn: (f32, f32),
+    from: Duration,
+) {
     step_ease_each(window, turn, from, || {});
 }
 
@@ -125,7 +159,11 @@ fn step_ease_each(
 ///  between logical columns `from` and `to` of the code area,
 ///  differ clearly
 /// from the background beside them.
-fn ink_between(window: &AppWindow, from: f32, to: f32) -> usize {
+fn ink_between(
+    window: &AppWindow,
+    from: f32,
+    to: f32,
+) -> usize {
     let frame = snapshot(window.window());
     let scale = window.window().scale_factor();
     let width = frame.width() as usize;

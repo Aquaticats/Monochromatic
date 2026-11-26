@@ -4,7 +4,12 @@
 //!  and the short/long/violator split.
 
 use super::*;
-use crate::test_fixtures::{bins_with_one_hot, flat_bins, levels_match, track};
+use crate::test_fixtures::{
+    bins_with_one_hot,
+    flat_bins,
+    levels_match,
+    track,
+};
 use truepeak_core::default_policy;
 
 /// Seconds in every long fixture track,
@@ -39,7 +44,7 @@ fn needle_track() -> Track {
         LONG_SECS,
         HOT_PEAK,
         bins_with_one_hot(LONG_SECS as usize, QUIET_PEAK, UNCOVERED_HOT_SEC, HOT_PEAK),
-    )
+    );
 }
 
 /// What:
@@ -47,12 +52,23 @@ fn needle_track() -> Track {
 ///  so the probe gain equals the exact gain and the error is zero.
 #[test]
 fn a_flat_long_track_scores_zero_error_and_pays_its_probe() {
-    let report = evaluate(&[track("flat.flac", LONG_SECS, 0.5, flat_bins(LONG_SECS as usize, 0.5))], TWO_WINDOWS);
+    let report = evaluate(
+        &[track(
+            "flat.flac",
+            LONG_SECS,
+            0.5,
+            flat_bins(LONG_SECS as usize, 0.5),
+        )],
+        TWO_WINDOWS,
+    );
     assert_eq!(report.short_count, 0, "a long track is never a short scan");
     assert_eq!(report.accepted_count, 1);
     assert!(report.violators.is_empty(), "a flat track has no violator");
     assert!(
-        levels_match(report.decoded_secs, TWO_WINDOWS.window_count as f64 * TWO_WINDOWS.window_seconds),
+        levels_match(
+            report.decoded_secs,
+            TWO_WINDOWS.window_count as f64 * TWO_WINDOWS.window_seconds
+        ),
         "an accepted long track pays only its probe, got {}",
         report.decoded_secs,
     );
@@ -79,7 +95,10 @@ fn a_peak_between_the_windows_is_a_too_loud_violator() {
     assert!(violator.error_db > policy.max_too_loud_db, "it is too loud");
     assert_eq!(violator.path, "needle.flac");
     assert_eq!(violator.duration_secs, LONG_SECS as f64);
-    assert!(levels_match(violator.sampled_max, f64::from(QUIET_PEAK)), "the probe saw the quiet second");
+    assert!(
+        levels_match(violator.sampled_max, f64::from(QUIET_PEAK)),
+        "the probe saw the quiet second"
+    );
     let threshold = TWO_WINDOWS.window_count as f64 * TWO_WINDOWS.window_seconds;
     assert!(
         levels_match(report.decoded_secs, threshold + LONG_SECS as f64),
@@ -99,10 +118,21 @@ fn a_margin_wider_than_the_under_read_is_a_too_quiet_violator() {
         probe_margin_db: margin_db,
         ..TWO_WINDOWS
     };
-    let report = evaluate(&[track("flat.flac", LONG_SECS, HOT_PEAK, flat_bins(LONG_SECS as usize, HOT_PEAK))], candidate);
+    let report = evaluate(
+        &[track(
+            "flat.flac",
+            LONG_SECS,
+            HOT_PEAK,
+            flat_bins(LONG_SECS as usize, HOT_PEAK),
+        )],
+        candidate,
+    );
     assert_eq!(report.violators.len(), 1, "the margin starves the track");
     let error_db = report.violators[0].error_db;
-    assert!(levels_match(error_db, -margin_db), "the error is the negated margin, got {error_db}");
+    assert!(
+        levels_match(error_db, -margin_db),
+        "the error is the negated margin, got {error_db}"
+    );
     assert!(error_db < policy.max_too_quiet_db, "it is too quiet");
 }
 
@@ -114,13 +144,22 @@ fn a_margin_wider_than_the_under_read_is_a_too_quiet_violator() {
 fn a_track_at_the_threshold_is_a_short_scan_that_pays_its_length() {
     let threshold_secs = (TWO_WINDOWS.window_count as f64 * TWO_WINDOWS.window_seconds) as u64;
     let report = evaluate(
-        &[track("short.flac", threshold_secs, HOT_PEAK, flat_bins(threshold_secs as usize, HOT_PEAK))],
+        &[track(
+            "short.flac",
+            threshold_secs,
+            HOT_PEAK,
+            flat_bins(threshold_secs as usize, HOT_PEAK),
+        )],
         TWO_WINDOWS,
     );
     assert_eq!(report.short_count, 1);
     assert_eq!(report.accepted_count, 0);
     assert!(report.violators.is_empty());
-    assert!(levels_match(report.decoded_secs, threshold_secs as f64), "got {}", report.decoded_secs);
+    assert!(
+        levels_match(report.decoded_secs, threshold_secs as f64),
+        "got {}",
+        report.decoded_secs
+    );
     assert_eq!(report.worst_too_loud_db, 0.0);
     assert_eq!(report.worst_too_quiet_db, 0.0);
 }
@@ -134,7 +173,10 @@ fn an_empty_corpus_scores_zero() {
     assert_eq!(report.accepted_count, 0);
     assert!(report.violators.is_empty());
     assert_eq!(report.decoded_secs, 0.0);
-    assert_eq!(report.threshold_secs, TWO_WINDOWS.window_count as f64 * TWO_WINDOWS.window_seconds);
+    assert_eq!(
+        report.threshold_secs,
+        TWO_WINDOWS.window_count as f64 * TWO_WINDOWS.window_seconds
+    );
 }
 
 /// What:
@@ -144,8 +186,16 @@ fn an_empty_corpus_scores_zero() {
 fn sampled_windows_takes_the_loudest_bin_each_window_covers() {
     let windows = sampled_windows(&needle_track(), TWO_WINDOWS);
     assert_eq!(windows.len(), TWO_WINDOWS.window_count);
-    assert!(levels_match(windows[0], f64::from(QUIET_PEAK)), "first second: {}", windows[0]);
-    assert!(levels_match(windows[1], f64::from(QUIET_PEAK)), "last second: {}", windows[1]);
+    assert!(
+        levels_match(windows[0], f64::from(QUIET_PEAK)),
+        "first second: {}",
+        windows[0]
+    );
+    assert!(
+        levels_match(windows[1], f64::from(QUIET_PEAK)),
+        "last second: {}",
+        windows[1]
+    );
 
     // A three-second window covers the three bins it spans, so a loud bin inside one is seen.
     let wide = Candidate {
@@ -155,5 +205,9 @@ fn sampled_windows_takes_the_loudest_bin_each_window_covers() {
     let mut bins = flat_bins(LONG_SECS as usize, QUIET_PEAK);
     bins[LONG_SECS as usize - 2] = HOT_PEAK;
     let wide_windows = sampled_windows(&track("edge.flac", LONG_SECS, HOT_PEAK, bins), wide);
-    assert!(levels_match(wide_windows[1], f64::from(HOT_PEAK)), "last window: {}", wide_windows[1]);
+    assert!(
+        levels_match(wide_windows[1], f64::from(HOT_PEAK)),
+        "last window: {}",
+        wide_windows[1]
+    );
 }

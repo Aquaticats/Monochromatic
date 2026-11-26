@@ -12,34 +12,57 @@
 
 /// Imports the playback mode that the view shows.
 use music_player::command::PlaybackMode;
-/// Imports the page entry type that the player content is built from.
-use music_player::pagination::PageEntry;
 /// Imports the page index that the state caches.
 use music_player::page_index::PageIndex;
-/// Imports the shared ownership type of the name list that the state shares.
-use std::sync::Arc;
+/// Imports the page entry type that the player content is built from.
+use music_player::pagination::PageEntry;
 /// Imports the player content input and its builder.
-use music_player::player_content::{PlayerContentInput, build_player_content};
+use music_player::player_content::{
+    PlayerContentInput,
+    build_player_content,
+};
 /// Imports the deck folder label and the track title.
-use music_player::track_entries::{deck_folder_label, track_title_for};
+use music_player::track_entries::{
+    deck_folder_label,
+    track_title_for,
+};
 /// Imports the track measure and the position lookup.
-use music_player::track_measure::{TrackMeasure, lookup_for_positions};
+use music_player::track_measure::{
+    TrackMeasure,
+    lookup_for_positions,
+};
 /// Imports the map type that holds measures by path.
 use std::collections::HashMap;
+/// Imports the shared ownership type of the name list that the state shares.
+use std::sync::Arc;
 
 /// Imports the row and picker types,
 /// their builders and the shared-prefix stripping and unplayable marking.
-use crate::ui_screen_rows::{ListRow, Picker, PickerName, list_rows, picker, strip_shared_prefixes, mark_unplayable};
-/// Imports the title prefix helpers that shorten row titles.
-use music_player::title_prefix::{display_title, shared_prefix_len};
+use crate::ui_screen_rows::{
+    ListRow,
+    Picker,
+    PickerName,
+    list_rows,
+    mark_unplayable,
+    picker,
+    strip_shared_prefixes,
+};
 /// Imports the scroll request that a view may carry.
 use crate::ui_screen_scroll::ScrollRequest;
 /// Imports the subtitle and title evaluation of the playing track.
-use crate::ui_templates::{playing_subtitle, playing_track};
+use crate::ui_templates::{
+    playing_subtitle,
+    playing_track,
+};
 /// Imports the template editor state that the settings pages keep.
 use music_player::template_editor_state::TemplateEditorState;
 /// Imports the default playing template.
 use music_player::template_model::DEFAULT_PLAYING_TEMPLATE;
+/// Imports the title prefix helpers that shorten row titles.
+use music_player::title_prefix::{
+    display_title,
+    shared_prefix_len,
+};
 
 /// What:
 /// `Route` names the screen the window shows over the player.
@@ -306,7 +329,10 @@ pub struct ScreenView {
 /// Why:
 /// a root-level track has no folder of its own,
 /// so the deck falls back to the label of the page it is listed under.
-fn playing_page_label(pages: &PageIndex, index: Option<usize>) -> String {
+fn playing_page_label(
+    pages: &PageIndex,
+    index: Option<usize>,
+) -> String {
     let position: Option<usize> = match index {
         Some(position) => pages.page_of_index(position),
         None => None,
@@ -352,7 +378,10 @@ fn parent_of(name: &str) -> &str {
 /// ```ts
 /// const deckTitleOf = (s: ScreenState) => displayTitle(stem(s.trackName), sharedPrefixLen(siblingStems(s)), folderName(s));
 /// ```
-fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
+fn deck_title_of(
+    state: &ScreenState,
+    pages: &PageIndex,
+) -> String {
     if state.track_name.is_empty() {
         return String::new();
     }
@@ -379,7 +408,11 @@ fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
     }
     let borrowed: Vec<&str> = siblings.iter().map(String::as_str).collect();
     let prefix: usize = shared_prefix_len(&borrowed);
-    let folder: &str = if parent.is_empty() { "" } else { music_player::display_path::last_segment(parent) };
+    let folder: &str = if parent.is_empty() {
+        ""
+    } else {
+        music_player::display_path::last_segment(parent)
+    };
     return display_title(&stem, prefix, folder).to_string();
 }
 
@@ -393,7 +426,10 @@ fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
 /// ```ts
 /// const view = (state: ScreenState, supportingLine: (t: TrackFields) => string | null): ScreenView => { ... };
 /// ```
-pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_supporting_line::SupportingLine) -> ScreenView {
+pub fn view(
+    state: &ScreenState,
+    supporting_line: &dyn music_player::track_supporting_line::SupportingLine,
+) -> ScreenView {
     let all_pages = state.current_pages();
     let mut labels: Vec<String> = Vec::new();
     for page in all_pages.pages() {
@@ -406,7 +442,11 @@ pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_suppo
             for index in page.indices() {
                 items.push(PageEntry {
                     index: *index as usize,
-                    name: state.names.get(*index as usize).cloned().unwrap_or_default(),
+                    name: state
+                        .names
+                        .get(*index as usize)
+                        .cloned()
+                        .unwrap_or_default(),
                 });
             }
             items
@@ -445,7 +485,12 @@ pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_suppo
     };
     let content = build_player_content(&input, supporting_line);
     // A virtual letter folder (loose files) is not a directory, so its name is never stripped from a title.
-    let strip_folder: &str = if matches!(all_pages.page(selected), Some(page) if page.identity.starts_with("root:")) { "" } else { content.folder_title.as_str() };
+    let strip_folder: &str = if matches!(all_pages.page(selected), Some(page) if page.identity.starts_with("root:"))
+    {
+        ""
+    } else {
+        content.folder_title.as_str()
+    };
     let mut rows = list_rows(&content.entries);
     strip_shared_prefixes(&mut rows, strip_folder);
     mark_unplayable(&mut rows, &state.paths, &state.unplayable);
@@ -456,8 +501,19 @@ pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_suppo
     let picker_model = picker(&content.sections, &content.folder_title);
     let deck_subtitle = match (playing_position, playing_name) {
         (Some(position), Some(name)) => {
-            let template = state.playing_template.as_deref().unwrap_or(DEFAULT_PLAYING_TEMPLATE);
-            match playing_subtitle(template, &playing_track(&name, position + 1, playing_count, input.measures.get(&name))) {
+            let template = state
+                .playing_template
+                .as_deref()
+                .unwrap_or(DEFAULT_PLAYING_TEMPLATE);
+            match playing_subtitle(
+                template,
+                &playing_track(
+                    &name,
+                    position + 1,
+                    playing_count,
+                    input.measures.get(&name),
+                ),
+            ) {
                 Some(subtitle) => subtitle,
                 None => content.deck.subtitle.clone(),
             }
@@ -465,7 +521,10 @@ pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_suppo
         _ => content.deck.subtitle.clone(),
     };
     let deck_title = deck_title_of(state, &all_pages);
-    let deck_folder = deck_folder_label(&state.track_name, &playing_page_label(&all_pages, state.current_index));
+    let deck_folder = deck_folder_label(
+        &state.track_name,
+        &playing_page_label(&all_pages, state.current_index),
+    );
     return ScreenView {
         folder_title: content.folder_title,
         rows,
@@ -479,7 +538,10 @@ pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_suppo
 }
 
 /// Page selection helpers live in `ui_screen_pages.rs` and keep their old paths here.
-pub use crate::ui_screen_pages::{select_folder_label, selected_page_scope};
+pub use crate::ui_screen_pages::{
+    select_folder_label,
+    selected_page_scope,
+};
 
 /// Unit tests of `ui_screen_view`,
 /// in the sidecar file `ui_screen_view_tests.rs`.

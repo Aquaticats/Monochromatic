@@ -71,7 +71,10 @@ impl PartialEq for LineRows {
     /// Same line count,
     ///  same totals,
     ///  and chunk by chunk the same counts.
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
         if self.lines != other.lines || self.before != other.before {
             return false;
         }
@@ -116,7 +119,10 @@ impl LineRows {
 
     /// Extra rows of `line`,
     /// nothing for a line the table does not have.
-    fn extra(&self, line: usize) -> u32 {
+    fn extra(
+        &self,
+        line: usize,
+    ) -> u32 {
         if line >= self.lines {
             return 0;
         }
@@ -130,14 +136,20 @@ impl LineRows {
     /// ```ts
     /// rows(line: number): number;
     /// ```
-    pub fn rows(&self, line: usize) -> usize {
+    pub fn rows(
+        &self,
+        line: usize,
+    ) -> usize {
         return 1 + self.extra(line) as usize;
     }
 
     /// Extra rows of every line before `line`;
     ///  `line` may equal the line count,
     ///  which gives the total.
-    pub fn extra_before(&self, line: usize) -> usize {
+    pub fn extra_before(
+        &self,
+        line: usize,
+    ) -> usize {
         let bounded = line.min(self.lines);
         let chunk = bounded / CHUNK;
         let within = bounded % CHUNK;
@@ -167,7 +179,10 @@ impl LineRows {
     /// ```ts
     /// apply(updates: Iterable<[line: number, rows: number]>): boolean;
     /// ```
-    pub fn apply(&mut self, updates: impl IntoIterator<Item = (usize, usize)>) -> bool {
+    pub fn apply(
+        &mut self,
+        updates: impl IntoIterator<Item = (usize, usize)>,
+    ) -> bool {
         let mut first_changed: Option<usize> = None;
         for (line, rows) in updates {
             if line >= self.lines {
@@ -200,7 +215,10 @@ impl LineRows {
     /// Whether `line` has a count of its own,
     /// that is,
     /// takes more than one row.
-    pub fn is_wrapped(&self, line: usize) -> bool {
+    pub fn is_wrapped(
+        &self,
+        line: usize,
+    ) -> bool {
         return self.extra(line) > 0;
     }
 }

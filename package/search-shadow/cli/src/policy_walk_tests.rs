@@ -14,16 +14,27 @@
 //! ```
 
 /// Imports the dispatcher and the record it reads.
-use crate::policy::{Invocation, refusal_for};
+use crate::policy::{
+    Invocation,
+    refusal_for,
+};
 
 /// Imports the kind of standard input the record carries.
 use crate::stdin_kind::StdinKind;
 
 /// Imports the `find` and `bfs` rule and its two parsers.
-use crate::policy_find::{find_max_depth, find_refusal, find_start_points};
+use crate::policy_find::{
+    find_max_depth,
+    find_refusal,
+    find_start_points,
+};
 
 /// Imports the `grep` rule and its parser and the record the parser returns.
-use crate::policy_grep::{GrepDescription, describe_grep, grep_refusal};
+use crate::policy_grep::{
+    GrepDescription,
+    describe_grep,
+    grep_refusal,
+};
 
 /// Imports the file-system module (make fixture directories).
 use std::fs;
@@ -95,14 +106,34 @@ fn grep_recursion_is_detected_in_every_spelling() {
 fn grep_operands_exclude_the_pattern_and_flag_values() {
     assert_eq!(
         describe_grep(&texts(&["-r", "foo", "src", "doc"])),
-        GrepDescription { recursive: true, operands: texts(&["src", "doc"]) }
+        GrepDescription {
+            recursive: true,
+            operands: texts(&["src", "doc"])
+        }
     );
-    assert_eq!(describe_grep(&texts(&["-e", "foo", "src"])).operands, texts(&["src"]));
-    assert_eq!(describe_grep(&texts(&["-A", "3", "foo", "src"])).operands, texts(&["src"]));
+    assert_eq!(
+        describe_grep(&texts(&["-e", "foo", "src"])).operands,
+        texts(&["src"])
+    );
+    assert_eq!(
+        describe_grep(&texts(&["-A", "3", "foo", "src"])).operands,
+        texts(&["src"])
+    );
     assert_eq!(describe_grep(&texts(&["-A3", "foo"])).operands.len(), 0);
-    assert_eq!(describe_grep(&texts(&["--include", "*.ts", "foo", "src"])).operands, texts(&["src"]));
-    assert_eq!(describe_grep(&texts(&["--include=*.ts", "foo"])).operands.len(), 0);
-    assert_eq!(describe_grep(&texts(&["foo", "--", "-r"])).operands, texts(&["-r"]));
+    assert_eq!(
+        describe_grep(&texts(&["--include", "*.ts", "foo", "src"])).operands,
+        texts(&["src"])
+    );
+    assert_eq!(
+        describe_grep(&texts(&["--include=*.ts", "foo"]))
+            .operands
+            .len(),
+        0
+    );
+    assert_eq!(
+        describe_grep(&texts(&["foo", "--", "-r"])).operands,
+        texts(&["-r"])
+    );
 }
 
 /// A recursive grep from a repository root is refused whether the root is implied or named.
@@ -111,8 +142,20 @@ fn grep_refuses_recursion_from_a_repository_root() {
     let root = repository();
     let home = crate::test_scratch::scratch();
 
-    let implied = grep_refusal("grep", &texts(&["-rn", "foo"]), false, root.path(), home.path());
-    let dot = grep_refusal("grep", &texts(&["-r", "foo", "."]), false, root.path(), home.path());
+    let implied = grep_refusal(
+        "grep",
+        &texts(&["-rn", "foo"]),
+        false,
+        root.path(),
+        home.path(),
+    );
+    let dot = grep_refusal(
+        "grep",
+        &texts(&["-r", "foo", "."]),
+        false,
+        root.path(),
+        home.path(),
+    );
 
     assert!(implied.is_some());
     let text = implied.unwrap_or_default();
@@ -130,8 +173,26 @@ fn grep_refuses_recursion_over_home_and_the_filesystem_root() {
     let home = crate::test_scratch::scratch();
     let home_text = home.path().to_string_lossy().to_string();
 
-    assert!(grep_refusal("grep", &texts(&["-r", "foo", &home_text]), false, work.path(), home.path()).is_some());
-    assert!(grep_refusal("grep", &texts(&["-r", "foo", "/"]), false, work.path(), home.path()).is_some());
+    assert!(
+        grep_refusal(
+            "grep",
+            &texts(&["-r", "foo", &home_text]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
+    assert!(
+        grep_refusal(
+            "grep",
+            &texts(&["-r", "foo", "/"]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
 }
 
 /// What is bounded or deliberate must pass.
@@ -141,21 +202,75 @@ fn grep_lets_bounded_and_deliberate_calls_through() {
     let home = crate::test_scratch::scratch();
 
     // Not recursive, a named subdirectory, escape hatch, and stdin-only input (the '-' operand).
-    assert_eq!(grep_refusal("grep", &texts(&["foo", "file"]), false, root.path(), home.path()), None);
-    assert_eq!(grep_refusal("grep", &texts(&["-r", "foo", "package"]), false, root.path(), home.path()), None);
-    assert_eq!(grep_refusal("grep", &texts(&["-r", "foo"]), true, root.path(), home.path()), None);
-    assert_eq!(grep_refusal("grep", &texts(&["-r", "foo", "-"]), false, root.path(), home.path()), None);
+    assert_eq!(
+        grep_refusal(
+            "grep",
+            &texts(&["foo", "file"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        grep_refusal(
+            "grep",
+            &texts(&["-r", "foo", "package"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        grep_refusal(
+            "grep",
+            &texts(&["-r", "foo"]),
+            true,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        grep_refusal(
+            "grep",
+            &texts(&["-r", "foo", "-"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
     // Recursion from a directory that is not a repository root is bounded by that directory.
-    assert_eq!(grep_refusal("grep", &texts(&["-r", "foo"]), false, root.path().join("package").as_path(), home.path()), None);
+    assert_eq!(
+        grep_refusal(
+            "grep",
+            &texts(&["-r", "foo"]),
+            false,
+            root.path().join("package").as_path(),
+            home.path()
+        ),
+        None
+    );
 }
 
 /// Start points are read after the leading global options and before the first expression.
 #[test]
 fn find_start_points_are_read_before_the_first_expression() {
     assert_eq!(find_start_points(&texts(&["-name", "x"])), texts(&["."]));
-    assert_eq!(find_start_points(&texts(&["src", "doc", "-name", "x"])), texts(&["src", "doc"]));
-    assert_eq!(find_start_points(&texts(&["-L", "src", "-type", "f"])), texts(&["src"]));
-    assert_eq!(find_start_points(&texts(&["-H", "-D", "tree", "src", "!", "-name", "x"])), texts(&["src"]));
+    assert_eq!(
+        find_start_points(&texts(&["src", "doc", "-name", "x"])),
+        texts(&["src", "doc"])
+    );
+    assert_eq!(
+        find_start_points(&texts(&["-L", "src", "-type", "f"])),
+        texts(&["src"])
+    );
+    assert_eq!(
+        find_start_points(&texts(&["-H", "-D", "tree", "src", "!", "-name", "x"])),
+        texts(&["src"])
+    );
     assert_eq!(find_start_points(&texts(&[])), texts(&["."]));
 }
 
@@ -164,7 +279,10 @@ fn find_start_points_are_read_before_the_first_expression() {
 #[test]
 fn find_max_depth_takes_the_smallest_numeric_value() {
     assert_eq!(find_max_depth(&texts(&[".", "-maxdepth", "2"])), Some(2));
-    assert_eq!(find_max_depth(&texts(&[".", "-maxdepth", "5", "-maxdepth", "1"])), Some(1));
+    assert_eq!(
+        find_max_depth(&texts(&[".", "-maxdepth", "5", "-maxdepth", "1"])),
+        Some(1)
+    );
     assert_eq!(find_max_depth(&texts(&[".", "-maxdepth", "x"])), None);
     assert_eq!(find_max_depth(&texts(&["."])), None);
 }
@@ -178,16 +296,58 @@ fn find_refuses_unbounded_walks_from_wide_places() {
     let home = crate::test_scratch::scratch();
     let home_text = home.path().to_string_lossy().to_string();
 
-    let implied = find_refusal("find", &texts(&["-name", "*.ts"]), false, root.path(), home.path());
+    let implied = find_refusal(
+        "find",
+        &texts(&["-name", "*.ts"]),
+        false,
+        root.path(),
+        home.path(),
+    );
     assert!(implied.is_some());
     let text = implied.unwrap_or_default();
     assert!(text.contains("refused"));
     assert!(text.contains("-maxdepth 3"));
-    assert!(find_refusal("find", &texts(&[".", "-type", "f"]), false, root.path(), home.path()).is_some());
-    assert!(find_refusal("bfs", &texts(&[&home_text, "-name", "x"]), false, work.path(), home.path()).is_some());
-    assert!(find_refusal("find", &texts(&["/", "-name", "x"]), false, work.path(), home.path()).is_some());
+    assert!(
+        find_refusal(
+            "find",
+            &texts(&[".", "-type", "f"]),
+            false,
+            root.path(),
+            home.path()
+        )
+        .is_some()
+    );
+    assert!(
+        find_refusal(
+            "bfs",
+            &texts(&[&home_text, "-name", "x"]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
+    assert!(
+        find_refusal(
+            "find",
+            &texts(&["/", "-name", "x"]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
     // A depth over the bound does not help.
-    assert!(find_refusal("find", &texts(&[".", "-maxdepth", "9"]), false, root.path(), home.path()).is_some());
+    assert!(
+        find_refusal(
+            "find",
+            &texts(&[".", "-maxdepth", "9"]),
+            false,
+            root.path(),
+            home.path()
+        )
+        .is_some()
+    );
 }
 
 /// A bounded depth,
@@ -198,10 +358,40 @@ fn find_lets_bounded_walks_through() {
     let root = repository();
     let home = crate::test_scratch::scratch();
 
-    assert_eq!(find_refusal("find", &texts(&[".", "-maxdepth", "3", "-name", "x"]), false, root.path(), home.path()), None);
-    assert_eq!(find_refusal("find", &texts(&["package", "-name", "x"]), false, root.path(), home.path()), None);
-    assert_eq!(find_refusal("find", &texts(&["-name", "x"]), false, root.path().join("package").as_path(), home.path()), None);
-    assert_eq!(find_refusal("find", &texts(&["."]), true, root.path(), home.path()), None);
+    assert_eq!(
+        find_refusal(
+            "find",
+            &texts(&[".", "-maxdepth", "3", "-name", "x"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        find_refusal(
+            "find",
+            &texts(&["package", "-name", "x"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        find_refusal(
+            "find",
+            &texts(&["-name", "x"]),
+            false,
+            root.path().join("package").as_path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        find_refusal("find", &texts(&["."]), true, root.path(), home.path()),
+        None
+    );
 }
 
 /// `--version` and `--help` never walk,
@@ -211,9 +401,30 @@ fn find_lets_the_information_flags_through() {
     let root = repository();
     let home = crate::test_scratch::scratch();
 
-    assert_eq!(find_refusal("find", &texts(&["--version"]), false, root.path(), home.path()), None);
-    assert_eq!(find_refusal("bfs", &texts(&["--help"]), false, root.path(), home.path()), None);
-    assert_eq!(find_refusal("find", &texts(&["-version"]), false, root.path(), home.path()), None);
+    assert_eq!(
+        find_refusal(
+            "find",
+            &texts(&["--version"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
+    assert_eq!(
+        find_refusal("bfs", &texts(&["--help"]), false, root.path(), home.path()),
+        None
+    );
+    assert_eq!(
+        find_refusal(
+            "find",
+            &texts(&["-version"]),
+            false,
+            root.path(),
+            home.path()
+        ),
+        None
+    );
 }
 
 /// A pattern spelled like an information flag sits in a value position,
@@ -224,9 +435,36 @@ fn find_refuses_a_walk_whose_pattern_is_spelled_like_an_information_flag() {
     let work = crate::test_scratch::scratch();
     let home = crate::test_scratch::scratch();
     // `find / -name --help` matches every file called `--help` under the whole filesystem; find prints no help for it.
-    assert!(find_refusal("find", &texts(&["/", "-name", "--help"]), false, work.path(), home.path()).is_some());
-    assert!(find_refusal("find", &texts(&["/", "-path", "--version"]), false, work.path(), home.path()).is_some());
-    assert!(find_refusal("bfs", &texts(&["/", "-iname", "-help"]), false, work.path(), home.path()).is_some());
+    assert!(
+        find_refusal(
+            "find",
+            &texts(&["/", "-name", "--help"]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
+    assert!(
+        find_refusal(
+            "find",
+            &texts(&["/", "-path", "--version"]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
+    assert!(
+        find_refusal(
+            "bfs",
+            &texts(&["/", "-iname", "-help"]),
+            false,
+            work.path(),
+            home.path()
+        )
+        .is_some()
+    );
 }
 
 /// A `-maxdepth` spelled as another option's value bounds nothing,
@@ -236,8 +474,20 @@ fn find_ignores_a_maxdepth_that_sits_in_a_value_position() {
     let root = repository();
     let home = crate::test_scratch::scratch();
 
-    assert_eq!(find_max_depth(&texts(&[".", "-name", "-maxdepth", "2"])), None);
-    assert!(find_refusal("find", &texts(&[".", "-name", "-maxdepth", "2"]), false, root.path(), home.path()).is_some());
+    assert_eq!(
+        find_max_depth(&texts(&[".", "-name", "-maxdepth", "2"])),
+        None
+    );
+    assert!(
+        find_refusal(
+            "find",
+            &texts(&[".", "-name", "-maxdepth", "2"]),
+            false,
+            root.path(),
+            home.path()
+        )
+        .is_some()
+    );
 }
 
 /// What:
@@ -249,7 +499,12 @@ fn find_ignores_a_maxdepth_that_sits_in_a_value_position() {
 /// ```ts
 /// const invocation = (name, args, workingDirectory, home): Invocation => ({ name, arguments: args, allowWide: false, stdin: 'none', ... });
 /// ```
-fn invocation(name: &str, arguments: &[&str], working_directory: &Path, home: &Path) -> Invocation {
+fn invocation(
+    name: &str,
+    arguments: &[&str],
+    working_directory: &Path,
+    home: &Path,
+) -> Invocation {
     return Invocation {
         name: name.to_string(),
         arguments: texts(arguments),
@@ -266,16 +521,41 @@ fn the_dispatcher_picks_the_rule_by_tool_name() {
     let root = repository();
     let home = crate::test_scratch::scratch();
 
-    assert!(refusal_for(&invocation("rg", &["--hidden", "foo"], root.path(), home.path())).is_some());
+    assert!(
+        refusal_for(&invocation(
+            "rg",
+            &["--hidden", "foo"],
+            root.path(),
+            home.path()
+        ))
+        .is_some()
+    );
     assert!(refusal_for(&invocation("rg", &["-rl", "foo"], root.path(), home.path())).is_some());
     for name in ["grep", "egrep", "fgrep"] {
-        assert!(refusal_for(&invocation(name, &["-r", "foo"], root.path(), home.path())).is_some(), "{name}");
+        assert!(
+            refusal_for(&invocation(name, &["-r", "foo"], root.path(), home.path())).is_some(),
+            "{name}"
+        );
     }
     for name in ["find", "bfs"] {
-        assert!(refusal_for(&invocation(name, &["-name", "x"], root.path(), home.path())).is_some(), "{name}");
+        assert!(
+            refusal_for(&invocation(name, &["-name", "x"], root.path(), home.path())).is_some(),
+            "{name}"
+        );
     }
     // Throttled only: these tools are never refused.
-    for name in ["fd", "ag", "ack", "ugrep", "ug", "tree", "du", "ncdu", "tokei", "cloc", "fdfind"] {
-        assert!(refusal_for(&invocation(name, &["-r", "--hidden", "."], root.path(), home.path())).is_none(), "{name}");
+    for name in [
+        "fd", "ag", "ack", "ugrep", "ug", "tree", "du", "ncdu", "tokei", "cloc", "fdfind",
+    ] {
+        assert!(
+            refusal_for(&invocation(
+                name,
+                &["-r", "--hidden", "."],
+                root.path(),
+                home.path()
+            ))
+            .is_none(),
+            "{name}"
+        );
     }
 }

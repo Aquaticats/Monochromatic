@@ -13,9 +13,18 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    CORRUPTIONS, RunSpec, check_event_path, check_generated_records, check_linter_config,
-    check_linter_run, check_oversized_runs, check_run, decode_base64, generated_finding,
-    generated_findings, generated_patterns,
+    CORRUPTIONS,
+    RunSpec,
+    check_event_path,
+    check_generated_records,
+    check_linter_config,
+    check_linter_run,
+    check_oversized_runs,
+    check_run,
+    decode_base64,
+    generated_finding,
+    generated_findings,
+    generated_patterns,
 };
 use std::collections::BTreeSet;
 

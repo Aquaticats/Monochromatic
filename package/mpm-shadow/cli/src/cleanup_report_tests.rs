@@ -4,17 +4,36 @@
 //! the verbose list,
 //! and failures.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use crate::cleanup_report::{cleanup_lines, format_size};
+use crate::cleanup_report::{
+    cleanup_lines,
+    format_size,
+};
 use crate::prune::PruneReport;
 
 const KIBIBYTE: u64 = 1024;
 const MEBIBYTE: u64 = KIBIBYTE * 1024;
 
-fn removed(count: usize, bytes: u64) -> PruneReport {
-    let deleted: Vec<PathBuf> = (0..count).map(|index| return PathBuf::from(format!("/cargo/registry/cache/x/monochromatic-lint-0.{index}.0.crate"))).collect();
-    return PruneReport { deleted, bytes, failed: Vec::new() };
+fn removed(
+    count: usize,
+    bytes: u64,
+) -> PruneReport {
+    let deleted: Vec<PathBuf> = (0..count)
+        .map(|index| {
+            return PathBuf::from(format!(
+                "/cargo/registry/cache/x/monochromatic-lint-0.{index}.0.crate"
+            ));
+        })
+        .collect();
+    return PruneReport {
+        deleted,
+        bytes,
+        failed: Vec::new(),
+    };
 }
 
 #[test]
@@ -34,12 +53,19 @@ fn a_cleanup_that_removed_and_failed_nothing_prints_nothing() {
 }
 
 #[test]
-fn one_removed_path_is_one_summary_line_that_says_it_is_post_run_cleanup_with_count_size_and_directory() {
+fn one_removed_path_is_one_summary_line_that_says_it_is_post_run_cleanup_with_count_size_and_directory()
+ {
     let lines = cleanup_lines(&removed(1, MEBIBYTE), Path::new("/cargo"), false);
     assert_eq!(lines.len(), 1, "{lines:?}");
     let line = &lines[0];
     assert!(line.starts_with("mpm-shadow: "), "{line}");
-    for expected in ["post-run cleanup", "after the mpm command", "1 ", "1.0 MiB", "/cargo/registry"] {
+    for expected in [
+        "post-run cleanup",
+        "after the mpm command",
+        "1 ",
+        "1.0 MiB",
+        "/cargo/registry",
+    ] {
         assert!(line.contains(expected), "{expected}: {line}");
     }
     assert!(!line.contains("deleted stale"), "{line}");
@@ -51,7 +77,11 @@ fn many_removed_paths_are_still_one_line_by_default() {
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert!(lines[0].contains("18 "), "{}", lines[0]);
     assert!(lines[0].contains("5.0 MiB"), "{}", lines[0]);
-    assert!(lines[0].contains(MPM_SHADOW_VERBOSE), "the line names how to list them: {}", lines[0]);
+    assert!(
+        lines[0].contains(MPM_SHADOW_VERBOSE),
+        "the line names how to list them: {}",
+        lines[0]
+    );
 }
 
 /// The variable the summary line tells the reader about.
@@ -64,20 +94,36 @@ fn verbose_adds_one_line_per_removed_path_after_the_summary() {
     assert_eq!(lines.len(), 1 + report.deleted.len(), "{lines:?}");
     assert!(lines[0].contains("post-run cleanup"), "{}", lines[0]);
     for (line, path) in lines[1..].iter().zip(&report.deleted) {
-        assert_eq!(line, &format!("mpm-shadow: deleted stale {}", path.display()));
+        assert_eq!(
+            line,
+            &format!("mpm-shadow: deleted stale {}", path.display())
+        );
     }
 }
 
 #[test]
 fn a_path_that_could_not_be_removed_is_always_listed_with_its_reason() {
     let mut report = removed(2, KIBIBYTE);
-    report.failed.push((PathBuf::from("/cargo/registry/cache/x/monochromatic-lint-0.9.0.crate"), "Permission denied (os error 13)".to_string()));
+    report.failed.push((
+        PathBuf::from("/cargo/registry/cache/x/monochromatic-lint-0.9.0.crate"),
+        "Permission denied (os error 13)".to_string(),
+    ));
     for verbose in [false, true] {
         let lines = cleanup_lines(&report, Path::new("/cargo"), verbose);
         let text = lines.join("\n");
-        assert!(text.contains("monochromatic-lint-0.9.0.crate"), "{verbose}: {text}");
-        assert!(text.contains("Permission denied (os error 13)"), "{verbose}: {text}");
-        assert!(lines[0].contains("1 could not be removed"), "{verbose}: {}", lines[0]);
+        assert!(
+            text.contains("monochromatic-lint-0.9.0.crate"),
+            "{verbose}: {text}"
+        );
+        assert!(
+            text.contains("Permission denied (os error 13)"),
+            "{verbose}: {text}"
+        );
+        assert!(
+            lines[0].contains("1 could not be removed"),
+            "{verbose}: {}",
+            lines[0]
+        );
     }
 }
 
@@ -86,10 +132,20 @@ fn a_cleanup_that_only_failed_still_says_so() {
     let report = PruneReport {
         deleted: Vec::new(),
         bytes: 0,
-        failed: vec![(PathBuf::from("/cargo/registry/cache/x/a.crate"), "Read-only file system (os error 30)".to_string())],
+        failed: vec![(
+            PathBuf::from("/cargo/registry/cache/x/a.crate"),
+            "Read-only file system (os error 30)".to_string(),
+        )],
     };
     let lines = cleanup_lines(&report, Path::new("/cargo"), false);
     assert!(lines.len() >= 2, "{lines:?}");
-    assert!(lines[0].contains("post-run cleanup") && lines[0].contains("0 "), "{}", lines[0]);
-    assert!(lines.join("\n").contains("Read-only file system"), "{lines:?}");
+    assert!(
+        lines[0].contains("post-run cleanup") && lines[0].contains("0 "),
+        "{}",
+        lines[0]
+    );
+    assert!(
+        lines.join("\n").contains("Read-only file system"),
+        "{lines:?}"
+    );
 }

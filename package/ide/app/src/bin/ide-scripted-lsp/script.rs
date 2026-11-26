@@ -24,7 +24,10 @@ use serde_json::Value;
 /// ```ts
 /// import { env } from 'node:process';
 /// ```
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::PathBuf,
+};
 
 /// What:
 ///  A closed set of names for the column unit of protocol positions.
@@ -172,7 +175,10 @@ fn steps(name: &str) -> Vec<Step> {
 /// ```ts
 /// const stepFor = (steps: Step[], seen: number) => steps[seen - 1] ?? 'answer';
 /// ```
-pub fn step_for(steps: &[Step], seen: u64) -> Step {
+pub fn step_for(
+    steps: &[Step],
+    seen: u64,
+) -> Step {
     // What: `usize::try_from` converts the count to an index and returns `Result`; `get` returns
     //       `Option<&Step>`; `copied` turns the borrow into a value; `unwrap_or` substitutes "answer".
     // Why: Request zero does not exist, so a count of zero means "answer" too.
@@ -327,7 +333,10 @@ fn json(name: &str) -> Option<Value> {
 /// ```ts
 /// const read = (name: string, fallback: string) => env['IDE_SCRIPTED_' + name] ?? fallback;
 /// ```
-fn read(name: &str, fallback: &str) -> String {
+fn read(
+    name: &str,
+    fallback: &str,
+) -> String {
     // What: `env::var` returns `Result<String, _>`; `unwrap_or_else` substitutes the closure's
     //       value on failure. `|_|` is a closure that ignores its argument.
     // Why: An unset or non-text variable simply means "use the default".

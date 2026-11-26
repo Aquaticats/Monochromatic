@@ -56,11 +56,11 @@ impl Command {
             ));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).expect("create integration cache root");
-            return path
+            return path;
         });
         let mut command = ProcessCommand::new(program);
         command.env("FORBIDDEN_STRINGS_CACHE_DIR", cache_root);
-        return command
+        return command;
     }
 }
 
@@ -84,7 +84,7 @@ fn unique_tmp(label: &str) -> PathBuf {
     ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create tmp dir");
-    return dir
+    return dir;
 }
 
 // What:     `#[test] fn read_error_surfaces_as_hit_and_nonzero_exit()`.
@@ -126,8 +126,7 @@ fn read_error_surfaces_as_hit_and_nonzero_exit() {
     // fs.chmodSync(target, 0);
     // ```
     use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(&target, fs::Permissions::from_mode(0o000))
-        .expect("chmod 000");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o000)).expect("chmod 000");
 
     let output = Command::configured(BIN)
         .args(["--rules"])
@@ -370,8 +369,11 @@ fn output_is_columnless_with_correct_line_number() {
     let rules = dir.join("rules.txt");
     fs::write(&rules, "NEEDLE_LITERAL_LONG_ENOUGH\n").expect("write rules");
     let target = dir.join("multi.txt");
-    fs::write(&target, "clean one\nclean two\nNEEDLE_LITERAL_LONG_ENOUGH\n")
-        .expect("write target");
+    fs::write(
+        &target,
+        "clean one\nclean two\nNEEDLE_LITERAL_LONG_ENOUGH\n",
+    )
+    .expect("write target");
 
     let output = Command::configured(BIN)
         .args(["--rules"])
@@ -381,7 +383,11 @@ fn output_is_columnless_with_correct_line_number() {
         .expect("spawn binary");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "must exit non-zero on a hit; stderr: {}", stderr);
+    assert!(
+        !output.status.success(),
+        "must exit non-zero on a hit; stderr: {}",
+        stderr
+    );
     let hit_line = stderr
         .lines()
         .find(|line| return line.contains("rule="))
@@ -519,8 +525,7 @@ fn nul_byte_in_file_does_not_skip_scan() {
     fs::write(&rules, "SECRET_NEEDLE_XYZ_LONG_ENOUGH\n").expect("write rules");
     let target = dir.join("with_nul.txt");
     // Literal + NUL + tail. The literal is entirely before the NUL.
-    fs::write(&target, b"SECRET_NEEDLE_XYZ_LONG_ENOUGH\0and then more")
-        .expect("write target");
+    fs::write(&target, b"SECRET_NEEDLE_XYZ_LONG_ENOUGH\0and then more").expect("write target");
 
     let output = Command::configured(BIN)
         .args(["--rules"])
@@ -689,10 +694,26 @@ fn help_long_flag_exits_zero_and_lists_usage() {
         stdout,
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(stdout.contains("forbidden-strings"), "help missing program name; stdout: {}", stdout);
-    assert!(stdout.contains("USAGE:"), "help missing USAGE block; stdout: {}", stdout);
-    assert!(stdout.contains("--rules"), "help missing --rules flag; stdout: {}", stdout);
-    assert!(stdout.contains("--all"), "help missing --all flag; stdout: {}", stdout);
+    assert!(
+        stdout.contains("forbidden-strings"),
+        "help missing program name; stdout: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("USAGE:"),
+        "help missing USAGE block; stdout: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("--rules"),
+        "help missing --rules flag; stdout: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("--all"),
+        "help missing --all flag; stdout: {}",
+        stdout
+    );
 }
 
 // What:     `-h` short alias must behave identically to `--help`.
@@ -712,7 +733,11 @@ fn help_short_flag_exits_zero_and_lists_usage() {
         stdout,
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(stdout.contains("USAGE:"), "short -h missing USAGE; stdout: {}", stdout);
+    assert!(
+        stdout.contains("USAGE:"),
+        "short -h missing USAGE; stdout: {}",
+        stdout
+    );
 }
 
 // What:     `--version` exits 0 and prints `forbidden-strings <semver>`
@@ -1148,7 +1173,7 @@ fn fake_github_oauth_token() -> String {
     // ```ts
     // return `gho_${'a'.repeat(36)}`;
     // ```
-    return format!("gho_{}", "a".repeat(36))
+    return format!("gho_{}", "a".repeat(36));
 }
 
 // What:     The builtin `curl-auth-user` rule accepts short and long user
@@ -1307,7 +1332,10 @@ fn builtin_rules_flag_appends_after_user_rules() {
     let target = dir.join("leaky.txt");
     fs::write(
         &target,
-        format!("SECRET_NEEDLE_XYZ_LONG_ENOUGH\n{}\n", fake_github_oauth_token()),
+        format!(
+            "SECRET_NEEDLE_XYZ_LONG_ENOUGH\n{}\n",
+            fake_github_oauth_token()
+        ),
     )
     .expect("write target");
     let output = Command::configured(BIN)
@@ -1342,11 +1370,15 @@ fn builtin_rules_flag_appends_after_user_rules() {
     // ```ts
     // const hits = stderr.split('\n').filter((l) => l.includes('rule=')).length;
     // ```
-    let hits = stderr.lines().filter(|line| return line.contains("rule=")).count();
+    let hits = stderr
+        .lines()
+        .filter(|line| return line.contains("rule="))
+        .count();
     assert!(
         hits >= 2,
         "expected hits from both the user rule and the baseline; got {} in: {}",
-        hits, stderr,
+        hits,
+        stderr,
     );
     let _ = fs::remove_dir_all(&dir);
 }
@@ -1414,7 +1446,10 @@ fn no_builtin_flag_and_no_rules_file_errors_unchanged() {
 }
 
 /// Lists files with requested name under bounded cache hierarchy.
-fn files_named(root: &std::path::Path, wanted: &str) -> Vec<PathBuf> {
+fn files_named(
+    root: &std::path::Path,
+    wanted: &str,
+) -> Vec<PathBuf> {
     let mut pending = vec![root.to_path_buf()];
     let mut matches = Vec::new();
     while let Some(directory) = pending.pop() {
@@ -1430,7 +1465,7 @@ fn files_named(root: &std::path::Path, wanted: &str) -> Vec<PathBuf> {
             }
         }
     }
-    return matches
+    return matches;
 }
 
 /// Explicit compile operation creates private artifact and emits no success output.
@@ -1452,8 +1487,14 @@ fn compile_rules_subcommand_creates_silent_artifact() {
         "compile-rules must succeed; stderr: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(output.stdout.is_empty(), "compile-rules success stdout must stay empty");
-    assert!(output.stderr.is_empty(), "compile-rules success stderr must stay empty");
+    assert!(
+        output.stdout.is_empty(),
+        "compile-rules success stdout must stay empty"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "compile-rules success stderr must stay empty"
+    );
     assert_eq!(files_named(&cache, "rules.bin").len(), 1);
 
     let repeated = ProcessCommand::new(BIN)
@@ -1462,7 +1503,10 @@ fn compile_rules_subcommand_creates_silent_artifact() {
         .env("FORBIDDEN_STRINGS_CACHE_DIR", &cache)
         .output()
         .expect("spawn binary");
-    assert!(repeated.status.success(), "repeated compile-rules must reuse artifact");
+    assert!(
+        repeated.status.success(),
+        "repeated compile-rules must reuse artifact"
+    );
     assert!(repeated.stdout.is_empty());
     assert!(repeated.stderr.is_empty());
     let _ = fs::remove_dir_all(dir);
@@ -1486,7 +1530,7 @@ fn scan_repairs_missing_cache_then_reuses_artifact() {
             .arg(&target)
             .env("FORBIDDEN_STRINGS_CACHE_DIR", &cache)
             .output()
-            .expect("spawn binary")
+            .expect("spawn binary");
     };
     let first = run();
     let first_stderr = String::from_utf8_lossy(&first.stderr);
@@ -1704,7 +1748,10 @@ fn cache_write_failure_keeps_scan_correct() {
     // `unreadable` on Unix and `missing` on Windows. `format!` builds the owned JSON
     // fragment once; `.as_str()` lends it to `contains` without copying.
     let blocked_reason: String = format!("\"reason\":\"{}\"", blocked_root::blocked_root_reason());
-    assert!(stderr.contains(blocked_reason.as_str()), "blocked-root reason missing; stderr: {stderr}");
+    assert!(
+        stderr.contains(blocked_reason.as_str()),
+        "blocked-root reason missing; stderr: {stderr}"
+    );
     assert!(stderr.contains("\"reason\":\"write-failed\""));
     assert!(stderr.contains("target.txt:1 rule=0"));
     let _ = fs::remove_dir_all(dir);

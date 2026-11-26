@@ -12,6 +12,8 @@
 //!  The point is compiled into the release executable and only the explicit variable arms it,
 //! as `service_fault.rs` does with its own,
 //! and a request that carries no variable reads one environment variable and goes on at once.
+//!  A release build holds no read of the variable at all,
+//! so only a build made for a control can park the answer.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -64,7 +66,8 @@ fn marker(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
 /// theAnswerWaits(found) // found
 /// ```
 pub(crate) fn the_answer_waits_where_a_control_says(found: bool) -> bool {
-    let Some(named) = std::env::var_os(PARK_VARIABLE) else { return found };
+    // Where a control holds the answer, which a release build never reads.
+    let Some(named) = crate::test_only_switches::value(PARK_VARIABLE) else { return found };
     let where_the_control_holds_it: PathBuf = PathBuf::from(named);
     let answered: PathBuf = marker(where_the_control_holds_it.as_path(), "answered");
     if let Err(error) = std::fs::write(answered.as_path(), b"") {

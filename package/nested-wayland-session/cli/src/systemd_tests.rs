@@ -4,8 +4,17 @@ use super::*;
 
 /// Builds an `Isolation` value for a test.
 /// Each test names only the cap it cares about.
-fn isolation(cpu_quota_percent: Option<u32>, cpu_weight: Option<u32>) -> Isolation {
-    return Isolation { enabled: true, cpu_quota_percent, cpu_weight, memory_max: None, tasks_max: None };
+fn isolation(
+    cpu_quota_percent: Option<u32>,
+    cpu_weight: Option<u32>,
+) -> Isolation {
+    return Isolation {
+        enabled: true,
+        cpu_quota_percent,
+        cpu_weight,
+        memory_max: None,
+        tasks_max: None,
+    };
 }
 
 /// The CPU cap and share the caller names reach the scope as properties.
@@ -26,7 +35,10 @@ const OWNER_MAXIMUM_IO_WEIGHT: u32 = 10;
 /// Each test asks how many times,
 /// and with what value,
 /// a limit is set.
-fn values_of(properties: &[String], name: &str) -> Vec<String> {
+fn values_of(
+    properties: &[String],
+    name: &str,
+) -> Vec<String> {
     let prefix = format!("--property={name}=");
     return properties
         .iter()
@@ -43,7 +55,11 @@ fn values_of(properties: &[String], name: &str) -> Vec<String> {
 fn default_scope_carries_memory_cpu_task_and_disk_weight_limits_once_each() {
     let properties = isolation_properties(&isolation(None, None));
     for name in ["MemoryMax", "CPUQuota", "TasksMax", "IOWeight"] {
-        assert_eq!(values_of(&properties, name).len(), 1, "{name} in {properties:?}");
+        assert_eq!(
+            values_of(&properties, name).len(),
+            1,
+            "{name} in {properties:?}"
+        );
     }
 }
 
@@ -52,14 +68,26 @@ fn default_scope_carries_memory_cpu_task_and_disk_weight_limits_once_each() {
 fn scope_disk_weight_never_exceeds_the_owner_limit() {
     let properties = isolation_properties(&isolation(None, None));
     let weights = values_of(&properties, "IOWeight");
-    let weight: u32 = weights.first().and_then(|text| return text.parse().ok()).unwrap_or(u32::MAX);
-    assert!(weight > 0 && weight <= OWNER_MAXIMUM_IO_WEIGHT, "IOWeight {weight} in {properties:?}");
+    let weight: u32 = weights
+        .first()
+        .and_then(|text| return text.parse().ok())
+        .unwrap_or(u32::MAX);
+    assert!(
+        weight > 0 && weight <= OWNER_MAXIMUM_IO_WEIGHT,
+        "IOWeight {weight} in {properties:?}"
+    );
 }
 
 /// The memory cap and the task limit the caller names replace the defaults.
 #[test]
 fn named_memory_and_task_limits_replace_the_defaults() {
-    let named = Isolation { enabled: true, cpu_quota_percent: None, cpu_weight: None, memory_max: Some("3G".to_string()), tasks_max: Some(77) };
+    let named = Isolation {
+        enabled: true,
+        cpu_quota_percent: None,
+        cpu_weight: None,
+        memory_max: Some("3G".to_string()),
+        tasks_max: Some(77),
+    };
     let properties = isolation_properties(&named);
     assert_eq!(values_of(&properties, "MemoryMax"), vec!["3G".to_string()]);
     assert_eq!(values_of(&properties, "TasksMax"), vec!["77".to_string()]);

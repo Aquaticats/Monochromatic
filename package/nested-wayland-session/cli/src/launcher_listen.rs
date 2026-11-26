@@ -10,15 +10,27 @@
 /// Imports the per-URI property memory and the lock-protected history.
 use std::{
     collections::HashMap,
-    sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        PoisonError,
+        mpsc,
+    },
     time::Instant,
 };
 
 /// Imports error context for connection and thread setup.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// Imports diagnostic macros for the listener's branch decisions.
-use tracing::{debug, warn};
+use tracing::{
+    debug,
+    warn,
+};
 
 /// Imports the bus types the listener needs.
 ///
@@ -37,8 +49,13 @@ use tracing::{debug, warn};
 /// import { BusConnection, MatchRule, Message, Variant } from "./dbus";
 /// ```
 use zbus::{
-    message::{Message, Type},
-    MatchRule, MessageStream, OwnedVariant,
+    MatchRule,
+    MessageStream,
+    OwnedVariant,
+    message::{
+        Message,
+        Type,
+    },
 };
 
 /// Imports `StreamExt` for `next` on the message stream.
@@ -46,8 +63,15 @@ use futures_util::StreamExt;
 
 /// Imports the bounded history the listener appends to.
 use crate::{
-    bus_step_bound::{connect_within_bound, within, BUS_STEP_BOUND},
-    launcher_history::{LauncherHistory, LauncherUpdate},
+    bus_step_bound::{
+        BUS_STEP_BOUND,
+        connect_within_bound,
+        within,
+    },
+    launcher_history::{
+        LauncherHistory,
+        LauncherUpdate,
+    },
     private_bus::PrivateBus,
 };
 
@@ -102,7 +126,7 @@ impl Default for LauncherProperties {
             count: 0,
             count_visible: false,
             urgent: false,
-        }
+        };
     }
 }
 
@@ -131,7 +155,10 @@ impl LauncherLog {
     /// Why:
     ///       `dbus-daemon` delivers a broadcast signal only to connections with a matching rule,
     ///  and `start_time` is the compositor's own clock for every timestamp.
-    pub fn start(bus: &PrivateBus, start_time: Instant) -> Result<Self> {
+    pub fn start(
+        bus: &PrivateBus,
+        start_time: Instant,
+    ) -> Result<Self> {
         // What:     `let history = Arc::new(Mutex::new(LauncherHistory::default()));` then a
         //           second owner for the thread.
         // Why:      The thread appends while the control thread reads.
@@ -154,11 +181,17 @@ impl LauncherLog {
         //           and the wait never outlives both.
         match ready_receiver.recv_timeout(BUS_STEP_BOUND * 2) {
             Ok(Ok(())) => {}
-            Ok(Err(reason)) => anyhow::bail!("subscribing the launcher listener to LauncherEntry.Update: {reason}"),
-            Err(error) => anyhow::bail!("the launcher listener thread did not report a subscription: {error}"),
+            Ok(Err(reason)) => {
+                anyhow::bail!("subscribing the launcher listener to LauncherEntry.Update: {reason}")
+            }
+            Err(error) => {
+                anyhow::bail!("the launcher listener thread did not report a subscription: {error}")
+            }
         }
         debug!("launcher listener subscribed to LauncherEntry.Update on the private bus");
-        return Ok(Self { history })
+        return Ok(Self {
+            history,
+        });
     }
 
     /// Locks the history for reading or clearing.
@@ -170,7 +203,7 @@ impl LauncherLog {
     ///  because each push completes before the lock is released,
     ///  so the guard is recovered rather than panicking the compositor.
     pub fn lock(&self) -> MutexGuard<'_, LauncherHistory> {
-        return self.history.lock().unwrap_or_else(PoisonError::into_inner)
+        return self.history.lock().unwrap_or_else(PoisonError::into_inner);
     }
 }
 
@@ -256,7 +289,11 @@ async fn subscribe(address: &str) -> Result<MessageStream> {
 /// Why:
 ///       The compositor exits when the bus goes away,
 ///  and the listener needs no separate shutdown signal.
-async fn listen(mut messages: MessageStream, history: &Arc<Mutex<LauncherHistory>>, start_time: Instant) {
+async fn listen(
+    mut messages: MessageStream,
+    history: &Arc<Mutex<LauncherHistory>>,
+    start_time: Instant,
+) {
     // What:     `let mut entries: HashMap<String, LauncherProperties> = HashMap::new();`.
     //           The last known properties for each app URI.
     // Why:      Partial updates merge into this memory.
@@ -304,7 +341,10 @@ fn record_message(
     // What:     `message.body().deserialize::<(String, HashMap<String, OwnedVariant>)>()`.
     //           Decodes the URI and the changed-property map in one step.
     // Why:      The signature `(sa{sv})` is the documented shape of the update.
-    let (app_uri, changes) = match message.body().deserialize::<(String, HashMap<String, OwnedVariant>)>() {
+    let (app_uri, changes) = match message
+        .body()
+        .deserialize::<(String, HashMap<String, OwnedVariant>)>()
+    {
         Ok(body) => body,
         Err(error) => {
             warn!(%error, "ignored a LauncherEntry.Update whose body does not match (sa{{sv}})");
@@ -357,7 +397,7 @@ pub fn merge_properties(
         count: read_property(changes, "count", previous.count),
         count_visible: read_property(changes, "count-visible", previous.count_visible),
         urgent: read_property(changes, "urgent", previous.urgent),
-    }
+    };
 }
 
 /// Reads one typed property,
@@ -370,7 +410,11 @@ pub fn merge_properties(
 ///  `T` is the Rust type the D-Bus variant must convert to.
 /// Why:
 ///       One helper keeps the absent and wrong-type rules identical for every property.
-fn read_property<'a, T>(changes: &'a HashMap<String, OwnedVariant>, key: &str, previous: T) -> T
+fn read_property<'a, T>(
+    changes: &'a HashMap<String, OwnedVariant>,
+    key: &str,
+    previous: T,
+) -> T
 where
     T: TryFrom<&'a OwnedVariant>,
     <T as TryFrom<&'a OwnedVariant>>::Error: std::fmt::Display,
@@ -385,7 +429,7 @@ where
         Ok(typed) => return typed,
         Err(error) => {
             warn!(key, %error, "launcher property has an unexpected type; kept the previous value");
-            return previous
+            return previous;
         }
     }
 }

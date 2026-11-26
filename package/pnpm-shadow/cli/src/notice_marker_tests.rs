@@ -2,10 +2,14 @@
 //! a marker left for a process id is claimed once,
 //! by that id only.
 
-/// Imports the functions under test.
-use crate::notice_marker::{claim_marker_in, leave_marker_in, marker_path_in};
 /// Imports the constant the name derives from.
 use crate::constants::NOTICE_MARKER_PREFIX;
+/// Imports the functions under test.
+use crate::notice_marker::{
+    claim_marker_in,
+    leave_marker_in,
+    marker_path_in,
+};
 /// Imports the scratch directories.
 use crate::test_scratch::scratch;
 
@@ -21,7 +25,10 @@ fn a_marker_left_for_a_process_id_is_claimed_once() {
     leave_marker_in(dir.path(), OUTER_PID);
 
     assert!(claim_marker_in(dir.path(), OUTER_PID));
-    assert!(!claim_marker_in(dir.path(), OUTER_PID), "a marker is claimed only once");
+    assert!(
+        !claim_marker_in(dir.path(), OUTER_PID),
+        "a marker is claimed only once"
+    );
 }
 
 #[test]
@@ -55,5 +62,9 @@ fn the_marker_name_is_the_prefix_and_the_process_id() {
 
     let path = marker_path_in(dir.path(), OUTER_PID);
 
-    assert_eq!(path, dir.path().join(format!("{NOTICE_MARKER_PREFIX}{OUTER_PID}")));
+    assert_eq!(
+        path,
+        dir.path()
+            .join(format!("{NOTICE_MARKER_PREFIX}{OUTER_PID}"))
+    );
 }

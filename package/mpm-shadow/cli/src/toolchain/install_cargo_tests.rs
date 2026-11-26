@@ -6,10 +6,13 @@
 
 use crate::constants::OWN_CRATE_PREFIX;
 
-use super::cargo_installs::{is_repository_published, version_directory};
-use super::fakes::Rig;
 use super::binstall_no_archive::COMPILE_DISABLED_TEXT;
+use super::cargo_installs::{
+    is_repository_published,
+    version_directory,
+};
 use super::error::ErrorKind;
+use super::fakes::Rig;
 use super::install::install_tool;
 
 /// The sample lock's repository-published crate.
@@ -28,7 +31,11 @@ const THIRD_PARTY: &str = "cargo:fd-find";
 const DISABLE_COMPILE: [&str; 2] = ["--disable-strategies", "compile,quick-install"];
 
 /// The tool of `id` renamed to install the crate `crate_name`.
-fn tool_installing(rig: &Rig, id: &str, crate_name: &str) -> super::model::LockedTool {
+fn tool_installing(
+    rig: &Rig,
+    id: &str,
+    crate_name: &str,
+) -> super::model::LockedTool {
     let mut tool = rig.tool(id);
     tool.declaration.package_id = Some(crate_name.to_string());
     return tool;
@@ -36,12 +43,22 @@ fn tool_installing(rig: &Rig, id: &str, crate_name: &str) -> super::model::Locke
 
 /// The `cargo binstall` requests the rig's runner received (the token lookup is another request).
 fn binstall_calls(rig: &Rig) -> Vec<super::runner::RunRequest> {
-    return rig.runner.calls().into_iter().filter(|call| return call.args.first().map(String::as_str) == Some("binstall")).collect();
+    return rig
+        .runner
+        .calls()
+        .into_iter()
+        .filter(|call| return call.args.first().map(String::as_str) == Some("binstall"))
+        .collect();
 }
 
 /// The `cargo binstall` lines the rig's runner received.
 fn binstall_lines(rig: &Rig) -> Vec<String> {
-    return rig.runner.lines().into_iter().filter(|line| return line.starts_with("cargo binstall")).collect();
+    return rig
+        .runner
+        .lines()
+        .into_iter()
+        .filter(|line| return line.starts_with("cargo binstall"))
+        .collect();
 }
 
 /// Whether the arguments of the one `cargo binstall` that installing `crate_name` started disable compiling.
@@ -51,14 +68,21 @@ fn install_disables_compile(crate_name: &str) -> bool {
     install_tool(&rig.context(), &tool).expect("installed");
     let calls = binstall_calls(&rig);
     assert_eq!(calls.len(), 1, "one cargo binstall for {crate_name}");
-    return calls[0].args.windows(DISABLE_COMPILE.len()).any(|window| return window == DISABLE_COMPILE);
+    return calls[0]
+        .args
+        .windows(DISABLE_COMPILE.len())
+        .any(|window| return window == DISABLE_COMPILE);
 }
 
 #[test]
 fn a_repository_crate_install_disables_the_compile_strategy() {
     let rig = Rig::new();
     install_tool(&rig.context(), &rig.tool(PUBLISHED)).expect("installed");
-    let root = version_directory(&rig.scope.toolchain_root, "monochromatic-mpm-shadow", &rig.tool(PUBLISHED).version);
+    let root = version_directory(
+        &rig.scope.toolchain_root,
+        "monochromatic-mpm-shadow",
+        &rig.tool(PUBLISHED).version,
+    );
     assert_eq!(
         binstall_lines(&rig),
         vec![format!(
@@ -75,7 +99,10 @@ fn a_repository_crate_install_passes_no_url_and_leaves_resolution_to_binstall() 
     install_tool(&rig.context(), &rig.tool(PUBLISHED)).expect("installed");
     let calls = binstall_calls(&rig);
     for flag in ["--pkg-url", "--pkg-fmt", "--bin-dir", "--strategies"] {
-        assert!(!calls[0].args.iter().any(|argument| return argument == flag), "{flag} would point at a release by hand");
+        assert!(
+            !calls[0].args.iter().any(|argument| return argument == flag),
+            "{flag} would point at a release by hand"
+        );
     }
 }
 
@@ -84,17 +111,31 @@ fn a_third_party_crate_install_keeps_binstalls_default_strategies() {
     let rig = Rig::new();
     install_tool(&rig.context(), &rig.tool(THIRD_PARTY)).expect("installed");
     let calls = binstall_calls(&rig);
-    assert!(!calls[0].args.iter().any(|argument| return argument.contains("quick-install") || argument == "--disable-strategies"));
+    assert!(
+        !calls[0]
+            .args
+            .iter()
+            .any(|argument| return argument.contains("quick-install")
+                || argument == "--disable-strategies")
+    );
 }
 
 #[test]
 fn a_third_party_crate_install_keeps_the_compile_fallback() {
     let rig = Rig::new();
     install_tool(&rig.context(), &rig.tool(THIRD_PARTY)).expect("installed");
-    let root = version_directory(&rig.scope.toolchain_root, "fd-find", &rig.tool(THIRD_PARTY).version);
+    let root = version_directory(
+        &rig.scope.toolchain_root,
+        "fd-find",
+        &rig.tool(THIRD_PARTY).version,
+    );
     assert_eq!(
         binstall_lines(&rig),
-        vec![format!("cargo binstall --no-confirm --root {} --version {} fd-find", root.display(), rig.tool(THIRD_PARTY).version)]
+        vec![format!(
+            "cargo binstall --no-confirm --root {} --version {} fd-find",
+            root.display(),
+            rig.tool(THIRD_PARTY).version
+        )]
     );
 }
 
@@ -109,9 +150,15 @@ fn names_that_merely_contain_the_repository_prefix_keep_the_compile_fallback() {
         format!("{}-x", bare.replace('c', "k")),
     ];
     for name in lookalikes {
-        assert!(!install_disables_compile(&name), "{name} is not a repository crate");
+        assert!(
+            !install_disables_compile(&name),
+            "{name} is not a repository crate"
+        );
         let rig = Rig::new();
-        assert!(!is_repository_published(&tool_installing(&rig, THIRD_PARTY, &name)), "{name}");
+        assert!(
+            !is_repository_published(&tool_installing(&rig, THIRD_PARTY, &name)),
+            "{name}"
+        );
     }
 }
 
@@ -124,7 +171,10 @@ fn every_spelling_crates_io_treats_as_a_repository_crate_disables_the_compile_st
         format!("{}x", OWN_CRATE_PREFIX.replace('-', "_")),
     ];
     for name in spellings {
-        assert!(install_disables_compile(&name), "{name} is a repository crate");
+        assert!(
+            install_disables_compile(&name),
+            "{name} is a repository crate"
+        );
     }
 }
 
@@ -143,7 +193,10 @@ cargo-binstall: ERROR Fatal error:
 ";
 
 /// The message of the error a failing install of `id` returns when `cargo binstall` prints `output`.
-fn failure_message(id: &str, output: &str) -> String {
+fn failure_message(
+    id: &str,
+    output: &str,
+) -> String {
     let rig = Rig::new();
     rig.runner.fail("cargo binstall", output);
     let error = install_tool(&rig.context(), &rig.tool(id)).expect_err("the install fails");
@@ -152,7 +205,8 @@ fn failure_message(id: &str, output: &str) -> String {
 }
 
 #[test]
-fn a_repository_crate_without_a_fitting_archive_fails_naming_the_tool_the_reason_and_every_remedy() {
+fn a_repository_crate_without_a_fitting_archive_fails_naming_the_tool_the_reason_and_every_remedy()
+{
     let message = failure_message(PUBLISHED, MISSING_PROGRAM_OUTPUT);
     let version = Rig::new().tool(PUBLISHED).version;
     for expected in [
@@ -171,16 +225,27 @@ fn a_repository_crate_without_a_fitting_archive_fails_naming_the_tool_the_reason
         "gh auth login",
         "BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT",
     ] {
-        assert!(message.contains(expected), "missing {expected:?} in:\n{message}");
+        assert!(
+            message.contains(expected),
+            "missing {expected:?} in:\n{message}"
+        );
     }
 }
 
 #[test]
 fn repeated_timeout_reasons_are_quoted_once() {
     let line = "cargo-binstall:  WARN resolve: Timeout reached while checking fetcher invalid url: deadline has elapsed";
-    let output = format!("{line}\n{line}\n{line}\ncargo-binstall: ERROR Fatal error:\n  \u{d7} For crate c: {COMPILE_DISABLED_TEXT}\n");
+    let output = format!(
+        "{line}\n{line}\n{line}\ncargo-binstall: ERROR Fatal error:\n  \u{d7} For crate c: {COMPILE_DISABLED_TEXT}\n"
+    );
     let message = failure_message(PUBLISHED, &output);
-    assert_eq!(message.matches("Timeout reached while checking fetcher").count(), 1, "{message}");
+    assert_eq!(
+        message
+            .matches("Timeout reached while checking fetcher")
+            .count(),
+        1,
+        "{message}"
+    );
 }
 
 #[test]
@@ -195,6 +260,9 @@ fn a_repository_crate_failing_for_another_reason_keeps_the_generic_failure() {
 fn a_third_party_crate_keeps_the_generic_failure_even_when_compiling_was_disabled_from_outside() {
     assert_eq!(
         failure_message(THIRD_PARTY, MISSING_PROGRAM_OUTPUT),
-        format!("cargo binstall failed for {THIRD_PARTY}: {}", MISSING_PROGRAM_OUTPUT.trim())
+        format!(
+            "cargo binstall failed for {THIRD_PARTY}: {}",
+            MISSING_PROGRAM_OUTPUT.trim()
+        )
     );
 }

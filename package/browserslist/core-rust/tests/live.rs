@@ -7,14 +7,24 @@
 //   test.skipIf(!process.env.LIVE)('resolves from the real registry', async () => { /* ... */ });
 
 use monochromatic_browserslist::source::NPM_REGISTRY;
-use monochromatic_browserslist::update::{MOZILLA_PRODUCT_DETAILS, latest_firefox_esr, latest_package};
-use monochromatic_browserslist::{DataLock, DataSource, resolve_browserslistrc};
+use monochromatic_browserslist::update::{
+    MOZILLA_PRODUCT_DETAILS,
+    latest_firefox_esr,
+    latest_package,
+};
+use monochromatic_browserslist::{
+    DataLock,
+    DataSource,
+    resolve_browserslistrc,
+};
 
 // The repository-root lock, read at run time: it sits outside this package, so a packaged copy of the tests
 // cannot embed it, and the tests fail with the path named when it is missing.
 fn lock_text() -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../browserslist-data.lock.json");
-    return std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read the lock {}: {error}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../browserslist-data.lock.json");
+    return std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read the lock {}: {error}", path.display()));
 }
 // The generated oracle answers.
 const EXPECTED: &str = include_str!("../conformance/expected.json");
@@ -26,10 +36,14 @@ const EXPECTED: &str = include_str!("../conformance/expected.json");
 fn live_registry_and_mozilla() {
     let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let scratch = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("scratch directory");
-    let source = DataSource { cache_dir: scratch.path().join("cache"), registry_url: NPM_REGISTRY.to_string() };
+    let source = DataSource {
+        cache_dir: scratch.path().join("cache"),
+        registry_url: NPM_REGISTRY.to_string(),
+    };
     let expected: serde_json::Value = serde_json::from_str(EXPECTED).expect("expected.json parses");
     let case = &expected["cases"][0];
-    let actual = resolve_browserslistrc(case["config"].as_str().expect("config"), &lock, &source).expect("resolves");
+    let actual = resolve_browserslistrc(case["config"].as_str().expect("config"), &lock, &source)
+        .expect("resolves");
     let wanted: Vec<String> = case["npm"]["result"]
         .as_array()
         .expect("result")
@@ -41,6 +55,7 @@ fn live_registry_and_mozilla() {
     let package = latest_package(NPM_REGISTRY, "caniuse-lite").expect("registry answers");
     assert_eq!(package.name, "caniuse-lite");
     assert!(package.integrity.starts_with("sha512-"));
-    let esr = latest_firefox_esr(MOZILLA_PRODUCT_DETAILS).expect("Mozilla answers in the expected shape");
+    let esr =
+        latest_firefox_esr(MOZILLA_PRODUCT_DETAILS).expect("Mozilla answers in the expected shape");
     assert!(esr.ends_with("esr"));
 }

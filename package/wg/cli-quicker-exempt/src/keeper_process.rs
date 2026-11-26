@@ -11,7 +11,10 @@ use std::os::unix::ffi::OsStrExt;
 /// Cgroup identity passed to holder child.
 use std::path::Path;
 /// Bounded shutdown polling interval.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Maximum time allowed for a validated holder to disappear.
 const STOP_WAIT: Duration = Duration::from_secs(5);
@@ -24,14 +27,23 @@ const KILL_WAIT: Duration = Duration::from_secs(5);
 pub fn process_start_time(pid: i32) -> io::Result<u64> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat"))?;
     let Some(command_end) = text.rfind(')') else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks command terminator"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat lacks command terminator",
+        ));
     };
     let Some(tail) = text.get(command_end + 1..) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat tail is absent"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat tail is absent",
+        ));
     };
     let fields: Vec<&str> = tail.split_whitespace().collect();
     let Some(start_time) = fields.get(19) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks start time"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat lacks start time",
+        ));
     };
     return start_time.parse().map_err(io::Error::other);
 }
@@ -59,10 +71,7 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// Reads command-line arguments without interpreting path bytes as text.
 fn process_command(pid: i32) -> io::Result<Vec<Vec<u8>>> {
     let bytes = std::fs::read(format!("/proc/{pid}/cmdline"))?;
-    let mut arguments: Vec<Vec<u8>> = bytes
-        .split(is_nul_byte)
-        .map(<[u8]>::to_vec)
-        .collect();
+    let mut arguments: Vec<Vec<u8>> = bytes.split(is_nul_byte).map(<[u8]>::to_vec).collect();
     if arguments.last().is_some_and(Vec::is_empty) {
         arguments.pop();
     }
@@ -111,14 +120,12 @@ pub fn command_process_is_live(
 }
 
 /// Reports whether exact holder remains live and rejects PID reuse or command mismatch.
-pub fn keeper_is_live(process: KeeperProcess, cgroup_dir: &Path) -> io::Result<bool> {
+pub fn keeper_is_live(
+    process: KeeperProcess,
+    cgroup_dir: &Path,
+) -> io::Result<bool> {
     let expected = expected_command(process, cgroup_dir)?;
-    return command_process_is_live(
-        process.pid,
-        process.start_time,
-        &expected,
-        "keeper",
-    );
+    return command_process_is_live(process.pid, process.start_time, &expected, "keeper");
 }
 
 /// Reaps holder when current process happens to be its parent.
@@ -167,14 +174,27 @@ fn wait_for_disappearance(
 pub fn process_group_of(pid: i32) -> io::Result<i32> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat"))?;
     let Some(command_end) = text.rfind(')') else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks command terminator"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat lacks command terminator",
+        ));
     };
     let Some(tail) = text.get(command_end + 1..) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat tail is absent"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat tail is absent",
+        ));
     };
     // The fields after the command name start with `state`, so `pgrp` is the third of them.
-    let Some(group) = tail.split_whitespace().nth(2).and_then(|field| return field.parse::<i32>().ok()) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat has no process group"));
+    let Some(group) = tail
+        .split_whitespace()
+        .nth(2)
+        .and_then(|field| return field.parse::<i32>().ok())
+    else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat has no process group",
+        ));
     };
     return Ok(group);
 }
@@ -194,7 +214,11 @@ fn group_has_members(group: i32) -> bool {
 /// because the watcher and the keeper each start their clients and their `ip` calls as children of a session they lead.
 /// A signal to the leader alone leaves those children running,
 /// and an orphaned manager client can still change the user's manager after the stop returned.
-fn signal_validated(pid: i32, group: Option<i32>, signal: libc::c_int) -> io::Result<()> {
+fn signal_validated(
+    pid: i32,
+    group: Option<i32>,
+    signal: libc::c_int,
+) -> io::Result<()> {
     let target = match group {
         Some(leader) => -leader,
         None => pid,
@@ -284,7 +308,10 @@ pub enum LeftoverGroup {
 
 /// Waits bounded time for a process group to hold no member,
 /// and answers whether it became empty.
-fn wait_for_group_end(leader: i32, limit: Duration) -> bool {
+fn wait_for_group_end(
+    leader: i32,
+    limit: Duration,
+) -> bool {
     let deadline = Instant::now() + limit;
     while group_has_members(leader) {
         if Instant::now() >= deadline {
@@ -296,7 +323,10 @@ fn wait_for_group_end(leader: i32, limit: Duration) -> bool {
 }
 
 /// Sends one signal to a process group.
-fn signal_group(leader: i32, signal: libc::c_int) -> io::Result<()> {
+fn signal_group(
+    leader: i32,
+    signal: libc::c_int,
+) -> io::Result<()> {
     // SAFETY: a negative pid names the process group the caller proved.
     let result = unsafe { libc::kill(-leader, signal) };
     if result < 0 {
@@ -328,7 +358,11 @@ fn signal_group(leader: i32, signal: libc::c_int) -> io::Result<()> {
 ///
 /// @throws {@link io::Error} with `InvalidData` when the pid names another process,
 /// and with `TimedOut` when the group survives `SIGKILL`.
-pub fn end_leftover_group(pid: i32, start_time: u64, role: &str) -> io::Result<LeftoverGroup> {
+pub fn end_leftover_group(
+    pid: i32,
+    start_time: u64,
+    role: &str,
+) -> io::Result<LeftoverGroup> {
     if !group_has_members(pid) {
         return Ok(LeftoverGroup::Absent);
     }
@@ -337,7 +371,9 @@ pub fn end_leftover_group(pid: i32, start_time: u64, role: &str) -> io::Result<L
         Ok(_other) => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("{role} PID {pid} now belongs to another process, so the group it leads is not signalled"),
+                format!(
+                    "{role} PID {pid} now belongs to another process, so the group it leads is not signalled"
+                ),
             ));
         }
         Err(error) if means_vanished(&error) => {}
@@ -353,19 +389,19 @@ pub fn end_leftover_group(pid: i32, start_time: u64, role: &str) -> io::Result<L
     }
     return Err(io::Error::new(
         io::ErrorKind::TimedOut,
-        format!("the process group of {role} PID {pid} outlived SIGTERM and SIGKILL, so its record is kept"),
+        format!(
+            "the process group of {role} PID {pid} outlived SIGTERM and SIGKILL, so its record is kept"
+        ),
     ));
 }
 
 /// Sends SIGTERM,
 ///  escalates exact surviving holder to SIGKILL,
 ///  and confirms disappearance.
-pub fn stop_process(process: KeeperProcess, cgroup_dir: &Path) -> io::Result<()> {
+pub fn stop_process(
+    process: KeeperProcess,
+    cgroup_dir: &Path,
+) -> io::Result<()> {
     let expected = expected_command(process, cgroup_dir)?;
-    return stop_command_process(
-        process.pid,
-        process.start_time,
-        &expected,
-        "keeper",
-    );
+    return stop_command_process(process.pid, process.start_time, &expected, "keeper");
 }

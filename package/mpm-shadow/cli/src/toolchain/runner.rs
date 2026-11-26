@@ -29,12 +29,21 @@ use std::collections::BTreeMap;
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 /// Imports what this module uses from `std::process`.
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// Imports `manager_native_bin_dirs` from `super::layout`.
-use super::layout::{manager_native_bin_dirs, physical_pnpm_home};
+use super::layout::{
+    manager_native_bin_dirs,
+    physical_pnpm_home,
+};
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope};
+use super::scope::{
+    EnvMap,
+    Scope,
+};
 
 /// The arguments as owned texts.
 fn texts(arguments: &[&str]) -> Vec<String> {
@@ -79,7 +88,10 @@ pub struct RunRequest {
 /// The methods of `RunRequest`.
 impl RunRequest {
     /// A request with the process's own environment and working directory.
-    pub fn new(command: &str, args: &[&str]) -> RunRequest {
+    pub fn new(
+        command: &str,
+        args: &[&str],
+    ) -> RunRequest {
         return RunRequest {
             command: command.to_string(),
             args: texts(args),
@@ -89,13 +101,19 @@ impl RunRequest {
     }
 
     /// A copy with the child environment set.
-    pub fn with_env(mut self, env: BTreeMap<String, String>) -> RunRequest {
+    pub fn with_env(
+        mut self,
+        env: BTreeMap<String, String>,
+    ) -> RunRequest {
         self.env = Some(env);
         return self;
     }
 
     /// A copy with the working directory set.
-    pub fn with_cwd(mut self, cwd: PathBuf) -> RunRequest {
+    pub fn with_cwd(
+        mut self,
+        cwd: PathBuf,
+    ) -> RunRequest {
         self.cwd = Some(cwd);
         return self;
     }
@@ -160,7 +178,10 @@ impl RunOutcome {
 pub trait Runner {
     /// Starts the program,
     /// waits for it and reports the outcome.
-    fn run(&self, request: &RunRequest) -> RunOutcome;
+    fn run(
+        &self,
+        request: &RunRequest,
+    ) -> RunOutcome;
 }
 
 /// The real runner:
@@ -171,7 +192,10 @@ pub struct ProcessRunner;
 /// Implements `Runner` for `ProcessRunner`.
 impl Runner for ProcessRunner {
     /// Starts the program with captured output.
-    fn run(&self, request: &RunRequest) -> RunOutcome {
+    fn run(
+        &self,
+        request: &RunRequest,
+    ) -> RunOutcome {
         let mut command: Command = Command::new(&request.command);
         command.args(&request.args);
         command.stdin(Stdio::null());
@@ -217,7 +241,10 @@ impl Runner for ProcessRunner {
 /// ```ts
 /// export function toolchainPathEnv(scope: Scope, env: EnvMap): Record<string, string>
 /// ```
-pub fn toolchain_path_env(scope: &Scope, env: &EnvMap) -> BTreeMap<String, String> {
+pub fn toolchain_path_env(
+    scope: &Scope,
+    env: &EnvMap,
+) -> BTreeMap<String, String> {
     let mut merged: BTreeMap<String, String> = env.all().clone();
     merged.insert("HOME".to_string(), scope.home.to_string_lossy().to_string());
     let mut directories: Vec<PathBuf> = manager_native_bin_dirs(scope, env);
@@ -246,7 +273,10 @@ pub fn toolchain_path_env(scope: &Scope, env: &EnvMap) -> BTreeMap<String, Strin
 /// ```ts
 /// export function pnpmEnv(scope: Scope, env: EnvMap): Record<string, string>
 /// ```
-pub fn pnpm_env(scope: &Scope, env: &EnvMap) -> BTreeMap<String, String> {
+pub fn pnpm_env(
+    scope: &Scope,
+    env: &EnvMap,
+) -> BTreeMap<String, String> {
     let mut merged: BTreeMap<String, String> = toolchain_path_env(scope, env);
     let physical_home: PathBuf = physical_pnpm_home(env, &scope.home);
     let mut directories: Vec<PathBuf> = vec![physical_home.join("bin")];
@@ -257,6 +287,9 @@ pub fn pnpm_env(scope: &Scope, env: &EnvMap) -> BTreeMap<String, String> {
     if let Ok(path) = std::env::join_paths(&directories) {
         merged.insert("PATH".to_string(), path.to_string_lossy().to_string());
     }
-    merged.insert("PNPM_HOME".to_string(), physical_home.to_string_lossy().to_string());
+    merged.insert(
+        "PNPM_HOME".to_string(),
+        physical_home.to_string_lossy().to_string(),
+    );
     return merged;
 }

@@ -19,14 +19,31 @@
 //! ```
 
 /// Imports `toml_edit::{DocumentMut, InlineTable, Item, Key, RawString, Table, TableLike, Value}`.
-use toml_edit::{DocumentMut, InlineTable, Item, Key, RawString, Table, TableLike, Value};
+use toml_edit::{
+    DocumentMut,
+    InlineTable,
+    Item,
+    Key,
+    RawString,
+    Table,
+    TableLike,
+    Value,
+};
 
 /// Imports `crate::edit_catalog::{end_position, replace_string}`.
-use crate::edit_catalog::{end_position, replace_string, table_key_names};
+use crate::edit_catalog::{
+    end_position,
+    replace_string,
+    table_key_names,
+};
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::render::{GENERATED_TABLE_COMMENT, parse_value, render_generated_value}`.
-use crate::render::{GENERATED_TABLE_COMMENT, parse_value, render_generated_value};
+use crate::render::{
+    GENERATED_TABLE_COMMENT,
+    parse_value,
+    render_generated_value,
+};
 /// Imports `crate::site::GeneratedEntry`.
 use crate::site::GeneratedEntry;
 
@@ -45,7 +62,11 @@ const MOVED_KEYS: [&str; 4] = ["git", "package", "rev", "version"];
 /// ```ts
 /// table.reduce((current, segment) => current[segment], manifest)[name]
 /// ```
-pub fn item_mut<'a>(root: &'a mut dyn TableLike, table: &[String], name: &str) -> Option<&'a mut Item> {
+pub fn item_mut<'a>(
+    root: &'a mut dyn TableLike,
+    table: &[String],
+    name: &str,
+) -> Option<&'a mut Item> {
     let mut current: &'a mut dyn TableLike = root;
     for segment in table {
         current = current.get_mut(segment)?.as_table_like_mut()?;
@@ -55,7 +76,10 @@ pub fn item_mut<'a>(root: &'a mut dyn TableLike, table: &[String], name: &str) -
 
 /// Text of an inline-table member without its surrounding whitespace,
 /// for example `features = ["derive"]`.
-fn member_text(key: &Key, value: &Value) -> String {
+fn member_text(
+    key: &Key,
+    value: &Value,
+) -> String {
     let mut bare: Value = value.clone();
     bare.decor_mut().clear();
     return format!("{} = {}", key.display_repr(), bare);
@@ -170,7 +194,10 @@ pub fn inherit_site(item: &mut Item) {
 /// ```ts
 /// export function pathVersionSplices(args: { source; located; site; version }): Splice[]
 /// ```
-pub fn set_path_version(item: &mut Item, version: &str) -> bool {
+pub fn set_path_version(
+    item: &mut Item,
+    version: &str,
+) -> bool {
     let wanted: String = format!("={version}");
     let wanted_text: String = quote(&wanted);
     let Some(members) = item.as_table_like_mut() else {
@@ -211,7 +238,10 @@ pub fn set_path_version(item: &mut Item, version: &str) -> bool {
 /// ```ts
 /// source.slice(0, last.range.end) + ', version = "=0.1.1"' + source.slice(last.range.end)
 /// ```
-fn append_inline_version(inline: &mut InlineTable, wanted_text: &str) {
+fn append_inline_version(
+    inline: &mut InlineTable,
+    wanted_text: &str,
+) {
     let mut last_name: Option<String> = None;
     for (name, _) in inline.iter() {
         last_name = Some(name.to_string());
@@ -235,7 +265,10 @@ fn append_inline_version(inline: &mut InlineTable, wanted_text: &str) {
 }
 
 /// Orders two generated entries by dependency name in byte order.
-fn compare_generated_names(left: &&(String, GeneratedEntry), right: &&(String, GeneratedEntry)) -> std::cmp::Ordering {
+fn compare_generated_names(
+    left: &&(String, GeneratedEntry),
+    right: &&(String, GeneratedEntry),
+) -> std::cmp::Ordering {
     return left.0.cmp(&right.0);
 }
 
@@ -245,7 +278,10 @@ fn generated_table(entries: &[(String, GeneratedEntry)]) -> Table {
     sorted.sort_by(compare_generated_names);
     let mut table: Table = Table::new();
     for (name, generated) in sorted {
-        table.insert(name, Item::Value(parse_value(&render_generated_value(generated))));
+        table.insert(
+            name,
+            Item::Value(parse_value(&render_generated_value(generated))),
+        );
     }
     return table;
 }
@@ -299,7 +335,10 @@ pub enum TableChange {
 /// ```ts
 /// export function generatedTableSplices(args: { source; located; entries }): Splice[]
 /// ```
-pub fn sync_generated_table(document: &mut DocumentMut, entries: &[(String, GeneratedEntry)]) -> TableChange {
+pub fn sync_generated_table(
+    document: &mut DocumentMut,
+    entries: &[(String, GeneratedEntry)],
+) -> TableChange {
     let wanted: Table = generated_table(entries);
     let end: isize = end_position(document);
     let root: &mut Table = document.as_table_mut();
@@ -317,7 +356,9 @@ pub fn sync_generated_table(document: &mut DocumentMut, entries: &[(String, Gene
         }
         let mut fresh: Table = wanted;
         fresh.set_position(Some(end));
-        fresh.decor_mut().set_prefix(format!("\n{GENERATED_TABLE_COMMENT}\n"));
+        fresh
+            .decor_mut()
+            .set_prefix(format!("\n{GENERATED_TABLE_COMMENT}\n"));
         if root.get("workspace").is_none() {
             let mut workspace: Table = Table::new();
             workspace.set_implicit(true);

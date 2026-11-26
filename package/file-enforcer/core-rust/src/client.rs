@@ -19,34 +19,58 @@
 use crate::diagnostic::Diagnostic;
 /// Imports `Event`,
 /// `EventSink` from `crate::event`.
-use crate::event::{Event, EventSink};
+use crate::event::{
+    Event,
+    EventSink,
+};
 /// Imports `build_identity`,
 /// `worktree_identity` from `crate::identity`.
-use crate::identity::{build_identity, worktree_identity};
+use crate::identity::{
+    build_identity,
+    worktree_identity,
+};
+/// Imports `object` from `crate::json_build`.
+use crate::json_build::object;
 /// Imports `ServerLaunch`,
 /// `StartOutcome`,
 /// `start_server_if_needed` from `crate::launch`.
-use crate::launch::{ServerLaunch, StartOutcome, start_server_if_needed};
+use crate::launch::{
+    ServerLaunch,
+    StartOutcome,
+    start_server_if_needed,
+};
 /// Imports `ERROR_MISMATCH`,
 /// `PROTOCOL_VERSION`,
 /// `request_line` from `crate::rpc_protocol`.
-use crate::rpc_protocol::{ERROR_MISMATCH, PROTOCOL_VERSION, request_line};
-/// Imports `object` from `crate::json_build`.
-use crate::json_build::object;
+use crate::rpc_protocol::{
+    ERROR_MISMATCH,
+    PROTOCOL_VERSION,
+    request_line,
+};
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 /// Imports `BufRead`,
 /// `BufReader`,
 /// `Write` from `std::io`.
-use std::io::{BufRead, BufReader, Write};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
 /// Imports `UnixStream` from `std::os::unix::net`.
 use std::os::unix::net::UnixStream;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports `Duration`,
 /// `Instant` from `std::time`.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  What a client needs to reach its server.
@@ -118,17 +142,27 @@ enum HandshakeFailure {
 /// ```ts
 /// async function handshake(stream: Socket, root: string): Promise<Connection>
 /// ```
-fn handshake(stream: UnixStream, root: &Path) -> Result<Connection, HandshakeFailure> {
-    let Ok(worktree) = worktree_identity(root) else { return Err(HandshakeFailure::Other) };
+fn handshake(
+    stream: UnixStream,
+    root: &Path,
+) -> Result<Connection, HandshakeFailure> {
+    let Ok(worktree) = worktree_identity(root) else {
+        return Err(HandshakeFailure::Other);
+    };
     let pairs = [
         ("protocolVersion", Value::from(PROTOCOL_VERSION)),
         ("buildId", Value::from(build_identity())),
         ("worktree", worktree),
     ];
     let params = object(&pairs);
-    let Ok(reader_stream) = stream.try_clone() else { return Err(HandshakeFailure::Other) };
+    let Ok(reader_stream) = stream.try_clone() else {
+        return Err(HandshakeFailure::Other);
+    };
     let mut writer = stream;
-    if writer.write_all(request_line(1, "handshake", params).as_bytes()).is_err() {
+    if writer
+        .write_all(request_line(1, "handshake", params).as_bytes())
+        .is_err()
+    {
         return Err(HandshakeFailure::Other);
     }
     let mut reader = BufReader::new(reader_stream);
@@ -136,12 +170,17 @@ fn handshake(stream: UnixStream, root: &Path) -> Result<Connection, HandshakeFai
     if reader.read_line(&mut line).unwrap_or(0) == 0 {
         return Err(HandshakeFailure::Other);
     }
-    let Ok(reply) = serde_json::from_str::<Value>(&line) else { return Err(HandshakeFailure::Other) };
+    let Ok(reply) = serde_json::from_str::<Value>(&line) else {
+        return Err(HandshakeFailure::Other);
+    };
     if reply["error"]["code"].as_i64() == Some(ERROR_MISMATCH) {
         return Err(HandshakeFailure::Mismatch);
     }
     if reply["result"]["ok"].as_bool() == Some(true) {
-        return Ok(Connection { reader, writer });
+        return Ok(Connection {
+            reader,
+            writer,
+        });
     }
     return Err(HandshakeFailure::Other);
 }
@@ -155,7 +194,10 @@ fn handshake(stream: UnixStream, root: &Path) -> Result<Connection, HandshakeFai
 /// ```ts
 /// async function waitForSocketGone(socket: string, deadline: number): Promise<void>
 /// ```
-fn wait_for_socket_gone(socket: &Path, deadline: Instant) {
+fn wait_for_socket_gone(
+    socket: &Path,
+    deadline: Instant,
+) {
     while Instant::now() < deadline && socket.exists() {
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -188,7 +230,11 @@ pub fn connect(options: &ClientOptions) -> Result<Connection, Diagnostic> {
             },
         }
     }
-    let message = format!("no server answered on {} within {:?}", options.socket.display(), options.deadline);
+    let message = format!(
+        "no server answered on {} within {:?}",
+        options.socket.display(),
+        options.deadline
+    );
     return Err(Diagnostic::new("server-unavailable", &message));
 }
 
@@ -213,8 +259,17 @@ impl Connection {
     /// ```ts
     /// async request(method: string, params: unknown, sink: EventSink): Promise<number>
     /// ```
-    pub fn request(&mut self, method: &str, params: Value, sink: &mut dyn EventSink) -> i32 {
-        if self.writer.write_all(request_line(2, method, params).as_bytes()).is_err() {
+    pub fn request(
+        &mut self,
+        method: &str,
+        params: Value,
+        sink: &mut dyn EventSink,
+    ) -> i32 {
+        if self
+            .writer
+            .write_all(request_line(2, method, params).as_bytes())
+            .is_err()
+        {
             sink.emit(disconnected());
             return 1;
         }
@@ -224,7 +279,9 @@ impl Connection {
                 sink.emit(disconnected());
                 return 1;
             }
-            let Ok(message) = serde_json::from_str::<Value>(&line) else { continue };
+            let Ok(message) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
             if message["method"] == "event" {
                 if let Some(event) = Event::from_json(&message["params"]) {
                     sink.emit(event);
@@ -237,7 +294,9 @@ impl Connection {
             if let Some(code) = message["result"]["exitCode"].as_i64() {
                 return i32::try_from(code).unwrap_or(1);
             }
-            let text = message["error"]["message"].as_str().unwrap_or("the server reported an error");
+            let text = message["error"]["message"]
+                .as_str()
+                .unwrap_or("the server reported an error");
             sink.emit(Diagnostic::new("server-error", text).to_event("error"));
             return 1;
         }
@@ -253,7 +312,11 @@ impl Connection {
     /// async shutdown(): Promise<number | undefined>
     /// ```
     pub fn shutdown(&mut self) -> Option<u64> {
-        if self.writer.write_all(request_line(3, "shutdown", Value::Null).as_bytes()).is_err() {
+        if self
+            .writer
+            .write_all(request_line(3, "shutdown", Value::Null).as_bytes())
+            .is_err()
+        {
             return None;
         }
         let mut line = String::new();
@@ -280,6 +343,9 @@ fn disconnected() -> Event {
         "server-disconnected",
         "the server closed the connection before it answered; whether it wrote any file is unknown",
     );
-    event.hint = Some("run `file-enforcer check` to see the current state, then `file-enforcer write` again".to_string());
+    event.hint = Some(
+        "run `file-enforcer check` to see the current state, then `file-enforcer write` again"
+            .to_string(),
+    );
     return event;
 }

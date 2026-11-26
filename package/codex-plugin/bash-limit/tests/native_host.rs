@@ -17,20 +17,32 @@ mod rpc;
 mod server;
 /// Include shared native binary and disposable-control helpers.
 mod support;
-/// Import filesystem,
-/// I/O,
-/// process,
-/// networking,
-/// and thread primitives.
-use std::{fs, io::{self, BufReader}, net::TcpListener, process::{Command, Stdio}, thread};
-/// Import owned JSON values for protocol fields,
-/// avoiding panic-generating macros.
-use serde_json::Value;
 /// Import the crate's library module,
 /// which owns the POSIX single-quote escaping this command line crosses.
 use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// Import the checked parser for fixed protocol templates.
 use rpc::parse;
+/// Import owned JSON values for protocol fields,
+/// avoiding panic-generating macros.
+use serde_json::Value;
+/// Import filesystem,
+/// I/O,
+/// process,
+/// networking,
+/// and thread primitives.
+use std::{
+    fs,
+    io::{
+        self,
+        BufReader,
+    },
+    net::TcpListener,
+    process::{
+        Command,
+        Stdio,
+    },
+    thread,
+};
 
 /// What:
 /// `#[test]` registers a nextest case;
@@ -60,7 +72,9 @@ fn installed_host_rewrites_commands() -> io::Result<()> {
     // ```
     let parent = support::fixture()?;
     // Borrow UTF-8 path text; reject lossy fixture paths explicitly.
-    let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    let path = parent.to_str().ok_or_else(|| {
+        return io::Error::other("fixture path encoding");
+    })?;
     // Positive preflight also confirms this test uses the same release artifact as unit fixtures.
     let preflight = support::invoke(&["--hook", path], &support::event("true")?)?;
     assert!(preflight.status.success(), "{preflight:?}");
@@ -70,35 +84,62 @@ fn installed_host_rewrites_commands() -> io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     // format! interpolates a numeric port into fixed TOML text; no user text crosses this boundary.
-    let config = format!("model = 'fixture'\nmodel_provider = 'local-fixture'\napproval_policy = 'never'\nsandbox_mode = 'workspace-write'\n[model_providers.local-fixture]\nname = 'Local deterministic fixture'\nbase_url = 'http://127.0.0.1:{port}/v1'\nwire_api = 'responses'\n[features]\nhooks = true\n");
+    let config = format!(
+        "model = 'fixture'\nmodel_provider = 'local-fixture'\napproval_policy = 'never'\nsandbox_mode = 'workspace-write'\n[model_providers.local-fixture]\nname = 'Local deterministic fixture'\nbase_url = 'http://127.0.0.1:{port}/v1'\nwire_api = 'responses'\n[features]\nhooks = true\n"
+    );
     fs::write(home.join("config.toml"), config)?;
     // Quote both filenames with the hook's own escaper, so the fixture installs the bytes production emits.
-    let command = format!("{} --hook {}", shell_quote(env!("CARGO_BIN_EXE_codex-bash-limit")), shell_quote(path));
+    let command = format!(
+        "{} --hook {}",
+        shell_quote(env!("CARGO_BIN_EXE_codex-bash-limit")),
+        shell_quote(path)
+    );
     // Decode fixed JSON syntax, then assign the command as data rather than JSON source.
-    let mut hooks = parse(r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{
+    let mut hooks = parse(
+        r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{
         "type":"command","command":""
-    }]}]}}"#)?;
+    }]}]}}"#,
+    )?;
     hooks["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = Value::from(command);
     fs::write(home.join("hooks.json"), hooks.to_string())?;
     let stderr = fs::File::create(parent.join("host-stderr.log"))?;
     // Some gives an environment override; Command owns the launched process until cleanup.
-    let mut child = Command::new("codex").args(["--no-daemon", "app-server", "--listen", "stdio://"])
+    let mut child = Command::new("codex")
+        .args(["--no-daemon", "app-server", "--listen", "stdio://"])
         .env("CODEX_BASH_LIMIT_HOST_FIXTURE", "1")
-        .env("CODEX_HOME", &home).current_dir(&parent)
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(stderr).spawn()?;
+        .env("CODEX_HOME", &home)
+        .current_dir(&parent)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(stderr)
+        .spawn()?;
     // take moves each pipe out of the child handle, leaving an absent Option behind.
-    let mut pipe = child.stdin.take().ok_or_else(|| { return io::Error::other("host stdin missing"); })?;
-    let stdout = child.stdout.take().ok_or_else(|| { return io::Error::other("host stdout missing"); })?;
+    let mut pipe = child.stdin.take().ok_or_else(|| {
+        return io::Error::other("host stdin missing");
+    })?;
+    let stdout = child.stdout.take().ok_or_else(|| {
+        return io::Error::other("host stdout missing");
+    })?;
     let mut reader = BufReader::new(stdout);
     // Lend exclusive access to both pipes for each sequential RPC request.
-    rpc::call(&mut pipe, &mut reader, 1, "initialize", parse(r#"{"clientInfo":{"name":"bash-limit-fixture","version":"1"},"capabilities":{"experimentalApi":true}}"#)?)?;
+    rpc::call(
+        &mut pipe,
+        &mut reader,
+        1,
+        "initialize",
+        parse(
+            r#"{"clientInfo":{"name":"bash-limit-fixture","version":"1"},"capabilities":{"experimentalApi":true}}"#,
+        )?,
+    )?;
     rpc::send(&mut pipe, parse(r#"{"method":"initialized"}"#)?)?;
     let mut listing = parse(r#"{"cwds":[""]}"#)?;
     listing["cwds"][0] = Value::from(path);
     let listed = rpc::call(&mut pipe, &mut reader, 2, "hooks/list", listing)?;
     let hook = &listed["data"][0]["hooks"][0];
     assert!(hook["key"].is_string(), "{listed}");
-    let key = hook["key"].as_str().ok_or_else(|| { return io::Error::other("hook key missing"); })?;
+    let key = hook["key"].as_str().ok_or_else(|| {
+        return io::Error::other("hook key missing");
+    })?;
     // Map owns a variable set of JSON object keys; clone preserves the discovered hash exactly.
     let mut states = serde_json::Map::new();
     let mut state = parse(r#"{"trusted_hash":""}"#)?;
@@ -107,14 +148,20 @@ fn installed_host_rewrites_commands() -> io::Result<()> {
     let mut trust = parse(r#"{"keyPath":"hooks.state","value":null,"mergeStrategy":"upsert"}"#)?;
     trust["value"] = Value::Object(states);
     rpc::call(&mut pipe, &mut reader, 3, "config/value/write", trust)?;
-    let mut thread_params = parse(r#"{"cwd":"","ephemeral":true,"baseInstructions":"Execute deterministic fixture tool calls."}"#)?;
+    let mut thread_params = parse(
+        r#"{"cwd":"","ephemeral":true,"baseInstructions":"Execute deterministic fixture tool calls."}"#,
+    )?;
     thread_params["cwd"] = Value::from(path);
     let started = rpc::call(&mut pipe, &mut reader, 4, "thread/start", thread_params)?;
     let thread_id = &started["thread"]["id"];
     assert!(thread_id.is_string(), "{started}");
     // move transfers listener ownership into a worker thread; it serves a bounded local sequence.
-    let provider = thread::spawn(move || { return server::serve(listener, 40); });
-    let mut turn = parse(r#"{"threadId":"","input":[{"type":"text","text":"Run the native hook fixture."}]}"#)?;
+    let provider = thread::spawn(move || {
+        return server::serve(listener, 40);
+    });
+    let mut turn = parse(
+        r#"{"threadId":"","input":[{"type":"text","text":"Run the native hook fixture."}]}"#,
+    )?;
     turn["threadId"] = thread_id.clone();
     rpc::call(&mut pipe, &mut reader, 5, "turn/start", turn)?;
     // Vec owns a growing list; a borrowed slice would not permit collecting new durations.
@@ -124,10 +171,15 @@ fn installed_host_rewrites_commands() -> io::Result<()> {
         if message["method"] == "hook/completed" {
             let run = &message["params"]["run"];
             assert_eq!(run["status"], "completed", "{run}");
-            durations.push(run["durationMs"].as_u64().ok_or_else(|| { return io::Error::other("hook duration missing"); })?);
+            durations.push(run["durationMs"].as_u64().ok_or_else(|| {
+                return io::Error::other("hook duration missing");
+            })?);
         }
         if message["method"] == "turn/completed" {
-            assert_eq!(message["params"]["turn"]["status"], "completed", "{message}");
+            assert_eq!(
+                message["params"]["turn"]["status"], "completed",
+                "{message}"
+            );
             break;
         }
     }
@@ -135,7 +187,9 @@ fn installed_host_rewrites_commands() -> io::Result<()> {
     drop(pipe);
     assert!(child.wait()?.success());
     // join returns the thread result; convert a worker panic and propagate its I/O failures.
-    provider.join().map_err(|_panic| { return io::Error::other("local provider thread panicked"); })??;
+    provider.join().map_err(|_panic| {
+        return io::Error::other("local provider thread panicked");
+    })??;
     assert_eq!(durations.len(), 40);
     durations.sort_unstable();
     // Print measured evidence for the opt-in task's retained output.

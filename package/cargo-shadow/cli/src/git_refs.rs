@@ -34,7 +34,10 @@ use std::fs;
 /// Imports the borrowed and owned path types.
 use std::os::unix::fs::MetadataExt;
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the parsed configuration and the lexer entry point.
 use crate::git_config::ParsedConfig;
@@ -49,18 +52,28 @@ use crate::git_config::ParsedConfig;
 use crate::git_objects::OBJECT_NAME_DIGITS;
 // Imports `crate::git_refspec::{is_plain_ref_name, map...`.
 /// Imports the refspec checks and the mapping through them.
-use crate::git_refspec::{is_plain_ref_name, map_through_refspecs};
+use crate::git_refspec::{
+    is_plain_ref_name,
+    map_through_refspecs,
+};
 /// Re-exports the configuration reader,
 /// which lives in `git_settings.rs`.
 pub use crate::git_settings::read_config;
 
 /// The program and the user id that only the tests of the Git reader use.
 #[cfg(test)]
-pub(crate) use crate::git_refs_environment::{GitProgram, current_user_id};
+pub(crate) use crate::git_refs_environment::{
+    GitProgram,
+    current_user_id,
+};
 
 /// The environment and the Git program a native read runs with.
 /// (split out of the git refs module).
-pub(crate) use crate::git_refs_environment::{SHARED_NAMESPACES, NativeEnvironment, GIT_CALL_SECONDS};
+pub(crate) use crate::git_refs_environment::{
+    GIT_CALL_SECONDS,
+    NativeEnvironment,
+    SHARED_NAMESPACES,
+};
 
 /// Where a repository's files are.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -259,7 +272,10 @@ fn is_object_name(text: &str) -> bool {
 /// ```ts
 /// const cannotRead = (path: string, error: Error) => `${path} cannot be read: ${error}`;
 /// ```
-fn cannot_read(path: &Path, error: &std::io::Error) -> String {
+fn cannot_read(
+    path: &Path,
+    error: &std::io::Error,
+) -> String {
     return format!("{} cannot be read: {error}", path.display());
 }
 
@@ -343,7 +359,10 @@ fn check_git_directory(directory: &Path) -> Result<(), String> {
         if !directory.join(required).exists() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("{} has no {required}, so it is not a Git directory", directory.display()));
+            return Err(format!(
+                "{} has no {required}, so it is not a Git directory",
+                directory.display()
+            ));
         }
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -362,9 +381,14 @@ fn check_git_directory(directory: &Path) -> Result<(), String> {
 /// ```ts
 /// export function findLayout(root: string, env: NativeEnvironment): GitLayout  // throws: ask Git
 /// ```
-pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLayout, String> {
+pub fn find_layout(
+    root: &Path,
+    environment: &NativeEnvironment,
+) -> Result<GitLayout, String> {
     if let Some(name) = &environment.blocking_variable {
-        return Err(format!("{name} is set, so only Git can say where the repository is"));
+        return Err(format!(
+            "{name} is set, so only Git can say where the repository is"
+        ));
     }
     let dot_git: PathBuf = root.join(".git");
     // `.clone()`: an independent owned copy.
@@ -382,11 +406,15 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // Borrow `&dot_git`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Review finding (4a 5): Git inspects the `.git` entry itself (an `lstat`), so a link is not followed and is Git's to judge.
-    let metadata = fs::symlink_metadata(&dot_git).described(format_args!("{} cannot be read", dot_git.display()))?;
+    let metadata = fs::symlink_metadata(&dot_git)
+        .described(format_args!("{} cannot be read", dot_git.display()))?;
     if metadata.file_type().is_symlink() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{} is a symbolic link, which only Git judges", dot_git.display()));
+        return Err(format!(
+            "{} is a symbolic link, which only Git judges",
+            dot_git.display()
+        ));
     }
     let git_dir: PathBuf = if metadata.is_dir() {
         dot_git
@@ -403,7 +431,10 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         let Some(target) = text.strip_prefix("gitdir: ") else {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("{} is a file but does not start with \"gitdir: \"", dot_git.display()));
+            return Err(format!(
+                "{} is a file but does not start with \"gitdir: \"",
+                dot_git.display()
+            ));
         };
         // Closure `|character|`: an anonymous function, like a TS arrow function.
         // Typed binding: `path: &str`.
@@ -443,7 +474,10 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
             if path.is_empty() {
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
                 // Macro `format!`: builds or prints text (or a list) from a template.
-                return Err(format!("{} is empty, which Git refuses", git_dir.join("commondir").display()));
+                return Err(format!(
+                    "{} is empty, which Git refuses",
+                    git_dir.join("commondir").display()
+                ));
             }
             git_dir.join(path)
         }
@@ -462,20 +496,33 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // Borrow `&common_dir`: lends the value without copying or giving it away.
     check_git_directory(&common_dir)?;
     // Review finding (3a 8): Git refuses a repository another user owns unless it is declared safe; that decision is Git's.
-    for owned in [root, dot_git_path.as_path(), git_dir.as_path(), common_dir.as_path()] {
+    for owned in [
+        root,
+        dot_git_path.as_path(),
+        git_dir.as_path(),
+        common_dir.as_path(),
+    ] {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // Borrow `&error`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `owner: u32`.
-        let owner: u32 = fs::symlink_metadata(owned).described(format_args!("{} cannot be read", owned.display()))?.uid();
+        let owner: u32 = fs::symlink_metadata(owned)
+            .described(format_args!("{} cannot be read", owned.display()))?
+            .uid();
         if owner != environment.user_id {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("{} is owned by another user, so only Git decides whether it is safe to use", owned.display()));
+            return Err(format!(
+                "{} is owned by another user, so only Git decides whether it is safe to use",
+                owned.display()
+            ));
         }
     }
-    return Ok(GitLayout { git_dir, common_dir });
+    return Ok(GitLayout {
+        git_dir,
+        common_dir,
+    });
 }
 
 /// What:
@@ -494,7 +541,10 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
     if is_symbolic_link(&path) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{} is a symbolic link, which Git reads as a symbolic reference", path.display()));
+        return Err(format!(
+            "{} is a symbolic link, which Git reads as a symbolic reference",
+            path.display()
+        ));
     }
     let text: String = read_text(&path)?;
     // Borrow `&text`: lends the value without copying or giving it away.
@@ -508,7 +558,10 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
     if is_object_name(trimmed) {
         return Ok(Head::Detached(trimmed.to_string()));
     }
-    return Err(format!("{} holds neither a reference nor an object name", path.display()));
+    return Err(format!(
+        "{} holds neither a reference nor an object name",
+        path.display()
+    ));
 }
 
 /// What:
@@ -523,9 +576,12 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
 fn check_ref_name(name: &str) -> Result<(), String> {
     // Closure `|part|`: an anonymous function, like a TS arrow function.
     // Typed binding: `escapes: bool`.
-    let escapes: bool = name.is_empty() || name.starts_with('/') || name.split('/').any(is_unsafe_component);
+    let escapes: bool =
+        name.is_empty() || name.starts_with('/') || name.split('/').any(is_unsafe_component);
     if escapes {
-        return Err(format!("{name:?} is not a reference name this reader will turn into a path"));
+        return Err(format!(
+            "{name:?} is not a reference name this reader will turn into a path"
+        ));
     }
     return Ok(());
 }
@@ -543,14 +599,20 @@ fn check_ref_name(name: &str) -> Result<(), String> {
 /// ```ts
 /// function readReference(layout: GitLayout, name: string): string | undefined  // throws
 /// ```
-fn read_reference(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
+fn read_reference(
+    layout: &GitLayout,
+    name: &str,
+) -> Result<Option<String>, String> {
     check_ref_name(name)?;
     let loose: PathBuf = layout.common_dir.join(name);
     // Borrow `&loose`: lends the value without copying or giving it away.
     if is_symbolic_link(&loose) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{} is a symbolic link, which Git reads as a symbolic reference", loose.display()));
+        return Err(format!(
+            "{} is a symbolic link, which Git reads as a symbolic reference",
+            loose.display()
+        ));
     }
     match fs::read_to_string(&loose) {
         Ok(text) => {
@@ -560,7 +622,10 @@ fn read_reference(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
             if is_object_name(trimmed) {
                 return Ok(Some(trimmed.to_string()));
             }
-            return Err(format!("{} holds something other than an object name (a symbolic reference?)", loose.display()));
+            return Err(format!(
+                "{} holds something other than an object name (a symbolic reference?)",
+                loose.display()
+            ));
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound || loose.is_dir() => {}
         // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -605,7 +670,10 @@ fn read_reference(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
 /// ```ts
 /// export function lookupRef(layout: GitLayout, name: string): string | undefined  // throws: ask Git
 /// ```
-pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
+pub fn lookup_ref(
+    layout: &GitLayout,
+    name: &str,
+) -> Result<Option<String>, String> {
     // Closure `|namespace|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     let mut in_shared_namespace: bool = false;
@@ -618,7 +686,9 @@ pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
     if !in_shared_namespace {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{name:?} is outside refs/heads, refs/remotes and refs/tags, so only Git reads it"));
+        return Err(format!(
+            "{name:?} is outside refs/heads, refs/remotes and refs/tags, so only Git reads it"
+        ));
     }
     return read_reference(layout, name);
 }
@@ -640,14 +710,19 @@ pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
 /// ```ts
 /// export function lookupShort(layout: GitLayout, name: string): string | undefined  // throws: ask Git
 /// ```
-pub fn lookup_short(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
+pub fn lookup_short(
+    layout: &GitLayout,
+    name: &str,
+) -> Result<Option<String>, String> {
     check_ref_name(name)?;
     // Borrow `&layout.common_dir`: lends the value without copying or giving it away.
     for directory in [&layout.common_dir, &layout.git_dir] {
         if directory.join(name).exists() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("{name:?} also names a file in the repository directory"));
+            return Err(format!(
+                "{name:?} also names a file in the repository directory"
+            ));
         }
     }
     for prefix in ["refs/", "refs/tags/", "refs/heads/"] {
@@ -669,7 +744,9 @@ pub fn lookup_short(layout: &GitLayout, name: &str) -> Result<Option<String>, St
     if found.is_none() && read_reference(layout, &format!("refs/remotes/{name}/HEAD"))?.is_some() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{name:?} resolves through refs/remotes/{name}/HEAD, which only Git reads"));
+        return Err(format!(
+            "{name:?} resolves through refs/remotes/{name}/HEAD, which only Git reads"
+        ));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(found);
@@ -685,13 +762,18 @@ pub fn lookup_short(layout: &GitLayout, name: &str) -> Result<Option<String>, St
 /// ```ts
 /// function singleValue(values: (string | undefined)[], key: string): string | undefined  // throws on a bare key
 /// ```
-fn single_value<'a>(values: &[Option<&'a str>], key: &str) -> Result<Option<&'a str>, String> {
+fn single_value<'a>(
+    values: &[Option<&'a str>],
+    key: &str,
+) -> Result<Option<&'a str>, String> {
     // Closure `|value|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     if values.iter().any(lacks_text) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{key} is written without a value, which Git rejects"));
+        return Err(format!(
+            "{key} is written without a value, which Git rejects"
+        ));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
@@ -711,7 +793,11 @@ fn single_value<'a>(values: &[Option<&'a str>], key: &str) -> Result<Option<&'a 
 /// ```ts
 /// export function trackingRef(config: ParsedConfig, layout: GitLayout, branch: string): string | undefined  // throws: ask Git
 /// ```
-pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> Result<Option<String>, String> {
+pub fn tracking_ref(
+    config: &ParsedConfig,
+    layout: &GitLayout,
+    branch: &str,
+) -> Result<Option<String>, String> {
     // `Some`: the present or the absent value of an `Option`.
     // Typed binding: `remotes: Vec<Option<&str>>`.
     // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
@@ -735,7 +821,9 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
     if merges.iter().any(Option::is_none) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("branch.{branch}.merge is written without a value, which Git rejects"));
+        return Err(format!(
+            "branch.{branch}.merge is written without a value, which Git rejects"
+        ));
     }
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
@@ -748,18 +836,24 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
     if !merge.starts_with("refs/") || !is_plain_ref_name(merge) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("branch.{branch}.merge is {merge:?}, not a plain full reference name"));
+        return Err(format!(
+            "branch.{branch}.merge is {merge:?}, not a plain full reference name"
+        ));
     }
     if remote != "." && !is_plain_ref_name(remote) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("branch.{branch}.remote is {remote:?}, which is not a plain remote name"));
+        return Err(format!(
+            "branch.{branch}.remote is {remote:?}, which is not a plain remote name"
+        ));
     }
     for legacy in ["remotes", "branches"] {
         if layout.common_dir.join(legacy).join(remote).exists() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("the remote {remote:?} is also described by a legacy {legacy}/ file, which only Git reads"));
+            return Err(format!(
+                "the remote {remote:?} is also described by a legacy {legacy}/ file, which only Git reads"
+            ));
         }
     }
     // `Some`: the present or the absent value of an `Option`.
@@ -789,7 +883,11 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // `None`: the present or the absent value of an `Option`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            None => return Err(format!("remote.{remote}.fetch is written without a value, which Git rejects")),
+            None => {
+                return Err(format!(
+                    "remote.{remote}.fetch is written without a value, which Git rejects"
+                ));
+            }
         }
     }
     // Borrow `&texts`: lends the value without copying or giving it away.
@@ -820,7 +918,10 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
 /// ```ts
 /// export function tracksLocally(config: ParsedConfig, branch: string): boolean
 /// ```
-pub fn tracks_locally(config: &ParsedConfig, branch: &str) -> bool {
+pub fn tracks_locally(
+    config: &ParsedConfig,
+    branch: &str,
+) -> bool {
     // `Some`: the present or the absent value of an `Option`.
     return config.last("branch", Some(branch), "remote") == Some(".");
 }

@@ -13,12 +13,27 @@
 //!  or when every feature works.
 
 /// The entry is a diagnostic of the displayed text.
-use super::diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup};
+use super::diagnostics::{
+    Diagnostic,
+    DiagnosticsSnapshot,
+    Freshness,
+    Severity,
+    SourceGroup,
+};
 /// The entry names the file generation and revision it describes.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// What the servers of the displayed file are doing,
 ///  and the one owner that ends a sentence.
-use super::status::{DocumentState, LanguageStatus, ServerState, ServerStatus, sentence};
+use super::status::{
+    DocumentState,
+    LanguageStatus,
+    ServerState,
+    ServerStatus,
+    sentence,
+};
 
 /// The source named in the entry's message row,
 ///  for example `Information (language support): ...`.
@@ -47,15 +62,15 @@ use trouble::failure_text;
 fn problem(row: &ServerStatus) -> Option<String> {
     let server = &row.server.name;
     return match &row.state {
-        ServerState::MissingExecutable { reason } => {
-            Some(sentence(&format!("{server} is not available: {reason}")))
-        }
-        ServerState::LaunchRefused { reason } => {
-            Some(sentence(&format!("{server} was not started: {reason}")))
-        }
-        ServerState::FailedToStart { reason } => {
-            Some(sentence(&format!("{server} failed to start: {reason}")))
-        }
+        ServerState::MissingExecutable {
+            reason,
+        } => Some(sentence(&format!("{server} is not available: {reason}"))),
+        ServerState::LaunchRefused {
+            reason,
+        } => Some(sentence(&format!("{server} was not started: {reason}"))),
+        ServerState::FailedToStart {
+            reason,
+        } => Some(sentence(&format!("{server} failed to start: {reason}"))),
         ServerState::Exited => Some(format!(
             "{server} stopped. Open the file again to start it again."
         )),
@@ -63,13 +78,19 @@ fn problem(row: &ServerStatus) -> Option<String> {
             "{server} cannot follow changes made to this file outside the IDE, so it is not asked about it. Open the file again to give it the current text."
         )),
         // The cause reads the same in the action message, so the state owns this sentence.
-        ServerState::RootOutsideProject { .. } => row.state.shared_cause(server),
-        ServerState::WrongWorkingDirectory { directory } => Some(format!(
+        ServerState::RootOutsideProject {
+            ..
+        } => row.state.shared_cause(server),
+        ServerState::WrongWorkingDirectory {
+            directory,
+        } => Some(format!(
             "{server} cannot start because the working directory {} does not contain the project. Restart the application.",
             directory.display()
         )),
         // The cause reads the same in the action message, so the state owns this sentence.
-        ServerState::NotStarted { .. } => row.state.shared_cause(server),
+        ServerState::NotStarted {
+            ..
+        } => row.state.shared_cause(server),
         ServerState::Starting | ServerState::Ready => None,
     };
 }
@@ -85,7 +106,10 @@ fn retried_on_display(state: &ServerState) -> bool {
 }
 
 /// True when some server in `ready` offers the feature that `wanted` tests for.
-fn offering(ready: &[&ServerStatus], wanted: fn(&ServerStatus) -> bool) -> bool {
+fn offering(
+    ready: &[&ServerStatus],
+    wanted: fn(&ServerStatus) -> bool,
+) -> bool {
     for row in ready {
         if wanted(row) {
             return true;

@@ -42,7 +42,12 @@ use crate::counting::nfa::CountingNfa;
 ///   step_into,
 /// } from "crate/counting/sim";
 /// ```
-use crate::counting::sim::{State, boundary_ctx, closure, step_into};
+use crate::counting::sim::{
+    State,
+    boundary_ctx,
+    closure,
+    step_into,
+};
 
 /// Runs the NFA across every boundary,
 ///  returning true on first acceptance.
@@ -66,7 +71,10 @@ use crate::counting::sim::{State, boundary_ctx, closure, step_into};
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn run(nfa: &CountingNfa, line: &[u8]) -> bool {
+pub(crate) fn run(
+    nfa: &CountingNfa,
+    line: &[u8],
+) -> bool {
     let mut cur = State::new(&nfa.elements);
     let mut next = State::new(&nfa.elements);
     for i in 0..=line.len() {
@@ -89,7 +97,7 @@ pub(crate) fn run(nfa: &CountingNfa, line: &[u8]) -> bool {
         step_into(&nfa.elements, &nfa.follow, &cur, line[i], &mut next);
         std::mem::swap(&mut cur, &mut next);
     }
-    return false
+    return false;
 }
 
 /// Differential tests against the eager DFA plus a serialized-size proof.

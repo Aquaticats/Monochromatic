@@ -12,13 +12,19 @@
 
 /// A bounded run,
 /// and what it gives back.
-pub use super::run::{Completed, run_bounded};
+pub use super::run::{
+    Completed,
+    run_bounded,
+};
 /// The same sandbox recipe,
 ///  probe,
 ///  and private state as a server's.
 use crate::language::{
     confine::confine_with,
-    launch::{LaunchRequest, prepare},
+    launch::{
+        LaunchRequest,
+        prepare,
+    },
 };
 /// What:
 ///  `Command` describes a child process;
@@ -30,7 +36,12 @@ use crate::language::{
 /// ```ts
 /// import { spawn } from 'node:child_process';
 /// ```
-use std::{collections::HashMap, path::PathBuf, process::Command, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    process::Command,
+    time::Duration,
+};
 
 /// What:
 ///  Variables that name places and nothing else,

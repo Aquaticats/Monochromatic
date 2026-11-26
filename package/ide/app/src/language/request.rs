@@ -13,15 +13,29 @@
 //!  never against later state.
 
 /// Hint windows and the latest-value snapshot.
-use super::hints::{HintWindow, HintsSnapshot, InlayHint, request_lines};
+use super::hints::{
+    HintWindow,
+    HintsSnapshot,
+    InlayHint,
+    request_lines,
+};
 /// Identities captured in every ticket.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// Offsets become server positions only through the shared converter.
-use super::position::{to_lsp_position, to_lsp_range};
+use super::position::{
+    to_lsp_position,
+    to_lsp_range,
+};
 /// The three position requests.
 use super::reply::RequestKind;
 /// Session state and configured feature exclusions.
-use super::session::{Session, allowed};
+use super::session::{
+    Session,
+    allowed,
+};
 /// Servers that could not follow a reload are not asked about positions.
 use super::status::ServerState;
 /// The worker whose state these steps change.
@@ -38,11 +52,18 @@ use super::worker::Worker;
 /// ```ts
 /// import { type Rope, LanguageServerFeature } from 'helix-core';
 /// ```
-use helix_core::{Rope, syntax::config::LanguageServerFeature};
+use helix_core::{
+    Rope,
+    syntax::config::LanguageServerFeature,
+};
 /// The column unit of one server,
 ///  the protocol's data types,
 ///  and its wire-level types.
-use helix_lsp::{OffsetEncoding, jsonrpc, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    jsonrpc,
+    lsp,
+};
 /// What:
 ///  `Future` is Rust's promise;
 ///  `Pin<Box<dyn Future>>` is an owned,
@@ -60,7 +81,12 @@ use helix_lsp::{OffsetEncoding, jsonrpc, lsp};
 /// ```ts
 /// type PayloadFuture = Promise<Payload>;
 /// ```
-use std::{future::Future, path::PathBuf, pin::Pin, time::Duration};
+use std::{
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    time::Duration,
+};
 
 /// Classifying failures,
 ///  retrying,
@@ -73,7 +99,10 @@ mod route;
 /// The worker loop hands finished requests to this function.
 pub(super) use answer::finish;
 /// The worker loop hands position requests and due retries to these functions.
-pub(super) use route::{position, retry};
+pub(super) use route::{
+    position,
+    retry,
+};
 
 /// What a ticket asks for.
 ///
@@ -290,7 +319,9 @@ fn feature(ask: Ask) -> LanguageServerFeature {
         Ask::Position(RequestKind::Definition) => LanguageServerFeature::GotoDefinition,
         Ask::Position(RequestKind::References) => LanguageServerFeature::GotoReference,
         Ask::Position(RequestKind::Hover) => LanguageServerFeature::Hover,
-        Ask::Hints { .. } => LanguageServerFeature::InlayHints,
+        Ask::Hints {
+            ..
+        } => LanguageServerFeature::InlayHints,
         Ask::Pull => LanguageServerFeature::PullDiagnostics,
     };
 }
@@ -437,7 +468,10 @@ fn dispatch(
     // ```
     worker.requests.push(Box::pin(async move {
         let payload = future.await;
-        return Answer { ticket, payload };
+        return Answer {
+            ticket,
+            payload,
+        };
     }));
     return Sent::Spawned;
 }
@@ -458,7 +492,11 @@ fn dispatch(
 ///   if (dispatch(worker, index, 0, { kind: 'pull' }, 0, attempt) === 'spawned') worker.session.servers[index].owed.pull = false;
 /// }
 /// ```
-pub(super) fn pull_diagnostics(worker: &mut Worker, index: usize, attempt: u32) {
+pub(super) fn pull_diagnostics(
+    worker: &mut Worker,
+    index: usize,
+    attempt: u32,
+) {
     if matches!(
         dispatch(worker, index, 0, Ask::Pull, 0, attempt),
         Sent::Spawned
@@ -506,7 +544,11 @@ pub(super) fn hint_ask(session: &Session) -> Option<Ask> {
 
 /// Ask one server for hints of the last reported window,
 ///  if any window was reported.
-pub(super) fn hints(worker: &mut Worker, index: usize, attempt: u32) {
+pub(super) fn hints(
+    worker: &mut Worker,
+    index: usize,
+    attempt: u32,
+) {
     let Some(ask) = hint_ask(&worker.session) else {
         return;
     };
@@ -538,7 +580,10 @@ pub(super) fn hints(worker: &mut Worker, index: usize, attempt: u32) {
 ///   if (owed.hints) hints(worker, index, 0);
 /// }
 /// ```
-pub(super) fn catch_up(worker: &mut Worker, index: usize) {
+pub(super) fn catch_up(
+    worker: &mut Worker,
+    index: usize,
+) {
     let Some(owed) = worker.session.servers[index].owed.catch_up() else {
         return;
     };
@@ -561,7 +606,11 @@ pub(super) fn catch_up(worker: &mut Worker, index: usize) {
 /// ```ts
 /// function window(worker: Worker, stamp: DocumentStamp, window: HintWindow): void
 /// ```
-pub(super) fn window(worker: &mut Worker, stamp: DocumentStamp, window: HintWindow) {
+pub(super) fn window(
+    worker: &mut Worker,
+    stamp: DocumentStamp,
+    window: HintWindow,
+) {
     let Some(document) = worker.session.document.as_mut() else {
         return;
     };
@@ -581,7 +630,10 @@ pub(super) fn window(worker: &mut Worker, stamp: DocumentStamp, window: HintWind
 }
 
 /// Orders inlay hints by the character offset they are drawn before.
-fn by_position(left: &InlayHint, right: &InlayHint) -> std::cmp::Ordering {
+fn by_position(
+    left: &InlayHint,
+    right: &InlayHint,
+) -> std::cmp::Ordering {
     return left.position.cmp(&right.position);
 }
 

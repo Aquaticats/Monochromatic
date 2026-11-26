@@ -15,10 +15,23 @@
 /// Files,
 /// maps and sets,
 /// paths and process arguments.
-use std::{collections::{BTreeMap, BTreeSet}, fs, path::{Path, PathBuf}};
+use std::{
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// Reads the task files.
-use toml_edit::{DocumentMut, Item};
+use toml_edit::{
+    DocumentMut,
+    Item,
+};
 
 /// Imports the name this file uses from `crate::lean_run_records`.
 use crate::lean_run_records::is_record_name;
@@ -44,22 +57,102 @@ const SWEEP: &str = "cargo-shadow lean records target/verification";
 /// This is the ledger of what the retention has to reach;
 /// each script path and prefix was read from the program named beside it.
 const PRODUCERS: [Producer; 16] = [
-    Producer { package: "package/git-policy/cli", script: "bin/test-native-container.ts", prefixes: &["native-"], unless: &[] },
-    Producer { package: "package/git-policy/cli", script: "bin/build-git-test-image.ts", prefixes: &["git-image-"], unless: &[] },
-    Producer { package: "package/git-policy/cli", script: "bin/mutate-native-container.ts", prefixes: &["native-mutation-"], unless: &[] },
-    Producer { package: "package/git-policy/cli", script: "bin/native-planted-controls-only.ts", prefixes: &["native-mutation-"], unless: &[] },
-    Producer { package: "package/git-policy/cli.fuzz", script: "bin/container.ts", prefixes: &["campaign-"], unless: &[] },
-    Producer { package: "package/git-policy/cli.fuzz", script: "bin/planted-controls.ts", prefixes: &["planted-"], unless: &[] },
-    Producer { package: "package/linter/monochromatic-lint", script: "bin/mutate-container.ts", prefixes: &["mutation-", "coverage-"], unless: &["--list"] },
-    Producer { package: "package/linter/monochromatic-lint", script: "bin/mutate-processors.ts", prefixes: &["processors-mutation-"], unless: &[] },
-    Producer { package: "package/linter/monochromatic-lint.fuzz", script: "bin/container.ts", prefixes: &["campaign-"], unless: &[] },
-    Producer { package: "package/linter/monochromatic-lint.fuzz", script: "bin/planted-controls.ts", prefixes: &["planted-"], unless: &[] },
-    Producer { package: "package/forbidden-strings/cli", script: "bin/test-container.ts", prefixes: &["test-", "clippy-", "release-test-"], unless: &[] },
-    Producer { package: "package/forbidden-strings/cli", script: "bin/guard-container.ts", prefixes: &["guard-protected-", "guard-without-"], unless: &[] },
-    Producer { package: "package/forbidden-strings/cli", script: "bin/observe-guards-container.ts", prefixes: &["guard-observer-"], unless: &[] },
-    Producer { package: "package/forbidden-strings/cli", script: "bin/mutate-container.ts", prefixes: &["mutation-", "startup-mutation-", "pathname-mutation-"], unless: &[] },
-    Producer { package: "package/forbidden-strings/cli.fuzz", script: "bin/smoke-container.ts", prefixes: &["embedding-fuzz-", "fuzz-clippy-"], unless: &[] },
-    Producer { package: "package/forbidden-strings/core", script: "bin/mutate-container.ts", prefixes: &["mutation-"], unless: &[] },
+    Producer {
+        package: "package/git-policy/cli",
+        script: "bin/test-native-container.ts",
+        prefixes: &["native-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/git-policy/cli",
+        script: "bin/build-git-test-image.ts",
+        prefixes: &["git-image-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/git-policy/cli",
+        script: "bin/mutate-native-container.ts",
+        prefixes: &["native-mutation-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/git-policy/cli",
+        script: "bin/native-planted-controls-only.ts",
+        prefixes: &["native-mutation-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/git-policy/cli.fuzz",
+        script: "bin/container.ts",
+        prefixes: &["campaign-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/git-policy/cli.fuzz",
+        script: "bin/planted-controls.ts",
+        prefixes: &["planted-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/linter/monochromatic-lint",
+        script: "bin/mutate-container.ts",
+        prefixes: &["mutation-", "coverage-"],
+        unless: &["--list"],
+    },
+    Producer {
+        package: "package/linter/monochromatic-lint",
+        script: "bin/mutate-processors.ts",
+        prefixes: &["processors-mutation-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/linter/monochromatic-lint.fuzz",
+        script: "bin/container.ts",
+        prefixes: &["campaign-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/linter/monochromatic-lint.fuzz",
+        script: "bin/planted-controls.ts",
+        prefixes: &["planted-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/forbidden-strings/cli",
+        script: "bin/test-container.ts",
+        prefixes: &["test-", "clippy-", "release-test-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/forbidden-strings/cli",
+        script: "bin/guard-container.ts",
+        prefixes: &["guard-protected-", "guard-without-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/forbidden-strings/cli",
+        script: "bin/observe-guards-container.ts",
+        prefixes: &["guard-observer-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/forbidden-strings/cli",
+        script: "bin/mutate-container.ts",
+        prefixes: &["mutation-", "startup-mutation-", "pathname-mutation-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/forbidden-strings/cli.fuzz",
+        script: "bin/smoke-container.ts",
+        prefixes: &["embedding-fuzz-", "fuzz-clippy-"],
+        unless: &[],
+    },
+    Producer {
+        package: "package/forbidden-strings/core",
+        script: "bin/mutate-container.ts",
+        prefixes: &["mutation-"],
+        unless: &[],
+    },
 ];
 
 /// One task of a package's `mise.toml`.
@@ -174,12 +267,19 @@ fn producers_of(package: &str) -> Vec<&'static Producer> {
 /// ```ts
 /// const producingElements = (task: Task, producers: Producer[]): [number, string][] => task.run.flatMap((entry, index) => producers.filter((one) => entry.split(/\s+/u).includes(one.script)).map((one) => [index, one.prefixes.join(', ')]));
 /// ```
-fn producing_elements(task: &Task, producers: &[&Producer]) -> Vec<(usize, String)> {
+fn producing_elements(
+    task: &Task,
+    producers: &[&Producer],
+) -> Vec<(usize, String)> {
     let mut found: Vec<(usize, String)> = Vec::new();
     for (index, entry) in task.run.iter().enumerate() {
         for producer in producers {
             let tokens: Vec<&str> = entry.split_whitespace().collect();
-            if tokens.contains(&producer.script) && !tokens.iter().any(|token| { return producer.unless.contains(token); }) {
+            if tokens.contains(&producer.script)
+                && !tokens.iter().any(|token| {
+                    return producer.unless.contains(token);
+                })
+            {
                 found.push((index, producer.prefixes.join(", ")));
             }
         }
@@ -196,8 +296,13 @@ fn producing_elements(task: &Task, producers: &[&Producer]) -> Vec<(usize, Strin
 /// ```ts
 /// const sweepsBefore = (task: Task, firstProducer: number): boolean => task.run.findIndex((one) => one === SWEEP) !== -1 && task.run.indexOf(SWEEP) < firstProducer;
 /// ```
-fn sweeps_before(task: &Task, first_producer: usize) -> bool {
-    let Some(at) = task.run.iter().position(|entry| { return entry == SWEEP; }) else {
+fn sweeps_before(
+    task: &Task,
+    first_producer: usize,
+) -> bool {
+    let Some(at) = task.run.iter().position(|entry| {
+        return entry == SWEEP;
+    }) else {
         return false;
     };
     return at < first_producer;
@@ -216,7 +321,10 @@ fn sweeps_before(task: &Task, first_producer: usize) -> bool {
 /// ```ts
 /// function sweepsThroughDependencies(tasks: Map<string, Task>, name: string, seen = new Set<string>()): boolean
 /// ```
-fn sweeps_through_dependencies(tasks: &BTreeMap<String, Task>, name: &str) -> bool {
+fn sweeps_through_dependencies(
+    tasks: &BTreeMap<String, Task>,
+    name: &str,
+) -> bool {
     let mut pending: Vec<String> = vec![name.to_string()];
     let mut seen: BTreeSet<String> = BTreeSet::new();
     while let Some(current) = pending.pop() {
@@ -260,7 +368,13 @@ fn every_producing_program_the_ledger_names_is_there() {
     let root: PathBuf = repository_root();
     for producer in &PRODUCERS {
         let script: PathBuf = root.join(producer.package).join(producer.script);
-        assert!(script.is_file(), "{} names {} of {}, which is not there", "the run-record ledger", producer.script, producer.package);
+        assert!(
+            script.is_file(),
+            "{} names {} of {}, which is not there",
+            "the run-record ledger",
+            producer.script,
+            producer.package
+        );
     }
 }
 
@@ -285,12 +399,31 @@ fn every_task_that_writes_run_records_sweeps_them_first() {
             if producing.is_empty() {
                 continue;
             }
-            let first: usize = producing.iter().map(|(index, _)| { return *index; }).min().expect("one producing element");
+            let first: usize = producing
+                .iter()
+                .map(|(index, _)| {
+                    return *index;
+                })
+                .min()
+                .expect("one producing element");
             if sweeps_before(task, first) || sweeps_through_dependencies(&tasks, name) {
                 continue;
             }
-            unwired.push(format!("{package}: {name} writes {}", producing.iter().map(|(_, prefixes)| { return prefixes.clone(); }).collect::<Vec<String>>().join(", ")));
+            unwired.push(format!(
+                "{package}: {name} writes {}",
+                producing
+                    .iter()
+                    .map(|(_, prefixes)| {
+                        return prefixes.clone();
+                    })
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ));
         }
     }
-    assert!(unwired.is_empty(), "these tasks write run records and never sweep them first:\n{}", unwired.join("\n"));
+    assert!(
+        unwired.is_empty(),
+        "these tasks write run records and never sweep them first:\n{}",
+        unwired.join("\n")
+    );
 }

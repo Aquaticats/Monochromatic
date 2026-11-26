@@ -12,7 +12,10 @@
 /// Import the fixed in-memory workspace owner.
 use crate::semantic_fixture::semantic_session;
 /// Import the actual rule result model and production session.
-use monochromatic_lint::diagnostic::{Diagnostic, Severity};
+use monochromatic_lint::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use monochromatic_lint::rust_semantic_session::RustSemanticSession;
 /// Use a native absolute path matching the initialized virtual file.
 use std::path::Path;
@@ -52,7 +55,10 @@ pub fn generated_explicit_source(data: &[u8]) -> (String, usize) {
 
 /// Validate all emitted source ranges,
 ///  including reported failures on malformed or unresolved input.
-fn check_bounds(source: &str, findings: &[Diagnostic]) {
+fn check_bounds(
+    source: &str,
+    findings: &[Diagnostic],
+) {
     for finding in findings {
         assert!(finding.fix.is_none());
         for label in &finding.labels {

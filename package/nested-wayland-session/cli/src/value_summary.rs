@@ -10,7 +10,10 @@ use std::collections::HashMap;
 
 /// Imports `OwnedVariant`,
 ///  `Variant` from `zbus`.
-use zbus::{OwnedVariant, Variant};
+use zbus::{
+    OwnedVariant,
+    Variant,
+};
 
 /// Imports `encode_text` from `crate::wire_text`.
 use crate::wire_text::encode_text;

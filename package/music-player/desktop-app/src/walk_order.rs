@@ -89,7 +89,11 @@ use std::ops::Range;
 /// ```ts
 /// import { sep } from "node:path"; // paths are plain strings in TS; there is no Component, Path or PathBuf
 /// ```
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use crate::natural_order::natural_cmp;` imports the repo's natural-order comparison (so `Track 2` sorts before
@@ -128,7 +132,10 @@ use crate::natural_order::natural_cmp;
 /// ```ts
 /// const compareNames = (left: string, right: string): Ordering => naturalCmp(left, right) || bytes(left, right);
 /// ```
-fn compare_names(left: &OsStr, right: &OsStr) -> Ordering {
+fn compare_names(
+    left: &OsStr,
+    right: &OsStr,
+) -> Ordering {
     // What:     `let by_name = natural_cmp(...)` compares the two names in natural order; when they differ that
     //           answer is returned, and only on a tie does `left.cmp(right)` compare the whole paths.
     // Why:      Two names that read the same naturally (`a1` and `A1`) must still have a fixed order, so the bytes break
@@ -169,9 +176,14 @@ fn compare_names(left: &OsStr, right: &OsStr) -> Ordering {
 /// ```ts
 /// function* namesBelow(root: string, path: string): Generator<string> { /* yield each normal path step after root */ }
 /// ```
-fn names_below<'a>(root: &Path, path: &'a Path) -> NamesBelow<'a> {
+fn names_below<'a>(
+    root: &Path,
+    path: &'a Path,
+) -> NamesBelow<'a> {
     let below: &Path = path.strip_prefix(root).unwrap_or(path);
-    return NamesBelow { components: below.components() };
+    return NamesBelow {
+        components: below.components(),
+    };
 }
 
 /// What:
@@ -221,10 +233,16 @@ impl<'path> Iterator for NamesBelow<'path> {
 /// ```ts
 /// function sortInWalkOrder(root: string, paths: string[]): void { paths.sort((a, b) => walkCmp(root, a, b)); }
 /// ```
-pub(crate) fn sort_in_walk_order(root: &Path, paths: &mut Vec<PathBuf>) {
+pub(crate) fn sort_in_walk_order(
+    root: &Path,
+    paths: &mut Vec<PathBuf>,
+) {
     let mut keys: Vec<WalkKey<'_>> = Vec::with_capacity(paths.len());
     for path in paths.drain(..) {
-        keys.push(WalkKey { root, path });
+        keys.push(WalkKey {
+            root,
+            path,
+        });
     }
     keys.sort();
     for key in keys {
@@ -255,7 +273,10 @@ impl PartialEq for WalkKey<'_> {
     /// `eq` is true when the walk order puts neither path before the other.
     /// Why:
     /// equality must agree with the order for a sort to be sound.
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
         return self.cmp(other) == Ordering::Equal;
     }
 }
@@ -270,7 +291,10 @@ impl PartialOrd for WalkKey<'_> {
     /// Why:
     /// the order is total,
     /// so the answer always exists.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<Ordering> {
         return Some(self.cmp(other));
     }
 }
@@ -281,7 +305,10 @@ impl Ord for WalkKey<'_> {
     /// `cmp` compares the two paths with `walk_cmp` below the shared root.
     /// Why:
     /// this is the order in which the walk lists a folder's entries.
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> Ordering {
         return walk_cmp(self.root, &self.path, &other.path);
     }
 }
@@ -307,7 +334,11 @@ impl Ord for WalkKey<'_> {
 /// ```ts
 /// const walkCmp = (root: string, left: string, right: string): Ordering => { /* compare level by level, files first */ };
 /// ```
-pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering {
+pub(crate) fn walk_cmp(
+    root: &Path,
+    left: &Path,
+    right: &Path,
+) -> Ordering {
     // What:     `let mut left_names = names_below(root, left).peekable();` builds the lazy sequence of the left path's names
     //           and wraps it with `.peekable()`, which adds `.peek()` (look at the next name without taking it). `mut`
     //           makes the variable changeable; Rust variables are constants unless marked.
@@ -424,7 +455,11 @@ pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering {
 /// ```ts
 /// const locate = (tracks: string[], root: string, path: string): { found: number } | { insertAt: number } => bsearch(...);
 /// ```
-pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usize, usize> {
+pub(crate) fn locate(
+    tracks: &[PathBuf],
+    root: &Path,
+    path: &Path,
+) -> Result<usize, usize> {
     // What:     The loop below is a binary search: `walk_cmp(root, &tracks[middle], path)` tells for the probed
     //           track how it compares with the wanted path, `Equal` returns `Ok(middle)`, and the bounds narrow
     //           until `Err(low)` names where the path would go.
@@ -463,7 +498,11 @@ pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usi
 /// ```ts
 /// const againstFolder = (root: string, track: string, folder: string[]): Ordering => { /* before, inside or after */ };
 /// ```
-fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering {
+fn against_folder(
+    root: &Path,
+    track: &Path,
+    folder: &[&OsStr],
+) -> Ordering {
     // What:     `let mut names = names_below(root, track).peekable();` builds the peekable sequence of the track's names.
     // Why:      The folder's names are compared with the track's names level by level, and the end of the track decides
     //           the last case.
@@ -514,7 +553,11 @@ fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering {
         // ```ts
         // return names.isLast() ? "Less" : compareNames(name, wanted);
         // ```
-        return if names.peek().is_none() { Ordering::Less } else { compare_names(name, wanted) };
+        return if names.peek().is_none() {
+            Ordering::Less
+        } else {
+            compare_names(name, wanted)
+        };
     }
     // What:     `return if names.peek().is_some() { Ordering::Equal } else { Ordering::Less };` is the tail after every
     //           level of the folder matched. `.is_some()` is true when the track has more names after them.
@@ -525,7 +568,11 @@ fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering {
     // ```ts
     // return names.hasNext() ? "Equal" : "Less";
     // ```
-    return if names.peek().is_some() { Ordering::Equal } else { Ordering::Less };
+    return if names.peek().is_some() {
+        Ordering::Equal
+    } else {
+        Ordering::Less
+    };
 }
 
 /// What:
@@ -540,13 +587,22 @@ fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering {
 /// ```ts
 /// function folderBoundary(tracks: string[], root: string, folder: string[], throughInside: boolean): number { /* binary search */ }
 /// ```
-fn folder_boundary(tracks: &[PathBuf], root: &Path, folder: &[&OsStr], through_inside: bool) -> usize {
+fn folder_boundary(
+    tracks: &[PathBuf],
+    root: &Path,
+    folder: &[&OsStr],
+    through_inside: bool,
+) -> usize {
     let mut low: usize = 0;
     let mut high: usize = tracks.len();
     while low < high {
         let middle: usize = low + (high - low) / 2;
         let order: Ordering = against_folder(root, &tracks[middle], folder);
-        let before: bool = if through_inside { order != Ordering::Greater } else { order == Ordering::Less };
+        let before: bool = if through_inside {
+            order != Ordering::Greater
+        } else {
+            order == Ordering::Less
+        };
         if before {
             low = middle + 1;
         } else {
@@ -570,7 +626,11 @@ fn folder_boundary(tracks: &[PathBuf], root: &Path, folder: &[&OsStr], through_i
 /// ```ts
 /// const subtreeRange = (tracks: string[], root: string, folder: string): { start: number; end: number } => { ... };
 /// ```
-pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> Range<usize> {
+pub(crate) fn subtree_range(
+    tracks: &[PathBuf],
+    root: &Path,
+    folder: &Path,
+) -> Range<usize> {
     // What:     `let names: Vec<&OsStr> = names_below(root, folder).collect();` drains the lazy sequence into a growable
     //           list. `.collect()` builds whatever collection the annotation names; here `Vec<&OsStr>` (siblings: `HashSet`
     //           or a slice cannot be built in place). The names stay borrowed from `folder`, so nothing is copied.
@@ -626,7 +686,11 @@ pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> R
 /// ```ts
 /// const directFiles = (tracks: string[], folder: string, run: Range): Range => ...;
 /// ```
-pub(crate) fn direct_files(tracks: &[PathBuf], folder: &Path, run: Range<usize>) -> Range<usize> {
+pub(crate) fn direct_files(
+    tracks: &[PathBuf],
+    folder: &Path,
+    run: Range<usize>,
+) -> Range<usize> {
     // What:     `let inside: &[PathBuf] = &tracks[run.clone()];` takes the part of the queue that the range covers as a
     //           borrowed slice. `tracks[range]` slices by a range, and the leading `&` lends the slice instead of copying
     //           it. `run.clone()` copies the range, because slicing uses it up and the function needs `run.start` later.

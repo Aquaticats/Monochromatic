@@ -2,7 +2,13 @@
 //!  and the message the person who started the program reads.
 
 /// The adapter descriptions and the variables the messages show.
-use super::adapter::{AdapterSummary, NAME_VARIABLE, POWER_VALUES, POWER_VARIABLE, Variables};
+use super::adapter::{
+    AdapterSummary,
+    NAME_VARIABLE,
+    POWER_VALUES,
+    POWER_VARIABLE,
+    Variables,
+};
 /// Error text for the failures below.
 use std::fmt;
 
@@ -56,7 +62,11 @@ impl SelectionReport {
     /// ```ts
     /// function newReport(adapters: AdapterSummary[], order: number[], variables: Variables): SelectionReport;
     /// ```
-    pub fn new(adapters: &[AdapterSummary], order: &[usize], variables: Variables) -> Self {
+    pub fn new(
+        adapters: &[AdapterSummary],
+        order: &[usize],
+        variables: Variables,
+    ) -> Self {
         let mut seen: Vec<String> = Vec::new();
         for adapter in adapters {
             seen.push(adapter.to_string());
@@ -169,14 +179,19 @@ impl fmt::Display for GpuDeviceError {
     /// Writes the problem,
     ///  what was seen,
     ///  and every remedy.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             Self::NoRuntime(reason) => write!(
                 formatter,
                 "The IDE could not start the small runtime that opens the GPU device: {reason}. \
                  Close other programs to free threads and memory, then start the IDE again."
             ),
-            Self::NoHardwareAdapter { report } => write!(
+            Self::NoHardwareAdapter {
+                report,
+            } => write!(
                 formatter,
                 "The IDE draws every pixel on the GPU through Vulkan, and no hardware Vulkan adapter is available. \
                  {} \
@@ -191,7 +206,9 @@ impl fmt::Display for GpuDeviceError {
                  and if VK_DRIVER_FILES or VK_ICD_FILENAMES is set, make it name the driver file of a hardware GPU.",
                 report.details()
             ),
-            Self::AdapterNameUnmatched { report } => write!(
+            Self::AdapterNameUnmatched {
+                report,
+            } => write!(
                 formatter,
                 "{NAME_VARIABLE} is set, and its value matches the name of no Vulkan adapter. \
                  {} \
@@ -199,7 +216,10 @@ impl fmt::Display for GpuDeviceError {
                  (the match ignores case); `vulkaninfo --summary` shows the names the loader reports.",
                 report.details()
             ),
-            Self::AdapterNameMatchesOnlyRefusedKinds { report, matched } => write!(
+            Self::AdapterNameMatchesOnlyRefusedKinds {
+                report,
+                matched,
+            } => write!(
                 formatter,
                 "{NAME_VARIABLE} is set, and it matches only adapters that the IDE refuses on purpose: {}. \
                  The IDE never draws on the CPU, so an adapter of the CPU, virtual, or unknown kind is not used \
@@ -209,7 +229,9 @@ impl fmt::Display for GpuDeviceError {
                 listing(matched),
                 report.details()
             ),
-            Self::BadPowerPreference { value } => write!(
+            Self::BadPowerPreference {
+                value,
+            } => write!(
                 formatter,
                 "{POWER_VARIABLE} is set to \"{value}\", which wgpu does not accept. \
                  The accepted values are {POWER_VALUES} (case-insensitive): low puts the integrated GPU first, \
@@ -218,7 +240,10 @@ impl fmt::Display for GpuDeviceError {
                  to choose a GPU by name set {NAME_VARIABLE}, \
                  or set DRI_PRIME or MESA_VK_DEVICE_SELECT so that Mesa puts the GPU you want first in the Vulkan list."
             ),
-            Self::DeviceRefused { refusals, report } => write!(
+            Self::DeviceRefused {
+                refusals,
+                report,
+            } => write!(
                 formatter,
                 "A hardware Vulkan adapter was found, but none of them gave the IDE a device with wgpu's default limits \
                  (storage buffers and 8192-pixel textures among them, which the GPU text path needs): {}. \

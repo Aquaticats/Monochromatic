@@ -110,7 +110,11 @@ pub fn top_level_request(arguments: &[OsString]) -> TopLevelRequest {
 /// ```
 pub fn version_line(real_pnpm: &Path) -> String {
     // `env!("CARGO_PKG_VERSION")` is the crate's version from `Cargo.toml`, read at compile time.
-    return format!("pnpm-shadow {}, shadowing pnpm at {}\n", env!("CARGO_PKG_VERSION"), real_pnpm.display());
+    return format!(
+        "pnpm-shadow {}, shadowing pnpm at {}\n",
+        env!("CARGO_PKG_VERSION"),
+        real_pnpm.display()
+    );
 }
 
 /// What:
@@ -144,7 +148,10 @@ the same arguments. Every other command goes straight to pnpm. It never blocks p
 /// ```ts
 /// export function noticeText(request: TopLevelRequest, realPnpm: string): string | undefined
 /// ```
-pub fn notice_text(request: TopLevelRequest, real_pnpm: &Path) -> Option<String> {
+pub fn notice_text(
+    request: TopLevelRequest,
+    real_pnpm: &Path,
+) -> Option<String> {
     match request {
         TopLevelRequest::Version => return Some(version_line(real_pnpm)),
         TopLevelRequest::Help => return Some(help_section(real_pnpm)),

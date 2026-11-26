@@ -8,18 +8,35 @@
 //! with its alpha.
 
 /// The window and its state.
-use super::{AppWindow, State};
+use super::{
+    AppWindow,
+    State,
+};
 /// A frame of the window,
 /// which draws the waiting scenes,
 ///  and a scene drawn without a window.
-use super::{gpu_snapshot::snapshot, gpu_tile::render_scene};
+use super::{
+    gpu_snapshot::snapshot,
+    gpu_tile::render_scene,
+};
 /// What a tile draws,
 /// and the palette it draws it in.
-use ide_app::{code_colors::CodeColors, shaped_text::ShapedView, tile_scene::paint_tile};
+use ide_app::{
+    code_colors::CodeColors,
+    shaped_text::ShapedView,
+    tile_scene::paint_tile,
+};
 /// Toolkit windows and pixel buffers.
-use slint::{ComponentHandle, Rgba8Pixel, SharedPixelBuffer};
+use slint::{
+    ComponentHandle,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+};
 /// Shared state.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  The most two renders of one scene may differ on the GPU,
@@ -42,7 +59,10 @@ pub(super) const RENDER_NOISE: u8 = 1;
 /// Whether two straight-alpha texels are the same picture to within [`RENDER_NOISE`],
 ///  compared premultiplied,
 /// so the color of an invisible texel does not count.
-pub(super) fn same_texel(left: Rgba8Pixel, right: Rgba8Pixel) -> bool {
+pub(super) fn same_texel(
+    left: Rgba8Pixel,
+    right: Rgba8Pixel,
+) -> bool {
     let premultiply =
         |value: u8, alpha: u8| return (u32::from(value) * u32::from(alpha) / 255) as u8;
     return premultiply(left.r, left.a).abs_diff(premultiply(right.r, right.a)) <= RENDER_NOISE
@@ -52,7 +72,10 @@ pub(super) fn same_texel(left: Rgba8Pixel, right: Rgba8Pixel) -> bool {
 }
 
 /// Whether two reads of the same rows agree texel for texel to within [`RENDER_NOISE`].
-pub(super) fn same_rows(left: &[[u8; 4]], right: &[[u8; 4]]) -> bool {
+pub(super) fn same_rows(
+    left: &[[u8; 4]],
+    right: &[[u8; 4]],
+) -> bool {
     if left.len() != right.len() {
         return false;
     }
@@ -78,7 +101,10 @@ pub(super) fn same_buffers(
 }
 
 /// Whether two runs of texels are the same length and agree texel for texel to within [`RENDER_NOISE`].
-pub(super) fn same_pixels(left: &[Rgba8Pixel], right: &[Rgba8Pixel]) -> bool {
+pub(super) fn same_pixels(
+    left: &[Rgba8Pixel],
+    right: &[Rgba8Pixel],
+) -> bool {
     if left.len() != right.len() {
         return false;
     }
@@ -113,7 +139,10 @@ pub(super) fn tile_pixels(
 
 /// The size of the tile's texture in physical pixels,
 ///  after a frame that draws the scene the window thread last handed over.
-pub(super) fn tile_size(window: &AppWindow, source: &Rc<RefCell<State>>) -> (u32, u32) {
+pub(super) fn tile_size(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+) -> (u32, u32) {
     let _frame = snapshot(window.window());
     let gpu = source.borrow().gpu.clone();
     return gpu.tile_size().expect("a tile texture");
@@ -122,7 +151,10 @@ pub(super) fn tile_size(window: &AppWindow, source: &Rc<RefCell<State>>) -> (u32
 /// The width and height in physical pixels of each texture of the tile,
 /// top first,
 ///  after a frame that draws the scene the window thread last handed over.
-pub(super) fn tile_textures(window: &AppWindow, source: &Rc<RefCell<State>>) -> Vec<(u32, u32)> {
+pub(super) fn tile_textures(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+) -> Vec<(u32, u32)> {
     let _frame = snapshot(window.window());
     let gpu = source.borrow().gpu.clone();
     return gpu.tile_texture_sizes();
@@ -182,7 +214,10 @@ pub(super) fn draw_minimap(window: &AppWindow) {
 /// ```ts
 /// function shown(window: AppWindow, source: State): number[][];
 /// ```
-pub(super) fn shown(window: &AppWindow, source: &Rc<RefCell<State>>) -> Vec<[u8; 4]> {
+pub(super) fn shown(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+) -> Vec<[u8; 4]> {
     let scale = window.window().scale_factor();
     let image = tile_pixels(window, source).expect("tile texture pixels");
     let width = image.width() as usize;

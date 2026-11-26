@@ -40,7 +40,7 @@ fn unique_tmp(label: &str) -> PathBuf {
     ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create tmp dir");
-    return dir
+    return dir;
 }
 
 // What:     `fn run_git(dir, args)` runs `git <args>` in `dir` and
@@ -57,7 +57,10 @@ fn unique_tmp(label: &str) -> PathBuf {
 //   execSync(`git ${args.join(" ")}`, { cwd: dir });
 // }
 // ```
-fn run_git(dir: &Path, args: &[&str]) {
+fn run_git(
+    dir: &Path,
+    args: &[&str],
+) {
     // What:     Resolve the git binary. The dev environment in this
     //           repo wraps `git` with a CLI policy enforcer that
     //           rejects bulk-add `.` and commit-without-pathspec
@@ -83,12 +86,7 @@ fn run_git(dir: &Path, args: &[&str]) {
         .current_dir(dir)
         .status()
         .expect("git command failed to spawn");
-    assert!(
-        status.success(),
-        "git {:?} failed in {:?}",
-        args,
-        dir
-    );
+    assert!(status.success(), "git {:?} failed in {:?}", args, dir);
 }
 
 #[test]
@@ -113,19 +111,31 @@ fn list_files_includes_force_added_gitignored_file() {
     run_git(&dir, &["config", "user.email", "t@t"]);
     run_git(&dir, &["config", "user.name", "t"]);
     fs::write(dir.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
-    fs::write(dir.join("tracked.ignored"), "secret content")
-        .expect("write tracked.ignored");
+    fs::write(dir.join("tracked.ignored"), "secret content").expect("write tracked.ignored");
     fs::write(dir.join("normal.txt"), "normal content").expect("write normal.txt");
-    run_git(&dir, &["add", "-f", ".gitignore", "tracked.ignored", "normal.txt"]);
+    run_git(
+        &dir,
+        &["add", "-f", ".gitignore", "tracked.ignored", "normal.txt"],
+    );
     // Explicit pathspec on commit -- the dev environment's git
     // wrapper rejects commits without one, and real git accepts it
     // either way.
     run_git(
         &dir,
-        &["commit", "-q", "-m", "initial", ".gitignore", "tracked.ignored", "normal.txt"],
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "initial",
+            ".gitignore",
+            "tracked.ignored",
+            "normal.txt",
+        ],
     );
 
-    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
+    let files = list_files(dir.to_str().expect("dir utf8"))
+        .expect("list_files")
+        .files;
     // What:     The index lists every tracked file the walker also listed, so a
     //           scan of an absolute root must report each one once; a second
     //           spelling of the same file here would scan it twice.
@@ -134,7 +144,9 @@ fn list_files_includes_force_added_gitignored_file() {
     assert_eq!(
         files
             .iter()
-            .filter(|path| return std::path::Path::new(path).file_name().is_some_and(|name| return name == "normal.txt"))
+            .filter(|path| return std::path::Path::new(path)
+                .file_name()
+                .is_some_and(|name| return name == "normal.txt"))
             .count(),
         1,
         "a tracked file must be listed once; got {:?}",
@@ -152,7 +164,7 @@ fn list_files_includes_force_added_gitignored_file() {
             return std::path::Path::new(p)
                 .file_name()
                 .and_then(|n| return n.to_str())
-                .map(|s| return s.to_string())
+                .map(|s| return s.to_string());
         })
         .collect();
     assert!(
@@ -212,12 +224,11 @@ fn list_files_excludes_submodule_gitlink_entries() {
             "160000,0000000000000000000000000000000000000001,vendor/sub",
         ],
     );
-    run_git(
-        &dir,
-        &["commit", "-q", "-m", "initial", "real.txt"],
-    );
+    run_git(&dir, &["commit", "-q", "-m", "initial", "real.txt"]);
 
-    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
+    let files = list_files(dir.to_str().expect("dir utf8"))
+        .expect("list_files")
+        .files;
     let normalized: Vec<String> = files
         .iter()
         .map(|p| return p.trim_start_matches("./").to_string())
@@ -255,23 +266,35 @@ fn list_files_handles_sha256_repo_force_added_gitignored() {
     run_git(&dir, &["config", "user.email", "t@t"]);
     run_git(&dir, &["config", "user.name", "t"]);
     fs::write(dir.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
-    fs::write(dir.join("tracked.ignored"), "secret content")
-        .expect("write tracked.ignored");
+    fs::write(dir.join("tracked.ignored"), "secret content").expect("write tracked.ignored");
     fs::write(dir.join("normal.txt"), "normal content").expect("write normal.txt");
-    run_git(&dir, &["add", "-f", ".gitignore", "tracked.ignored", "normal.txt"]);
     run_git(
         &dir,
-        &["commit", "-q", "-m", "initial", ".gitignore", "tracked.ignored", "normal.txt"],
+        &["add", "-f", ".gitignore", "tracked.ignored", "normal.txt"],
+    );
+    run_git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "initial",
+            ".gitignore",
+            "tracked.ignored",
+            "normal.txt",
+        ],
     );
 
-    let files = list_files(dir.to_str().expect("dir utf8")).expect("list_files").files;
+    let files = list_files(dir.to_str().expect("dir utf8"))
+        .expect("list_files")
+        .files;
     let basenames: Vec<String> = files
         .iter()
         .filter_map(|p| {
             return std::path::Path::new(p)
                 .file_name()
                 .and_then(|n| return n.to_str())
-                .map(|s| return s.to_string())
+                .map(|s| return s.to_string());
         })
         .collect();
     assert!(
@@ -300,7 +323,10 @@ fn list_files_handles_sha256_repo_force_added_gitignored() {
 // ```ts
 // function seedRepository(repository: string, ignored: string[]) { ... }
 // ```
-fn seed_repository(repository: &Path, ignored: &[&str]) {
+fn seed_repository(
+    repository: &Path,
+    ignored: &[&str],
+) {
     fs::create_dir_all(repository).expect("create repository dir");
     run_git(repository, &["init", "-q"]);
     run_git(repository, &["config", "user.email", "t@t"]);
@@ -336,7 +362,7 @@ fn seed_repository(repository: &Path, ignored: &[&str]) {
 fn listed(root: &Path) -> Vec<String> {
     return list_files(root.to_str().expect("root utf8"))
         .expect("list_files")
-        .files
+        .files;
 }
 
 // What:     `fn relative_listing(root)` reports each listed path relative to
@@ -353,7 +379,7 @@ fn relative_listing(root: &Path) -> Vec<String> {
     return listed(root)
         .iter()
         .map(|path| return relative_to(root, path))
-        .collect()
+        .collect();
 }
 
 // What:     `fn relative_to` expresses one listed path relative to the
@@ -366,14 +392,17 @@ fn relative_listing(root: &Path) -> Vec<String> {
 // ```ts
 // function relativeTo(root: string, path: string): string { ... }
 // ```
-fn relative_to(root: &Path, path: &str) -> String {
+fn relative_to(
+    root: &Path,
+    path: &str,
+) -> String {
     let entry: &Path = Path::new(path);
     let relative: &Path = entry.strip_prefix(root).unwrap_or(entry);
     return relative
         .to_str()
         .expect("utf8 relative path")
         .trim_start_matches("./")
-        .replace('\\', "/")
+        .replace('\\', "/");
 }
 
 // What:     `fn git_says_ignored(repository, relative)` asks Git whether the
@@ -389,13 +418,16 @@ fn relative_to(root: &Path, path: &str) -> String {
 // ```ts
 // function gitSaysIgnored(repository: string, relative: string): boolean { ... }
 // ```
-fn git_says_ignored(repository: &Path, relative: &str) -> bool {
+fn git_says_ignored(
+    repository: &Path,
+    relative: &str,
+) -> bool {
     let status = Command::new("/usr/bin/git")
         .args(["check-ignore", "--quiet", "--no-index", "--", relative])
         .current_dir(repository)
         .status()
         .expect("git check-ignore failed to spawn");
-    return status.success()
+    return status.success();
 }
 
 // What:     `fn add_linked_worktree(main, worktree)` asks Git to check the
@@ -408,10 +440,20 @@ fn git_says_ignored(repository: &Path, relative: &str) -> bool {
 // ```ts
 // function addLinkedWorktree(main: string, worktree: string) { ... }
 // ```
-fn add_linked_worktree(main: &Path, worktree: &Path) {
+fn add_linked_worktree(
+    main: &Path,
+    worktree: &Path,
+) {
     run_git(
         main,
-        &["worktree", "add", "-q", worktree.to_str().expect("worktree utf8"), "-b", "wt-branch"],
+        &[
+            "worktree",
+            "add",
+            "-q",
+            worktree.to_str().expect("worktree utf8"),
+            "-b",
+            "wt-branch",
+        ],
     );
     assert!(
         worktree.join(".git").is_file(),
@@ -445,7 +487,10 @@ fn list_files_reports_a_tracked_ignored_file_in_a_linked_worktree() {
     // The index reports the plain file too, so the deduplication must collapse
     // the two spellings into one path.
     assert_eq!(
-        paths.iter().filter(|path| return *path == "plain.txt").count(),
+        paths
+            .iter()
+            .filter(|path| return *path == "plain.txt")
+            .count(),
         1,
         "a tracked file the walker already listed must appear once; got {:?}",
         paths
@@ -514,7 +559,8 @@ fn list_files_reports_a_tracked_ignored_file_in_a_worktree_path_with_spaces() {
     seed_repository(&main, &["tracked.ignored"]);
     let worktree = base.join("wt");
     add_linked_worktree(&main, &worktree);
-    let named: String = fs::read_to_string(worktree.join(".git")).expect("read the worktree's .git file");
+    let named: String =
+        fs::read_to_string(worktree.join(".git")).expect("read the worktree's .git file");
     assert!(
         named.contains("main repo"),
         "fixture precondition: the gitdir line names a path with a space; got {:?}",
@@ -541,7 +587,8 @@ fn list_files_reports_a_tracked_ignored_file_in_a_worktree_whose_gitdir_line_hol
     seed_repository(&main, &["tracked.ignored"]);
     let worktree = base.join("wt");
     add_linked_worktree(&main, &worktree);
-    let named: String = fs::read_to_string(worktree.join(".git")).expect("read the worktree's .git file");
+    let named: String =
+        fs::read_to_string(worktree.join(".git")).expect("read the worktree's .git file");
     assert!(
         named.trim_end().contains('\n'),
         "fixture precondition: the gitdir line holds a newline inside the path; got {:?}",
@@ -570,17 +617,22 @@ fn list_files_reads_the_worktree_index_rather_than_the_main_one() {
     fs::write(worktree.join("worktree-only.ignored"), "secret content")
         .expect("write the worktree-only ignored file");
     run_git(&worktree, &["add", "-f", "worktree-only.ignored"]);
-    fs::write(main.join("main-only.ignored"), "secret content").expect("write the main-only ignored file");
+    fs::write(main.join("main-only.ignored"), "secret content")
+        .expect("write the main-only ignored file");
     run_git(&main, &["add", "-f", "main-only.ignored"]);
 
     let worktree_paths = relative_listing(&worktree);
     assert!(
-        worktree_paths.iter().any(|path| return path == "worktree-only.ignored"),
+        worktree_paths
+            .iter()
+            .any(|path| return path == "worktree-only.ignored"),
         "the scan must read the worktree's own index; got {:?}",
         worktree_paths
     );
     assert!(
-        !worktree_paths.iter().any(|path| return path == "main-only.ignored"),
+        !worktree_paths
+            .iter()
+            .any(|path| return path == "main-only.ignored"),
         "the main repository's index entries must not appear in a worktree scan; got {:?}",
         worktree_paths
     );
@@ -611,7 +663,8 @@ fn list_files_reports_a_tracked_ignored_file_in_a_submodule_with_a_relative_gitd
         ],
     );
     let submodule = host.join("vendor/sub");
-    let dot_git: String = fs::read_to_string(submodule.join(".git")).expect("read the submodule's .git file");
+    let dot_git: String =
+        fs::read_to_string(submodule.join(".git")).expect("read the submodule's .git file");
     assert!(
         dot_git.starts_with("gitdir: ../"),
         "fixture precondition: a submodule's gitdir line is relative; got {:?}",
@@ -639,10 +692,21 @@ fn list_files_reports_a_tracked_ignored_file_in_a_sha256_linked_worktree() {
     fs::write(main.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
     fs::write(main.join("plain.txt"), "ordinary content").expect("write plain.txt");
     fs::write(main.join("tracked.ignored"), "secret content").expect("write tracked.ignored");
-    run_git(&main, &["add", "-f", ".gitignore", "plain.txt", "tracked.ignored"]);
     run_git(
         &main,
-        &["commit", "-q", "-m", "initial", ".gitignore", "plain.txt", "tracked.ignored"],
+        &["add", "-f", ".gitignore", "plain.txt", "tracked.ignored"],
+    );
+    run_git(
+        &main,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "initial",
+            ".gitignore",
+            "plain.txt",
+            "tracked.ignored",
+        ],
     );
     let worktree = base.join("wt");
     add_linked_worktree(&main, &worktree);
@@ -707,7 +771,9 @@ fn list_files_reports_a_missing_index_and_keeps_scanning() {
         "a missing index must not stop the working-tree scan; got {:?}",
         paths
     );
-    let gap = listing.union_gap.expect("a missing index inside a repository must be reported");
+    let gap = listing
+        .union_gap
+        .expect("a missing index inside a repository must be reported");
     assert!(
         gap.at.ends_with("index") && gap.cause.contains("cannot be read"),
         "the gap must name the index that is missing and why; got {:?} / {:?}",
@@ -765,7 +831,8 @@ fn list_files_reports_an_unreadable_index_and_keeps_scanning() {
     let repository = unique_tmp("unreadable-index");
     seed_repository(&repository, &["tracked.ignored"]);
     let index: PathBuf = repository.join(".git/index");
-    fs::set_permissions(&index, fs::Permissions::from_mode(0o000)).expect("make the index unreadable");
+    fs::set_permissions(&index, fs::Permissions::from_mode(0o000))
+        .expect("make the index unreadable");
 
     let listing = list_files(repository.to_str().expect("repository utf8")).expect("list_files");
     let paths: Vec<String> = listing
@@ -789,7 +856,8 @@ fn list_files_reports_an_unreadable_index_and_keeps_scanning() {
     );
 
     // Restore permissions so the fixture can be removed.
-    fs::set_permissions(&index, fs::Permissions::from_mode(0o644)).expect("restore the index permissions");
+    fs::set_permissions(&index, fs::Permissions::from_mode(0o644))
+        .expect("restore the index permissions");
     let _ = fs::remove_dir_all(&repository);
 }
 
@@ -803,7 +871,10 @@ fn list_files_reports_a_missing_index_from_a_repository_subfolder() {
     fs::create_dir_all(&subfolder).expect("create subfolder");
     fs::write(subfolder.join("visited.txt"), "ordinary content").expect("write visited.txt");
     run_git(&repository, &["add", "-f", "sub/visited.txt"]);
-    run_git(&repository, &["commit", "-q", "-m", "sub", "sub/visited.txt"]);
+    run_git(
+        &repository,
+        &["commit", "-q", "-m", "sub", "sub/visited.txt"],
+    );
     fs::remove_file(repository.join(".git/index")).expect("remove the index");
 
     let listing = list_files(subfolder.to_str().expect("subfolder utf8")).expect("list_files");

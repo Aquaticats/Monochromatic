@@ -41,7 +41,11 @@ const DAYS_PER_CYCLE: i64 = 146_097;
 /// ```ts
 /// const daysFromCivil = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d) / 86_400_000;
 /// ```
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+fn days_from_civil(
+    year: i64,
+    month: i64,
+    day: i64,
+) -> i64 {
     let shifted_year: i64 = if month <= 2 { year - 1 } else { year };
     let era: i64 = shifted_year.div_euclid(400);
     let year_of_era: i64 = shifted_year - era * 400;
@@ -67,11 +71,16 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let shifted: i64 = days + DAYS_TO_UNIX_EPOCH;
     let era: i64 = shifted.div_euclid(DAYS_PER_CYCLE);
     let day_of_era: i64 = shifted - era * DAYS_PER_CYCLE;
-    let year_of_era: i64 = (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146_096) / 365;
+    let year_of_era: i64 =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146_096) / 365;
     let day_of_year: i64 = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     let month_from_march: i64 = (5 * day_of_year + 2) / 153;
     let day: i64 = day_of_year - (153 * month_from_march + 2) / 5 + 1;
-    let month: i64 = if month_from_march < 10 { month_from_march + 3 } else { month_from_march - 9 };
+    let month: i64 = if month_from_march < 10 {
+        month_from_march + 3
+    } else {
+        month_from_march - 9
+    };
     let year: i64 = year_of_era + era * 400 + if month <= 2 { 1 } else { 0 };
     return (year, month, day);
 }
@@ -101,7 +110,10 @@ struct Cursor<'a> {
 /// ```
 impl<'a> Cursor<'a> {
     /// Takes exactly `length` ASCII digits and returns their number.
-    fn digits(&mut self, length: usize) -> Option<i64> {
+    fn digits(
+        &mut self,
+        length: usize,
+    ) -> Option<i64> {
         if self.remaining.len() < length || !self.remaining.is_char_boundary(length) {
             return None;
         }
@@ -115,14 +127,20 @@ impl<'a> Cursor<'a> {
     }
 
     /// Takes one expected character.
-    fn expect(&mut self, expected: char) -> Option<()> {
+    fn expect(
+        &mut self,
+        expected: char,
+    ) -> Option<()> {
         self.remaining = self.remaining.strip_prefix(expected)?;
         return Some(());
     }
 
     /// Takes one expected character if it is next;
     /// says whether it was.
-    fn accept(&mut self, expected: char) -> bool {
+    fn accept(
+        &mut self,
+        expected: char,
+    ) -> bool {
         return self.expect(expected).is_some();
     }
 }
@@ -140,7 +158,9 @@ impl<'a> Cursor<'a> {
 /// export function parseRfc3339Millis(text: string): number | undefined { const ms = Date.parse(text); return Number.isNaN(ms) ? undefined : ms; }
 /// ```
 pub fn parse_rfc3339_millis(text: &str) -> Option<i64> {
-    let mut cursor: Cursor = Cursor { remaining: text };
+    let mut cursor: Cursor = Cursor {
+        remaining: text,
+    };
     let year: i64 = cursor.digits(4)?;
     cursor.expect('-')?;
     let month: i64 = cursor.digits(2)?;
@@ -156,7 +176,11 @@ pub fn parse_rfc3339_millis(text: &str) -> Option<i64> {
     let second: i64 = cursor.digits(2)?;
     let mut millis: i64 = 0;
     if cursor.accept('.') {
-        let digit_count: usize = cursor.remaining.bytes().take_while(u8::is_ascii_digit).count();
+        let digit_count: usize = cursor
+            .remaining
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .count();
         if digit_count == 0 {
             return None;
         }
@@ -185,11 +209,17 @@ pub fn parse_rfc3339_millis(text: &str) -> Option<i64> {
     if !cursor.remaining.is_empty() {
         return None;
     }
-    if !(1..=12).contains(&month) || !(1..=31).contains(&day) || hour > 23 || minute > 59 || second > 60 {
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 60
+    {
         return None;
     }
     let days: i64 = days_from_civil(year, month, day);
-    let seconds: i64 = days * SECONDS_PER_DAY + hour * 3600 + minute * 60 + second - offset_minutes * 60;
+    let seconds: i64 =
+        days * SECONDS_PER_DAY + hour * 3600 + minute * 60 + second - offset_minutes * 60;
     return Some(seconds * MS_PER_SECOND + millis);
 }
 
@@ -230,7 +260,10 @@ pub fn format_iso_millis(millis: i64) -> String {
 /// ```ts
 /// export const publishTimeCutoff = ({ now, minutes }) => `${new Date(now - minutes * 60_000).toISOString().slice(0, 19)}Z`;
 /// ```
-pub fn publish_time_cutoff(now_millis: i64, minutes: u64) -> String {
+pub fn publish_time_cutoff(
+    now_millis: i64,
+    minutes: u64,
+) -> String {
     let cutoff: i64 = now_millis - (minutes as i64) * MS_PER_MINUTE;
     let text: String = format_iso_millis(cutoff);
     return format!("{}Z", &text[..19]);

@@ -19,11 +19,16 @@
 /// in the marshaller of its own file.
 #[path = "dbus_wire_marshaller.rs"]
 pub mod marshaller;
-/// The arguments and properties a call carries.
-pub use marshaller::{Argument, Property, PropertyValue, encode_call};
 /// The signature a body of these arguments declares.
 #[cfg(test)]
 pub use marshaller::body_signature;
+/// The arguments and properties a call carries.
+pub use marshaller::{
+    Argument,
+    Property,
+    PropertyValue,
+    encode_call,
+};
 
 /// The messages a control's fake manager and fake bus answer with.
 #[cfg(test)]
@@ -31,7 +36,13 @@ pub use marshaller::body_signature;
 pub mod controls;
 /// The messages a control's fakes build.
 #[cfg(test)]
-pub use controls::{encode_error, encode_number_return, encode_reply, encode_signal, encode_text_return};
+pub use controls::{
+    encode_error,
+    encode_number_return,
+    encode_reply,
+    encode_signal,
+    encode_text_return,
+};
 
 /// Start of a little-endian message.
 pub const ENDIAN_LITTLE: u8 = b'l';
@@ -102,13 +113,19 @@ pub struct MethodCall {
 }
 
 /// Reads four bytes as a little-endian number.
-fn number_at(bytes: &[u8], at: usize) -> Option<u32> {
+fn number_at(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u32> {
     let slice = bytes.get(at..at.checked_add(FOUR)?)?;
     return Some(u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]));
 }
 
 /// Rounds `offset` up to `boundary`.
-pub fn aligned(offset: usize, boundary: usize) -> usize {
+pub fn aligned(
+    offset: usize,
+    boundary: usize,
+) -> usize {
     let Some(sum) = offset.checked_add(boundary - 1) else {
         return usize::MAX;
     };
@@ -118,14 +135,20 @@ pub fn aligned(offset: usize, boundary: usize) -> usize {
 /// Reads a string at `at`,
 /// with the offset just after it,
 /// or nothing when it is cut short or its end byte is missing.
-fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
+fn read_text(
+    bytes: &[u8],
+    at: usize,
+) -> Option<(String, usize)> {
     let length = usize::try_from(number_at(bytes, at)?).ok()?;
     let start = at.checked_add(FOUR)?;
     let end = start.checked_add(length)?;
     if *bytes.get(end)? != 0 {
         return None;
     }
-    return Some((String::from_utf8_lossy(bytes.get(start..end)?).into_owned(), end.saturating_add(1)));
+    return Some((
+        String::from_utf8_lossy(bytes.get(start..end)?).into_owned(),
+        end.saturating_add(1),
+    ));
 }
 
 /// One message read off the socket.
@@ -166,12 +189,18 @@ pub fn message_length(bytes: &[u8]) -> Option<usize> {
 /// Reads one message.
 pub fn decode_message(bytes: &[u8]) -> Result<Message, WireError> {
     let Some(total) = message_length(bytes) else {
-        return Err(WireError::Malformed("the message is not a little-endian header".to_string()));
+        return Err(WireError::Malformed(
+            "the message is not a little-endian header".to_string(),
+        ));
     };
     if bytes.len() < total {
-        return Err(WireError::Malformed("the message is shorter than its header says".to_string()));
+        return Err(WireError::Malformed(
+            "the message is shorter than its header says".to_string(),
+        ));
     }
-    let fields_end = usize::try_from(number_at(bytes, 12).unwrap_or(0)).unwrap_or(usize::MAX).saturating_add(FIXED_HEADER);
+    let fields_end = usize::try_from(number_at(bytes, 12).unwrap_or(0))
+        .unwrap_or(usize::MAX)
+        .saturating_add(FIXED_HEADER);
     let body_start = aligned(fields_end, EIGHT);
     let mut message = Message {
         kind: bytes[1],
@@ -186,14 +215,24 @@ pub fn decode_message(bytes: &[u8]) -> Result<Message, WireError> {
     let mut at = FIXED_HEADER;
     while at < fields_end {
         at = aligned(at, EIGHT);
-        let Some(&code) = message.bytes.get(at) else { break };
-        let Some(&signature_length) = message.bytes.get(at.saturating_add(1)) else { break };
+        let Some(&code) = message.bytes.get(at) else {
+            break;
+        };
+        let Some(&signature_length) = message.bytes.get(at.saturating_add(1)) else {
+            break;
+        };
         let kind_at = at.saturating_add(2);
-        let Some(&value_kind) = message.bytes.get(kind_at) else { break };
-        let value_at = kind_at.saturating_add(usize::from(signature_length)).saturating_add(1);
+        let Some(&value_kind) = message.bytes.get(kind_at) else {
+            break;
+        };
+        let value_at = kind_at
+            .saturating_add(usize::from(signature_length))
+            .saturating_add(1);
         match value_kind {
             b's' | b'o' => {
-                let Some((text, next)) = read_text(&message.bytes, aligned(value_at, FOUR)) else { break };
+                let Some((text, next)) = read_text(&message.bytes, aligned(value_at, FOUR)) else {
+                    break;
+                };
                 if code == FIELD_ERROR_NAME {
                     message.error_name = Some(text.clone());
                 }
@@ -205,8 +244,16 @@ pub fn decode_message(bytes: &[u8]) -> Result<Message, WireError> {
             b'g' => {
                 let length = usize::from(*message.bytes.get(value_at).unwrap_or(&0));
                 let start = value_at.saturating_add(1);
-                if code == FIELD_SIGNATURE && message.bytes.get(start.saturating_add(length)) == Some(&0) {
-                    message.signature = String::from_utf8_lossy(message.bytes.get(start..start.saturating_add(length)).unwrap_or_default()).into_owned();
+                if code == FIELD_SIGNATURE
+                    && message.bytes.get(start.saturating_add(length)) == Some(&0)
+                {
+                    message.signature = String::from_utf8_lossy(
+                        message
+                            .bytes
+                            .get(start..start.saturating_add(length))
+                            .unwrap_or_default(),
+                    )
+                    .into_owned();
                 }
                 at = start.saturating_add(length).saturating_add(1);
             }
@@ -250,5 +297,4 @@ impl Message {
         }
         return number_at(&self.bytes, aligned(self.body_start, FOUR));
     }
-
 }

@@ -28,7 +28,10 @@ use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `OWN_CRATE_PREFIX` from `crate::constants`.
 use crate::constants::OWN_CRATE_PREFIX;
@@ -38,24 +41,42 @@ use crate::installed::installed_versions;
 use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::across_roots`.
-use super::across_roots::{winning_root, winning_version};
+use super::across_roots::{
+    winning_root,
+    winning_version,
+};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{applies_to_family, install_dir_name, tool_install_dir};
+use super::layout::{
+    applies_to_family,
+    install_dir_name,
+    tool_install_dir,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, OsFamily, Route};
+use super::model::{
+    LockedTool,
+    OsFamily,
+    Route,
+};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
-    first_bin_of_tool, is_finished, is_published_archive, newest_installed_archive, point_current_at_newest_archive,
+    first_bin_of_tool,
+    is_finished,
+    is_published_archive,
+    newest_installed_archive,
+    point_current_at_newest_archive,
     version_names as archive_version_names,
 };
 /// Imports what this module uses from `super::scope`.
-use super::scope::{Scope, ScopeKind};
+use super::scope::{
+    Scope,
+    ScopeKind,
+};
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -85,7 +106,8 @@ pub fn is_repository_published(tool: &LockedTool) -> bool {
     if is_published_archive(tool) {
         return true;
     }
-    return tool.declaration.route == Route::CargoBinstall && is_own_crate_name(&package_name(tool));
+    return tool.declaration.route == Route::CargoBinstall
+        && is_own_crate_name(&package_name(tool));
 }
 
 /// What:
@@ -117,9 +139,16 @@ pub fn is_own_crate_name(name: &str) -> bool {
 /// ```ts
 /// export function newestInstalledOf(root: string, tool: LockedTool): string | undefined
 /// ```
-pub fn newest_installed_of(toolchain_root: &Path, tool: &LockedTool) -> Option<String> {
+pub fn newest_installed_of(
+    toolchain_root: &Path,
+    tool: &LockedTool,
+) -> Option<String> {
     if is_published_archive(tool) {
-        return newest_installed_archive(toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+        return newest_installed_archive(
+            toolchain_root,
+            &tool.declaration.id,
+            first_bin_of_tool(tool),
+        );
     }
     return newest_installed(toolchain_root, &package_name(tool));
 }
@@ -135,32 +164,54 @@ pub fn newest_installed_of(toolchain_root: &Path, tool: &LockedTool) -> Option<S
 /// ```ts
 /// export function pointCurrentAtNewestOf(root: string, tool: LockedTool): string | undefined
 /// ```
-pub fn point_current_at_newest_of(toolchain_root: &Path, tool: &LockedTool) -> Result<Option<String>, ToolchainError> {
+pub fn point_current_at_newest_of(
+    toolchain_root: &Path,
+    tool: &LockedTool,
+) -> Result<Option<String>, ToolchainError> {
     if is_published_archive(tool) {
-        return point_current_at_newest_archive(toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+        return point_current_at_newest_archive(
+            toolchain_root,
+            &tool.declaration.id,
+            first_bin_of_tool(tool),
+        );
     }
     return point_current_at_newest(toolchain_root, &package_name(tool));
 }
 
 /// `<toolchain root>/cargo/<crate>`.
-pub fn crate_directory(toolchain_root: &Path, crate_name: &str) -> PathBuf {
-    return toolchain_root.join(CARGO_NAMESPACE).join(install_dir_name(crate_name));
+pub fn crate_directory(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> PathBuf {
+    return toolchain_root
+        .join(CARGO_NAMESPACE)
+        .join(install_dir_name(crate_name));
 }
 
 /// `<toolchain root>/cargo/<crate>/<version>`,
 /// the cargo install root of one version.
-pub fn version_directory(toolchain_root: &Path, crate_name: &str, version: &str) -> PathBuf {
+pub fn version_directory(
+    toolchain_root: &Path,
+    crate_name: &str,
+    version: &str,
+) -> PathBuf {
     return crate_directory(toolchain_root, crate_name).join(version);
 }
 
 /// `<toolchain root>/cargo/<crate>/current`.
-pub fn current_link(toolchain_root: &Path, crate_name: &str) -> PathBuf {
+pub fn current_link(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> PathBuf {
     return crate_directory(toolchain_root, crate_name).join(CURRENT_LINK_NAME);
 }
 
 /// The version cargo's own record inside `version_dir` names for the crate,
 /// or `None` when the install never finished.
-pub fn recorded_version(version_dir: &Path, crate_name: &str) -> Option<String> {
+pub fn recorded_version(
+    version_dir: &Path,
+    crate_name: &str,
+) -> Option<String> {
     return installed_versions(version_dir).get(crate_name).cloned();
 }
 
@@ -174,14 +225,20 @@ pub fn recorded_version(version_dir: &Path, crate_name: &str) -> Option<String> 
 /// ```ts
 /// const newestFirst = (left: string, right: string): number => compareVersions(right, left);
 /// ```
-fn newest_first<T: AsRef<str>>(left: &T, right: &T) -> Ordering {
+fn newest_first<T: AsRef<str>>(
+    left: &T,
+    right: &T,
+) -> Ordering {
     return compare_versions(right.as_ref(), left.as_ref());
 }
 
 /// Every version directory of the crate (a plain directory that is not `current`,
 /// not hidden),
 /// newest first.
-pub fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
+pub fn version_names(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> Vec<String> {
     let Ok(entries) = fs::read_dir(crate_directory(toolchain_root, crate_name)) else {
         return Vec::new();
     };
@@ -232,9 +289,17 @@ pub fn repository_versions_installed(toolchain_root: &Path) -> BTreeMap<String, 
 }
 
 /// The newest version of the crate whose install finished (cargo's record names it).
-pub fn newest_installed(toolchain_root: &Path, crate_name: &str) -> Option<String> {
+pub fn newest_installed(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> Option<String> {
     for name in version_names(toolchain_root, crate_name) {
-        if recorded_version(&version_directory(toolchain_root, crate_name, &name), crate_name).is_some() {
+        if recorded_version(
+            &version_directory(toolchain_root, crate_name, &name),
+            crate_name,
+        )
+        .is_some()
+        {
             return Some(name);
         }
     }
@@ -255,7 +320,10 @@ pub fn newest_installed(toolchain_root: &Path, crate_name: &str) -> Option<Strin
 /// ```ts
 /// export function finishedVersionsOf(root: string, tool: LockedTool): string[]
 /// ```
-pub fn finished_versions_of(toolchain_root: &Path, tool: &LockedTool) -> Vec<String> {
+pub fn finished_versions_of(
+    toolchain_root: &Path,
+    tool: &LockedTool,
+) -> Vec<String> {
     let mut finished: Vec<String> = Vec::new();
     if is_published_archive(tool) {
         let id: &str = &tool.declaration.id;
@@ -270,7 +338,12 @@ pub fn finished_versions_of(toolchain_root: &Path, tool: &LockedTool) -> Vec<Str
     }
     let crate_name: String = package_name(tool);
     for name in version_names(toolchain_root, &crate_name) {
-        if recorded_version(&version_directory(toolchain_root, &crate_name, &name), &crate_name).is_some() {
+        if recorded_version(
+            &version_directory(toolchain_root, &crate_name, &name),
+            &crate_name,
+        )
+        .is_some()
+        {
             finished.push(name);
         }
     }
@@ -279,7 +352,10 @@ pub fn finished_versions_of(toolchain_root: &Path, tool: &LockedTool) -> Vec<Str
 
 /// The version the crate's `current` link names (the link's target is the version directory's name),
 /// or `None` when there is no link.
-pub fn running_version(toolchain_root: &Path, crate_name: &str) -> Option<String> {
+pub fn running_version(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> Option<String> {
     let target: PathBuf = fs::read_link(current_link(toolchain_root, crate_name)).ok()?;
     let name: String = file_name_text(&target);
     if name.is_empty() {
@@ -299,7 +375,10 @@ pub fn running_version(toolchain_root: &Path, crate_name: &str) -> Option<String
 /// ```ts
 /// export function pointCurrentAtNewest(root: string, crate: string): string | undefined
 /// ```
-pub fn point_current_at_newest(toolchain_root: &Path, crate_name: &str) -> Result<Option<String>, ToolchainError> {
+pub fn point_current_at_newest(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> Result<Option<String>, ToolchainError> {
     let Some(newest) = newest_installed(toolchain_root, crate_name) else {
         return Ok(None);
     };
@@ -352,7 +431,11 @@ pub fn point_current_at(
     if let Some(named) = running.as_deref()
         && compare_versions(named, version).is_gt()
         && !deleted_here.contains(&named)
-        && recorded_version(&version_directory(toolchain_root, crate_name, named), crate_name).is_some()
+        && recorded_version(
+            &version_directory(toolchain_root, crate_name, named),
+            crate_name,
+        )
+        .is_some()
     {
         return Ok(false);
     }
@@ -370,7 +453,10 @@ pub fn point_current_at(
 /// ```ts
 /// export function removeOlderThanNewest(root: string, crate: string): string[]
 /// ```
-pub fn remove_older_than_newest(toolchain_root: &Path, crate_name: &str) -> Result<Vec<PathBuf>, ToolchainError> {
+pub fn remove_older_than_newest(
+    toolchain_root: &Path,
+    crate_name: &str,
+) -> Result<Vec<PathBuf>, ToolchainError> {
     let Some(newest) = newest_installed(toolchain_root, crate_name) else {
         return Ok(Vec::new());
     };
@@ -381,7 +467,10 @@ pub fn remove_older_than_newest(toolchain_root: &Path, crate_name: &str) -> Resu
         }
         let directory: PathBuf = version_directory(toolchain_root, crate_name, &name);
         if let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+            return Err(ToolchainError::failure(format!(
+                "cannot remove the superseded {}: {error}",
+                directory.display()
+            )));
         }
         removed.push(directory);
     }
@@ -400,7 +489,10 @@ pub fn remove_older_than_newest(toolchain_root: &Path, crate_name: &str) -> Resu
 /// ```ts
 /// export function cargoBinDir(tool: LockedTool, scope: Scope): string
 /// ```
-pub fn cargo_bin_dir_of(tool: &LockedTool, scope: &Scope) -> PathBuf {
+pub fn cargo_bin_dir_of(
+    tool: &LockedTool,
+    scope: &Scope,
+) -> PathBuf {
     let crate_name: String = package_name(tool);
     if is_repository_published(tool) {
         return current_link(&winning_root(scope, tool), &crate_name).join("bin");
@@ -420,12 +512,18 @@ pub fn cargo_bin_dir_of(tool: &LockedTool, scope: &Scope) -> PathBuf {
 /// ```ts
 /// export function observedCargoVersion(scope: Scope, tool: LockedTool): string | undefined
 /// ```
-pub fn observed_cargo_version(scope: &Scope, tool: &LockedTool) -> Option<String> {
+pub fn observed_cargo_version(
+    scope: &Scope,
+    tool: &LockedTool,
+) -> Option<String> {
     let crate_name: String = package_name(tool);
     if is_repository_published(tool) {
         return winning_version(scope, tool);
     }
-    return recorded_version(&version_directory(&scope.toolchain_root, &crate_name, &tool.version), &crate_name);
+    return recorded_version(
+        &version_directory(&scope.toolchain_root, &crate_name, &tool.version),
+        &crate_name,
+    );
 }
 
 /// Whether a character may appear in a word that needs no quoting.
@@ -465,8 +563,7 @@ pub fn shell_word(word: &str) -> String {
     // ```ts
     // const plain = word !== '' && [...word].every((character) => /[A-Za-z0-9]/.test(character) || '@%+=:,./_-'.includes(character));
     // ```
-    let plain: bool = !word.is_empty()
-        && word.chars().all(is_plain_word_character);
+    let plain: bool = !word.is_empty() && word.chars().all(is_plain_word_character);
     if plain {
         // What: `.to_string()` copies the borrowed text `&str` into a new owned `String` (TS strings need no such step).
         // Why: the function hands back text the caller keeps after `word` is gone.
@@ -517,7 +614,13 @@ pub fn shell_word(word: &str) -> String {
 /// ```ts
 /// export function olderLockMessageFor(kind: 'repo' | 'global', toolId: string, locked: string, used: string, lockFile: string): string
 /// ```
-pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used: &str, lock_file: &Path) -> String {
+pub fn older_lock_message_for(
+    kind: ScopeKind,
+    tool_id: &str,
+    locked: &str,
+    used: &str,
+    lock_file: &Path,
+) -> String {
     // The tool id as one word the person can paste into a shell.
     let word: String = shell_word(tool_id);
     let lock: String = lock_file.display().to_string();
@@ -534,12 +637,20 @@ pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used
 }
 
 /// The older-lock sentence for a tree's lock (the repository scope).
-pub fn older_lock_message(tool_id: &str, locked: &str, used: &str, lock_file: &Path) -> String {
+pub fn older_lock_message(
+    tool_id: &str,
+    locked: &str,
+    used: &str,
+    lock_file: &Path,
+) -> String {
     return older_lock_message_for(ScopeKind::Repo, tool_id, locked, used, lock_file);
 }
 
 /// Whether `used` is newer than `locked`.
-pub fn is_newer_than_locked(used: &str, locked: &str) -> bool {
+pub fn is_newer_than_locked(
+    used: &str,
+    locked: &str,
+) -> bool {
     return compare_versions(used, locked) == Ordering::Greater;
 }
 
@@ -552,7 +663,11 @@ pub fn is_newer_than_locked(used: &str, locked: &str) -> bool {
 /// ```ts
 /// export function olderLockWarnings(scope: Scope, tools: LockedTool[], family?: OsFamily): string[]
 /// ```
-pub fn older_lock_warnings(scope: &Scope, tools: &[LockedTool], family: Option<OsFamily>) -> Vec<String> {
+pub fn older_lock_warnings(
+    scope: &Scope,
+    tools: &[LockedTool],
+    family: Option<OsFamily>,
+) -> Vec<String> {
     let mut warnings: Vec<String> = Vec::new();
     for tool in tools {
         if !is_repository_published(tool) || !applies_to_family(&tool.declaration.os, family) {
@@ -562,7 +677,13 @@ pub fn older_lock_warnings(scope: &Scope, tools: &[LockedTool], family: Option<O
             continue;
         };
         if is_newer_than_locked(&used, &tool.version) {
-            warnings.push(older_lock_message_for(scope.kind, &tool.declaration.id, &tool.version, &used, &scope.lock_file));
+            warnings.push(older_lock_message_for(
+                scope.kind,
+                &tool.declaration.id,
+                &tool.version,
+                &used,
+                &scope.lock_file,
+            ));
         }
     }
     return warnings;

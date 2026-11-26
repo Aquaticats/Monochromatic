@@ -4,12 +4,27 @@
 /// Canonical source and production geometry/rendering interfaces.
 use ide_app::{
     code_colors::CodeColors,
-    document::{Document, ReadingPosition},
-    shaped_text::{ShapedView, TextShaper, Viewport},
-    tile_scene::{read::drawn_runs, snapped, tile_items},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+        Viewport,
+    },
+    tile_scene::{
+        read::drawn_runs,
+        snapped,
+        tile_items,
+    },
 };
 /// Typed OpenType settings and actual shaped glyph runs.
-use parley::{FontFeature, PositionedLayoutItem, setting::Tag};
+use parley::{
+    FontFeature,
+    PositionedLayoutItem,
+    setting::Tag,
+};
 
 /// Source fixture geometry retains fractional display scaling in dedicated cases.
 fn viewport() -> Viewport {
@@ -113,7 +128,10 @@ const COLORS: CodeColors = CodeColors {
 };
 
 /// Select the second character of `===` and shape it at `area`.
-fn selected_ligature(shaper: &mut TextShaper, area: Viewport) -> (Document, ShapedView) {
+fn selected_ligature(
+    shaper: &mut TextShaper,
+    area: Viewport,
+) -> (Document, ShapedView) {
     let mut document = Document::new("===");
     document.select(ReadingPosition {
         anchor: 1,
