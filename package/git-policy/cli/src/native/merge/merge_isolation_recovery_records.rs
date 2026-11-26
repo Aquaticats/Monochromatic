@@ -38,6 +38,17 @@ use crate::merge_isolation_recovery_steps::{
     RecoveryPlace,
 };
 use crate::merge_isolation_take_aside_names::merge_key_of_a_record;
+/// What:
+///  The reader that opens a record as a plain file, and the bound it reads to.
+/// Why:
+///  Opening a pipe for reading waits for a writer that may never come,
+///  and this folder's first read runs on the start of every wrapped command,
+///  so a pipe at a record's name would hold every command with nothing said (`SPEC.md`,
+///  "Every file this wrapper reads from its own record folders is opened as a plain file").
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 use crate::recovery_error::{
     RecoveryError,
     io_failure,
@@ -91,7 +102,7 @@ pub struct MergeRecoveryOutcome {
 /// ```
 pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
     for record in list_merge_intents(git_dir)? {
-        let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
+        let bytes: Vec<u8> = match read_plain_file(record.as_path(), SMALL_FILE_LIMIT) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
@@ -156,7 +167,7 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     > = run_blocking_job_within_the_budget(move || {
         let mut kept: Vec<(PathBuf, Vec<u8>)> = Vec::new();
         for record in list_merge_intents(records_of.as_path())? {
-            let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
+            let bytes: Vec<u8> = match read_plain_file(record.as_path(), SMALL_FILE_LIMIT) {
                 Ok(found) => found,
                 // A record a merge removed after the listing is one this command has nothing to settle.
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,

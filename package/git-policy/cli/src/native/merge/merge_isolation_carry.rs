@@ -735,7 +735,12 @@ pub(crate) fn another_record_still_needs_the_capture(
         if crate::merge_isolation_journal::carry_finished(record.as_path()) {
             continue;
         }
-        let Ok(bytes) = std::fs::read(record.as_path()) else {
+        // A record that is a pipe is no record this command can read, so it is no claim on the ref and the
+        //  read answers at once rather than waiting for a writer (`crate::plain_file`).
+        let Ok(bytes) = crate::plain_file::read_plain_file(
+            record.as_path(),
+            crate::plain_file::SMALL_FILE_LIMIT,
+        ) else {
             continue;
         };
         let Some(intent) = crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice())

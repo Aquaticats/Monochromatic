@@ -108,8 +108,10 @@ fn the_record_it_could_not_read(
 /// in the folder the start of every command reads).
 #[test]
 fn a_record_that_is_a_named_pipe_stops_the_scan_at_once() {
-    let (world, pipe): (World, PathBuf) =
-        pipe_where_a_record_goes("merge-recovery-pipe-scan", "11111111-0000-4000-8000-000000000011");
+    let (world, pipe): (World, PathBuf) = pipe_where_a_record_goes(
+        "merge-recovery-pipe-scan",
+        "11111111-0000-4000-8000-000000000011",
+    );
     let inside: PathBuf = world.git_dir.clone();
     let answered = finished_within(move || return merge_intents_to_recover(inside.as_path()));
     let Some(answer) = answered else {
@@ -117,7 +119,10 @@ fn a_record_that_is_a_named_pipe_stops_the_scan_at_once() {
     };
     let error: RecoveryError = answer.expect_err("a record this command cannot read stops it");
     the_record_it_could_not_read(error.0.as_str(), &pipe);
-    assert!(pipe.exists(), "the pipe is left where it is, as any unreadable record is");
+    assert!(
+        pipe.exists(),
+        "the pipe is left where it is, as any unreadable record is"
+    );
     remove(world.parent.as_path());
 }
 
@@ -166,7 +171,10 @@ fn a_record_that_is_a_named_pipe_is_no_other_records_capture() {
     let Some(answer) = answered else {
         panic!("the search for a record that needs a capture waited on a named pipe")
     };
-    assert!(!answer, "a pipe is no record, so it is no claim on the capture");
+    assert!(
+        !answer,
+        "a pipe is no record, so it is no claim on the capture"
+    );
     remove(world.parent.as_path());
 }
 
@@ -198,7 +206,10 @@ fn a_landed_reading_that_is_a_named_pipe_is_no_reading() {
         "merge-recovery-pipe-landed",
         "55555555-0000-4000-8000-000000000015",
     );
-    let landed: PathBuf = landed_record_path(world.git_dir.as_path(), "55555555-0000-4000-8000-000000000015");
+    let landed: PathBuf = landed_record_path(
+        world.git_dir.as_path(),
+        "55555555-0000-4000-8000-000000000015",
+    );
     crate::subvolume_sync_attrs::make_fifo(landed.as_path(), 0o600)
         .expect("a named pipe where a landed reading goes");
     let inside: PathBuf = world.git_dir.clone();
