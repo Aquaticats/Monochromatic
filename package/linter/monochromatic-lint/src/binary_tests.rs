@@ -2085,6 +2085,46 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     );
 }
 
+/// A module file whose name ends in a space, a tab or a no-break space is refused before either rule runs,
+///  because the list reader trims each line,
+///  so no line could hold a key ending in that name.
+#[test]
+fn layout_a_module_file_name_that_ends_in_whitespace_is_refused() {
+    for (name, escaped) in [
+        ("x.rs ", "x.rs\\u{20}"),
+        ("x.rs\t", "x.rs\\u{9}"),
+        ("x.rs\u{a0}", "x.rs\\u{a0}"),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        fixture.write(
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+        );
+        fixture.write(
+            "src/lib.rs",
+            format!("#[path = \"{name}\"] mod x;\n").as_str(),
+        );
+        fixture.write(format!("src/{name}").as_str(), "pub struct X;\n");
+        fixture.write(
+            CONFIG,
+            r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error" }, "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+        );
+        let refused: Run = run(&fixture.path, &["src"], b"");
+        assert_eq!(refused.status, 2, "{escaped}: {}", refused.stderr);
+        let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+        assert_eq!(reported.len(), 1, "{escaped}: {}", refused.stdout);
+        // The message spells the character a reader cannot see, so it names the file exactly.
+        let message: &str = reported[0]["message"].as_str().expect("message");
+        for part in [
+            format!("The layout rules stop at src/{escaped},").as_str(),
+            "trims away",
+        ] {
+            assert!(message.contains(part), "{escaped}: {message}");
+        }
+        assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+    }
+}
+
 /// A `mod.rs` that no `mod` line declares is not its folder's index:
 ///  the layout rules read the module tree, so a leftover file moves no key,
 ///  hides no code check of the folder's real index, and makes no group.
