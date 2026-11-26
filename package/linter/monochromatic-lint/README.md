@@ -1221,7 +1221,7 @@ so the two rules of a crate take two lists.
 
 #### How a list written before alpha.10 maps
 
-The keys of five kinds of finding changed,
+The keys of five kinds of finding changed and two more shapes are new,
 so a list needs one regeneration,
 and every other line stays as it is:
 
