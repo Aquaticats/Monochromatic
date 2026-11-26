@@ -1,0 +1,132 @@
+# The commit index control's interactive selection read the terminal the test run was started from
+
+`package/git-policy/cli/src/native/commit/commit_index_selection.rs` runs
+`git add --interactive` or `git add --patch` with the standard input of the process that calls it,
+because the person's terminal answers the selection.
+`cargo test --lib` runs the crate's tests as threads of one process,
+so that process's standard input is the terminal the run was started from,
+and one control's Git asked it a question nobody answered.
+
+## Symptom
+
+`commit::commit_index::tests::interactive_selection_succeeds_without_changes` never ended.
+The run printed the Git subcommand's own menu,
+which the test binary's capture does not hold (the child writes the process's own standard output),
+and then nothing:
+
+```console
+$ cargo test --locked --offline --lib --features test-only-switches index:: -- --skip guest --skip _arm_tests
+  1: s)tatus  2: u)pdate  3: r)evert  4: a)dd untracked
+  5: p)atch  6: d)iff  7: q)uit  8: h)elp
+What now> test commit::commit_index::tests::interactive_selection_succeeds_without_changes has been running for over 60 seconds
+the unit-test run showed no sign of work for 120.1 s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started): a test is stuck
+error: test failed, to rerun pass `--lib`
+
+Caused by:
+  process didn't exit successfully: `.../git_policy_cli-...` (signal: 6, SIGABRT: process abort signal)
+```
+
+No `test result` line was printed, so the run proved nothing about the other 229 tests it had finished,
+and the `git add --interactive` the aborted run left behind held the run's output pipe open:
+the capped scope around that run stayed alive 21 minutes after the abort and was stopped by hand
+(`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`, item 3's round note for issue 6507).
+With standard input from the null device the same control passes in 0.04 s,
+which is why no run of a build machine or a container gate had shown it.
+
+A terminal on the run's standard input is what the symptom needs,
+and the first reproduction attempt here did not have one:
+`script --quiet --return --command ... /dev/null` with the caller's own standard input at the end of file
+closes the pseudo-terminal at once,
+so the Git read an end of file, answered `Bye.` and the run was green.
+The runs below keep the pseudo-terminal's master open with a writer that never writes
+(`sleep | script ...`), which is the shape a terminal at a keyboard has.
+
+## Root cause
+
+`prepare_interactive_selection` builds one `git_command` and starts it without a `stdin` of its own
+(`commit/commit_index_selection.rs`):
+
+```rust
+let mut command = git_command(
+    context.real_git.as_path(),
+    arguments.as_slice(),
+    context.overlay.as_slice(),
+    StartOwner::Wrapper,
+);
+command
+    .current_dir(cwd)
+    .env("GIT_INDEX_FILE", commit_index)
+    .env("GIT_OBJECT_DIRECTORY", object_directory);
+let status: std::process::ExitStatus = match command.status_retrying() {
+```
+
+A child of a `std::process::Command` with no `stdin` inherits its parent's file descriptors,
+so the Git read the descriptor the test binary inherited from the run.
+`git add --interactive` prints its menu and waits for an answer whether or not the index holds a change
+(`git add --patch` prints `No changes.` and ends, which is why only the `--interactive` control hung),
+so the control waited for a person at a terminal that was the caller's shell.
+
+The control asked the process for an answer, and the process is the whole run:
+`cargo test` holds its tests as threads of one process,
+which is the shape debt ledger item 3 collects.
+
+## The fix
+
+Both controls that start the selection run their body in a child of the test binary
+(`testing/process_wide_state_child_test_support.rs`),
+whose standard input is the null device,
+so the Git reads an end of file and ends:
+
+- `commit::commit_index::tests::interactive_selection_succeeds_without_changes`,
+- `commit::commit_index::tests::interactive_selection_reports_a_failed_git_add`.
+  This one failed on a missing pathspec file before it could read anything and passed either way,
+  so it moved with its sibling: the rule is that no control of this crate hands a Git the run's standard input,
+  not that one control was seen to hang.
+
+`source_guard/no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs` keeps the cause from coming
+back:
+a control of a test-only source that names `prepare_interactive_selection(` in code
+and does not start a child of its own is a finding.
+It reads a test source through `source_guard/controls_naming_a_call_tests.rs`,
+the scan the guard over the preparation's ledger uses,
+so a control's code places and controls are read once and not twice.
+
+Nothing of the release changed.
+The selection's Git reads the person's terminal in the wrapper,
+which is what a `commit -p` or `commit --interactive` asks for,
+and `package/git-policy/cli/SPEC.md` says the wrapper's own commits run with inherited stdio
+("When real Git builds the commit,
+it runs in the scratch repository after policy evaluation settles,
+with inherited stdio").
+
+## What the measurements say
+
+With a terminal on the run's standard input, on this host:
+
+- before, the issue's `index::` filter printed `What now>`,
+  ran 228 test lines with one failure of another module
+  (`worktree_clone_add_route::add_index::tests::a_second_private_write_and_a_publication_over_a_name_refuse`,
+  which passes in the runs where this control does not hang),
+  and was aborted at 120.1 s with no `test result` line;
+- before, the control alone, with its body in the run's own process, printed the menu
+  and was aborted at 120.1 s;
+- after, the same filter answered `test result: ok. 230 passed; 0 failed` in 13.47 s,
+  and the control alone `ok. 1 passed; 0 failed` in 0.04 s;
+- after, both selection controls together answered `ok. 2 passed; 0 failed`.
+
+With the control's child starter taken out, the guard answered
+`test result: FAILED. 2 passed; 1 failed` and named
+`commit/commit_index_tests.rs:977 (interactive_selection_succeeds_without_changes)`.
+
+## What this page does not cover
+
+- The other controls of this crate that start a program with the run's standard input are not audited here
+  beyond the interactive selection:
+  the binary controls give the wrapper's own binary the answers they mean it to type
+  (`binary/binary_service_landing_selection_tests.rs`'s `Case::input`),
+  and the forwarding controls' stand-ins end before they read anything
+  (`lock/index_writer_forward_tests.rs`).
+- Debt ledger item 3's other mechanisms are unchanged
+  (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`).
+- The container gate was not run for this change,
+  as `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` and the round's rules say.

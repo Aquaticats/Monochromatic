@@ -559,6 +559,49 @@ Status:
 incomplete,
 unapproved and not final.
 
+Round of 2026-11-26,
+issue 6510:
+the control the note above left unfixed is fixed,
+`commit::commit_index::tests::interactive_selection_succeeds_without_changes`,
+and its sibling that starts the selection over a pathspec file that cannot be read:
+`prepare_interactive_selection` starts `git add --interactive` or `git add --patch`
+with the standard input of its own process on purpose,
+because the person's terminal answers the selection,
+and a threaded run's one process has the terminal the run was started from as its standard input,
+so the Git printed its menu and waited.
+Both controls run their body in a child of their own now
+(`testing/process_wide_state_child_test_support.rs`),
+whose standard input is the null device,
+and `source_guard/no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs`
+refuses a control that names `prepare_interactive_selection(` without one,
+reading a test source through the scan it shares with the ledger guard above
+(`source_guard/controls_naming_a_call_tests.rs`).
+Nothing of the release changed:
+the selection's Git still reads the person's terminal.
+Measured on this host,
+with a terminal on the run's standard input:
+before,
+the issue's `index::` filter printed `What now>` from the Git the control started,
+the run's watchdog aborted the module after 120.1 s with no `test result` line,
+and the Git it left behind held the run's output pipe open until the capped scope ended it;
+with the body in the run's own process,
+the control alone printed the same menu and was aborted at 120.1 s,
+and its sibling that the selection fails for a pathspec file answered `ok. 1 passed` in 0.02 s,
+so that one never read the terminal even before.
+After the change,
+the same `index::` filter answered `test result: ok. 230 passed; 0 failed` in 13.47 s,
+the control alone `ok. 1 passed; 0 failed` in 0.04 s,
+and the two selection controls together `ok. 2 passed; 0 failed`.
+With the control's child starter taken out,
+the guard answered `FAILED. 2 passed; 1 failed`
+and named `commit/commit_index_tests.rs:977 (interactive_selection_succeeds_without_changes)`;
+the starter was restored.
+`commit::commit_index::` answered `test result: ok. 52 passed; 0 failed`,
+and `source_guard::` `ok. 144 passed; 0 failed`.
+Status:
+incomplete,
+unapproved and not final.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
