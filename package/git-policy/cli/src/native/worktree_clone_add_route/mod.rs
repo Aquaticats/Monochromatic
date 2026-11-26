@@ -30,6 +30,10 @@
 //! - `add_git_words.rs`: the locked add's arguments and the person's own-lock refusal.
 //! - `add_index.rs`: the fill's private index and its publication.
 //! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
+//! - `add_registration_reads.rs`:
+//!   what the scan reads: the entries of `<common>/worktrees`, a `gitdir`, one record that may be absent, and the slots the home holds.
+//! - `add_registration_lock.rs`: the lock the adopted registration owes, settled or refused.
+//! - `add_registration_clearing.rs`: one incomplete registration cleared, and the names a person reads.
 //! - `add_registration.rs`: the scan of `<common>/worktrees` and what it settles.
 //! - `add_route_gate.rs`: which add the route serves, and its facts.
 //! - `add_route_git.rs`:
@@ -51,7 +55,10 @@
 //! - `add_plan_stop.rs`: the stop a standing plan leaves,
 //!   with the command that ends it.
 //! - `add_preflight.rs`: what A0 proves before the claim writes anything.
-//! - `add_route_run.rs`: the entry point, the claim, the phase machine and the end.
+//! - `add_route_run_record.rs`:
+//!   the record's generation, a standing record proved to be this add's, its first write, and the slot identity every step relies on.
+//! - `add_route_run_end.rs`: the end of one add, repairing the new worktree and handing its trash over.
+//! - `add_route_run.rs`: the entry point, the claim and the phase machine.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -91,6 +98,12 @@ pub mod add_plan_clone_presence;
 pub mod add_plan_stop;
 /// The scan of the registrations and what it settles.
 pub mod add_registration;
+/// One incomplete registration cleared through the recipe.
+pub mod add_registration_clearing;
+/// The lock the adopted registration owes.
+pub mod add_registration_lock;
+/// What the scan of the registrations reads.
+pub mod add_registration_reads;
 /// Which add the route serves, and the facts every step uses.
 pub mod add_route_gate;
 /// The Git runner the fill's own restore steps start.
@@ -110,6 +123,10 @@ pub mod add_route_steps_snapshot_and_capture;
 pub mod add_preflight;
 /// The route's entry point and runner.
 pub mod add_route_run;
+/// The end of one add, after the fill.
+pub mod add_route_run_end;
+/// The add's durable record.
+pub mod add_route_run_record;
 pub mod add_route_steps;
 /// The source shapes the fill's restore would refuse after the clone is made.
 pub mod add_source_the_restore_cannot_prove;
