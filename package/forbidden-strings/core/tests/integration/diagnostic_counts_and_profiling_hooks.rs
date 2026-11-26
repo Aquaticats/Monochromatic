@@ -7,7 +7,7 @@
 //! Why:
 //!      This file is the Rust module that groups the diagnostic tests,
 //!  so the test binary
-//!          gives them one namespace and the shared key stays in `integration.rs`.
+//!          gives them one namespace and the shared key stays in `tests/integration/main.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
