@@ -33,7 +33,7 @@ use crate::source_scan_tests::{CrateRoot, real_roots, source_root, write_tree};
 ///  The first names the text reader and the second the byte reader;
 /// `fs::read(` is the tail of `std::fs::read(` and of a bare `fs::read(`,
 /// and it is not a prefix of the other, so counting both counts each call once.
-const CALLS_THAT_CAN_WAIT: [&str; 2] = ["fs::read_to_string(", "fs::read("];
+const CALLS_THAT_CAN_WAIT: &[&str] = &["fs::read_to_string(", "fs::read("];
 
 /// The one file that may make those calls,
 /// by its path relative to the source root.
@@ -46,7 +46,7 @@ const THE_PLAIN_FILE_READER: &str = "foundation/plain_file.rs";
 ///  A list entry names one of these classes,
 /// so no entry is left without a reason,
 /// and a class no entry names is reported as stale.
-const KEPT_CLASSES: [(&str, &str); 5] = [
+const KEPT_CLASSES: &[(&str, &str)] = &[
     (
         "system",
         "the kernel or the operating system's own installation writes this name (a `/proc` or `/sys` fact, the mount \
@@ -83,7 +83,7 @@ const KEPT_CLASSES: [(&str, &str); 5] = [
 ///  so the list can only shrink.
 ///  A file whose kept sites belong to two classes appears twice,
 /// and the calls its entries give add up to the calls it makes.
-const KEPT_SITES: [(&str, usize, &str); 93] = [
+const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("account_companion/companion_settings.rs", 1, "system"),
     ("candidate/candidate_private_index.rs", 1, "own-record"),
     ("commit/conclusion_cleanup.rs", 2, "own-record"),
@@ -162,6 +162,8 @@ const KEPT_SITES: [(&str, usize, &str); 93] = [
     ("worktree_clone_prune_pointer/pointer_restore.rs", 1, "own-record"),
     ("worktree_clone_record_settling/settling_removals.rs", 1, "own-record"),
     ("worktree_clone_record_settling/settling_slot.rs", 1, "own-record"),
+    ("worktree_clone_removal_cancel/the_reversing_request.rs", 1, "system"),
+    ("worktree_clone_removal_cancel/the_staged_state.rs", 1, "system"),
     ("worktree_clone_removal_proof_and_plan/unmount_request.rs", 1, "system"),
     ("worktree_clone_unmount/staging_calls.rs", 3, "system"),
     ("worktree_copying/worktree_copy_interrupted_add_settlement.rs", 1, "own-record"),
@@ -266,7 +268,7 @@ fn counts_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<(String, usize)>, S
 /// ```
 fn listed() -> Vec<(String, usize)> {
     let mut added: Vec<(String, usize)> = Vec::new();
-    for (path, count, _class) in KEPT_SITES {
+    for &(path, count, _class) in KEPT_SITES {
         // Whether an earlier entry of the same file took this one's calls.
         let mut took_it: bool = false;
         for (named, total) in added.iter_mut() {
