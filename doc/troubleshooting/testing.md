@@ -503,7 +503,9 @@ while the same file alone passes:
 ```
 
 Two causes,
-measured on 2026-11-26 while resolving issue 6504.
+measured on 2026-11-26 while resolving issue 6504,
+and a third,
+measured the same day while resolving issue 6508.
 
 ### Cause 1: a `/proc` read of a process that ended between the listing and the read
 
@@ -549,10 +551,98 @@ and leaves that figure room to take half again.
 The work such a run leaves behind lives longer than the clock,
 so the run still ends on its clock rather than after its work.
 
+### Cause 3: a control that spends its own bound in real time
+
+A control that arms a bound and then sleeps almost all of it has given the host the decision:
+`package/pi-shared/subagent-driver/src/wait-for-an-answer.unit.test.ts`
+armed a 100 ms silence bound,
+slept 90 ms of it,
+and only then paused the silence;
+it failed once in a full parallel run on 2026-11-26:
+
+```text
+[startWaitingForAnAnswer] [the silence starts afresh when a compaction ends, so a wait that was nearly out gets the whole bound again] [FAIL] (178ms)
+  AssertionError: expected true to equal false  @wait-for-an-answer.unit.test.ts:260
+```
+
+Issue 6508 read that as a resume more than 10 ms late:
+the pause reaches `pauseSilence` after the bound settled,
+and `pauseSilence` returns on `state.over` without arming anything.
+That reading is not what decides the outcome.
+A probe of the control's own sequence,
+run against the package's built code,
+stalled its own thread at each candidate place with `Atomics.wait`,
+a block rather than a spin:
+
+```text
+gap between arming the bound and registering the sleep: p99 0.011 ms, max 0.110 ms over 500 passes
+control as written, no stall:                                            0 of 100 failed
+40 ms stall inside the sleep's continuation, after the sleep came back: 0 of 100 failed
+100 ms block across both due times, sleep and bound due together:       0 of 100 failed
+ 5 ms stall before the sleep is registered:                             0 of 100 failed
+11 ms stall before the sleep is registered:                           100 of 100 failed
+```
+
+A late continuation cannot lose:
+when the sleep and the bound are both due,
+Node runs the sleep's continuation,
+whose `clearTimeout` retires the bound,
+before the bound's own callback.
+What loses is a stall greater than the 10 ms the control leaves itself
+**between arming the bound and registering the sleep**,
+which is one synchronous stretch of a few statements:
+a preemption there,
+a stop-the-world pause or
+a page-fault storm,
+any of which delays the sleep's due time past the bound's.
+Every failure the probe made that way ended `silence`,
+which is the settle the issue quotes.
+So the window is 10 ms wide,
+and ordinary runs cross it with 0.011 ms to spare,
+which is why it failed once in a full suite and never alone.
+
+### What a control does instead: own the clock it reads
+
+The same control now installs a clock of its own
+through the harness's context-owned `Date.now` stub,
+which `package/test-harness/core/README.md` describes under "Stubs and spies".
+A bound is then due at a moment the control decides:
+
+```ts
+const clock: { now: number } = { now: Date.now(), };
+sinon.stub(Date, 'now',)
+  .callsFake(() => clock.now,);
+```
+
+That stub follows the reading async context,
+so the other controls in the same file keep the real clock
+while running concurrently in the same process.
+A sibling read the real clock while the stubbing child held the fake,
+which is what makes the stub usable in a file whose controls run together.
+The control then advances its own clock over the 90 ms of served silence
+and over a 300 ms compaction that outlives the bound,
+and no timer can be due between arming the bound and pausing the silence,
+because that stretch yields nothing.
+It asserts what the bound owes:
+not settled after `resumeSilence`,
+still not settled after 90 ms of the bound is served again,
+and `silence` with `no answer in 100 ms` once the whole bound is served.
+No shipped code changed;
+the behaviour held is the README's own words,
+"`compaction_start` stops the count and `compaction_end` starts it again,
+which means a compaction Pi is running never spends the silence a prompt is allowed".
+
+A control proves nothing until it is shown to fail:
+removing `state.silentSince = Date.now()` from `resumeSilence`
+(`package/pi-shared/subagent-driver/src/wait-for-an-answer.ts`)
+makes this control fail deterministically in 113 ms,
+at the assertion after `resumeSilence`:
+`AssertionError: expected true to equal false`.
+
 ### Verification
 
-Both controls fail in a full run of the package's unit suite,
-and pass in it after the change:
+Each control fails in a full run of the package's unit suite when its cause is present,
+and passes in it after the change.
 
 ```text
 $ mise run //package/pi-shared/subagent-driver:test:unit
@@ -562,3 +652,7 @@ $ mise run //package/pi-shared/subagent-driver:test:unit -- \
 
 The second run needs both files named:
 the harness runs a whole file and has no filter that would run one test alone.
+
+The clock control needs only its own file:
+`mise run //package/pi-shared/subagent-driver:test:unit -- src/wait-for-an-answer.unit.test.ts`,
+which passes all six controls in it.
