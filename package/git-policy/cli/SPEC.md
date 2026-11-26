@@ -918,7 +918,8 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   because the add's own line names that answer;
   a probe that cannot be read gets one line saying so.
   The report is read under a bound of its own,
-  the command writes nothing, and the exit status never depends on it.
+  the command writes nothing,
+  and the exit status never depends on it.
 
 ## Lifecycle
 

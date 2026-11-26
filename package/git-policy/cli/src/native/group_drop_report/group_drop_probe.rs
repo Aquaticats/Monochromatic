@@ -389,7 +389,8 @@ impl ProbeCall {
     }
 
     /// What:
-    ///  The call a word the child wrote names, where this build knows it.
+    ///  The call a word the child wrote names,
+    ///  where this build knows it.
     /// Why:
     ///  The parent reads only what this build can act on,
     ///  and an unknown word is said rather than read as a pass.
@@ -431,7 +432,8 @@ impl ProbeCall {
 /// What:
 ///  Write one failed call and the number it answered over the pipe.
 /// Why:
-///  The parent judges an answer, not an exit status,
+///  The parent judges an answer,
+///  not an exit status,
 ///  so the failing call and its errno travel as text.
 ///  Nothing here allocates:
 ///  after a `fork` only signal-safe work may run,
@@ -466,7 +468,8 @@ fn write_answer(
 }
 
 /// What:
-///  A number as decimal digits, written into the end of `into`,
+///  A number as decimal digits,
+///  written into the end of `into`,
 ///  answering how many bytes it took.
 /// Why:
 ///  The child writes an errno without allocating,

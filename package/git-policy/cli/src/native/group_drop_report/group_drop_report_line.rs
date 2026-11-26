@@ -47,7 +47,8 @@ use super::group_drop_probe::{
 pub const GROUP_DROP_PREFIX: &str = "account companion:";
 
 /// What:
-///  The path that names how many user namespaces this host gives.
+///  The path that names how many user namespaces this host gives,
+///  as the kernel's own C string.
 /// Why:
 ///  A person seeing the skip needs the three settings that decide it,
 ///  and this is the first the design names.
@@ -56,18 +57,19 @@ pub const GROUP_DROP_PREFIX: &str = "account companion:";
 /// ```ts
 /// const MAX_USER_NAMESPACES = '/proc/sys/user/max_user_namespaces';
 /// ```
-const MAX_USER_NAMESPACES: &str = "/proc/sys/user/max_user_namespaces";
+const MAX_USER_NAMESPACES: &std::ffi::CStr = c"/proc/sys/user/max_user_namespaces";
 
 /// What:
 ///  The path a distribution patches in to disable user namespaces wholesale.
 /// Why:
-///  Where it exists, its value is part of why the companion skipped.
+///  Where it exists,
+///  its value is part of why the companion skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const UNPRIVILEGED_USERS_CLONE = '/proc/sys/kernel/unprivileged_userns_clone';
 /// ```
-const UNPRIVILEGED_USERS_CLONE: &str = "/proc/sys/kernel/unprivileged_userns_clone";
+const UNPRIVILEGED_USERS_CLONE: &std::ffi::CStr = c"/proc/sys/kernel/unprivileged_userns_clone";
 
 /// What:
 ///  The path Ubuntu 24.04's AppArmor restriction is set through.
@@ -79,7 +81,20 @@ const UNPRIVILEGED_USERS_CLONE: &str = "/proc/sys/kernel/unprivileged_userns_clo
 /// ```ts
 /// const APPARMOR_RESTRICTION = '/proc/sys/kernel/apparmor_restrict_unprivileged_userns';
 /// ```
-const APPARMOR_RESTRICTION: &str = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
+const APPARMOR_RESTRICTION: &std::ffi::CStr =
+    c"/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
+
+/// What:
+///  How many bytes of a setting are read.
+/// Why:
+///  A setting is a short decimal number and a line feed,
+///  and a fixed buffer is what makes the read bounded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SETTING_BYTES = 64;
+/// ```
+const SETTING_BYTES: usize = 64;
 
 /// What:
 ///  The word a setting the running kernel does not have prints.
@@ -240,16 +255,43 @@ fn read_settings() -> HostSettings {
 /// Why:
 ///  A kernel without the switch prints the word rather than an empty field,
 ///  which a person would read as a value.
+///  The read is made here rather than through `crate::plain_file`,
+///  because this folder may not use another one without joining a loop its
+///  allow list tolerates:
+///  each path is a `/proc/sys` entry the kernel answers at once,
+///  which can be no pipe and no mount,
+///  and the read takes a fixed buffer,
+///  so neither the open nor the read can wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const value = tryReadFile(path)?.trim() ?? 'absent';
+/// const value = readAtOnce(path)?.trim() ?? 'absent';
 /// ```
-fn value_of(path: &str) -> String {
-    return match std::fs::read_to_string(path) {
-        Ok(text) => String::from(text.trim()),
-        Err(_missing) => String::from(ABSENT),
+fn value_of(path: &std::ffi::CStr) -> String {
+    // What: the open of one kernel setting, read-only and closed on exec.
+    // Why: a descriptor would leak into a program the report starts, and nothing here writes.
+    let opened: libc::c_int = unsafe {
+        libc::open(
+            path.as_ptr(),
+            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NONBLOCK,
+        )
     };
+    if opened < 0 {
+        return String::from(ABSENT);
+    }
+    // What: the one read of the setting, into a buffer of a fixed size.
+    // Why: the bound is what keeps a value the kernel never ends from holding the report.
+    let mut bytes: [u8; SETTING_BYTES] = [0; SETTING_BYTES];
+    let read: libc::ssize_t =
+        unsafe { libc::read(opened, bytes.as_mut_ptr().cast(), SETTING_BYTES) };
+    let _closed: libc::c_int = unsafe { libc::close(opened) };
+    if read <= 0 {
+        return String::from(ABSENT);
+    }
+    let Ok(text) = std::str::from_utf8(&bytes[..read as usize]) else {
+        return String::from(ABSENT);
+    };
+    return String::from(text.trim());
 }
 
 /// Controls stay out of the release executable.

@@ -27,7 +27,8 @@ const ABSENT: &str = "absent";
 /// The value the AppArmor restriction reads where it is on.
 const RESTRICTION_ON: &str = "1";
 
-/// One host's three settings, as the skip's report prints them.
+/// One host's three settings,
+/// as the skip's report prints them.
 fn settings() -> HostSettings {
     return HostSettings {
         max_user_namespaces: String::from(NAMESPACES),
@@ -147,7 +148,9 @@ fn a_probe_that_could_not_be_read_is_said() {
 
 /// What:
 ///  The report the doctor makes on this host answers in this module's shape:
-///  nothing, or its own four lines, or the one line that says why not.
+///  nothing,
+///  or its own four lines,
+///  or the one line that says why not.
 #[test]
 fn the_doctors_own_report_answers_this_host() {
     let report: String = group_drop_report();

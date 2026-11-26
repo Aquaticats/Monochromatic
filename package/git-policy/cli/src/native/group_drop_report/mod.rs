@@ -9,9 +9,11 @@
 //!  which asks for `CAP_SYS_ADMIN` inside the new user namespace
 //!  (`doc/decision/cli-git-zfs-start-probe.md`,
 //!  "The account companion's group drop on Ubuntu 24.04").
-//!  `doctor` may not write anything, claim a slot or run an add,
+//!  `doctor` may not write anything,
+//!  claim a slot or run an add,
 //!  so the fact is measured the way an add measures it and printed here,
-//!  and the person reads that the group drop was skipped, why,
+//!  and the person reads that the group drop was skipped,
+//!  why,
 //!  and what to do,
 //!  without running an add to find out.
 //!  The remedies are measured ones
@@ -32,13 +34,12 @@
 //! each using only files listed before it:
 //!
 //! - `group_drop_probe.rs`:
-//!   the probe, the child, its bounded wait and what an answer means.
-//! - `group_drop_probe_tests.rs`:
-//!   the controls of each answer and of the digits the child writes.
+//!   the probe,
+//!   the child,
+//!   its bounded wait and what an answer means.
 //! - `group_drop_report_line.rs`:
-//!   the four lines a skipped drop prints, its settings and its remedies.
-//! - `group_drop_report_line_tests.rs`:
-//!   the controls of the report, one per answer.
+//!   the four lines a skipped drop prints,
+//!   its settings and its remedies.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

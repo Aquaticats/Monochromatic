@@ -1508,7 +1508,8 @@ fn the_doctors_link_line_reads_the_home_the_invocation_names() {
 
 /// What:
 ///  The doctor's host section ends with the account companion's group-drop
-///  report, after the link line a person reads first,
+///  report,
+///  after the link line a person reads first,
 ///  and where a host that wrote the `deny` makes no report the section holds
 ///  the link line alone.
 /// Why:

@@ -109,7 +109,8 @@ fn a_number_is_written_as_its_digits() {
 ///  not a probe that could not be read,
 ///  and it leaves no child behind.
 /// Why:
-///  The read is a fork, a pipe and two waits,
+///  The read is a fork,
+///  a pipe and two waits,
 ///  and the controls above judge bytes alone;
 ///  this one exercises the machinery on whichever host it runs.
 #[test]
