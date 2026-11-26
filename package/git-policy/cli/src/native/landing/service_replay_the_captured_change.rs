@@ -6,7 +6,8 @@
 //!   The bytes a commit lands are the bytes that were there when the person ran the command,
 //!  so the change is captured once and carried,
 //!  and a replay merges it onto the branch as it is now instead of reading the worktree.
-//!  The stamp of the capture is kept for the same reason: a retry keeps the first capture's stamp,
+//!  The stamp of the capture is kept for the same reason:
+//!  a retry keeps the first capture's stamp,
 //!  because the merged bytes are not a new capture.
 //!
 //! In TS you'd write (pseudocode):

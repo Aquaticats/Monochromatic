@@ -5,7 +5,8 @@
 //!  the ones an amend keeps from the commit it replaces,
 //!  and the names and dates the command line overrides.
 //! Why:
-//!   A commit's identity is Git's own answer for the person, the environment and the configuration,
+//!   A commit's identity is Git's own answer for the person,
+//!  the environment and the configuration,
 //!  and an amend keeps the author of the commit it replaces;
 //!  so the questions are asked here,
 //!  once,
