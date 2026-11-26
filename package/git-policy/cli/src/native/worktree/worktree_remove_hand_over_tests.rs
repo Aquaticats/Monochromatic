@@ -12,9 +12,12 @@
 //! (issue 6475).
 
 use super::*;
+use crate::fs_beneath::open_root;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::service_work::Verdict;
+use crate::service_work::work_directory;
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{
     an_empty_process_table,
@@ -23,7 +26,12 @@ use crate::test_support::{
     remove,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use crate::work_item::WorkKind;
+use crate::work_item::{
+    PENDING,
+    WorkKind,
+    enqueue,
+    state_directory,
+};
 use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_remove::{
     Held,
@@ -33,6 +41,7 @@ use crate::worktree_remove::{
     remove_with,
 };
 use crate::worktree_remove_hand_over as test_support;
+use std::path::PathBuf;
 
 /// What:
 ///  A subvolume inside a fresh disposable root,

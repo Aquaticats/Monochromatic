@@ -47,6 +47,12 @@ mod fixture_support_shared_by_both_test_targets;
 #[path = "binary_support_process_group_members.rs"]
 mod support_process_group_members;
 
+/// A standard error nobody drains,
+/// the bounded wait for a command given one,
+/// and the bytes still waiting in it.
+#[path = "binary_support_a_full_standard_error.rs"]
+mod support_a_full_standard_error;
+
 /// The executable, words and runtime directory a fixture's service starts with, and the manager's restart.
 #[path = "binary_support_fixture_service_start.rs"]
 mod support_fixture_service_start;

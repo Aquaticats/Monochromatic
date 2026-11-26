@@ -63,6 +63,12 @@ mod release_bins_tests;
 #[path = "diagnostic_door_tests.rs"]
 mod diagnostic_door_tests;
 
+/// The commit path's notes:
+/// no file that says one writes standard error on the command's own thread.
+#[cfg(test)]
+#[path = "the_commit_path_writes_its_notes_off_its_thread_tests.rs"]
+mod the_commit_path_writes_its_notes_off_its_thread_tests;
+
 /// The mechanical ban:
 /// no release code starts the wrapper,
 /// passes it management words or writes shell text.
