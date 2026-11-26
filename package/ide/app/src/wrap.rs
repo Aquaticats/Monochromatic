@@ -335,7 +335,7 @@ fn break_with_indent(
         },
     );
     layout.break_all_lines(Some(width * scale));
-    layout.align(Alignment::Start, AlignmentOptions::default());
+    layout.set_alignment(Alignment::Start, AlignmentOptions::default());
 }
 
 /// Unit tests of the break rules and the indent live in a sidecar file.
