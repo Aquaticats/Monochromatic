@@ -1,7 +1,8 @@
 /**
  The driver's bin against a stand-in `pi`, one test for each way a run can go. Each test uses its own disposable folder. A test
  waits for what the feed or the stand-in's log shows instead of for a length of time, so a loaded host cannot change its outcome,
- and a driver a test leaves running is ended before its folder goes.
+ and a driver a test leaves running is ended before its folder goes. The two tests whose subject is the run's own wall clock size
+ that clock from what they start: a run of the same driver and stand-in, made first, says how long this host takes to start one.
 
  @module
  */
@@ -63,6 +64,7 @@ import {
   WITHOUT_MASKING_SCENARIO,
 } from './stand-in-pi-masking-fixture.ts';
 import { MESSAGE_BEFORE_SETTLE, } from './stand-in-pi-prompt-plays-fixture.ts';
+import { WORK_BEYOND_THE_RUN_MILLISECONDS, } from './stand-in-pi-work-plays-fixture.ts';
 import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
@@ -222,15 +224,6 @@ const RUN_WALL_SECONDS = 300;
  reach first, so start-up delayed past this limit changes how the run got there, never what it ends with.
  */
 const SHORT_WALL_SECONDS = 1;
-/**
- Seconds a run may last when its subject is a compaction that outlives it: above the start-up and the three commands before the
- prompt, so the wall clock reaches the run while Pi is compacting, and short so the test is quick.
- */
-/**
- Seconds a compaction test may last, which leaves the start about twice the room it needs on a loaded host: a run whose clock is
- gone before Pi takes the prompt ends without the compaction event the test reads.
- */
-const COMPACTION_WALL_SECONDS = 8;
 /** Seconds of silence after which a settled run ends. */
 const IDLE_SECONDS = 0.2;
 /** Seconds of idle wait in tests that end the run with the stop file. */
@@ -285,13 +278,15 @@ const FAILED_STATUS = 1;
 /** Seconds a test allows a driver beyond the run's own wall limit, so a stalled driver fails rather than hangs it. */
 const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 /**
- Seconds a run may last when its subject is work that outlives it: above the start-up and the turn that leaves the work, and
- short so the test is quick. The work itself is set far beyond this, so only the wall clock can end the run.
+ Milliseconds a wall clock leaves above the start-up the run itself measured, for the two subjects that need a state reached
+ before the clock ends: a compaction under way, and work left running.
 
- The start-up on a loaded host is several times a quiet one's, and a run whose clock is gone before Pi answers its command list
- sends no prompt at all, so this leaves the start about three times the room a quiet host needs rather than the same second.
+ The clock has to outlast the start-up, which the suite's other files stretch by however busy they keep this machine, and it has
+ to end while the work the run left behind still runs. This room is a quarter of that work's own life, so a clock of the
+ measured start-up plus this room still ends well inside it, and a start-up may grow by this room between the run that measured
+ it and the run the clock bounds.
  */
-const WORK_OUTLASTED_WALL_SECONDS = 8;
+const WALL_CLOCK_ROOM_MILLISECONDS = WORK_BEYOND_THE_RUN_MILLISECONDS / 4;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /**
@@ -322,7 +317,8 @@ const EVENT_WAIT_MILLISECONDS = (RUN_WALL_SECONDS + TEST_TEARDOWN_ALLOWANCE_SECO
  ```
  */
 function outerDeadlineMilliseconds(wallSeconds: number,): number {
-  return (wallSeconds + TEST_TEARDOWN_ALLOWANCE_SECONDS) * MILLISECONDS_PER_SECOND;
+  // A whole number of milliseconds: the bound is handed to `execFile` as `timeout`, which refuses a fraction.
+  return Math.ceil((wallSeconds + TEST_TEARDOWN_ALLOWANCE_SECONDS) * MILLISECONDS_PER_SECOND,);
 }
 
 /**
@@ -923,6 +919,54 @@ async function runDriver(
   };
 }
 
+/**
+ Milliseconds a run of this driver and its stand-in took to take its prompt, measured by a run the control makes for it.
+
+ The feed counts from the driver's own start, which is the moment the run's deadline is counted from, so this figure is what a
+ wall clock has to exceed before the run can reach any state of its own.
+
+ @returns the milliseconds the run took to take its prompt
+
+ @throws Error when that run took no prompt, which is a start that failed rather than the clock of the control's own run
+ */
+async function millisecondsToTakeAPrompt(): Promise<number> {
+  const run = await runDriver({ scenario: 'normal', idleSeconds: 0, },);
+  /**
+   The feed's own record of the prompt Pi took.
+   */
+  const taken = run.feed.find((entry,) => (entry.kind === 'prompt_sent') && (entry.success === true),);
+  /**
+   When that prompt went, counted from the driver's start.
+   */
+  const at = taken?.t;
+  if ((typeof at) !== 'number') {
+    throw new Error(
+      `the run that was to measure a start-up took no prompt: it ended ${run.summary.endReason} with ${String(run.feed.length,)} lines on its feed`,
+    );
+  }
+  return at;
+}
+
+/**
+ Seconds of wall clock a run whose subject is its own clock is given, sized from what this control starts rather than guessed.
+
+ `--wall-seconds` bounds Pi's start-up as well as the watch (`README.md`: "It bounds Pi's start-up, every answer the driver waits
+ for, and the watch"), so a run that has to reach a state before its clock ends needs a clock longer than this host gives that
+ start-up. How long the start-up takes is whatever the suite's other files leave the machine to give, so the figure comes from a
+ run of the same driver and stand-in, made moments before, and from the room above it.
+
+ @returns the seconds to give the run as its `--wall-seconds`
+
+ @throws Error when the run that was to measure the start-up took no prompt
+ */
+async function wallClockSecondsForTheStartUp(): Promise<number> {
+  /**
+   The milliseconds the same two programs took to take a prompt here.
+   */
+  const measured = await millisecondsToTakeAPrompt();
+  return (measured + WALL_CLOCK_ROOM_MILLISECONDS) / MILLISECONDS_PER_SECOND;
+}
+
 await describe({
   name: 'drive-pi-subagent',
   children: [
@@ -1218,7 +1262,7 @@ await describe({
       fn: async () => {
         const run = await runDriver({
           scenario: 'leaves-work-running-past-its-wall-clock',
-          wallSeconds: WORK_OUTLASTED_WALL_SECONDS,
+          wallSeconds: await wallClockSecondsForTheStartUp(),
         },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('wall-clock',);
@@ -1246,7 +1290,7 @@ await describe({
     it({
       name: 'a Pi whose compaction outlives the run ends at the wall clock, and the summary and the message name the compaction',
       fn: async () => {
-        const run = await runDriver({ scenario: 'compaction-never-ends', wallSeconds: COMPACTION_WALL_SECONDS, },);
+        const run = await runDriver({ scenario: 'compaction-never-ends', wallSeconds: await wallClockSecondsForTheStartUp(), },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('wall-clock',);
         expect(run.feed.some((entry,) => entry.kind === 'compaction_start'),).toBe(true,);
