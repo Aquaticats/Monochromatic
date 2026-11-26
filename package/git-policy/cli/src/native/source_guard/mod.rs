@@ -129,6 +129,13 @@ mod no_control_reads_the_commit_ledgers_in_the_run_tests;
 #[path = "notice_controls_take_their_window_tests.rs"]
 mod notice_controls_take_their_window_tests;
 
+/// The ban on a control starting the interactive selection in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose standard input is the null device and not the terminal the run was started from.
+#[cfg(test)]
+#[path = "no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs"]
+mod no_control_starts_an_interactive_git_on_the_run_s_input_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.

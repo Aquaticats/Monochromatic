@@ -1,0 +1,177 @@
+//! What:
+//!  The ban on a control starting the interactive selection in the run's own process:
+//!  a control that starts it runs its body in a child of its own first.
+//! Why:
+//!  `git add --interactive` and `git add --patch` read the standard input of the process that starts them,
+//!  by design:
+//!  the person's terminal answers the selection
+//!  (`commit/commit_index_selection.rs`,
+//!  `prepare_interactive_selection`).
+//!  `cargo test` runs a crate's tests as threads of one process,
+//!  so that process's standard input is the terminal the run was started from:
+//!  measured on 2026-11-26,
+//!  `commit::commit_index::tests::interactive_selection_succeeds_without_changes` printed its `What now>` prompt,
+//!  never ended,
+//!  and the run's watchdog aborted the module run after 120 s with no `test result` line (issue 6510).
+//!  A control that starts `run_the_body_in_a_child_of_its_own` first starts the selection in a child of the test
+//!  binary,
+//!  whose standard input is the null device (`testing/process_wide_state_child_test_support.rs`),
+//!  so the Git it starts reads no terminal,
+//!  and ends at once instead of waiting for an answer.
+//!  The container gate starts each test in a process of its own and gives it no terminal,
+//!  so the gate cannot show the hang.
+//!  The scan that splits a source into its controls is
+//!  `source_guard/process_wide_fact_readers_tests.rs`,
+//!  which this ban shares with the other bans of its shape.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // every control that names prepare_interactive_selection( must also name run_the_body_in_a_child_of_its_own(.
+//! ```
+
+use super::process_wide_fact_readers_tests::{
+    Requirement,
+    Scan,
+    findings_in_text,
+    missing_reader_files,
+    scan,
+};
+
+/// What:
+///  `INTERACTIVE_GIT_CALLS` is each entry point of this crate whose Git reads the standard input of the process
+///  that calls it,
+///  with why that entry point's Git reads it.
+///  The siblings a reader might expect are the option words alone (`--interactive`,
+///  `--patch`),
+///  which a control also names while it parses a command line and starts no Git,
+///  and a list of the two programs by name,
+///  which names no call a control makes.
+/// Why:
+///  A control that names one of these asks a question of a process whose standard input is the run's,
+///  so it is the call a control reaches an interactive Git by that has to be found,
+///  not one spelling of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const INTERACTIVE_GIT_CALLS: ReadonlyArray<readonly [string, string]> = [['prepare_interactive_selection(', 'runs git add --interactive or --patch with the standard input of this process']];
+/// ```
+const INTERACTIVE_GIT_CALLS: &[(&str, &str)] = &[(
+    "prepare_interactive_selection(",
+    "runs `git add --interactive` or `--patch`, whose answers are the standard input of this process",
+)];
+
+/// What:
+///  `IN_A_CHILD_OF_ITS_OWN` is the call that starts one control's body in a child process of the test binary.
+/// Why:
+///  A control that makes it asks its question where the standard input is the null device,
+///  so a control that names the interactive selection and not this call is the finding.
+const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
+
+/// What:
+///  `FILES_THAT_START_THE_INTERACTIVE_SELECTION` is each file whose controls start the interactive selection,
+///  with what its controls start it for.
+/// Why:
+///  A scan that found no caller at all would pass every tree and guard nothing,
+///  so a run that stops seeing these files fails here instead,
+///  and a file that moves or drops its control shrinks this list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const FILES_THAT_START_THE_INTERACTIVE_SELECTION = [['commit/commit_index_tests.rs', 'two controls start the selection, once over a clean index and once over a pathspec file that cannot be read']];
+/// ```
+const FILES_THAT_START_THE_INTERACTIVE_SELECTION: &[(&str, &str)] = &[(
+    "commit/commit_index_tests.rs",
+    "two controls start the selection, once over a clean index and once over a pathspec file that cannot be read",
+)];
+
+/// What:
+///  `THE_INTERACTIVE_SELECTION` is the ban itself:
+///  the call that reaches an interactive Git,
+///  the one call that answers it,
+///  what a control must do instead,
+///  and the files that must still start it.
+/// Why:
+///  The scan in `process_wide_fact_readers_tests.rs` takes a requirement like this one,
+///  so the ban states its own names and the scan stays the same for every ban of this shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_INTERACTIVE_SELECTION = { what: "the interactive selection's Git", named: INTERACTIVE_GIT_CALLS, excusedBy: [IN_A_CHILD_OF_ITS_OWN], required: '...', files: FILES_THAT_START_THE_INTERACTIVE_SELECTION };
+/// ```
+const THE_INTERACTIVE_SELECTION: Requirement = Requirement {
+    what: "the interactive selection's Git",
+    named: INTERACTIVE_GIT_CALLS,
+    excused_by: &[IN_A_CHILD_OF_ITS_OWN],
+    required: "start the control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
+               `testing/process_wide_state_child_test_support.rs`, issue 6510)",
+    files: FILES_THAT_START_THE_INTERACTIVE_SELECTION,
+};
+
+/// No control starts the interactive selection in the run's own process.
+/// A control that starts it gives its Git a process whose standard input is not the run's.
+#[test]
+fn no_control_starts_the_interactive_selection_in_the_run_s_own_process() {
+    // What: the whole crate's answer, which is a reason the tree could not be read when it is `Err`.
+    // Why: a ban that could not read a source would pass a tree it never looked at.
+    let read: Scan = scan(&THE_INTERACTIVE_SELECTION).expect("the crate's sources");
+    assert!(
+        read.findings.is_empty(),
+        "{} reads the standard input of the process that starts it, and a test run holds its controls as \
+         threads of one process, whose standard input is the terminal the run was started from, so a control \
+         that starts it hangs the whole run waiting for an answer: {}:\n{}",
+        THE_INTERACTIVE_SELECTION.what,
+        THE_INTERACTIVE_SELECTION.required,
+        read.findings.join("\n")
+    );
+}
+
+/// Every file whose controls start the interactive selection is still read,
+/// so a run that finds no caller fails here instead of passing every tree.
+#[test]
+fn the_files_that_start_the_interactive_selection_still_do() {
+    let read: Scan = scan(&THE_INTERACTIVE_SELECTION).expect("the crate's sources");
+    // What: the entries of the list above whose file no longer holds such a control, with why each was listed.
+    // Why: an entry whose control moved or went guards nothing, and the failure has to say which file to look at.
+    let missing: Vec<String> = missing_reader_files(&read, &THE_INTERACTIVE_SELECTION);
+    assert!(
+        missing.is_empty(),
+        "these files hold no control that starts the interactive selection any more, so this ban guards \
+         nothing there: move each entry to the file that holds such a control, or delete it:\n{}",
+        missing.join("\n")
+    );
+}
+
+/// The scan finds a control that starts the selection in the run's own process,
+/// and says nothing about the control beside it that starts a child first,
+/// nor about a call a comment or a planted text only names.
+#[test]
+fn the_scan_finds_a_control_that_starts_the_selection_without_a_child_of_its_own() {
+    // What: a source holding three controls: one that starts the selection in the run's own process, one that
+    //       starts a child first, and one that only writes the call's name into a string.
+    // Why: the scan has to name the first and only the first, so a ban that excused it would fail here.
+    let planted: &str = "\
+#[test]\n\
+fn starts_in_the_run_s_own_process() {\n\
+    let started = prepare_interactive_selection(&context, &repo, &index, &objects, false, &choice);\n\
+}\n\
+\n\
+#[test]\n\
+fn starts_in_a_child_of_its_own() {\n\
+    /// The doc comment names prepare_interactive_selection( and it is no call.\n\
+    run_the_body_in_a_child_of_its_own(module_path!(), \"starts_in_a_child_of_its_own\", || {\n\
+        let started = prepare_interactive_selection(&context, &repo, &index, &objects, false, &choice);\n\
+    });\n\
+}\n\
+\n\
+#[test]\n\
+fn plants_the_name_in_a_text() {\n\
+    let planted: &str = \"prepare_interactive_selection(\";\n\
+}\n";
+    assert_eq!(
+        findings_in_text(&THE_INTERACTIVE_SELECTION, "planted_tests.rs", planted),
+        vec![String::from(
+            "planted_tests.rs:1 (starts_in_the_run_s_own_process)"
+        )],
+        "the planted control that starts the selection in the run's own process was not the one finding"
+    );
+}
