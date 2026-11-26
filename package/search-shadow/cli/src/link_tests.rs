@@ -78,8 +78,8 @@ fn links_only_the_names_that_have_a_real_tool() {
         );
     }
     // Absent tools get no link and are reported as skipped.
-    assert!(report.skipped.contains(&"ag".to_string()));
-    assert!(report.skipped.contains(&"fdfind".to_string()));
+    assert!(report.skipped.iter().any(|item| return item == "ag"));
+    assert!(report.skipped.iter().any(|item| return item == "fdfind"));
     assert!(links_directory.join("ag").symlink_metadata().is_err());
 }
 
