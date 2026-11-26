@@ -1,4 +1,6 @@
-//! The texts, row map, viewport and palette every test builds:
+//! The texts,
+//! row map,
+//! viewport and palette every test builds:
 //!  a long line of ordinary code,
 //!  ten lines whose wrapped rows and block are known,
 //!  a viewport of the tile's size,

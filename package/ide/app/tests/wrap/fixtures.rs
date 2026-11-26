@@ -1,9 +1,12 @@
-//! The text, the shaped row and the row checks every test builds on:
+//! The text,
+//! the shaped row and the row checks every test builds on:
 //!  a long line of ordinary code,
 //!  a wrapped row at a width and a scale,
 //!  the advance of a space,
 //!  the grapheme starts of a text,
-//!  and the checks that rows start on graphemes, tile the text, fit the width
+//!  and the checks that rows start on graphemes,
+//! tile the text,
+//! fit the width
 //!  and break only where a break is allowed.
 
 use helix_core::{

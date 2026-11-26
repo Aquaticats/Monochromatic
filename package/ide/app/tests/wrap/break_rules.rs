@@ -5,7 +5,8 @@
 //!  CJK between ideographs and emoji that never split,
 //!  the continuation indent,
 //!  tabs that wrap and end on their stops,
-//!  an empty line, and width zero.
+//!  an empty line,
+//! and width zero.
 
 use crate::fixtures::{
     LONG_LINE,

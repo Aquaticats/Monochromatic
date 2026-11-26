@@ -1,6 +1,7 @@
 //! Soft wrapping of the lines the source view shows:
 //!  the break rules and the rows they make,
-//!  where a caret, a point and a range fall on those rows,
+//!  where a caret,
+//! a point and a range fall on those rows,
 //!  and the sweep that proves every row of this package's own source fits.
 //!
 //! What:
@@ -22,10 +23,12 @@ mod fixtures;
 #[path = "wrap/break_rules.rs"]
 mod break_rules;
 
-/// A caret, a point and a range on the visual rows.
+/// A caret,
+/// a point and a range on the visual rows.
 #[path = "wrap/row_geometry.rs"]
 mod row_geometry;
 
-/// Every row of this package's own source, at six width and scale pairs.
+/// Every row of this package's own source,
+/// at six width and scale pairs.
 #[path = "wrap/real_source_sweep.rs"]
 mod real_source_sweep;

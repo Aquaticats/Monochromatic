@@ -19,15 +19,19 @@
 #[path = "wrap_rows/fixtures.rs"]
 mod fixtures;
 
-/// The visual row map, its pixels and its pages.
+/// The visual row map,
+/// its pixels and its pages.
 #[path = "wrap_rows/row_map_and_pages.rs"]
 mod row_map_and_pages;
 
-/// How a frame places wrapped rows, and what a new width redoes.
+/// How a frame places wrapped rows,
+/// and what a new width redoes.
 #[path = "wrap_rows/frame_layout_and_new_width.rs"]
 mod frame_layout_and_new_width;
 
-/// Hits, carets, selection ink and underlines on continuation rows.
+/// Hits,
+/// carets,
+/// selection ink and underlines on continuation rows.
 #[path = "wrap_rows/hits_and_ink.rs"]
 mod hits_and_ink;
 
@@ -35,6 +39,7 @@ mod hits_and_ink;
 #[path = "wrap_rows/wrap_signs.rs"]
 mod wrap_signs;
 
-/// The tiles painted from wrapped rows, and their clips.
+/// The tiles painted from wrapped rows,
+/// and their clips.
 #[path = "wrap_rows/tile_painting.rs"]
 mod tile_painting;

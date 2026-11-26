@@ -1,4 +1,5 @@
-//! Inlay hints, diagnostic messages and their blocks inside the text area:
+//! Inlay hints,
+//! diagnostic messages and their blocks inside the text area:
 //!  hints packed against the line as it is broken,
 //!  message rows broken to the width,
 //!  a block above the first row,
@@ -31,6 +32,7 @@ mod message_rows;
 #[path = "wrap_annotations/block_and_hint_placement.rs"]
 mod block_and_hint_placement;
 
-/// The work a new width redoes, and in which order.
+/// The work a new width redoes,
+/// and in which order.
 #[path = "wrap_annotations/new_width.rs"]
 mod new_width;

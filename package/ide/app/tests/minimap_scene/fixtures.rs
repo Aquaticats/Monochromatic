@@ -1,6 +1,8 @@
-//! The palettes, fixture source and item readers every test builds:
+//! The palettes,
+//! fixture source and item readers every test builds:
 //!  a text of ordinary code with long lines,
-//!  syntax classes, marks and find matches,
+//!  syntax classes,
+//! marks and find matches,
 //!  the two cancel handles,
 //!  the fixture and its source and input,
 //!  and the items of a window.

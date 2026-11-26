@@ -23,7 +23,8 @@
 #[path = "annotation/fixtures.rs"]
 mod fixtures;
 
-/// Which snapshot a frame paints, recognizes or accepts.
+/// Which snapshot a frame paints,
+/// recognizes or accepts.
 #[path = "annotation/snapshot_identity.rs"]
 mod snapshot_identity;
 
@@ -35,7 +36,8 @@ mod hint_rows;
 #[path = "annotation/held_space.rs"]
 mod held_space;
 
-/// Which diagnostic ranges a window shows, and what a problem spells out.
+/// Which diagnostic ranges a window shows,
+/// and what a problem spells out.
 #[path = "annotation/diagnostic_windows.rs"]
 mod diagnostic_windows;
 

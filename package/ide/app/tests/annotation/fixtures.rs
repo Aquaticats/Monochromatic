@@ -1,4 +1,7 @@
-//! The documents, stamps, snapshots, hints and problems every test in this crate builds:
+//! The documents,
+//! stamps,
+//! snapshots,
+//! hints and problems every test in this crate builds:
 //!  the five-line displayed text,
 //!  a server identity,
 //!  an inlay hint and a diagnostic,

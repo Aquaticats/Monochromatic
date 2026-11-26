@@ -23,11 +23,15 @@
 //! import * as fixtures from './language/requests/fixtures';
 //! ```
 
-/// What a reply may say: targets, hover, failures and refusals.
+/// What a reply may say:
+/// targets,
+/// hover,
+/// failures and refusals.
 #[path = "requests/reply_validation.rs"]
 mod reply_validation;
 
-/// The states a request passes through, and replies it drops.
+/// The states a request passes through,
+/// and replies it drops.
 #[path = "requests/request_lifecycle.rs"]
 mod request_lifecycle;
 

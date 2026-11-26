@@ -1,8 +1,10 @@
-//! Where a caret, a point and a range fall on the visual rows:
+//! Where a caret,
+//! a point and a range fall on the visual rows:
 //!  a row step of one code row at both scales,
 //!  a caret at a wrap offset following its affinity,
 //!  a hit probe with and without a row offset,
-//!  and the rectangle a range yields, on its first row and the rest.
+//!  and the rectangle a range yields,
+//! on its first row and the rest.
 
 use crate::fixtures::{
     LONG_LINE,

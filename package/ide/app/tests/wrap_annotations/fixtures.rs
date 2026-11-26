@@ -1,4 +1,8 @@
-//! The line, stamp, palette, store, hints and messages every test builds:
+//! The line,
+//! stamp,
+//! palette,
+//! store,
+//! hints and messages every test builds:
 //!  a line that wraps to several rows,
 //!  a stamped annotation store,
 //!  a hint and a diagnostic at a chosen place,

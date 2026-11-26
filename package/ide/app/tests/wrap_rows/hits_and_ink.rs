@@ -1,4 +1,5 @@
-//! Hits, carets and ink on continuation rows:
+//! Hits,
+//! carets and ink on continuation rows:
 //!  a hit or a caret on a continuation row resolves in that row,
 //!  the selected ink reaches it,
 //!  and an underline across a wrap break stands on its own rows.
