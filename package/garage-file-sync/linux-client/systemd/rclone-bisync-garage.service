@@ -13,8 +13,9 @@ StartLimitIntervalSec=0
 [Service]
 Type=oneshot
 WorkingDirectory=%h
-# Finite timeout (< the five-minute interval) so a stalled run is reaped before the
-# next one; --recover/--resilient below let the following run pick up cleanly.
+# Finite timeout, so a stalled run is reaped rather than holding the unit forever;
+# --recover/--resilient below let the following run pick up cleanly. It is longer than
+# the five-minute timer interval: a start request during a run waits for it.
 # Measured under systemd 262: the timeout applies to each ExecStart= pass separately,
 # so a stalled two-pass run can hold every follow-up and timer start for up to
 # 6000 s before it fails and alerts. The owner accepted that bound.
@@ -34,7 +35,6 @@ TimeoutStartSec=3000
 # whole run. The pattern MUST be '- **‛**' (full-path match): '- *‛*' only
 # matches the base name and misses a phantom nested inside a phantom folder, which
 # is what the full-path pattern above is for.
-# this by skipping the un-HEAD-able phantom; --use-server-modtime does not.
 # See doc/troubleshooting/rclone-double-encode-phantom-keys.md.
 # Changing this filter requires a one-off `... --resync --filter-from <file>`.
 # --conflict-resolve newer: --use-server-modtime above makes bisync record an

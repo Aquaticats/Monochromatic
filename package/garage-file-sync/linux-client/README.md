@@ -38,6 +38,7 @@ Garage cannot notify a client that the bucket changed.
 - `systemd/rclone-bisync-garage-after-current.service`:
   the trigger. One step: `systemctl --user start --no-block` the sync unit, ordered
   after it and with no requirement on it.
+  A failed step alerts like a failed sync, and its next success closes that streak.
 - `systemd/rclone-bisync-garage-watch.service`:
   directory-watcher, restarted thirty seconds after a crash, no start limit;
   its failure and its restart are alerted like the sync unit's.

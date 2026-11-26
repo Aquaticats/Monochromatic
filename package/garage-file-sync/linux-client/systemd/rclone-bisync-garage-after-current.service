@@ -6,6 +6,12 @@ Description=Start a Garage bisync run after the one that is running now
 # into one pending job (measured), so a burst of changes during a run gives exactly
 # one follow-up run.
 After=rclone-bisync-garage.service
+# A failed step (the sync unit missing or refused) means a change was never synced
+# until the next timer run, so it raises the same desktop alert as a failed sync.
+OnFailure=rclone-bisync-garage-alert@%n.service
+# Its next successful run closes that alert streak with one recovery notice; with no
+# streak open the handler exits without a notice.
+OnSuccess=rclone-bisync-garage-alert@%n.service
 
 [Service]
 # One step, and --no-block so the trigger and the watcher's hook return at once
