@@ -142,7 +142,7 @@ Rounds started earlier run on the pool they named.
   running on the virtual writer since 6494 merged.
 - One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
 - Issue 6511 (twelve `push::child_watch::` controls fail on `main` under load, a different set each run),
-  window `issue-6511-push-child-watch-controls-own-their-clock`, starts when the virtual writer has a free slot (starter `b335agb1n`).
+  window `issue-6511-push-child-watch-controls-own-their-clock`, starts when the virtual writer has a free slot (starter `b2u8rtppl`).
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
@@ -161,7 +161,7 @@ Rounds started earlier run on the pool they named.
   and one Medium regression: a listed own-file loop's uses on other routes are reported with no key,
   so printed keys written as the list exit 1 where alpha.14 exits 0 (48 of 104 such random trees); `main` holds no such key.
   It and the Lows go to the `alpha.16` fix round, window `monochromatic-lint-alpha-15-release-pass-fixes`,
-  which starts after 6511 once the virtual writer has a slot (starter `bxi3yq1ex`).
+  which starts after 6511 once the virtual writer has a slot (starter `bqxsipe25`).
   The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
   clean `git archive` exports of `main` give 0.
 
