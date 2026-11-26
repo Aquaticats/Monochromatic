@@ -2439,7 +2439,8 @@ and that this release has no removal for a clone,
 so the clone and its record stay until it does.
 
 `git worktree remove` is refused for a slot the binding record proves is a whole worktree,
-whatever options the command carries (`-f -f` and every other spelling Git accepts),
+whatever options the command carries (`-f -f` and every other spelling Git accepts,
+and the global options before `worktree` read by Git's own table: `-c`, `--no-optional-locks`, `--git-dir` and `-C <a Git directory>` skip none of them),
 because Git's removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
@@ -2517,7 +2518,11 @@ on one writing path no command reaches
 
 All of that waits for one thing a person needs:
 `cancel-worktree-removal <slot>`,
-which the record's own sentences and the checks' refusals name and which plan step 17 builds.
+which the record's own sentences and the checks' refusals name.
+Plan step 17 built it.
+The cancel command is built and no management grammar admits it in this release:
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` prints the management usage and exits 2,
+so the sentence beside a standing plan says the command cannot be run yet and names the files you read instead.
 A release that printed a command it does not have would make a refused removal worse than today's,
 so the refusal stays,
 and it changes nothing:
@@ -2526,7 +2531,23 @@ no clone is unmounted,
 and every snapshot,
 bookmark and registration still stands.
 An add that was interrupted keeps its own recovery,
-which still names `git worktree remove <slot>` when the clone must go.
+which still names `git worktree remove <slot>` when the clone must go,
+and the binding record that removal leaves is the settling command's,
+which no grammar admits either.
+
+The forced arm is built beside the cancel command and reached by no command.
+With `--force`,
+a removal may end the holders other than the caller and its session,
+once the owed measurement shows it works.
+What it never ends is the caller's session and every ancestor of the command up to the first process:
+a holder there refuses the removal in both arms,
+and with `--force` the word it answers is `caller-protected-holds`.
+`--force` is refused outright when the command's parent is the service manager,
+or when its session was started by it.
+Every ending is gated by the evidence the probe rounds recorded and by waits that ship with no value,
+so a kind of holder the evidence does not show is identified and refused,
+never ended.
+No sentence of this release offers `--force`.
 
 Before a `git worktree prune` the wrapper compares each managed clone's pointer with the bytes the add recorded,
 which is the underlay's copy while the clone is unmounted and the clone's own while it is mounted.
@@ -2560,8 +2581,14 @@ the clone dataset and its files stay,
 and deciding between a re-registration at a commit a person names and removing the clone is theirs to make.
 
 `git monochromatic-git-policy-cli doctor` prints the same reports for each slot a record names once plan step 18
-wires its checks;
-this release prints them from the add's and the removal's refusals.
+wires its checks.
+The route's checks are built in `src/native/health/doctor_zfs_route/` and no command reaches them in this
+release:
+`doctor` reaches none of them,
+except the add route's own call to the delegation and the dataset checks,
+so a receipt,
+readiness record or clone record is not printed by `doctor` yet,
+and the sentences that name one say so.
 
 A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
 and the command that settles it is built and reachable from nothing:
@@ -2579,6 +2606,32 @@ built and reachable from no command").
 No management grammar admits it yet,
 so the sentences that name it today still send a person to a command this release does not have,
 and the round that switches removal on adds it to the grammar.
+
+#### The boot and shutdown units, built and reached by no command
+
+Plan step 19's unit and drop-in texts are built in `src/native/checkout_boot_units/`,
+with the immutable underlay entry's verdict beside them in `src/native/checkout_underlay_entry/`,
+and no command installs one of them:
+`doctor` prints the root-once commands and runs none,
+no release writes a unit file,
+and `zfs-root shutdown-unmount` refuses,
+naming the step whose boot unit runs it.
+The migration,
+the property changes and the install are your own act,
+written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+
+#### Sanoid coverage and the space guard's scope, built and reached by no command
+
+Plan step 20's checks are built in `src/native/health/sanoid_coverage/`:
+the recursive coverage of home,
+the nine exclusions in the order Sanoid reads them,
+the marker every exclusion carries,
+the comparison `doctor` prints with the correction for confirmed drift,
+and the report of what the space guard can prune.
+Nothing here writes `sanoid.conf` or changes a property,
+no command reaches the folder,
+and the setup is your own act,
+written up in `doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md`.
 
 ### The Git lock a managed clone's registration holds
 
@@ -3151,6 +3204,21 @@ except for the `Cargo.lock` a repair's clean rewrites:
 the bytes that clean displaces are kept under the repository's Git directory and the success line names them.
 Times measured on this repository are in `doc/planning/cli-git-main-worktree-ignored-copy.md`,
  section "Package-manager state of a new worktree".
+
+#### The clone route's repair and its watches, built and reached by no command
+
+A clone-filled worktree is repaired at the add's end through the same repair a copied worktree gets,
+so where the ZFS route serves an add,
+`pnpm install --offline --frozen-lockfile`,
+the Cargo prewarm and member clean,
+and the mise launchers' repair run there too.
+What plan step 21 adds is reached by no command:
+`src/native/worktree_clone_watch_rebinding/` decides whether a watch set before the mount is blind,
+because a mount over the slot covers the directory object Git registered there,
+and writes the sentence naming the watches you must reopen;
+it never reopens another program's watch and never stops Git's fsmonitor daemon.
+The skip of the separate ignored-file copy after a successful clone fill is not built yet,
+so every rung still copies the ignored files.
 
 ### Version and help
 

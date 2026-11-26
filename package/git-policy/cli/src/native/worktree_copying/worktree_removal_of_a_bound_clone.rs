@@ -44,7 +44,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const ending = refuseTheRemovalOfABoundClone(facts); // undefined leaves the removal to Git
+//! const ending = refuseTheRemovalOfABoundClone(slotPath, commonDir); // undefined leaves the removal to Git
 //! ```
 
 use crate::subvolume_command::REFUSED_EXIT_CODE;
@@ -60,11 +60,6 @@ use crate::worktree_clone_slot_state::slot_state_live_read::{
     GatedCloneIntentReads,
     SlotReadingSources,
 };
-use crate::worktree_copy_forward::{
-    CopyFacts,
-    ForwardedRun,
-};
-use crate::worktree_identity::common_directory;
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::path::Path;
@@ -93,19 +88,49 @@ pub enum RemovalReads<'a> {
 }
 
 /// What:
+///  What one refusal of a removal of a bound clone tells the person,
+///  and the status the command ends in.
+/// Why:
+///  The refusal changes nothing and prints its own report,
+///  so it is no Git run and carries no signal:
+///  the command path turns it into the action the command ends in,
+///  and the settled run into the run it reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BoundSlotRemovalRefusal = { stderr: string; code: number };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BoundSlotRemovalRefusal {
+    /// The report the person reads.
+    pub stderr: String,
+    /// The wrapper's refusal status,
+    /// which every command that changed nothing ends in.
+    pub code: i32,
+}
+
+/// What:
 ///  The refusal of a removal of a slot a whole managed clone is bound to,
-///  as the run the command ends in.
+///  over the pool and the slot sources the release reads.
 /// Why:
 ///  A command that prints its own report and changes nothing is not a failure
 ///  of a step,
 ///  so it ends with the wrapper's refusal status,
 ///  and Git never runs against the slot.
+///  The target and the common directory are what the refusal needs and all it
+///  needs,
+///  so a command that stands in no worktree,
+///  where the settled run never starts,
+///  refuses through the same call as one that does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = refuseTheRemovalOfABoundClone(facts);
+/// const refusal = refuseTheRemovalOfABoundClone(slotPath, commonDir);
 /// ```
-pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<ForwardedRun> {
+pub fn refuse_the_removal_of_a_bound_clone(
+    target: &Path,
+    common_dir: &Path,
+) -> Option<BoundSlotRemovalRefusal> {
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
@@ -113,7 +138,7 @@ pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<Forwarde
         mounts: &mounts,
         intents: &intents,
     };
-    return refuse_the_removal_with(facts, RemovalReads::Live, &sources);
+    return refuse_the_removal_with(target, common_dir, RemovalReads::Live, &sources);
 }
 
 /// What:
@@ -132,17 +157,14 @@ pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<Forwarde
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = refuseTheRemovalWith(facts, scriptedPool, scriptedSources);
+/// const refusal = refuseTheRemovalWith(slotPath, commonDir, scriptedPool, scriptedSources);
 /// ```
 pub fn refuse_the_removal_with(
-    facts: &CopyFacts,
+    target: &Path,
+    common_dir: &Path,
     reads: RemovalReads<'_>,
     sources: &SlotReadingSources<'_>,
-) -> Option<ForwardedRun> {
-    // The refusal reads the worktree the command names whatever its options, which is the target the planner took from every
-    // spelling Git accepts; the plan above serves only the plain form.
-    let target: &Path = facts.removal_target.as_deref()?;
-    let common_dir: &Path = common_directory(&facts.identity)?;
+) -> Option<BoundSlotRemovalRefusal> {
     // A repository with no record folder holds no bound slot, so the answer is nothing and the mount table is never read:
     // this is every removal in a repository the route has never served.
     if !home_folder(common_dir).is_dir() {
@@ -173,7 +195,7 @@ pub fn refuse_the_removal_with(
         stderr.push('\n');
     }
     stderr.push_str(the_removals_reading(common_dir, slot.as_str(), reads).as_str());
-    return Some(ForwardedRun::Failed {
+    return Some(BoundSlotRemovalRefusal {
         stderr,
         code: REFUSED_EXIT_CODE,
     });

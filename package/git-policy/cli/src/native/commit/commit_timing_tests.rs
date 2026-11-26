@@ -749,27 +749,33 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
 /// and both are in the record without verbose mode.
 #[test]
 fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
-    use crate::commit_index_builds::{
-        IndexBuildKind,
-        note_index_build,
-    };
-    let root: PathBuf = fixture("timing-index-builds");
-    let (timing, _covered) = filled(root.as_path());
-    note_index_build(IndexBuildKind::First, true);
-    note_index_build(IndexBuildKind::Retry, false);
-    timing.finish(0);
-    let text: String =
-        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
-    let value: serde_json::Value = parsed(text.as_str());
-    let expected: serde_json::Value = serde_json::from_str(
-        r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#,
-    )
-    .expect("the list of two builds");
-    assert_eq!(
-        value["indexBuilds"], expected,
-        "every build of the private index is stated in the order built: {value}"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_record_states_every_index_build_with_whether_it_kept_the_stat_data",
+        || {
+            use crate::commit_index_builds::{
+                IndexBuildKind,
+                note_index_build,
+            };
+            let root: PathBuf = fixture("timing-index-builds");
+            let (timing, _covered) = filled(root.as_path());
+            note_index_build(IndexBuildKind::First, true);
+            note_index_build(IndexBuildKind::Retry, false);
+            timing.finish(0);
+            let text: String =
+                std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+            let value: serde_json::Value = parsed(text.as_str());
+            let expected: serde_json::Value = serde_json::from_str(
+                r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#,
+            )
+            .expect("the list of two builds");
+            assert_eq!(
+                value["indexBuilds"], expected,
+                "every build of the private index is stated in the order built: {value}"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// A proof is never undone by a later notice,
@@ -821,53 +827,53 @@ fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
 /// measured as four steps of a neighbour in this control's record (issue 6507).
 #[test]
 fn the_record_states_the_preparations_own_work_by_name() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_record_states_the_preparations_own_work_by_name",
-    ) {
-        return;
-    }
-    use crate::prepare_work_spans::note_span;
-    let root: PathBuf = fixture("timing-prepare-spans");
-    let (timing, _covered) = filled(root.as_path());
-    note_span("index copy", Duration::from_millis(12));
-    note_span("index copy", Duration::from_millis(30));
-    note_span(
-        "policy security/forbidden-strings at pre-forward",
-        Duration::from_millis(7),
-    );
-    timing.finish(0);
-    let text: String =
-        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
-    let value: serde_json::Value = parsed(text.as_str());
-    let expected: serde_json::Value = serde_json::from_str(
+        || {
+            use crate::prepare_work_spans::note_span;
+            let root: PathBuf = fixture("timing-prepare-spans");
+            let (timing, _covered) = filled(root.as_path());
+            note_span("index copy", Duration::from_millis(12));
+            note_span("index copy", Duration::from_millis(30));
+            note_span(
+                "policy security/forbidden-strings at pre-forward",
+                Duration::from_millis(7),
+            );
+            timing.finish(0);
+            let text: String =
+                std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+            let value: serde_json::Value = parsed(text.as_str());
+            let expected: serde_json::Value = serde_json::from_str(
         r#"[{"name":"index copy","calls":2,"totalMs":42,"longestMs":30},{"name":"policy security/forbidden-strings at pre-forward","calls":1,"totalMs":7,"longestMs":7}]"#,
     )
     .expect("the split of two names");
-    assert_eq!(
-        value["prepareSpans"], expected,
-        "every named step of the preparation is stated with its count and its time: {value}"
+            assert_eq!(
+                value["prepareSpans"], expected,
+                "every named step of the preparation is stated with its count and its time: {value}"
+            );
+            // A commit that recorded nothing states an empty list, so a reader never tells a missing field from a commit that ran nothing.
+            let (quiet, _) = filled(root.as_path());
+            quiet.finish(0);
+            let lines: String =
+                std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+            let last: serde_json::Value = parsed(
+                lines
+                    .lines()
+                    .last()
+                    .map(|line| {
+                        return format!("{line}\n");
+                    })
+                    .expect("a line")
+                    .as_str(),
+            );
+            assert_eq!(
+                last["prepareSpans"],
+                serde_json::Value::from(Vec::<u64>::new())
+            );
+            remove(root.as_path());
+        },
     );
-    // A commit that recorded nothing states an empty list, so a reader never tells a missing field from a commit that ran nothing.
-    let (quiet, _) = filled(root.as_path());
-    quiet.finish(0);
-    let lines: String =
-        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
-    let last: serde_json::Value = parsed(
-        lines
-            .lines()
-            .last()
-            .map(|line| {
-                return format!("{line}\n");
-            })
-            .expect("a line")
-            .as_str(),
-    );
-    assert_eq!(
-        last["prepareSpans"],
-        serde_json::Value::from(Vec::<u64>::new())
-    );
-    remove(root.as_path());
 }
 
 /// What:

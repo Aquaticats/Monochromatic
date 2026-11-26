@@ -15,7 +15,7 @@ use crate::test_support::{
     remove,
     repository,
 };
-use crate::worktree_copy_forward::CopyFacts;
+use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_identity::resolve_worktree_identity;
 use std::path::Path;
 
@@ -278,6 +278,8 @@ fn a_non_writer_with_a_copy_runs_settled() {
     ];
     forward.copy = Some(CopyFacts {
         identity: forward.identity.clone(),
+        common_dir: crate::worktree_identity::common_directory(&forward.identity)
+            .map(std::path::Path::to_path_buf),
         creates: false,
         destination: None,
         add_plan: None,

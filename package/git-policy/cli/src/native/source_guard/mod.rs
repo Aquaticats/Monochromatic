@@ -34,6 +34,14 @@ mod lint_attribute_tests;
 #[path = "typed_ban_configuration_tests.rs"]
 mod typed_ban_configuration_tests;
 
+/// The passage each piece built ahead of its command has in both release
+/// documents,
+/// because a reader of either one must learn that the piece exists and that no
+/// command reaches it.
+#[cfg(test)]
+#[path = "spec_and_readme_reach_tests.rs"]
+mod spec_and_readme_reach_tests;
+
 /// The lock inventory of the service and its support modules:
 /// a lock stands only on the inventory,
 /// with its reason beside it.
@@ -68,6 +76,13 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a control reading a starter's marker to decide whether its body runs here:
+/// a control hands the starter its body,
+/// which runs in a child of the test binary.
+#[cfg(test)]
+#[path = "only_the_process_wide_starter_reads_its_marker_tests.rs"]
+mod only_the_process_wide_starter_reads_its_marker_tests;
+
 /// The ban on a list of text written as an array with a hand-counted length:
 /// a list of names, sites or words is a slice,
 /// so adding an entry never edits a count beside it.
@@ -100,6 +115,19 @@ mod supervisor_registry_questions_in_a_child_process_tests;
 #[cfg(test)]
 #[path = "no_control_reads_the_preparation_steps_in_the_run_tests.rs"]
 mod no_control_reads_the_preparation_steps_in_the_run_tests;
+
+/// The ban on a control counting one of a commit's four ledgers in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose ledgers hold nothing but what that control noted.
+#[cfg(test)]
+#[path = "no_control_reads_the_commit_ledgers_in_the_run_tests.rs"]
+mod no_control_reads_the_commit_ledgers_in_the_run_tests;
+
+/// The ban on a control stepping a notice without the control window that decides its ceiling and its looks:
+/// such a control takes the window first or starts a child of its own.
+#[cfg(test)]
+#[path = "notice_controls_take_their_window_tests.rs"]
+mod notice_controls_take_their_window_tests;
 
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
@@ -165,6 +193,14 @@ pub(crate) mod source_code_places_tests;
 #[path = "test_children_owned_scan_tests.rs"]
 pub(crate) mod test_children_owned_scan_tests;
 
+/// The one scan behind the bans on a control that reads a fact belonging to the whole process:
+/// a ban states the names that make a control a reader and the calls that excuse it,
+/// and the split of a source into its controls happens here;
+/// never in the release build.
+#[cfg(test)]
+#[path = "process_wide_fact_readers_tests.rs"]
+pub(crate) mod process_wide_fact_readers_tests;
+
 /// The ledger of the child starts the tree still holds,
 /// and the comparison that fails on a new site and on a line whose site is gone;
 /// never in the release build.
@@ -178,6 +214,13 @@ pub(crate) mod test_children_owned_ledger_tests;
 #[cfg(test)]
 #[path = "test_children_owned_tests.rs"]
 mod test_children_owned_tests;
+
+/// The control that refuses a control of the relay's end rule which never owns the group of the child it reads:
+/// the relay ends with the child,
+/// and what the child left is the test's to end (issue 6501).
+#[cfg(test)]
+#[path = "relay_controls_own_the_child_s_group_tests.rs"]
+mod relay_controls_own_the_child_s_group_tests;
 
 /// The owner's rule that nothing of the wrapper starts at system startup or at login:
 /// no install line,

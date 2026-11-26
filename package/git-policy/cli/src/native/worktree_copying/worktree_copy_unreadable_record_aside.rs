@@ -14,11 +14,9 @@
 //! ```
 
 use crate::json_record::quote;
+use crate::private_storage::rename_noreplace;
 use crate::random_id::random_uuid;
-use crate::rename_that_never_replaces::{
-    rename_noreplace,
-    rename_unsupported,
-};
+use crate::rename_that_never_replaces::rename_unsupported;
 use crate::worktree_copy_error::{
     WorktreeCopyError,
     failure_with_cause,

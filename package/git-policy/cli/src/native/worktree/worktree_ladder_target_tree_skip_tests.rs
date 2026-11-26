@@ -26,7 +26,7 @@ use crate::test_support::{
     remove,
     repository,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_ladder_run::{

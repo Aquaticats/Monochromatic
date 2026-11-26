@@ -38,6 +38,7 @@ use super::add_route_steps::StepRefusal;
 use super::add_zfs::{
     ObjectIdentity,
     OpenedDevice,
+    TheDeviceOpened,
 };
 use crate::doctor_zfs_route::{
     CheckOutcome,
@@ -47,7 +48,6 @@ use crate::doctor_zfs_route::{
     check_dataset,
 };
 use crate::transaction_git::GitContext;
-use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
@@ -59,6 +59,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{
     admit_attach,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_snapshot_source::{
     Refusal as SourceRefusal,
@@ -101,6 +102,9 @@ pub(super) struct Preflight {
 /// the handler's readiness and the destination,
 /// or answer nothing when the source holds a path the fill's restore would
 /// refuse.
+/// The device comes from the caller's own answer,
+/// so a host control proves every step after it without opening this machine's
+/// `/dev/zfs`.
 ///
 /// # Errors
 /// The sentence each refusal prints,
@@ -110,6 +114,7 @@ pub(super) fn preflight_the_add(
     plan: &AddPlan,
     context: &GitContext,
     arguments: &[OsString],
+    devices: &dyn TheDeviceOpened,
 ) -> Result<Option<Preflight>, StepRefusal> {
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree {
         common_dir: route.common_dir.clone(),
@@ -196,7 +201,7 @@ pub(super) fn preflight_the_add(
             word.to_string_lossy()
         )));
     }
-    let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
+    let device: OpenedDevice = devices.open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device
         .identity_of(route.checkout_dataset.as_str())
         .map_err(StepRefusal::refused)?;

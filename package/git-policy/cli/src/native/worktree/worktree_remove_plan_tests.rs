@@ -285,7 +285,7 @@ fn every_spelling_that_names_one_worktree_names_it_for_the_refusal() {
             parse_removal_target(
                 os_arguments(values.as_slice()).as_slice(),
                 0,
-                root.as_path(),
+                Some(root.as_path()),
                 None
             ),
             Some(canonical.clone()),
@@ -308,7 +308,7 @@ fn every_spelling_that_names_one_worktree_names_it_for_the_refusal() {
             parse_removal_target(
                 os_arguments(values.as_slice()).as_slice(),
                 0,
-                root.as_path(),
+                Some(root.as_path()),
                 None
             ),
             None,
@@ -344,7 +344,7 @@ fn a_registered_last_component_names_the_worktree_for_the_refusal() {
         parse_removal_target(
             os_arguments(&["worktree", "remove", "-f", "-f", "topic"]).as_slice(),
             0,
-            repo.as_path(),
+            Some(repo.as_path()),
             Some(common.as_path())
         ),
         Some(canonical),

@@ -137,48 +137,59 @@ fn a_step_that_is_never_ended_is_awaited_to_its_own_end() {
 /// A run leaves the descriptors of this process as it found them:
 /// a write end of a pipe kept open here would keep the reader from ever seeing
 ///  the end of the output.
+///  The table `/proc/self/fd` lists is every thread's,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's thread opens or closes a descriptor beside the count
+/// (issue 6511).
 #[test]
 fn a_step_awaited_on_the_runtime_leaves_no_descriptor_open() {
-    let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
-    // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
-    crate::lazy_runtime::run_on_runtime(async {
-        return output_watched_within_for_a_stop_awaiting(
-            &mut shell("exit 0"),
-            "the warm-up",
-            "the warm-up",
-            long_window_terms(),
-            true,
-            bound,
-            false,
-        )
-        .await;
-    })
-    .expect("the runtime")
-    .expect("the warm-up ran");
-    let before: usize = open_descriptors();
-    for _run in 0..2 {
-        let output: Output = crate::lazy_runtime::run_on_runtime(async {
-            return output_watched_within_for_a_stop_awaiting(
-                &mut shell("exit 0"),
-                "a dull step",
-                "a dull step",
-                long_window_terms(),
-                true,
-                bound,
-                false,
-            )
-            .await;
-        })
-        .expect("the runtime")
-        .expect("the step ran to its end");
-        assert_eq!(output.status.code(), Some(0));
-    }
-    let after: usize = open_descriptors();
-    assert_eq!(
-        after,
-        before,
-        "the run left {} descriptors of its own open",
-        after.saturating_sub(before)
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_step_awaited_on_the_runtime_leaves_no_descriptor_open",
+        || {
+            let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
+            // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
+            crate::lazy_runtime::run_on_runtime(async {
+                return output_watched_within_for_a_stop_awaiting(
+                    &mut shell("exit 0"),
+                    "the warm-up",
+                    "the warm-up",
+                    long_window_terms(),
+                    true,
+                    bound,
+                    false,
+                )
+                .await;
+            })
+            .expect("the runtime")
+            .expect("the warm-up ran");
+            let before: usize = open_descriptors();
+            for _run in 0..2 {
+                let output: Output = crate::lazy_runtime::run_on_runtime(async {
+                    return output_watched_within_for_a_stop_awaiting(
+                        &mut shell("exit 0"),
+                        "a dull step",
+                        "a dull step",
+                        long_window_terms(),
+                        true,
+                        bound,
+                        false,
+                    )
+                    .await;
+                })
+                .expect("the runtime")
+                .expect("the step ran to its end");
+                assert_eq!(output.status.code(), Some(0));
+            }
+            let after: usize = open_descriptors();
+            assert_eq!(
+                after,
+                before,
+                "the run left {} descriptors of its own open",
+                after.saturating_sub(before)
+            );
+        },
     );
 }
 
@@ -307,39 +318,50 @@ async fn a_step_left_running_released_and_collected(
 /// whether a task can run now,
 /// which a late build answers yes to
 ///  (`a_control_stands_in_for_a_late_runtime`).
+///  The stand-in that makes `built_flavor` answer a late build belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control reads the flavour it stands in for
+/// (issue 6511).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late() {
-    let late: crate::lazy_runtime::LateRuntimeForTheControl =
-        crate::lazy_runtime::a_control_stands_in_for_a_late_runtime();
-    assert!(
-        matches!(
-            crate::lazy_runtime::built_flavor(),
-            Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline)
-        ),
-        "the control stands in for a build that missed its deadline"
-    );
-    assert!(
-        crate::lazy_runtime::tasks_can_run(),
-        "the runtime this process built can run a task, so the late build has workers"
-    );
-    let (failure, collected): (std::io::Error, bool) =
-        crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
-            "child-watch-late-runtime",
-            StepBound::LeaveRunning {
-                after: Duration::from_millis(300),
-                extra: Duration::from_millis(200),
-            },
-        ))
-        .expect("the runtime");
-    drop(late);
-    assert!(
-        failure.to_string().contains("left running"),
-        "the command reports the step as left running: {failure}"
-    );
-    assert!(
-        collected,
-        "the step that was left running on the runtime was never collected: nothing waited for it"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late",
+        || {
+            let late: crate::lazy_runtime::LateRuntimeForTheControl =
+                crate::lazy_runtime::a_control_stands_in_for_a_late_runtime();
+            assert!(
+                matches!(
+                    crate::lazy_runtime::built_flavor(),
+                    Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline)
+                ),
+                "the control stands in for a build that missed its deadline"
+            );
+            assert!(
+                crate::lazy_runtime::tasks_can_run(),
+                "the runtime this process built can run a task, so the late build has workers"
+            );
+            let (failure, collected): (std::io::Error, bool) =
+                crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
+                    "child-watch-late-runtime",
+                    StepBound::LeaveRunning {
+                        after: Duration::from_millis(300),
+                        extra: Duration::from_millis(200),
+                    },
+                ))
+                .expect("the runtime");
+            drop(late);
+            assert!(
+                failure.to_string().contains("left running"),
+                "the command reports the step as left running: {failure}"
+            );
+            assert!(
+                collected,
+                "the step that was left running on the runtime was never collected: nothing waited for it"
+            );
+        },
     );
 }
 
@@ -353,31 +375,42 @@ fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtim
 /// which the reaper list exists to prevent
 ///  (the fifth review's finding 4,
 /// at the branch this control takes).
+///  The stand-in that refuses every task belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's watcher is refused with it
+/// (issue 6511).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper() {
-    let refused: crate::lazy_runtime::RefusalForTheControl =
-        crate::lazy_runtime::a_control_refuses_every_task();
-    assert!(
-        !crate::lazy_runtime::tasks_can_run(),
-        "the control stands in for a system that can run no task of this process"
-    );
-    let (failure, collected): (std::io::Error, bool) =
-        crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
-            "child-watch-no-task-to-wait",
-            StepBound::LeaveRunning {
-                after: Duration::from_millis(300),
-                extra: Duration::from_millis(200),
-            },
-        ))
-        .expect("the runtime");
-    drop(refused);
-    assert!(
-        failure.to_string().contains("left running"),
-        "the command reports the step as left running: {failure}"
-    );
-    assert!(
-        collected,
-        "the step that was left running where no task could run was never collected: nothing waited for it"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper",
+        || {
+            let refused: crate::lazy_runtime::RefusalForTheControl =
+                crate::lazy_runtime::a_control_refuses_every_task();
+            assert!(
+                !crate::lazy_runtime::tasks_can_run(),
+                "the control stands in for a system that can run no task of this process"
+            );
+            let (failure, collected): (std::io::Error, bool) =
+                crate::lazy_runtime::run_on_runtime(a_step_left_running_released_and_collected(
+                    "child-watch-no-task-to-wait",
+                    StepBound::LeaveRunning {
+                        after: Duration::from_millis(300),
+                        extra: Duration::from_millis(200),
+                    },
+                ))
+                .expect("the runtime");
+            drop(refused);
+            assert!(
+                failure.to_string().contains("left running"),
+                "the command reports the step as left running: {failure}"
+            );
+            assert!(
+                collected,
+                "the step that was left running where no task could run was never collected: nothing waited for it"
+            );
+        },
     );
 }

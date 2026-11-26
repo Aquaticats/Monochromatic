@@ -35,6 +35,9 @@ use crate::worktree_add_plan_path_questions::{
     names_parent_directory,
     nearest_existing_ancestor,
 };
+/// The plan these questions fill in,
+/// which the forwarded run's facts carry.
+use crate::worktree_command_facts::AddPlan;
 use std::ffi::{
     OsStr,
     OsString,
@@ -43,45 +46,6 @@ use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The facts of a `git worktree add` the ladder serves.
-///  `usize` is an unsigned size or index;
-/// `PathBuf` is an owned file-system path.
-/// Why:
-///   The destination decides the subvolume to create and the worktree to settle;
-/// the insertion index decides where
-///  `--no-checkout` goes in the arguments real Git receives.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AddPlan = { destination: string; insertAt: number; quiet: boolean; target?: string; checksOutABranch: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AddPlan {
-    /// The destination as Git records it:
-    /// the real path of its parent joined with its last component.
-    pub destination: PathBuf,
-    /// The index in the full argument list where options of `add` may be inserted:
-    /// directly after the word `add`.
-    pub insert_at: usize,
-    /// Whether the person passed `--quiet`,
-    /// which silences the line Git's checkout prints.
-    pub quiet: bool,
-    /// The commit-ish the person named,
-    /// as written,
-    /// or nothing when the add names none:
-    /// Git then starts at the branch its destination is named after when that branch exists,
-    /// and at the source's `HEAD` otherwise.
-    pub target: Option<OsString>,
-    /// Whether Git checks out the branch a name is instead of detaching at the commit it resolves to:
-    /// true when the add has neither `-b` nor `--detach`.
-    /// Why this decides the tree:
-    ///  `builtin/worktree.c`'s `add_worktree` sets the new worktree's `HEAD` to `refs/heads/<name>` when that ref
-    ///  exists and the add detaches nothing,
-    ///  while `rev-parse` reaches a tag of the same name before that branch.
-    pub checks_out_a_branch: bool,
-}
 
 /// The options of `add` that take no value and keep the checkout of a new worktree the ordinary one.
 const FLAG_OPTIONS: &[&[u8]] = &[

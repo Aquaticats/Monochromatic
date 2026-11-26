@@ -1190,94 +1190,95 @@ fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
 #[cfg(unix)]
 #[test]
 fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_refused_add_leaves_no_record_for_the_worktree_another_command_completed",
-    ) {
-        return;
-    }
-    keep_the_durability_writes_in_the_page_cache();
-    let root: PathBuf = fixture("lifecycle-refused-no-record");
-    let (main, common) = source(root.as_path());
-    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
-    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
-    let destination: PathBuf = canonical_root.join("taken");
-    let mut stderr: Vec<u8> = Vec::new();
-    let mut second_stderr: Vec<u8> = Vec::new();
-    let settlement: Settlement = run_with_worktree_copy(
-        &creation_from(
-            main.as_path(),
-            common.as_path(),
-            Some(destination.as_path()),
-        ),
-        &mut |_: &GitStep<'_>| {
-            // The other command registers and fills the worktree inside this command's reserved directory.
-            let other: Invocation = creation_from(
-                main.as_path(),
-                common.as_path(),
-                Some(destination.as_path()),
-            );
-            let _settled = run_with_worktree_copy(
-                &other,
+        || {
+            keep_the_durability_writes_in_the_page_cache();
+            let root: PathBuf = fixture("lifecycle-refused-no-record");
+            let (main, common) = source(root.as_path());
+            std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+            let canonical_root: PathBuf =
+                std::fs::canonicalize(root.as_path()).expect("canonical root");
+            let destination: PathBuf = canonical_root.join("taken");
+            let mut stderr: Vec<u8> = Vec::new();
+            let mut second_stderr: Vec<u8> = Vec::new();
+            let settlement: Settlement = run_with_worktree_copy(
+                &creation_from(
+                    main.as_path(),
+                    common.as_path(),
+                    Some(destination.as_path()),
+                ),
                 &mut |_: &GitStep<'_>| {
-                    return Ok(run_real(
+                    // The other command registers and fills the worktree inside this command's reserved directory.
+                    let other: Invocation = creation_from(
                         main.as_path(),
-                        add_arguments("other", destination.as_path()).as_slice(),
-                    ));
+                        common.as_path(),
+                        Some(destination.as_path()),
+                    );
+                    let _settled = run_with_worktree_copy(
+                        &other,
+                        &mut |_: &GitStep<'_>| {
+                            return Ok(run_real(
+                                main.as_path(),
+                                add_arguments("other", destination.as_path()).as_slice(),
+                            ));
+                        },
+                        &mut Vec::new(),
+                    )
+                    .expect("settled");
+                    // This command's own Git then refuses, because the worktree exists.
+                    return Ok(GitStatus {
+                        code: Some(1),
+                    });
                 },
-                &mut Vec::new(),
+                &mut stderr,
             )
             .expect("settled");
-            // This command's own Git then refuses, because the worktree exists.
-            return Ok(GitStatus {
-                code: Some(1),
-            });
+            assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+            let records: Vec<String> = recorded_names(common.as_path());
+            assert!(
+                records.is_empty(),
+                "a refused add leaves no record for a worktree another command completed: {records:?}"
+            );
+            // A later add from that worktree, which is whole, copies its ignored state.
+            let later: PathBuf = canonical_root.join("later");
+            let nested: Invocation = Invocation {
+                identity: WorktreeIdentity::LinkedWorktree {
+                    common_dir: common.clone(),
+                    git_dir: common.join("worktrees").join("other"),
+                    worktree_root: destination.clone(),
+                },
+                effective_cwd: destination.clone(),
+                creates: true,
+                destination: Some(later.clone()),
+                opted_out: false,
+                short_circuit: false,
+                context: git_context(),
+                add_plan: None,
+                repair: crate::package_repair::RepairSwitch::default(),
+                quiet: false,
+            };
+            let _settled = run_with_worktree_copy(
+                &nested,
+                &mut |_: &GitStep<'_>| {
+                    return Ok(run_real(
+                        destination.as_path(),
+                        add_arguments("later", later.as_path()).as_slice(),
+                    ));
+                },
+                &mut second_stderr,
+            )
+            .expect("settled");
+            assert_eq!(
+                std::fs::read(later.join("cache/data")).ok(),
+                Some(b"payload".to_vec()),
+                "the later add copies from a worktree that is whole: {}",
+                String::from_utf8_lossy(second_stderr.as_slice())
+            );
+            remove(root.as_path());
         },
-        &mut stderr,
-    )
-    .expect("settled");
-    assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
-    let records: Vec<String> = recorded_names(common.as_path());
-    assert!(
-        records.is_empty(),
-        "a refused add leaves no record for a worktree another command completed: {records:?}"
     );
-    // A later add from that worktree, which is whole, copies its ignored state.
-    let later: PathBuf = canonical_root.join("later");
-    let nested: Invocation = Invocation {
-        identity: WorktreeIdentity::LinkedWorktree {
-            common_dir: common.clone(),
-            git_dir: common.join("worktrees").join("other"),
-            worktree_root: destination.clone(),
-        },
-        effective_cwd: destination.clone(),
-        creates: true,
-        destination: Some(later.clone()),
-        opted_out: false,
-        short_circuit: false,
-        context: git_context(),
-        add_plan: None,
-        repair: crate::package_repair::RepairSwitch::default(),
-        quiet: false,
-    };
-    let _settled = run_with_worktree_copy(
-        &nested,
-        &mut |_: &GitStep<'_>| {
-            return Ok(run_real(
-                destination.as_path(),
-                add_arguments("later", later.as_path()).as_slice(),
-            ));
-        },
-        &mut second_stderr,
-    )
-    .expect("settled");
-    assert_eq!(
-        std::fs::read(later.join("cache/data")).ok(),
-        Some(b"payload".to_vec()),
-        "the later add copies from a worktree that is whole: {}",
-        String::from_utf8_lossy(second_stderr.as_slice())
-    );
-    remove(root.as_path());
 }
 
 /// A destination that cannot be read is not a destination that holds nothing:
@@ -1344,68 +1345,68 @@ fn an_unreadable_destination_keeps_the_record_of_the_worktree_that_was_not_fille
 #[cfg(unix)]
 #[test]
 fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache",
-    ) {
-        return;
-    }
-    keep_the_durability_writes_in_the_page_cache();
-    let root: PathBuf = fixture("lifecycle-writes-kept-in-memory");
-    let (main, common) = source(root.as_path());
-    let topic: PathBuf = std::fs::canonicalize(root.as_path())
-        .expect("canonical root")
-        .join("topic");
-    let mut stderr: Vec<u8> = Vec::new();
-    let mut faithful_in_the_settlement: Vec<bool> = Vec::new();
-    let settlement: Settlement = run_with_worktree_copy(
-        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step: &GitStep<'_>| {
-            // Read in the middle of the settlement: the journal is written and the copy is not installed yet.
-            faithful_in_the_settlement.push(crate::private_storage::syncing_is_faithful());
-            return Ok(run_real(
-                main.as_path(),
-                add_arguments("topic", topic.as_path()).as_slice(),
-            ));
+        || {
+            keep_the_durability_writes_in_the_page_cache();
+            let root: PathBuf = fixture("lifecycle-writes-kept-in-memory");
+            let (main, common) = source(root.as_path());
+            let topic: PathBuf = std::fs::canonicalize(root.as_path())
+                .expect("canonical root")
+                .join("topic");
+            let mut stderr: Vec<u8> = Vec::new();
+            let mut faithful_in_the_settlement: Vec<bool> = Vec::new();
+            let settlement: Settlement = run_with_worktree_copy(
+                &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+                &mut |_step: &GitStep<'_>| {
+                    // Read in the middle of the settlement: the journal is written and the copy is not installed yet.
+                    faithful_in_the_settlement.push(crate::private_storage::syncing_is_faithful());
+                    return Ok(run_real(
+                        main.as_path(),
+                        add_arguments("topic", topic.as_path()).as_slice(),
+                    ));
+                },
+                &mut stderr,
+            )
+            .expect("settled");
+            let synced_directories: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
+            let synced_files: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+            assert_eq!(
+                exit_code(&settlement),
+                0,
+                "{}",
+                String::from_utf8_lossy(stderr.as_slice())
+            );
+            assert_eq!(
+                std::fs::read(topic.join("cache/data")).expect("copied"),
+                b"payload"
+            );
+            assert_eq!(
+                faithful_in_the_settlement,
+                vec![false],
+                "the settlement's durability writes stay in the page cache for a control that checks nothing about a crash"
+            );
+            // The records stay whatever the switch says, so a control whose subject is the order of the flushes still reads them.
+            assert!(
+                synced_directories
+                    .iter()
+                    .any(|path| return path.ends_with("v1")),
+                "the settlement's own directory syncs are still recorded: {synced_directories:?}"
+            );
+            // The install log's batch lines are published by their writes and flushed by nobody,
+            // like every other record of a copy (`SPEC.md`, "The records an add writes for itself"):
+            // a flush of one is a commit of the whole btrfs filesystem on the add's waiting path, and a power cut that loses a
+            // line costs the resumption of one installation, never a byte of a person's.
+            assert!(
+                !synced_files
+                    .iter()
+                    .any(|path| return path.ends_with("install-log.jsonl")),
+                "the install log's batch lines are not flushed: {synced_files:?}"
+            );
+            remove(root.as_path());
         },
-        &mut stderr,
-    )
-    .expect("settled");
-    let synced_directories: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
-    let synced_files: Vec<PathBuf> = crate::private_storage::take_file_syncs();
-    assert_eq!(
-        exit_code(&settlement),
-        0,
-        "{}",
-        String::from_utf8_lossy(stderr.as_slice())
     );
-    assert_eq!(
-        std::fs::read(topic.join("cache/data")).expect("copied"),
-        b"payload"
-    );
-    assert_eq!(
-        faithful_in_the_settlement,
-        vec![false],
-        "the settlement's durability writes stay in the page cache for a control that checks nothing about a crash"
-    );
-    // The records stay whatever the switch says, so a control whose subject is the order of the flushes still reads them.
-    assert!(
-        synced_directories
-            .iter()
-            .any(|path| return path.ends_with("v1")),
-        "the settlement's own directory syncs are still recorded: {synced_directories:?}"
-    );
-    // The install log's batch lines are published by their writes and flushed by nobody,
-    // like every other record of a copy (`SPEC.md`, "The records an add writes for itself"):
-    // a flush of one is a commit of the whole btrfs filesystem on the add's waiting path, and a power cut that loses a
-    // line costs the resumption of one installation, never a byte of a person's.
-    assert!(
-        !synced_files
-            .iter()
-            .any(|path| return path.ends_with("install-log.jsonl")),
-        "the install log's batch lines are not flushed: {synced_files:?}"
-    );
-    remove(root.as_path());
 }
 
 /// What:
@@ -2297,95 +2298,95 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
 #[cfg(unix)]
 #[test]
 fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_creation_in_the_worktree_recovers_its_dead_journal_first",
-    ) {
-        return;
-    }
-    keep_the_durability_writes_in_the_page_cache();
-    let root: PathBuf = fixture("lifecycle-dead-journal");
-    let (main, common) = source(root.as_path());
-    // The repository's own exclusion file, so every worktree of it ignores `cache` whether or not it holds the .gitignore file:
-    // the copy into `older` fills it, and `older`'s own creation copies it on.
-    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
-    let older: PathBuf = std::fs::canonicalize(root.as_path())
-        .expect("canonical root")
-        .join("older");
-    git(
-        main.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "older",
-            older.to_str().expect("utf8"),
-        ],
-    );
-    let dead = journal_for(
-        main.as_path(),
-        common.as_path(),
-        older.as_path(),
-        &dead_copy_owner(),
-    );
-    let topic: PathBuf = root.join("topic");
-    // What stands in the worktree each time its own creation starts real Git: no journal of its own, and its ignored
-    // state installed.
-    let mut seen_by_git: Vec<(bool, bool)> = Vec::new();
-    let invocation: Invocation = Invocation {
-        identity: WorktreeIdentity::LinkedWorktree {
-            common_dir: common.clone(),
-            git_dir: common.join("worktrees").join("older"),
-            worktree_root: older.clone(),
-        },
-        effective_cwd: older.clone(),
-        creates: true,
-        destination: Some(topic.clone()),
-        opted_out: false,
-        short_circuit: false,
-        context: git_context(),
-        add_plan: None,
-        repair: crate::package_repair::RepairSwitch::default(),
-        quiet: false,
-    };
-    let mut stderr: Vec<u8> = Vec::new();
-    let settlement: Settlement = run_with_worktree_copy(
-        &invocation,
-        &mut |_step: &GitStep<'_>| {
-            seen_by_git.push((
-                dead.path.exists(),
-                std::fs::read(older.join("cache/data")).is_ok(),
-            ));
-            return Ok(run_real(
+        || {
+            keep_the_durability_writes_in_the_page_cache();
+            let root: PathBuf = fixture("lifecycle-dead-journal");
+            let (main, common) = source(root.as_path());
+            // The repository's own exclusion file, so every worktree of it ignores `cache` whether or not it holds the .gitignore file:
+            // the copy into `older` fills it, and `older`'s own creation copies it on.
+            std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+            let older: PathBuf = std::fs::canonicalize(root.as_path())
+                .expect("canonical root")
+                .join("older");
+            git(
+                main.as_path(),
+                &[
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "-b",
+                    "older",
+                    older.to_str().expect("utf8"),
+                ],
+            );
+            let dead = journal_for(
+                main.as_path(),
+                common.as_path(),
                 older.as_path(),
-                add_arguments("topic", topic.as_path()).as_slice(),
-            ));
+                &dead_copy_owner(),
+            );
+            let topic: PathBuf = root.join("topic");
+            // What stands in the worktree each time its own creation starts real Git: no journal of its own, and its ignored
+            // state installed.
+            let mut seen_by_git: Vec<(bool, bool)> = Vec::new();
+            let invocation: Invocation = Invocation {
+                identity: WorktreeIdentity::LinkedWorktree {
+                    common_dir: common.clone(),
+                    git_dir: common.join("worktrees").join("older"),
+                    worktree_root: older.clone(),
+                },
+                effective_cwd: older.clone(),
+                creates: true,
+                destination: Some(topic.clone()),
+                opted_out: false,
+                short_circuit: false,
+                context: git_context(),
+                add_plan: None,
+                repair: crate::package_repair::RepairSwitch::default(),
+                quiet: false,
+            };
+            let mut stderr: Vec<u8> = Vec::new();
+            let settlement: Settlement = run_with_worktree_copy(
+                &invocation,
+                &mut |_step: &GitStep<'_>| {
+                    seen_by_git.push((
+                        dead.path.exists(),
+                        std::fs::read(older.join("cache/data")).is_ok(),
+                    ));
+                    return Ok(run_real(
+                        older.as_path(),
+                        add_arguments("topic", topic.as_path()).as_slice(),
+                    ));
+                },
+                &mut stderr,
+            )
+            .expect("settled");
+            assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+            let text: String = String::from_utf8(stderr).expect("utf8");
+            assert!(text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"), "{text}");
+            assert!(!seen_by_git.is_empty(), "the creation ran Git");
+            assert_eq!(
+                seen_by_git,
+                vec![(false, true); seen_by_git.len()],
+                "the dead journal is gone and its copy is installed in the worktree before that worktree's own creation runs Git"
+            );
+            assert!(!dead.path.exists());
+            assert_eq!(
+                std::fs::read(older.join("cache/data")).expect("recovered copy"),
+                b"payload",
+                "{text}"
+            );
+            assert_eq!(
+                std::fs::read(topic.join("cache/data")).expect("own copy"),
+                b"payload",
+                "{text}"
+            );
+            remove(root.as_path());
         },
-        &mut stderr,
-    )
-    .expect("settled");
-    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
-    let text: String = String::from_utf8(stderr).expect("utf8");
-    assert!(text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"), "{text}");
-    assert!(!seen_by_git.is_empty(), "the creation ran Git");
-    assert_eq!(
-        seen_by_git,
-        vec![(false, true); seen_by_git.len()],
-        "the dead journal is gone and its copy is installed in the worktree before that worktree's own creation runs Git"
     );
-    assert!(!dead.path.exists());
-    assert_eq!(
-        std::fs::read(older.join("cache/data")).expect("recovered copy"),
-        b"payload",
-        "{text}"
-    );
-    assert_eq!(
-        std::fs::read(topic.join("cache/data")).expect("own copy"),
-        b"payload",
-        "{text}"
-    );
-    remove(root.as_path());
 }
 
 /// What:
@@ -2408,51 +2409,49 @@ fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
 #[cfg(unix)]
 #[test]
 fn a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it",
-    ) {
-        return;
-    }
-    keep_the_durability_writes_in_the_page_cache();
-    let root: PathBuf = fixture("lifecycle-owed-copy-another-worktree");
-    let (main, common) = source(root.as_path());
-    let older: PathBuf = std::fs::canonicalize(root.as_path())
-        .expect("canonical root")
-        .join("older");
-    git(
-        main.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "older",
-            older.to_str().expect("utf8"),
-        ],
-    );
-    let dead = journal_for(
-        main.as_path(),
-        common.as_path(),
-        older.as_path(),
-        &dead_copy_owner(),
-    );
-    let topic: PathBuf = root.join("topic");
-    let mut stderr: Vec<u8> = Vec::new();
-    let settlement: Settlement = run_with_worktree_copy(
-        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step: &GitStep<'_>| {
-            return Ok(run_real(
+        || {
+            keep_the_durability_writes_in_the_page_cache();
+            let root: PathBuf = fixture("lifecycle-owed-copy-another-worktree");
+            let (main, common) = source(root.as_path());
+            let older: PathBuf = std::fs::canonicalize(root.as_path())
+                .expect("canonical root")
+                .join("older");
+            git(
                 main.as_path(),
-                add_arguments("topic", topic.as_path()).as_slice(),
-            ));
-        },
-        &mut stderr,
-    )
-    .expect("settled");
-    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
-    let text: String = String::from_utf8(stderr).expect("utf8");
-    assert!(
+                &[
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "-b",
+                    "older",
+                    older.to_str().expect("utf8"),
+                ],
+            );
+            let dead = journal_for(
+                main.as_path(),
+                common.as_path(),
+                older.as_path(),
+                &dead_copy_owner(),
+            );
+            let topic: PathBuf = root.join("topic");
+            let mut stderr: Vec<u8> = Vec::new();
+            let settlement: Settlement = run_with_worktree_copy(
+                &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+                &mut |_step: &GitStep<'_>| {
+                    return Ok(run_real(
+                        main.as_path(),
+                        add_arguments("topic", topic.as_path()).as_slice(),
+                    ));
+                },
+                &mut stderr,
+            )
+            .expect("settled");
+            assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+            let text: String = String::from_utf8(stderr).expect("utf8");
+            assert!(
         text.starts_with(
             format!(
                 "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {} is still owed; the first command run in that worktree makes it, and this command does not wait for it.\n",
@@ -2462,20 +2461,22 @@ fn a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it() {
         ),
         "the copy `older` owes is named and this command does not wait for it: {text}"
     );
-    assert!(
-        dead.path.exists(),
-        "the record of the copy `older` still owes is kept for its own command: {text}"
+            assert!(
+                dead.path.exists(),
+                "the record of the copy `older` still owes is kept for its own command: {text}"
+            );
+            assert!(
+                !older.join("cache/data").exists(),
+                "another worktree's copy is not made here: {text}"
+            );
+            assert_eq!(
+                std::fs::read(topic.join("cache/data")).expect("own copy"),
+                b"payload",
+                "this command's own copy is made"
+            );
+            remove(root.as_path());
+        },
     );
-    assert!(
-        !older.join("cache/data").exists(),
-        "another worktree's copy is not made here: {text}"
-    );
-    assert_eq!(
-        std::fs::read(topic.join("cache/data")).expect("own copy"),
-        b"payload",
-        "this command's own copy is made"
-    );
-    remove(root.as_path());
 }
 
 /// A command in the main checkout names a dead journal that fills another worktree and makes no copy there;
@@ -2491,107 +2492,107 @@ fn a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it() {
 #[cfg(unix)]
 #[test]
 fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes_it() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes_it",
-    ) {
-        return;
-    }
-    keep_the_durability_writes_in_the_page_cache();
-    let root: PathBuf = fixture("lifecycle-dead-journal-named-in-another-worktree");
-    let (main, common) = source(root.as_path());
-    let older: PathBuf = std::fs::canonicalize(root.as_path())
-        .expect("canonical root")
-        .join("older");
-    git(
-        main.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "older",
-            older.to_str().expect("utf8"),
-        ],
-    );
-    let dead = journal_for(
-        main.as_path(),
-        common.as_path(),
-        older.as_path(),
-        &dead_copy_owner(),
-    );
-    let topic: PathBuf = root.join("topic");
-    let mut stderr: Vec<u8> = Vec::new();
-    let settlement: Settlement = run_with_worktree_copy(
-        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step: &GitStep<'_>| {
-            return Ok(run_real(
+        || {
+            keep_the_durability_writes_in_the_page_cache();
+            let root: PathBuf = fixture("lifecycle-dead-journal-named-in-another-worktree");
+            let (main, common) = source(root.as_path());
+            let older: PathBuf = std::fs::canonicalize(root.as_path())
+                .expect("canonical root")
+                .join("older");
+            git(
                 main.as_path(),
-                add_arguments("topic", topic.as_path()).as_slice(),
-            ));
-        },
-        &mut stderr,
-    )
-    .expect("settled");
-    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
-    let text: String = String::from_utf8(stderr).expect("utf8");
-    let older_shown: String = quote(older.to_string_lossy().as_ref());
-    assert!(
+                &[
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "-b",
+                    "older",
+                    older.to_str().expect("utf8"),
+                ],
+            );
+            let dead = journal_for(
+                main.as_path(),
+                common.as_path(),
+                older.as_path(),
+                &dead_copy_owner(),
+            );
+            let topic: PathBuf = root.join("topic");
+            let mut stderr: Vec<u8> = Vec::new();
+            let settlement: Settlement = run_with_worktree_copy(
+                &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+                &mut |_step: &GitStep<'_>| {
+                    return Ok(run_real(
+                        main.as_path(),
+                        add_arguments("topic", topic.as_path()).as_slice(),
+                    ));
+                },
+                &mut stderr,
+            )
+            .expect("settled");
+            assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+            let text: String = String::from_utf8(stderr).expect("utf8");
+            let older_shown: String = quote(older.to_string_lossy().as_ref());
+            assert!(
         text.starts_with(format!("monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {older_shown} is still owed; the first command run in that worktree makes it, and this command does not wait for it.\n").as_str()),
         "{text}"
     );
-    assert!(
-        !older.join("cache/data").exists(),
-        "a command in another worktree writes nothing into it"
-    );
-    assert!(
-        dead.path.exists(),
-        "the journal stays for the worktree whose files are missing"
-    );
-    assert_eq!(
-        std::fs::read(topic.join("cache/data")).expect("own copy"),
-        b"payload"
-    );
-    // The first command run in that worktree is the one that fills it.
-    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
-        common_dir: common.clone(),
-        git_dir: common.join("worktrees").join("older"),
-        worktree_root: older.clone(),
-    };
-    let mut recovery_stderr: Vec<u8> = Vec::new();
-    let settled: Settlement = run_with_worktree_copy(
-        &Invocation {
-            identity,
-            effective_cwd: older.clone(),
-            creates: false,
-            destination: None,
-            opted_out: false,
-            short_circuit: false,
-            context: git_context(),
-            add_plan: None,
-            repair: crate::package_repair::RepairSwitch::default(),
-            quiet: false,
-        },
-        &mut |_step: &GitStep<'_>| {
-            return Ok(GitStatus {
-                code: Some(0),
-            });
-        },
-        &mut recovery_stderr,
-    )
-    .expect("settled");
-    assert_eq!(exit_code(&settled), 0);
-    let recovered_text: String = String::from_utf8(recovery_stderr).expect("utf8");
-    assert!(
+            assert!(
+                !older.join("cache/data").exists(),
+                "a command in another worktree writes nothing into it"
+            );
+            assert!(
+                dead.path.exists(),
+                "the journal stays for the worktree whose files are missing"
+            );
+            assert_eq!(
+                std::fs::read(topic.join("cache/data")).expect("own copy"),
+                b"payload"
+            );
+            // The first command run in that worktree is the one that fills it.
+            let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+                common_dir: common.clone(),
+                git_dir: common.join("worktrees").join("older"),
+                worktree_root: older.clone(),
+            };
+            let mut recovery_stderr: Vec<u8> = Vec::new();
+            let settled: Settlement = run_with_worktree_copy(
+                &Invocation {
+                    identity,
+                    effective_cwd: older.clone(),
+                    creates: false,
+                    destination: None,
+                    opted_out: false,
+                    short_circuit: false,
+                    context: git_context(),
+                    add_plan: None,
+                    repair: crate::package_repair::RepairSwitch::default(),
+                    quiet: false,
+                },
+                &mut |_step: &GitStep<'_>| {
+                    return Ok(GitStatus {
+                        code: Some(0),
+                    });
+                },
+                &mut recovery_stderr,
+            )
+            .expect("settled");
+            assert_eq!(exit_code(&settled), 0);
+            let recovered_text: String = String::from_utf8(recovery_stderr).expect("utf8");
+            assert!(
         recovered_text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
         "{recovered_text}"
     );
-    assert!(!dead.path.exists());
-    assert_eq!(
-        std::fs::read(older.join("cache/data")).expect("recovered copy"),
-        b"payload"
+            assert!(!dead.path.exists());
+            assert_eq!(
+                std::fs::read(older.join("cache/data")).expect("recovered copy"),
+                b"payload"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// A creation whose command line names no readable destination copies nothing and says so once Git succeeded.

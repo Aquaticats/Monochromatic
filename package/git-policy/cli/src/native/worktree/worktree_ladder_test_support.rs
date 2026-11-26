@@ -27,7 +27,7 @@ use crate::test_support::{
     git,
     git_output,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_identity::WorktreeIdentity;
 use std::os::unix::fs::MetadataExt;
 use std::path::{

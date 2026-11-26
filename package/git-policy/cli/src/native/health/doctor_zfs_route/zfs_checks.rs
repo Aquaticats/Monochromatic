@@ -43,10 +43,15 @@ use super::check_outcome::{
 };
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
     CloneObjectFacts,
+    MOUNTPOINT_PROPERTY,
     PropertyValue,
     value_of,
 };
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
+use crate::worktree_clone_mount_protocol::local_user_property::{
+    PropertyReading,
+    read_local_property,
+};
 use std::path::PathBuf;
 
 //region Limits the kernel and the design fix
@@ -501,8 +506,27 @@ fn property_failure(
     }
 }
 
-/// The container's properties: legacy, unmountable automatically, and no
-/// set-user-ID or device nodes in a mount of it.
+/// What:
+///  The container's properties:
+///  `legacy` set on the container itself,
+///  unmountable automatically,
+///  and no set-user-ID or device nodes in a mount of it.
+/// Why:
+///  A clone inherits `mountpoint` from its own parent,
+///  and OpenZFS names the nearest dataset that set the value locally as the source,
+///  so a container that inherits `legacy` from an ancestor hands each clone
+///  `inherited from <the ancestor>` rather than `inherited from <the container>`,
+///  which the read after the clone request refuses
+///  (`worktree_clone_add_route::add_zfs::the_clones_mountpoint_failure`,
+///  `doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+///  The route's two checks are therefore the same judgement of the same container,
+///  and this one stands before any write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const source = readLocalProperty(facts.properties, facts.name, 'mountpoint');
+/// if (source.kind !== 'local') return { field: 'mountpoint', detail: `... must set 'legacy' itself` };
+/// ```
 fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     if facts.mountpoint.text() != Some(LEGACY_MOUNTPOINT) {
         return Some((
@@ -513,6 +537,43 @@ fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
                 facts.mountpoint.describe("mountpoint")
             ),
         ));
+    }
+    let source: PropertyReading<'_> = read_local_property(
+        Some(&facts.properties),
+        facts.name.as_str(),
+        MOUNTPOINT_PROPERTY,
+    );
+    match &source {
+        PropertyReading::Local {
+            ..
+        } => {}
+        PropertyReading::Inherited {
+            from,
+        } => {
+            return Some((
+                String::from("mountpoint"),
+                format!(
+                    "`{}`: {}, inherited from `{from}`, and the clone container must set `{LEGACY_MOUNTPOINT}` on itself, because each clone inherits the value from its own parent and not from an ancestor above it",
+                    facts.name,
+                    facts.mountpoint.describe(MOUNTPOINT_PROPERTY)
+                ),
+            ));
+        }
+        PropertyReading::Absent => {
+            return Some((
+                String::from("mountpoint"),
+                format!(
+                    "`{}`: the reply carries no source for `{MOUNTPOINT_PROPERTY}`, so nothing proves the container set `{LEGACY_MOUNTPOINT}` on itself",
+                    facts.name
+                ),
+            ));
+        }
+        PropertyReading::Malformed(refusal) => {
+            return Some((
+                String::from("mountpoint"),
+                refusal.message(MOUNTPOINT_PROPERTY),
+            ));
+        }
     }
     let canmount: PropertyValue = value_of(&facts.properties, CANMOUNT_PROPERTY);
     if canmount.number() != Some(CANMOUNT_OFF) {

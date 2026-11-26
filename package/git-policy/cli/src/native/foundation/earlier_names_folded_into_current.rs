@@ -49,7 +49,7 @@ use crate::earlier_service_process_look::{
     earlier_service_process_hold,
     effective_user,
 };
-use crate::rename_that_never_replaces::rename_noreplace;
+use crate::private_storage::rename_noreplace;
 use crate::service_instance::instance_of;
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 use crate::wrapper_names_old_and_new::{

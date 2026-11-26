@@ -9,7 +9,9 @@
 //!  exactly as it was
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10, and
 //!  `super::add_source_the_restore_cannot_prove` for the sources the route leaves
-//!  to the ladder until plan step 14's settle lands).
+//!  to the ladder until the removal's writing path is reachable:
+//!  its Git settle is plan step 16's,
+//!  and no command of this release reaches it).
 //!  A failed or killed add keeps the claim, the slot and the locked
 //!  registration, and the next add at the slot reads the record's phase and
 //!  continues from it
@@ -49,6 +51,7 @@ use super::add_route_steps::{
     step_snapshot,
     write_the_record,
 };
+use super::add_zfs::TheLiveDevice;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::transaction_git::GitContext;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
@@ -59,15 +62,14 @@ use crate::worktree_clone_binding_record::record_publication::{
     read_binding,
 };
 use crate::worktree_clone_binding_record::registration_home::{
+    binding_path,
     claim_generation_of,
     claim_prefix,
     home_folder,
     open_or_create_home,
 };
-use crate::worktree_copy_forward::{
-    CopyFacts,
-    ForwardedRun,
-};
+use crate::worktree_command_facts::CopyFacts;
+use crate::worktree_copy_forward::ForwardedRun;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::ffi::OsString;
@@ -100,7 +102,7 @@ pub fn run_a_zfs_add(
         return None;
     };
     let destination: &std::path::Path = facts.destination.as_deref()?;
-    let plan: &crate::worktree_add_plan::AddPlan = facts.add_plan.as_ref()?;
+    let plan: &crate::worktree_command_facts::AddPlan = facts.add_plan.as_ref()?;
     let route: RouteFacts = match the_routes_add(&facts.identity, destination, &LiveMountedDatasets)
     {
         Ok(None) => return None,
@@ -154,15 +156,17 @@ pub fn run_a_zfs_add(
 ///  ladder with nothing changed.
 fn run_the_route(
     route: &RouteFacts,
-    plan: &crate::worktree_add_plan::AddPlan,
+    plan: &crate::worktree_command_facts::AddPlan,
     context: &GitContext,
     real_git: &std::path::Path,
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> Result<Option<Vec<String>>, StepRefusal> {
     let stops: Stops = Stops::from_environment().map_err(StepRefusal::refused)?;
-    let Some(preflight): Option<Preflight> = preflight_the_add(route, plan, context, arguments)?
-    else {
+    // The release opens the kernel's device behind the compatibility gate, as it always did.
+    let devices: TheLiveDevice = TheLiveDevice;
+    let answered: Option<Preflight> = preflight_the_add(route, plan, context, arguments, &devices)?;
+    let Some(preflight): Option<Preflight> = answered else {
         return Ok(None);
     };
     let home: std::fs::File = open_or_create_home(route.common_dir.as_path()).map_err(|error| {
@@ -340,7 +344,7 @@ fn the_claims_generation(
 /// Read a standing record and prove it is this add's continuation.
 fn resume_the_record(
     route: &RouteFacts,
-    plan: &crate::worktree_add_plan::AddPlan,
+    plan: &crate::worktree_command_facts::AddPlan,
     arguments: &[OsString],
     mut record: BindingRecord,
     generation: u64,
@@ -366,10 +370,11 @@ fn resume_the_record(
     let request = request_of(plan, arguments).map_err(StepRefusal::refused)?;
     if record.request != request {
         return Err(StepRefusal::refused(format!(
-            "the record was written by an add given `{}` and this add was given `{}`; Ways forward: run the same add again, or remove the worktree and its records with `git worktree remove {}` first",
+            "the record was written by an add given `{}` and this add was given `{}`; Ways forward: run the same add again, which continues that record, or remove the worktree with `git worktree remove {}` and then delete the binding record at {} yourself, because Git's removal leaves that record and no command of this release removes it",
             record.request.encode(),
             request.encode(),
-            route.slot
+            route.slot,
+            binding_path(route.common_dir.as_path(), route.slot.as_str()).display()
         )));
     }
     record.claim = generation;
@@ -379,7 +384,7 @@ fn resume_the_record(
 /// Write the record's first version before any mutation beyond the claim.
 fn fresh_the_record(
     route: &RouteFacts,
-    plan: &crate::worktree_add_plan::AddPlan,
+    plan: &crate::worktree_command_facts::AddPlan,
     arguments: &[OsString],
     preflight: &Preflight,
     home: &std::fs::File,

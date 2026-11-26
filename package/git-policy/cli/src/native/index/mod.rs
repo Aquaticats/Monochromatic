@@ -3,6 +3,78 @@
 //! Why:
 //!  The index format is one specification with many parts.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `index_byte_search.rs`:
+//!   byte searches the index readers share:
+//!   first position of a byte,
+//!   a leading run,
+//!   any non-zero byte.
+//! - `index_cache_tree.rs`:
+//!   in-process index update:
+//!   the cache-tree extension.
+//! - `index_ewah.rs`:
+//!   in-process index update:
+//!   Git's EWAH bitmap,
+//!   for the untracked-cache and fsmonitor extensions.
+//! - `index_reset_path_names.rs`:
+//!   in-process index update:
+//!   the names Git refuses under its protection settings,
+//!   which the reset leaves to Git.
+//! - `index_reset_publish.rs`:
+//!   in-process index update:
+//!   the lock proof,
+//!   the temporary file and the file mode of the landing's private index.
+//! - `index_reset_tree.rs`:
+//!   in-process index update:
+//!   the trees a path-limited reset reads.
+//! - `index_resolve_undo.rs`:
+//!   in-process index update:
+//!   the resolve-undo extension.
+//! - `index_settings.rs`:
+//!   in-process index update:
+//!   the configuration that decides the extensions and the decline cases.
+//! - `index_stat.rs`:
+//!   in-process index update:
+//!   stat fields and Git's varint.
+//! - `index_flags.rs`:
+//!   a read of the assume-unchanged,
+//!   skip-worktree and intent-to-add marks of an index file,
+//!   and of the paths the intent-to-add entries name.
+//!   Declared after `index_stat`,
+//!   whose varint a version 4 entry's strip count is read with.
+//! - `index_fsmonitor.rs`:
+//!   in-process index update:
+//!   the fsmonitor extension.
+//! - `index_reset_worktree_stat_source.rs`:
+//!   in-process index update:
+//!   the choice of where a new entry's stat data comes from,
+//!   and the trait a proof implements.
+//! - `index_reset_worktree_stat.rs`:
+//!   in-process index update:
+//!   the worktree's stat data for a path the reset writes,
+//!   recorded only where the file provably holds the commit's bytes.
+//! - `index_untracked.rs`:
+//!   in-process index update:
+//!   the untracked-cache extension as directories,
+//!   and its invalidation.
+//! - `index_untracked_io.rs`:
+//!   in-process index update:
+//!   reading and writing the untracked-cache extension.
+//! - `index_full.rs`:
+//!   in-process index update:
+//!   a whole index file read into entries and kept extensions.
+//! - `index_full_write.rs`:
+//!   in-process index update:
+//!   a whole index file written as Git writes it.
+//! - `index_reset.rs`:
+//!   in-process index update:
+//!   a path-limited mixed reset of an index held in memory.
+//! - `index_reset_file.rs`:
+//!   in-process index update:
+//!   the landing's follow-up on an index file.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // index/index.ts: one `export * from './file'` per module below.

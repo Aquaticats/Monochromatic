@@ -9,6 +9,220 @@
 //! Why:
 //!  Subsystems depend on these and they depend on no subsystem.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `a_panic_that_ends_one_item.rs`:
+//!   one item's work awaited with a panic in it kept as that item's answer,
+//!   so one item's failure ends that item and not the task that ran the wave.
+//! - `blocking_job.rs`:
+//!   a blocking call on tokio's blocking pool,
+//!   with "no thread to start" as an error value instead of a panic.
+//! - `call_catching_panics.rs`:
+//!   a call turned into a value when it panics,
+//!   for the places that guard a function and its state.
+//! - `call_catching_panics_awaiting.rs`:
+//!   a future awaited with the panic of any one of its polls as an error value,
+//!   for the places that guard work that awaits.
+//! - `collected_elements_looked_at.rs`:
+//!   the collected elements a pass over unbounded input has looked at,
+//!   counted for the controls of the passes that must stay linear.
+//! - `file_only_root_may_write.rs`:
+//!   reading a file only the account this program runs as may write.
+//!   Linux only,
+//!   like the handler whose configuration it reads:
+//!   the flags and the owner check are the Linux kernel's own.
+//! - `file_open_for_write_by_any_process.rs`:
+//!   whether any process has a file open for writing,
+//!   found with a read lease that is taken and given back at once.
+//! - `handler_configuration_keys.rs`:
+//!   the keys the root-owned handler configuration holds,
+//!   which the wrapper and the root modes both read.
+//! - `hexadecimal_of_bytes.rs`:
+//!   bytes as lowercase hexadecimal digits,
+//!   the one encoder every record,
+//!   claim name and audit line spells bytes with.
+//! - `iso_time.rs`:
+//!   UTC timestamps in the exact form of JavaScript's `toISOString`.
+//! - `diagnostic_log.rs`:
+//!   line-oriented debug and warning diagnostics on standard error.
+//! - `earlier_push_programs_record.rs`:
+//!   the record an unreleased branch wrote of a shell's programs,
+//!   and the staging files of its writes,
+//!   removed by the first command that meets them.
+//! - `json_record.rs`:
+//!   compact JSON records read and written with the incumbent's `JSON` semantics.
+//! - `js_text.rs`:
+//!   text operations with the exact semantics of JavaScript's built-ins.
+//! - `jsonc_member_text.rs`:
+//!   one text value inside one object of a JSONC document.
+//! - `lexical_path.rs`:
+//!   lexical path normalization.
+//! - `line_sink.rs`:
+//!   where one line of progress goes,
+//!   as a trait a struct can implement.
+//! - `log_generations_kept_to_a_bound.rs`:
+//!   the numbered generations a log's rotations leave,
+//!   the bound on their bytes and the pass that removes the oldest.
+//! - `name_held_while_one_thread_publishes_it.rs`:
+//!   the in-memory claim on a file name that one thread of this process is publishing by the checked rename.
+//! - `notice_stream_that_does_not_hold_its_writer.rs`:
+//!   a stream of a command's notices written by a thread of its own,
+//!   so a reader that stopped draining never holds the command.
+//! - `parallel_budget.rs`:
+//!   how many workers independent items may use together,
+//!   from the CPUs allowed,
+//!   the memory free and a measured ceiling.
+//! - `path_bytes_in_records.rs`:
+//!   a path kept as text in a record,
+//!   with its bytes in hexadecimal beside the plain text.
+//! - `plain_file.rs`:
+//!   reading a file only when it is a plain one:
+//!   never waiting for a writer,
+//!   never following a link,
+//!   never past a limit.
+//! - `common_directory_of_a_git_directory.rs`:
+//!   the common Git directory a worktree's own Git directory belongs to,
+//!   read from its `commondir` file.
+//! - `private_storage_replacing_a_record.rs`:
+//!   publishing a record over the one the same name already holds,
+//!   in one rename,
+//!   with or without making it durable.
+//! - `publishing_entries_in_one_open_folder.rs`:
+//!   entries created,
+//!   filled and published by name below one open folder.
+//! - `random_id.rs`:
+//!   random identifiers in the layout of the incumbent's `randomUUID`.
+//! - `ref_name.rs`:
+//!   a reference name as the bytes Git printed,
+//!   with the spelling each reader of it takes.
+//! - `runtime_limits.rs`:
+//!   what is left of the limits a process that starts threads lives under:
+//!   address space,
+//!   `RLIMIT_NPROC` and `pids.max`.
+//! - `runtime_plan.rs`:
+//!   how many workers and blocking threads a runtime gets from the budget and the limits.
+//! - `scoped_start.rs`:
+//!   a scoped thread,
+//!   or the work done in turn where the system cannot start one.
+//! - `lines_written_by_a_thread.rs`:
+//!   lines a caller hands over and a thread of its own writes:
+//!   the bounded queue,
+//!   its thread,
+//!   and the wait the end of a process makes for them.
+//! - `shared_notice_stream.rs`:
+//!   one stream of a command's notices,
+//!   written whole line by whole line by two threads through one small lock.
+//! - `side_by_side_on_the_current_task.rs`:
+//!   futures the caller lends,
+//!   run beside each other on the task that awaits them,
+//!   for the items a drain knows only when it runs and whose work is awaited rather than run as a job.
+//! - `side_by_side_threads.rs`:
+//!   jobs on scoped threads beside each other or beside the calling thread,
+//!   each a function and the state it reads.
+//! - `parallel_runner.rs`:
+//!   independent items on a bounded number of threads,
+//!   reported in input order with no lock.
+//! - `standard_error_descriptor.rs`:
+//!   the process's own standard error descriptor,
+//!   written without the lock the standard library's shared handle takes.
+//! - `diagnostic_lines_off_the_calling_thread.rs`:
+//!   the diagnostic lines themselves,
+//!   written by a thread of their own,
+//!   so a reader that stopped draining never holds the command that said them.
+//! - `standard_error_off_the_calling_thread.rs`:
+//!   this process's standard error as a stream whose every whole line is handed to the thread that writes it,
+//!   so the thread that says a line never waits for the reader.
+//! - `start_directory.rs`:
+//!   the directory a command was started in,
+//!   read from the process once where the command begins and handed to the code that needs it.
+//! - `test_only_switches.rs`:
+//!   the one read of every test-only switch,
+//!   which a build the release ships holds not at all.
+//! - `lazy_runtime.rs`:
+//!   the process's one tokio runtime:
+//!   built on the first need,
+//!   sized from the budget and the limits,
+//!   bounded by a deadline.
+//! - `runtime_probe.rs`:
+//!   the test-only entry that builds the runtime and runs a blocking job,
+//!   for the controls that start the executable under limits.
+//! - `the_claim_a_job_takes_before_running_it.rs`:
+//!   a claim that decides,
+//!   once,
+//!   whether the work of a job runs or its reporter may say it never did.
+//! - `the_place_of_one_blocking_job.rs`:
+//!   the place one blocking job holds of the process's bound,
+//!   shared between the frame that waits for it and the job itself.
+//! - `blocking_jobs_within_the_budget.rs`:
+//!   the most blocking jobs this process runs at once,
+//!   one bound for the whole process,
+//!   taken by each job and given back when it ends.
+//! - `parallel_runner_on_the_runtime.rs`:
+//!   independent items as blocking jobs of the process's runtime,
+//!   under the process's bound on blocking jobs,
+//!   reported in the same input order.
+//! - `parallel_runner_on_the_runtime_awaiting.rs`:
+//!   independent items as tasks of the process's runtime,
+//!   for work that awaits a Git child rather than blocking on it,
+//!   reported in the same input order.
+//! - `side_by_side_on_the_runtime.rs`:
+//!   jobs of the blocking pool beside each other or beside the calling task's own work,
+//!   each a function and the state it owns,
+//!   under the process's bound on blocking jobs.
+//! - `time_spent_outside_the_phases.rs`:
+//!   the two costs a command pays outside the phases of its timing record,
+//!   and the writer that measures what it prints.
+//! - `unix_socket_connect_within_a_deadline.rs`:
+//!   a connection to a unix socket that is made within one deadline,
+//!   so a socket whose program stopped costs its caller a bounded wait.
+//! - `work_awaited_within_a_ceiling.rs`:
+//!   a blocking job on a thread of its own,
+//!   awaited no longer than a ceiling,
+//!   because a file system call can wait in the kernel with no end.
+//! - `worst_delay_seen_on_this_host.rs`:
+//!   the longest delay measured on this host and the owner's multiple of it,
+//!   which the held-name wait and the wait before a forced stop use.
+//! - `private_storage.rs`:
+//!   private,
+//!   crash-safe file primitives shared by every durable record.
+//! - `earlier_log_lines_journal_held_and_recorded.rs`:
+//!   the journal of a log fold:
+//!   a round,
+//!   a record's text and the journal file held with its lock.
+//! - `entries_of_one_open_folder.rs`:
+//!   one folder held open,
+//!   and the entries below it read and listed by name.
+//! - `log_lines_appended_without_a_lock.rs`:
+//!   one line or entry appended to a log with one write,
+//!   and the rotation that takes a full file off its name.
+//! - `rename_that_never_replaces.rs`:
+//!   the rename that never replaces an existing name,
+//!   and the test for a filesystem that cannot do it.
+//! - `scratch_entry_removal.rs`:
+//!   how one scratch entry is removed within its ceiling,
+//!   and which commit scratch trees a later command takes for abandoned.
+//! - `wrapper_names_old_and_new.rs`:
+//!   the names this program answers to and keeps on disk,
+//!   each as the current spelling and the one an earlier release used.
+//! - `earlier_log_lines_added_to_current_log.rs`:
+//!   the lines of a log an earlier release wrote added to the log under the current name,
+//!   restartable after a kill.
+//! - `earlier_folder_entries_moved_into_current_folder.rs`:
+//!   the entries of a folder an earlier release wrote moved into the folder under the current name.
+//! - `earlier_name_moved_to_current_in_place.rs`:
+//!   where a kept file or folder is,
+//!   moved in place from its earlier name on the first need.
+//! - `earlier_names_folded_into_current.rs`:
+//!   every kept name that exists under both spellings folded into the current one when no earlier program writes it.
+//! - `kept_names_in_the_git_directories.rs`:
+//!   every kept name in a repository's Git directories settled to its current spelling,
+//!   and the finder for a reader that moves nothing.
+//! - `scratch_location.rs`:
+//!   where short-lived private files live:
+//!   the per-user scratch directory and the repository scratch directory,
+//!   never the system temporary directory.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // foundation/index.ts: one `export * from './file'` per module below.

@@ -83,7 +83,10 @@ use crate::worktree_removal_deferred_origin_check::fixtures::{
     Pool,
     origin_properties,
 };
-use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
+use crate::worktree_removal_deferred_origin_check::origin_mark::{
+    MARK_OFF,
+    MARK_ON,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
     DeviceError,
@@ -715,6 +718,51 @@ pub struct EpochProbe {
     pub hidden: Rc<Cell<bool>>,
 }
 
+/// What:
+///  The checks reader of a removal whose origin is marked once the batch has gone:
+///  the pool a check reads before the batch's request,
+///  and the pool it reads after it.
+/// Why:
+///  The deferred-origin check runs before each snapshot request and again before the head,
+///  so a mark set between the two is the fact the head's own check must refuse
+///  (`SPEC.md`,
+///  "The same check runs again before the head destroy").
+///  A pool that stayed unmarked would let the head through,
+///  and a control could not tell the head's check from the batch's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const check = { identity: (name) => device.sent.length === 0 ? before.identity(name) : after.identity(name) };
+/// ```
+pub struct MarkedAfterTheBatch<'a> {
+    /// The pool the check reads while the batch has sent nothing.
+    pub before: &'a Pool,
+    /// The pool the check reads once the batch's request has gone.
+    pub after: &'a Pool,
+    /// The device whose own request is the moment the mark appears.
+    pub device: &'a ClearingDevice,
+}
+
+impl DatasetReader for MarkedAfterTheBatch<'_> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
+        if self.device.sent.borrow().is_empty() {
+            return self.before.identity(dataset);
+        }
+        return self.after.identity(dataset);
+    }
+
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
+        return self.before.next_child(parent, cursor);
+    }
+}
+
 impl DatasetReader for EpochProbe {
     fn identity(
         &self,
@@ -802,6 +850,13 @@ pub fn a_fixture(name: &str) -> RemovalFixture {
 /// The check's pool,
 /// keyed by the origin snapshot's full name.
 pub fn the_checks_pool() -> Pool {
+    return the_checks_pool_with(MARK_OFF);
+}
+
+/// The same pool with the origin snapshot's `defer_destroy` mark as a control
+/// names it,
+/// which is the one field a mark control changes.
+pub fn the_checks_pool_with(mark: u64) -> Pool {
     let full: String = the_origin_full_name();
     return Pool::new(vec![
         (
@@ -822,10 +877,16 @@ pub fn the_checks_pool() -> Pool {
             full.as_str(),
             Answer::of(
                 the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""),
-                origin_properties(Some(MARK_OFF), Some(0)),
+                origin_properties(Some(mark), Some(0)),
             ),
         ),
     ]);
+}
+
+/// The check's pool whose origin snapshot is marked for deferred destroy,
+/// which is the state a second removal's act leaves.
+pub fn a_marked_checks_pool() -> Pool {
+    return the_checks_pool_with(MARK_ON);
 }
 
 /// The budget both of the clone's own snapshots need,

@@ -29,37 +29,13 @@
 //! const plan = parseRemovePlan(['worktree', 'remove', '../topic'], 0, cwd, commonDir); // undefined: Git removes it
 //! ```
 
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_operands::operands_after_options;
 use std::ffi::OsString;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The worktree a `git worktree remove <path>` names,
-/// resolved to a directory that exists.
-/// Why:
-///   The removal needs the worktree's real path;
-/// Git also accepts a unique last component,
-/// which is
-///  found among the registered paths before the name is read as a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RemovePlan = { target: string; operand: string; force: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RemovePlan {
-    /// The real path of the worktree directory.
-    pub target: PathBuf,
-    /// The operand as the person typed it,
-    /// which Git also matches against the last components of every registered path.
-    pub operand: OsString,
-    /// Whether the person passed `-f` or `--force`,
-    /// which is what makes Git remove a worktree that holds changes.
-    pub force: bool,
-}
 
 /// Whether a token is one of the two spellings of Git's force option for this command.
 /// Why:
@@ -155,15 +131,19 @@ pub fn parse_remove_plan(
 ///  A command naming two operands names no one worktree,
 ///  and Git answers it with its own usage;
 ///  the refusal leaves that form to Git.
+///  The start directory is optional because Git's own match against the
+///  registered paths needs none:
+///  a spelling whose global options the caller does not serve can still name a
+///  worktree by a name the registry knows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseRemovalTarget(args: string[], subcommandIndex: number, start: string, commonDir?: string): string | undefined;
+/// function parseRemovalTarget(args: string[], subcommandIndex: number, start?: string, commonDir?: string): string | undefined;
 /// ```
 pub fn parse_removal_target(
     arguments: &[OsString],
     subcommand_index: usize,
-    start: &Path,
+    start: Option<&Path>,
     common_dir: Option<&Path>,
 ) -> Option<PathBuf> {
     if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree"
@@ -187,7 +167,7 @@ pub fn parse_removal_target(
     {
         return Some(target);
     }
-    let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
+    let target: PathBuf = std::fs::canonicalize(start?.join(operand)).ok()?;
     return target.is_dir().then_some(target);
 }
 

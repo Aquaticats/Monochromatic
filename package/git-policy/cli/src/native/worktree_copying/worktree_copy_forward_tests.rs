@@ -11,6 +11,11 @@ use crate::test_support::{
     remove,
     repository,
 };
+/// The two plans a settled run's facts may carry.
+use crate::worktree_command_facts::{
+    AddPlan,
+    RemovePlan,
+};
 use std::path::Path;
 
 /// A repository with an ignored rules file,
@@ -125,6 +130,7 @@ fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {
     let topic: PathBuf = root.join("topic");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
+        common_dir: Some(common.clone()),
         creates: true,
         destination: Some(topic.clone()),
         add_plan: None,
@@ -184,6 +190,7 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
     git(main.as_path(), &["config", "user.name", "t"]);
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
+        common_dir: Some(common.clone()),
         creates: true,
         destination: None,
         add_plan: None,
@@ -227,6 +234,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         std::fs::canonicalize(common.join("worktrees/wt")).expect("registration");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
+        common_dir: Some(common.clone()),
         creates: false,
         destination: None,
         add_plan: None,
@@ -239,7 +247,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         quiet: false,
     };
     let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
-    let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
+    let finished: ForwardedRun = run_forwarded_git_with_its_own_steps(
         Path::new(REAL_GIT),
         arguments(&[
             "-C",
@@ -252,7 +260,11 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         .as_slice(),
         isolated_overlay().as_slice(),
         Some(&facts),
-        &|about: &WorktreeAboutToGo| asked.borrow_mut().push(about.clone()),
+        TheRunsOwnSteps {
+            refuse_a_bound_slots_removal:
+                &crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone,
+            stop_units: &|about: &WorktreeAboutToGo| asked.borrow_mut().push(about.clone()),
+        },
     );
     assert_eq!(
         finished,
@@ -296,6 +308,7 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
     std::fs::create_dir_all(member.as_path()).expect("a finished member of the pool");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
+        common_dir: Some(common.clone()),
         creates: false,
         destination: None,
         add_plan: None,
@@ -307,7 +320,7 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         removal_target: Some(worktree.clone()),
         quiet: false,
     };
-    let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
+    let finished: ForwardedRun = run_forwarded_git_with_its_own_steps(
         Path::new(REAL_GIT),
         arguments(&[
             "-C",
@@ -320,7 +333,11 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         .as_slice(),
         isolated_overlay().as_slice(),
         Some(&facts),
-        &|_about: &WorktreeAboutToGo| {},
+        TheRunsOwnSteps {
+            refuse_a_bound_slots_removal:
+                &crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone,
+            stop_units: &|_about: &WorktreeAboutToGo| {},
+        },
     );
     assert_eq!(
         finished,
@@ -414,6 +431,7 @@ fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
     let topic: PathBuf = root.join("topic");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
+        common_dir: Some(common.clone()),
         creates: true,
         destination: Some(topic.clone()),
         add_plan: Some(AddPlan {
@@ -514,6 +532,7 @@ fn a_persons_own_read_tree_is_not_ended_at_the_ladder_ceiling() {
             git_dir: common.join("worktrees/linked"),
             worktree_root: linked.clone(),
         },
+        common_dir: Some(common.clone()),
         creates: false,
         destination: None,
         add_plan: None,
@@ -665,9 +684,10 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
     let topic: PathBuf = root.join("topic");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), main.join(".git").as_path()),
+        common_dir: Some(main.join(".git")),
         creates: true,
         destination: Some(topic.clone()),
-        add_plan: Some(crate::worktree_add_plan::AddPlan {
+        add_plan: Some(crate::worktree_command_facts::AddPlan {
             destination: topic.clone(),
             insert_at: 4,
             quiet: true,

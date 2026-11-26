@@ -49,6 +49,7 @@ fn successful_output_ends_with_the_prefix() {
         RepositoryLocation {
             identity: main_at_r(),
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         }
     );
     assert_eq!(
@@ -56,6 +57,7 @@ fn successful_output_ends_with_the_prefix() {
         RepositoryLocation {
             identity: main_at_r(),
             prefix: b"sub/dir/".to_vec(),
+            common_directory_outside_a_worktree: None,
         }
     );
     assert_eq!(
@@ -63,6 +65,7 @@ fn successful_output_ends_with_the_prefix() {
         RepositoryLocation {
             identity: main_at_r(),
             prefix: b"s\xff b/".to_vec(),
+            common_directory_outside_a_worktree: None,
         }
     );
     assert_eq!(
@@ -75,6 +78,7 @@ fn successful_output_ends_with_the_prefix() {
                 worktree_root: PathBuf::from("/w"),
             },
             prefix: b"x/".to_vec(),
+            common_directory_outside_a_worktree: None,
         }
     );
 }
@@ -88,6 +92,7 @@ fn failed_output_has_no_prefix() {
         RepositoryLocation {
             identity: WorktreeIdentity::OutsideWorktree,
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         }
     );
     assert_eq!(
@@ -98,13 +103,17 @@ fn failed_output_has_no_prefix() {
                 git_dir: PathBuf::from("/b.git"),
             },
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: None,
         }
     );
+    // Git printed the Git directory and the common directory before it refused `--show-toplevel`, so a command
+    // started inside a repository's Git directory keeps the repository the refusals of a bound slot read.
     assert_eq!(
         parse_location_output(false, b"false\n/r/.git\n/r/.git\n").expect("inside .git"),
         RepositoryLocation {
             identity: WorktreeIdentity::OutsideWorktree,
             prefix: Vec::<u8>::new(),
+            common_directory_outside_a_worktree: Some(PathBuf::from("/r/.git")),
         }
     );
 }

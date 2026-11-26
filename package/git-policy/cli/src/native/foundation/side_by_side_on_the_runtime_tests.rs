@@ -119,29 +119,29 @@ fn every_state_runs_once_and_answers_keep_their_order() {
 /// which a run that did them one after another could never pass.
 #[test]
 fn the_items_run_at_the_same_time() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_items_run_at_the_same_time",
-    ) {
-        return;
-    }
-    let room: usize =
-        crate::parallel_test_support::room_for("the items run at the same time", ITEMS);
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ITEMS.min(room)));
-    let states: Vec<Arc<Rendezvous>> = (0..ITEMS.min(room))
-        .map(|_index| {
-            return Arc::clone(&point);
-        })
-        .collect();
-    let results: Vec<Result<bool, BlockingJobError>> = on_the_runtime(
-        run_all_side_by_side_on_the_runtime(states, arrive_at_the_point),
+        || {
+            let room: usize =
+                crate::parallel_test_support::room_for("the items run at the same time", ITEMS);
+            let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ITEMS.min(room)));
+            let states: Vec<Arc<Rendezvous>> = (0..ITEMS.min(room))
+                .map(|_index| {
+                    return Arc::clone(&point);
+                })
+                .collect();
+            let results: Vec<Result<bool, BlockingJobError>> = on_the_runtime(
+                run_all_side_by_side_on_the_runtime(states, arrive_at_the_point),
+            );
+            for each in results {
+                assert!(
+                    each.expect("the job ran"),
+                    "an item's job did not arrive at the point while the others were there, so the items ran one after another"
+                );
+            }
+        },
     );
-    for each in results {
-        assert!(
-            each.expect("the job ran"),
-            "an item's job did not arrive at the point while the others were there, so the items ran one after another"
-        );
-    }
 }
 
 /// A job of the pool runs inside the process's runtime and never on the calling task,

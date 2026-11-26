@@ -122,29 +122,29 @@ fn refresh_with(
 ///  parallel work.
 #[test]
 fn the_indexes_are_rewritten_side_by_side() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_indexes_are_rewritten_side_by_side",
-    ) {
-        return;
-    }
-    let _room: usize = room_for("the_indexes_are_rewritten_side_by_side", LINKED + 1);
-    let (parent, root) = checkout_with_linked("index-parallel-overlap");
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED + 1));
-    let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
-    let rewrite: Arc<RewriteOne> = Arc::new(
-        move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-            if at_the_point.arrive() {
-                met_it.fetch_add(1, Ordering::SeqCst);
-            }
-            return refresh_index_file_with(index, tree, options);
+        || {
+            let _room: usize = room_for("the_indexes_are_rewritten_side_by_side", LINKED + 1);
+            let (parent, root) = checkout_with_linked("index-parallel-overlap");
+            let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED + 1));
+            let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
+            let rewrite: Arc<RewriteOne> = Arc::new(
+                move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+                    if at_the_point.arrive() {
+                        met_it.fetch_add(1, Ordering::SeqCst);
+                    }
+                    return refresh_index_file_with(index, tree, options);
+                },
+            );
+            let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
+            assert_eq!(count, LINKED + 1);
+            assert_eq!(met.load(Ordering::SeqCst), LINKED + 1, "{lines:#?}");
+            remove(parent.as_path());
         },
     );
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
-    assert_eq!(count, LINKED + 1);
-    assert_eq!(met.load(Ordering::SeqCst), LINKED + 1, "{lines:#?}");
-    remove(parent.as_path());
 }
 
 /// How long the whole refresh of the order control may take.
@@ -162,70 +162,75 @@ const ORDERING_RUN_ALLOWED: Duration = Duration::from_secs(150);
 /// though the checkout's index finishes last.
 #[test]
 fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_report_keeps_the_order_of_the_checkout_then_its_worktrees",
-    ) {
-        return;
-    }
-    // The checkout's own rewrite holds one place and waits for the others, so one more must be able to run; with room for
-    //  all of them the wait below cannot depend on the CPUs this machine has.
-    // The checkout's own rewrite waits inside its job for the others, so it holds a place while it waits: the room is one
-    //  place more than the indexes, and a run whose waiting item took the last place its peers need cannot happen.
-    let _room: usize = room_for(
-        "the_report_keeps_the_order_of_the_checkout_then_its_worktrees",
-        LINKED + 2,
-    );
-    let (parent, root) = checkout_with_linked("index-parallel-order");
-    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED));
-    let main_index: PathBuf = root.join(".git").join("index");
-    let (mine, others) = (main_index.clone(), Arc::clone(&others_done));
-    let rewrite: Arc<RewriteOne> = Arc::new(
-        move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-            if index == mine.as_path() {
-                // The peers arrive only after their own rewrites, so this waits for their work; a clock here would fail a host
-                // whose work is slower than the clock, and `ORDERING_RUN_ALLOWED` bounds the run instead.
-                others.wait_for_target_without_a_clock();
+        || {
+            // The checkout's own rewrite holds one place and waits for the others, so one more must be able to run; with room for
+            //  all of them the wait below cannot depend on the CPUs this machine has.
+            // The checkout's own rewrite waits inside its job for the others, so it holds a place while it waits: the room is one
+            //  place more than the indexes, and a run whose waiting item took the last place its peers need cannot happen.
+            let _room: usize = room_for(
+                "the_report_keeps_the_order_of_the_checkout_then_its_worktrees",
+                LINKED + 2,
+            );
+            let (parent, root) = checkout_with_linked("index-parallel-order");
+            let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED));
+            let main_index: PathBuf = root.join(".git").join("index");
+            let (mine, others) = (main_index.clone(), Arc::clone(&others_done));
+            let rewrite: Arc<RewriteOne> = Arc::new(
+                move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+                    if index == mine.as_path() {
+                        // The peers arrive only after their own rewrites, so this waits for their work; a clock here would fail a host
+                        // whose work is slower than the clock, and `ORDERING_RUN_ALLOWED` bounds the run instead.
+                        others.wait_for_target_without_a_clock();
+                    }
+                    let line: String = refresh_index_file_with(index, tree, options);
+                    if index != mine.as_path() {
+                        others.arrive_without_waiting();
+                    }
+                    return line;
+                },
+            );
+            let refreshed = {
+                let compared_root: PathBuf = root.clone();
+                let held_rewrite: Arc<RewriteOne> = Arc::clone(&rewrite);
+                // `false` is the stand-in's flush policy, as in every other control of this file but the one that states it.
+                crate::parallel_test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || {
+                    return refresh_with(
+                        compared_root.as_path(),
+                        &LARGE_HOST,
+                        &held_rewrite,
+                        false,
+                    );
+                })
+            };
+            let Some((_count, lines)) = refreshed else {
+                panic!(
+                    "the checkout's index kept waiting for the worktrees' rewrites for longer than {ORDERING_RUN_ALLOWED:?}, so the report never finished; nothing here says the ordering is wrong, only that the run did not end"
+                )
+            };
+            assert_eq!(lines.len(), LINKED + 1, "{lines:#?}");
+            assert!(
+                lines[0].starts_with(format!("index {}:", main_index.display()).as_str()),
+                "{lines:#?}"
+            );
+            for index in 0..LINKED {
+                assert!(
+                    lines[index + 1].starts_with(
+                        format!(
+                            "index {}:",
+                            root.join(format!(".git/worktrees/w{index}/index"))
+                                .display()
+                        )
+                        .as_str()
+                    ),
+                    "{lines:#?}"
+                );
             }
-            let line: String = refresh_index_file_with(index, tree, options);
-            if index != mine.as_path() {
-                others.arrive_without_waiting();
-            }
-            return line;
+            remove(parent.as_path());
         },
     );
-    let refreshed = {
-        let compared_root: PathBuf = root.clone();
-        let held_rewrite: Arc<RewriteOne> = Arc::clone(&rewrite);
-        // `false` is the stand-in's flush policy, as in every other control of this file but the one that states it.
-        crate::parallel_test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || {
-            return refresh_with(compared_root.as_path(), &LARGE_HOST, &held_rewrite, false);
-        })
-    };
-    let Some((_count, lines)) = refreshed else {
-        panic!(
-            "the checkout's index kept waiting for the worktrees' rewrites for longer than {ORDERING_RUN_ALLOWED:?}, so the report never finished; nothing here says the ordering is wrong, only that the run did not end"
-        )
-    };
-    assert_eq!(lines.len(), LINKED + 1, "{lines:#?}");
-    assert!(
-        lines[0].starts_with(format!("index {}:", main_index.display()).as_str()),
-        "{lines:#?}"
-    );
-    for index in 0..LINKED {
-        assert!(
-            lines[index + 1].starts_with(
-                format!(
-                    "index {}:",
-                    root.join(format!(".git/worktrees/w{index}/index"))
-                        .display()
-                )
-                .as_str()
-            ),
-            "{lines:#?}"
-        );
-    }
-    remove(parent.as_path());
 }
 
 /// An index whose lock a Git command holds is skipped and said so;
@@ -268,52 +273,52 @@ fn an_index_that_cannot_be_rewritten_leaves_the_others_rewritten() {
 /// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_budget_of_the_host_bounds_the_overlap",
-    ) {
-        return;
-    }
-    let (parent, root) = checkout_with_linked("index-parallel-budget");
-    let host: HostResources = HostResources {
-        parallelism: 3,
-        memory_available: None,
-    };
-    let allowed: usize = worker_budget(&BudgetRequest {
-        items: LINKED + 1,
-        per_item_memory: 1,
-        ceiling: None,
-        cap: None,
-        host: &host,
-    });
-    assert!(
-        allowed > 1 && allowed < LINKED + 1,
-        "the control needs a bound between one and the indexes: {allowed}"
-    );
-    // The rewrites reach that bound only when the process itself allows as many at once.
-    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed);
-    let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    // The patience bounds only how long a run that never reaches the bound waits before it fails.
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, PATIENCE));
-    let (live, most, at_the_point) = (
-        Arc::clone(&running),
-        Arc::clone(&busiest),
-        Arc::clone(&point),
-    );
-    let rewrite: Arc<RewriteOne> = Arc::new(
-        move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-            let now: usize = live.fetch_add(1, Ordering::SeqCst) + 1;
-            most.fetch_max(now, Ordering::SeqCst);
-            at_the_point.arrive_at_the_bound(allowed);
-            let line: String = refresh_index_file_with(index, tree, options);
-            live.fetch_sub(1, Ordering::SeqCst);
-            return line;
+        || {
+            let (parent, root) = checkout_with_linked("index-parallel-budget");
+            let host: HostResources = HostResources {
+                parallelism: 3,
+                memory_available: None,
+            };
+            let allowed: usize = worker_budget(&BudgetRequest {
+                items: LINKED + 1,
+                per_item_memory: 1,
+                ceiling: None,
+                cap: None,
+                host: &host,
+            });
+            assert!(
+                allowed > 1 && allowed < LINKED + 1,
+                "the control needs a bound between one and the indexes: {allowed}"
+            );
+            // The rewrites reach that bound only when the process itself allows as many at once.
+            let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed);
+            let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            // The patience bounds only how long a run that never reaches the bound waits before it fails.
+            let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, PATIENCE));
+            let (live, most, at_the_point) = (
+                Arc::clone(&running),
+                Arc::clone(&busiest),
+                Arc::clone(&point),
+            );
+            let rewrite: Arc<RewriteOne> = Arc::new(
+                move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+                    let now: usize = live.fetch_add(1, Ordering::SeqCst) + 1;
+                    most.fetch_max(now, Ordering::SeqCst);
+                    at_the_point.arrive_at_the_bound(allowed);
+                    let line: String = refresh_index_file_with(index, tree, options);
+                    live.fetch_sub(1, Ordering::SeqCst);
+                    return line;
+                },
+            );
+            let (_count, lines) = refresh_with(root.as_path(), &host, &rewrite, false);
+            assert_eq!(busiest.load(Ordering::SeqCst), allowed, "{lines:#?}");
+            remove(parent.as_path());
         },
     );
-    let (_count, lines) = refresh_with(root.as_path(), &host, &rewrite, false);
-    assert_eq!(busiest.load(Ordering::SeqCst), allowed, "{lines:#?}");
-    remove(parent.as_path());
 }
 
 /// What a person reads is the report the code gave before this step,
@@ -394,43 +399,43 @@ fn the_rewrites_run_on_the_processs_runtime() {
 /// as the debt ledger's item 3a asks (issue 6496).
 #[test]
 fn the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs",
-    ) {
-        return;
-    }
-    let (parent, root) = checkout_with_linked("index-parallel-a-place-of-the-bound");
-    let (given_back, finished) = hold_the_only_place();
-    let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
-        Arc::new(std::sync::Mutex::new(Vec::new()));
-    let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
-    let rewrite: Arc<RewriteOne> = Arc::new(
-        move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-            began
-                .lock()
-                .expect("lock")
-                .push(given.load(Ordering::SeqCst));
-            return refresh_index_file_with(index, tree, options);
+        || {
+            let (parent, root) = checkout_with_linked("index-parallel-a-place-of-the-bound");
+            let (given_back, finished) = hold_the_only_place();
+            let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
+                Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
+            let rewrite: Arc<RewriteOne> = Arc::new(
+                move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+                    began
+                        .lock()
+                        .expect("lock")
+                        .push(given.load(Ordering::SeqCst));
+                    return refresh_index_file_with(index, tree, options);
+                },
+            );
+            let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
+            assert_eq!(count, LINKED + 1, "{lines:#?}");
+            let seen: Vec<bool> = started_after.lock().expect("lock").clone();
+            assert_eq!(
+                seen,
+                vec![true; LINKED + 1],
+                "a rewrite started while another job held the only place of the process's bound, so it did not take one: {lines:#?}"
+            );
+            // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
+            //  reached the process's bound instead of starting at once.
+            assert!(
+                finished
+                    .recv_timeout(PATIENCE)
+                    .expect("the job that holds the place never returned"),
+                "no job of the work under test asked for a place of the process's bound, so it did not take one"
+            );
+            remove(parent.as_path());
         },
     );
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
-    assert_eq!(count, LINKED + 1, "{lines:#?}");
-    let seen: Vec<bool> = started_after.lock().expect("lock").clone();
-    assert_eq!(
-        seen,
-        vec![true; LINKED + 1],
-        "a rewrite started while another job held the only place of the process's bound, so it did not take one: {lines:#?}"
-    );
-    // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
-    //  reached the process's bound instead of starting at once.
-    assert!(
-        finished
-            .recv_timeout(PATIENCE)
-            .expect("the job that holds the place never returned"),
-        "no job of the work under test asked for a place of the process's bound, so it did not take one"
-    );
-    remove(parent.as_path());
 }
 
 /// What:
@@ -501,21 +506,36 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
 }
 
 /// What:
-///  A report that says an index rewrite could not be started leaves no job that can rewrite that index later.
+///  A report whose first job could not be started names no index,
+/// leaves every index untouched,
+///  and says the refused step will not run.
 ///  With the preparation itself a job of the blocking pool (`prepare_the_run`),
 /// a process with no thread to start now fails at the preparation,
 ///  so the rewrites are never even queued:
-/// the control pins that no rewrite runs after the report either way,
-///  and its message keeps the uncertainty.
+/// no rewrite runs after the report,
+/// before or after the pool runs what it queued.
 /// Why:
-///  The pool queues a job before it asks for a thread (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
-/// `spawn_task`),
-///  so "no thread" means the job has not run *yet*:
-/// it stays queued and the pool's next thread runs it.
-/// A report may say an index stays as it was only when nothing that can write it is left queued,
-/// which is what `TheClaimOnAJobsWork` decides.
+///  A report that never reached an index must not say anything about one,
+/// and "the indexes stay as they were" must hold however the run ended.
+///  `BlockingJobError::NoThreadToStart` is the one end that promises the step will not run:
+/// the process's bound on blocking jobs takes one claim on the closure it queues,
+/// before that closure's first effect,
+///  and takes the same claim when it answers that no thread could start it,
+/// so the report that reads that answer may promise the indexes are as they were.
+///  The control lets the pool run what it queued before it asserts that no rewrite ran afterwards:
+///  the job it asks for after the queued one runs after it,
+/// because the pool's queue is one queue whose back is pushed to and whose front is popped,
+///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`,
+/// read by `sharded_blocking_queue_default` in `tokio-1.54.1/src/runtime/builder.rs`,
+/// is the only thing that would make it shards,
+///  which this crate never sets.
+///  The promise about a queued rewrite belongs to the control beside this one in
+/// `subvolume_index_refresh_of_every_worktree_tests.rs`,
+/// which runs one item and so reaches a queued rewrite;
+///  this whole-report face cannot,
+/// because its first job is the preparation.
 /// The control runs in a child whose process limit is one,
-/// because only a refused thread start puts a job in that queue.
+/// because only a refused thread start ends a run this way.
 #[test]
 fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it() {
     // The body refuses every thread of the process it runs in, so it belongs to the child alone (issue 6496),
@@ -529,7 +549,8 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
                 .expect("the process limit rises");
             crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime");
             let (parent, root) = checkout_with_linked("index-could-not-be-started");
-            // Every thread this process starts is refused now, so each rewrite is queued and none can start.
+            // Every thread this process starts is refused now, so the run's first job, the preparation, is queued and
+            //  cannot start, and no rewrite is ever asked for.
             crate::no_threads_child_test_support::refuse_threads_again()
                 .expect("the process limit falls");
             let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -552,35 +573,61 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
             let refused: MigrateError = refresh_all_indexes_with(&request, &mut |text: &str| {
                 lines.push(text.to_string());
             })
-            .expect_err("a thread is refused for every rewrite");
+            .expect_err("a thread is refused for the preparation, so the run fails");
             assert_eq!(
                 ran.load(Ordering::SeqCst),
                 0,
                 "no rewrite ran before a thread was free"
             );
+            // What:     the report's own words, and the lines it said about indexes.
+            // Why:      a run that ended before it reached an index has nothing to say about one, and must say the
+            //           refused step will not run rather than that its result is not known.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const said = refused.toString();
+            // assert(lines.length === 0);
+            // ```
             let said: String = refused.to_string();
-            // A thread may start again: the pool's first new thread runs what it queued before anything else.
+            assert!(
+                lines.is_empty(),
+                "the run ended before it reached an index, so it said nothing about one: {lines:#?}"
+            );
+            assert!(
+                said.contains("will not run"),
+                "the report must say the refused step will not run and changed nothing: {said}"
+            );
+            assert!(
+                !said.contains("given up on before it could start"),
+                "the report must not say an index was given up on, because the run ended before any rewrite was queued: {said}"
+            );
+            // What:     a thread may start again, and the pool's first new thread runs what it queued.
+            // Why:      the job awaited here is queued after the preparation's job and one queue is run front first,
+            //           so this job's own run proves the queued closure had its turn and can no longer write an index.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const afterTheQueue = await runOnRuntime(() => runBlockingJobWithinTheBudget(() => {}));
+            // ```
             crate::no_threads_child_test_support::let_threads_start_again()
                 .expect("the process limit rises again");
-            let drained = crate::lazy_runtime::run_on_runtime(async {
+            let after_the_queue: Result<
+                Result<(), crate::blocking_job::BlockingJobError>,
+                crate::lazy_runtime::RuntimeError,
+            > = crate::lazy_runtime::run_on_runtime(async {
                 return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
                     || (),
                 )
                 .await;
             });
             assert!(
-                matches!(drained, Ok(Ok(()))),
-                "the job that starts the pool's first thread ran: {drained:?}"
+                matches!(after_the_queue, Ok(Ok(()))),
+                "the job that starts the pool's first thread and runs behind the queued preparation ran: {after_the_queue:?}"
             );
             let ran_afterwards: usize = ran.load(Ordering::SeqCst);
-            let promised_unchanged: bool = said.contains("given up on before it could start");
-            assert!(
-                !promised_unchanged || ran_afterwards == 0,
-                "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
-            );
-            assert!(
-                promised_unchanged || said.contains("not known") || said.contains("will not run"),
-                "the report must say either that no rewrite could start or that the work it lost had not started: {said}"
+            assert_eq!(
+                ran_afterwards, 0,
+                "the pool ran what its refusal queued, and {ran_afterwards} rewrite(s) ran afterwards, so the indexes are not as they were: {said}"
             );
             remove(parent.as_path());
         },
@@ -612,117 +659,120 @@ const REFRESH_STOP_BY: Duration = Duration::from_millis(200);
 /// of that runtime stops with it ("nothing should ever wait forever").
 #[test]
 fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires",
-    ) {
-        return;
-    }
-    let (parent, root) = checkout_with_linked("index-preparation-hangs");
-    let config: PathBuf = root.join(".git").join("config");
-    let kept: PathBuf = root.join(".git").join("config.kept");
-    std::fs::rename(&config, &kept).expect("the configuration is kept");
-    let named = std::ffi::CString::new(config.to_str().expect("UTF-8")).expect("no NUL");
-    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode, and touches no memory.
-    assert_eq!(
-        unsafe { libc::mkfifo(named.as_ptr(), 0o600) },
-        0,
-        "the named pipe at the configuration"
-    );
-    let request: AllIndexes = AllIndexes {
-        root: root.clone(),
-        lock: IndexLock::Acquire,
-        references: Vec::new(),
-        host: LARGE_HOST,
-        flushes_to_disk: false,
-        rewrite: Arc::new(refresh_index_file_with),
-    };
-    // The process's only place is held by another job, so the preparation this run sends to the pool never starts and no
-    //  reader ever opens the pipe: the state a reviewer of this control found the cleanup hanging in.
-    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(
-        crate::parallel_test_support::ONE_PLACE,
-    );
-    let (holding, held) = std::sync::mpsc::channel::<()>();
-    let (release, waiting) = std::sync::mpsc::channel::<()>();
-    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
-        let _outcome =
-            crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-                let _told = holding.send(());
-                let _ = waiting.recv();
-            })
-            .await;
-    });
-    assert!(
-        busy.is_some(),
-        "the runtime has a worker, so a place of the blocking pool can be held"
-    );
-    assert!(
-        held.recv_timeout(PATIENCE).is_ok(),
-        "the job that holds the only place never started"
-    );
-    let (told, heard) = std::sync::mpsc::channel::<&'static str>();
-    let refresh = std::thread::spawn(move || {
-        // A runtime of its own, so a thread this control hangs cannot take the suite with it.
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("a current-thread runtime");
-        let ended = runtime.block_on(async move {
-            let mut sink: Vec<String> = Vec::new();
-            let outcome = tokio::time::timeout(
-                REFRESH_STOP_BY,
-                refresh_all_indexes_awaiting(&request, &mut sink),
-            )
-            .await;
-            return match outcome {
-                Ok(Ok(_count)) => "the refresh finished",
-                Ok(Err(_refused)) => "the refresh failed",
-                Err(_elapsed) => "the refresh gave up",
+        || {
+            let (parent, root) = checkout_with_linked("index-preparation-hangs");
+            let config: PathBuf = root.join(".git").join("config");
+            let kept: PathBuf = root.join(".git").join("config.kept");
+            std::fs::rename(&config, &kept).expect("the configuration is kept");
+            let named = std::ffi::CString::new(config.to_str().expect("UTF-8")).expect("no NUL");
+            // SAFETY: `mkfifo` takes a NUL-terminated path and a mode, and touches no memory.
+            assert_eq!(
+                unsafe { libc::mkfifo(named.as_ptr(), 0o600) },
+                0,
+                "the named pipe at the configuration"
+            );
+            let request: AllIndexes = AllIndexes {
+                root: root.clone(),
+                lock: IndexLock::Acquire,
+                references: Vec::new(),
+                host: LARGE_HOST,
+                flushes_to_disk: false,
+                rewrite: Arc::new(refresh_index_file_with),
             };
-        });
-        let _told = told.send(ended);
-        // The runtime keeps its blocking pool until it is dropped, and one job may still be opening the pipe.
-        std::mem::forget(runtime);
-    });
-    let answered: Result<&'static str, std::sync::mpsc::RecvTimeoutError> =
-        heard.recv_timeout(PREPARATION_STOP_BY);
-    // The place goes back, so the job the pool queued is not left waiting in this process.
-    let _let_go = release.send(());
-    // The cleanup runs on a thread and is waited for with a bound, because it must not hang where no reader can come.
-    let (cleaned, cleaning) = std::sync::mpsc::channel::<bool>();
-    let pipe: PathBuf = config.clone();
-    let tidy = std::thread::spawn(move || {
-        // A writer, if a reader is blocked, gives it an empty file and closes; with no reader the open fails and this
-        //  control says so instead of waiting for a writer's partner that cannot come.
-        let opened = std::fs::OpenOptions::new()
-            .write(true)
-            .custom_flags(libc::O_NONBLOCK)
-            .open(&pipe);
-        let met_a_reader: bool = opened.is_ok();
-        drop(opened);
-        let joined: bool = refresh.join().is_ok();
-        let _told = cleaned.send(met_a_reader && joined);
-    });
-    let cleanup_ended = cleaning.recv_timeout(PREPARATION_STOP_BY);
-    // The thread is joined only once it has answered, because a thread blocked in the open cannot be joined at all.
-    assert!(
-        cleanup_ended.is_ok(),
-        "the control's cleanup did not end within {} ms: opening the named pipe for a reader that can never come waits for ever",
-        PREPARATION_STOP_BY.as_millis()
-    );
-    let met_a_reader: bool = cleanup_ended.expect("the cleanup answered");
-    let _ended = tidy.join();
-    assert!(
-        !met_a_reader,
-        "nothing opened the named pipe, so the cleanup's writer found no reader"
-    );
-    std::fs::remove_file(&config).expect("the named pipe goes");
-    std::fs::rename(&kept, &config).expect("the configuration comes back");
-    remove(parent.as_path());
-    let said: &'static str = answered.expect("the refresh answered within the control's wait");
-    assert_eq!(
-        said, "the refresh gave up",
-        "a preparation read that hangs must be a job of the blocking pool, so the runtime stays free and the refresh's own timeout expires"
+            // The process's only place is held by another job, so the preparation this run sends to the pool never starts and no
+            //  reader ever opens the pipe: the state a reviewer of this control found the cleanup hanging in.
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(
+                crate::parallel_test_support::ONE_PLACE,
+            );
+            let (holding, held) = std::sync::mpsc::channel::<()>();
+            let (release, waiting) = std::sync::mpsc::channel::<()>();
+            let busy = crate::lazy_runtime::spawn_on_runtime(async move {
+                let _outcome =
+                    crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
+                        move || {
+                            let _told = holding.send(());
+                            let _ = waiting.recv();
+                        },
+                    )
+                    .await;
+            });
+            assert!(
+                busy.is_some(),
+                "the runtime has a worker, so a place of the blocking pool can be held"
+            );
+            assert!(
+                held.recv_timeout(PATIENCE).is_ok(),
+                "the job that holds the only place never started"
+            );
+            let (told, heard) = std::sync::mpsc::channel::<&'static str>();
+            let refresh = std::thread::spawn(move || {
+                // A runtime of its own, so a thread this control hangs cannot take the suite with it.
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("a current-thread runtime");
+                let ended = runtime.block_on(async move {
+                    let mut sink: Vec<String> = Vec::new();
+                    let outcome = tokio::time::timeout(
+                        REFRESH_STOP_BY,
+                        refresh_all_indexes_awaiting(&request, &mut sink),
+                    )
+                    .await;
+                    return match outcome {
+                        Ok(Ok(_count)) => "the refresh finished",
+                        Ok(Err(_refused)) => "the refresh failed",
+                        Err(_elapsed) => "the refresh gave up",
+                    };
+                });
+                let _told = told.send(ended);
+                // The runtime keeps its blocking pool until it is dropped, and one job may still be opening the pipe.
+                std::mem::forget(runtime);
+            });
+            let answered: Result<&'static str, std::sync::mpsc::RecvTimeoutError> =
+                heard.recv_timeout(PREPARATION_STOP_BY);
+            // The place goes back, so the job the pool queued is not left waiting in this process.
+            let _let_go = release.send(());
+            // The cleanup runs on a thread and is waited for with a bound, because it must not hang where no reader can come.
+            let (cleaned, cleaning) = std::sync::mpsc::channel::<bool>();
+            let pipe: PathBuf = config.clone();
+            let tidy = std::thread::spawn(move || {
+                // A writer, if a reader is blocked, gives it an empty file and closes; with no reader the open fails and this
+                //  control says so instead of waiting for a writer's partner that cannot come.
+                let opened = std::fs::OpenOptions::new()
+                    .write(true)
+                    .custom_flags(libc::O_NONBLOCK)
+                    .open(&pipe);
+                let met_a_reader: bool = opened.is_ok();
+                drop(opened);
+                let joined: bool = refresh.join().is_ok();
+                let _told = cleaned.send(met_a_reader && joined);
+            });
+            let cleanup_ended = cleaning.recv_timeout(PREPARATION_STOP_BY);
+            // The thread is joined only once it has answered, because a thread blocked in the open cannot be joined at all.
+            assert!(
+                cleanup_ended.is_ok(),
+                "the control's cleanup did not end within {} ms: opening the named pipe for a reader that can never come waits for ever",
+                PREPARATION_STOP_BY.as_millis()
+            );
+            let met_a_reader: bool = cleanup_ended.expect("the cleanup answered");
+            let _ended = tidy.join();
+            assert!(
+                !met_a_reader,
+                "nothing opened the named pipe, so the cleanup's writer found no reader"
+            );
+            std::fs::remove_file(&config).expect("the named pipe goes");
+            std::fs::rename(&kept, &config).expect("the configuration comes back");
+            remove(parent.as_path());
+            let said: &'static str =
+                answered.expect("the refresh answered within the control's wait");
+            assert_eq!(
+                said, "the refresh gave up",
+                "a preparation read that hangs must be a job of the blocking pool, so the runtime stays free and the refresh's own timeout expires"
+            );
+        },
     );
 }
 
@@ -753,57 +803,57 @@ fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCount
 /// which are not the calling thread's.
 #[test]
 fn a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere",
-    ) {
-        return;
-    }
-    let (parent, root) = checkout_with_linked("index-kept-in-memory");
-    let counts = syncs_of(|| {
-        let (count, _lines) = refresh_with(
-            root.as_path(),
-            &LARGE_HOST,
-            &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>),
-            false,
-        );
-        assert_eq!(count, LINKED + 1);
-    });
-    assert_eq!(counts.made, 0, "no flush reached the kernel: {counts:?}");
-    assert!(
-        counts.skipped >= LINKED + 1,
-        "every index's install asked the shared step on its own thread: {counts:?}"
+        || {
+            let (parent, root) = checkout_with_linked("index-kept-in-memory");
+            let counts = syncs_of(|| {
+                let (count, _lines) = refresh_with(
+                    root.as_path(),
+                    &LARGE_HOST,
+                    &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>),
+                    false,
+                );
+                assert_eq!(count, LINKED + 1);
+            });
+            assert_eq!(counts.made, 0, "no flush reached the kernel: {counts:?}");
+            assert!(
+                counts.skipped >= LINKED + 1,
+                "every index's install asked the shared step on its own thread: {counts:?}"
+            );
+            remove(parent.as_path());
+        },
     );
-    remove(parent.as_path());
 }
 
 /// The same run told that its writes reach the disk makes them,
 /// so the count above is a measurement and not a constant.
 #[test]
 fn a_run_that_flushes_reaches_the_disk_for_every_index() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_run_that_flushes_reaches_the_disk_for_every_index",
-    ) {
-        return;
-    }
-    let (parent, root) = checkout_with_linked("index-flushing");
-    let counts = syncs_of(|| {
-        let (count, _lines) = refresh_with(
-            root.as_path(),
-            &LARGE_HOST,
-            &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>),
-            true,
-        );
-        assert_eq!(count, LINKED + 1);
-    });
-    assert!(
-        counts.made >= LINKED + 1,
-        "every index's install reached the disk on its own thread: {counts:?}"
+        || {
+            let (parent, root) = checkout_with_linked("index-flushing");
+            let counts = syncs_of(|| {
+                let (count, _lines) = refresh_with(
+                    root.as_path(),
+                    &LARGE_HOST,
+                    &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>),
+                    true,
+                );
+                assert_eq!(count, LINKED + 1);
+            });
+            assert!(
+                counts.made >= LINKED + 1,
+                "every index's install reached the disk on its own thread: {counts:?}"
+            );
+            assert_eq!(
+                counts.skipped, 0,
+                "nothing was skipped where the run flushes: {counts:?}"
+            );
+            remove(parent.as_path());
+        },
     );
-    assert_eq!(
-        counts.skipped, 0,
-        "nothing was skipped where the run flushes: {counts:?}"
-    );
-    remove(parent.as_path());
 }
