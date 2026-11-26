@@ -459,6 +459,68 @@ a guest that compiles holds its live pages resident,
 compressed swap or not,
 and that peak is what the host has to be able to give at one moment.
 
+### The order by that quantity
+
+This order is by memory freed alone;
+the decisions in this document weigh each option against its cost,
+and one of them can rank first here and still
+be the wrong default for a round whose arms build.
+At rest,
+from the first round's one-run readings under the rule above,
+the host holds about:
+
+- 0.38 GiB for an 8 GiB guest with reporting on after its cache drop;
+- 0.67 GiB for the 4 GiB guest at its smoke-script peak,
+  which was not an arm;
+- 0.90 GiB for an 8 GiB guest with reporting on;
+- 1.23 GiB for the default guest without reporting.
+
+At a working peak the order is different:
+the first round's reporting guest peaked at 8.20 GiB charged,
+of which 6.85 GiB resident,
+and the default guest at 8.16 GiB charged,
+and reporting returns nothing while a build's pages are
+live.
+The 4 GiB guest's arm peak is not measured in this revision,
+so it has no place in that peak order;
+the smoke guest that compiled nothing peaked at 0.67 GiB of host RAM.
+Between arms a destroyed guest holds nothing at all,
+and a kept one holds its at-rest figure.
+
+So the order the quantity gives is:
+
+1. Destroy between arms,
+   in every gap,
+   where the round can pay a create and a preparation per gap.
+2. Reporting plus a cache drop,
+   at rest:
+   0.38 GiB against the default guest's 1.23 GiB.
+3. A 4 GiB guest on host-built binaries,
+   if its arm fits:
+   its smoke peak,
+   measured at 0.67 GiB,
+   is below the at-rest figure of either 8 GiB guest,
+   and its arm peak is owed.
+4. Reporting alone,
+   at rest:
+   0.90 GiB.
+5. The default guest:
+   1.23 GiB at rest,
+   and its whole working set resident at a build's peak.
+6. The guest-agent route for KSM:
+   nothing measured,
+   unranked.
+
+Why each adjacent pair is ordered so:
+1 above 2 because a gap returns everything and the drop leaves 0.38 GiB;
+2 above 3 because the drop is measured,
+while the 4 GiB guest's arm peak is not;
+3 above 4 because the smoke 4 GiB guest held less at rest than the reporting guest did;
+4 above 5 because reporting is measured to return 2.46 GiB at rest in one run,
+and the default
+keeps it;
+5 above 6 because the guest-agent route returned nothing measured and needs a host change.
+
 ## Results, one run each
 
 Every figure here is one run,
@@ -594,25 +656,28 @@ the question to the owner is
 
 Both rounds measured the two halves:
 
-- `mvm destroy` took 9,
+- `mvm destroy` returned the whole charge each time.
+  For `mem-a` the swap device's free space rose by 7.12 GiB as its pages were released.
+  The first round recorded 9,
   8,
-  10 and 3 seconds across the first round's four guests,
-  and the charge went to zero each time;
-  for `mem-a` the swap device's free space rose by 7.12 GiB as its pages were released.
-- `mvm create` from the baked template took 11,
+  10 and 3 seconds for its four destroys and 11,
   17,
-  13 and 16 seconds.
-- the first round's preparation for a build took 74 to 100 seconds;
+  13 and 16
+  seconds for its four creates;
+  those timings are in that round's report,
+  not in a kept log,
+  so
+  this revision treats them as indicative only.
+- the first round's package and toolchain preparation took 74 to 100 seconds,
+  and it did not build
+  OpenZFS;
   the ZFS binding's preparation,
-  which also builds OpenZFS,
-  took 74 to 100 seconds in the first round (packages and toolchain,
-  without OpenZFS),
-  and the ZFS binding's own preparation,
-  which also builds OpenZFS,
+  which does,
   is not measured in this revision.
+- the first round's crate build took 33 to 34 minutes with one job.
 
 So destroying between arms is cheap only for arms that compile nothing:
-the guest that built the crate took 33 to 34 minutes in the first round,
+the guest that built the crate pays the whole build again,
 and destroying before the next arm throws that away.
 
 ## The decisions, each on its own
@@ -847,7 +912,9 @@ is not separated from the rest.
   and a per-guest value would need a flag and a `meta.json` field too.
   It is only safe together with moving the build off the guest:
   reporting does not lower a build's peak,
-  and a build of the crate peaks near the guest's whole RAM.
+  and the first round's one-job builds peaked at 6.2 GiB of the guest's 7.75 GiB
+  (the kept guest samples read `AnonPages` 6.21 and 6.20 GiB),
+  so a 4 GiB guest cannot hold one.
 - A cache drop or a destroy between arms:
   no `mvm` change at all;
   both are round steps.
