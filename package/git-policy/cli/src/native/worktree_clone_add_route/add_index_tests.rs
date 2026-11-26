@@ -20,6 +20,46 @@ use crate::test_support::{
 use crate::worktree_clean::stored_stats;
 use std::path::PathBuf;
 
+/// What:
+///  A repository with two files and one commit,
+///  and the registration Git's own `worktree add` made for a worktree of it called `topic`,
+///  holding no index.
+/// Why:
+///  The fill writes into a registration Git made for the add,
+///  and a registration Git made is one Git's own housekeeping keeps:
+///  a directory made by hand is no worktree entry,
+///  so the housekeeping `git commit` starts in the same repository prunes it,
+///  `index.pending` with it (measured 2026-11-26: gone 1.237 ms after the commit
+///  returned, in one run of ten, which failed this file's two controls beside other
+///  modules; issue 6518).
+///  The words are the add's own: `--no-checkout` leaves no index at the worktree's
+///  name, and `--lock` is the lock the route takes for its registration.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [root, registration] = aRepositoryAndTheRegistrationGitMade('index-publication');
+/// ```
+fn a_repository_and_the_registration_git_made(name: &str) -> (PathBuf, PathBuf) {
+    let root: PathBuf = a_repository(name);
+    let checkout: PathBuf = root.join("topic");
+    let checkout_text: String = checkout.display().to_string();
+    let registration: PathBuf = root.join(".git").join("worktrees").join("topic");
+    git(
+        root.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "--lock",
+            "--detach",
+            checkout_text.as_str(),
+            "main",
+        ],
+    );
+    return (root, registration);
+}
+
 /// A repository with two files and one commit.
 fn a_repository(name: &str) -> PathBuf {
     let root: PathBuf = fixture(name);
@@ -76,9 +116,8 @@ fn the_fill_index_keeps_every_entry_and_its_facts() {
 
 #[test]
 fn a_written_private_index_takes_the_worktrees_name_in_one_rename() {
-    let root: PathBuf = a_repository("index-publication");
-    let registration: PathBuf = root.join(".git").join("worktrees").join("topic");
-    std::fs::create_dir_all(registration.as_path()).expect("the registration");
+    let (root, registration): (PathBuf, PathBuf) =
+        a_repository_and_the_registration_git_made("index-publication");
     let admin: std::fs::File =
         std::fs::File::open(registration.as_path()).expect("the registration opens");
     let index: Vec<u8> = std::fs::read(root.join(".git").join("index")).expect("the index");
@@ -104,9 +143,8 @@ fn a_written_private_index_takes_the_worktrees_name_in_one_rename() {
 
 #[test]
 fn a_second_private_write_and_a_publication_over_a_name_refuse() {
-    let root: PathBuf = a_repository("index-refusals");
-    let registration: PathBuf = root.join(".git").join("worktrees").join("topic");
-    std::fs::create_dir_all(registration.as_path()).expect("the registration");
+    let (root, registration): (PathBuf, PathBuf) =
+        a_repository_and_the_registration_git_made("index-refusals");
     let admin: std::fs::File =
         std::fs::File::open(registration.as_path()).expect("the registration opens");
     let index: Vec<u8> = std::fs::read(root.join(".git").join("index")).expect("the index");
@@ -139,4 +177,47 @@ fn an_index_that_is_no_index_refuses() {
         "{refusal}"
     );
     assert!(refusal.contains("Ways forward:"), "{refusal}");
+}
+
+/// What:
+///  The repository's own housekeeping, which `git commit` starts in the background,
+///  leaves the private index standing.
+/// Why:
+///   `git maintenance run --auto` runs `git worktree prune --expire 3.months.ago`,
+///  and that removes a `worktrees/<name>` directory Git did not make,
+///  taking `index.pending` with it:
+///  the pruner ran 1.237 ms after a fixture's commit returned, in one run of ten,
+///  and failed this file's two controls beside other modules (issue 6518).
+///  A registration Git made is an entry the prune keeps, so this control refuses a
+///  fixture that goes back to a directory made by hand,
+///  and it names the command a commit starts and the command that command runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [root, registration] = aRepositoryAndTheRegistrationGitMade('index-housekeeping');
+/// writeThePrivateIndex(admin, normalized);
+/// git(root, ['maintenance', 'run', '--auto']);
+/// git(root, ['worktree', 'prune', '--expire', '3.months.ago']);
+/// expect(pendingStands(registration)).toBe(true);
+/// ```
+#[test]
+fn the_repositorys_own_housekeeping_leaves_the_private_index_standing() {
+    let (root, registration): (PathBuf, PathBuf) =
+        a_repository_and_the_registration_git_made("index-housekeeping");
+    let admin: std::fs::File =
+        std::fs::File::open(registration.as_path()).expect("the registration opens");
+    let index: Vec<u8> = std::fs::read(root.join(".git").join("index")).expect("the index");
+    let normalized: Vec<u8> =
+        index_for_the_fill(index.as_slice(), 20).expect("the index is normalized");
+    write_the_private_index(&admin, normalized.as_slice()).expect("the private write");
+    git(root.as_path(), &["maintenance", "run", "--auto"]);
+    git(
+        root.as_path(),
+        &["worktree", "prune", "--expire", "3.months.ago"],
+    );
+    assert!(
+        pending_stands(registration.as_path()),
+        "the housekeeping a commit starts prunes no registration Git made"
+    );
+    remove(root.as_path());
 }
