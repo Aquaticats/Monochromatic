@@ -126,8 +126,9 @@ systemctl --user enable --now rclone-bisync-garage-watch.service
 installed copy with its source and fails, naming the file, when a copy is missing,
 cannot be read, differs, or is a link: a symbolic link into the checkout, or a hard link
 that shares the source file's inode.
-It also names every unit file and drop-in under `~/.config/systemd/user` that starts with
+It also names every unit file under `~/.config/systemd/user` whose name starts with
 `rclone-bisync-garage` and that this package does not ship,
+and every extra file in a drop-in folder of a unit this package does ship,
 because the user manager loads those too and a stale one keeps acting beside the current
 ones.
 
