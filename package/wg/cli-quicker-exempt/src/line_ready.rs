@@ -5,13 +5,27 @@
 
 /// Polling a descriptor,
 /// reading a line and waiting for a child.
-use std::io::{self, BufReader, Read};
+use std::io::{
+    self,
+    BufReader,
+    Read,
+};
 /// The descriptor to watch.
-use std::os::fd::{AsRawFd, RawFd};
+use std::os::fd::{
+    AsRawFd,
+    RawFd,
+};
 /// The handshake child.
-use std::process::{Child, ChildStdout, ExitStatus};
+use std::process::{
+    Child,
+    ChildStdout,
+    ExitStatus,
+};
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Longest handshake line accepted,
 /// in bytes:
@@ -22,11 +36,18 @@ const MAX_HANDSHAKE_BYTES: usize = 4096;
 /// Polls one descriptor for reading until `limit` passes,
 /// and reports whether it became readable.
 /// A limit of zero asks once and returns at once.
-pub fn line_is_ready(descriptor: RawFd, limit: Duration) -> io::Result<bool> {
+pub fn line_is_ready(
+    descriptor: RawFd,
+    limit: Duration,
+) -> io::Result<bool> {
     let deadline = Instant::now() + limit;
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
-        let mut polled = libc::pollfd { fd: descriptor, events: libc::POLLIN, revents: 0 };
+        let mut polled = libc::pollfd {
+            fd: descriptor,
+            events: libc::POLLIN,
+            revents: 0,
+        };
         let milliseconds = i32::try_from(left.as_millis()).unwrap_or(i32::MAX);
         // SAFETY: one `pollfd` of the length passed, for a descriptor the caller keeps open.
         let ready = unsafe { libc::poll(std::ptr::from_mut(&mut polled), 1, milliseconds) };
@@ -57,7 +78,11 @@ pub fn line_is_ready(descriptor: RawFd, limit: Duration) -> io::Result<bool> {
 /// Every byte is therefore waited for inside the limit,
 /// so a handshake that stops arriving ends at the limit
 /// and names the message that did not come.
-pub fn read_message_within(output: &mut BufReader<ChildStdout>, limit: Duration, what: &str) -> io::Result<String> {
+pub fn read_message_within(
+    output: &mut BufReader<ChildStdout>,
+    limit: Duration,
+    what: &str,
+) -> io::Result<String> {
     let deadline = Instant::now() + limit;
     let mut line: Vec<u8> = Vec::new();
     loop {
@@ -92,7 +117,9 @@ pub fn read_message_within(output: &mut BufReader<ChildStdout>, limit: Duration,
         if line.len() > MAX_HANDSHAKE_BYTES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("the child sent more than {MAX_HANDSHAKE_BYTES} bytes for {what} without a newline"),
+                format!(
+                    "the child sent more than {MAX_HANDSHAKE_BYTES} bytes for {what} without a newline"
+                ),
             ));
         }
     }
@@ -104,7 +131,10 @@ pub fn read_message_within(output: &mut BufReader<ChildStdout>, limit: Duration,
 /// ends it when `limit` passes,
 /// and reaps it either way,
 /// so a child that never ends cannot hold the caller.
-pub fn wait_within(child: &mut Child, limit: Duration) -> io::Result<ExitStatus> {
+pub fn wait_within(
+    child: &mut Child,
+    limit: Duration,
+) -> io::Result<ExitStatus> {
     let deadline = Instant::now() + limit;
     loop {
         if let Some(status) = child.try_wait()? {

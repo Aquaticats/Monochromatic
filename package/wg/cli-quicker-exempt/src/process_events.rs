@@ -18,14 +18,18 @@
 //! Delivery is lossy when this process falls behind,
 //! so an overrun is reported and the caller rescans `/proc` as its backstop.
 
-/// Raw descriptor ownership.
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-/// Syscall failures.
-use std::io;
-/// Duplicate detection in constant time.
-use std::collections::HashSet;
 /// Notices that are not failures of a policy.
 use crate::log_line::log_line;
+/// Duplicate detection in constant time.
+use std::collections::HashSet;
+/// Syscall failures.
+use std::io;
+/// Raw descriptor ownership.
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 
 /// `NETLINK_CONNECTOR` from `linux/netlink.h`.
 const NETLINK_CONNECTOR: libc::c_int = 11;
@@ -128,7 +132,10 @@ pub fn unsubscribe(socket: &OwnedFd) -> io::Result<()> {
 }
 
 /// Builds one control datagram of the process connector around `payload`.
-fn build_control_message(port_id: u32, payload: &[u8]) -> Vec<u8> {
+fn build_control_message(
+    port_id: u32,
+    payload: &[u8],
+) -> Vec<u8> {
     let total = NLMSG_HEADER_LEN + CN_MSG_LEN + payload.len();
     let mut message: Vec<u8> = Vec::with_capacity(total);
     message.extend_from_slice(&u32::try_from(total).unwrap_or(0).to_ne_bytes());
@@ -147,7 +154,10 @@ fn build_control_message(port_id: u32, payload: &[u8]) -> Vec<u8> {
 }
 
 /// Reads four bytes at `offset` as a native-endian `u32`.
-fn read_u32(bytes: &[u8], offset: usize) -> Option<u32> {
+fn read_u32(
+    bytes: &[u8],
+    offset: usize,
+) -> Option<u32> {
     let slice = bytes.get(offset..offset + 4)?;
     let array: [u8; 4] = slice.try_into().ok()?;
     return Some(u32::from_ne_bytes(array));
@@ -160,7 +170,9 @@ pub fn parse_exec_event(datagram: &[u8]) -> Option<i32> {
     if declared < NLMSG_HEADER_LEN + CN_MSG_LEN + PROC_EVENT_LEN || declared > datagram.len() {
         return None;
     }
-    if read_u32(datagram, NLMSG_HEADER_LEN)? != CN_IDX_PROC || read_u32(datagram, NLMSG_HEADER_LEN + 4)? != CN_VAL_PROC {
+    if read_u32(datagram, NLMSG_HEADER_LEN)? != CN_IDX_PROC
+        || read_u32(datagram, NLMSG_HEADER_LEN + 4)? != CN_VAL_PROC
+    {
         return None;
     }
     let event = NLMSG_HEADER_LEN + CN_MSG_LEN;
@@ -176,7 +188,10 @@ pub fn parse_exec_event(datagram: &[u8]) -> Option<i32> {
 /// The request is best effort:
 /// the buffer only absorbs a burst of exec events,
 /// and a smaller one still works.
-pub fn enlarge_receive_buffer(socket: &OwnedFd, bytes: libc::c_int) -> io::Result<()> {
+pub fn enlarge_receive_buffer(
+    socket: &OwnedFd,
+    bytes: libc::c_int,
+) -> io::Result<()> {
     for option in [libc::SO_RCVBUFFORCE, libc::SO_RCVBUF] {
         // SAFETY: the pointer and length describe the integer passed for the duration of the call.
         let result = unsafe {
@@ -242,7 +257,9 @@ fn subscribe_to(exec_only: bool) -> io::Result<OwnedFd> {
     }
     // The buffer is set before the subscription, so no burst finds the small default.
     if let Err(error) = enlarge_receive_buffer(&socket, RECEIVE_BUFFER_BYTES) {
-        log_line(&format!("the process-event socket keeps its default receive buffer: {error}"));
+        log_line(&format!(
+            "the process-event socket keeps its default receive buffer: {error}"
+        ));
     }
     send_control(&socket, &build_listen_message(port_id))?;
     if exec_only {
@@ -252,9 +269,19 @@ fn subscribe_to(exec_only: bool) -> io::Result<OwnedFd> {
 }
 
 /// Sends one control datagram to the kernel.
-fn send_control(socket: &OwnedFd, message: &[u8]) -> io::Result<()> {
+fn send_control(
+    socket: &OwnedFd,
+    message: &[u8],
+) -> io::Result<()> {
     // SAFETY: the buffer pointer and length describe the message passed.
-    let sent = unsafe { libc::send(socket.as_raw_fd(), message.as_ptr().cast(), message.len(), 0) };
+    let sent = unsafe {
+        libc::send(
+            socket.as_raw_fd(),
+            message.as_ptr().cast(),
+            message.len(),
+            0,
+        )
+    };
     if sent < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -265,7 +292,10 @@ fn send_control(socket: &OwnedFd, message: &[u8]) -> io::Result<()> {
 pub trait DatagramSource {
     /// Fills the buffer and returns the byte count with the netlink port that sent it,
     /// or the error of the receive call.
-    fn receive(&mut self, buffer: &mut [u8]) -> io::Result<(usize, u32)>;
+    fn receive(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> io::Result<(usize, u32)>;
 }
 
 /// The connector socket as a source.
@@ -277,14 +307,20 @@ pub struct SocketSource<'a> {
 /// Reads from the socket without blocking.
 impl DatagramSource for SocketSource<'_> {
     /// Receives one datagram from the socket.
-    fn receive(&mut self, buffer: &mut [u8]) -> io::Result<(usize, u32)> {
+    fn receive(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> io::Result<(usize, u32)> {
         return receive_datagram(self.socket, buffer);
     }
 }
 
 /// Receives one datagram from the socket without blocking,
 /// returning its length and the sender's netlink port.
-pub fn receive_datagram(socket: &OwnedFd, buffer: &mut [u8]) -> io::Result<(usize, u32)> {
+pub fn receive_datagram(
+    socket: &OwnedFd,
+    buffer: &mut [u8],
+) -> io::Result<(usize, u32)> {
     // SAFETY: a zeroed sockaddr_nl is valid output storage.
     let mut sender: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
     let mut sender_len = std::mem::size_of::<libc::sockaddr_nl>() as libc::socklen_t;
@@ -352,5 +388,7 @@ pub fn drain_exec_events_from(source: &mut dyn DatagramSource) -> io::Result<Dra
 
 /// Reads every queued datagram of the connector socket and collects the exec events sent by the kernel.
 pub fn drain_exec_events(socket: &OwnedFd) -> io::Result<DrainedEvents> {
-    return drain_exec_events_from(&mut SocketSource { socket });
+    return drain_exec_events_from(&mut SocketSource {
+        socket,
+    });
 }

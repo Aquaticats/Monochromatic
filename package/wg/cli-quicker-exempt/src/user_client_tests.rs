@@ -3,16 +3,26 @@
 //! the timeout kill,
 //! and the failure variants of the user client against fake client scripts.
 
-/// Client under test.
-use crate::user_client::{client_command, ClientError, UserClient};
 /// The search path the client gets.
 use crate::bounded_command::SECURE_PATH;
+/// Client under test.
+use crate::user_client::{
+    ClientError,
+    UserClient,
+    client_command,
+};
 /// Executable mode for the fake client.
 use std::os::unix::fs::PermissionsExt;
 /// Fixture paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Our own uid and gid,
 /// so the privilege drop is a no-op in an unprivileged test.
@@ -23,17 +33,22 @@ fn own_ids() -> (u32, u32) {
 
 /// Makes an empty scratch directory for one test.
 fn scratch(name: &str) -> PathBuf {
-    let directory = crate::test_scratch::scratch_root().join(format!("wg-quicker-client-{name}-{}", std::process::id()));
+    let directory = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-client-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&directory);
     std::fs::create_dir_all(&directory).expect("make the scratch directory");
     return directory;
 }
 
 /// Writes an executable script and returns its path.
-fn script(directory: &Path, body: &str) -> PathBuf {
+fn script(
+    directory: &Path,
+    body: &str,
+) -> PathBuf {
     let path = directory.join("client");
     std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("write the fake client");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("make the fake client executable");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+        .expect("make the fake client executable");
     return path;
 }
 
@@ -46,7 +61,17 @@ fn root_drops_to_the_user_before_calling_the_bus() {
     assert_eq!(program, "setpriv");
     assert_eq!(
         full,
-        ["--reuid", "1000", "--regid", "1001", "--clear-groups", "--no-new-privs", "busctl", "--user", "call"]
+        [
+            "--reuid",
+            "1000",
+            "--regid",
+            "1001",
+            "--clear-groups",
+            "--no-new-privs",
+            "busctl",
+            "--user",
+            "call"
+        ]
     );
     let (direct, plain) = client_command("busctl", 1000, 1001, &arguments, false);
     assert_eq!(direct, "busctl");
@@ -57,18 +82,38 @@ fn root_drops_to_the_user_before_calling_the_bus() {
 #[test]
 fn the_client_environment_is_cleared() {
     // The watcher's own environment must hold something that could leak.
-    assert!(std::env::vars().count() > 2, "the test process has a nearly empty environment");
+    assert!(
+        std::env::vars().count() > 2,
+        "the test process has a nearly empty environment"
+    );
     let directory = scratch("env");
     let recorded = directory.join("env.txt");
-    let fake = script(&directory, &format!("/usr/bin/env > '{}'", recorded.display()));
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(5) };
+    let fake = script(
+        &directory,
+        &format!("/usr/bin/env > '{}'", recorded.display()),
+    );
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_secs(5),
+    };
     let (uid, gid) = own_ids();
     client.run(uid, gid, &[]).expect("the client succeeds");
     let text = std::fs::read_to_string(recorded).expect("read the recorded environment");
-    assert!(text.lines().any(|line| return line == format!("PATH={SECURE_PATH}")), "{text}");
-    assert!(text.lines().any(|line| return line == format!("XDG_RUNTIME_DIR=/run/user/{uid}")), "{text}");
+    assert!(
+        text.lines()
+            .any(|line| return line == format!("PATH={SECURE_PATH}")),
+        "{text}"
+    );
+    assert!(
+        text.lines()
+            .any(|line| return line == format!("XDG_RUNTIME_DIR=/run/user/{uid}")),
+        "{text}"
+    );
     for forbidden in ["HOME=", "CARGO", "NEXTEST", "USER=", "LD_"] {
-        assert!(!text.lines().any(|line| return line.starts_with(forbidden)), "{forbidden} leaked into {text}");
+        assert!(
+            !text.lines().any(|line| return line.starts_with(forbidden)),
+            "{forbidden} leaked into {text}"
+        );
     }
 }
 
@@ -78,16 +123,31 @@ fn the_client_environment_is_cleared() {
 fn a_client_past_its_timeout_is_killed() {
     let directory = scratch("timeout");
     let pid_file = directory.join("pid");
-    let fake = script(&directory, &format!("echo $$ > '{}'\nexec /usr/bin/sleep 30", pid_file.display()));
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_millis(300) };
+    let fake = script(
+        &directory,
+        &format!("echo $$ > '{}'\nexec /usr/bin/sleep 30", pid_file.display()),
+    );
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_millis(300),
+    };
     let (uid, gid) = own_ids();
     let started = Instant::now();
-    let error = client.run(uid, gid, &[]).expect_err("the client is too slow");
-    assert!(started.elapsed() < Duration::from_secs(10), "the run waited for the client");
+    let error = client
+        .run(uid, gid, &[])
+        .expect_err("the client is too slow");
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the run waited for the client"
+    );
     assert!(matches!(error, ClientError::TimedOut(_)), "{error}");
     assert!(error.to_string().contains("was killed"));
     let pid = std::fs::read_to_string(pid_file).expect("the client recorded its pid");
-    assert!(!Path::new("/proc").join(pid.trim()).exists(), "the client {} is still alive", pid.trim());
+    assert!(
+        !Path::new("/proc").join(pid.trim()).exists(),
+        "the client {} is still alive",
+        pid.trim()
+    );
 }
 
 /// A failing client reports its status and its message,
@@ -96,7 +156,10 @@ fn a_client_past_its_timeout_is_killed() {
 fn failures_name_their_cause() {
     let directory = scratch("failure");
     let fake = script(&directory, "echo 'boom' >&2\nexit 3");
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(5) };
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_secs(5),
+    };
     let (uid, gid) = own_ids();
     let error = client.run(uid, gid, &[]).expect_err("the client fails");
     assert!(matches!(error, ClientError::Failed(_)));
@@ -113,9 +176,15 @@ fn failures_name_their_cause() {
 fn the_output_of_the_client_is_returned() {
     let directory = scratch("output");
     let fake = script(&directory, "echo 'u 42'");
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(5) };
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_secs(5),
+    };
     let (uid, gid) = own_ids();
-    assert_eq!(client.run(uid, gid, &[]).expect("the client succeeds"), "u 42\n");
+    assert_eq!(
+        client.run(uid, gid, &[]).expect("the client succeeds"),
+        "u 42\n"
+    );
 }
 
 /// A client that writes more than a pipe holds is read while it runs.
@@ -127,14 +196,24 @@ fn the_output_of_the_client_is_returned() {
 fn output_larger_than_a_pipe_is_read_while_the_client_runs() {
     let directory = scratch("large-output");
     let fake = script(&directory, "head -c 300000 /dev/zero | tr '\\0' 'a'");
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(10) };
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_secs(10),
+    };
     let (uid, gid) = own_ids();
     let started = Instant::now();
-    let default = client.run(uid, gid, &[]).expect("a large output is not a failure");
+    let default = client
+        .run(uid, gid, &[])
+        .expect("a large output is not a failure");
     assert_eq!(default.len(), 65_536);
-    let whole = client.run_limited(uid, gid, &[], 1_000_000).expect("the larger limit keeps everything");
+    let whole = client
+        .run_limited(uid, gid, &[], 1_000_000)
+        .expect("the larger limit keeps everything");
     assert_eq!(whole.len(), 300_000);
-    assert!(started.elapsed() < Duration::from_secs(8), "the client waited for its timeout");
+    assert!(
+        started.elapsed() < Duration::from_secs(8),
+        "the client waited for its timeout"
+    );
 }
 
 /// A failing client that writes a large message on standard error does not hang either,
@@ -142,12 +221,22 @@ fn output_larger_than_a_pipe_is_read_while_the_client_runs() {
 #[test]
 fn a_failing_client_with_a_large_error_message_is_not_left_blocked() {
     let directory = scratch("large-error");
-    let fake = script(&directory, "head -c 300000 /dev/zero | tr '\\0' 'e' >&2\nexit 3");
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(10) };
+    let fake = script(
+        &directory,
+        "head -c 300000 /dev/zero | tr '\\0' 'e' >&2\nexit 3",
+    );
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_secs(10),
+    };
     let (uid, gid) = own_ids();
     let started = Instant::now();
     let error = client.run(uid, gid, &[]).expect_err("the client fails");
-    assert!(matches!(&error, ClientError::Failed(text) if text.contains("exited with") && text.len() < 70_000), "{} bytes", error.to_string().len());
+    assert!(
+        matches!(&error, ClientError::Failed(text) if text.contains("exited with") && text.len() < 70_000),
+        "{} bytes",
+        error.to_string().len()
+    );
     assert!(started.elapsed() < Duration::from_secs(8));
 }
 
@@ -160,8 +249,17 @@ fn a_failing_client_with_a_large_error_message_is_not_left_blocked() {
 fn an_error_reader_that_cannot_start_ends_the_client_at_once() {
     let directory = scratch("reader-fails");
     let pid_file = directory.join("pid");
-    let fake = script(&directory, &format!("echo $$ > '{}'\nhead -c 300000 /dev/zero | tr '\\0' 'e' >&2\nexec /usr/bin/sleep 30", pid_file.display()));
-    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(20) };
+    let fake = script(
+        &directory,
+        &format!(
+            "echo $$ > '{}'\nhead -c 300000 /dev/zero | tr '\\0' 'e' >&2\nexec /usr/bin/sleep 30",
+            pid_file.display()
+        ),
+    );
+    let client = UserClient {
+        program: fake.to_string_lossy().into_owned(),
+        timeout: Duration::from_secs(20),
+    };
     let (uid, gid) = own_ids();
     let calls = std::cell::Cell::new(0_u32);
     let starter = |stream: Box<dyn std::io::Read + Send>, limit: u64| {
@@ -178,14 +276,27 @@ fn an_error_reader_that_cannot_start_ends_the_client_at_once() {
         }
         return std::thread::Builder::new().spawn(move || {
             let mut kept = Vec::new();
-            let _read = std::io::Read::read_to_end(&mut std::io::Read::take(stream, limit), &mut kept);
+            let _read =
+                std::io::Read::read_to_end(&mut std::io::Read::take(stream, limit), &mut kept);
             return String::from_utf8_lossy(&kept).into_owned();
         });
     };
     let started = Instant::now();
-    let error = client.run_with_readers(uid, gid, &[], 65_536, &starter).expect_err("the error reader cannot start");
-    assert!(matches!(&error, ClientError::Failed(text) if text.contains("the error output of") && text.contains("could not start")), "{error}");
-    assert!(started.elapsed() < Duration::from_secs(10), "the failure waited for the timeout");
+    let error = client
+        .run_with_readers(uid, gid, &[], 65_536, &starter)
+        .expect_err("the error reader cannot start");
+    assert!(
+        matches!(&error, ClientError::Failed(text) if text.contains("the error output of") && text.contains("could not start")),
+        "{error}"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the failure waited for the timeout"
+    );
     let pid = std::fs::read_to_string(&pid_file).expect("the client wrote its pid");
-    assert!(!Path::new(&format!("/proc/{}", pid.trim())).exists(), "the client {} was left running or unreaped", pid.trim());
+    assert!(
+        !Path::new(&format!("/proc/{}", pid.trim())).exists(),
+        "the client {} was left running or unreaped",
+        pid.trim()
+    );
 }

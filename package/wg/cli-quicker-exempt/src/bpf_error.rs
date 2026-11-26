@@ -20,7 +20,10 @@ struct PinObjectInvalidError {
 ///  and original diagnostic.
 impl fmt::Display for PinObjectInvalidError {
     /// Writes stable human-readable diagnostic without controlling behavior selection.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(
             formatter,
             "BPF_OBJ_PIN {}: {}; an affected SELinux kernel may need the fix for regression 9722955b5430",
@@ -38,7 +41,10 @@ impl std::error::Error for PinObjectInvalidError {
 }
 
 /// Wraps invalid pin syscall as typed error payload.
-pub fn pin_object_invalid(path: String, source: io::Error) -> io::Error {
+pub fn pin_object_invalid(
+    path: String,
+    source: io::Error,
+) -> io::Error {
     return io::Error::new(
         source.kind(),
         PinObjectInvalidError {

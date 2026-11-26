@@ -7,18 +7,36 @@
 //! because a user bus refuses a connection from root,
 //! and the daemon authorizes every client by its peer credentials.
 
-/// The message layout.
-use crate::dbus_wire::{BUS_INTERFACE, BUS_NAME, BUS_PATH, Message, decode_message, encode_call, message_length};
 /// The login and the kernel's word on the peer.
-use crate::dbus_login::{LoginError, login};
+use crate::dbus_login::{
+    LoginError,
+    login,
+};
+/// The message layout.
+use crate::dbus_wire::{
+    BUS_INTERFACE,
+    BUS_NAME,
+    BUS_PATH,
+    Message,
+    decode_message,
+    encode_call,
+    message_length,
+};
 /// Reading and writing the socket.
-use std::io::{self, Read, Write};
+use std::io::{
+    self,
+    Read,
+    Write,
+};
 /// The socket.
 use std::os::unix::net::UnixStream;
 /// The socket path.
 use std::path::Path;
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Most bytes accepted for one message.
 const MAX_MESSAGE_BYTES: usize = 1 << 20;
@@ -45,17 +63,27 @@ pub enum SessionBusError {
 /// Wording for reports.
 impl std::fmt::Display for SessionBusError {
     /// Writes the plain text of the failure.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
-            SessionBusError::Failed(text) | SessionBusError::TimedOut(text) => write!(formatter, "{text}"),
+            SessionBusError::Failed(text) | SessionBusError::TimedOut(text) => {
+                write!(formatter, "{text}")
+            }
         };
     }
 }
 
 /// A bus failure as the client's error.
-fn socket_failure(error: &io::Error, what: &str) -> SessionBusError {
+fn socket_failure(
+    error: &io::Error,
+    what: &str,
+) -> SessionBusError {
     return match error.kind() {
-        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => SessionBusError::TimedOut(format!("{what} did not answer in time")),
+        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => {
+            SessionBusError::TimedOut(format!("{what} did not answer in time"))
+        }
         _ => SessionBusError::Failed(format!("{what} failed: {error}")),
     };
 }
@@ -89,18 +117,36 @@ impl BusConnection {
     /// logs in,
     /// says `Hello`,
     /// and asks for the signals `match_rule` names.
-    pub fn connect(socket: &Path, timeout: Duration, match_rule: &str) -> Result<BusConnection, SessionBusError> {
+    pub fn connect(
+        socket: &Path,
+        timeout: Duration,
+        match_rule: &str,
+    ) -> Result<BusConnection, SessionBusError> {
         let mut stream = match UnixStream::connect(socket) {
             Ok(stream) => stream,
-            Err(error) => return Err(SessionBusError::Failed(format!("the bus socket {} could not be reached: {error}", socket.display()))),
+            Err(error) => {
+                return Err(SessionBusError::Failed(format!(
+                    "the bus socket {} could not be reached: {error}",
+                    socket.display()
+                )));
+            }
         };
         let _read_timeout = stream.set_read_timeout(Some(timeout));
         let _write_timeout = stream.set_write_timeout(Some(timeout));
         login(&mut stream).map_err(login_failure)?;
-        let mut connection = BusConnection { stream, timeout, next_serial: 1, unique_name: String::new(), buffer: Vec::new() };
+        let mut connection = BusConnection {
+            stream,
+            timeout,
+            next_serial: 1,
+            unique_name: String::new(),
+            buffer: Vec::new(),
+        };
         let hello = connection.call_bus("Hello", Vec::new())?;
         connection.unique_name = hello.first_text().unwrap_or_default();
-        let _added = connection.call_bus("AddMatch", vec![crate::dbus_wire::Argument::Text(match_rule.to_string())])?;
+        let _added = connection.call_bus(
+            "AddMatch",
+            vec![crate::dbus_wire::Argument::Text(match_rule.to_string())],
+        )?;
         return Ok(connection);
     }
 
@@ -122,20 +168,29 @@ impl BusConnection {
     /// and a caller that skips those messages would never finish.
     /// The socket timeout is set to what is left of the deadline
     /// so a silent bus ends the wait as well.
-    fn read_message_before(&mut self, deadline: Instant) -> Result<Option<Message>, SessionBusError> {
+    fn read_message_before(
+        &mut self,
+        deadline: Instant,
+    ) -> Result<Option<Message>, SessionBusError> {
         loop {
             if let Some(length) = message_length(&self.buffer)
                 && self.buffer.len() >= length
             {
                 let message = match decode_message(self.buffer.get(..length).unwrap_or_default()) {
                     Ok(message) => message,
-                    Err(error) => return Err(SessionBusError::Failed(format!("the bus sent a message this client does not read: {error:?}"))),
+                    Err(error) => {
+                        return Err(SessionBusError::Failed(format!(
+                            "the bus sent a message this client does not read: {error:?}"
+                        )));
+                    }
                 };
                 self.buffer.drain(..length);
                 return Ok(Some(message));
             }
             if self.buffer.len() >= MAX_MESSAGE_BYTES {
-                return Err(SessionBusError::Failed(format!("the bus sent more than {MAX_MESSAGE_BYTES} bytes")));
+                return Err(SessionBusError::Failed(format!(
+                    "the bus sent more than {MAX_MESSAGE_BYTES} bytes"
+                )));
             }
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
@@ -144,9 +199,20 @@ impl BusConnection {
             let _read_timeout = self.stream.set_read_timeout(Some(left));
             let mut chunk = [0u8; 8192];
             match self.stream.read(&mut chunk) {
-                Ok(0) => return Err(SessionBusError::Failed("the bus closed the socket".to_string())),
-                Ok(count) => self.buffer.extend_from_slice(chunk.get(..count).unwrap_or_default()),
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock || error.kind() == io::ErrorKind::TimedOut => return Ok(None),
+                Ok(0) => {
+                    return Err(SessionBusError::Failed(
+                        "the bus closed the socket".to_string(),
+                    ));
+                }
+                Ok(count) => self
+                    .buffer
+                    .extend_from_slice(chunk.get(..count).unwrap_or_default()),
+                Err(error)
+                    if error.kind() == io::ErrorKind::WouldBlock
+                        || error.kind() == io::ErrorKind::TimedOut =>
+                {
+                    return Ok(None);
+                }
                 Err(error) => return Err(socket_failure(&error, "the bus socket")),
             }
         }
@@ -154,9 +220,20 @@ impl BusConnection {
 
     /// Sends one call and waits for its own reply,
     /// skipping the signals and other messages that arrive meanwhile.
-    pub fn call(&mut self, member: &str, arguments: Vec<crate::dbus_wire::Argument>) -> Result<Message, SessionBusError> {
+    pub fn call(
+        &mut self,
+        member: &str,
+        arguments: Vec<crate::dbus_wire::Argument>,
+    ) -> Result<Message, SessionBusError> {
         let serial = self.serial();
-        let bytes = encode_call(serial, BUS_PATH, BUS_INTERFACE, member, Some(BUS_NAME), &arguments);
+        let bytes = encode_call(
+            serial,
+            BUS_PATH,
+            BUS_INTERFACE,
+            member,
+            Some(BUS_NAME),
+            &arguments,
+        );
         if let Err(error) = self.stream.write_all(&bytes) {
             return Err(socket_failure(&error, "the call to the bus"));
         }
@@ -166,7 +243,10 @@ impl BusConnection {
         let deadline = Instant::now() + self.timeout;
         loop {
             let Some(message) = self.read_message_before(deadline)? else {
-                return Err(SessionBusError::TimedOut(format!("the bus did not answer {member} within {:?}", self.timeout)));
+                return Err(SessionBusError::TimedOut(format!(
+                    "the bus did not answer {member} within {:?}",
+                    self.timeout
+                )));
             };
             if message.reply_serial != Some(serial) {
                 continue;
@@ -175,7 +255,9 @@ impl BusConnection {
                 crate::dbus_wire::ERROR => {
                     let name = message.error_name.clone().unwrap_or_default();
                     let text = message.first_text().unwrap_or_default();
-                    Err(SessionBusError::Failed(format!("the bus answered {name}: {text}")))
+                    Err(SessionBusError::Failed(format!(
+                        "the bus answered {name}: {text}"
+                    )))
                 }
                 _ => Ok(message),
             };
@@ -183,31 +265,56 @@ impl BusConnection {
     }
 
     /// Sends one call of the bus daemon's own interface.
-    fn call_bus(&mut self, member: &str, arguments: Vec<crate::dbus_wire::Argument>) -> Result<Message, SessionBusError> {
+    fn call_bus(
+        &mut self,
+        member: &str,
+        arguments: Vec<crate::dbus_wire::Argument>,
+    ) -> Result<Message, SessionBusError> {
         return self.call(member, arguments);
     }
 
     /// The unique name of the process that holds `name`,
     /// or nothing when no process holds it.
-    pub fn call_owner(&mut self, name: &str) -> Result<Option<String>, SessionBusError> {
-        return match self.call("GetNameOwner", vec![crate::dbus_wire::Argument::Text(name.to_string())]) {
+    pub fn call_owner(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<String>, SessionBusError> {
+        return match self.call(
+            "GetNameOwner",
+            vec![crate::dbus_wire::Argument::Text(name.to_string())],
+        ) {
             Ok(reply) => Ok(reply.first_text()),
-            Err(SessionBusError::Failed(text)) if text.contains(NAME_HAS_NO_OWNER) || text.contains("does not have an owner") => Ok(None),
+            Err(SessionBusError::Failed(text))
+                if text.contains(NAME_HAS_NO_OWNER) || text.contains("does not have an owner") =>
+            {
+                Ok(None)
+            }
             Err(error) => Err(error),
         };
     }
 
     /// The pid of the process that holds the unique name `unique`.
-    pub fn call_owner_pid(&mut self, unique: &str) -> Result<i32, SessionBusError> {
-        let reply = self.call("GetConnectionUnixProcessID", vec![crate::dbus_wire::Argument::Text(unique.to_string())])?;
+    pub fn call_owner_pid(
+        &mut self,
+        unique: &str,
+    ) -> Result<i32, SessionBusError> {
+        let reply = self.call(
+            "GetConnectionUnixProcessID",
+            vec![crate::dbus_wire::Argument::Text(unique.to_string())],
+        )?;
         return match reply.first_number() {
             Some(pid) => Ok(i32::from_ne_bytes(pid.to_ne_bytes())),
-            None => Err(SessionBusError::Failed("the bus gave no pid for the connection".to_string())),
+            None => Err(SessionBusError::Failed(
+                "the bus gave no pid for the connection".to_string(),
+            )),
         };
     }
 
     /// Gives the calls that follow `timeout`.
-    pub fn set_timeout(&mut self, timeout: Duration) {
+    pub fn set_timeout(
+        &mut self,
+        timeout: Duration,
+    ) {
         self.timeout = timeout;
         let _read = self.stream.set_read_timeout(Some(timeout));
         let _write = self.stream.set_write_timeout(Some(timeout));
@@ -221,7 +328,9 @@ impl BusConnection {
         // so a bus that keeps sending other messages cannot starve the poll that ends it.
         let deadline = Instant::now() + self.timeout;
         loop {
-            let Some(message) = self.read_message_before(deadline)? else { return Ok(None) };
+            let Some(message) = self.read_message_before(deadline)? else {
+                return Ok(None);
+            };
             if message.kind == crate::dbus_wire::SIGNAL {
                 return Ok(Some(message));
             }

@@ -9,7 +9,10 @@
 /// The steps under test.
 use crate::sentinel_launch::SentinelSteps;
 /// The reading under test.
-use crate::sentinel_system_steps::{unit_state_means_gone, SystemSteps};
+use crate::sentinel_system_steps::{
+    SystemSteps,
+    unit_state_means_gone,
+};
 
 /// Only `inactive` and `failed` mean that no process of the unit is left.
 /// A unit that was collected and is no longer loaded prints `inactive` (read on the host).
@@ -33,7 +36,10 @@ fn only_inactive_and_failed_mean_the_unit_is_gone() {
 #[test]
 #[ignore = "requires systemctl and a running system manager"]
 fn a_unit_that_is_not_loaded_counts_as_gone() {
-    assert_eq!(SystemSteps.stop_service("wgtest-no-such-unit.service"), Ok(()));
+    assert_eq!(
+        SystemSteps.stop_service("wgtest-no-such-unit.service"),
+        Ok(())
+    );
 }
 
 /// A unit that is still active after the stop was refused is an error that says so.
@@ -43,7 +49,10 @@ fn a_unit_that_is_not_loaded_counts_as_gone() {
 #[test]
 #[ignore = "requires a running root service named in WGTEST_RUNNING_UNIT and an unprivileged caller"]
 fn a_unit_that_stays_active_is_an_error_that_says_so() {
-    let unit = std::env::var("WGTEST_RUNNING_UNIT").expect("name a running root service in WGTEST_RUNNING_UNIT");
-    let error = SystemSteps.stop_service(&unit).expect_err("an unprivileged caller cannot stop a root service");
+    let unit = std::env::var("WGTEST_RUNNING_UNIT")
+        .expect("name a running root service in WGTEST_RUNNING_UNIT");
+    let error = SystemSteps
+        .stop_service(&unit)
+        .expect_err("an unprivileged caller cannot stop a root service");
     assert!(error.starts_with("the unit is active"), "{error}");
 }

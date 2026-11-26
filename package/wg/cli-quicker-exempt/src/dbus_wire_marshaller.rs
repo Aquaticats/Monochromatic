@@ -8,14 +8,8 @@
 /// a variant
 /// and an unsigned 64-bit number.
 use super::EIGHT;
-/// The alignment of a string,
-/// an array length
-/// and a 32-bit number.
-use super::FOUR;
-/// The sixteen fixed header bytes before the header fields.
-use super::FIXED_HEADER;
-/// The header field that holds the body's signature.
-use super::FIELD_SIGNATURE;
+/// The first byte of a little-endian message.
+use super::ENDIAN_LITTLE;
 /// The header field that holds the destination of a call.
 use super::FIELD_DESTINATION;
 /// The header field that holds the interface.
@@ -24,10 +18,16 @@ use super::FIELD_INTERFACE;
 use super::FIELD_MEMBER;
 /// The header field that holds the object path.
 use super::FIELD_PATH;
+/// The header field that holds the body's signature.
+use super::FIELD_SIGNATURE;
+/// The sixteen fixed header bytes before the header fields.
+use super::FIXED_HEADER;
+/// The alignment of a string,
+/// an array length
+/// and a 32-bit number.
+use super::FOUR;
 /// The type of a method call.
 use super::METHOD_CALL;
-/// The first byte of a little-endian message.
-use super::ENDIAN_LITTLE;
 
 /// Where an array's length field is,
 /// and where its content starts.
@@ -164,20 +164,29 @@ pub(crate) struct Writer {
 /// Writing values.
 impl Writer {
     /// Pads until the next byte lies on `boundary`.
-    pub(crate) fn pad(&mut self, boundary: usize) {
+    pub(crate) fn pad(
+        &mut self,
+        boundary: usize,
+    ) {
         while (self.start + self.bytes.len()) % boundary != 0 {
             self.bytes.push(0);
         }
     }
 
     /// Writes a 32-bit number.
-    pub(crate) fn uint32(&mut self, value: u32) {
+    pub(crate) fn uint32(
+        &mut self,
+        value: u32,
+    ) {
         self.pad(FOUR);
         self.bytes.extend(value.to_le_bytes());
     }
 
     /// Writes a 64-bit number.
-    pub(crate) fn number(&mut self, value: u64) {
+    pub(crate) fn number(
+        &mut self,
+        value: u64,
+    ) {
         self.pad(EIGHT);
         self.bytes.extend(value.to_le_bytes());
     }
@@ -186,7 +195,10 @@ impl Writer {
     /// its length,
     /// its bytes,
     /// and the end byte.
-    pub(crate) fn text(&mut self, value: &str) {
+    pub(crate) fn text(
+        &mut self,
+        value: &str,
+    ) {
         let length = u32::try_from(value.len()).unwrap_or(u32::MAX);
         self.uint32(length);
         self.bytes.extend(value.as_bytes());
@@ -197,7 +209,10 @@ impl Writer {
     /// its length,
     /// its bytes,
     /// and the end byte.
-    pub(crate) fn signature(&mut self, value: &str) {
+    pub(crate) fn signature(
+        &mut self,
+        value: &str,
+    ) {
         let length = u8::try_from(value.len()).unwrap_or(u8::MAX);
         self.bytes.push(length);
         self.bytes.extend(value.as_bytes());
@@ -205,7 +220,10 @@ impl Writer {
     }
 
     /// Writes a boolean value.
-    fn flag(&mut self, value: bool) {
+    fn flag(
+        &mut self,
+        value: bool,
+    ) {
         self.pad(FOUR);
         self.bytes.extend(u32::from(value).to_le_bytes());
     }
@@ -217,24 +235,38 @@ impl Writer {
     /// The length a D-Bus array field carries is the length of its *content*:
     /// the specification puts the padding that aligns the first element between the length and the content,
     /// and the length does not count it.
-    fn start_array(&mut self, element_alignment: usize) -> ArrayStart {
+    fn start_array(
+        &mut self,
+        element_alignment: usize,
+    ) -> ArrayStart {
         self.pad(FOUR);
         let length_at = self.bytes.len();
         self.bytes.extend([0; FOUR]);
         self.pad(element_alignment);
-        return ArrayStart { length_at, content_at: self.bytes.len() };
+        return ArrayStart {
+            length_at,
+            content_at: self.bytes.len(),
+        };
     }
 
     /// Fills in the length of the array that started at `start`,
     /// which is the bytes written after its alignment padding.
-    fn finish_array(&mut self, start: ArrayStart) {
-        let content_length = u32::try_from(self.bytes.len().saturating_sub(start.content_at)).unwrap_or(u32::MAX);
-        self.bytes[start.length_at..start.length_at.saturating_add(FOUR)].copy_from_slice(&content_length.to_le_bytes());
+    fn finish_array(
+        &mut self,
+        start: ArrayStart,
+    ) {
+        let content_length =
+            u32::try_from(self.bytes.len().saturating_sub(start.content_at)).unwrap_or(u32::MAX);
+        self.bytes[start.length_at..start.length_at.saturating_add(FOUR)]
+            .copy_from_slice(&content_length.to_le_bytes());
     }
 
     /// Writes one property value under its own signature,
     /// which the caller wrote just before.
-    fn property_value(&mut self, value: &PropertyValue) {
+    fn property_value(
+        &mut self,
+        value: &PropertyValue,
+    ) {
         match value {
             PropertyValue::Number(number) => self.number(*number),
             PropertyValue::Text(text) => self.text(text),
@@ -260,7 +292,10 @@ impl Writer {
     }
 
     /// Writes one argument.
-    pub(crate) fn argument(&mut self, argument: &Argument) {
+    pub(crate) fn argument(
+        &mut self,
+        argument: &Argument,
+    ) {
         match argument {
             Argument::Text(text) => self.text(text),
             Argument::Flag(flag) => self.flag(*flag),
@@ -291,11 +326,15 @@ impl Writer {
     }
 }
 
-
 /// Writes one header field:
 /// its code
 /// and a variant holding the value.
-pub(crate) fn header_field(writer: &mut Writer, code: u8, value_signature: &str, value: &str) {
+pub(crate) fn header_field(
+    writer: &mut Writer,
+    code: u8,
+    value_signature: &str,
+    value: &str,
+) {
     writer.pad(EIGHT);
     writer.bytes.push(code);
     writer.signature(value_signature);
@@ -308,8 +347,18 @@ pub(crate) fn header_field(writer: &mut Writer, code: u8, value_signature: &str,
 
 /// The bytes of a method call,
 /// with `destination` set only when the call goes over a bus.
-pub fn encode_call(serial: u32, path: &str, interface: &str, member: &str, destination: Option<&str>, arguments: &[Argument]) -> Vec<u8> {
-    let mut fields = Writer { bytes: vec![0; FIXED_HEADER], start: 0 };
+pub fn encode_call(
+    serial: u32,
+    path: &str,
+    interface: &str,
+    member: &str,
+    destination: Option<&str>,
+    arguments: &[Argument],
+) -> Vec<u8> {
+    let mut fields = Writer {
+        bytes: vec![0; FIXED_HEADER],
+        start: 0,
+    };
     header_field(&mut fields, FIELD_PATH, "o", path);
     if let Some(name) = destination {
         header_field(&mut fields, FIELD_DESTINATION, "s", name);
@@ -320,10 +369,14 @@ pub fn encode_call(serial: u32, path: &str, interface: &str, member: &str, desti
     if !signature.is_empty() {
         header_field(&mut fields, FIELD_SIGNATURE, "g", &signature);
     }
-    let fields_length = u32::try_from(fields.bytes.len().saturating_sub(FIXED_HEADER)).unwrap_or(u32::MAX);
+    let fields_length =
+        u32::try_from(fields.bytes.len().saturating_sub(FIXED_HEADER)).unwrap_or(u32::MAX);
     fields.pad(EIGHT);
     let body_start = fields.bytes.len();
-    let mut body = Writer { bytes: Vec::new(), start: body_start };
+    let mut body = Writer {
+        bytes: Vec::new(),
+        start: body_start,
+    };
     for argument in arguments {
         body.argument(argument);
     }
@@ -332,7 +385,11 @@ pub fn encode_call(serial: u32, path: &str, interface: &str, member: &str, desti
     message[1] = METHOD_CALL;
     message[2] = 0;
     message[3] = 1;
-    message[4..8].copy_from_slice(&u32::try_from(body.bytes.len()).unwrap_or(u32::MAX).to_le_bytes());
+    message[4..8].copy_from_slice(
+        &u32::try_from(body.bytes.len())
+            .unwrap_or(u32::MAX)
+            .to_le_bytes(),
+    );
     message[8..12].copy_from_slice(&serial.to_le_bytes());
     message[12..16].copy_from_slice(&fields_length.to_le_bytes());
     message.extend(body.bytes);
