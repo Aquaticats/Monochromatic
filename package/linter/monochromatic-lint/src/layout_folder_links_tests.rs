@@ -487,6 +487,26 @@ fn the_glob_dedupe_reports_the_same_findings_whatever_order_the_mod_lines_come_i
     assert_eq!(before.len(), 1, "{before:#?}");
 }
 
+/// Two globs of one module inside one brace group are two findings,
+///  because both paths start where the group's path starts,
+///  so only their order apart keeps them from being one.
+#[test]
+fn two_globs_of_one_module_in_one_brace_group_are_two_findings() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "mod native;\npub use crate::{native::*, native::*};\n",
+        ),
+        ("src/native/mod.rs", ""),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    let globs: Vec<&String> = found
+        .iter()
+        .filter(|text| return text.contains("re-exports every item"))
+        .collect::<Vec<&String>>();
+    assert_eq!(globs.len(), 2, "{found:#?}");
+}
+
 /// Run the rule with an allow list and render each finding as `file:line message`,
 ///  with the fixture folder removed.
 fn findings_with(

@@ -229,13 +229,19 @@ fn glob_reexports(
         shapes.entry(shape).or_default().push(index);
     }
     for nodes in shapes.values() {
-        // What: the one finding of each glob of this shape, keyed by where its source line sits and what it names.
+        // What: the one finding of each glob of this shape,
+        // keyed by where its source path starts, what it names and how many earlier globs of that line name the same module.
         // Why: the same glob read in the two contexts of one file is one finding,
         // and two globs on one line, or on two lines, keep one finding each.
-        let mut found: BTreeMap<(usize, String), LayoutFinding> =
-            BTreeMap::<(usize, String), LayoutFinding>::new();
+        let mut found: BTreeMap<(usize, String, usize), LayoutFinding> =
+            BTreeMap::<(usize, String, usize), LayoutFinding>::new();
         for index in nodes {
             let module = &tree.modules[*index];
+            // What: how many globs of one start and one path came before, inside this module.
+            // Why: `pub use crate::{a::*, a::*};` is two re-exports that start where the path starts,
+            // so only their order apart keeps them two findings.
+            let mut repeated: BTreeMap<(usize, String), usize> =
+                BTreeMap::<(usize, String), usize>::new();
             for reference in &module.references {
                 if !(reference.raw.glob && reference.raw.reexport) {
                     continue;
@@ -266,8 +272,11 @@ fn glob_reexports(
                         reference.raw.segments.join("::")
                     ),
                 };
-                let slot: (usize, String) =
+                let start: (usize, String) =
                     (reference.raw.offset, reference.raw.segments.join("::"));
+                let place: usize = repeated.get(&start).copied().unwrap_or(0);
+                repeated.insert(start.clone(), place + 1);
+                let slot: (usize, String, usize) = (start.0, start.1, place);
                 // Two contexts that name two different folders keep the one whose message sorts first,
                 // so the report never depends on the order the `mod` lines stand in.
                 let smaller: bool = match found.get(&slot) {
