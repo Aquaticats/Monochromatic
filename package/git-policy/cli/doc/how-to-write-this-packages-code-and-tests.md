@@ -60,6 +60,17 @@ so a control that judges the run's own figures runs its reading in a helper proc
 (`testing/helper_process_test_support.rs`),
 as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
 
+The service's review runner is one more such fact,
+and a control hands the code its own instead of starting a child:
+`review_item` and its three siblings run the review in `standards_review_run::RUNNER`,
+which admits one job and answers every other caller with `Contained::Busy`,
+so a threaded run of `service::service_review::tests` failed seven of its sixteen controls
+while the gate starts each test in a process of its own and never showed it (issue 6499).
+A control declares `static OWN: Containment`
+and calls `review_item_in(&OWN, ..)`,
+and `source_guard/no_control_takes_the_production_runner_tests.rs` refuses a test-only source that takes the
+production runner instead.
+
 A control that gives this process room for blocking jobs,
 holds its bound on them,
 or sets any other fact that belongs
@@ -84,6 +95,23 @@ The four share one comparison,
 `the_figures_did_not_move` in `testing/run_progress_tests.rs`,
 which refuses a look where a task that is not the control's own moved between two looks
 and says which helper runs the body alone.
+
+A control that holds a fault point of the service
+(`service_fault_hooks_test_support.rs`)
+names the instance it owns in the point itself:
+the directory whose instance is read,
+the plan the start reads,
+the request whose beat reads its note,
+or the repository a note is written about
+(`instance_read_point`,
+`note_read_point`,
+`read_at_a_start_point`,
+`next_service_note_point`).
+The holds are a list of the whole process,
+so one slot for a run held nothing of a second control,
+and the module of three heartbeat controls failed all three (issue 6497);
+the registry refuses a second live hold of one point and names the composition the control must make,
+so a control that names one point twice fails at its own first line instead of in another control's wait.
 
 ## One fixture folder per test
 

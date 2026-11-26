@@ -128,18 +128,28 @@ Rounds started before that decision run on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
 - Issues 6489, 6493 and 6495 (flex),
-  and 6497 and 6499 (Qwen; 6497 filed from what 6487 left threaded-red, 6499 from 6496's report),
   one window each, `issue-<number>-<words>`.
-- Debt ledger item 19, window `fixed-length-lists-become-slices`.
-- The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
+- Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
+  briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
+  starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
+- Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
+  briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
+  starts when the split's round 1 merges, because both edit `invocation/`.
+- Debt ledger item 19, window `fixed-length-lists-become-slices`, run 2 on Qwen
+  (run 1 on flex ended when the writer did not begin a response in time; its work is committed).
+- The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
+  (run 1 on flex ended the same way, its edits committed as `45de70f8fd`; it touches `invocation/`, one of the split round 1 folders).
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
   (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
   a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
   window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
   then the `alpha.14` release, its Sonnet release pass and the lock bump.
 - The virtual writer with Qwen first,
-  window `virtual-writer-qwen-first`,
-  starting on flex behind its launch delay.
+  window `virtual-writer-qwen-first`, run 2 on Qwen
+  (run 1 on flex ended the same way at turn 151, its work committed as `f5bca9e28f`).
+
+Flex timed out three runs between 05:55 and 06:10 ("The model did not begin responding in time"),
+so a flex run that ends with `model-error` has its work committed and restarts on Qwen with a note to continue.
 
 ### Merged tonight
 
@@ -152,8 +162,10 @@ Rounds started before that decision run on flex.
   6485 as `d124f60f82`,
   6486 as `ff8b9427c2`,
   6487 as `f9096f7531`,
-  6498 as `ed9766ffad` and
-  6496 as `03212a32ff`.
+  6498 as `ed9766ffad`,
+  6496 as `03212a32ff`,
+  6497 as `ad67562f20` and
+  6499 as `2f5b9c87bd`.
 - The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
 - The linter's `alpha.13` fixes as `88e77f3553`,
   the release commit `e58ba6f078`,
@@ -185,17 +197,17 @@ Rounds started before that decision run on flex.
 
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
-The last gate was at `64a71a4c9b`,
-and it failed only the cause H pair,
-which issues 6466 and 6468 fixed in the controls.
+The last gate was at `b6d160365e` (2026-11-26T05:40:41-05:00),
+and it failed only issue 6489's lane-read control, whose round is open;
+its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
 is in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
 "The gates run on `main`,
 in order,
 with what each failed".
-No gate has covered tonight's merges yet;
-the next one is due on `main`'s tip and a failure outside the recorded baseline starts a fix round.
+The merges after `b6d160365e` (6499 and what follows) are the next batch;
+its gate runs on `main`'s tip once that batch lands, and a failure outside the recorded baseline starts a fix round.
 
 ### The session wrapper is a build of 2026-11-22
 
@@ -225,14 +237,14 @@ Of those filed tonight,
 6485,
 6486,
 6487,
-6498 and
-6496 are merged (`### Merged tonight`),
+6498,
+6496,
+6497 and
+6499 are merged (`### Merged tonight`),
 and 6489,
 6493,
 6494,
-6495,
-6497 and
-6499 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
+6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
