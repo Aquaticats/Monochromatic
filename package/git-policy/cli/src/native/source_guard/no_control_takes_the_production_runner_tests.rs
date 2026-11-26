@@ -36,11 +36,13 @@ use crate::source_scan_tests::{
 ///  A slice (`&[..]`) of pairs,
 ///  whose siblings a reader might expect are `[(&str, &str); N]`,
 ///  an array whose length is written beside it,
-///  and `Vec<(&str, &str)>`, which is built while the program runs.
+///  and `Vec<(&str, &str)>`,
+///  which is built while the program runs.
 /// Why:
 ///  A slice keeps its length in the value,
 ///  so adding a call edits no count
-///  (`how-to-write-this-packages-code-and-tests.md`, "Write less code").
+///  (`how-to-write-this-packages-code-and-tests.md`,
+///  "Write less code").
 /// Gotcha:
 ///  A needle must not be a prefix of the call a control may use instead:
 ///  `review_item(` is not inside `review_item_in(`,
@@ -144,8 +146,10 @@ fn lines_making_the_call(
 ///  calls above,
 ///  or one text saying why the scan cannot answer.
 /// Why:
-///  Release code may take the production runner: the service's own work path is what the runner is for,
-///  and only a control must not, because a run holds many of them at once in one process.
+///  Release code may take the production runner:
+///  the service's own work path is what the runner is for,
+///  and only a control must not,
+///  because a run holds many of them at once in one process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,7 +187,8 @@ fn findings_in(
 /// What:
 ///  `findings()` is the findings in this crate's own sources.
 /// Why:
-///  The control below judges the tree the build compiled, never a fixture.
+///  The control below judges the tree the build compiled,
+///  never a fixture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

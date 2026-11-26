@@ -8,8 +8,11 @@
 //!  `review_item` runs a review in the one runner the whole process shares,
 //!  and a runner admits one job at a time and answers every other caller with `Contained::Busy`.
 //!  `cargo test` runs a crate's tests as threads of one process,
-//!  so a threaded run of this module let one control's review fail every other control that asked while it ran
-//!  (issue 6499: 7 or 8 of these 16 controls failed, a varying set of them, and all 16 passed with `--test-threads=1`).
+//!  so a threaded run of this module let one control's review fail every other control that asked while it ran.
+//!  Measured on 2026-11-26,
+//!  7 or 8 of these 16 controls failed,
+//!  a varying set of them,
+//!  and all 16 passed with `--test-threads=1` (issue 6499).
 //!  The container gate starts each test in a process of its own,
 //!  which is why the gate never showed it.
 //!
