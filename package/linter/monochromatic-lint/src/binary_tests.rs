@@ -2969,6 +2969,36 @@ fn layout_a_name_that_ends_in_any_other_whitespace_is_refused() {
     }
 }
 
+/// A name that holds a line break is refused before any check,
+///  because a list line ends at a newline, so no key could name the file.
+#[test]
+fn layout_a_name_that_holds_a_line_break_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The attribute writes the escape `\\n`, which the module tree reads as the line break in the file's name.
+    fixture.write("src/lib.rs", "#[path = \"a\\nb.rs\"] mod x;\n");
+    fixture.write("src/a\nb.rs", "pub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error" }, "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let refused: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(refused.status, 2, "{}", refused.stdout);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in [
+        "The layout rules stop at src/a\\u{a}b.rs,",
+        "holds a line break, which ends a list line",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
 /// The walk back is breadth first, so a loop finding spells the fewest uses that lead back,
 ///  not any path the walk happened to take.
 #[test]
