@@ -379,8 +379,8 @@ fn the_forced_act_guest_arm_tests() {
     assert!(locked.contains("owner=another"), "the read names a user namespace of its own: {locked}");
     assert!(locked.contains("way8=holder-locked") && locked.contains("way7=holder-locked"), "both ways are refused with the design's word: {locked}");
     assert!(locked.contains("holders-copy=stays"), "nothing was unmounted: {locked}");
-    assert!(locked.contains("destroy-before=refused"), "the head destroy is refused while the locked copy stands: {locked}");
-    assert!(locked.contains("destroy-after=gone"), "and it answers gone once the holder ended: {locked}");
+    assert!(locked.contains("hosts-copy=stays"), "the host's own copy is untouched: {locked}");
+    assert!(locked.contains("unmount-after=accepted") && locked.contains("destroy-after=gone"), "once the holder ended, the host's unmount and the head destroy follow: {locked}");
     assert!(locked.contains("caller-job=alive"), "the caller's session's other job lived through it: {locked}");
 
     println!("{}", phase_line("arm-finished", &[("phases", "7"), ("result", "every-phase-held")]));
@@ -679,12 +679,17 @@ fn phase_locked(fixture: &Fixture) -> String {
     fields.push(("way7", way7.as_str()));
     let after_theirs: Vec<MountRow> = the_table_of_the_process(holder.pid).rows;
     fields.push(("holders-copy", if holds_the_copy_at(after_theirs.as_slice(), slot.as_path(), fixture.clone().as_str()) { "stays" } else { "gone" }));
-    fields.push(("destroy-before", if destroy_the_clone(fixture) { "gone" } else { "refused" }));
+    // No destroy is tried while the copy stands: `zfs destroy` unmounts the dataset from the caller's own namespace on
+    // its way, so it is no non-destructive control.
     holder.end();
     pause(Duration::from_millis(200));
     let after_ending: Vec<MountRow> = the_table();
     fields.push(("hosts-copy", if holds_the_copy_at(after_ending.as_slice(), slot.as_path(), fixture.clone().as_str()) { "stays" } else { "gone" }));
-    let _ = unmount_the_slot(slot.as_path());
+    let ended: String = match unmount_the_slot(slot.as_path()) {
+        Ok(()) => String::from("accepted"),
+        Err(error) => format!("errno {}", error.raw_os_error().unwrap_or(0)),
+    };
+    fields.push(("unmount-after", ended.as_str()));
     fields.push(("destroy-after", if destroy_the_clone(fixture) { "gone" } else { "refused" }));
     let alive: bool = caller_job.alive();
     fields.push(("caller-job", if alive { "alive" } else { "gone" }));
