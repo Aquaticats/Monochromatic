@@ -116,6 +116,19 @@ mod supervisor_registry_questions_in_a_child_process_tests;
 #[path = "no_control_reads_the_preparation_steps_in_the_run_tests.rs"]
 mod no_control_reads_the_preparation_steps_in_the_run_tests;
 
+/// The ban on a control counting one of a commit's four ledgers in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose ledgers hold nothing but what that control noted.
+#[cfg(test)]
+#[path = "no_control_reads_the_commit_ledgers_in_the_run_tests.rs"]
+mod no_control_reads_the_commit_ledgers_in_the_run_tests;
+
+/// The ban on a control stepping a notice without the control window that decides its ceiling and its looks:
+/// such a control takes the window first or starts a child of its own.
+#[cfg(test)]
+#[path = "notice_controls_take_their_window_tests.rs"]
+mod notice_controls_take_their_window_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.
@@ -179,6 +192,14 @@ pub(crate) mod source_code_places_tests;
 #[cfg(test)]
 #[path = "test_children_owned_scan_tests.rs"]
 pub(crate) mod test_children_owned_scan_tests;
+
+/// The one scan behind the bans on a control that reads a fact belonging to the whole process:
+/// a ban states the names that make a control a reader and the calls that excuse it,
+/// and the split of a source into its controls happens here;
+/// never in the release build.
+#[cfg(test)]
+#[path = "process_wide_fact_readers_tests.rs"]
+pub(crate) mod process_wide_fact_readers_tests;
 
 /// The ledger of the child starts the tree still holds,
 /// and the comparison that fails on a new site and on a line whose site is gone;

@@ -730,58 +730,66 @@ fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
 /// the person's work is as it was and the same command can be run again.
 #[test]
 fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
-    let root: PathBuf = fixture("commit-preparation-ceiling");
-    let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) =
-        a_commit_whose_signer_never_answers(root.as_path());
-    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
-    let index_before: Vec<u8> =
-        std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
-    let request: PreparationRequest = PreparationRequest {
-        capture: &fixture.capture,
-        shadow: fixture.shadow.as_path(),
-        commit_index: fixture.commit_index.as_path(),
-        scratch: fixture.scratch.as_path(),
-        global_args: global_args.as_slice(),
-        commit_args: commit_args.as_slice(),
-        object_directory: None,
-    };
-    let began: std::time::Instant = std::time::Instant::now();
-    let outcome = run_native_commit_within(
-        &git_context(),
-        fixture.repo.as_path(),
-        &request,
-        std::time::Duration::from_millis(1500),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing",
+        || {
+            let root: PathBuf = fixture("commit-preparation-ceiling");
+            let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) =
+                a_commit_whose_signer_never_answers(root.as_path());
+            let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
+            let index_before: Vec<u8> =
+                std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
+            let request: PreparationRequest = PreparationRequest {
+                capture: &fixture.capture,
+                shadow: fixture.shadow.as_path(),
+                commit_index: fixture.commit_index.as_path(),
+                scratch: fixture.scratch.as_path(),
+                global_args: global_args.as_slice(),
+                commit_args: commit_args.as_slice(),
+                object_directory: None,
+            };
+            let began: std::time::Instant = std::time::Instant::now();
+            let outcome = run_native_commit_within(
+                &git_context(),
+                fixture.repo.as_path(),
+                &request,
+                std::time::Duration::from_millis(1500),
+            );
+            let lasted: std::time::Duration = began.elapsed();
+            let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+                panic!("a step that outlasted its ceiling was not turned into a stop: {outcome:?}");
+            };
+            assert!(
+                lasted < std::time::Duration::from_secs(20),
+                "the stop did not end the step: {lasted:?}"
+            );
+            assert!(
+                said.contains("was stopped after") && said.contains("nothing was committed"),
+                "{said}"
+            );
+            assert!(
+                said.contains("signs the commit"),
+                "a signed commit's stop names the signer: {said}"
+            );
+            assert!(
+                crate::process_tree::descendants_of(
+                    i32::try_from(std::process::id()).expect("pid")
+                )
+                .is_empty(),
+                "a process was left below the command"
+            );
+            assert_eq!(
+                git_text(fixture.repo.as_path(), &["for-each-ref"]),
+                refs_before
+            );
+            assert_eq!(
+                std::fs::read(fixture.repo.join(".git").join("index")).expect("index"),
+                index_before
+            );
+            remove(root.as_path());
+        },
     );
-    let lasted: std::time::Duration = began.elapsed();
-    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
-        panic!("a step that outlasted its ceiling was not turned into a stop: {outcome:?}");
-    };
-    assert!(
-        lasted < std::time::Duration::from_secs(20),
-        "the stop did not end the step: {lasted:?}"
-    );
-    assert!(
-        said.contains("was stopped after") && said.contains("nothing was committed"),
-        "{said}"
-    );
-    assert!(
-        said.contains("signs the commit"),
-        "a signed commit's stop names the signer: {said}"
-    );
-    assert!(
-        crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid"))
-            .is_empty(),
-        "a process was left below the command"
-    );
-    assert_eq!(
-        git_text(fixture.repo.as_path(), &["for-each-ref"]),
-        refs_before
-    );
-    assert_eq!(
-        std::fs::read(fixture.repo.join(".git").join("index")).expect("index"),
-        index_before
-    );
-    remove(root.as_path());
 }
 
 /// The repository's own `gpg.openpgp.program` beats a global legacy `gpg.program`,
@@ -1138,51 +1146,59 @@ fn an_x509_program_from_an_exact_gitdir_include_reaches_the_shadow() {
 #[cfg(unix)]
 #[test]
 fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() {
-    let root: PathBuf = fixture("commit-preparation-ceiling-no-notice");
-    let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) =
-        a_commit_whose_signer_never_answers(root.as_path());
-    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
-    let request: PreparationRequest = PreparationRequest {
-        capture: &fixture.capture,
-        shadow: fixture.shadow.as_path(),
-        commit_index: fixture.commit_index.as_path(),
-        scratch: fixture.scratch.as_path(),
-        global_args: global_args.as_slice(),
-        commit_args: commit_args.as_slice(),
-        object_directory: None,
-    };
-    crate::native_commit_waiting_notice::refuse_the_next_notice_thread(1);
-    let began: std::time::Instant = std::time::Instant::now();
-    let outcome = run_native_commit_within(
-        &git_context(),
-        fixture.repo.as_path(),
-        &request,
-        std::time::Duration::from_millis(1500),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling",
+        || {
+            let root: PathBuf = fixture("commit-preparation-ceiling-no-notice");
+            let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) =
+                a_commit_whose_signer_never_answers(root.as_path());
+            let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
+            let request: PreparationRequest = PreparationRequest {
+                capture: &fixture.capture,
+                shadow: fixture.shadow.as_path(),
+                commit_index: fixture.commit_index.as_path(),
+                scratch: fixture.scratch.as_path(),
+                global_args: global_args.as_slice(),
+                commit_args: commit_args.as_slice(),
+                object_directory: None,
+            };
+            crate::native_commit_waiting_notice::refuse_the_next_notice_thread(1);
+            let began: std::time::Instant = std::time::Instant::now();
+            let outcome = run_native_commit_within(
+                &git_context(),
+                fixture.repo.as_path(),
+                &request,
+                std::time::Duration::from_millis(1500),
+            );
+            let lasted: std::time::Duration = began.elapsed();
+            let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+                panic!(
+                    "a step that outlasted its ceiling waited with nothing to stop it: {outcome:?} after {lasted:?}"
+                );
+            };
+            assert!(
+                lasted < std::time::Duration::from_secs(20),
+                "the step ran on past its ceiling although no notice thread enforced it: {lasted:?}"
+            );
+            assert!(
+                said.contains("was stopped after") && said.contains("nothing was committed"),
+                "{said}"
+            );
+            assert!(
+                crate::process_tree::descendants_of(
+                    i32::try_from(std::process::id()).expect("pid")
+                )
+                .is_empty(),
+                "a process was left below the command"
+            );
+            assert_eq!(
+                git_text(fixture.repo.as_path(), &["for-each-ref"]),
+                refs_before
+            );
+            remove(root.as_path());
+        },
     );
-    let lasted: std::time::Duration = began.elapsed();
-    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
-        panic!(
-            "a step that outlasted its ceiling waited with nothing to stop it: {outcome:?} after {lasted:?}"
-        );
-    };
-    assert!(
-        lasted < std::time::Duration::from_secs(20),
-        "the step ran on past its ceiling although no notice thread enforced it: {lasted:?}"
-    );
-    assert!(
-        said.contains("was stopped after") && said.contains("nothing was committed"),
-        "{said}"
-    );
-    assert!(
-        crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid"))
-            .is_empty(),
-        "a process was left below the command"
-    );
-    assert_eq!(
-        git_text(fixture.repo.as_path(), &["for-each-ref"]),
-        refs_before
-    );
-    remove(root.as_path());
 }
 
 /// The ceiling a control gives a scratch step it means to outlast:
