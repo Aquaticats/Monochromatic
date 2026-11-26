@@ -9,7 +9,10 @@
  @module
  */
 
-import { runCommand, } from './run-command.ts';
+import {
+  type CommandRunner,
+  runCommand,
+} from './run-command.ts';
 
 /**
  How long the journal read may take, in milliseconds.
@@ -66,6 +69,22 @@ export type JournalRead = {
 };
 
 /**
+ Which run's journal is read.
+
+ `invocationId` is empty when systemd passed none, and the read then asks for the
+ unit's latest invocation.
+ */
+export type JournalRequest = {
+  readonly unit: string;
+  readonly invocationId: string;
+};
+
+/**
+ Reads the journal of one run and reports its lines, or why it could not use one.
+ */
+export type JournalReader = (request: Readonly<JournalRequest>,) => Promise<JournalRead>;
+
+/**
  Arguments for the journal read of one run.
 
  @param unit - the unit whose run is read
@@ -82,10 +101,7 @@ export type JournalRead = {
 export function journalArguments({
   unit,
   invocationId,
-}: Readonly<{
-  unit: string;
-  invocationId: string;
-}>): readonly string[] {
+}: Readonly<JournalRequest>,): readonly string[] {
   return [
     '--user',
     `--unit=${unit}`,
@@ -184,7 +200,63 @@ export function stripAnsi(text: string,): string {
 }
 
 /**
- Reads the journal of one run.
+ Builds the journal reader over one command runner.
+
+ The runner is a parameter so a test can drive a readable journal, a refused one and a
+ journalctl that never ran, without a user journal on the machine that runs the tests.
+
+ @param run - runs one command to its end
+
+ @returns a reader that reports the run's lines, or the reason the read failed
+
+ @example
+ ```ts
+ const readThroughRunner = journalReader(runCommand,);
+ const read = await readThroughRunner({ unit: 'a.service', invocationId: 'abc', },);
+ ```
+ */
+export function journalReader(run: CommandRunner,): JournalReader {
+  return async function readRunJournal({
+    unit,
+    invocationId,
+  },) {
+    /**
+     Finished journalctl run.
+     */
+    const result = await run({
+      command: 'journalctl',
+      args: journalArguments({
+        unit,
+        invocationId,
+      },),
+      timeoutMs: JOURNAL_TIMEOUT_MS,
+    },);
+    if (result.problem !== undefined) {
+      return {
+        lines: [],
+        problem: result.problem,
+      };
+    }
+    if (result.exitCode !== 0) {
+      return {
+        lines: [],
+        problem: `journalctl exited ${String(result.exitCode,)}: ${result.stderr
+          .trim()}`,
+      };
+    }
+    return {
+      lines: result.stdout
+        .split('\n',)
+        .map(function tidy(line,) {
+          return stripAnsi(line,)
+            .trim();
+        },),
+    };
+  };
+}
+
+/**
+ Reads the journal of one run with the real journalctl.
 
  @param unit - the unit whose run is read
 
@@ -198,46 +270,7 @@ export function stripAnsi(text: string,): string {
  read.lines; // ['ERROR : ...'] when the run logged one
  ```
  */
-export async function readRunJournal({
-  unit,
-  invocationId,
-}: Readonly<{
-  unit: string;
-  invocationId: string;
-}>): Promise<JournalRead> {
-  /**
-   Finished journalctl run.
-   */
-  const result = await runCommand({
-    command: 'journalctl',
-    args: journalArguments({
-      unit,
-      invocationId,
-    },),
-    timeoutMs: JOURNAL_TIMEOUT_MS,
-  },);
-  if (result.problem !== undefined) {
-    return {
-      lines: [],
-      problem: result.problem,
-    };
-  }
-  if (result.exitCode !== 0) {
-    return {
-      lines: [],
-      problem: `journalctl exited ${String(result.exitCode,)}: ${result.stderr
-        .trim()}`,
-    };
-  }
-  return {
-    lines: result.stdout
-      .split('\n',)
-      .map(function tidy(line,) {
-        return stripAnsi(line,)
-          .trim();
-      },),
-  };
-}
+export const readRunJournal: JournalReader = journalReader(runCommand,);
 
 /**
  The text after the `ERROR :` marker of a journal line.
