@@ -501,6 +501,9 @@ which read the standard input the run inherits and printed its `What now>` promp
 the `git add --interactive` it started outlived the aborted run,
 held the run's output pipe open and kept the capped scope alive for 21 minutes,
 until that scope was stopped by hand;
+run again after the change,
+the verbatim command aborted the same way after 229 passed,
+which is what says the change neither caused nor cured it;
 it is recorded in `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`
 and not fixed here.
 Each of the five controls answered `ok. 1 passed` alone with `--exact` before and after the change.
