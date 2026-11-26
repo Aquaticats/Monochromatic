@@ -442,10 +442,10 @@ fn a_rules_file_that_is_a_named_pipe_fails_at_once_naming_its_path() {
                 return error.to_string();
             });
     });
-    let Some(error) = outcome else {
+    let Some(finished) = outcome else {
         panic!("reading a rules list that names a named pipe did not finish within five seconds")
     };
-    let error = error.expect("a named pipe is not a rules file");
+    let error = finished.expect("a named pipe is not a rules file");
     assert!(error.contains(&pipe.display().to_string()), "{error}");
     assert!(error.contains("not a plain file"), "{error}");
 }
@@ -468,10 +468,10 @@ fn an_optional_rules_file_that_is_a_named_pipe_fails_instead_of_counting_as_abse
                 return error.to_string();
             });
     });
-    let Some(error) = outcome else {
+    let Some(finished) = outcome else {
         panic!("reading an optional named pipe did not finish within five seconds")
     };
-    let error = error.expect(
+    let error = finished.expect(
         "an optional file that is present but unreadable is a policy file this run cannot use",
     );
     assert!(error.contains(&pipe.display().to_string()), "{error}");
@@ -519,10 +519,10 @@ fn a_rules_file_that_is_a_directory_fails_at_once_naming_its_path() {
                 return error.to_string();
             });
     });
-    let Some(error) = outcome else {
+    let Some(finished) = outcome else {
         panic!("reading a directory as a rules list did not finish within five seconds")
     };
-    let error = error.expect("a directory is not a rules file");
+    let error = finished.expect("a directory is not a rules file");
     assert!(error.contains(&path.display().to_string()), "{error}");
     assert!(error.contains("not a plain file"), "{error}");
 }
