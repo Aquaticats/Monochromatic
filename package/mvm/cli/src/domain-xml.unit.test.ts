@@ -39,6 +39,11 @@ const GUEST_FAMILIES = [
 ] as const;
 
 /**
+ Text of the failure a definition without a device list earns in these tests.
+ */
+const NO_DEVICE_LIST = 'the domain definition has no device list';
+
+/**
  Counts the non-overlapping occurrences of one text inside another.
  
  @param haystack - text to search
@@ -69,8 +74,10 @@ function devicesOf(xml: string,): string {
    Index of the closing tag after the opening one, or -1 when it is missing.
    */
   const end = xml.indexOf('</devices>',);
-  if (start === -1 || end === -1)
-    throw new Error('the domain definition has no device list',);
+  if (start === (-1))
+    throw new Error(NO_DEVICE_LIST,);
+  if (end === (-1))
+    throw new Error(NO_DEVICE_LIST,);
   return xml.slice(
     start,
     end,
@@ -84,29 +91,27 @@ await describe({
   children: [
     describe({
       name: domainXml.name,
-      children: [
-        ...GUEST_FAMILIES.map(function mapFamily(family,) {
-          return it({
-            name: `gives a ${family.osFamily} guest one reporting memory balloon`,
-            fn: async () => {
-              /**
-               The definition under test, built the way `create` builds one.
-               */
-              const xml = domainXml({
-                diskPath: '/vms/dev/disk.qcow2',
-                name: 'dev',
-                ...family,
-              },);
-              /**
-               The domain's devices, where libvirt reads the balloon from.
-               */
-              const devices = devicesOf(xml,);
+      children: GUEST_FAMILIES.map(function mapFamily(family,) {
+        return it({
+          name: `gives a ${family.osFamily} guest one reporting memory balloon`,
+          fn: async () => {
+            /**
+             The definition under test, built the way `create` builds one.
+             */
+            const xml = domainXml({
+              diskPath: '/vms/dev/disk.qcow2',
+              name: 'dev',
+              ...family,
+            },);
+            /**
+             The domain's devices, where libvirt reads the balloon from.
+             */
+            const devices = devicesOf(xml,);
 
-              expect(countOf(devices, REPORTING_BALLOON,),).toBe(1,);
-            },
-          },);
-        },),
-      ],
+            expect(countOf(devices, REPORTING_BALLOON,),).toBe(1,);
+          },
+        },);
+      },),
     },),
   ],
 },);
