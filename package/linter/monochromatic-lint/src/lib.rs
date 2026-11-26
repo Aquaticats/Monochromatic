@@ -119,6 +119,9 @@ pub mod fix_loop;
 ///  for every consumer of the gitignore matcher.
 #[doc(hidden)]
 pub mod gitignore_pattern;
+/// One line of a layout rule's allow list:
+///  the shape it reads as and the words that spell it.
+mod layout_allow_entries;
 /// The findings a layout rule tolerates today,
 ///  read from the file its `allow` option names.
 mod layout_allow_list;

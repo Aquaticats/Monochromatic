@@ -48,7 +48,10 @@ use satteri_ast::mdast::{
 /// Import an ordered map (deterministic iteration) and a lock for the shared per-run cache.
 use std::{
     collections::BTreeMap,
-    io::ErrorKind,
+    io::{
+        ErrorKind,
+        Read,
+    },
     path::{
         Path,
         PathBuf,
@@ -72,6 +75,28 @@ use std::{
 /// const GIT_MARKER_NAME = '.git';
 /// ```
 const GIT_MARKER_NAME: &str = ".git";
+
+/// What:
+///  The most bytes this rule reads from one LFS-tracked image to compute its object id:
+///  sixteen mebibytes.
+/// Why:
+///  An object id is the SHA-256 of the whole file,
+///  so the file must be read;
+///  a bound keeps a mistyped destination or a file that grew far past its kind
+///  from filling memory in the middle of a lint run.
+///  This repository's largest tracked image is 3,380,183 bytes
+///  (a screenshot under `package/ide/app/design/screenshots`,
+/// measured 2026-11-25),
+///  and the next largest are between 2.1 and 2.8 mebibytes,
+///  so sixteen mebibytes leaves room for about five times that.
+///  The siblings a reader might expect are an unbounded read and a streamed hash;
+///  a bound on the bytes read is the one that also ends on a file that keeps growing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAX_LFS_TARGET_BYTES: number = 16 * 1024 * 1024;
+/// ```
+pub(crate) const MAX_LFS_TARGET_BYTES: u64 = 16 * 1024 * 1024;
 
 /// What:
 ///  The file name git reads for path attributes.
@@ -369,18 +394,34 @@ impl LfsImageRepo {
         if !self.tracked.matches(relative) {
             return Ok(LfsImageTarget::Plain);
         }
-        match std::fs::read(absolute) {
-            Ok(bytes) => {
-                return Ok(LfsImageTarget::Lfs {
-                    oid: lfs_oid_of_bytes(bytes.as_slice()),
-                });
-            }
+        // What: the file opened for a bounded read, or the error that kept it from opening.
+        // Why: hashing the object id needs the bytes, and no more than the bound may be held.
+        let file: std::fs::File = match std::fs::File::open(absolute) {
+            Ok(found) => found,
             Err(error) => {
                 return Err(LfsConfigError {
                     message: format!("Cannot read image target {}: {error}.", absolute.display()),
                 });
             }
+        };
+        // One byte past the bound, so a file that grew after the size check is refused rather than swallowed.
+        let mut bytes: Vec<u8> = Vec::<u8>::new();
+        if let Err(error) = file.take(MAX_LFS_TARGET_BYTES + 1).read_to_end(&mut bytes) {
+            return Err(LfsConfigError {
+                message: format!("Cannot read image target {}: {error}.", absolute.display()),
+            });
         }
+        if bytes.len() as u64 > MAX_LFS_TARGET_BYTES {
+            return Err(LfsConfigError {
+                message: format!(
+                    "Cannot read image target {}: it is over the {MAX_LFS_TARGET_BYTES} bytes this rule reads to compute an object id, so raise MAX_LFS_TARGET_BYTES in src/markdown_lfs_context.rs or point the image at a smaller file.",
+                    absolute.display()
+                ),
+            });
+        }
+        return Ok(LfsImageTarget::Lfs {
+            oid: lfs_oid_of_bytes(bytes.as_slice()),
+        });
     }
 
     /// What:

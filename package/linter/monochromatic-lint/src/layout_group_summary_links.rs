@@ -23,6 +23,7 @@
 use crate::{
     layout_finding::{
         LayoutFinding,
+        key_path,
         shown,
     },
     layout_folder_uses::{
@@ -37,6 +38,7 @@ use crate::{
         Link,
         USES_FOLDER,
         link_command,
+        link_loop_hazard,
         read_links,
     },
 };
@@ -178,7 +180,7 @@ fn extra_link(
         line: 0,
         message,
         help: Some(help),
-        key: format!("summary-extra {}", shown(&link.entry, base)),
+        key: format!("summary-extra {}", key_path(&link.entry, base)),
     };
 }
 
@@ -214,13 +216,14 @@ fn missing_summary(
             shown(entry, base)
         ),
         help: Some(format!(
-            "Create the link: {}",
-            link_command(group, entry, base)
+            "Create the link: {}. {}",
+            link_command(group, entry, base),
+            link_loop_hazard()
         )),
         key: format!(
             "summary-missing {} {}",
-            shown(group, base),
-            shown(entry, base)
+            key_path(group, base),
+            key_path(entry, base)
         ),
     };
 }
