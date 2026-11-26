@@ -33,6 +33,10 @@
 //! ```
 
 use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+/// The one reader of a Git directory's `commondir` file.
+use crate::common_directory_of_a_git_directory::common_directory_named_by;
+/// The reader that cannot wait on a named pipe, and the bound a `HEAD` file is read to.
+use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_git_awaiting::run_git_awaiting;
@@ -115,13 +119,18 @@ fn trim_ascii_end(bytes: &[u8]) -> &[u8] {
 ///  directory itself,
 /// or a linked worktree's,
 /// whose `commondir` file points back to it.
+///  The `commondir` file is read by the one reader of it
+/// (`foundation/common_directory_of_a_git_directory.rs`),
+///  which opens it as a plain file:
+/// a named pipe there answers as a directory that is no worktree of this repository at once,
+///  and the caller asks Git rather than waiting for ever.
 fn belongs_to(directory: &Path, common_dir: &Path) -> bool {
     let Ok(expected) = std::fs::canonicalize(common_dir) else { return false };
     if matches!(std::fs::canonicalize(directory), Ok(found) if found == expected) {
         return true;
     }
-    let Ok(pointer) = std::fs::read_to_string(directory.join("commondir")) else { return false };
-    return matches!(std::fs::canonicalize(directory.join(pointer.trim_end())), Ok(found) if found == expected);
+    let Some(named) = common_directory_named_by(directory) else { return false };
+    return matches!(std::fs::canonicalize(named), Ok(found) if found == expected);
 }
 
 /// What:
@@ -137,7 +146,9 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
     if !belongs_to(git_dir, common_dir) {
         return HeadFile::Unreadable;
     }
-    return match std::fs::read(git_dir.join("HEAD")) {
+    // The head is read as a plain file, so a named pipe at `HEAD` answers as an unreadable head at once and the caller asks
+    //  Git instead of holding a worker of the runtime (`service_head_tests`).
+    return match read_plain_file(git_dir.join("HEAD").as_path(), SMALL_FILE_LIMIT) {
         Ok(bytes) => interpret(bytes.as_slice()),
         Err(_unreadable) => HeadFile::Unreadable,
     };

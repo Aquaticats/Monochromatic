@@ -1,8 +1,7 @@
 //! What:
 //!  Publishing a landed commit when the remote branch advanced after the commit landed,
 //! from a command that is not a task of the runtime:
-//!  the plan is read here,
-//! the loop that does the work is the awaited one
+//!  the loop that does the whole work is the awaited one
 //! (`auto_push_reconcile_awaiting.rs`),
 //!  and the merge push this side supplied runs on a thread of its own while the loop awaits its
 //!  answer.
@@ -55,6 +54,10 @@ use crate::auto_push_reconcile_awaiting::{MergePusherAwaiting, integrate_and_pus
 /// how it words itself and how it ended,
 /// shared with the loop.
 pub use crate::auto_push_reconcile_plan::{Integrated, Reconcile};
+/// The plan an automatic push's reconcile is run with,
+/// and the attempt it answers with,
+/// which both faces build and answer with.
+use crate::auto_push_reconcile_plan::{attempt_of, auto_push_plan};
 
 /// Where the plain push goes,
 /// as `auto_push_destination` decides it.
@@ -373,6 +376,9 @@ pub fn integrate_and_push(
 /// is what keeps a commit that landed after that reading out of the merge this publishes,
 /// because that commit's own gate may still refuse it.
 /// A branch that moved since is left where it is and the report says why.
+///   The plan it builds and the attempt it answers with are `auto_push_plan` and `attempt_of`,
+/// which the awaited entry builds and answers with too,
+/// so the two entries differ only in their waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -394,18 +400,10 @@ pub fn reconcile_divergent_push(
         );
         return Ok(rejected);
     };
-    let plan = Reconcile {
-        destination,
-        local: local.to_owned(),
-        branch_ref: Some(branch_ref),
-        label: "auto-push",
-        explicit: false,
-    };
+    let plan: Reconcile<'_> = auto_push_plan(destination, local, branch_ref);
     // The loop takes its push as a value so controls can stand in for it; this one carries the Git context.
     let mut push_merge: PushMergeThroughGit<'_> = PushMergeThroughGit { git };
-    return Ok(match integrate_and_push(git, &plan, rejected, &mut push_merge)? {
-        Integrated::NotDivergent(attempt) | Integrated::Finished(attempt) => attempt,
-    });
+    return attempt_of(integrate_and_push(git, &plan, rejected, &mut push_merge));
 }
 
 /// Reconcile behavior is controlled in the test module.

@@ -35,7 +35,9 @@ use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 /// The names a lock and its PID file have.
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
-use crate::git_directory_roots::{common_dir_for, git_directory_of};
+use crate::common_directory_of_a_git_directory::common_directory_of;
+/// The Git directory a working directory belongs to.
+use crate::git_directory_roots::git_directory_of;
 /// The records themselves:
 /// the repository this command works in,
 /// and the account of this process.
@@ -253,7 +255,7 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     let Some(first) = roots.first() else {
         return outcome;
     };
-    let common_dir: PathBuf = common_dir_for(first.as_path());
+    let common_dir: PathBuf = common_directory_of(first.as_path());
     for lock in &candidates {
         match proving::clear_one(lock.as_path(), common_dir.as_path()) {
             Some(clearance) => outcome.cleared.push(clearance),
@@ -341,7 +343,7 @@ fn proving_pid_file(lock: &Path) -> PathBuf {
 /// function rootsOfGitDirectory(gitDir: string): string[]; // [gitDir, commonDir] when they differ
 /// ```
 pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
-    let common: PathBuf = common_dir_for(git_dir);
+    let common: PathBuf = common_directory_of(git_dir);
     let mut roots: Vec<PathBuf> = vec![git_dir.to_path_buf()];
     if common != git_dir {
         roots.push(common);
@@ -383,7 +385,7 @@ pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsStrin
     let Some(git_dir) = found else {
         return;
     };
-    let common: PathBuf = common_dir_for(git_dir.as_path());
+    let common: PathBuf = common_directory_of(git_dir.as_path());
     remember_repository(common.as_path());
     // One record per process: a command that runs the pass twice (a client, then a forward that meets another repository)
     //  adds no second line and costs one atomic read.

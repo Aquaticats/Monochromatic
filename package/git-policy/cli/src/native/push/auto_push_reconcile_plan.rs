@@ -31,8 +31,9 @@
 /// as `auto_push_destination` decides it.
 use crate::auto_push_destination::Destination;
 /// The push's own status and text,
-/// which a reconcile run answers with.
-use crate::auto_push_single_flight::PushAttempt;
+/// which a reconcile run answers with,
+/// and the failures a run can stop on.
+use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
 
 /// What:
 ///  What one reconcile run integrates,
@@ -146,4 +147,77 @@ pub(crate) fn wording_of(plan: &Reconcile<'_>) -> Wording {
         remote = plan.destination.remote
     );
     return Wording { line_prefix, failed_prefix, short, merged_into, message };
+}
+
+/// What:
+///  The plan of one automatic push's reconcile,
+///  built from the destination its branch was read to have.
+/// Why:
+///   Both faces enter the loop with the auto-push's label and with `explicit` false,
+///  and the commit they merge is the one the rejected push was allowed to send;
+///  building it here is what keeps those decisions from being written on each face,
+///  where a change to one would leave the other behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const autoPushPlan = (destination, local, branchRef): Reconcile => ({ destination, local, branchRef, label: 'auto-push', explicit: false });
+/// ```
+pub fn auto_push_plan<'a>(destination: Destination, local: &'a str, branch_ref: &'a str) -> Reconcile<'a> {
+    // What:     `Reconcile { .. }` builds the plan record; `local.to_owned()` copies the caller's borrowed text into the owned
+    //           `String` the plan keeps, and `Some(branch_ref)` keeps the branch the merge is into.
+    // Why:      The run outlives the caller's borrow of the branch's name for `branch_ref` only while the caller's frame lives,
+    //           which is the length of the run, and the plan needs no copy of a name it only reads.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return { destination, local: local.slice(), branchRef: branchRef, label: 'auto-push', explicit: false };
+    // ```
+    return Reconcile {
+        destination,
+        local: local.to_owned(),
+        branch_ref: Some(branch_ref),
+        label: "auto-push",
+        explicit: false,
+    };
+}
+
+/// What:
+///  The attempt a reconcile run answers the rejected push with.
+/// Why:
+///   Both faces finish the same way:
+///  a run that did not diverge and one that finished both leave one attempt,
+///  and a run a command stopped hands its own failure on;
+///  reading that here means a face cannot turn one of those outcomes into another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attemptOf = (integrated) => integrated.kind === 'error' ? integrated : integrated.attempt;
+/// ```
+pub fn attempt_of(integrated: Result<Integrated, SingleFlightError>) -> Result<PushAttempt, SingleFlightError> {
+    // What:     `match` opens the run's answer: `Ok(..)` holds an `Integrated`, and `Err(stopped)` the failure that ended it.
+    // Why:      The two kinds of `Integrated` each carry the attempt the push is answered with, and nothing else may be reported.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (integrated.kind === 'error') return integrated;
+    // return integrated.attempt;
+    // ```
+    return match integrated {
+        // What:     The alternation binds either kind of finished run to one name, `attempt`.
+        // Why:      Both kinds answer with the attempt they carry, and no caller tells them apart afterwards.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return integrated.attempt;
+        // ```
+        Ok(Integrated::NotDivergent(attempt) | Integrated::Finished(attempt)) => Ok(attempt),
+        // What:     `Err(stopped)` is the failure a Git step of the run reported, handed on unchanged.
+        // Why:      The words of a stopped run are its own, and a face must not replace them.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return integrated;
+        // ```
+        Err(stopped) => Err(stopped),
+    };
 }
