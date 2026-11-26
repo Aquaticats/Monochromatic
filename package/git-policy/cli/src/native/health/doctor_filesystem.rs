@@ -581,6 +581,86 @@ pub fn checkout_section_with(
     };
 }
 
+/// What:
+///  Whether the checkout Git named stands on a ZFS dataset,
+///  which is where the wrapper's own ZFS clone route can serve an add,
+///  or false when Git named no checkout or the read gave no answer.
+/// Why:
+///  `doctor` prints the account companion's group drop only where that route can
+///  apply (the alpha.47 release pass's Low 9):
+///  the report says every managed ZFS add goes ahead,
+///  which is a sentence about a host whose checkout is a ZFS dataset,
+///  so a person on another file system reads nothing about it.
+///  A read that gives no answer within the ceiling answers false,
+///  for the reason the section itself says nothing when it could not read the host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const onZfs = (checkout) => checkout !== undefined && theCheckoutIsAZfsDatasetWith(aHostKind, REPORT_SCAN_CEILING, checkout);
+/// ```
+pub fn the_checkout_is_a_zfs_dataset(checkout: Option<&Path>) -> bool {
+    // What: Git named no checkout, so the route has nothing to serve here.
+    // Why: a bare repository is no ZFS dataset of this route's, and its section says nothing either.
+    let Some(named) = checkout else {
+        return false;
+    };
+    return the_checkout_is_a_zfs_dataset_with(a_host_kind, REPORT_SCAN_CEILING, named);
+}
+
+/// What:
+///  The read that answers one path's file system kind,
+///  or nothing when the answer could not be read,
+///  as a value a control stands in for.
+/// Why:
+///  The verdict is a `statfs` of the checkout,
+///  which waits on a mount whose server stopped answering,
+///  so a control drives every answer without a file system of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HostKindRead = (path: string) => FilesystemKind | undefined;
+/// ```
+pub type HostKindRead = fn(&Path) -> Option<FilesystemKind>;
+
+/// What:
+///  The same verdict over the reader and the ceiling a control names.
+/// Why:
+///  The section's reads are bounded by `REPORT_SCAN_CEILING`,
+///  and this one is the same `statfs` the section makes,
+///  so it takes the same bound rather than waiting without one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const onZfs = theCheckoutIsAZfsDatasetWith(aHostKind, ceiling, checkout);
+/// ```
+pub fn the_checkout_is_a_zfs_dataset_with(
+    reader: HostKindRead,
+    ceiling: std::time::Duration,
+    checkout: &Path,
+) -> bool {
+    let named: PathBuf = checkout.to_path_buf();
+    // What: one read of the checkout's file system kind, on a thread of its own and bounded.
+    // Why: `statfs` can wait in the kernel, and a report may not.
+    let kind: Option<FilesystemKind> =
+        work_within(ceiling, move || reader(named.as_path())).flatten();
+    return kind == Some(FilesystemKind::Zfs);
+}
+
+/// What:
+///  The release's read of one path's file system kind,
+///  or nothing when `statfs` refused.
+/// Why:
+///  The verdict is this crate's one `statfs` reader,
+///  so a file system the section cannot classify is no ZFS dataset here either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aHostKind = (path) => { try { return filesystemKind(path) } catch { return undefined } };
+/// ```
+fn a_host_kind(path: &Path) -> Option<FilesystemKind> {
+    return filesystem_kind(path).ok();
+}
+
 /// Filesystem section controls stay out of the release executable.
 #[cfg(test)]
 #[path = "doctor_filesystem_tests.rs"]
