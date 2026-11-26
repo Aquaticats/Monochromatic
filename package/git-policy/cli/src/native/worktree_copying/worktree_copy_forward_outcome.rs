@@ -1,11 +1,11 @@
 //! What:
 //!  How one forwarded run ended,
 //!  the words a stopped step is named with,
-//!  and the repository directories every query of this route reads.
+//!  the repository directories every query of this route reads,
+//!  and the plain start of real Git that reports that ending.
 //! Why:
-//!  Each value here is a fact the runs of this folder share,
+//!  Each of these is a fact the runs of this folder share,
 //!  so every one of them is written once at the bottom of the route.
-//!  The plain run below starts real Git and reports the same ending a settled run does.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -149,11 +149,13 @@ pub(super) fn words_of(arguments: &[OsString]) -> String {
 }
 
 /// What:
-///  The plain start of real Git,
-/// with the report every run of this route gives.
+///  Runs real Git as a child with the given variables and reports how it ended,
+/// for `owner`.
 /// Why:
-///   It is the one place real Git is started for a run that copies nothing,
-/// and `run_plain_of`'s two callers differ only in whose Git it is.
+///   One start for the plain and the settled runs,
+/// so both report an unstartable Git the same way,
+/// and the caller names whose Git it runs
+///  instead of choosing the options here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
