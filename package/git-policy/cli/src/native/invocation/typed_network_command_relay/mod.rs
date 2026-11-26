@@ -123,14 +123,27 @@ pub fn relay_when_ssh_carries(
     overlay: &[(OsString, OsString)],
     owner: StartOwner,
 ) -> Option<std::io::Result<TypedNetworkCommandEnding>> {
-    // What: `(command, region)` names the typed command and its own words, or nothing for any other command.
-    // Why:   Only the four network commands are relayed.
+    // What: `(command, region, prefix)` names the typed command, its own words, and Git's global options before it.
+    // Why:   Only the four network commands are relayed, and the remote is read in the repository those options name.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const typed = typedCommand(argv); if (!typed) return undefined;
     // ```
-    let (command, region): (TypedNetworkCommand, &[OsString]) = typed_command(arguments)?;
+    let (command, region, prefix): (TypedNetworkCommand, &[OsString], &[OsString]) = match typed_command(arguments) {
+        Some(named) => named,
+        // What: `None` ends this function with no relay, and the line says which command word was read.
+        // Why:   A decision that nothing relays must be readable when a person asks why a command named no next step.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // debug('typedNetworkCommandRelay', 'not one of the four network commands'); return undefined;
+        // ```
+        None => {
+            crate::diagnostic_log::debug("typedNetworkCommandRelay", "not one of the four typed network commands, so the process replacement it has stays");
+            return None;
+        }
+    };
     // What: `RemoteRead` says where the URL comes from: a clone's own word, or a remote the repository knows.
     // Why:   The two need different questions to Git.
     //
@@ -138,7 +151,13 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const read = remoteReadFor(command, region); if (!read) return undefined;
     // ```
-    let read: RemoteRead<'_> = remote_read_for(command, region)?;
+    let read: RemoteRead<'_> = match remote_read_for(command, region) {
+        Some(named) => named,
+        None => {
+            crate::diagnostic_log::debug("typedNetworkCommandRelay", "the command's remote could not be read from its words, so the process replacement it has stays");
+            return None;
+        }
+    };
     // What: `String` is the URL Git answers with; `None` means Git refused the question.
     // Why:   An unknown remote keeps today's behaviour instead of a relay over a transport nobody read.
     //
@@ -146,8 +165,16 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const url = remoteUrl(command, read, git, overlay); if (!url) return undefined;
     // ```
-    let url: String = remote_url(command, &read, real_git, overlay)?;
+    let url: String = match remote_url(command, &read, prefix, real_git, overlay) {
+        Some(read_url) => read_url,
+        None => {
+            crate::diagnostic_log::debug("typedNetworkCommandRelay", "Git answered no URL for this command's remote, so the process replacement it has stays");
+            return None;
+        }
+    };
+    crate::diagnostic_log::debug("typedNetworkCommandRelay", format!("the remote is {url}").as_str());
     if !ssh_carries(url.as_str()) {
+        crate::diagnostic_log::debug("typedNetworkCommandRelay", "ssh does not carry this remote, so the process replacement it has stays");
         return None;
     }
     // What: `Target` is the host as the person's remote names it, and the words an `ssh` command needs.
@@ -157,7 +184,13 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const target = targetOf(url); if (!target) return undefined;
     // ```
-    let target: Target = target_of(url.as_str())?;
+    let target: Target = match target_of(url.as_str()) {
+        Some(named) => named,
+        None => {
+            crate::diagnostic_log::debug("typedNetworkCommandRelay", "the remote names no host a sentence may print, so the process replacement it has stays");
+            return None;
+        }
+    };
     // What: `Ok(guard)` owns this process's relaying handlers; the sibling answer is a system call that failed.
     // Why:   A signal sent to the wrapper must reach Git, and where no handler can be installed the command keeps the
     //        process replacement it has today, which lets the signal reach Git as it always did.
@@ -192,7 +225,7 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const command = gitCommand(git, argv, overlay, owner);
     // ```
-    let mut started: std::process::Command = git_command(real_git, arguments, overlay, owner);
+    let mut git_to_run: std::process::Command = git_command(real_git, arguments, overlay, owner);
     // What: `Err(io::Error)` is the failure variant: the operating system refused the start, which the caller reports.
     // Why:   A refused start is an engine failure and not a Git answer.
     //
@@ -200,7 +233,7 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // let start; try { start = startRelaying(shape, guard, command); } catch (error) { return { error }; }
     // ```
-    let started: git_error_stream_relayed_as_it_arrives::RelayedStart = match start_relaying(shape, Some(&guard), &mut started) {
+    let started: git_error_stream_relayed_as_it_arrives::RelayedStart = match start_relaying(shape, Some(&guard), &mut git_to_run) {
         Ok(running) => running,
         Err(error) => return Some(Err(error)),
     };
@@ -212,7 +245,7 @@ pub fn relay_when_ssh_carries(
     // const relayed = readToTheChildSEnd(start);
     // ```
     let relayed: RelayedErrorStream = match read_to_the_child_s_end(started, &mut std::io::stderr()) {
-        Ok(read) => read,
+        Ok(finished) => finished,
         Err(error) => return Some(Err(error)),
     };
     // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
@@ -239,4 +272,62 @@ pub fn relay_when_ssh_carries(
     // return { outcome: ending };
     // ```
     return Some(Ok(ending));
+}
+
+/// What:
+///  Print the sentence when the wrapper's own probe of a typed push stopped at a refusal of ssh's.
+/// Why:
+///  A typed `push` is probed before it runs: the wrapper's own `push --dry-run --porcelain` reads the updates, and at a new host
+///  key or a key no agent holds that probe is the process that meets the refusal, so Git's own push never starts.
+///  The person then reads OpenSSH's line in the wrapper's words and no next step;
+///  the parent that owned the child is this process still, so it is the one to name it
+///  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`, and the reading `lfs/lfs_pre_push.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteARefusedProbeOfAPush(git, cwd, overlay, postSubcommand, refusal.stderr)
+/// ```
+pub fn sentence_after_a_refused_probe_of_a_push(
+    real_git: &Path,
+    cwd: &Path,
+    overlay: &[(OsString, OsString)],
+    post_subcommand: &[OsString],
+    said: &str,
+) -> Option<String> {
+    the_sentence_after_the_refusal::refusal_in(said)?;
+    // What: `-C <cwd>` is Git's own global option for the directory to read the repository in.
+    // Why:  The probe ran there, so the remote is that repository's.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const prefix = ['-C', cwd];
+    // ```
+    let prefix: [OsString; 2] = [OsString::from("-C"), cwd.as_os_str().to_os_string()];
+    let mut arguments: Vec<OsString> = Vec::new();
+    arguments.push(OsString::from("push"));
+    arguments.extend(post_subcommand.iter().cloned());
+    // What: `None` ends this function, because a remote Git cannot name here names no host a sentence may print.
+    // Why:   A sentence that named no host would help nobody.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const url = remoteUrl('push', read, prefix, git, overlay); if (!url || !sshCarries(url)) return;
+    // ```
+    let (command, region, _own_prefix): (TypedNetworkCommand, &[OsString], &[OsString]) = typed_command(arguments.as_slice())?;
+    let read: RemoteRead<'_> = remote_read_for(command, region)?;
+    let url: String = remote_url(command, &read, prefix.as_slice(), real_git, overlay)?;
+    if !ssh_carries(url.as_str()) {
+        return None;
+    }
+    let target: Target = target_of(url.as_str())?;
+    // What: `match` keeps the refusal the transcript shows; a key failure gets the passphrase sentence, and the rest is silent.
+    // Why:   The sentence must fit what OpenSSH printed, or it misleads.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refusal = refusalIn(said); const sentence = sentenceFor(refusal, target);
+    // ```
+    let refusal: the_sentence_after_the_refusal::Refusal = the_sentence_after_the_refusal::refusal_in(said)?;
+    the_sentence_after_the_refusal::remember_printed();
+    return Some(the_sentence_after_the_refusal::sentence_for(refusal, &target));
 }

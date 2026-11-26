@@ -75,9 +75,7 @@ pub fn target_of(url: &str) -> Option<Target> {
     // ```ts
     // const host = printableHost(hostPart); if (!host) return undefined;
     // ```
-    let Some(host) = printable_host(host_part) else {
-        return None;
-    };
+    let host: String = printable_host(host_part)?;
     // What: `filter` keeps the port only when it is a number, and `!= 22` is the default ssh port no option is needed for.
     // Why:   `-p` is written only where ssh would otherwise dial the wrong port; a port that is not a number is dropped.
     //
@@ -112,7 +110,7 @@ pub fn target_of(url: &str) -> Option<Target> {
     // ```ts
     // return { host, connect };
     // ```
-    Some(Target { host, connect })
+    return Some(Target { host, connect });
 }
 
 /// What:

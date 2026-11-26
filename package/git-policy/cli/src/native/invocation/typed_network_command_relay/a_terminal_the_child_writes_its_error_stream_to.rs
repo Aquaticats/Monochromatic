@@ -93,7 +93,7 @@ pub(super) fn open_a_terminal_pair() -> io::Result<(OwnedFd, OwnedFd)> {
     // ```ts
     // return [master, slave];
     // ```
-    Ok((master, slave))
+    return Ok((master, slave));
 }
 
 /// What:

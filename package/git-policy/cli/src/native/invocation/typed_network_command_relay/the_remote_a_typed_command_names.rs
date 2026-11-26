@@ -54,15 +54,17 @@ pub enum TypedNetworkCommand {
 }
 
 /// What:
-///  The typed network command this argument list names, and its words after the command word.
+///  The typed network command this argument list names, its words after the command word, and Git's global options before it.
 /// Why:
-///  One reading decides both, so a caller cannot pair one command's word with another's arguments.
+///  One reading decides all three, so a caller cannot pair one command's word with another's arguments;
+///  the global options matter because `-C` moves the directory Git reads the repository in, and the remote must be read in the
+///  repository the command itself will read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// typedCommand(argv): { command: TypedNetworkCommand; region: string[] } | undefined
+/// typedCommand(argv): { command: TypedNetworkCommand; region: string[]; prefix: string[] } | undefined
 /// ```
-pub fn typed_command(arguments: &[OsString]) -> Option<(TypedNetworkCommand, &[OsString])> {
+pub fn typed_command(arguments: &[OsString]) -> Option<(TypedNetworkCommand, &[OsString], &[OsString])> {
     // What: `(word, region)` is a pair: the subcommand and the words after it.
     // Why:   The global options and the command word are not the command's own arguments.
     //
@@ -70,9 +72,16 @@ pub fn typed_command(arguments: &[OsString]) -> Option<(TypedNetworkCommand, &[O
     // ```ts
     // const found = commandTokens(argv); if (!found) return undefined;
     // ```
-    let Some((word, region)) = command_tokens(arguments) else {
-        return None;
-    };
+    let (word, region): (&OsString, &[OsString]) = command_tokens(arguments)?;
+    // What: `prefix_len` is how many tokens of the caller's list are Git's global options, so the list before it is that prefix.
+    // Why:   A read of the remote must run in the directory the command runs in, and `-C` is one of those options.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const prefix = argv.slice(0, globalLayout(argv).prefix_len);
+    // ```
+    let prefix_len: usize = crate::global_arguments::global_layout(arguments).prefix_len;
+    let prefix: &[OsString] = arguments.get(..prefix_len).unwrap_or(&[]);
     // What: `as_encoded_bytes` reads the word as its raw bytes without decoding them.
     // Why:   The comparison is with Git's own command words, which are ASCII.
     //
@@ -87,7 +96,7 @@ pub fn typed_command(arguments: &[OsString]) -> Option<(TypedNetworkCommand, &[O
         b"push" => TypedNetworkCommand::Push,
         _other => return None,
     };
-    return Some((command, region));
+    return Some((command, region, prefix));
 }
 
 /// What:
@@ -120,13 +129,25 @@ pub enum RemoteRead<'a> {
 /// ```
 pub fn remote_read_for<'a>(command: TypedNetworkCommand, region: &'a [OsString]) -> Option<RemoteRead<'a>> {
     let operand: Option<&'a OsString> = remote_operand(command, region);
-    return match command {
-        // A clone with no URL is Git's own error to print, and nothing is relayed.
-        TypedNetworkCommand::Clone => operand.map(|url| RemoteRead::Operand(url.as_os_str())),
-        TypedNetworkCommand::Fetch | TypedNetworkCommand::Pull | TypedNetworkCommand::Push => {
-            Some(RemoteRead::NamedRemote(operand.map(OsString::as_os_str)))
-        }
-    };
+    // What: `?` answers nothing when a clone names no URL, which is Git's own error to print.
+    // Why:   A clone without a URL is not a command the wrapper can read a remote for.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (command === 'clone') return { operand: operand! };
+    // ```
+    if command == TypedNetworkCommand::Clone {
+        let url: &'a OsString = operand?;
+        return Some(RemoteRead::Operand(url.as_os_str()));
+    }
+    // What: `map` wraps the name when there is one and answers nothing when the command names no remote.
+    // Why:   A command without an operand asks Git for the branch's own remote.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return { named: operand };
+    // ```
+    return Some(RemoteRead::NamedRemote(operand.map(OsString::as_os_str)));
 }
 
 /// What:
@@ -148,48 +169,92 @@ pub fn remote_read_for<'a>(command: TypedNetworkCommand, region: &'a [OsString])
 ///   return out.status === 0 ? out.stdout.trim() : undefined;
 /// }
 /// ```
-pub fn remote_url(command: TypedNetworkCommand, read: &RemoteRead<'_>, real_git: &Path, overlay: &[(OsString, OsString)]) -> Option<String> {
-    // What: `Vec::new()` is an empty growable list; its siblings are `&[OsString]` and `[OsString; N]`.
-    // Why:   The question's words are built per command and end with the operand when there is one.
+pub fn remote_url(
+    command: TypedNetworkCommand,
+    read: &RemoteRead<'_>,
+    prefix: &[OsString],
+    real_git: &Path,
+    overlay: &[(OsString, OsString)],
+) -> Option<String> {
+    // What: `Vec<(Vec<OsString>, bool)>` is a list of alternative questions, asked in order.
+    // Why:   A named remote is read by `remote get-url`, which also answers a push URL,
+    //        and a URL the person typed is read only by `ls-remote --get-url`;
+    //        the second question is asked when Git refuses the first.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const asking: string[] = [];
+    // const questions: string[][] = [];
     // ```
-    let mut asking: Vec<OsString> = Vec::new();
-    let operand: Option<&std::ffi::OsStr> = match read {
-        RemoteRead::Operand(url) => {
-            asking.push(OsString::from("ls-remote"));
-            asking.push(OsString::from("--get-url"));
-            Some(*url)
-        }
-        RemoteRead::NamedRemote(name) => {
-            asking.push(OsString::from("remote"));
-            asking.push(OsString::from("get-url"));
-            if command == TypedNetworkCommand::Push {
-                // A push may go to another URL than a fetch, and the push URL is the one its transport turns on.
-                asking.push(OsString::from("--push"));
-            }
-            // What: `&OsStr` is a borrow of an operating-system string; `copied` copies the reference out of the `Option`.
-            // Why:   The name is pushed into the question below without being taken from the caller.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const name: string | undefined = read.named;
-            // ```
-            *name
-        }
-    };
-    if let Some(word) = operand {
-        asking.push(word.to_os_string());
-    }
-    // What: The captured run answers the question without connecting: `remote get-url` and `ls-remote --get-url` read
-    //       configuration alone.
-    // Why:   The answer decides whether this process relays at all, so it must be Git's own answer.
+    // What: `Option<&OsStr>` is the remote the command names, or nothing when Git selects the branch's own.
+    // Why:   The same operand ends every question that names a remote.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const output = runCaptured(git, asking, overlay, PLUMBING_STEP_CEILING);
+    // const named = read.named ?? undefined;
+    // ```
+    let operand: Option<&std::ffi::OsStr> = match read {
+        RemoteRead::Operand(url) => Some(*url),
+        RemoteRead::NamedRemote(name) => *name,
+    };
+    let mut questions: Vec<Vec<OsString>> = Vec::new();
+    if command == TypedNetworkCommand::Clone {
+        questions.push(vec![OsString::from("ls-remote"), OsString::from("--get-url")]);
+    } else {
+        let mut by_name: Vec<OsString> = vec![OsString::from("remote"), OsString::from("get-url")];
+        if command == TypedNetworkCommand::Push {
+            // A push may go to another URL than a fetch, and the push URL is the one its transport turns on.
+            by_name.push(OsString::from("--push"));
+        }
+        questions.push(by_name);
+        questions.push(vec![OsString::from("ls-remote"), OsString::from("--get-url")]);
+    }
+    for mut words in questions {
+        // What: `Some(word)` is the present variant of `Option`, pushed onto the question when the command names a remote.
+        // Why:   A question without the operand asks for the default remote, which is what a command without one uses.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (operand) words.push(operand);
+        // ```
+        if let Some(word) = operand {
+            words.push(word.to_os_string());
+        }
+        // What: `to_vec` copies Git's global options in front of the question.
+        // Why:   `-C` and `--git-dir` name the repository the command reads, so the question must run there.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const asking = [...prefix, ...words];
+        // ```
+        let mut asking: Vec<OsString> = prefix.to_vec();
+        asking.extend(words);
+        if let Some(url) = ask_for_a_url(asking, real_git, overlay) {
+            return Some(url);
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Ask Git one question about the remote and answer the URL it printed, or nothing when it refused.
+/// Why:
+///  The question reads configuration alone and connects to nothing, and a refused question must keep today's behaviour instead
+///  of a relay over a transport nobody read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askForAUrl(asking: string[], git, overlay): string | undefined {
+///   const out = runCaptured(git, asking, overlay, PLUMBING_STEP_CEILING);
+///   return out.status === 0 && out.stdout.trim() ? out.stdout.trim() : undefined;
+/// }
+/// ```
+fn ask_for_a_url(asking: Vec<OsString>, real_git: &Path, overlay: &[(OsString, OsString)]) -> Option<String> {
+    // What: The captured run starts Git with the wrapper's own options and keeps at most one step's output.
+    // Why:   The read is the wrapper's own work and must never wait for a person.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const output = runCaptured(gitCommand(git, asking, overlay, 'wrapper'), PLUMBING_STEP_CEILING);
     // ```
     let output: std::process::Output = crate::captured_child_run_to_its_end::output_of_within_bound(
         &mut crate::forwarding::git_command(real_git, asking.as_slice(), overlay, crate::hooks_off::StartOwner::Wrapper),
@@ -199,12 +264,12 @@ pub fn remote_url(command: TypedNetworkCommand, read: &RemoteRead<'_>, real_git:
     if !output.status.success() {
         return None;
     }
-    // What: `from_utf8` reads the printed URL as text and answers nothing when the bytes are not UTF-8.
-    // Why:   A URL with a byte no text holds cannot be compared with the schemes ssh carries.
+    // What: `from_utf8_lossy` reads the printed URL as text; a URL is bytes and the comparison is with ASCII schemes.
+    // Why:   The answer is Git's, and only its own printing is read.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // let url: string; try { url = decoder.decode(output.stdout).trim(); } catch { return undefined; }
+    // const printed = decoder.decode(output.stdout).trim();
     // ```
     let printed: std::borrow::Cow<'_, str> = String::from_utf8_lossy(output.stdout.as_slice());
     let trimmed: &str = printed.trim();

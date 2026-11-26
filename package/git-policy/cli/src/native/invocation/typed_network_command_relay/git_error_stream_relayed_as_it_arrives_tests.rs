@@ -46,10 +46,10 @@ fn a_terminal_is_a_terminal_and_keeps_the_line_feeds_it_got() {
     let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes).expect("the relay reads to the child's end");
     assert_eq!(String::from_utf8_lossy(relayed.kept.as_slice()), "terminal\n");
     let mut piped: std::process::Command = a_child_writing("if [ -t 2 ]; then printf 'terminal\\n' >&2; else printf 'pipe\\n' >&2; fi");
-    let mut relayed_bytes: Vec<u8> = Vec::new();
-    let start: super::RelayedStart = start_relaying(ErrorStreamShape::Pipe, None, &mut piped).expect("the child starts");
-    let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes).expect("the relay reads to the child's end");
-    assert_eq!(String::from_utf8_lossy(relayed.kept.as_slice()), "pipe\n");
+    let mut piped_bytes: Vec<u8> = Vec::new();
+    let piped_start: super::RelayedStart = start_relaying(ErrorStreamShape::Pipe, None, &mut piped).expect("the child starts");
+    let piped_relayed: RelayedErrorStream = read_to_the_child_s_end(piped_start, &mut piped_bytes).expect("the relay reads to the child's end");
+    assert_eq!(String::from_utf8_lossy(piped_relayed.kept.as_slice()), "pipe\n");
 }
 
 /// A terminal whose output processing was left on would turn every line feed into a carriage return and a line feed.

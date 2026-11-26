@@ -508,10 +508,19 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
             if let Err(failure) = prepare_manual_push(checks, environment, command_region(stripped)) {
                 // Git refused the push itself: nothing could be published, and Git's own words and status are the answer.
                 if let Some(refusal) = failure.refusal {
-                    return WrappedOutcome::Exit {
-                        code: refusal.code,
-                        stderr: refusal.stderr,
-                    };
+                    // What: The sentence naming the next step follows Git's own words, which the probe's refusal carried.
+                    // Why:  A typed push's probe is the process that meets a refused key, and the person reads OpenSSH's line here;
+                    //       the wrapper's own words belong after it (`manual_push_lifecycle`, `sentence_after_a_refused_probe_of_a_push`).
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // stderr: refusal.stderr + (failure.sentence ?? '')
+                    // ```
+                    let mut stderr: String = refusal.stderr;
+                    if let Some(sentence) = failure.sentence.as_ref() {
+                        stderr.push_str(sentence.as_str());
+                    }
+                    return WrappedOutcome::Exit { code: refusal.code, stderr };
                 }
                 events.push(PolicyEvent::EngineFailure {
                     code: EngineFailureCode::ContentUnavailable,

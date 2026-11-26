@@ -72,6 +72,20 @@ pub fn printed_for_this_command() -> bool {
 }
 
 /// What:
+///  Record that a sentence about a refused key was printed for this command.
+/// Why:
+///  A face that prints the sentence itself (the probe of a typed push) must leave the record set, so the upload's own explanation
+///  stays silent rather than saying it twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberPrinted();
+/// ```
+pub fn remember_printed() {
+    PRINTED.store(true, Ordering::SeqCst);
+}
+
+/// What:
 ///  The refusal a refusal's transcript reads as, or nothing when it reads as no refusal at all.
 /// Why:
 ///  Three sentences are printed for three refusals, and each is chosen from what OpenSSH printed;

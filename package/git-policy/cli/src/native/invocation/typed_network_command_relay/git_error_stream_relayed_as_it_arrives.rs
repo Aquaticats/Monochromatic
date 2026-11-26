@@ -276,7 +276,7 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
     // ```ts
     // return { child, source, relayed };
     // ```
-    Ok(RelayedStart { child: Some(child), source: Some(source), relayed })
+    return Ok(RelayedStart { child: Some(child), source: Some(source), relayed });
 }
 
 /// What:
@@ -299,8 +299,8 @@ pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write
     // ```ts
     // const owned = start.takeChild()!;
     // ```
-    let mut start: RelayedStart = start;
-    let mut owned: Child = match start.child.take() {
+    let mut held: RelayedStart = start;
+    let mut owned: Child = match held.child.take() {
         Some(taken) => taken,
         None => {
             return Err(io::Error::other("the relayed child was already taken"));
@@ -313,7 +313,7 @@ pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write
     // ```ts
     // const token = start.takeToken();
     // ```
-    let relayed: Option<RelayedChild> = start.relayed.take();
+    let relayed: Option<RelayedChild> = held.relayed.take();
     // What: `source` is the descriptor the read takes from the start, which then owns no stream.
     // Why:   The relay reads exactly one descriptor.
     //
@@ -321,7 +321,7 @@ pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write
     // ```ts
     // const source = start.takeSource();
     // ```
-    let source: OwnedFd = match start.source.take() {
+    let source: OwnedFd = match held.source.take() {
         Some(taken) => taken,
         None => {
             return Err(io::Error::other("the relayed descriptor was already taken"));
@@ -376,12 +376,9 @@ pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write
         // ```ts
         // const status = child.tryWait(); if (status) { drain(); return { status, kept }; }
         // ```
-        match owned.try_wait()? {
-            Some(status) => {
-                drain_what_is_left(&source, &mut buffer, &mut kept, out);
-                return finish(status, child_number, kept, relayed);
-            }
-            None => {}
+        if let Some(status) = owned.try_wait()? {
+            drain_what_is_left(&source, &mut buffer, &mut kept, out);
+            return finish(status, child_number, kept, relayed);
         }
     }
 }
