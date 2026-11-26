@@ -132,6 +132,9 @@ Rounds started before that decision run on flex.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
+- Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
+  briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
+  starts when the split's round 1 merges, because both edit `invocation/`.
 - Debt ledger item 19, window `fixed-length-lists-become-slices`, run 2 on Qwen
   (run 1 on flex ended when the writer did not begin a response in time; its work is committed).
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
@@ -191,17 +194,17 @@ Rounds started before that decision run on flex.
 
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
-The last gate was at `64a71a4c9b`,
-and it failed only the cause H pair,
-which issues 6466 and 6468 fixed in the controls.
+The last gate was at `b6d160365e` (2026-11-26T05:40:41-05:00),
+and it failed only issue 6489's lane-read control, whose round is open;
+its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
 is in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
 "The gates run on `main`,
 in order,
 with what each failed".
-No gate has covered tonight's merges yet;
-the next one is due on `main`'s tip and a failure outside the recorded baseline starts a fix round.
+The merges after `b6d160365e` (6499 and what follows) are the next batch;
+its gate runs on `main`'s tip once that batch lands, and a failure outside the recorded baseline starts a fix round.
 
 ### The session wrapper is a build of 2026-11-22
 
