@@ -213,6 +213,7 @@ impl JetbrainsHarperRule {
         return RulePlan {
             changes: Vec::new(),
             warnings: vec![warning],
+            errors: Vec::new(),
         };
     }
 

@@ -848,7 +848,7 @@
     },
     "cargo:monochromatic-file-enforcer-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.1.4-alpha.1",
+      "version": "0.1.4-alpha.2",
       "route": "archive",
       "bins": [
         "file-enforcer"
@@ -862,20 +862,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.1/monochromatic-file-enforcer-cli-0.1.4-alpha.1-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "8dfe6e4569145af971bdad7ead98207f06f8be064d763b46b3df88d6e413751b"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.2/monochromatic-file-enforcer-cli-0.1.4-alpha.2-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "bc56313725c0fc0cc0dc0344ac077c2a2fecefb6af34e269439c7df8f34818de"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.1/monochromatic-file-enforcer-cli-0.1.4-alpha.1-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "8dfe6e4569145af971bdad7ead98207f06f8be064d763b46b3df88d6e413751b"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.2/monochromatic-file-enforcer-cli-0.1.4-alpha.2-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "bc56313725c0fc0cc0dc0344ac077c2a2fecefb6af34e269439c7df8f34818de"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.1/monochromatic-file-enforcer-cli-0.1.4-alpha.1-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "6267f9aabaf35d9da821f07570e6f6a49a767dd512e240aa589327912369b287"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.2/monochromatic-file-enforcer-cli-0.1.4-alpha.2-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "25898ee819b966f73813946f44d4538bbb00ebfe7bdbac21d648c6f91f289606"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.1/monochromatic-file-enforcer-cli-0.1.4-alpha.1-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "6267f9aabaf35d9da821f07570e6f6a49a767dd512e240aa589327912369b287"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-file-enforcer-cli-v0.1.4-alpha.2/monochromatic-file-enforcer-cli-0.1.4-alpha.2-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "25898ee819b966f73813946f44d4538bbb00ebfe7bdbac21d648c6f91f289606"
         }
       }
     },
@@ -1682,5 +1682,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:1479e0e7f2b9f96ec8745c1e63be16d3e6fa83fe3270272fba015a15b9a044ff"
+  "digest": "sha256:9cb37cc777b1578f692d0719cc7e1d8322efb530ad163f1cb981f7ca4004ffb5"
 }

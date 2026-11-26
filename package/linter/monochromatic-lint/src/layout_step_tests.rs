@@ -11,9 +11,7 @@
 //! test('the rules are off by default', () => expect(run(root, [])).toHaveNoFindings());
 //! ```
 
-use super::LineSpans;
 use crate::{
-    diagnostic::Span,
     layout_test_support::package_with,
     run_output::RunOutput,
     run_test_support::{
@@ -56,6 +54,20 @@ fn summary(output: &RunOutput) -> Vec<String> {
                 record["filename"].as_str().unwrap_or(""),
                 record["labels"][0]["span"]["line"]
             );
+        })
+        .collect::<Vec<String>>();
+}
+
+/// The allow-list keys one `--debug` run printed,
+/// in the order the rules reported them.
+fn debug_keys(output: &RunOutput) -> Vec<String> {
+    return output
+        .stderr
+        .lines()
+        .filter_map(|line| {
+            return line
+                .split_once("allow-list key: ")
+                .map(|split| return String::from(split.1));
         })
         .collect::<Vec<String>>();
 }
@@ -182,52 +194,6 @@ fn files_behind_uses_links_are_linted_once() {
     );
 }
 
-/// The span of a finding's line starts at that line,
-///  covers it without its line break,
-///  and falls back to the file start for line zero,
-///  a line the file does not have and a file that cannot be read.
-///  One file read answers every line it holds,
-///  which is what keeps a list full of dead lines from reading the list once per finding.
-#[test]
-fn layout_the_span_of_a_line_starts_at_that_line() {
-    let text: &str = "first\nsecond line\r\nthird";
-    let fixture = package_with(&[("lines.txt", text)]);
-    let file = fixture.path.join("lines.txt");
-    let second_start: usize = text.find("second").expect("second line");
-    let third_start: usize = text.find("third").expect("third line");
-    let mut spans: LineSpans = LineSpans::default();
-    assert_eq!(
-        spans.span(&file, 1),
-        Span {
-            offset: 0,
-            length: "first".len(),
-            line: 1,
-            column: 1
-        }
-    );
-    assert_eq!(
-        spans.span(&file, 2),
-        Span {
-            offset: second_start,
-            length: "second line".len(),
-            line: 2,
-            column: 1
-        }
-    );
-    assert_eq!(
-        spans.span(&file, 3),
-        Span {
-            offset: third_start,
-            length: "third".len(),
-            line: 3,
-            column: 1
-        }
-    );
-    let at_start: Span = spans.span(&file, 0);
-    assert_eq!(spans.span(&file, 4), at_start);
-    assert_eq!(spans.span(&fixture.path.join("missing.txt"), 2), at_start);
-}
-
 /// A folder that sits in a plain loop of its own and in a loop of its entry is one state a list can satisfy:
 /// listing every use leaves no loop finding and no entry that tolerates nothing.
 /// The control arm runs the same package with an empty list and shows both loops.
@@ -323,6 +289,201 @@ fn a_no_file_list_entry_does_not_hide_a_new_file() {
     );
 }
 
+/// A `no-top-doc` entry tolerates the folder's missing top doc alone,
+///  never a file added to that folder afterwards.
+#[test]
+fn a_no_top_doc_entry_does_not_hide_a_new_file() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `a.rs`: a.\nmod a;\n",
+        ),
+        ("src/a.rs", "mod b;\n"),
+        ("src/a/b.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    // The list records the missing top doc and the one file that was in the folder when the line was written.
+    write(
+        &fixture.path,
+        "file.txt",
+        "no-top-doc src/a\nmissing-entry src/a b.rs\n",
+    );
+    let before: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(before.stdout, "", "{}", before.stderr);
+    assert_eq!(before.exit_code, 0, "{}", before.stdout);
+    // A file added to that folder is a finding that no line of the list holds.
+    write(&fixture.path, "src/a/c.rs", "");
+    write(&fixture.path, "src/a.rs", "mod b;\nmod c;\n");
+    let after: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(after.exit_code, 1, "{}", after.stdout);
+    assert!(
+        after
+            .stdout
+            .contains("so the file `c.rs` is not listed in any top doc"),
+        "{}",
+        after.stdout
+    );
+    assert!(
+        !after.stdout.contains("tolerates nothing any more"),
+        "{}",
+        after.stdout
+    );
+}
+
+/// A use between two members of one group is a new loop edge only when the two share a real loop:
+///  a group's tolerated entry loop does not put every member of the group inside it.
+#[cfg(unix)]
+#[test]
+fn a_group_entry_loop_does_not_hold_a_use_between_two_members() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod grp;\n"),
+        ("src/a/mod.rs", "use crate::grp::g3::X;\n"),
+        ("src/grp/mod.rs", "mod g1;\nmod g2;\nmod g3;\nmod g4;\n"),
+        ("src/grp/g1/mod.rs", "use crate::grp::g2::X;\n"),
+        ("src/grp/g2/mod.rs", ""),
+        ("src/grp/g3/mod.rs", ""),
+        ("src/grp/g4/mod.rs", "use crate::a::X;\n"),
+    ]);
+    // Every use gets its link, and the group's summary links the folder its members use outside it.
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/g3", "../../grp/g3");
+    crate::layout_test_support::link(&fixture.path, "src/grp/g1/uses/g2", "../../g2");
+    crate::layout_test_support::link(&fixture.path, "src/grp/g4/uses/a", "../../../a");
+    crate::layout_test_support::link(&fixture.path, "src/grp/uses/a", "../../a");
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/folder-uses-links", "folder.txt").as_str(),
+    );
+    // Both uses of the entry loop between `a` and the group are recorded, so that loop is tolerated.
+    write(
+        &fixture.path,
+        "folder.txt",
+        "uses src/a -> src/grp/g3\nuses src/grp/g4 -> src/a\n",
+    );
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(listed.stdout, "", "{}", listed.stderr);
+    assert_eq!(listed.exit_code, 0, "{}", listed.stdout);
+    // A line typed for the use between two members of the group holds no loop, so it is reported dead.
+    write(
+        &fixture.path,
+        "folder.txt",
+        "uses src/a -> src/grp/g3\nuses src/grp/g4 -> src/a\nuses src/grp/g1 -> src/grp/g2\n",
+    );
+    let handwritten: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(handwritten.exit_code, 1, "{}", handwritten.stdout);
+    assert!(
+        handwritten.stdout.contains("tolerates nothing any more"),
+        "{}",
+        handwritten.stdout
+    );
+    assert!(
+        !handwritten.stdout.contains("and both sit inside one loop"),
+        "{}",
+        handwritten.stdout
+    );
+}
+
+/// Two findings never share one key,
+///  even when a top doc lists a name that reads like a numbered one,
+///  so one line of a list tolerates exactly the finding it names.
+#[test]
+fn a_numbered_key_never_collides_with_a_listed_name() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `a.rs`: a.\n//! - `x`: foreign\n//! - `x`: foreign again\n//! - `x#2`: another foreign\nmod a;\n",
+        ),
+        ("src/a.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    write(&fixture.path, "file.txt", "");
+    let debug: RunOutput = run(&fixture.path, &["--debug"], "");
+    let keys: Vec<String> = debug_keys(&debug)
+        .into_iter()
+        .filter(|key| return !key.starts_with("missing-entry"))
+        .collect::<Vec<String>>();
+    // Three entries of the doc are findings, one of them listed twice, so four keys and no repeats.
+    assert_eq!(keys.len(), 4, "{keys:#?}");
+    let distinct: std::collections::BTreeSet<&String> = keys.iter().collect();
+    assert_eq!(distinct.len(), 4, "{keys:#?}");
+    // The three lines below tolerate three findings, so the second `x` entry is still reported.
+    write(
+        &fixture.path,
+        "file.txt",
+        "listed-twice src/lib.rs x\nforeign-name src/lib.rs x\nforeign-name src/lib.rs x#2\n",
+    );
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(listed.exit_code, 1, "{}", listed.stdout);
+    assert_eq!(
+        summary(&listed).len(),
+        1,
+        "one line tolerated two findings: {}",
+        listed.stdout
+    );
+    assert!(
+        listed
+            .stdout
+            .contains("lists `x`, which is not a module file"),
+        "{}",
+        listed.stdout
+    );
+}
+
+/// A finding's key does not change when another block of the same type is added above it,
+///  so a list written for two blocks still names those two.
+#[test]
+fn a_key_does_not_shift_when_another_block_of_its_kind_is_added_above_it() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a/mod.rs", ""),
+        ("src/a/one.rs", ""),
+    ]);
+    // The index lists its one file, so the two blocks are the only findings of the file rule.
+    let doc: &str = "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n";
+    write(
+        &fixture.path,
+        "src/a/mod.rs",
+        format!("{doc}\nimpl Holder {{ fn one() {{}} }}\nimpl Holder {{ fn two() {{}} }}\n")
+            .as_str(),
+    );
+    write(&fixture.path, CONFIG, LAYOUT_ON);
+    let debug: RunOutput = run(&fixture.path, &["--debug"], "");
+    let written: String = debug_keys(&debug)
+        .into_iter()
+        .filter(|key| return key.starts_with("index-item"))
+        .map(|key| return format!("{key}\n"))
+        .collect::<String>();
+    assert_eq!(written.lines().count(), 2, "{written}");
+    // A third block above the two is the finding those two lines do not name.
+    write(
+        &fixture.path,
+        "src/a/mod.rs",
+        format!("{doc}\nimpl Holder {{ fn three() {{}} }}\nimpl Holder {{ fn one() {{}} }}\nimpl Holder {{ fn two() {{}} }}\n").as_str(),
+    );
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    write(&fixture.path, "file.txt", written.as_str());
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(listed.exit_code, 1, "{}", listed.stdout);
+    assert_eq!(
+        summary(&listed),
+        ["rust/file-order-in-folder error src/a/mod.rs 7"],
+        "{}",
+        listed.stdout
+    );
+}
+
 /// Configuration turning one layout rule on with a list beside the fixture's configuration file.
 fn allow_config(
     rule: &str,
@@ -397,7 +558,7 @@ fn one_line_tolerates_one_index_item() {
     write(
         &fixture.path,
         "file.txt",
-        "index-item src/lib.rs impl-Holder\nindex-item src/lib.rs private-use-std::fmt\nindex-item src/lib.rs private-use-std::io\n",
+        "index-item src/lib.rs impl-Holder one\nindex-item src/lib.rs private-use-std::fmt\nindex-item src/lib.rs private-use-std::io\n",
     );
     let output: RunOutput = run(&fixture.path, &[], "");
     let found: Vec<String> = summary(&output);
@@ -537,14 +698,22 @@ fn the_allow_path_is_relative_to_the_configuration() {
         "missing-link src/a -> src/b\n",
     );
     let output: RunOutput = run(&fixture.path, &[], "");
+    // The list was found where the configuration file sits, and it tolerated the one finding.
+    assert_eq!(output.stdout, "", "{}", output.stderr);
+    assert_eq!(output.exit_code, 0, "{}", output.stdout);
+    // The control: the same run without that file fails, so an empty report above was not a run that found no list.
+    std::fs::remove_file(fixture.path.join("nested/lists/folder.txt"))
+        .expect("remove the fixture list");
+    let missing: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(missing.exit_code, 2, "{}", missing.stdout);
     assert!(
-        !output.stdout.contains("has no link to it"),
+        missing.stdout.contains("allow list that cannot be read"),
         "{}",
-        output.stdout
+        missing.stdout
     );
     assert!(
-        !output.stdout.contains("tolerates nothing any more"),
+        missing.stdout.contains("nested/lists/folder.txt"),
         "{}",
-        output.stdout
+        missing.stdout
     );
 }

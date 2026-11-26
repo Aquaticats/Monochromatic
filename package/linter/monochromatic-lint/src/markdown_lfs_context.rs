@@ -77,28 +77,6 @@ use std::{
 const GIT_MARKER_NAME: &str = ".git";
 
 /// What:
-///  The most bytes this rule reads from one LFS-tracked image to compute its object id:
-///  sixteen mebibytes.
-/// Why:
-///  An object id is the SHA-256 of the whole file,
-///  so the file must be read;
-///  a bound keeps a mistyped destination or a file that grew far past its kind
-///  from filling memory in the middle of a lint run.
-///  This repository's largest tracked image is 3,380,183 bytes
-///  (a screenshot under `package/ide/app/design/screenshots`,
-/// measured 2026-11-25),
-///  and the next largest are between 2.1 and 2.8 mebibytes,
-///  so sixteen mebibytes leaves room for about five times that.
-///  The siblings a reader might expect are an unbounded read and a streamed hash;
-///  a bound on the bytes read is the one that also ends on a file that keeps growing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const MAX_LFS_TARGET_BYTES: number = 16 * 1024 * 1024;
-/// ```
-pub(crate) const MAX_LFS_TARGET_BYTES: u64 = 16 * 1024 * 1024;
-
-/// What:
 ///  The file name git reads for path attributes.
 /// Why:
 ///  Only the repository root's file is consulted,
@@ -158,9 +136,9 @@ pub struct LfsImageRepo {
     pub object_base: String,
     /// Compiled `filter=lfs` patterns of the root `.gitattributes`.
     tracked: PathPatterns,
-    /// Resolved targets by normalized repository path;
+    /// Resolved targets by normalized repository path and the bound they were read under;
     ///  `Mutex` lets worker threads share one repository.
-    resolved: Mutex<BTreeMap<String, LfsImageTarget>>,
+    resolved: Mutex<BTreeMap<(String, u64), LfsImageTarget>>,
 }
 
 /// What:
@@ -317,7 +295,7 @@ pub fn discover_lfs_image_repo(start: &Path) -> Result<Option<LfsImageRepo>, Lfs
         repo_root,
         object_base,
         tracked,
-        resolved: Mutex::new(BTreeMap::<String, LfsImageTarget>::new()),
+        resolved: Mutex::new(BTreeMap::<(String, u64), LfsImageTarget>::new()),
     }));
 }
 
@@ -372,6 +350,7 @@ impl LfsImageRepo {
         &self,
         relative: &str,
         absolute: &Path,
+        max_bytes: u64,
     ) -> Result<LfsImageTarget, LfsConfigError> {
         match std::fs::metadata(absolute) {
             Ok(metadata) => {
@@ -406,15 +385,15 @@ impl LfsImageRepo {
         };
         // One byte past the bound, so a file that grew after the size check is refused rather than swallowed.
         let mut bytes: Vec<u8> = Vec::<u8>::new();
-        if let Err(error) = file.take(MAX_LFS_TARGET_BYTES + 1).read_to_end(&mut bytes) {
+        if let Err(error) = file.take(max_bytes + 1).read_to_end(&mut bytes) {
             return Err(LfsConfigError {
                 message: format!("Cannot read image target {}: {error}.", absolute.display()),
             });
         }
-        if bytes.len() as u64 > MAX_LFS_TARGET_BYTES {
+        if bytes.len() as u64 > max_bytes {
             return Err(LfsConfigError {
                 message: format!(
-                    "Cannot read image target {}: it is over the {MAX_LFS_TARGET_BYTES} bytes this rule reads to compute an object id, so raise MAX_LFS_TARGET_BYTES in src/markdown_lfs_context.rs or point the image at a smaller file.",
+                    "Cannot read image target {}: it is over the {max_bytes} bytes the rule's `max-image-bytes` option allows, so raise that option or point the image at a smaller file.",
                     absolute.display()
                 ),
             });
@@ -435,32 +414,37 @@ impl LfsImageRepo {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function resolveTarget(repoRelativePath: string): LfsImageTarget;
+    /// function resolveTarget(repoRelativePath: string, maxImageBytes: number): LfsImageTarget;
     /// ```
     pub fn resolve_target(
         &self,
         repo_relative_path: &str,
+        max_image_bytes: u64,
     ) -> Result<LfsImageTarget, LfsConfigError> {
         let absolute: PathBuf = apply_segments(&self.repo_root, repo_relative_path);
         let Some(relative): Option<String> = repo_relative(&self.repo_root, &absolute) else {
             return Ok(LfsImageTarget::Missing);
         };
+        // What: the cache key, which pairs the path with the bound it was read under.
+        // Why: one run can match two configuration blocks with different bounds, and an answer read under a smaller bound is not the same answer.
+        let key: (String, u64) = (relative.clone(), max_image_bytes);
         {
             // The guard is dropped at the end of this block so the lock is not held during file reads.
-            let cache: MutexGuard<'_, BTreeMap<String, LfsImageTarget>> = self
+            let cache: MutexGuard<'_, BTreeMap<(String, u64), LfsImageTarget>> = self
                 .resolved
                 .lock()
                 .expect("target cache lock is not poisoned");
-            if let Some(target) = cache.get(relative.as_str()) {
+            if let Some(target) = cache.get(&key) {
                 return Ok(target.clone());
             }
         }
-        let target: LfsImageTarget = self.read_target(relative.as_str(), &absolute)?;
-        let mut cache: MutexGuard<'_, BTreeMap<String, LfsImageTarget>> = self
+        let target: LfsImageTarget =
+            self.read_target(relative.as_str(), &absolute, max_image_bytes)?;
+        let mut cache: MutexGuard<'_, BTreeMap<(String, u64), LfsImageTarget>> = self
             .resolved
             .lock()
             .expect("target cache lock is not poisoned");
-        cache.insert(relative, target.clone());
+        cache.insert(key, target.clone());
         return Ok(target);
     }
 }
@@ -477,12 +461,13 @@ impl LfsImageRepo {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function prepareLfsImageContext({ repo, filePath, document }): LfsImageContext;
+/// function prepareLfsImageContext({ repo, filePath, document, maxImageBytes }): LfsImageContext;
 /// ```
 pub fn prepare_lfs_image_context(
     repo: &LfsImageRepo,
     file_path: &Path,
     document: &MarkdownSource,
+    max_image_bytes: u64,
 ) -> Result<LfsImageContext, LfsConfigError> {
     let normal: PathBuf = lexical_normal(file_path);
     let mut targets: BTreeMap<String, LfsImageTarget> = BTreeMap::<String, LfsImageTarget>::new();
@@ -496,11 +481,12 @@ pub fn prepare_lfs_image_context(
             continue;
         };
         if let Some(parts) = object_url_parts(url, repo.object_base.as_str()) {
-            let target: LfsImageTarget = repo.resolve_target(parts.repo_relative_path.as_str())?;
+            let target: LfsImageTarget =
+                repo.resolve_target(parts.repo_relative_path.as_str(), max_image_bytes)?;
             targets.insert(parts.repo_relative_path, target);
         }
         if let Some(path) = relative_target_path(url, &normal, &repo.repo_root) {
-            let target: LfsImageTarget = repo.resolve_target(path.as_str())?;
+            let target: LfsImageTarget = repo.resolve_target(path.as_str(), max_image_bytes)?;
             targets.insert(path, target);
         }
     }

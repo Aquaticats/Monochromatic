@@ -268,8 +268,13 @@
       "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
     },
     // package.json metadata, owned from where each file sits: the repository object and the homepage link both
-    // derive from the directory, so the pre-transfer URL cannot come back (issue 1124). A manifest without a
-    // repository object is not managed.
+    // derive from the directory, so the pre-transfer URL cannot come back (issue 1124). Each shape is handled
+    // on purpose: an object is managed, gaining type, url, directory and the homepage beside it; a manifest with
+    // no repository is not managed, so it gains no homepage either; a repository written as a string, null, an
+    // array, a number or a boolean is a `manifest-shape` finding naming the file and the value it holds, so
+    // `check` fails and `write` changes nothing until it is an object. A repeated key answers as its last
+    // occurrence, so an edit never lands in a copy an earlier duplicate shadows. A manifest over 64 KiB is
+    // refused by name, because the rule parses each manifest several times per edit.
     {
       "kind": "json-keys",
       "id": "package-metadata",

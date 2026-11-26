@@ -21,8 +21,16 @@ fn isolation(
 #[test]
 fn given_cpu_cap_and_weight_become_scope_properties() {
     let properties = isolation_properties(&isolation(Some(200), Some(20)));
-    assert!(properties.contains(&"--property=CPUQuota=200%".to_string()));
-    assert!(properties.contains(&"--property=CPUWeight=20".to_string()));
+    assert!(
+        properties
+            .iter()
+            .any(|item| return item == "--property=CPUQuota=200%")
+    );
+    assert!(
+        properties
+            .iter()
+            .any(|item| return item == "--property=CPUWeight=20")
+    );
 }
 
 /// Highest `IOWeight` a per-command cgroup may carry.

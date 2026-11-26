@@ -21,6 +21,7 @@ use crate::config_lookup::{
 use crate::configuration::parse_configuration;
 /// Import production parsing,
 ///  preparation and result types.
+use crate::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES;
 use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use monochromatic_jsonc_edit::{
     JsoncValue,
@@ -150,7 +151,7 @@ fn ordered_blocks_merge_before_defaults_are_filled() {
     ]"#,
     );
     let actual = rules(&config, "file.rs");
-    let expected = parse_jsonc(r#"{"rust/max-lines":{"severity":"warn","max":120},"markdown/lfs-image-url":{"severity":"error","exclude":["a/","b/"]}}"#).expect("expected merged rules");
+    let expected = parse_jsonc(&format!(r#"{{"rust/max-lines":{{"severity":"warn","max":120}},"markdown/lfs-image-url":{{"severity":"error","exclude":["a/","b/"],"max-image-bytes":{DEFAULT_MAX_IMAGE_BYTES}}}}}"#)).expect("expected merged rules");
     assert_eq!(actual, expected);
 }
 
@@ -170,7 +171,7 @@ fn rule_defaults_do_not_enable_absent_rules() {
     );
     let actual = rules(&selected, "file.rs");
     let expected_source: String = format!(
-        r#"{{"rust/max-lines":{{"severity":"off","max":{DEFAULT_MAX_LINES}}},"markdown/lfs-image-url":{{"severity":"warn","exclude":[]}}}}"#
+        r#"{{"rust/max-lines":{{"severity":"off","max":{DEFAULT_MAX_LINES}}},"markdown/lfs-image-url":{{"severity":"warn","exclude":[],"max-image-bytes":{DEFAULT_MAX_IMAGE_BYTES}}}}}"#
     );
     let expected = parse_jsonc(expected_source.as_str()).expect("defaults");
     assert_eq!(actual, expected);

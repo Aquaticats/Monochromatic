@@ -201,8 +201,8 @@ fn esr_comes_from_the_lock_not_from_npm() {
     assert_eq!(check_case(case, "160.2.0esr", npm_esr), Ok(()));
     let config = case["config"].as_str().expect("config");
     let ours = resolve_config_text(config, &data_with("160.2.0esr", None)).expect("resolves");
-    assert!(ours.contains(&"firefox 160".to_string()));
-    assert!(!ours.contains(&npm_esr.to_string()));
+    assert!(ours.iter().any(|item| return item == "firefox 160"));
+    assert!(!ours.iter().any(|item| return item == npm_esr));
 }
 
 // The cases where plain npm and pre-release-free npm differ.

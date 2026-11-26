@@ -1155,8 +1155,11 @@ never absolute and never climbing out with `..`,
 and no line may repeat another.
 A `.` segment and a trailing separator are read away,
 so `uses ./src/a/ -> src/b` is the same entry as `uses src/a -> src/b` and the second line for it is refused.
-An entry that holds a backslash is refused too,
+A `uses` or `file-uses` path that holds a backslash is refused too,
 because a key writes `/` on every machine and a backslash would name a folder no finding names.
+A line that is a key may hold a backslash,
+because no rule prints one in a key:
+such a line is read as the key it spells and reported as tolerating nothing any more.
 
 A rule reports the key of each finding it makes in `--debug`,
 as a note that reads `allow-list key: <key>`,
@@ -1167,21 +1170,62 @@ Every key names exactly one finding:
 
 - A key that names an item carries the item's own name,
   such as `index-item src/a/mod.rs function-end_after_the_log`,
-  or its own words when the kind has no name,
-  such as `index-item src/a/mod.rs private-use-std::fmt`,
-  `impl-Display for Holder`,
-  `macro-call-println!("first")` or `extern-crate-alloc`.
+  or its own words when the kind has no name.
+  The shapes are exactly these,
+  each printed the way the item is written:
+  - `impl-<what it implements>` and then the members it declares,
+    sorted,
+    such as `impl-std::fmt::Display for Holder fmt` or `impl-Holder one two`,
+    with the members left out when the block declares none.
+  - `private-use-<the tree as written>`,
+    such as `private-use-std::fmt`,
+    or `private-use-anonymous`.
+  - `macro-call-<path>!<the delimiter and arguments as written>`,
+    such as `macro-call-vec![1, 2]` or `macro-call-thread_local!{ ... }`,
+    or `macro-call-<path>!` for a call with no arguments,
+    or `macro-call-anonymous`.
+  - `extern-crate-<name>`,
+    such as `extern-crate-alloc`,
+    and `extern-crate-<name>-<the rename as written>`,
+    such as `extern-crate-alloc-as al`,
+    and `extern-block-<the ABI string as written, quotes kept>`,
+    such as `extern-block-"C"`,
+    or `extern-block-unstated` for a block that names none.
+  - `assembly-block` for an assembly block,
+    and `<kind>-<name>` for every other item,
+    where the kind is `function`,
+    `struct`,
+    `enum`,
+    `union`,
+    `trait`,
+    `constant`,
+    `static`,
+    `type-alias`,
+    `macro-rules`,
+    `macro-def` or `inline-module`,
+    with `anonymous` in place of a name the item does not declare.
 - A key about an entry of a `uses` folder carries the fault,
   such as `link src/a/uses/b broken`,
-  because one entry can go wrong in seven ways.
+  because one entry can go wrong in ten ways.
 - Two findings a rule still cannot tell apart,
-  such as two `impl` blocks of one type or two glob re-exports of one module,
-  are numbered in document order:
-  the first keeps the plain key and the next gain `#2`,
+  such as two blocks of one type that declare the same members
+  or two glob re-exports of one module,
+  are numbered in the order the rule reports them:
+  the first keeps the plain key and each later one carries `#2`,
   `#3` and so on,
-  which `--debug` prints.
+  and the number goes into the key's first word,
+  right after the shape it repeats,
+  so `foreign-name#2 src/lib.rs x` can never be read as the entry named `x#2`,
+  which prints `foreign-name src/lib.rs x#2`.
+  Every key a rule prints starts with a shape word and a space,
+  so no literal key can hold `#` there.
   Adding one of them therefore adds a finding no line holds,
   and removing one leaves a line that tolerates nothing.
+  The number counts the findings of that shape from the first one the rule reports,
+  so it moves only when an identical finding is added above or removed above it:
+  an edit above the finding,
+  or a different block of the same type,
+  renumbers nothing.
 
 The rule holds the list to its size,
 and the list's own record of today's findings is the only thing that does:
@@ -1219,28 +1263,46 @@ What a hand-written line can and cannot hide:
 Which package a list belongs to is the rule's file,
 so the two rules of a crate take two lists.
 
-#### How a list written before alpha.10 maps
+#### How a list written before alpha.11 maps
 
-The keys of five kinds of finding changed and two more shapes are new,
-so a list needs one regeneration,
-and every other line stays as it is:
+An `impl` block's key changed shape,
+a numbered key carries its number in a new place,
+and a folder whose top doc cannot be read reports a new line per file it holds,
+so a list written for alpha.10 needs one regeneration,
+and every other line stays as it is.
+A list written before alpha.10 first needs the mapping in that release's note.
 
-- `index-item <file> impl-block` became `index-item <file> impl-<type>`,
-  with ` for <trait>` after `<type>` when the block names a trait,
-  and a second block for the same type gains `#2`.
-- `index-item <file> private-use` became `index-item <file> private-use-<tree>`,
-  such as `private-use-std::fmt`.
-- `index-item <file> macro-call-<path>` became `index-item <file> macro-call-<path>!(<arguments>)`.
-- `index-item <file> extern-crate` and `index-item <file> extern-block` became
-  `extern-crate-<name>` and `extern-block-<abi string>`.
-- `link <entry>` became `link <entry> <fault>`.
-- A folder whose top doc has no list now reports `missing-entry <index> <file>` for every file
-  beside its `no-file-list` line,
-  so a folder that grows a file is a finding.
-- A second finding of one shape gains `#2`,
-  a third `#3`,
-  and so on,
-  which `--debug` prints.
+- An `impl` block's key gained the members it declares,
+  sorted and separated by spaces:
+  `impl-Display for Holder` became `impl-Display for Holder fmt`,
+  and `impl-Holder` became `impl-Holder one two`.
+  What the block implements is printed as the trait first and the type after ` for `,
+  with no ` for ` when the block names no trait.
+  A block that declares no member keeps the plain key.
+- A numbered key now carries the number in its first word,
+  right after the shape it repeats:
+  `listed-twice src/a/mod.rs one.rs#2` became `listed-twice#2 src/a/mod.rs one.rs`,
+  and `glob src/lib.rs native#2` became `glob#2 src/lib.rs native`.
+  A key printed with `#N` there is the Nth finding of a shape whose own words repeat an earlier finding's,
+  and the number moves only when such an identical finding is added or removed above it.
+- A folder whose top doc cannot be read now reports one `missing-entry` line per file it holds,
+  beside the line about the missing or unreadable doc:
+  `missing-entry <folder> <file>` for a folder with no `mod.rs`,
+  and `missing-entry <index> <file>` for an index file that cannot be read.
+  A `no-top-doc` or `unreadable-index` line therefore tolerates only its own finding.
+
+A `link` key holds the fault of the entry,
+and one entry of a `uses` folder can go wrong in ten ways:
+`unreadable`,
+`not-a-symbolic-link`,
+`broken`,
+`points-to-a-file`,
+`not-a-source-folder`,
+`points-to-its-own-folder`,
+`named-after-another-folder`,
+`uses-unreadable`,
+`uses-is-not-a-folder`,
+and `uses-unlistable`.
 
 ### Known limits
 
@@ -1271,6 +1333,14 @@ and every other line stays as it is:
 - A module that a macro declares is not seen.
 - The rules cannot see a use through a trait method or a type alias that never names the module.
 - `/*! ... */` top docs are not read.
+- A macro call's key holds its whole argument text,
+  so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
+  and any edit inside the call changes that key.
+  A list file is read up to one mebibyte,
+  so a key longer than that cannot be written on any line:
+  a call whose arguments reach a mebibyte must move out of the index file,
+  which is what the finding asks for anyway.
+  Every other key's length follows the path and the names the finding holds.
 
 ### Links and other tools
 
@@ -1286,10 +1356,15 @@ so a package that has `uses` folders needs `exclude = ["**/uses"]` in its `Cargo
 (measured in `doc/planning/cli-git-source-layout.md`,
 section "The `uses/` links and cargo").
 A link that points into a loop of folders makes `cargo package --list` walk without end:
-the wrapper measured 1.9 seconds with its 109 links and no answer after 120 seconds with 421 links in place
-(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`),
-which is why that decision record writes a folder's links only once its uses no longer loop,
-and why the help of a missing-link finding says so before the command.
+the wrapper measured 1.9 seconds over 3038 paths with its 109 links,
+and no answer after 120 seconds with 421 added
+(`doc/planning/cli-git-source-layout.md`,
+the paragraph under section "The `uses/` links and cargo"
+that starts "Measured again on 2026-11-25"),
+which is why
+the decision record (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`)
+writes a folder's links only once its uses no longer loop,
+and why the help of a missing-link finding carries that warning before the command it gives.
 The layout rules themselves find modules by following `mod` lines and read only the names of the entries of a
 `uses` folder,
 never the files behind them.
@@ -1313,7 +1388,14 @@ because it runs Clippy and the test suite and never the repository linter,
 so a round that only runs the gate does not meet the layout rules;
 `mise run //package/git-policy/cli:lint:monochromatic-lint` is the command that does.
 That task runs the installed `cargo:monochromatic-lint`,
-which must be a release that carries the allow-list option.
+and a list must be read by a release at least as new as the one that wrote it:
+a release newer than the list prints keys the list cannot hold,
+and a release older than the list matches no key the newer shape changed.
+A list regenerated for `0.5.2-alpha.10`,
+for example,
+leaves 1,297 dead entries under `0.5.2-alpha.9`.
+So `toolchain.lock.json` and the two lists move together,
+and a release that changes a key shape regenerates the lists in its own round.
 
 ## Explicit Rust types
 
@@ -1418,11 +1500,32 @@ Any other endpoint is rejected with a named reason that never echoes the endpoin
 because it may hold credentials.
 One rejected declaration fails the whole read.
 The root `.gitattributes` and `.lfsconfig` are read up to one mebibyte,
-and a tracked image whose object id the rule computes up to sixteen mebibytes,
+and a tracked image whose object id the rule computes up to the rule's `max-image-bytes` option,
+which is sixteen mebibytes unless configuration names another bound,
 so a mistyped path cannot read a device or a disk image into memory;
 this repository's own `.gitattributes` is 774 bytes,
-its `.lfsconfig` 61 bytes and its largest tracked image 3,380,183 bytes (measured 2026-11-25).
-An image over the bound is a processing failure that names the file and the constant to raise.
+its `.lfsconfig` 61 bytes and its largest tracked image 3,380,183 bytes (measured 2026-11-25),
+about a fifth of the default.
+An image over the bound is a `core/processing-failure` finding that names the file
+and says to raise `max-image-bytes`:
+
+```jsonc
+// monochromatic-lint.config.jsonc
+{
+  "files": ["**/*.md"],
+  "rules": {
+    "markdown/lfs-image-url": { "severity": "error", "max-image-bytes": 33554432 },
+  },
+}
+```
+
+The bound is an option rather than a constant of this crate,
+because the rule ships inside a published binary and its user cannot edit that source;
+raising the option in the repository's own configuration is what a repository with a larger image does.
+The alternative,
+naming the image and skipping it,
+was rejected because a skipped image's object URL is never checked or rewritten,
+so a reader who needs the rule's coverage would have to exclude the whole Markdown file from it.
 
 ## Workflow shell rules
 
