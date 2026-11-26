@@ -180,6 +180,108 @@ fn the_host_is_the_name_the_remote_gives() {
     );
 }
 
+/// A scp-like URL's host ends at its colon, so an absolute path after that colon is a path and never a port.
+#[test]
+fn a_slash_after_a_scp_like_colon_is_a_path_and_not_an_empty_port() {
+    // What: `Target { .. }` is the host the sentence names and the words its `ssh` command needs, both as `String`.
+    // Why:  Git hands ssh `git@host` for this URL with no `-p`, and the sentence must name the command Git ran.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // assert.deepEqual(targetOf('git@host:/srv/git/repo.git'), { host: 'host', connect: 'git@host' });
+    // ```
+    assert_eq!(
+        target_of("git@host:/srv/git/repo.git"),
+        Some(Target {
+            host: String::from("host"),
+            connect: String::from("git@host")
+        })
+    );
+}
+
+/// A number at the start of a scp-like URL's path is the path's own first segment, so no port is written for it.
+#[test]
+fn a_number_at_the_start_of_a_scp_like_path_is_not_a_port() {
+    // Git cuts at the first colon and takes everything after it as the path, so this URL is port 22 with the path
+    //  `2222/repo.git`, and Git's ssh child receives no `-p` (measured: `ssh got: -o SendEnv=GIT_PROTOCOL git@host
+    //  git-upload-pack '2222/repo.git'`).
+    assert_eq!(
+        target_of("git@host:2222/repo.git"),
+        Some(Target {
+            host: String::from("host"),
+            connect: String::from("git@host")
+        })
+    );
+    assert_eq!(
+        target_of("git@host:42/repo.git"),
+        Some(Target {
+            host: String::from("host"),
+            connect: String::from("git@host")
+        })
+    );
+    // The scp-like form has no port at all, so the default one is never written even when the path starts with it.
+    assert_eq!(
+        target_of("git@host:22/repo.git"),
+        Some(Target {
+            host: String::from("host"),
+            connect: String::from("git@host")
+        })
+    );
+}
+
+/// A password a URL carries is not the host, and the user name before its colon is the user the sentence names.
+#[test]
+fn a_password_in_the_url_is_not_the_host() {
+    // Git hands ssh the whole `user:pw@host` as the destination, and ssh reads the last `@` as the user's end, so the host
+    //  is `host` and the user is `user:pw`. The sentence names the host and the user before the password's colon, and prints
+    //  the password nowhere: a password written into a command lands in a shell's history and in a terminal's scrollback.
+    assert_eq!(
+        target_of("ssh://user:pw@host/x"),
+        Some(Target {
+            host: String::from("host"),
+            connect: String::from("user@host")
+        })
+    );
+    // A user name with no password is unchanged, and so is a password on a scp-like URL, whose host ends at the colon.
+    assert_eq!(
+        target_of("ssh://user@host/x"),
+        Some(Target {
+            host: String::from("host"),
+            connect: String::from("user@host")
+        })
+    );
+}
+
+/// A bracketed address is a host the sentence may name, and its command carries the address without the brackets.
+#[test]
+fn a_bracketed_address_is_a_host_the_sentence_may_name() {
+    // Git unwraps a bracketed address before it hands ssh the destination, and ssh reads the bare address as a host
+    //  (measured: `ssh -G git@2001:db8::1` answers `hostname 2001:db8::1 port 22`, where the bracketed form answers
+    //  `hostname [2001:db8::1]`).
+    assert_eq!(
+        target_of("ssh://git@[2001:db8::1]:2200/repo.git"),
+        Some(Target {
+            host: String::from("2001:db8::1"),
+            connect: String::from("-p 2200 git@2001:db8::1")
+        })
+    );
+    assert_eq!(
+        target_of("ssh://git@[2001:db8::1]/repo.git"),
+        Some(Target {
+            host: String::from("2001:db8::1"),
+            connect: String::from("git@2001:db8::1")
+        })
+    );
+    // The scp-like form carries a bracketed address too, and its colon after the brackets begins the path.
+    assert_eq!(
+        target_of("git@[2001:db8::1]:repo.git"),
+        Some(Target {
+            host: String::from("2001:db8::1"),
+            connect: String::from("git@2001:db8::1")
+        })
+    );
+}
+
 /// A host, user or port that is not a plain word is dropped rather than printed into a command.
 #[test]
 fn nothing_a_host_cannot_hold_reaches_the_sentence() {
