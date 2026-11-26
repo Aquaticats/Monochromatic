@@ -40,6 +40,22 @@
 //!  numbers decide,
 //!  and the release string is identity and reporting only.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `gate_paths.rs`:
+//!   the device,
+//!   identity and type-information paths one check reads.
+//! - `gate_target.rs`:
+//!   the target allowlist the managed route is qualified for.
+//! - `module_identity.rs`:
+//!   the loaded module's identity and each file's own facts.
+//! - `gate_verdict.rs`:
+//!   the check,
+//!   its one retry and the per-process cache.
+//! - `gate_words.rs`:
+//!   the words the caller and `doctor` print.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const verdict = beforeRequests(); // { compatible } | { refusal }

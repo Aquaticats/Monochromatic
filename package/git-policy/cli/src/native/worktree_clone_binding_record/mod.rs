@@ -24,49 +24,57 @@
 //!  are the route's own files beside this folder.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `binding_words.rs`:
 //!   the header,
 //!   the eight phases,
 //!   the seven settle reasons,
 //!   the three request forms and the keys' order.
-//! - `binding_encoding.rs`:
-//!   the four encodings a record writes.
-//! - `record_refusal.rs`:
-//!   why bytes are not a record,
-//!   and the sentence a person reads.
+//! - `registration_home.rs`:
+//!   the folder,
+//!   the four name forms and the plan folder.
+//! - `add_state_commands.rs`:
+//!   the command each state names.
 //! - `binding_bound.rs`:
 //!   the byte bounds computed from the kernel limits they rest on.
+//! - `binding_encoding.rs`:
+//!   the four encodings a record writes.
+//! - `binding_inventory.rs`:
+//!   the two inventories' grammar and reading.
 //! - `binding_record.rs`:
 //!   the binding's fields,
 //!   which phase proves each,
 //!   and its bytes.
+//! - `lock_words.rs`:
+//!   the lock's sentence and the comparison that proves it the wrapper's.
+//! - `record_refusal.rs`:
+//!   why bytes are not a record,
+//!   and the sentence a person reads.
+//! - `binding_field_set.rs`:
+//!   the fields one binding parse has read so far,
+//!   each still optional until the whole record answers,
+//!   and the check that every field its phase needs is present.
+//! - `binding_inventory_parse.rs`:
+//!   reading one inventory's bytes as the file its name says it is.
 //! - `binding_parse.rs`:
 //!   reading one binding's bytes,
 //!   field by field and in order.
-//! - `binding_inventory.rs`:
-//!   the two inventories' grammar and reading.
-//! - `lock_words.rs`:
-//!   the lock's sentence and the comparison that proves it the wrapper's.
-//! - `registration_home.rs`:
-//!   the folder,
-//!   the four name forms and the plan folder.
-//! - `record_publication.rs`:
-//!   the flushed replacing write,
-//!   the write-once inventories and the reading that refuses a foreign file.
 //! - `registration_finder.rs`:
 //!   Git's sanitiser,
 //!   the candidate names and the rows a kill leaves.
-//! - `registration_resume.rs`:
-//!   what the resume does with each row and with a listing that holds none.
-//! - `registration_recipe.rs`:
-//!   the eight removals and the one lock completion.
 //! - `plan_folder_read.rs`:
 //!   the plan that names the add's clone,
 //!   and the fields its stop reads.
-//! - `add_state_commands.rs`:
-//!   the command each state names.
+//! - `record_publication.rs`:
+//!   the flushed replacing write,
+//!   the write-once inventories and the reading that refuses a foreign file.
+//! - `registration_recipe.rs`:
+//!   the eight removals and the one lock completion.
+//! - `registration_removals.rs`:
+//!   the answers registration removals holds.
+//! - `registration_resume.rs`:
+//!   what the resume does with each row and with a listing that holds none.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -17,6 +17,30 @@
 //! "Folders to move"),
 //! where it gets its `uses/` folder like every other folder.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `repository_link_answer.rs`:
+//!   the answers of the check and their plain messages.
+//! - `repository_link_identity.rs`:
+//!   the identity file the cut-over writes and the check reads.
+//! - `repository_link_paths.rs`:
+//!   the paths an invocation names,
+//!   and whether one of them lies under the repository link.
+//! - `repository_link_probe.rs`:
+//!   the filesystem questions the check asks,
+//!   and the probe that answers them from the running system.
+//! - `repository_link_check_walk.rs`:
+//!   the check itself,
+//!   with its deadline.
+//! - `repository_link_doctor_line.rs`:
+//!   the line the doctor prints about the link to the 860 drive.
+//! - `repository_link_gate.rs`:
+//!   the gate that runs the check for the commands that touch the repository.
+//! - `repository_move_freeze.rs`:
+//!   whether a repository move has frozen a repository,
+//!   read from the move's own record.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const gate = repositoryLinkGate({ home, paths }); // { kind: 'clear' } | { kind: 'stop', stderr }

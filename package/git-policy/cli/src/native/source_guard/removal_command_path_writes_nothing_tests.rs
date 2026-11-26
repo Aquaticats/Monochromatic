@@ -77,10 +77,16 @@ struct WritingName {
 /// the plan folder's own type,
 /// whose every writer is a method on it,
 /// the unmount request,
-/// and the snapshot batch's request.
-/// The snapshot batch's request is the one the batch's own module re-exports,
+/// the snapshot batch's request,
+/// the finish pass that settles a removal whose head is gone,
+/// the cancel command,
+/// and the settle command.
+/// The names whose own module re-exports them
+/// are the batch's request,
+/// the finish pass's entry
+/// and the settle command,
 /// and a re-export is no call,
-/// so that module is named beside its declaration.
+/// so those modules are named beside their declarations.
 const THE_WRITING_NAMES: &[WritingName] = &[
     WritingName {
         banned: "enter_the_removal",
@@ -123,6 +129,27 @@ const THE_WRITING_NAMES: &[WritingName] = &[
         declaration: "fn send_request(",
         publishing_files: &["worktree_clone_snapshot_batch/mod.rs"],
         what: "sends one verified snapshot request to the pool",
+    },
+    WritingName {
+        banned: "finish_the_removal_plans",
+        declaring_file: "worktree_clone_removal_finish_pass/pass_over_the_plans.rs",
+        declaration: "pub fn finish_the_removal_plans(",
+        publishing_files: &["worktree_clone_removal_finish_pass/mod.rs"],
+        what: "reads the plan folder and settles the plans of a removal whose head is gone",
+    },
+    WritingName {
+        banned: "cancel_the_removal",
+        declaring_file: "worktree_clone_removal_cancel/the_cancel_command.rs",
+        declaration: "pub fn cancel_the_removal(",
+        publishing_files: &[],
+        what: "reverses a removal under the slot's claim and rewrites its records",
+    },
+    WritingName {
+        banned: "settle_the_records_of_a_slot",
+        declaring_file: "worktree_clone_record_settling/settling_command.rs",
+        declaration: "pub fn settle_the_records_of_a_slot(",
+        publishing_files: &["worktree_clone_record_settling/mod.rs"],
+        what: "settles the records a person typed the flags of, under the slot's claim",
     },
 ];
 

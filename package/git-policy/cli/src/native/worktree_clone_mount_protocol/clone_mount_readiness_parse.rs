@@ -31,6 +31,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
     ReadyState,
     SweepState,
 };
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT;
 use crate::worktree_clone_mount_protocol::request_nonce::{
     NonceRefusal,
     RequestNonce,
@@ -159,7 +160,7 @@ impl ReadinessParseRefusal {
             } => format!("`time {value}` is not an ISO 8601 time with an offset"),
         };
         return format!(
-            "the file in the readiness directory is not a readiness record this route wrote: {reason}. Nothing was attached, mounted or unmounted on its answer. Ways forward: run the handler's `boot-reconcile` in this boot, which plan step 8 builds, and read `journalctl -u reconcile-git-worktree-clone-mounts.service`, whose unit plan step 19 installs; do not hand-edit the file."
+            "the file in the readiness directory is not a readiness record this route wrote: {reason}. Nothing was attached, mounted or unmounted on its answer. Ways forward: run the handler's `boot-reconcile` in this boot, which plan step 8 builds. {NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT}; do not hand-edit the file."
         );
     }
 }

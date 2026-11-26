@@ -256,39 +256,39 @@ fn is_converting_of(
 /// and a serial run waits there until its patience ends.
 #[test]
 fn worktrees_are_converted_side_by_side() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "worktrees_are_converted_side_by_side",
-    ) {
-        return;
-    }
-    let _room: usize = room_for("worktrees_are_converted_side_by_side", WORKTREES);
-    let (parent, root) = checkout_with_worktrees("convert-parallel-overlap", WORKTREES);
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES));
-    let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
-    let platform: Arc<Watched> = Arc::new(Watched {
-        on_create: Box::new(move |_path: &Path| {
-            if at_the_point.arrive() {
-                met_it.fetch_add(1, Ordering::SeqCst);
-            }
-            return Ok(());
-        }),
-        ..Watched::quiet()
-    });
-    let (code, lines) = run_on(
-        &shared(&platform),
-        &LARGE_HOST,
-        &all_arguments(),
-        root.as_path(),
+        || {
+            let _room: usize = room_for("worktrees_are_converted_side_by_side", WORKTREES);
+            let (parent, root) = checkout_with_worktrees("convert-parallel-overlap", WORKTREES);
+            let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES));
+            let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
+            let platform: Arc<Watched> = Arc::new(Watched {
+                on_create: Box::new(move |_path: &Path| {
+                    if at_the_point.arrive() {
+                        met_it.fetch_add(1, Ordering::SeqCst);
+                    }
+                    return Ok(());
+                }),
+                ..Watched::quiet()
+            });
+            let (code, lines) = run_on(
+                &shared(&platform),
+                &LARGE_HOST,
+                &all_arguments(),
+                root.as_path(),
+            );
+            assert_eq!(code, 0, "{lines:#?}");
+            assert_eq!(
+                met.load(Ordering::SeqCst),
+                WORKTREES,
+                "every conversion met the others while it ran: {lines:#?}"
+            );
+            remove(parent.as_path());
+        },
     );
-    assert_eq!(code, 0, "{lines:#?}");
-    assert_eq!(
-        met.load(Ordering::SeqCst),
-        WORKTREES,
-        "every conversion met the others while it ran: {lines:#?}"
-    );
-    remove(parent.as_path());
 }
 
 /// The report is the one a run of one worktree after another gives,
@@ -298,107 +298,107 @@ fn worktrees_are_converted_side_by_side() {
 /// and its lines still come first.
 #[test]
 fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_report_keeps_input_order_whichever_worktree_finishes_first",
-    ) {
-        return;
-    }
-    // The first worktree waits for the other three while the run shows work, so all four must run at once, and the room
-    //  this control takes makes that independent of the CPUs this machine has.
-    // The first worktree waits inside its conversion for the other three, so it holds a place while it waits: the room is
-    //  one place more than the worktrees, and a run whose waiting worktree took the last place its peers need cannot happen.
-    let _room: usize = room_for(
-        "the_report_keeps_input_order_whichever_worktree_finishes_first",
-        WORKTREES + 1,
-    );
-    let (parent, root) = checkout_with_worktrees("convert-parallel-order", WORKTREES);
-    let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES - 1));
-    let first_of_all: String = name_of(0);
-    let peers: usize = WORKTREES - 1;
-    let met: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let (waited_on, arrived, met_by_the_first, first_for_the_swap) = (
-        Arc::clone(&others_done),
-        Arc::clone(&others_done),
-        Arc::clone(&met),
-        first_of_all.clone(),
-    );
-    let platform: Arc<Watched> = Arc::new(Watched {
-        on_create: Box::new(move |path: &Path| {
-            if is_converting_of(path, first_of_all.as_str()) {
-                // The wait ends when the others reached the swap, or when the run shows no sign of work: a wait that gave up
-                //  on the clock would fail a conversion that is merely slow, and its panic inside a job of the pool would be
-                //  reported as a defect of the program rather than as this control's verdict.
-                met_by_the_first.store(
-                    wait_until(&|| {
-                        return waited_on.arrived() >= peers;
+        || {
+            // The first worktree waits for the other three while the run shows work, so all four must run at once, and the room
+            //  this control takes makes that independent of the CPUs this machine has.
+            // The first worktree waits inside its conversion for the other three, so it holds a place while it waits: the room is
+            //  one place more than the worktrees, and a run whose waiting worktree took the last place its peers need cannot happen.
+            let _room: usize = room_for(
+                "the_report_keeps_input_order_whichever_worktree_finishes_first",
+                WORKTREES + 1,
+            );
+            let (parent, root) = checkout_with_worktrees("convert-parallel-order", WORKTREES);
+            let others_done: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES - 1));
+            let first_of_all: String = name_of(0);
+            let peers: usize = WORKTREES - 1;
+            let met: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+            let (waited_on, arrived, met_by_the_first, first_for_the_swap) = (
+                Arc::clone(&others_done),
+                Arc::clone(&others_done),
+                Arc::clone(&met),
+                first_of_all.clone(),
+            );
+            let platform: Arc<Watched> = Arc::new(Watched {
+                on_create: Box::new(move |path: &Path| {
+                    if is_converting_of(path, first_of_all.as_str()) {
+                        // The wait ends when the others reached the swap, or when the run shows no sign of work: a wait that gave up
+                        //  on the clock would fail a conversion that is merely slow, and its panic inside a job of the pool would be
+                        //  reported as a defect of the program rather than as this control's verdict.
+                        met_by_the_first.store(
+                            wait_until(&|| {
+                                return waited_on.arrived() >= peers;
+                            }),
+                            Ordering::SeqCst,
+                        );
+                    }
+                    return Ok(());
+                }),
+                on_exchange: Box::new(move |path: &Path| {
+                    if !path.ends_with(first_for_the_swap.as_str()) {
+                        arrived.arrive_without_waiting();
+                    }
+                }),
+                ..Watched::quiet()
+            });
+            let (code, lines) = run_on(
+                &shared(&platform),
+                &LARGE_HOST,
+                &all_arguments(),
+                root.as_path(),
+            );
+            assert_eq!(code, 0, "{lines:#?}");
+            assert!(
+                met.load(Ordering::SeqCst),
+                "the other worktrees never reached the swap while the first waited, and the run it waited in showed no sign of work: {lines:#?}"
+            );
+            assert_eq!(lines.first().map(String::as_str), Some(RISK_NOTICE));
+            let starts: Vec<usize> = (0..WORKTREES)
+                .map(|index: usize| {
+                    return lines
+                        .iter()
+                        .position(|line: &String| {
+                            return line.ends_with(format!("/{}", name_of(index)).as_str());
+                        })
+                        .expect("the worktree is named");
+                })
+                .collect();
+            assert!(
+                starts.windows(2).all(|pair: &[usize]| {
+                    return pair[0] < pair[1];
+                }),
+                "named in input order: {lines:#?}"
+            );
+            for (index, start) in starts.iter().enumerate() {
+                let end: usize = starts.get(index + 1).copied().unwrap_or(lines.len() - 1);
+                let own: &[String] = &lines[start + 1..end];
+                assert_eq!(
+                    own.iter()
+                        .filter(|line: &&String| {
+                            return line.as_str() == "  converted into a subvolume";
+                        })
+                        .count(),
+                    1,
+                    "{own:#?}"
+                );
+                assert!(
+                    own.iter().all(|line: &String| {
+                        return line.starts_with("  ");
                     }),
-                    Ordering::SeqCst,
+                    "only this worktree's lines between its name and the next: {own:#?}"
                 );
             }
-            return Ok(());
-        }),
-        on_exchange: Box::new(move |path: &Path| {
-            if !path.ends_with(first_for_the_swap.as_str()) {
-                arrived.arrive_without_waiting();
-            }
-        }),
-        ..Watched::quiet()
-    });
-    let (code, lines) = run_on(
-        &shared(&platform),
-        &LARGE_HOST,
-        &all_arguments(),
-        root.as_path(),
+            assert!(
+                lines.last().is_some_and(|line: &String| {
+                    return line.starts_with(format!("{WORKTREES} worktree(s) looked at").as_str());
+                }),
+                "{lines:#?}"
+            );
+            remove(parent.as_path());
+        },
     );
-    assert_eq!(code, 0, "{lines:#?}");
-    assert!(
-        met.load(Ordering::SeqCst),
-        "the other worktrees never reached the swap while the first waited, and the run it waited in showed no sign of work: {lines:#?}"
-    );
-    assert_eq!(lines.first().map(String::as_str), Some(RISK_NOTICE));
-    let starts: Vec<usize> = (0..WORKTREES)
-        .map(|index: usize| {
-            return lines
-                .iter()
-                .position(|line: &String| {
-                    return line.ends_with(format!("/{}", name_of(index)).as_str());
-                })
-                .expect("the worktree is named");
-        })
-        .collect();
-    assert!(
-        starts.windows(2).all(|pair: &[usize]| {
-            return pair[0] < pair[1];
-        }),
-        "named in input order: {lines:#?}"
-    );
-    for (index, start) in starts.iter().enumerate() {
-        let end: usize = starts.get(index + 1).copied().unwrap_or(lines.len() - 1);
-        let own: &[String] = &lines[start + 1..end];
-        assert_eq!(
-            own.iter()
-                .filter(|line: &&String| {
-                    return line.as_str() == "  converted into a subvolume";
-                })
-                .count(),
-            1,
-            "{own:#?}"
-        );
-        assert!(
-            own.iter().all(|line: &String| {
-                return line.starts_with("  ");
-            }),
-            "only this worktree's lines between its name and the next: {own:#?}"
-        );
-    }
-    assert!(
-        lines.last().is_some_and(|line: &String| {
-            return line.starts_with(format!("{WORKTREES} worktree(s) looked at").as_str());
-        }),
-        "{lines:#?}"
-    );
-    remove(parent.as_path());
 }
 
 /// A creation that fails in the first worktree leaves its journal and no other trace,
@@ -560,24 +560,24 @@ fn busiest_of(
 /// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_budget_of_the_host_bounds_the_overlap",
-    ) {
-        return;
-    }
-    let host: HostResources = HostResources {
-        parallelism: 3,
-        memory_available: None,
-    };
-    let allowed: usize = conversion_workers(usize::MAX, None, &host);
-    assert!(
-        allowed > 1,
-        "the control needs a bound above one: {allowed}"
-    );
-    assert_eq!(
-        busiest_of("convert-parallel-budget", &host, None, allowed),
-        allowed
+        || {
+            let host: HostResources = HostResources {
+                parallelism: 3,
+                memory_available: None,
+            };
+            let allowed: usize = conversion_workers(usize::MAX, None, &host);
+            assert!(
+                allowed > 1,
+                "the control needs a bound above one: {allowed}"
+            );
+            assert_eq!(
+                busiest_of("convert-parallel-budget", &host, None, allowed),
+                allowed
+            );
+        },
     );
 }
 
@@ -585,32 +585,32 @@ fn the_budget_of_the_host_bounds_the_overlap() {
 /// a host with room for one conversion converts one at a time.
 #[test]
 fn the_free_memory_of_the_host_bounds_the_overlap() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_free_memory_of_the_host_bounds_the_overlap",
-    ) {
-        return;
-    }
-    let host: HostResources = HostResources {
-        parallelism: WORKTREES * 8,
-        memory_available: Some(CONVERSION_MEMORY),
-    };
-    assert_eq!(busiest_of("convert-parallel-memory", &host, None, 1), 1);
+        || {
+            let host: HostResources = HostResources {
+                parallelism: WORKTREES * 8,
+                memory_available: Some(CONVERSION_MEMORY),
+            };
+            assert_eq!(busiest_of("convert-parallel-memory", &host, None, 1), 1);
+        },
+    );
 }
 
 /// The person's cap bounds the overlap on a host that allows more.
 #[test]
 fn jobs_caps_the_overlap() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "jobs_caps_the_overlap",
-    ) {
-        return;
-    }
-    let cap: usize = 2;
-    assert_eq!(
-        busiest_of("convert-parallel-jobs", &LARGE_HOST, Some(cap), cap),
-        cap
+        || {
+            let cap: usize = 2;
+            assert_eq!(
+                busiest_of("convert-parallel-jobs", &LARGE_HOST, Some(cap), cap),
+                cap
+            );
+        },
     );
 }
 
@@ -856,57 +856,57 @@ fn the_conversions_run_on_the_processs_runtime() {
 /// and a conversion run on a worker of the runtime instead would start at once.
 #[test]
 fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_conversions_take_places_of_the_processs_bound_on_blocking_jobs",
-    ) {
-        return;
-    }
-    // One conversion proves it, and it is the only one that may run: the place this control holds is the process's
-    //  only place, so four worktrees here would be four conversions one after another, which under the load of a whole
-    //  suite can outlast the test watchdog (measured: 105 s in a suite, 1.1 s alone).
-    // The room is the control's, never the CPUs this machine has, so the runtime it holds a place of is sized by this call.
-    let _room: usize = room_for(
-        "the_conversions_take_places_of_the_processs_bound_on_blocking_jobs",
-        ONE_PLACE,
+        || {
+            // One conversion proves it, and it is the only one that may run: the place this control holds is the process's
+            //  only place, so four worktrees here would be four conversions one after another, which under the load of a whole
+            //  suite can outlast the test watchdog (measured: 105 s in a suite, 1.1 s alone).
+            // The room is the control's, never the CPUs this machine has, so the runtime it holds a place of is sized by this call.
+            let _room: usize = room_for(
+                "the_conversions_take_places_of_the_processs_bound_on_blocking_jobs",
+                ONE_PLACE,
+            );
+            let (parent, root) =
+                checkout_with_worktrees("convert-parallel-a-place-of-the-bound", ONE_CONVERSION);
+            let (given_back, finished) = hold_the_only_place();
+            let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
+                Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
+            let platform: Arc<Watched> = Arc::new(Watched {
+                on_create: Box::new(move |_path: &Path| {
+                    began
+                        .lock()
+                        .expect("lock")
+                        .push(given.load(Ordering::SeqCst));
+                    return Ok(());
+                }),
+                ..Watched::quiet()
+            });
+            let named: ConvertArguments = ConvertArguments {
+                paths: vec![name_of(0).into()],
+                ..ConvertArguments::default()
+            };
+            let (code, lines) = run_on(&shared(&platform), &LARGE_HOST, &named, root.as_path());
+            assert_eq!(code, 0, "{lines:#?}");
+            let seen: Vec<bool> = started_after.lock().expect("lock").clone();
+            assert_eq!(
+                seen,
+                vec![true; ONE_CONVERSION],
+                "a conversion started while another job held the only place of the process's bound, so it did not take one: {lines:#?}"
+            );
+            // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
+            //  reached the process's bound instead of starting at once.
+            assert!(
+                finished
+                    .recv_timeout(PATIENCE)
+                    .expect("the job that holds the place never returned"),
+                "no job of the work under test asked for a place of the process's bound, so it did not take one"
+            );
+            remove(parent.as_path());
+        },
     );
-    let (parent, root) =
-        checkout_with_worktrees("convert-parallel-a-place-of-the-bound", ONE_CONVERSION);
-    let (given_back, finished) = hold_the_only_place();
-    let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
-        Arc::new(std::sync::Mutex::new(Vec::new()));
-    let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
-    let platform: Arc<Watched> = Arc::new(Watched {
-        on_create: Box::new(move |_path: &Path| {
-            began
-                .lock()
-                .expect("lock")
-                .push(given.load(Ordering::SeqCst));
-            return Ok(());
-        }),
-        ..Watched::quiet()
-    });
-    let named: ConvertArguments = ConvertArguments {
-        paths: vec![name_of(0).into()],
-        ..ConvertArguments::default()
-    };
-    let (code, lines) = run_on(&shared(&platform), &LARGE_HOST, &named, root.as_path());
-    assert_eq!(code, 0, "{lines:#?}");
-    let seen: Vec<bool> = started_after.lock().expect("lock").clone();
-    assert_eq!(
-        seen,
-        vec![true; ONE_CONVERSION],
-        "a conversion started while another job held the only place of the process's bound, so it did not take one: {lines:#?}"
-    );
-    // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
-    //  reached the process's bound instead of starting at once.
-    assert!(
-        finished
-            .recv_timeout(PATIENCE)
-            .expect("the job that holds the place never returned"),
-        "no job of the work under test asked for a place of the process's bound, so it did not take one"
-    );
-    remove(parent.as_path());
 }
 
 /// What:
@@ -925,78 +925,80 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
 /// a run that had looked before it waited could not.
 #[test]
 fn what_a_run_covers_is_found_after_it_first_waits_rather_than_before() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "what_a_run_covers_is_found_after_it_first_waits_rather_than_before",
-    ) {
-        return;
-    }
-    let (parent, root) =
-        checkout_with_worktrees("convert-finds-targets-after-waiting", ONE_CONVERSION);
-    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(
-        crate::parallel_test_support::ONE_PLACE,
-    );
-    let (holding, held) = std::sync::mpsc::channel::<()>();
-    let (release, waiting) = std::sync::mpsc::channel::<()>();
-    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
-        let _outcome =
-            crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-                let _told = holding.send(());
-                let _ = waiting.recv();
-            })
-            .await;
-    });
-    assert!(
-        busy.is_some(),
-        "the runtime has a worker, so the process's only place can be held"
-    );
-    assert!(
-        held.recv_timeout(PATIENCE).is_ok(),
-        "the job that holds the only place never started"
-    );
-    // The run on a thread of its own, so this control can register a worktree while the run waits.
-    let run_root: PathBuf = root.clone();
-    let run = std::thread::spawn(move || {
-        let arguments: ConvertArguments = all_arguments();
-        let mut lines: Vec<String> = Vec::new();
-        let run: ConvertRun<'_> = ConvertRun {
-            platform: shared_quiet(),
-            arguments: &arguments,
-            cwd: run_root.as_path(),
-            interrupt: Arc::new(Interrupt::never()),
-            host: &LARGE_HOST,
-        };
-        let code: i32 = execute_run(&run, &mut |text: &str| {
-            lines.push(String::from(text));
-        });
-        return (code, lines);
-    });
-    // The run has asked for a place, so whatever it does before its first wait is done by now.
-    assert!(
+        || {
+            let (parent, root) =
+                checkout_with_worktrees("convert-finds-targets-after-waiting", ONE_CONVERSION);
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(
+                crate::parallel_test_support::ONE_PLACE,
+            );
+            let (holding, held) = std::sync::mpsc::channel::<()>();
+            let (release, waiting) = std::sync::mpsc::channel::<()>();
+            let busy = crate::lazy_runtime::spawn_on_runtime(async move {
+                let _outcome =
+                    crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
+                        move || {
+                            let _told = holding.send(());
+                            let _ = waiting.recv();
+                        },
+                    )
+                    .await;
+            });
+            assert!(
+                busy.is_some(),
+                "the runtime has a worker, so the process's only place can be held"
+            );
+            assert!(
+                held.recv_timeout(PATIENCE).is_ok(),
+                "the job that holds the only place never started"
+            );
+            // The run on a thread of its own, so this control can register a worktree while the run waits.
+            let run_root: PathBuf = root.clone();
+            let run = std::thread::spawn(move || {
+                let arguments: ConvertArguments = all_arguments();
+                let mut lines: Vec<String> = Vec::new();
+                let run: ConvertRun<'_> = ConvertRun {
+                    platform: shared_quiet(),
+                    arguments: &arguments,
+                    cwd: run_root.as_path(),
+                    interrupt: Arc::new(Interrupt::never()),
+                    host: &LARGE_HOST,
+                };
+                let code: i32 = execute_run(&run, &mut |text: &str| {
+                    lines.push(String::from(text));
+                });
+                return (code, lines);
+            });
+            // The run has asked for a place, so whatever it does before its first wait is done by now.
+            assert!(
         crate::blocking_jobs_within_the_budget::jobs_waiting_for_a_place::wait_until_a_job_waits(
             PATIENCE
         ),
         "the run asked for a place of the process's bound"
     );
-    // A linked worktree registered now must still be found by a run that has not looked yet.
-    git(
-        root.as_path(),
-        &["worktree", "add", "--quiet", "--detach", LATER],
+            // A linked worktree registered now must still be found by a run that has not looked yet.
+            git(
+                root.as_path(),
+                &["worktree", "add", "--quiet", "--detach", LATER],
+            );
+            let mut exclude: String =
+                std::fs::read_to_string(root.join(".git/info/exclude")).unwrap_or_default();
+            exclude.push_str(format!("/{LATER}/\n").as_str());
+            std::fs::write(root.join(".git/info/exclude"), exclude).expect("exclude");
+            backdate(root.join(LATER).as_path());
+            git(root.join(LATER).as_path(), &["update-index", "--refresh"]);
+            let _let_go = release.send(());
+            let (code, lines) = run.join().expect("the run's thread ended");
+            assert_eq!(code, 0, "{lines:#?}");
+            assert!(
+                lines.iter().any(|line: &String| {
+                    return line.ends_with(format!("/{LATER}").as_str());
+                }),
+                "the worktree registered while the run waited was not converted, so the run had decided what it covers before it first waited: {lines:#?}"
+            );
+            remove(parent.as_path());
+        },
     );
-    let mut exclude: String =
-        std::fs::read_to_string(root.join(".git/info/exclude")).unwrap_or_default();
-    exclude.push_str(format!("/{LATER}/\n").as_str());
-    std::fs::write(root.join(".git/info/exclude"), exclude).expect("exclude");
-    backdate(root.join(LATER).as_path());
-    git(root.join(LATER).as_path(), &["update-index", "--refresh"]);
-    let _let_go = release.send(());
-    let (code, lines) = run.join().expect("the run's thread ended");
-    assert_eq!(code, 0, "{lines:#?}");
-    assert!(
-        lines.iter().any(|line: &String| {
-            return line.ends_with(format!("/{LATER}").as_str());
-        }),
-        "the worktree registered while the run waited was not converted, so the run had decided what it covers before it first waited: {lines:#?}"
-    );
-    remove(parent.as_path());
 }

@@ -131,40 +131,40 @@ fn remove_with(
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_entries_are_removed_side_by_side",
-    ) {
-        return;
-    }
-    // The removals never take every place of the pool, so the control gives them the one they leave free on top: the
-    //  place the round keeps for a client, which is the place the process keeps out of slow work as well.
-    let _room: usize = room_for(
-        "the_entries_are_removed_side_by_side",
-        a_place_over(ENTRIES),
-    );
-    let (root, held, manifest) = trash_with_entries("trash-entries-overlap");
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ENTRIES));
-    let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
-    let one_removal: Arc<RemoveOne> = Arc::new(
-        move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
-            if at_the_point.arrive() {
-                met_it.fetch_add(1, Ordering::SeqCst);
+        || {
+            // The removals never take every place of the pool, so the control gives them the one they leave free on top: the
+            //  place the round keeps for a client, which is the place the process keeps out of slow work as well.
+            let _room: usize = room_for(
+                "the_entries_are_removed_side_by_side",
+                a_place_over(ENTRIES),
+            );
+            let (root, held, manifest) = trash_with_entries("trash-entries-overlap");
+            let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ENTRIES));
+            let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let (at_the_point, met_it) = (Arc::clone(&point), Arc::clone(&met));
+            let one_removal: Arc<RemoveOne> = Arc::new(
+                move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
+                    if at_the_point.arrive() {
+                        met_it.fetch_add(1, Ordering::SeqCst);
+                    }
+                    return remove_tree_beneath(label, parent, name, expected);
+                },
+            );
+            let left = remove_with(&held, root.as_path(), &manifest, &LARGE_HOST, &one_removal);
+            assert!(left.is_empty(), "{left:?}");
+            assert_eq!(met.load(Ordering::SeqCst), ENTRIES);
+            for index in 0..ENTRIES {
+                assert!(
+                    !root.join("trash").join(entry_name(index)).exists(),
+                    "d{index} is gone"
+                );
             }
-            return remove_tree_beneath(label, parent, name, expected);
+            remove(root.as_path());
         },
     );
-    let left = remove_with(&held, root.as_path(), &manifest, &LARGE_HOST, &one_removal);
-    assert!(left.is_empty(), "{left:?}");
-    assert_eq!(met.load(Ordering::SeqCst), ENTRIES);
-    for index in 0..ENTRIES {
-        assert!(
-            !root.join("trash").join(entry_name(index)).exists(),
-            "d{index} is gone"
-        );
-    }
-    remove(root.as_path());
 }
 
 /// Entries that stay give their reasons in entry order,
@@ -172,111 +172,112 @@ fn the_entries_are_removed_side_by_side() {
 /// and the others are removed.
 #[test]
 fn the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go",
-    ) {
-        return;
-    }
-    let _room: usize = room_for(
-        "the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go",
-        ENTRIES,
-    );
-    let (root, held, manifest) = trash_with_entries("trash-entries-reasons");
-    let later_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(ENTRIES - 1, PATIENCE));
-    let others = Arc::clone(&later_done);
-    let one_removal: Arc<RemoveOne> = Arc::new(
-        move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
-            let own: bool = name == std::ffi::OsStr::new(entry_name(0).as_str());
-            if own {
+        || {
+            let _room: usize = room_for(
+                "the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go",
+                ENTRIES,
+            );
+            let (root, held, manifest) = trash_with_entries("trash-entries-reasons");
+            let later_done: Arc<Rendezvous> =
+                Arc::new(Rendezvous::impatient(ENTRIES - 1, PATIENCE));
+            let others = Arc::clone(&later_done);
+            let one_removal: Arc<RemoveOne> = Arc::new(
+                move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
+                    let own: bool = name == std::ffi::OsStr::new(entry_name(0).as_str());
+                    if own {
+                        assert!(
+                            others.wait_for_target(),
+                            "the other entries were handled while the first waited"
+                        );
+                        return Err(String::from("d0 stays"));
+                    }
+                    let outcome = remove_tree_beneath(label, parent, name, expected);
+                    others.arrive_without_waiting();
+                    return if name == std::ffi::OsStr::new(entry_name(1).as_str()) {
+                        Err(String::from("d1 stays"))
+                    } else {
+                        outcome
+                    };
+                },
+            );
+            let left = remove_with(&held, root.as_path(), &manifest, &LARGE_HOST, &one_removal);
+            assert_eq!(
+                left,
+                vec![String::from("d0 stays"), String::from("d1 stays")]
+            );
+            assert!(
+                root.join("trash").join(entry_name(0)).exists(),
+                "the entry that stays is untouched"
+            );
+            for index in 2..ENTRIES {
                 assert!(
-                    others.wait_for_target(),
-                    "the other entries were handled while the first waited"
+                    !root.join("trash").join(entry_name(index)).exists(),
+                    "d{index} is gone"
                 );
-                return Err(String::from("d0 stays"));
             }
-            let outcome = remove_tree_beneath(label, parent, name, expected);
-            others.arrive_without_waiting();
-            return if name == std::ffi::OsStr::new(entry_name(1).as_str()) {
-                Err(String::from("d1 stays"))
-            } else {
-                outcome
-            };
+            remove(root.as_path());
         },
     );
-    let left = remove_with(&held, root.as_path(), &manifest, &LARGE_HOST, &one_removal);
-    assert_eq!(
-        left,
-        vec![String::from("d0 stays"), String::from("d1 stays")]
-    );
-    assert!(
-        root.join("trash").join(entry_name(0)).exists(),
-        "the entry that stays is untouched"
-    );
-    for index in 2..ENTRIES {
-        assert!(
-            !root.join("trash").join(entry_name(index)).exists(),
-            "d{index} is gone"
-        );
-    }
-    remove(root.as_path());
 }
 
 /// The host's budget bounds the overlap.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_budget_of_the_host_bounds_the_overlap",
-    ) {
-        return;
-    }
-    let (root, held, manifest) = trash_with_entries("trash-entries-budget");
-    let host: HostResources = HostResources {
-        parallelism: 3,
-        memory_available: None,
-    };
-    let allowed: usize = worker_budget(&BudgetRequest {
-        items: ENTRIES,
-        per_item_memory: ENTRY_MEMORY,
-        ceiling: None,
-        cap: None,
-        host: &host,
-    });
-    assert!(
-        allowed > 1 && allowed < ENTRIES,
-        "the control needs a bound between one and the entries: {allowed}"
-    );
-    // The removals reach that bound only when the process itself allows as many at once, and they never take every place of
-    //  the pool, so the control gives them the one they leave free on top: the place the round keeps for a client, which
-    //  is the place the process keeps out of slow work as well.
-    let _room: usize = room_for(
-        "the_budget_of_the_host_bounds_the_overlap",
-        a_place_over(allowed),
-    );
-    let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    // The patience bounds only how long a run that never reaches the bound waits before it fails.
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, PATIENCE));
-    let (live, most, at_the_point) = (
-        Arc::clone(&running),
-        Arc::clone(&busiest),
-        Arc::clone(&point),
-    );
-    let one_removal: Arc<RemoveOne> = Arc::new(
-        move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
-            let now: usize = live.fetch_add(1, Ordering::SeqCst) + 1;
-            most.fetch_max(now, Ordering::SeqCst);
-            at_the_point.arrive_at_the_bound(allowed);
-            let outcome = remove_tree_beneath(label, parent, name, expected);
-            live.fetch_sub(1, Ordering::SeqCst);
-            return outcome;
+        || {
+            let (root, held, manifest) = trash_with_entries("trash-entries-budget");
+            let host: HostResources = HostResources {
+                parallelism: 3,
+                memory_available: None,
+            };
+            let allowed: usize = worker_budget(&BudgetRequest {
+                items: ENTRIES,
+                per_item_memory: ENTRY_MEMORY,
+                ceiling: None,
+                cap: None,
+                host: &host,
+            });
+            assert!(
+                allowed > 1 && allowed < ENTRIES,
+                "the control needs a bound between one and the entries: {allowed}"
+            );
+            // The removals reach that bound only when the process itself allows as many at once, and they never take every place of
+            //  the pool, so the control gives them the one they leave free on top: the place the round keeps for a client, which
+            //  is the place the process keeps out of slow work as well.
+            let _room: usize = room_for(
+                "the_budget_of_the_host_bounds_the_overlap",
+                a_place_over(allowed),
+            );
+            let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            // The patience bounds only how long a run that never reaches the bound waits before it fails.
+            let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, PATIENCE));
+            let (live, most, at_the_point) = (
+                Arc::clone(&running),
+                Arc::clone(&busiest),
+                Arc::clone(&point),
+            );
+            let one_removal: Arc<RemoveOne> = Arc::new(
+                move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
+                    let now: usize = live.fetch_add(1, Ordering::SeqCst) + 1;
+                    most.fetch_max(now, Ordering::SeqCst);
+                    at_the_point.arrive_at_the_bound(allowed);
+                    let outcome = remove_tree_beneath(label, parent, name, expected);
+                    live.fetch_sub(1, Ordering::SeqCst);
+                    return outcome;
+                },
+            );
+            let left = remove_with(&held, root.as_path(), &manifest, &host, &one_removal);
+            assert!(left.is_empty(), "{left:?}");
+            assert_eq!(busiest.load(Ordering::SeqCst), allowed);
+            remove(root.as_path());
         },
     );
-    let left = remove_with(&held, root.as_path(), &manifest, &host, &one_removal);
-    assert!(left.is_empty(), "{left:?}");
-    assert_eq!(busiest.load(Ordering::SeqCst), allowed);
-    remove(root.as_path());
 }
 
 /// What:
@@ -427,56 +428,59 @@ impl Gate {
 /// ```
 #[test]
 fn a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client",
-    ) {
-        return;
-    }
-    let _room: usize = room_for(
-        "a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client",
-        TWO_PLACES,
-    );
-    let (root, held, manifest) = trash_with_entries("trash-entries-a-place-for-a-client");
-    let gate: Arc<Gate> = Arc::new(Gate::closed());
-    let entered: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (gate_for_the_removal, entered_by_the_removal) = (Arc::clone(&gate), Arc::clone(&entered));
-    let one_removal: Arc<RemoveOne> = Arc::new(
-        move |_label: &Path, _parent: &File, _name: &std::ffi::OsStr, _expected| {
-            entered_by_the_removal.fetch_add(1, Ordering::SeqCst);
-            gate_for_the_removal.wait();
-            return Ok(crate::worktree_trash_remove::Removal::Removed);
+        || {
+            let _room: usize = room_for(
+                "a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client",
+                TWO_PLACES,
+            );
+            let (root, held, manifest) = trash_with_entries("trash-entries-a-place-for-a-client");
+            let gate: Arc<Gate> = Arc::new(Gate::closed());
+            let entered: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let (gate_for_the_removal, entered_by_the_removal) =
+                (Arc::clone(&gate), Arc::clone(&entered));
+            let one_removal: Arc<RemoveOne> = Arc::new(
+                move |_label: &Path, _parent: &File, _name: &std::ffi::OsStr, _expected| {
+                    entered_by_the_removal.fetch_add(1, Ordering::SeqCst);
+                    gate_for_the_removal.wait();
+                    return Ok(crate::worktree_trash_remove::Removal::Removed);
+                },
+            );
+            let removal = request(root.as_path(), &held, &manifest, &LARGE_HOST, &one_removal);
+            let removing = std::thread::spawn(move || {
+                return remove_entries(&removal);
+            });
+            // A removal has started, so the round holds the places it is allowed to take.
+            assert!(
+                crate::test_support::wait_until(&|| {
+                    return entered.load(Ordering::SeqCst) > 0;
+                }),
+                "no removal of the trash started"
+            );
+            // The client's own step asks for a place with a plain blocking job, which takes no place of the round's bound.
+            let asked = finished_within_at(PATIENCE, || {
+                return crate::lazy_runtime::run_on_runtime(crate::blocking_job::run_blocking_job(
+                    || {
+                        return 0;
+                    },
+                ));
+            });
+            gate.open();
+            let left: Vec<String> = removing
+                .join()
+                .expect("the removal ends when the gate opens");
+            assert!(
+                asked.is_some(),
+                "no place of the blocking pool was free for a step that answers a client while the trash was being removed, so that step waits for the whole round"
+            );
+            assert!(
+                matches!(asked.expect("the step ran"), Ok(Ok(_ran))),
+                "the step that answers a client ran"
+            );
+            assert!(left.is_empty(), "{left:?}");
+            remove(root.as_path());
         },
     );
-    let removal = request(root.as_path(), &held, &manifest, &LARGE_HOST, &one_removal);
-    let removing = std::thread::spawn(move || {
-        return remove_entries(&removal);
-    });
-    // A removal has started, so the round holds the places it is allowed to take.
-    assert!(
-        crate::test_support::wait_until(&|| {
-            return entered.load(Ordering::SeqCst) > 0;
-        }),
-        "no removal of the trash started"
-    );
-    // The client's own step asks for a place with a plain blocking job, which takes no place of the round's bound.
-    let asked = finished_within_at(PATIENCE, || {
-        return crate::lazy_runtime::run_on_runtime(crate::blocking_job::run_blocking_job(|| {
-            return 0;
-        }));
-    });
-    gate.open();
-    let left: Vec<String> = removing
-        .join()
-        .expect("the removal ends when the gate opens");
-    assert!(
-        asked.is_some(),
-        "no place of the blocking pool was free for a step that answers a client while the trash was being removed, so that step waits for the whole round"
-    );
-    assert!(
-        matches!(asked.expect("the step ran"), Ok(Ok(_ran))),
-        "the step that answers a client ran"
-    );
-    assert!(left.is_empty(), "{left:?}");
-    remove(root.as_path());
 }

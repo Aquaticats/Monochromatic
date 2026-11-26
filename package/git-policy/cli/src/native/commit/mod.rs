@@ -7,6 +7,178 @@
 //! Why:
 //!  A commit is the central transaction of the wrapper.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `commit_accounting.rs`:
+//!   how much of a commit's time its timing record names,
+//!   and how much no phase covers.
+//! - `commit_args_token_bytes.rs`:
+//!   one token of a commit command line,
+//!   read as the bytes it is:
+//!   an option's name,
+//!   a cluster's letters and the value it carries inline.
+//! - `commit_args.rs`:
+//!   argument transforms of native preparation:
+//!   normalisation,
+//!   global split,
+//!   `-a` removal and private arguments.
+//! - `commit_conclusion.rs`:
+//!   the conclusion of a settled commit transaction:
+//!   preparation,
+//!   landing and post-landing completion.
+//! - `commit_index_builds.rs`:
+//!   how each build of the private commit index was made,
+//!   and whether it kept the real index's stat data,
+//!   for the timing record.
+//! - `commit_index_selection.rs`:
+//!   the selection a commit names:
+//!   the choices that shape its private index,
+//!   its `git add` arguments and the interactive selection.
+//! - `commit_no_change.rs`:
+//!   the normalization-only transaction for a correction that removed every change.
+//! - `commit_pathspec_matching_nothing.rs`:
+//!   the pathspec a caller names that Git refuses for matching nothing,
+//!   read from the words of the private staging (issue 6283).
+//! - `commit_prepare_part_durations.rs`:
+//!   how long each stretch of a commit's preparation held no Git child,
+//!   by name,
+//!   for the timing record.
+//! - `commit_build_part_durations.rs`:
+//!   how long each stretch of a commit's build phase held no Git child,
+//!   by name,
+//!   for the timing record.
+//! - `commit_reach_trace.rs`:
+//!   what reaching the commit service cost,
+//!   as the timing record states it.
+//! - `commit_worktree_records.rs`:
+//!   the worktree completion records of selected corrections and of hook changes.
+//! - `conclusion_cleanup.rs`:
+//!   native conclusion cleanup reproduced in the owning worktree.
+//! - `conclusion_copy.rs`:
+//!   the shadow conclusion copies at preparation.
+//! - `git_report_answers.rs`:
+//!   the answers of one `git rev-parse` report the invocation capture reads.
+//! - `capture_invocation.rs`:
+//!   the invocation capture:
+//!   repository layout,
+//!   symbolic `HEAD`,
+//!   conclusion kind,
+//!   ref backend and base.
+//! - `git_step_failure.rs`:
+//!   the last Git step of this process that failed,
+//!   and the status it exited with,
+//!   for the timing record.
+//! - `native_commit_configuration.rs`:
+//!   the configuration native `git commit` reads that decides what it writes,
+//!   and its effective values.
+//! - `post_commit.rs`:
+//!   the post-commit gate over a landed commit:
+//!   its events,
+//!   its blocking and the backup it allows.
+//! - `prepare_work_spans.rs`:
+//!   what the preparation's own work did,
+//!   by name,
+//!   for the timing record:
+//!   reading and copying the index,
+//!   writing its entries,
+//!   and each policy.
+//! - `commit_index_bytes.rs`:
+//!   the one read of the real index that every private copy of a commit is written from.
+//! - `commit_form_refusal_from_git.rs`:
+//!   the refusal Git prints for such a form,
+//!   asked of Git itself.
+//! - `commit_index_stat_staleness.rs`:
+//!   whether an index still records the stat data its worktree has,
+//!   so the refresh runs only when it would change something.
+//! - `private_index_request.rs`:
+//!   the private index and object store a commit's preparation selects,
+//!   and the Git request that carries them.
+//! - `commit_index_copying.rs`:
+//!   the copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
+//! - `commit_index_stat_refresh.rs`:
+//!   the refresh of an index's stat data before the scratch commit,
+//!   so its ceiling does not end a commit over a moved worktree.
+//! - `commit_staged_additions.rs`:
+//!   the finding for a staged deletion that an explicit-path commit cannot record.
+//! - `commit_selection_staging.rs`:
+//!   the worktree paths an explicit-path commit stages,
+//!   and the two `git add` starts that stage them.
+//! - `commit_index.rs`:
+//!   the private commit index:
+//!   copies,
+//!   selection modes,
+//!   pathspec files and listings.
+//! - `commit_named_ignored_files.rs`:
+//!   the named files an ignore rule refuses,
+//!   decided from the selection before any `git add` runs (issue 6278).
+//! - `commit_staged_deletions.rs`:
+//!   the commit-only finding for a staged deletion that an explicit-path commit cannot record because the path is
+//!   still on disk.
+//! - `private_index_stage.rs`:
+//!   slice 6:
+//!   writes one corrected file into the private commit index as a blob and an index entry.
+//! - `commit_convergence.rs`:
+//!   slice 6:
+//!   the commit path's bounded policy convergence over the private index.
+//! - `rule_commit_index.rs`:
+//!   pure core of the index-against-`HEAD` check.
+//! - `rule_commit_only_message.rs`:
+//!   user-facing diagnostics of the commit-only transform.
+//! - `rule_commit_region_git_refuses.rs`:
+//!   which forms of `git commit` real Git refuses,
+//!   read from the options the person wrote.
+//! - `rule_commit_sequencer.rs`:
+//!   pure core of the merge,
+//!   cherry-pick and revert conclusion check.
+//! - `commit_facts.rs`:
+//!   rule facts from the real repository with candidates read from the private index.
+//! - `commit_transaction.rs`:
+//!   the commit transaction in the incumbent's order,
+//!   up to the settled policies.
+//! - `commit_stop_reason.rs`:
+//!   why one commit did not land,
+//!   as the timing record states it.
+//! - `rule_commit_only.rs`:
+//!   pure decision of the commit-only transform.
+//! - `scratch_commit_step.rs`:
+//!   what the waiting notice of the scratch `git commit` saw while the step ran,
+//!   for the timing record.
+//! - `commit_timing.rs`:
+//!   the record of where one wrapped commit spent its time,
+//!   appended beside the discard audit.
+//! - `commit_command.rs`:
+//!   the `git commit` command:
+//!   the transaction,
+//!   the settled events,
+//!   the post-commit gate and the backup.
+//! - `scratch_step_ceiling_stop.rs`:
+//!   what the ceiling of the scratch `git commit` does when it comes:
+//!   ends the step it watches,
+//!   and answers whether that step was signalled.
+//! - `scratch_step_held_by_the_kernel.rs`:
+//!   the line a commit prints when the step it stopped is still held by the kernel.
+//! - `scratch_step_look_below.rs`:
+//!   one look at the step the commit waits for and the programs below it.
+//! - `scratch_step_notice_line.rs`:
+//!   the line a commit prints while it waits for the `git commit` of its scratch repository.
+//! - `scratch_step_programs_below.rs`:
+//!   the programs a look of the notice saw below the step,
+//!   and the time each was credited with.
+//! - `scratch_step_stall_decided_once.rs`:
+//!   the one decision two enforcers of a step's ceiling make together:
+//!   whether the ceiling stands aside for a step the kernel holds in a disk wait.
+//! - `native_commit_waiting_notice.rs`:
+//!   the waiting notice of the commit Git builds in the scratch repository.
+//! - `scratch_step_stop_words.rs`:
+//!   the words a stopped scratch `git commit` prints.
+//! - `scratch_step_stop_record.rs`:
+//!   the record of one stop of the scratch `git commit`,
+//!   taken whole from the enforcer of its ceiling that ended the step.
+//! - `commit_preparation.rs`:
+//!   native `git commit` in the shadow,
+//!   the prepared commit read back and `prepared.json`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // commit/index.ts: one `export * from './file'` per module below.

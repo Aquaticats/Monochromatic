@@ -30,6 +30,20 @@ pub const DIRECTORY_MODE: u32 = 0o755;
 /// The receipt's designed mode.
 pub const RECEIPT_MODE: u32 = 0o644;
 
+/// The words a refusal prints about the `doctor` lines and the handler unit this
+/// release does not have.
+/// Why:
+///  Plan steps 18 and 19 are built ahead:
+///  `doctor` reaches none of the route's checks and nothing installs the boot
+///  unit,
+///  so a sentence that sends a person to `doctor` for a receipt, a readiness
+///  record, a claim or a slot's records, or to that unit's journal, sends them to
+///  a line no command prints and a journal no unit writes
+///  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
+///  The round that wires either one deletes this claim,
+///  and every sentence that prints it follows from one place.
+pub const NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT: &str = "This release prints no `doctor` line for a receipt, a readiness record, a slot's claim or a slot's records and installs no handler unit, so `git monochromatic-git-policy-cli doctor` reports none of them and `journalctl -u reconcile-git-worktree-clone-mounts.service` has rows only where an administrator installed that unit";
+
 /// What:
 ///  Why the results directory or one receipt could not be used.
 /// Why:
@@ -239,7 +253,7 @@ impl ReceiptsRefusal {
             ),
         };
         return format!(
-            "{reason}. Nothing was matched, mounted or unmounted on this file, because a caller acts only on a result it can prove root filed. Ways forward: as the account, read what the handler recorded with `journalctl -u reconcile-git-worktree-clone-mounts.service`, which the unit of plan step 19 installs; the `doctor` command reports a receipt once plan step 10 adds it; a wrong owner or mode needs an administrator, since this route never changes either."
+            "{reason}. Nothing was matched, mounted or unmounted on this file, because a caller acts only on a result it can prove root filed. Ways forward: as the account, read the receipt files under {RESULTS_DIRECTORY}, one per clone dataset and named for that dataset's GUID. {NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT}; a wrong owner or mode needs an administrator, since this route never changes either."
         );
     }
 }
