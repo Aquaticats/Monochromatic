@@ -48,7 +48,8 @@ use super::clone_origin_checks::{CloneOriginFacts, check_clone_origin};
 use super::clone_retention_checks::{CloneRetentionFacts, check_clone_retention};
 use super::clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
 use super::clone_state_checks::{CloneStateFacts, check_clone_state};
-use super::delegation_checks::{DelegationFacts, check_delegation};
+use super::delegation_checks::check_delegation;
+use super::delegation_reply::DelegationFacts;
 use super::blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
 use super::binding_record_checks::check_binding_record;
 use super::handler_checks::{
