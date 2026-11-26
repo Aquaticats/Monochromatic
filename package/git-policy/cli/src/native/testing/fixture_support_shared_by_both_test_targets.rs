@@ -139,8 +139,8 @@ pub(crate) fn forbid_core_dumps() {
 ///  never `/tmp`;
 ///  and the parent of every `process-<pid>` folder a process's own fixtures are made in.
 /// Why:
-///   The one stored copy of the built executable that fixtures on another file system than the build's link stands in this
-///  root (`binary_support_fixture_directories::fixture_in`),
+///   The one stored copy of the built executable that fixtures on another file system than the build's link stands in
+///  this root (`binary_support_fixture_directories::fixture_in`),
 ///  so every process of one run links the one copy instead of copying the whole executable into a folder of its own:
 ///  the container gate's root is a 768 MiB tmpfs,
 ///  so a copy per test process filled it and the whole gate failed with `No space left on device` (issue 6488).
