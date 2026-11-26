@@ -227,7 +227,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the writer of the notice stream, which a reader must never hold",
     },
     Allowed {
-        file: "foundation/diagnostic_lines_off_the_calling_thread.rs",
+        file: "foundation/lines_written_by_a_thread.rs",
         rule: "thread-start",
         why: "the writer of the diagnostic lines, which a reader must never hold: the wait belongs to a thread because the \
               line is said wherever the code reaches it, and the process waits for it once and bounded at its end; \
@@ -244,7 +244,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the line about a service manager that has not answered is said by a thread of its own, because the D-Bus call that waits for it blocks the thread provisioning runs on and nothing else can count those seconds; a timeout around awaited manager calls replaces it when the provisioning is a task",
     },
     Allowed {
-        file: "service/service_log_lines_off_the_calling_thread.rs",
+        file: "foundation/lines_written_by_a_thread.rs",
         rule: "thread-start",
         why: "the one thread that writes the service's log lines, and it exists because a caller must never wait for the stream: a landing was held 7.35 s by a full FIFO, and the journal's own disk held commits for 56 to 199 s (the audit of 0.6.1-alpha.14). Its job never returns while the process runs, which a job of the blocking pool cannot be, so nothing of that pool replaces it; the entry goes when the process's log is a stream a write cannot wait on, where a caller writes its own line",
     },
@@ -416,11 +416,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "process/thread_quiet.rs",
         rule: "blocking-sleep",
         why: "the sampler's own pause between its /proc reads",
-    },
-    Allowed {
-        file: "push/auto_push.rs",
-        rule: "blocking-sleep",
-        why: "the pause between attempts at the push lock",
     },
     Allowed {
         file: "push/push_tracking_ref_repair.rs",

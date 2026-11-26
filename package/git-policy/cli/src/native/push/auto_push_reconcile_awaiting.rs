@@ -20,7 +20,7 @@
 //! const integrated = await integrateAndPushOnTheRuntime({ git, plan, rejected, pushMerge });
 //! ```
 
-use crate::auto_push_reconcile_plan::{Integrated, Reconcile, wording_of};
+use crate::auto_push_reconcile_plan::{Integrated, Reconcile, attempt_of, auto_push_plan, wording_of};
 use crate::auto_push_reconcile_basics_and_limits::{
     MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
     unpublished, was_rejected_as_stale,
@@ -307,16 +307,8 @@ pub async fn reconcile_divergent_push_awaiting(
         );
         return Ok(rejected);
     };
-    let plan = Reconcile {
-        destination,
-        local: local.to_owned(),
-        branch_ref: Some(branch_ref),
-        label: "auto-push",
-        explicit: false,
-    };
+    let plan: Reconcile<'_> = auto_push_plan(destination, local, branch_ref);
     // The loop takes its push as a value so controls can stand in for it; this one carries the Git context.
     let mut push_merge: PushMergeThroughGitAwaiting<'_> = PushMergeThroughGitAwaiting { git };
-    return Ok(match integrate_and_push_awaiting(git, &plan, rejected, &mut push_merge).await? {
-        Integrated::NotDivergent(attempt) | Integrated::Finished(attempt) => attempt,
-    });
+    return attempt_of((integrate_and_push_awaiting(git, &plan, rejected, &mut push_merge)).await);
 }
