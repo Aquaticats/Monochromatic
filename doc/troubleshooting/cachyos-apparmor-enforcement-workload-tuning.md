@@ -2142,6 +2142,11 @@ so nothing was granted for it.
   `firewall.sh -enable`, `-status` and `-disable`
   and `wg-quick up` and `down` under `aa-exec --profile ivpn-service` in a namespace logged nothing either,
   while a control read of `/etc/shadow` under the same profile was logged.
+  When the owner then opened the UI and turned on inverse split tunneling,
+  complain mode logged `splittun.sh` running `/usr/bin/rmdir` on `/sys/fs/cgroup/net_cls/ivpn-exclude/`
+  (as `ivpn-service//null-/usr/bin/rmdir`, with `dac_override`)
+  and the daemon reading desktop-entry icons such as `/usr/share/hplip/data/images/128x128/hp_logo.png`;
+  `rmdir` and `png`, `svg`, `svgz` and `xpm` files under `/usr/{,local/}share` and `/opt` were added.
   It stays in complain mode until connect, disconnect, the firewall and split tunneling
   have run under it with an account logged in;
   a missing rule in enforce could strand the firewall half set up.
