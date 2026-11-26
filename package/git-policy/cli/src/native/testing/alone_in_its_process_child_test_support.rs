@@ -184,3 +184,9 @@ pub(crate) fn ran_alone_in_a_child_of_its_own(
     // ```
     return true;
 }
+
+/// The controls of the refusal and of the child's own answer;
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "alone_in_its_process_child_test_support_tests.rs"]
+mod tests;

@@ -114,17 +114,27 @@ its time is the record's `fenceSizesBesideTheCheck` work").
 
 ## What the guard is worth
 
-With the refusal in place and one control's child start taken out, that control fails at its first line:
+With the refusal in place and one control's child start taken out,
+that control fails at its first line on every run
+(`0 passed; 1 failed`):
 
 ```text
 THE_READ_IS_HELD, the hold every read of this process waits at before its Git run belongs to the whole process,
 and `cargo test` runs a crate's tests as threads of one process, so arming it here changes every test of this run:
-run this control in a child of its own, which
-`crate::alone_in_its_process_child_test_support::ran_alone_in_a_child_of_its_own` starts
+run this control in a child of its own,
+which `crate::alone_in_its_process_child_test_support::ran_alone_in_a_child_of_its_own` starts
 ```
 
-With the `refuse_outside_the_child` call taken out of `a_control_holds_the_read`, the same test no longer fails there,
+With the `refuse_outside_the_child` call taken out of `a_control_holds_the_read`
+and the same control still running beside the others,
+the run passes (`1 passed; 0 failed`):
+the control armed a seam of the whole process and nothing said so,
 which is what the refusal is for.
+
+The refusal and the child's own answer also have permanent controls,
+in `package/git-policy/cli/src/native/testing/alone_in_its_process_child_test_support_tests.rs`:
+one is `#[should_panic]` on the refusal's own sentence,
+and the other is a body that runs in its child and asserts that the child saw its marker.
 
 ## Not covered
 
