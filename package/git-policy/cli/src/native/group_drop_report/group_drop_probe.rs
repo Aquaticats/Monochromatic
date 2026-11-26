@@ -236,8 +236,10 @@ fn run_the_probe(status: libc::c_int) -> ! {
         write_answer(status, ProbeCall::UnshareUserNamespace, errno_now());
         unsafe { libc::_exit(1) };
     }
-    // The open asks for `CAP_SYS_ADMIN` inside the new namespace, which is where Ubuntu 24.04's profile answers.
-    let opened: libc::c_int = unsafe { libc::open(SETGROUPS_PATH.as_ptr(), libc::O_WRONLY) };
+    // The open asks for `CAP_SYS_ADMIN` inside the new namespace, which is where Ubuntu 24.04's profile answers;
+    // its flags are the companion's own (`account_companion/companion_file_calls.rs`, `open_for_write`).
+    let opened: libc::c_int =
+        unsafe { libc::open(SETGROUPS_PATH.as_ptr(), libc::O_WRONLY | libc::O_CLOEXEC) };
     if opened < 0 {
         write_answer(status, ProbeCall::OpenSetgroups, errno_now());
         unsafe { libc::_exit(1) };
