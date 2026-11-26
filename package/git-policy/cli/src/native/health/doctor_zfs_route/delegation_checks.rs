@@ -115,7 +115,7 @@ pub const FORBIDDEN_PERMISSIONS: [&str; 9] = ["mountpoint", "canmount", "setuid"
 
 //endregion
 
-//region The grant model
+//region The decided grants and where they belong
 
 /// What:
 ///  Where the design puts one required permission.
