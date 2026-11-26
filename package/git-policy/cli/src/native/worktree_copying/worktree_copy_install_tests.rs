@@ -447,11 +447,11 @@ fn the_install_threshold_is_the_measured_break_even() {
 #[cfg(unix)]
 #[test]
 fn a_parallel_install_where_no_thread_can_start_is_made_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_parallel_install_where_no_thread_can_start_is_made_in_turn",
-    ) {
-        return;
-    }
-    a_failed_parallel_batch_rolls_back_every_file_its_workers_created();
+        || {
+            a_failed_parallel_batch_rolls_back_every_file_its_workers_created();
+        },
+    );
 }

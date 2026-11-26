@@ -85,34 +85,34 @@ fn connection() -> (OwnedReadHalf, OwnedWriteHalf, BufReader<UnixStream>) {
 /// and nothing panics.
 #[test]
 fn where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavailable() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavailable",
-    ) {
-        return;
-    }
-    let (shared, _jobs) = shared_in("connection-no-thread-instance");
-    let line: String = encode_client(&ClientMessage::Warm {
-        git_dir: PathBuf::from("/srv/repo/.git"),
-        repository: PathBuf::from("/srv/repo"),
-    });
-    let ((), _ticks) = with_a_ticker_beside(async {
-        let (_read_half, mut write_half, mut client) = connection();
-        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
-        drop(write_half);
-        let mut answer: String = String::new();
-        client
-            .read_line(&mut answer)
-            .await
-            .expect("an answer arrives");
-        assert_eq!(
-            decode_service(answer.trim_end_matches('\n')),
-            Ok(ServiceMessage::Failed {
-                id: String::new(),
-                code: FailureCode::Unavailable
-            })
-        );
-    });
+        || {
+            let (shared, _jobs) = shared_in("connection-no-thread-instance");
+            let line: String = encode_client(&ClientMessage::Warm {
+                git_dir: PathBuf::from("/srv/repo/.git"),
+                repository: PathBuf::from("/srv/repo"),
+            });
+            let ((), _ticks) = with_a_ticker_beside(async {
+                let (_read_half, mut write_half, mut client) = connection();
+                answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+                drop(write_half);
+                let mut answer: String = String::new();
+                client
+                    .read_line(&mut answer)
+                    .await
+                    .expect("an answer arrives");
+                assert_eq!(
+                    decode_service(answer.trim_end_matches('\n')),
+                    Ok(ServiceMessage::Failed {
+                        id: String::new(),
+                        code: FailureCode::Unavailable
+                    })
+                );
+            });
+        },
+    );
 }
 
 /// The positive control of the refusal:
@@ -149,62 +149,63 @@ fn with_threads_the_same_message_about_another_instance_is_rejected() {
 /// and nothing panics.
 #[test]
 fn where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread",
-    ) {
-        return;
-    }
-    let (shared, mut jobs) = shared_in("connection-no-thread-withdraw");
-    let line: String = encode_client(&ClientMessage::Withdraw {
-        id: String::from("a-request"),
-    });
-    let ((), _ticks) = with_a_ticker_beside(async {
-        let (_read_half, mut write_half, _client) = connection();
-        // The connection waits for the landing's answer,
-        // so it runs beside this body, which plays the landing thread.
-        let waiting = answer_request(line.as_str(), &mut write_half, &shared, Instant::now());
-        let landing = async {
-            loop {
-                if let Ok(job) = jobs.try_recv() {
-                    return job;
-                }
-                tokio::time::sleep(Duration::from_millis(1)).await;
-            }
-        };
-        let (job, ()) = tokio::join!(
-            async {
-                let job: Job = landing.await;
-                // Dropping the reply is answering the request: the waiting connection ends.
-                if let Job::Withdraw(id, reply) = job {
-                    assert_eq!(id, "a-request");
-                    drop(reply);
-                    return true;
-                }
-                return false;
-            },
-            waiting
-        );
-        assert!(job, "the withdrawal reached the landing thread's queue");
-    });
+        || {
+            let (shared, mut jobs) = shared_in("connection-no-thread-withdraw");
+            let line: String = encode_client(&ClientMessage::Withdraw {
+                id: String::from("a-request"),
+            });
+            let ((), _ticks) = with_a_ticker_beside(async {
+                let (_read_half, mut write_half, _client) = connection();
+                // The connection waits for the landing's answer,
+                // so it runs beside this body, which plays the landing thread.
+                let waiting =
+                    answer_request(line.as_str(), &mut write_half, &shared, Instant::now());
+                let landing = async {
+                    loop {
+                        if let Ok(job) = jobs.try_recv() {
+                            return job;
+                        }
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    }
+                };
+                let (job, ()) = tokio::join!(
+                    async {
+                        let job: Job = landing.await;
+                        // Dropping the reply is answering the request: the waiting connection ends.
+                        if let Job::Withdraw(id, reply) = job {
+                            assert_eq!(id, "a-request");
+                            drop(reply);
+                            return true;
+                        }
+                        return false;
+                    },
+                    waiting
+                );
+                assert!(job, "the withdrawal reached the landing thread's queue");
+            });
+        },
+    );
 }
 
 /// A beat's note that the pool cannot read is no note,
 /// and the beat itself is still written by the writer.
 #[test]
 fn where_no_thread_can_start_the_note_of_a_beat_is_left_out() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_note_of_a_beat_is_left_out",
-    ) {
-        return;
-    }
-    let (shared, _jobs) = shared_in("connection-no-thread-note");
-    let ((), _ticks) = with_a_ticker_beside(async {
-        let mut notice: StuckNotice =
-            stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")));
-        assert_eq!(notice.note().await, None, "no note, and no panic");
-    });
+        || {
+            let (shared, _jobs) = shared_in("connection-no-thread-note");
+            let ((), _ticks) = with_a_ticker_beside(async {
+                let mut notice: StuckNotice =
+                    stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")));
+                assert_eq!(notice.note().await, None, "no note, and no panic");
+            });
+        },
+    );
 }
 
 /// A request the fake services below never look at,
@@ -352,29 +353,30 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
 /// ```
 #[test]
 fn where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing",
-    ) {
-        return;
-    }
-    let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
-    let (shared, mut jobs) = shared_serving("connection-own-directory-no-thread", own.clone());
-    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
-        own.as_path(),
-        "own-directory",
-    ))));
-    let ((), _ticks) = with_a_ticker_beside(async move {
-        let (_read_half, mut write_half, _client) = connection();
-        let answered: Option<Job> = tokio::select! {
-            () = answer_request(line.as_str(), &mut write_half, &shared, Instant::now()) => None,
-            queued = jobs.recv() => queued,
-        };
-        assert!(
-            matches!(answered, Some(Job::Commit(..))),
-            "the request named this worktree and reached the landing"
-        );
-    });
+        || {
+            let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+            let (shared, mut jobs) =
+                shared_serving("connection-own-directory-no-thread", own.clone());
+            let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+                own.as_path(),
+                "own-directory",
+            ))));
+            let ((), _ticks) = with_a_ticker_beside(async move {
+                let (_read_half, mut write_half, _client) = connection();
+                let answered: Option<Job> = tokio::select! {
+                    () = answer_request(line.as_str(), &mut write_half, &shared, Instant::now()) => None,
+                    queued = jobs.recv() => queued,
+                };
+                assert!(
+                    matches!(answered, Some(Job::Commit(..))),
+                    "the request named this worktree and reached the landing"
+                );
+            });
+        },
+    );
 }
 
 /// What:

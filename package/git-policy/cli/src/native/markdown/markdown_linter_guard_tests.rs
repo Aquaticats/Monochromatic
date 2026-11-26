@@ -445,25 +445,26 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
 /// ```
 #[test]
 fn where_no_thread_can_start_the_guard_names_the_limit() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_guard_names_the_limit",
-    ) {
-        return;
-    }
-    let outcome: Result<u8, GuardFailure> = run_guarded(
-        || return 7_u8,
-        limits(LONG_WINDOW),
-        FAST,
-        "the markdown check",
-        &mut Some(Box::new(std::io::sink())),
-    );
-    let failure: GuardFailure = outcome.expect_err("no thread could be started to run the check");
-    let GuardFailure::Start(said) = failure else {
-        panic!("a refused start is what this control made: {failure:?}");
-    };
-    assert!(
-        said.contains("ulimit -u") && said.contains("pids.max"),
-        "the refusal names the limits that refused the thread: {said}"
+        || {
+            let outcome: Result<u8, GuardFailure> = run_guarded(
+                || return 7_u8,
+                limits(LONG_WINDOW),
+                FAST,
+                "the markdown check",
+                &mut Some(Box::new(std::io::sink())),
+            );
+            let failure: GuardFailure =
+                outcome.expect_err("no thread could be started to run the check");
+            let GuardFailure::Start(said) = failure else {
+                panic!("a refused start is what this control made: {failure:?}");
+            };
+            assert!(
+                said.contains("ulimit -u") && said.contains("pids.max"),
+                "the refusal names the limits that refused the thread: {said}"
+            );
+        },
     );
 }

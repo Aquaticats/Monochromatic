@@ -1014,21 +1014,21 @@ fn check_shared_modes(
 /// under a mask of 077 that narrows what the value widens.
 #[test]
 fn the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git() {
-    if crate::umask_child_test_support::ran_in_child(
+    crate::umask_child_test_support::run_the_body_under_umask(
         module_path!(),
         "the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git",
         0o077,
-    ) {
-        return;
-    }
-    check_shared_modes(
-        "narrow",
-        &[
-            ("group", 0o660),
-            ("all", 0o664),
-            ("0640", 0o640),
-            ("umask", 0o600),
-        ],
+        || {
+            check_shared_modes(
+                "narrow",
+                &[
+                    ("group", 0o660),
+                    ("all", 0o664),
+                    ("0640", 0o640),
+                    ("umask", 0o600),
+                ],
+            );
+        },
     );
 }
 
@@ -1039,21 +1039,21 @@ fn the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git() {
 /// and the bytes are never written before its mode is set.
 #[test]
 fn the_file_mode_with_a_shared_repository_under_the_usual_mask_equals_git() {
-    if crate::umask_child_test_support::ran_in_child(
+    crate::umask_child_test_support::run_the_body_under_umask(
         module_path!(),
         "the_file_mode_with_a_shared_repository_under_the_usual_mask_equals_git",
         0o022,
-    ) {
-        return;
-    }
-    check_shared_modes(
-        "usual",
-        &[
-            ("group", 0o664),
-            ("all", 0o664),
-            ("0640", 0o640),
-            ("umask", 0o644),
-        ],
+        || {
+            check_shared_modes(
+                "usual",
+                &[
+                    ("group", 0o664),
+                    ("all", 0o664),
+                    ("0640", 0o640),
+                    ("umask", 0o644),
+                ],
+            );
+        },
     );
 }
 
@@ -1216,60 +1216,60 @@ fn set_default_acl(directory: &Path) -> std::io::Result<()> {
 /// (a mask-only calculation would give 0664 and let the world read it).
 #[test]
 fn the_file_mode_under_a_default_acl_equals_git() {
-    if crate::umask_child_test_support::ran_in_child(
+    crate::umask_child_test_support::run_the_body_under_umask(
         module_path!(),
         "the_file_mode_under_a_default_acl_equals_git",
         0o022,
-    ) {
-        return;
-    }
-    use std::os::unix::fs::PermissionsExt as _;
-    let edits: Vec<Edit<'_>> = vec![Edit::Put {
-        path: "a",
-        mode: "100644",
-        content: b"a two\n",
-    }];
-    let scene: Scene = scene(
-        "index-reset-acl",
-        &Plan {
-            files: BASE,
-            edits: edits.as_slice(),
-            ..Plan::default()
+        || {
+            use std::os::unix::fs::PermissionsExt as _;
+            let edits: Vec<Edit<'_>> = vec![Edit::Put {
+                path: "a",
+                mode: "100644",
+                content: b"a two\n",
+            }];
+            let scene: Scene = scene(
+                "index-reset-acl",
+                &Plan {
+                    files: BASE,
+                    edits: edits.as_slice(),
+                    ..Plan::default()
+                },
+            );
+            git(
+                scene.repo.as_path(),
+                &["config", "core.sharedRepository", "group"],
+            );
+            let copy: PathBuf = copy_of(&scene);
+            let refusal: Option<std::io::Error> = [scene.repo.join(".git"), copy.join(".git")]
+                .iter()
+                .find_map(|git_dir| {
+                    return set_default_acl(git_dir.as_path()).err();
+                });
+            if let Some(refused) = refusal {
+                eprintln!("skipped: this file system does not take a default ACL: {refused}");
+                finish(scene);
+                return;
+            }
+            git_reset(scene.repo.as_path(), scene.new.as_str(), &named(&["a"]));
+            assert!(landing_reset(
+                &git_context(),
+                copy.as_path(),
+                scene.new.as_str(),
+                IndexPaths::Named(&named(&["a"]))
+            ));
+            let mode = |repo: &Path| -> u32 {
+                return std::fs::metadata(repo.join(".git").join("index"))
+                    .expect("index")
+                    .permissions()
+                    .mode()
+                    & 0o7777;
+            };
+            assert_eq!(mode(scene.repo.as_path()), 0o660, "Git's mode");
+            assert_eq!(mode(copy.as_path()), 0o660, "the published file's mode");
+            assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
+            finish(scene);
         },
     );
-    git(
-        scene.repo.as_path(),
-        &["config", "core.sharedRepository", "group"],
-    );
-    let copy: PathBuf = copy_of(&scene);
-    let refusal: Option<std::io::Error> = [scene.repo.join(".git"), copy.join(".git")]
-        .iter()
-        .find_map(|git_dir| {
-            return set_default_acl(git_dir.as_path()).err();
-        });
-    if let Some(refused) = refusal {
-        eprintln!("skipped: this file system does not take a default ACL: {refused}");
-        finish(scene);
-        return;
-    }
-    git_reset(scene.repo.as_path(), scene.new.as_str(), &named(&["a"]));
-    assert!(landing_reset(
-        &git_context(),
-        copy.as_path(),
-        scene.new.as_str(),
-        IndexPaths::Named(&named(&["a"]))
-    ));
-    let mode = |repo: &Path| -> u32 {
-        return std::fs::metadata(repo.join(".git").join("index"))
-            .expect("index")
-            .permissions()
-            .mode()
-            & 0o7777;
-    };
-    assert_eq!(mode(scene.repo.as_path()), 0o660, "Git's mode");
-    assert_eq!(mode(copy.as_path()), 0o660, "the published file's mode");
-    assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
-    finish(scene);
 }
 
 /// What:

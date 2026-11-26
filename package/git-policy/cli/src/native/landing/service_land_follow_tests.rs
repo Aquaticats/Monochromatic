@@ -1354,52 +1354,53 @@ fn a_foreign_lock_at_the_old_copy_name_does_not_stop_a_landing_without_an_index(
 /// whatever the process mask is.
 #[test]
 fn the_private_copy_is_owner_only_and_a_no_change_keeps_the_live_mode() {
-    if crate::umask_child_test_support::ran_in_child(
+    crate::umask_child_test_support::run_the_body_under_umask(
         module_path!(),
         "the_private_copy_is_owner_only_and_a_no_change_keeps_the_live_mode",
         0o000,
-    ) {
-        return;
-    }
-    use std::os::unix::fs::PermissionsExt as _;
-    let (root, repo, index, held) = locked_index("service-follow-private-mode");
-    std::fs::set_permissions(&index, std::fs::Permissions::from_mode(0o640)).expect("a live mode");
-    let mut context = git_context();
-    context.common_dir = Some(repo.join(".git"));
-    let none: Vec<Vec<u8>> = Vec::new();
-    let built = build_index(
-        &context,
-        repo.as_path(),
-        "0".repeat(40).as_str(),
-        IndexPaths::Named(&none),
-        &held,
-        1,
-    )
-    .expect("built");
-    let path: PathBuf = AsRef::<Path>::as_ref(&built).to_path_buf();
-    let directory: &Path = path.parent().expect("a directory");
-    assert_ne!(
-        directory,
-        repo.join(".git").as_path(),
-        "the copy is not loose in the live index's directory"
+        || {
+            use std::os::unix::fs::PermissionsExt as _;
+            let (root, repo, index, held) = locked_index("service-follow-private-mode");
+            std::fs::set_permissions(&index, std::fs::Permissions::from_mode(0o640))
+                .expect("a live mode");
+            let mut context = git_context();
+            context.common_dir = Some(repo.join(".git"));
+            let none: Vec<Vec<u8>> = Vec::new();
+            let built = build_index(
+                &context,
+                repo.as_path(),
+                "0".repeat(40).as_str(),
+                IndexPaths::Named(&none),
+                &held,
+                1,
+            )
+            .expect("built");
+            let path: PathBuf = AsRef::<Path>::as_ref(&built).to_path_buf();
+            let directory: &Path = path.parent().expect("a directory");
+            assert_ne!(
+                directory,
+                repo.join(".git").as_path(),
+                "the copy is not loose in the live index's directory"
+            );
+            assert_eq!(
+                std::fs::metadata(directory)
+                    .expect("directory")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o700,
+                "only the owner opens the directory"
+            );
+            assert_eq!(
+                std::fs::metadata(&path).expect("copy").permissions().mode() & 0o777,
+                0o640,
+                "the live index's mode"
+            );
+            drop(built);
+            drop(held);
+            remove(root.as_path());
+        },
     );
-    assert_eq!(
-        std::fs::metadata(directory)
-            .expect("directory")
-            .permissions()
-            .mode()
-            & 0o777,
-        0o700,
-        "only the owner opens the directory"
-    );
-    assert_eq!(
-        std::fs::metadata(&path).expect("copy").permissions().mode() & 0o777,
-        0o640,
-        "the live index's mode"
-    );
-    drop(built);
-    drop(held);
-    remove(root.as_path());
 }
 
 /// A read-only filesystem and a permission error are different failures,

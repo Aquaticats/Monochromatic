@@ -26,17 +26,17 @@ fn a_name_is_looked_up_on_the_blocking_pool() {
 /// and tokio's own panic of `spawn_blocking` is never reached.
 #[test]
 fn where_no_thread_can_start_the_lookup_is_an_error_and_not_a_panic() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_lookup_is_an_error_and_not_a_panic",
-    ) {
-        return;
-    }
-    let outcome = crate::lazy_runtime::run_on_runtime(async {
-        let name: Name = Name::from_str(LOOPBACK_NAME).expect("a name");
-        return PoolResolver.call(name).await;
-    })
-    .expect("a current-thread runtime stands in where no thread can start");
-    let error: std::io::Error = outcome.expect_err("no thread, so no lookup");
-    assert!(error.to_string().contains("refused a thread"), "{error}");
+        || {
+            let outcome = crate::lazy_runtime::run_on_runtime(async {
+                let name: Name = Name::from_str(LOOPBACK_NAME).expect("a name");
+                return PoolResolver.call(name).await;
+            })
+            .expect("a current-thread runtime stands in where no thread can start");
+            let error: std::io::Error = outcome.expect_err("no thread, so no lookup");
+            assert!(error.to_string().contains("refused a thread"), "{error}");
+        },
+    );
 }

@@ -728,39 +728,40 @@ fn the_copy_slices_take_places_of_the_processs_bound() {
 /// in a child that is refused every thread.
 #[test]
 fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("stage-copy-no-threads");
-    let source: PathBuf = root.join("source");
-    let stage: PathBuf = root.join("stage");
-    std::fs::create_dir_all(source.join("many")).expect("many");
-    std::fs::create_dir_all(stage.join("many")).expect("stage many");
-    for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
-        std::fs::write(
-            source.join(format!("many/file-{index:05}")),
-            format!("{index}"),
-        )
-        .expect("file");
-    }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(
-        source.as_path(),
-        &[b"many".to_vec()],
-        &[],
-    )
-    .expect("manifest");
-    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice())
-        .expect("every file is copied here");
-    assert_eq!(copied.stamps.len(), entries.len());
-    assert!(copied.gone.is_empty(), "no entry went away here");
-    assert_eq!(
-        std::fs::read(stage.join("many/file-00007")).expect("copied"),
-        b"7"
+        || {
+            let root: PathBuf = fixture("stage-copy-no-threads");
+            let source: PathBuf = root.join("source");
+            let stage: PathBuf = root.join("stage");
+            std::fs::create_dir_all(source.join("many")).expect("many");
+            std::fs::create_dir_all(stage.join("many")).expect("stage many");
+            for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
+                std::fs::write(
+                    source.join(format!("many/file-{index:05}")),
+                    format!("{index}"),
+                )
+                .expect("file");
+            }
+            let entries = crate::worktree_copy_manifest::collect_entry_manifest(
+                source.as_path(),
+                &[b"many".to_vec()],
+                &[],
+            )
+            .expect("manifest");
+            let copied =
+                copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice())
+                    .expect("every file is copied here");
+            assert_eq!(copied.stamps.len(), entries.len());
+            assert!(copied.gone.is_empty(), "no entry went away here");
+            assert_eq!(
+                std::fs::read(stage.join("many/file-00007")).expect("copied"),
+                b"7"
+            );
+            remove(&root);
+        },
     );
-    remove(&root);
 }
 
 /// The source of `a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_cannot_hold`,

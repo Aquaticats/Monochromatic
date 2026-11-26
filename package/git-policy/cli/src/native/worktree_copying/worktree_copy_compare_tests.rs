@@ -431,13 +431,13 @@ fn a_replaced_source_file_fails_the_final_check() {
 /// a child that is refused every thread.
 #[test]
 fn the_final_check_where_no_thread_can_start_walks_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "the_final_check_where_no_thread_can_start_walks_in_turn",
-    ) {
-        return;
-    }
-    unchanged_source_passes_final_check();
+        || {
+            unchanged_source_passes_final_check();
+        },
+    );
 }
 
 /// What:
