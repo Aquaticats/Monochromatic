@@ -16,7 +16,13 @@ use crate::worktree_command_facts::{
     AddPlan,
     RemovePlan,
 };
-use std::path::Path;
+/// The words a failed step is named with,
+/// written in the file that reports every run's ending.
+use crate::worktree_copy_forward_outcome::words_of;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A repository with an ignored rules file,
 /// returned with its canonical root and common directory.

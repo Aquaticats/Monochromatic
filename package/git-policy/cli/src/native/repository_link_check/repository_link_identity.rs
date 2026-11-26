@@ -152,11 +152,22 @@ pub fn identity_from_text(text: &str) -> Result<LinkIdentity, String> {
 }
 
 /// What:
-///  Reads the identity file below `home`.
+///  Reads the identity file below `home`,
+/// opened as a plain file and never past `SMALL_FILE_LIMIT`.
 /// Why:
 ///  One `read` call is the whole cost when the file is absent:
 /// the gate runs on every Git command,
 /// so an absent file is a single failed open and nothing else.
+///  The file is read through `crate::plain_file`,
+/// because opening a pipe for reading waits for a writer that may never come,
+/// and a pipe at this name would hold every command in every repository with nothing said:
+/// a pipe is then an identity this command cannot use,
+/// which the gate says and goes on from,
+/// the same answer any unreadable identity earns.
+///  A link is not followed,
+///  as for every record folder of this program's own:
+/// the cut-over step writes the file through a temporary name and a rename,
+/// so the name always holds a plain file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +175,10 @@ pub fn identity_from_text(text: &str) -> Result<LinkIdentity, String> {
 /// ```
 pub fn read_identity(home: &Path) -> IdentityRead {
     let path: PathBuf = identity_path_in(home);
-    let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
+    let bytes: Vec<u8> = match crate::plain_file::read_plain_file(
+        path.as_path(),
+        crate::plain_file::SMALL_FILE_LIMIT,
+    ) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return IdentityRead::Absent,
         Err(error) => {

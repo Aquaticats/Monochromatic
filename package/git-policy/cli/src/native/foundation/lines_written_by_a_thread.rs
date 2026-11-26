@@ -166,6 +166,16 @@ pub(crate) struct Queue {
     /// Where a control's lines go,
     /// or nothing when they go to the stream this queue defaults to.
     writer: Option<Box<dyn Write + Send>>,
+    /// Whether `writer` is a control's own stream,
+    /// which takes every byte at once,
+    /// rather than this queue's default stream,
+    /// which has a reader that may stop.
+    /// Why it is kept beside the writer:
+    ///  the fallback hands its own writer back here after a line,
+    ///  and a writer that came back from the default stream is not a control's:
+    ///  a line after it must be bounded by the room the stream has,
+    ///  as the first one was.
+    writer_from_a_control: bool,
     /// What this queue is for,
     /// which is the only place the two queues differ.
     policy: &'static QueuePolicy,
@@ -227,6 +237,7 @@ pub(crate) fn start_the_queue(policy: &'static QueuePolicy) -> SharedQueue {
             thread_refused: false,
             thread_refusal: None,
             writer: None,
+            writer_from_a_control: false,
             policy,
         }),
         Condvar::new(),
@@ -606,23 +617,27 @@ fn wait_to_be_asked_again(
 /// What:
 ///  Writes one line on the thread that says it,
 ///  where the system refused the thread that would have written it,
-///  and answers the number of the line where the stream took the write.
+///  and answers the number of the line where the call settled it.
 /// Why:
 ///   A process whose process limit refuses a queue's thread still has to say why it failed:
 /// the refusal of a commit at its process limit reached nobody on 2026-11-25 (issue 6476),
 ///  because every line waited in a queue that nothing would ever write.
 ///  The line is written without waiting for a reader:
-/// one write is made only where the stream has room now,
+/// a write is made only where the stream has room now,
+/// and of no more than one pipe page,
+///  because the room `POLLOUT` reports is one free slot and not the whole of a long line,
 /// so a stream nobody drains costs the line and never the caller,
 ///  which is the same promise the queue keeps when its room runs out.
 ///  A control's own stream is written as it stands,
 /// because a control's stream is the control's memory and never a reader.
-///  One write is all a line gets here,
-/// so the number moves at once and a caller that waits for its line waits for nothing.
+///  A line the stream does not take whole is settled here all the same,
+/// so the number moves at once,
+/// the caller that waits for its line waits for nothing,
+/// and the part that did not fit is counted as a dropped line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeWhereItIsSaid = (line) => { const [writer, fromAControl] = takeTheStream(); if (!fromAControl && !roomNow()) { dropped++; return undefined } writer.write(line); writer.flush(); giveBack(writer); const ticket = next++; written = ticket; return ticket }
+/// const writeWhereItIsSaid = (line) => { const [writer, fromAControl] = takeTheStream(); const took = writeWhatFitsNow(writer, line, fromAControl); if (!fromAControl) dropIf(took < line.length); writer.flush(); giveBack(writer); const ticket = next++; written = ticket; return ticket }
 /// ```
 fn write_where_it_is_said(
     queue: SharedQueue,
@@ -642,43 +657,46 @@ fn write_where_it_is_said(
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         match held.writer.take() {
-            Some(control) => (control, true),
+            // What: Whether the writer that was here is a control's own, read beside it.
+            // Why:  The fallback put its own stream back after the last line, and that stream has a reader.
+            Some(known) => {
+                let it_is_a_control = held.writer_from_a_control;
+                (known, it_is_a_control)
+            }
             None => ((held.policy.default_stream)(), false),
         }
     };
-    // What:     `if !from_a_control && !the_stream_has_room_now()` drops a line this process's stream has no room for now.
-    // Why:      A write to a stream with no room now waits for the reader, which is the wait a caller must never pay,
-    //           and a line so dropped is counted like one the queue's bound dropped.
+    // What:     `took` is how much of the line the stream took without waiting for a reader,
+    //           which is every byte of a control's line and at most what its room holds of this process's line.
+    // Why:      A write to a stream with no room now waits for the reader, which is the wait a caller must never pay.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // if (!fromAControl && !roomNow()) { lock(); dropped++; return undefined }
+    // const took = writeWhatFitsNow(writer, line, fromAControl);
     // ```
-    if !from_a_control && !the_stream_has_room_now() {
-        let mut held = held_queue
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        held.dropped = held.dropped.saturating_add(1);
-        return None;
-    }
-    // What:     `writer.write(line)` makes the one write this line gets, and `writer.flush()` pushes what the stream buffers.
-    // Why:      A refusal or a short take is dropped here, so this line is the whole of the promise the process can keep
-    //           at its limit.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // writer.write(line); writer.flush();
-    // ```
-    let _took: std::io::Result<usize> = writer.write(line);
+    let took: usize = write_what_fits_now(&mut writer, line, from_a_control);
     let _flushed: std::io::Result<()> = writer.flush();
     let mut held = held_queue
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if held.writer.is_none() {
         held.writer = Some(writer);
+        held.writer_from_a_control = from_a_control;
+    }
+    // What:     A line the stream did not take whole is counted as dropped, so the next line that gets through says the gap.
+    // Why:      Part of a line reached the person and the rest could not be said without waiting;
+    //           the count is what the queue says about every line it could not say.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (took < line.length) held.dropped = held.dropped + 1;
+    // ```
+    if took < line.len() {
+        held.dropped = held.dropped.saturating_add(1);
     }
     // What:     `ticket` is the number this line takes, and `held.written = ticket` says the stream has reached it.
-    // Why:      A caller that waits for its own line asks for this number, and one write here is the whole of the answer.
+    // Why:      A caller that waits for its own line asks for this number, and what this call could write is the whole of
+    //           the answer.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -688,6 +706,104 @@ fn write_where_it_is_said(
     held.next_ticket = held.next_ticket.saturating_add(1);
     held.written = ticket;
     return Some(ticket);
+}
+
+/// What:
+///  The most a pipe takes in one write once a poll reports room:
+///  one page,
+///  which is `PIPE_BUF` on Linux and is what a pipe holding one free slot takes whole.
+/// Why:
+///   `POLLOUT` promises a free slot and not the whole of a longer line,
+/// and a blocking write of more than that free room waits for the reader:
+/// measured on this host,
+/// a pipe with one page free held a blocking write of two pages for as long as the control waited (3 s),
+///  while the same pipe took one page at once.
+///  So every write on the thread that says a line is bounded by this figure,
+///  and a line that does not fit costs its tail rather than the caller.
+///  The service's journal writes are bounded by the same figure for the same reason,
+///  the `PIPE_CHUNK` of `service/journald_native.rs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_MOST_A_PIPE_TAKES_WHEN_IT_SHOWS_ROOM = 4096
+/// ```
+pub(crate) const THE_MOST_A_PIPE_TAKES_WHEN_IT_SHOWS_ROOM: usize = 4096;
+
+/// What:
+///  Writes as much of `bytes` as `writer` takes without waiting for a reader,
+///  and answers how many bytes that was.
+/// Why:
+///   The thread that says a line has no one to finish it,
+/// so it makes only the writes a stream takes at once and leaves the rest;
+///  a control's stream is memory,
+///  which takes every byte at once.
+///  Each write is bounded by one pipe page,
+///  because the room a poll reports is one free slot,
+/// and a line longer than that would wait for the reader inside the write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeWhatFitsNow = (writer, bytes, fromAControl) => { if (fromAControl) return writer.writeAll(bytes); let done = 0; while (done < bytes.length && roomNow()) { const took = writer.write(bytes.slice(done, done + 4096)); if (took === 0) break; done += took } return done }
+/// ```
+fn write_what_fits_now(
+    writer: &mut Box<dyn Write + Send>,
+    bytes: &[u8],
+    from_a_control: bool,
+) -> usize {
+    // What:     A control's stream is written whole: it is the control's memory and never a reader that can stop.
+    // Why:      The bound exists for a stream with a reader, and a control's stream has none.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (fromAControl) return bytes.length;
+    // ```
+    if from_a_control {
+        return match writer.write_all(bytes) {
+            Ok(()) => bytes.len(),
+            Err(_) => 0,
+        };
+    }
+    let mut done: usize = 0;
+    // What:     Each turn asks whether the stream has room now, and writes no more than one page of what is left.
+    // Why:      A turn without room ends the line here, which is what keeps the caller from waiting for a reader;
+    //           every turn that writes moves `done`, so the loop ends with the line.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // while (done < bytes.length && roomNow()) { ... }
+    // ```
+    while done < bytes.len() && the_stream_has_room_now() {
+        let left: &[u8] = &bytes[done..];
+        let piece: &[u8] = &left[..left.len().min(THE_MOST_A_PIPE_TAKES_WHEN_IT_SHOWS_ROOM)];
+        match writer.write(piece) {
+            // What:     A stream that took nothing at once has no room after all, so the line's rest is left unsaid.
+            // Why:      Asking again would be a loop of this process's own, and the promise here is one settling call.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (took === 0) break;
+            // ```
+            Ok(0) => break,
+            Ok(taken) => done += taken,
+            // What:     A signal ended the call and nothing about the stream changed, so the rest is tried again.
+            // Why:      A signal must not cost the person the rest of a line the stream would still take.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // else if (error.kind === 'Interrupted') continue;
+            // ```
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            // What:     Any other refusal is the stream's answer, and the rest of the line is left unsaid.
+            // Why:      A stream that refused a write either has no room now or is gone, and neither is a reason to wait.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // else break;
+            // ```
+            Err(_) => break,
+        }
+    }
+    return done;
 }
 
 /// What:
@@ -979,6 +1095,9 @@ pub(crate) fn give_the_thread(
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     held.writer = Some(writer);
+    // What:     `held.writer_from_a_control = true` says the stream here is the control's memory, which takes every byte.
+    // Why:      The fallback bounds a line by the room of a stream with a reader, and a control's stream has none.
+    held.writer_from_a_control = true;
     // What:     `held.reader_stopped = false` puts back the wait a caller gives a reader, for a control that gives a fresh
     //           stream after the reader that had stopped was replaced.
     // Why:      A queue whose callers wait would otherwise never wait again in a control that hands a new stream.
