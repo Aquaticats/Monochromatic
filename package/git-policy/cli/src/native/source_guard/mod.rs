@@ -75,6 +75,25 @@ mod no_test_changes_the_process_directory_tests;
 #[path = "lists_are_slices_tests.rs"]
 mod lists_are_slices_tests;
 
+/// The ban on a control taking the runner the whole service process shares:
+/// a control that reviews a commit declares one of its own and reaches the review through `review_item_in`.
+#[cfg(test)]
+#[path = "no_control_takes_the_production_runner_tests.rs"]
+mod no_control_takes_the_production_runner_tests;
+
+/// The ban on a fake service manager answering from a value the whole process shares:
+/// a control writes the word it wants into the folder its own watch names.
+#[cfg(test)]
+#[path = "heartbeat_controls_own_their_manager_switch_tests.rs"]
+mod heartbeat_controls_own_their_manager_switch_tests;
+
+/// The ban on a control asking a question about the whole kill registry in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose registry no other control planted in.
+#[cfg(test)]
+#[path = "supervisor_registry_questions_in_a_child_process_tests.rs"]
+mod supervisor_registry_questions_in_a_child_process_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.
