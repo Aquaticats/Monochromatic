@@ -776,6 +776,19 @@ a defect fixed after that build;
 the fixed build's `service stop-units-of-removed-worktrees` clears them after each batch.
 A toolchain install outside the main checkout repoints only that worktree's own link.
 
+Run the sweep with the fixed build by its absolute path, never as a bare `git`.
+On 2026-11-26T08:50-05:00 the sweep was run as
+`systemd-run --user --scope --setenv=PATH=<a folder linking alpha.47 as git first> git monochromatic-git-policy-cli service stop-units-of-removed-worktrees`:
+the scope passed that `PATH` to the command (a probe printed it),
+but `systemd-run` resolved the bare `git` on its own inherited `PATH`,
+so the session link's old build ran,
+printed its own wording ("remove it yourself if nothing in it is wanted")
+and kept 147 journals for `rules-repository`, "a file this release does not know".
+The same command naming `0.6.1-alpha.47`'s link by its absolute path
+(`.cache/wrapper-release-0.6.1-alpha.47/`, the release archive whose sha256 matches the release's digest)
+removed 201 journals and left 22 entries in `~/.local/state/monochromatic-git-policy-cli/service/`
+(logs in `~/temp/agent/wrapper-alpha-47-release-2026-11-26/keep/`).
+
 ### Helium and Git
 
 Helium uses the real `net.imput.helium` configuration and cache variables.

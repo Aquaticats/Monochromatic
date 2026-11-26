@@ -125,20 +125,24 @@ Rounds started earlier run on the pool they named.
   the last two that did (6494 and the setgroups skip) merged by 07:57,
   so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6506 (the watch's wall-clock control fails in the driver's parallel suite, the class 6504 fixed),
-  window `issue-6506-watch-wall-clock-control-sized-from-its-own-run`, on the virtual writer.
+- Issue 6508 (the compaction silence control has 10 ms of scheduling slack, found by 6506's round),
+  window `issue-6508-compaction-silence-control-owns-its-clock`, on the virtual writer.
+- Issue 6505 and the split's round 1, on the virtual writer.
+- Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
+  and 6510 (the interactive selection control reads the run's terminal and never ends),
+  both found by 6507's round, start on the virtual writer after its merge (starters `brvxjo7uf` and `bu9d1ahqg`).
 - Issue 6494 merged as `c72c68f022` (07:57) and was closed by comment, its branch carrying no closing keyword.
   Its merge check's one red, `commit::commit_index`'s span control (the `index::` filter also matches `commit::commit_index::`),
   passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
   The round filed two issues:
   6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
-  which waits for 6493 (it edits that helper) and the split's round 1;
+  which waits for the split's round 1 (6493, which edited that helper, merged at 08:53);
   and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
   briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
   running on the virtual writer since 6494 merged.
 - One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
-- Issue 6493 (flex),
-  one window each, `issue-<number>-<words>`.
+- Issue 6511 (twelve `push::child_watch::` controls fail on `main` under load, a different set each run),
+  window `issue-6511-push-child-watch-controls-own-their-clock`, starts when the virtual writer has a free slot (starter `b335agb1n`).
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
@@ -181,6 +185,15 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
 - 6504 (two driver controls size their wall clock from a run of their own and own the child they read) as `6ffc826871`,
   the first round written on the virtual writer.
+- 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
+  (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
+- 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6493 as `65b27b84cc`: 22 size-read controls run in children of their own,
+  and the holds they arm refuse a body outside a child; its `push::child_watch::` reds fail on `main` too (issue 6511).
+- 6507 as `3d11fc0526`: the five controls that drain the preparation-span ledger run in children of their own,
+  and `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs` refuses one that does not.
+- The wrapper's `0.6.1-alpha.47`, released from `68af165851` after the gate at `196b8d0c87`;
+  its two Sonnet release passes run on the detached worktrees `wrapper-alpha-47-release-review-zfs-route` and `-the-rest`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
   the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
   proved in an Ubuntu 6.8 guest with the remedy arm.
@@ -230,8 +243,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
-The last gate was at `b6d160365e` (2026-11-26T05:40:41-05:00),
-and it failed only issue 6489's lane-read control, since merged as `6b67efe5ef`;
+The last gate was at `196b8d0c87` (2026-11-26T08:01:00-05:00),
+and it failed nothing: `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`;
 its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
@@ -252,11 +265,15 @@ so every `git worktree remove` warns and keeps the removed worktree's service jo
 because it "holds rules-repository, a file this release does not know";
 `package/git-policy/cli/SPEC.md`'s sweep on `main` removes that file with the journal.
 The kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
-After this batch's whole gate on `main`,
-the wrapper's next alpha (alphas of everything are covered,
-with the Sonnet release pass) carries the fix,
-and the session wrapper moves to it;
-the newer build's `service stop-units-of-removed-worktrees` then sweeps the kept journals.
+The fix shipped in `0.6.1-alpha.46` already;
+`0.6.1-alpha.47` (release commit `68af165851`, 2026-11-26T08:26:34-05:00, after the green gate at `196b8d0c87`)
+is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`, its sha256 matching the release's digest,
+and its sweep, run by absolute path, removed 201 kept journals at 08:50
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "The wrapper link a toolchain install repoints").
+The session link stays on the reviewed build:
+the AppArmor rules name that exact path, and pointing them at a newer build takes the fresh review the records ask for,
+which waits in `doc/handover/questions-for-the-owner.md`.
+Until then, run alpha.47's sweep by absolute path after each batch.
 
 ### Threaded-only test failures
 

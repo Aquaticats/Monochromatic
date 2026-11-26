@@ -18,6 +18,47 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
+
+The session's `git` (`.cache/monochromatic-git-policy-cli-bin/git`) is the wrapper built from `ee0cf2268b` on 2026-11-22,
+because the AppArmor rules in `/etc/apparmor.d/local/git` and `/etc/apparmor.d/local/gh` name that exact path
+and the records say "a rebuilt wrapper requires a fresh review"
+(`doc/handover/full-system-policy-handover.md`;
+you asked on 2026-11-25 to "Repoint the git link too" back to it after a toolchain install moved it).
+That build predates the fix that stops removed worktrees leaving their commit service journals,
+so every `git worktree remove` warns and keeps one.
+`0.6.1-alpha.47` was released from `68af165851` after a whole gate on `main` at `196b8d0c87` failed nothing
+(11991 of 11991 passed);
+its x86_64 archive is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`
+with sha256 `aac27ad2eebceda5d03ed0f080b4951cd7271555725700ab851b47f99ace24f7`, the digest GitHub lists for the release asset,
+and its sweep, run by absolute path, removed the 201 journals the old build had kept.
+Its Sonnet release passes are running.
+
+### Option B: point the link at alpha.47 by its exact path
+
+Add alpha.47's path to `local/git` (`rix`) and `local/gh` (`px -> git`) beside the old lines, reload,
+prove `gh` reaching `git` through a scratch link first, then repoint the link and keep the old build for a rollback.
+Pros: the session runs what the gate passed, and removals stop leaving journals.
+Cons: each later release needs the same rule change and review.
+
+### Option A: keep the reviewed build
+
+Pros: no rule change.
+Cons: the session runs code three days behind `main`, and alpha.47's sweep must be run by hand after each batch.
+
+### Option C: bump the wrapper's lock row and let `toolchain:install` own the link
+
+Pros: one mechanism for every tool.
+Cons: the link then points at `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
+which the `gh` rule does not name, the failure recorded in
+`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md` ("The wrapper link a toolchain install repoints"),
+and every later install moves it again.
+
+Ranking: B > A > C.
+B over A because the session then runs the gated code and stops leaving a journal per removed worktree,
+for one reviewed rule change per release;
+A over C because C ties the grant to a launcher any toolchain install rewrites, which is the recorded `gh` failure.
+
 ## Open: should local lists of names become slices too? Recorded 2026-11-26T06:41-05:00
 
 Debt ledger item 19 (merged as `df7e6467c5`) turned every constant list of names with a hand-counted length into a slice,
