@@ -122,20 +122,22 @@ Rounds started earlier run on the pool they named.
 - The crate split's round 1 (the rest of move-order step 2),
   briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
   starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
-  at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
-  and the setgroups round that also touched `invocation/` merged at 07:31.
+  the last two that did (6494 and the setgroups skip) merged by 07:57,
+  so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6506 (the watch's wall-clock control fails in the driver's parallel suite, the class 6504 fixed),
-  window `issue-6506-watch-wall-clock-control-sized-from-its-own-run`, on the virtual writer.
-- Issue 6494, the no-threads child helper read the wrong way:
-  run 2 on flex ended at 07:52 with both helpers taking the body they run;
-  its merge check on `main` runs `subvolume::`, `testing::`, `foundation::`, `worktree_copying::` and `index::`.
-  It filed two issues:
+- Issue 6508 (the compaction silence control has 10 ms of scheduling slack, found by 6506's round),
+  window `issue-6508-compaction-silence-control-owns-its-clock`, on the virtual writer.
+- Issues 6505 and 6507 and the split's round 1, on the virtual writer.
+- Issue 6494 merged as `c72c68f022` (07:57) and was closed by comment, its branch carrying no closing keyword.
+  Its merge check's one red, `commit::commit_index`'s span control (the `index::` filter also matches `commit::commit_index::`),
+  passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
+  The round filed two issues:
   6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
   which waits for 6493 (it edits that helper) and the split's round 1;
   and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
   briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
-  which starts on the virtual writer once 6494 merges.
+  running on the virtual writer since 6494 merged.
+- One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
 - Issue 6493 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
@@ -150,7 +152,10 @@ Rounds started earlier run on the pool they named.
   merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`.
   Its Sonnet release pass (`~/temp/agent/monochromatic-lint-alpha-14-release-review-2026-11-26/keep/review.md`) found no High;
   its two Mediums (a listed `own-file-loop` line lets the loop grow with no finding; a nested group's own-file use is never searched)
-  and its Lows go to the `alpha.15` fix round, window `monochromatic-lint-alpha-14-release-pass-fixes`, on the virtual writer.
+  and its Lows were fixed by the `alpha.15` round, merged as `6976fefd42`, released from `464773a972`, locked as `34181a0b2a`
+  (no allow-list key shape changed, so no list was regenerated).
+  Its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-15-release-review`
+  (`~/temp/agent/monochromatic-lint-alpha-15-release-review-2026-11-26/keep/review.md`).
   The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
   clean `git archive` exports of `main` give 0.
 
@@ -177,6 +182,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
 - 6504 (two driver controls size their wall clock from a run of their own and own the child they read) as `6ffc826871`,
   the first round written on the virtual writer.
+- 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
+  (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
+- 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
   the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
   proved in an Ubuntu 6.8 guest with the remedy arm.
@@ -226,8 +234,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
-The last gate was at `b6d160365e` (2026-11-26T05:40:41-05:00),
-and it failed only issue 6489's lane-read control, since merged as `6b67efe5ef`;
+The last gate was at `196b8d0c87` (2026-11-26T08:01:00-05:00),
+and it failed nothing: `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`;
 its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
