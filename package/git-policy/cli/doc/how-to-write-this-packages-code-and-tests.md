@@ -74,6 +74,17 @@ close or redirect the streams it does not need.
 `lfs::lfs_upload`'s `git-lfs` stand-in, which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
 is the shape that leaked.
 
+A child that is this test binary running one named test goes through `testing/child_test_process.rs`
+and nowhere else: `ChildTest` is the request (`started` hands back the running child,
+`finished` waits with a deadline and reads both pipes once the child is gone,
+`passed` adds the check that exactly one test ran and passed),
+and `testing/test_process_owner.rs` is the ownership it stands on.
+Six bodies built that command their own way until 2026-11-25,
+and most of their children were owned by nothing (debt ledger item 10).
+A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
+and judges the ending itself; a child a control keeps and talks to takes `started`,
+and its own waits carry the bounds.
+
 ## Every wait has a deadline
 
 A test waits for a condition with a bound and fails at the bound with what it waited for,

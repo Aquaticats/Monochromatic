@@ -321,16 +321,17 @@ fn zfs_unmount_guest_handle_round_trip() {
     let boot: String = LiveStagingCalls.boot().expect("this boot is read");
     let written: StagedFolderRecord = record(guid, folder_path.as_path(), &cache, boot.as_str());
     write_record(&cache, &written).expect("the handle record is written");
-    let exe = std::env::current_exe().expect("this test binary");
-    let child = Command::new(exe)
-        .args(["--exact", "zfs_unmount_guest::zfs_unmount_guest_handle_child", "--nocapture"])
-        .env("STEP9_HANDLE_CACHE", cache_path.as_path())
-        .env("STEP9_HANDLE_GUID", "9002")
-        .env("STEP9_HANDLE_BOOT", boot.as_str())
-        .output()
-        .expect("the handle child runs");
+    let environment: [(&str, &std::ffi::OsStr); 3] = [
+        ("STEP9_HANDLE_CACHE", cache_path.as_os_str()),
+        ("STEP9_HANDLE_GUID", std::ffi::OsStr::new("9002")),
+        ("STEP9_HANDLE_BOOT", std::ffi::OsStr::new(boot.as_str())),
+    ];
+    let child: std::process::Output = super::child_test_process::passed(super::child_test_process::ChildTest {
+        exact_test: "zfs_unmount_guest::zfs_unmount_guest_handle_child",
+        environment: environment.as_slice(),
+        ..super::child_test_process::ChildTest::default()
+    });
     let said: String = String::from_utf8_lossy(child.stdout.as_slice()).to_string() + String::from_utf8_lossy(child.stderr.as_slice()).as_ref();
-    assert!(child.status.success(), "the handle child failed: {said}");
     assert!(said.contains("HANDLE reopened=true"), "the child reopened the folder from the record: {said}");
     println!("UNMOUNT handle-reopened=true");
 }

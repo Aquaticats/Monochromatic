@@ -399,6 +399,20 @@ Fix: one helper in `testing/` that starts the child with `spawn_owned`, a deadli
 check; migrate the 35 sites; this is the runner item 3 needs.
 Size: 35 sites, 6 helper bodies.
 
+Landed 2026-11-25, in two commits on `refactor/git-policy-cli-test-binary-children-through-one-helper`:
+`31f4014890` and `d5e781a32a`.
+`testing/child_test_process.rs` holds the one request and its three faces (`started`, `finished`, `passed`),
+with a deadline, the two pipes read once the child is gone, and the check that exactly one test ran and passed;
+`testing/test_process_owner.rs` holds the ownership those children stand on, which the binary controls' crate and the
+candidate consumer's crate include by path, because the library's test-only modules are invisible to them.
+The umask, no-threads, file-size-limit, root-namespace and merge-mode bodies keep their caller-facing functions and
+hold no child start of their own, and `rg -n -- '"--exact"' src` answers one line: the runner's own argument list.
+Each of the five moved sites that started a child with no owner lost its line in
+`source_guard/test_children_not_yet_owned.txt` in the same round (`d5e781a32a`).
+Status: incomplete, unapproved and not final.
+No independent review has read it, the guest arms of the two ZFS controls of this item were skipped in this host run,
+and item 3's mechanisms have not been moved onto it yet.
+
 ### Item 11. The lib and binary test targets each keep a copy of the fixture support, and the copies diverged
 
 Category 4, tests.
@@ -414,6 +428,24 @@ Cost: a fix lands in one target and not the other (items 4 and 5 are two such).
 Fix: one file included by `#[path]` in both targets; `binary/binary_tests.rs:33` already includes
 `../testing/real_git_lfs_the_run_requires.rs` this way.
 Size: 8 helpers.
+
+Landed 2026-11-25, in `07fe505696` on `refactor/git-policy-cli-fixture-support-one-copy-for-both-test-targets`,
+and merged into item 10's branch by `5e30b7665a`.
+`testing/fixture_support_shared_by_both_test_targets.rs` holds the fixture folders,
+the names they are made under and the removal,
+and both targets include it by `#[path]`;
+the report of that round is
+`fixture-support-one-copy-for-both-test-targets-2026-11-25/keep/report-pi-fixture-support-one-copy-for-both-test-targets.md`.
+The merge kept one definition of the helper ownership,
+in `testing/test_process_owner.rs`,
+because that file is the one the candidate consumer's crate takes,
+and that crate keeps no fixture folders to run
+(item 10's file, whose three includers are unchanged):
+`OwnedGroups`, `group_of`, `own_group` and `spawn_owned` are there,
+with this item's read-back in `own` and item 10's `end_owned_groups`,
+and the shared fixture file no longer defines or names any of them.
+Status: incomplete, unapproved and not final.
+The merge's checks ran on the host only, no container gate was run, and the guest arms were skipped.
 
 ### Item 12. One-line byte tests are copied into 101 definitions
 

@@ -3,9 +3,9 @@
 use super::*;
 use crate::bounded_push::{StopReport, StopWindow};
 use crate::lfs_pre_push::failed_message;
-use crate::test_support::{executable, fixture, remove, spawn_owned, this_test_binary};
+use crate::test_support::{executable, fixture, remove};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 /// An argument list from words.
@@ -460,17 +460,15 @@ fn helper_entry() {
 
 /// Start this test binary as the upload helper for one scenario.
 fn spawn_upload_helper(mode: &str, root: &Path) -> Child {
-    let binary: PathBuf = this_test_binary().expect("this test's own executable");
-    // Owned, so a helper still waiting when a control fails does not outlive it.
-    return spawn_owned(
-        Command::new(binary)
-            .args(["--exact", HELPER_FILTER, "--nocapture", "--test-threads=1"])
-            .env(HELPER_MODE_VARIABLE, mode)
-            .env(HELPER_ROOT_VARIABLE, root)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null()),
-    )
-    .expect("the helper starts");
+    // Owned, so a helper still waiting when a control fails does not outlive it; its streams answer nothing the parent reads.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(HELPER_MODE_VARIABLE, std::ffi::OsStr::new(mode)), (HELPER_ROOT_VARIABLE, root.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: HELPER_FILTER,
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// Wait until `path` appears while the helper runs,

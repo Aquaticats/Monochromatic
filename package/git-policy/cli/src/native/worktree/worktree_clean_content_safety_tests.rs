@@ -473,12 +473,12 @@ fn a_content_proof_answers_under_each_variable_a_command_names() {
         return;
     }
     for variable in THE_VARIABLES_A_COMMAND_NAMES {
-        let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
-            "worktree::worktree_clean_content::safety_tests::a_content_proof_answers_under_each_variable_a_command_names",
-            &[(std::ffi::OsString::from(THE_VARIABLE_CHILD), std::ffi::OsString::from(variable))],
-        );
-        let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-        assert!(output.status.success(), "{variable}: a proof of this worktree's own files answers as it does on main:\n{said}");
-        assert!(said.contains("1 passed"), "{variable}: the child ran no test:\n{said}");
+        // `passed` is the whole assertion: the child proves this worktree's own files under the variable this arm names.
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(THE_VARIABLE_CHILD, std::ffi::OsStr::new(variable))];
+        crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: "worktree::worktree_clean_content::safety_tests::a_content_proof_answers_under_each_variable_a_command_names",
+            environment: environment.as_slice(),
+            ..crate::child_test_process::ChildTest::default()
+        });
     }
 }

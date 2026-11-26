@@ -18,6 +18,16 @@
 //! ```
 #![cfg(unix)]
 
+/// The owner a helper process is started with;
+/// this crate keeps no fixtures of its own, so it takes the one file every target takes.
+#[path = "../testing/test_process_owner.rs"]
+mod test_process_owner;
+
+/// The one place a test-binary child is started, waited for with a deadline and checked for its one passing test;
+/// the same file the library's own tests use, which this target cannot reach.
+#[path = "../testing/child_test_process.rs"]
+mod child_test_process;
+
 /// The public interface under control,
 ///  imported the way another crate would.
 use forbidden_strings::{CandidateScan, ScanFinding};
@@ -189,34 +199,17 @@ fn public_interface_runs_a_policy_pass() {
     std::fs::create_dir_all(&work).expect("fresh fixture");
     std::fs::create_dir(root.join("home")).expect("disposable home");
     // The scanner's rule cache and home directory are disposable for the child, never the real ones.
-    // A control starts a helper copy of the test binary; the wrapper is never started this way.
-    #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start a helper copy of it")]
-    let test_binary: PathBuf = std::env::current_exe().expect("test executable");
-    let output: Output = Command::new(test_binary)
-        .args([
-            "--exact",
-            "public_interface_runs_a_policy_pass",
-            "--nocapture",
-        ])
-        .env(
-            ISOLATED_FIXTURE_VARIABLE,
-            std::fs::canonicalize(&work).expect("canonical fixture"),
-        )
-        .env("HOME", root.join("home"))
-        .env("FORBIDDEN_STRINGS_CACHE_DIR", root.join("cache"))
-        .env_remove("XDG_CACHE_HOME")
-        .env_remove("FORBIDDEN_STRINGS_RULES")
-        .output()
-        .expect("start the isolated control");
-    let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
-    assert!(
-        output.status.success(),
-        "isolated control failed:\n{stdout}\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        stdout.contains("test result: ok. 1 passed; 0 failed"),
-        "the isolated control did not run exactly one test:\n{stdout}"
-    );
+    let fixture_directory: PathBuf = std::fs::canonicalize(&work).expect("canonical fixture");
+    let home: PathBuf = root.join("home");
+    let cache: PathBuf = root.join("cache");
+    let environment: [(&str, &OsStr); 3] =
+        [(ISOLATED_FIXTURE_VARIABLE, fixture_directory.as_os_str()), ("HOME", home.as_os_str()), ("FORBIDDEN_STRINGS_CACHE_DIR", cache.as_os_str())];
+    // The child's pass is this control's assertion, and its two cache variables must not come in from this process.
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "public_interface_runs_a_policy_pass",
+        environment: environment.as_slice(),
+        cleared_environment: &["XDG_CACHE_HOME", "FORBIDDEN_STRINGS_RULES"],
+        ..crate::child_test_process::ChildTest::default()
+    });
     std::fs::remove_dir_all(&root).expect("remove only the fixture");
 }
