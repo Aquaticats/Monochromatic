@@ -766,10 +766,14 @@ while `git` itself keeps working.
 The fix is to point the link back at the build the rules name,
 which the owner asked for on 2026-11-25:
 "Repoint the git link too".
-Any later toolchain install in the main checkout breaks `gh` the same way,
-and until the build is newer than the link's target the session's `git` is that older build,
-so its removals keep the commit service's journals,
-which the fixed build's `service stop-units-of-removed-worktrees` clears after each batch.
+Any later toolchain install in the main checkout undoes that the same way,
+and it takes a fresh review of the new binary's path to point the rules at a newer build at all
+(`doc/handover/full-system-policy-handover.md`,
+"a rebuilt wrapper requires a fresh review").
+So the session's `git` is the build of `ee0cf2268b` from 2026-11-22,
+whose removals still keep the commit service's journals,
+a defect fixed after that build;
+the fixed build's `service stop-units-of-removed-worktrees` clears them after each batch.
 A toolchain install outside the main checkout repoints only that worktree's own link.
 
 ### Helium and Git
