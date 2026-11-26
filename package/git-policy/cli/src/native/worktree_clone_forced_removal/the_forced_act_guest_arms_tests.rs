@@ -170,17 +170,16 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
             assert_eq!(made, 0, "the holder's own mount namespace: {}", std::io::Error::last_os_error());
         }
         AShape::UserNamespaceOfItsOwn => {
-            let command: std::ffi::CString = std::ffi::CString::new("/usr/bin/unshare").expect("no NUL in a path");
-            let flag_user: std::ffi::CString = std::ffi::CString::new("--user").expect("no NUL in an argument");
-            let flag_map: std::ffi::CString = std::ffi::CString::new("--map-root-user").expect("no NUL in an argument");
-            let flag_mount: std::ffi::CString = std::ffi::CString::new("--mount").expect("no NUL in an argument");
-            let hold_word: std::ffi::CString = std::ffi::CString::new("sleep").expect("no NUL in an argument");
-            let seconds: std::ffi::CString = std::ffi::CString::new("300").expect("no NUL in an argument");
-            let arguments: [*const libc::c_char; 6] = [command.as_ptr(), flag_user.as_ptr(), flag_map.as_ptr(), flag_mount.as_ptr(), hold_word.as_ptr(), seconds.as_ptr()];
-            // SAFETY: every pointer is a NUL-terminated string that outlives this call, and the array's last element is
-            // the null the call reads as the end of the arguments.
-            unsafe { libc::execv(command.as_ptr(), arguments.as_ptr() as *const *const libc::c_char) };
-            end_now(1);
+            // The user and mount namespaces are made in one call, so the mount namespace is owned by the new user
+            // namespace and the kernel locks every mount it copied: the shape bubblewrap and a sandboxing unit make.
+            // SAFETY: `unshare` reads one flag word and touches no memory of ours.
+            let made: libc::c_int = unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNS) };
+            assert_eq!(made, 0, "the holder's own user and mount namespace: {}", std::io::Error::last_os_error());
+            // This process is root in the parent user namespace, which is what lets it write its own map after the
+            // call; an unprivileged caller needs a helper for it.
+            for (path, mapping) in [("/proc/self/setgroups", "deny"), ("/proc/self/uid_map", "0 0 1"), ("/proc/self/gid_map", "0 0 1")] {
+                std::fs::write(path, mapping.as_bytes()).unwrap_or_else(|error| panic!("the holder's own {path}: {error}"));
+            }
         }
     }
     match shape {
