@@ -116,8 +116,8 @@ pub struct RepositoryLocation {
     ///  and the refusals of a managed clone's slot need that directory
     ///  (`SPEC.md`,
     /// "Removal of a ZFS worktree clone").
-    ///  Absent for every worktree identity, whose own answer carries the
-    ///  directory,
+    ///  Absent for every worktree identity,
+    ///  whose own answer carries the directory,
     ///  and for a place that belongs to no repository at all.
     pub common_directory_outside_a_worktree: Option<PathBuf>,
 }

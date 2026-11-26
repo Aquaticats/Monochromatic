@@ -14,7 +14,8 @@
 //!  here;
 //!  the plan is absent for a form the reading does not know,
 //!  and Git then answers the command as it always does.
-//!  The operands themselves come from `worktree_operands`, so this reading and
+//!  The operands themselves come from `worktree_operands`,
+//!  so this reading and
 //!  the removal's cannot disagree about which word names the worktree.
 //!
 //! In TS you'd write (pseudocode):

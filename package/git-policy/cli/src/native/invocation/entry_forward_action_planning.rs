@@ -394,7 +394,8 @@ fn plan_worktree_remove(
 ///  the plan reads.
 ///  The start directory is read over Git's whole global table rather than the
 ///  ladder's short list,
-///  because `-c`, `--no-optional-locks` and a `--git-dir` change nothing about
+///  because `-c`,
+///  `--no-optional-locks` and a `--git-dir` change nothing about
 ///  where the operand lies and must not hide it from the refusal;
 ///  a spelling that table does not know still names a registered worktree,
 ///  which is what Git matches first (`parse_removal_target`).

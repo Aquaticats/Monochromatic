@@ -236,7 +236,9 @@ fn the_refusals_report(run: ForwardedRun) -> String {
 ///  This is the alpha.47 pass's High finding:
 ///  the refusal read its operand through a reading that only served `-C` and a
 ///  short list of neutral options,
-///  so `-c`, `--no-optional-locks`, `--git-dir` and `-C <the Git directory>`
+///  so `-c`,
+///  `--no-optional-locks`,
+///  `--git-dir` and `-C <the Git directory>`
 ///  sent the removal to Git,
 ///  whose `-f -f` deleted the registration and the slot's underlay pointer
 ///  while the record stood at `phase=filled`.
@@ -553,8 +555,8 @@ fn a_repair_report_reaches_the_command_line() {
 ///  and the ordinary removal in such a directory must still be Git's own,
 ///  with no refusal and no report;
 ///  the run that carries a named removal out forwards it once the refusal
-///  answered nothing, which is what the second half shows by taking the
-///  worktree away.
+///  answered nothing,
+///  which is what the second half shows by taking the worktree away.
 #[test]
 fn a_removal_that_names_no_bound_slot_is_git_s_own() {
     let unrecorded: RegisteredSlot = a_registered_slot("entry-slot-plain-in-git-directory");

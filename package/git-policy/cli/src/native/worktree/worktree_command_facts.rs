@@ -51,7 +51,8 @@ pub struct CopyFacts {
     /// or the one Git named for a command that stands inside a Git directory of it and
     ///  so in no worktree (`git -C <repository>/.git worktree remove <slot>`);
     /// absent for a command that belongs to no repository.
-    /// It is carried beside the identity because the identity has no value for "no worktree, and a repository".
+    /// It is carried beside the identity because the identity has no value for a command that stands
+    ///  outside every worktree and still belongs to a repository.
     pub common_dir: Option<PathBuf>,
     /// Whether the command,
     /// after alias resolution,

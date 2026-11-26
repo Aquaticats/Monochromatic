@@ -67,7 +67,8 @@ use std::path::{
     PathBuf,
 };
 
-/// One real registration of one slot, which Git writes,
+/// One real registration of one slot,
+/// which Git writes,
 /// with the facts a removal carries built from it.
 fn bound_slot(name: &str) -> RegisteredSlot {
     return a_registered_slot(name);
