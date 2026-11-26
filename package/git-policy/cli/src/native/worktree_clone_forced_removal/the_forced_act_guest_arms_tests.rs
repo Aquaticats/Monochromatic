@@ -154,6 +154,14 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
         // SAFETY: the disposition of this child's own process is its to set and nothing else in the phase is touched.
         let _ignored: libc::sighandler_t = unsafe { libc::signal(libc::SIGTERM, libc::SIG_IGN) };
     }
+    // SAFETY: `setsid` takes no argument and makes this child a session leader of its own.
+    let session: libc::pid_t = unsafe { libc::setsid() };
+    // SAFETY: `getpid` takes no argument and reads one number; in this child it is the pid the parent knows.
+    let mine: libc::pid_t = unsafe { libc::getpid() };
+    // SAFETY: `getsid` reads one pid and writes nothing of ours.
+    let now: libc::pid_t = unsafe { libc::getsid(0) };
+    eprintln!("HOLDER-AFTER setsid={session} sid={now} pid={mine} errno={}", std::io::Error::last_os_error());
+    assert_eq!(session, mine, "the holder's own session: {}", std::io::Error::last_os_error());
     match shape {
         AShape::SessionOfItsOwn => {}
         AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared | AShape::NamespaceOfItsOwnAsSlave => {
@@ -175,15 +183,6 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
             end_now(1);
         }
     }
-    // SAFETY: `setsid` takes no argument and makes this child a session leader of its own.
-    let session: libc::pid_t = unsafe { libc::setsid() };
-    // SAFETY: `getpid` takes no argument and reads one number; in this child it is the pid the parent knows.
-    let mine: libc::pid_t = unsafe { libc::getpid() };
-    // SAFETY: `getsid` reads one pid and writes nothing of ours.
-    // SAFETY: `getsid` reads one pid and writes nothing of ours.
-    let now: libc::pid_t = unsafe { libc::getsid(0) };
-    eprintln!("HOLDER-AFTER setsid={session} sid={now} pid={mine} errno={}", std::io::Error::last_os_error());
-    assert_eq!(session, mine, "the holder's own session: {}", std::io::Error::last_os_error());
     match shape {
         AShape::NamespaceOfItsOwnAndShared => make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own"),
         AShape::NamespaceOfItsOwnAsSlave => make_the_checkout_a_slave(checkout).expect("the holder makes its own checkout a slave of the host's group"),
