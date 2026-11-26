@@ -23,6 +23,8 @@ use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 /// because only a refused thread start queues a job this way.
 #[test]
 fn an_index_rewrite_reported_as_never_started_does_not_run_afterwards() {
+    // The body refuses every thread of the process it runs in, so it belongs to the child alone (issue 6496),
+    // which this helper starts and never runs in this process.
     run_the_body_where_no_thread_can_start(
         module_path!(),
         "an_index_rewrite_reported_as_never_started_does_not_run_afterwards",

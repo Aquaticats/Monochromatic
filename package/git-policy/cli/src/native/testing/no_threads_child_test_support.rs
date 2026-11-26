@@ -18,6 +18,9 @@
 //! issue 6494).
 //! Where the user may exceed the process limit the thread is not refused,
 //! so the parent says so and skips.
+//! The two setters of that limit refuse in any other process and name the starter,
+//! because the limit belongs to the whole process and a control that changes it where the run's tests are
+//! threads stops every other test's starts with `EAGAIN` (issue 6496).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,6 +39,35 @@ use std::ffi::OsStr;
 
 /// The environment variable that marks the child.
 const CHILD_VARIABLE: &str = "CLI_GIT_NO_THREADS_CHILD";
+
+/// What:
+///  Refuse to change this process's limit on the processes and threads it starts,
+///  and to read it as a control,
+///  in a process that is not the child `run_the_body_where_no_thread_can_start` started,
+///  naming the starter.
+/// Why:
+///  The limit belongs to the whole process,
+///  and `cargo test --lib` runs a crate's tests as threads of one process,
+///  so a control that lowers it here stops every other test's starts with `EAGAIN`:
+///  measured on 2026-11-26,
+///  one control whose child guard was inverted lowered the run's own limit to one,
+///  and three other controls of its module failed at their fixture's first Git start
+///  (issue 6496).
+///  The body runs only in the child,
+///  so a control that forgot it now fails at its own first line instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refuseOutsideTheChild(state: string): void { assert(process.env.CLI_GIT_NO_THREADS_CHILD !== undefined, `${state} belongs to the whole process: set it in a child of runTheBodyWhereNoThreadCanStart's own`); }
+/// ```
+fn refuse_outside_the_child(state: &str) {
+    assert!(
+        std::env::var_os(CHILD_VARIABLE).is_some(),
+        "{state} belongs to the whole process, and `cargo test` runs a crate's tests as threads of one process, so \
+         changing it here reaches every other test of that run: set it in a child of the control's own, which \
+         `crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start` starts"
+    );
+}
 
 /// Lowers the soft process limit to one in the child between its fork and its exec.
 fn apply_limit() -> std::io::Result<()> {
@@ -72,6 +104,7 @@ fn apply_limit() -> std::io::Result<()> {
 /// setrlimit(RLIMIT_NPROC, { cur: hard, max: hard });
 /// ```
 pub(crate) fn let_threads_start_again() -> std::io::Result<()> {
+    refuse_outside_the_child("the limit on the processes and threads this process starts");
     return set_process_limit(None);
 }
 
@@ -87,6 +120,7 @@ pub(crate) fn let_threads_start_again() -> std::io::Result<()> {
 /// setrlimit(RLIMIT_NPROC, { cur: 1, max: hard });
 /// ```
 pub(crate) fn refuse_threads_again() -> std::io::Result<()> {
+    refuse_outside_the_child("the limit on the processes and threads this process starts");
     return set_process_limit(Some(1));
 }
 

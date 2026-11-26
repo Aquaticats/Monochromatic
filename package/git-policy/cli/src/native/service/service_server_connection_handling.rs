@@ -69,15 +69,39 @@ use tokio::sync::mpsc::UnboundedSender;
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// The point at which this file reads a Git directory's instance,
-/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+/// What:
+///  The point at which this file reads `git_dir`'s instance,
+///  for a control that holds that read (`service_fault_hooks_test_support.rs`).
+/// Why:
+///   The point names the directory whose instance is read,
+///  so two controls of one process hold the read of their own directory and neither answers the other (issue 6497),
+///  as `collection_point` names the directory it collects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const instanceReadPoint = (gitDir: string) => `the-instance-read-of-${gitDir}`;
+/// ```
 #[cfg(test)]
-const IN_THE_INSTANCE_READ: &str = "in-the-instance-read";
+pub(crate) fn instance_read_point(git_dir: &std::path::Path) -> String {
+    return format!("the-instance-read-of-{}", git_dir.display());
+}
 
-/// The point at which a beat's note reads the journal,
-/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+/// What:
+///  The point at which a beat's note of `request` reads the journal,
+///  for a control that holds that read (`service_fault_hooks_test_support.rs`).
+/// Why:
+///   The point names the connection's own request,
+///  so two controls of one process hold the note read of their own connection and neither answers the other
+///  (issue 6497).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noteReadPoint = (request?: string) => `the-note-read-of-${request ?? ''}`;
+/// ```
 #[cfg(test)]
-const IN_THE_NOTE_READ: &str = "in-the-note-read";
+pub(crate) fn note_read_point(request: Option<&str>) -> String {
+    return format!("the-note-read-of-{}", request.unwrap_or_default());
+}
 
 /// What every connection of one service run shares:
 /// the queues to the landing and the work loop,
@@ -193,7 +217,10 @@ fn note_from_the_board(
 ) -> (Option<ServiceMessage>, Option<String>) {
     // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
     #[cfg(test)]
-    crate::service_fault::hooks::run_on_any_thread(IN_THE_NOTE_READ);
+    {
+        let held_point: String = note_read_point(request);
+        crate::service_fault::hooks::run_on_any_thread(held_point.as_str());
+    }
     // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
     // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
     let inside: Option<(String, String)> = match request {
@@ -355,7 +382,10 @@ async fn is_foreign(
     return match run_blocking_job(move || {
         // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
         #[cfg(test)]
-        crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
+        {
+            let held_point: String = instance_read_point(git_dir.as_path());
+            crate::service_fault::hooks::run_on_any_thread(held_point.as_str());
+        }
         return instance_of(git_dir.as_path()) != mine;
     })
     .await

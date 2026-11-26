@@ -1,5 +1,25 @@
 //! Controls for the service's review handler against a real fixture repository and the loopback mock gateway.
 //! No test reaches a real host or sends a real key.
+//!
+//! What:
+//!  Every control runs its reviews in a runner of its own (`static OWN`),
+//!  through `review_item_in`.
+//! Why:
+//!  `review_item` runs a review in the one runner the whole process shares,
+//!  and a runner admits one job at a time and answers every other caller with `Contained::Busy`.
+//!  `cargo test` runs a crate's tests as threads of one process,
+//!  so a threaded run of this module let one control's review fail every other control that asked while it ran.
+//!  Measured on 2026-11-26,
+//!  7 or 8 of these 16 controls failed,
+//!  a varying set of them,
+//!  and all 16 passed with `--test-threads=1` (issue 6499).
+//!  The container gate starts each test in a process of its own,
+//!  which is why the gate never showed it.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // per test: const own = containment(); reviewItemIn(own, context, item, options, ceiling)
+//! ```
 
 use super::*;
 use crate::standards_review_input::{
@@ -126,6 +146,20 @@ fn log_of(fixture: &Fixture) -> String {
 /// while the tracked log stays exactly as committed.
 #[test]
 fn a_code_commit_is_reviewed_and_appended() {
+    // What:     `static OWN` is one `Containment`, the one-job-at-a-time runner `review_item_in` takes, and only
+    //           this control's body names it; a `static` inside a function body is one value for the whole process.
+    // Why:      This control's review is then the only job its runner admits, whatever the other controls of a
+    //           threaded run are doing; the service's one runner made every review of this module fail with
+    //           `Contained::Busy` as soon as another control's review held it (issue 6499).
+    // Gotcha:   A `static` is not per thread and not per call: it is shared by every call of the one function that
+    //           declares it, which is why each control declares its own.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const own: Containment = containment();  // one per test, never a module-level singleton
+    // ```
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-code");
     let item: WorkItem = commit(
         &fixture,
@@ -133,7 +167,13 @@ fn a_code_commit_is_reviewed_and_appended() {
         "feat(a): add a",
     );
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
-    let verdict: Verdict = review_item(&git_context(), &item, options(&item, mock.url.as_str()));
+    let verdict: Verdict = review_item_in(
+        &OWN,
+        &git_context(),
+        &item,
+        options(&item, mock.url.as_str()),
+        crate::wait_ceilings::REVIEW_CEILING,
+    );
     assert_eq!(verdict, Verdict::Done);
     let seen: String = mock.finish().seen;
     assert!(
@@ -160,20 +200,31 @@ fn a_code_commit_is_reviewed_and_appended() {
 /// so a crash between the append and the settling is harmless.
 #[test]
 fn a_repeated_item_adds_nothing() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-repeat");
     let item: WorkItem = commit(&fixture, &[("src/a.rs", "fn a() {}\n")], "feat(a): add a");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     assert_eq!(
-        review_item(&git_context(), &item, options(&item, mock.url.as_str())),
+        review_item_in(
+            &OWN,
+            &git_context(),
+            &item,
+            options(&item, mock.url.as_str()),
+            crate::wait_ceilings::REVIEW_CEILING,
+        ),
         Verdict::Done
     );
     mock.finish();
     let after_first: String = log_of(&fixture);
     assert_eq!(
-        review_item(
+        review_item_in(
+            &OWN,
             &git_context(),
             &item,
-            options(&item, "http://127.0.0.1:1/unused")
+            options(&item, "http://127.0.0.1:1/unused"),
+            crate::wait_ceilings::REVIEW_CEILING,
         ),
         Verdict::Done
     );
@@ -185,11 +236,20 @@ fn a_repeated_item_adds_nothing() {
 /// and a commit that only changes the log gets none.
 #[test]
 fn skips_and_log_only_commits_make_no_call() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-skip");
     let unused: &str = "http://127.0.0.1:1/unused";
     let doc: WorkItem = commit(&fixture, &[("doc/a.md", "text\n")], "docs(a): text");
     assert_eq!(
-        review_item(&git_context(), &doc, options(&doc, unused)),
+        review_item_in(
+            &OWN,
+            &git_context(),
+            &doc,
+            options(&doc, unused),
+            crate::wait_ceilings::REVIEW_CEILING,
+        ),
         Verdict::Done
     );
     let skipped: String = log_of(&fixture);
@@ -208,7 +268,13 @@ fn skips_and_log_only_commits_make_no_call() {
     );
     for item in [&only_log, &only_log_changed] {
         assert_eq!(
-            review_item(&git_context(), item, options(item, unused)),
+            review_item_in(
+                &OWN,
+                &git_context(),
+                item,
+                options(item, unused),
+                crate::wait_ceilings::REVIEW_CEILING,
+            ),
             Verdict::Done
         );
     }
@@ -227,6 +293,9 @@ fn skips_and_log_only_commits_make_no_call() {
 /// nothing is written beside the worktree.
 #[test]
 fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-linked");
     let linked: PathBuf = fixture.parent.join("linked");
     git(
@@ -274,7 +343,16 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
     };
     let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
     assert_eq!(built.log_path, shared_log_path(common.as_path()));
-    assert_eq!(review_item(&git_context(), &item, built), Verdict::Done);
+    assert_eq!(
+        review_item_in(
+            &OWN,
+            &git_context(),
+            &item,
+            built,
+            crate::wait_ceilings::REVIEW_CEILING,
+        ),
+        Verdict::Done
+    );
     assert!(
         log_of(&fixture).contains("(no code files):"),
         "{}",
@@ -292,6 +370,9 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
 /// no file created.
 #[test]
 fn a_repository_without_a_shadow_log_is_left_alone() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let parent: PathBuf = fixture("review-no-log");
     let root: PathBuf = repository(parent.as_path(), "repo");
     std::fs::write(root.join("a.ts"), "x\n").expect("write");
@@ -309,10 +390,12 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
         transport: false,
     };
     assert_eq!(
-        review_item(
+        review_item_in(
+            &OWN,
             &git_context(),
             &item,
-            options(&item, "http://127.0.0.1:1/unused")
+            options(&item, "http://127.0.0.1:1/unused"),
+            crate::wait_ceilings::REVIEW_CEILING,
         ),
         Verdict::Done
     );
@@ -328,11 +411,20 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
 /// an unknown commit is a failed item with the reason.
 #[test]
 fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-failures");
     let item: WorkItem = commit(&fixture, &[("src/a.js", "let a\n")], "feat(a): add a");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("503 Service Unavailable", "busy")));
     assert_eq!(
-        review_item(&git_context(), &item, options(&item, mock.url.as_str())),
+        review_item_in(
+            &OWN,
+            &git_context(),
+            &item,
+            options(&item, mock.url.as_str()),
+            crate::wait_ceilings::REVIEW_CEILING,
+        ),
         Verdict::Done
     );
     mock.finish();
@@ -342,10 +434,12 @@ fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
         transport: false,
         ..item.clone()
     };
-    let verdict: Verdict = review_item(
+    let verdict: Verdict = review_item_in(
+        &OWN,
         &git_context(),
         &unknown,
         options(&unknown, "http://127.0.0.1:1/unused"),
+        crate::wait_ceilings::REVIEW_CEILING,
     );
     assert!(
         matches!(&verdict, Verdict::Failed(reason) if reason.contains("git")),
@@ -360,13 +454,22 @@ fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
 /// no budget around the whole review decides it.
 #[test]
 fn a_silent_gateway_ends_the_review_when_it_has_been_silent_for_the_quiet_window() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-silent");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "x\n")], "feat(a): add a");
     let window: Duration = Duration::from_millis(500);
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let mut silent: ReviewOptions = options(&item, mock.url.as_str());
     silent.quiet_window = window;
-    let verdict: Verdict = review_item(&git_context(), &item, silent);
+    let verdict: Verdict = review_item_in(
+        &OWN,
+        &git_context(),
+        &item,
+        silent,
+        crate::wait_ceilings::REVIEW_CEILING,
+    );
     // No upper bound by the clock: a call that was not ended would run to the silent gateway's close and be done differently.
     assert_eq!(verdict, Verdict::Done);
     let log: String = log_of(&fixture);
@@ -395,6 +498,9 @@ fn options_follow_the_item() {
 /// The key that came in the work message is the bearer credential the gateway sees.
 #[test]
 fn the_key_from_the_message_reaches_the_gateway() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-key-reaches");
     let item: WorkItem = commit(
         &fixture,
@@ -403,10 +509,12 @@ fn the_key_from_the_message_reaches_the_gateway() {
     );
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     let key: ReviewKey = ReviewKey::new(KEY).expect("a key");
-    let verdict: Verdict = review_item(
+    let verdict: Verdict = review_item_in(
+        &OWN,
         &git_context(),
         &item,
         options_with(&item, mock.url.as_str(), Some(&key)),
+        crate::wait_ceilings::REVIEW_CEILING,
     );
     assert_eq!(verdict, Verdict::Done);
     let seen: String = mock.finish().seen.to_ascii_lowercase();
@@ -424,6 +532,9 @@ fn the_key_from_the_message_reaches_the_gateway() {
 /// A review whose message carried no key records the plain "no key" outcome and contacts no one.
 #[test]
 fn a_review_without_a_key_records_no_key() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-no-key");
     let item: WorkItem = commit(
         &fixture,
@@ -431,7 +542,13 @@ fn a_review_without_a_key_records_no_key() {
         "feat(a): add a",
     );
     let unused: &str = "http://127.0.0.1:1/unused";
-    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, unused, None));
+    let verdict: Verdict = review_item_in(
+        &OWN,
+        &git_context(),
+        &item,
+        options_with(&item, unused, None),
+        crate::wait_ceilings::REVIEW_CEILING,
+    );
     assert_eq!(verdict, Verdict::Done);
     let log: String = log_of(&fixture);
     assert!(

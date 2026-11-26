@@ -616,6 +616,24 @@ and the failures with the commit that fixed them.
   controls ("Cause H diagnosed,
   and fixed,
   on 2026-11-25").
+- `b6d160365e`,
+  unit `whole-gate-on-main-b6d160365e`,
+  run `native-0bj8nC`,
+  started 2026-11-26T05:40:41-05:00,
+  holding the reformat with the root `rustfmt.toml`,
+  issue 6492's descriptor-limit children,
+  the process-wide-state fixes 6483 to 6487 and 6496 to 6498,
+  the crate split's rescan and the linter locks to `alpha.13`:
+  `11973 tests run: 11972 passed (6 slow, 1 leaky), 1 failed, 49 skipped`.
+  The one failure is
+  `landing::service_round::tests::a_lane_read_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step`,
+  issue 6489's control,
+  whose round was open.
+  The leaky test is
+  `invocation::typed_network_command_relay::git_error_stream_relayed_as_it_arrives::tests::a_process_that_outlives_the_child_does_not_hold_the_relay`,
+  which leaves its sleeping grandchild running,
+  as the gates at `639f90484d`,
+  `6543be0d1a` and `cea8bb92ff` also showed (issue 6501).
 
 A gate's window denies what the work meets,
 never a failure by itself:

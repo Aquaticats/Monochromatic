@@ -53,6 +53,25 @@ fn index_listing(
     return text;
 }
 
+/// A top doc entry is read without the whitespace at its end,
+///  so an entry written `one.rs ` names the file `one.rs`,
+///  and no key of a finding about a doc entry ends in a character a list line trims away.
+#[test]
+fn a_top_doc_entry_loses_the_whitespace_at_its_end() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            format!(
+                "//! Words about the folder.\n//!\n//! {LIST_MARKER}\n//!\n//! - `one.rs `: the entry with a space before its backtick.\nmod one;\n"
+            )
+            .as_str(),
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
+}
+
 /// Files listed after the files they use,
 /// with no loop,
 /// make no finding;
@@ -195,7 +214,7 @@ fn a_folder_without_mod_rs_has_no_top_doc() {
     let found: Vec<String> = findings_of(&fixture.path);
     assert_eq!(found.len(), 2, "{found:#?}");
     assert!(
-        found[0].contains("The folder src/a holds module files but no mod.rs"),
+        found[0].contains("The folder src/a holds module files but no mod.rs that declares them"),
         "{}",
         found[0]
     );
@@ -739,5 +758,65 @@ fn a_new_use_inside_a_tolerated_file_loop_is_a_finding() {
         found[0].contains("`gamma.rs` uses `alpha.rs`"),
         "{}",
         found[0]
+    );
+}
+/// A `mod.rs` on disk that no `mod` line declares is no part of the package,
+///  so a folder whose files are declared from elsewhere keeps no index
+///  and owes a top doc of its own.
+#[test]
+fn a_readable_index_that_no_module_line_declares_is_not_the_folders_index() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "#[path = \"a/b.rs\"] mod b;\n#[path = \"a/c.rs\"] mod c;\n",
+        ),
+        ("src/a/b.rs", "pub struct B;\n"),
+        ("src/a/c.rs", "pub struct C;\n"),
+        // The stray file lists both files, and no `mod` line reaches it.
+        (
+            "src/a/mod.rs",
+            "//! Files here.\n//!\n//! - `b.rs`: b.\n//! - `c.rs`: c.\nmod b;\nmod c;\n",
+        ),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    // The folder keeps no index, so it owes a top doc of its own and lists neither file.
+    assert!(
+        found.iter().any(|text| return text.contains(
+            "The folder src/a holds module files but no mod.rs that declares them, so it has no top doc to list them in. The mod.rs on disk is not part of the package, because no mod line declares it."
+        )),
+        "{found:#?}"
+    );
+    for name in ["b.rs", "c.rs"] {
+        assert!(
+            found.iter().any(|text| return text
+                .contains(format!("the file `{name}` is not listed in any top doc").as_str())),
+            "{name} missing in {found:#?}"
+        );
+    }
+    assert!(
+        found
+            .iter()
+            .all(|text| return !text.contains("src/a/mod.rs")),
+        "{found:#?}"
+    );
+}
+
+/// An index that cannot be read is taken only when the folder holds no index the tree reached,
+///  so the crate root stays the index of a package that holds an unreadable `src/mod.rs`.
+#[test]
+fn an_unreadable_index_beside_a_crate_root_is_not_the_folders_index() {
+    let fixture = package_with(&[("src/lib.rs", "mod a;\n"), ("src/a.rs", "")]);
+    std::fs::write(fixture.path.join("src/mod.rs"), [0x2f, 0x2f, 0xff, b'\n'])
+        .expect("fixture stray index");
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert!(
+        found.iter().any(|text| return text.contains(
+            "The top doc of src/lib.rs has no file list, so its files are not listed in order."
+        )),
+        "{found:#?}"
+    );
+    assert!(
+        found.iter().all(|text| return !text.contains("src/mod.rs")),
+        "{found:#?}"
     );
 }
