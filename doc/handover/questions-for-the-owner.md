@@ -18,6 +18,53 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: should local lists of names become slices too? Recorded 2026-11-26T06:41-05:00
+
+Debt ledger item 19 (merged as `df7e6467c5`) turned every constant list of names with a hand-counted length into a slice,
+and a source guard now refuses a new one.
+It left 297 local `let NAME: [&str; N] = [...]` lists in 184 files,
+almost all in test files,
+because the item measured constants and no one has said whether locals are in it.
+Converting them is the same mechanical change and the guard can be widened to refuse them;
+the cost is a large diff across test files the crate split is about to move.
+If yes,
+the natural time is after the split's moves,
+so it is written once on the files' final paths.
+
+## Open: the crate split's points after the rescan of `main`, recorded 2026-11-26T05:05-05:00
+
+The rescan after the reformat (merged as `6329f89af0`) left these for the owner,
+each with its options,
+pros,
+cons and ranking in `doc/planning/cli-git-source-layout-target-tree.md`,
+"Open points for the owner".
+The split's rounds 1 to 6 of that document's "Next" section need none of them,
+so those run meanwhile;
+the round each point holds is named beside it.
+
+- The test helpers,
+  where the libraries live,
+  and plural folder names:
+  the document records both the answer "Not yet." of 2026-11-07 and an answer of 2026-11-15
+  (a separate test-folders library,
+  `package/<job>/core-rust`,
+  plural names kept with an exemption),
+  and takes no side.
+  Which of the two stands?
+  Holds rounds 10 and 11.
+- Which Git-free jobs become libraries (the library count):
+  unanswered;
+  its readings D and E stand.
+  Holds round 11.
+- The 32 ZFS folder names,
+  and whether the ZFS route's folders form one group.
+  Holds round 7.
+- The wording of the group rule,
+  which the 17 group summaries need.
+  Holds round 9.
+- Whether `repairs_the_service_runs_for_a_new_worktree` stays a program folder.
+  Holds round 7.
+
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
 None of these has been asked yet,

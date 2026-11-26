@@ -16,8 +16,8 @@ fn words(texts: &[&str]) -> Vec<OsString> {
 /// with any options after them.
 #[test]
 fn the_three_leading_words_select_the_service_mode() {
-    assert!(is_service_start(words(&SERVICE_WORDS).as_slice()));
-    let mut with_options: Vec<OsString> = words(&SERVICE_WORDS);
+    assert!(is_service_start(words(SERVICE_WORDS).as_slice()));
+    let mut with_options: Vec<OsString> = words(SERVICE_WORDS);
     with_options.extend(words(&["--journal", "/j", "--path", "/s"]));
     assert!(is_service_start(with_options.as_slice()));
     assert_eq!(
@@ -40,8 +40,8 @@ fn the_earlier_command_word_selects_the_service_mode_the_same() {
         EARLIER_SERVICE_WORDS,
         [COMMAND_WORD.earlier, "service", "run"]
     );
-    assert!(is_service_start(words(&EARLIER_SERVICE_WORDS).as_slice()));
-    let mut with_options: Vec<OsString> = words(&EARLIER_SERVICE_WORDS);
+    assert!(is_service_start(words(EARLIER_SERVICE_WORDS).as_slice()));
+    let mut with_options: Vec<OsString> = words(EARLIER_SERVICE_WORDS);
     with_options.extend(words(&["--journal", "/j", "--instance", "i"]));
     assert!(is_service_start(with_options.as_slice()));
     assert_eq!(
@@ -106,7 +106,7 @@ fn nothing_else_selects_the_service_mode() {
 #[test]
 fn an_option_that_is_not_text_is_refused() {
     use std::os::unix::ffi::OsStringExt;
-    let mut arguments: Vec<OsString> = words(&SERVICE_WORDS);
+    let mut arguments: Vec<OsString> = words(SERVICE_WORDS);
     arguments.push(OsString::from_vec(vec![b'/', 0xff, b'x']));
     assert_eq!(
         service_options(arguments.as_slice()),

@@ -183,11 +183,8 @@ fn a_directory_where_the_index_records_a_file(
 fn repositories_the_clean_keeps_untracked(
     (context, source): (&GitContext, &SnapshotSource)
 ) -> Result<Vec<String>, String> {
-    let untracked: Vec<Vec<u8>> = listed_names((
-        context,
-        source.root.as_path(),
-        UNTRACKED_LISTING_WORDS.as_slice(),
-    ))?;
+    let untracked: Vec<Vec<u8>> =
+        listed_names((context, source.root.as_path(), UNTRACKED_LISTING_WORDS))?;
     let mut reasons: Vec<String> = Vec::new();
     for name in untracked {
         if !name.ends_with(b"/") {

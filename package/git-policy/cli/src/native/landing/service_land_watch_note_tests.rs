@@ -8,6 +8,10 @@
 //! are answered inside the ceiling that write is granted.
 //! The held write is let go by each control before it ends,
 //! so every control ends in seconds and leaves no thread waiting.
+//! Each control runs its body in a child of its own:
+//! the place of the one note write of a process (`A_NOTE_WRITE_IS_OUTSTANDING`) belongs to the whole process,
+//! so a control that holds that write kept the place of every other control of a threaded run,
+//! which never reached its own note (issue 6497).
 //!
 //! The service and its clients are the ones `service_land_hung_write_tests.rs` runs,
 //! and the fixtures are the ones the landing's controls make.
@@ -29,8 +33,8 @@ use super::tests::{
 use super::*;
 use crate::service_claim_watch::{
     ClaimWatch,
-    IN_THE_NEXT_SERVICE_NOTE,
     WATCH_DIRECTORY,
+    next_service_note_point,
 };
 use crate::service_client::Submitted;
 use crate::service_fault::hooks::{
@@ -116,12 +120,12 @@ struct HeldNoteWrite {
 }
 
 impl HeldNoteWrite {
-    /// Arms the hold and gives its two ends.
-    fn arm() -> Self {
+    /// Arms the hold on the note the landing writes about `git_dir` and gives its two ends.
+    fn arm(git_dir: &std::path::Path) -> Self {
         let (reached, reached_wait) = tokio::sync::oneshot::channel();
         let (let_go, held) = std::sync::mpsc::channel();
         hold_on_any_thread(HoldOnAnyThread {
-            point: String::from(IN_THE_NEXT_SERVICE_NOTE),
+            point: next_service_note_point(git_dir),
             reached,
             let_go: held,
         });
@@ -278,10 +282,16 @@ fn after_the_gate(
 /// which a watch of the store reads here while the held write has still not returned.
 #[test]
 fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceiling() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceiling",
+    ) {
+        return;
+    }
     let world: World = world("service-watch-note-held");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving = serving(&world, "note-held");
-    let mut held: HeldNoteWrite = HeldNoteWrite::arm();
+    let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
     let only: Submitting = submit_on_a_thread(
         client(&serving, ANSWER_CEILING, PATIENCE),
         request(&world, "only", "only.txt", "only\n"),
@@ -321,10 +331,16 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
 /// which a watch of the store reads once that answer's wake has been taken.
 #[test]
 fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it",
+    ) {
+        return;
+    }
     let world: World = world("service-watch-note-queued");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving = serving(&world, "note-queued");
-    let mut held: HeldNoteWrite = HeldNoteWrite::arm();
+    let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
     let first: Submitting = submit_on_a_thread(
         client(&serving, ANSWER_CEILING, PATIENCE),
         request(&world, "first", "first.txt", "first\n"),
@@ -367,6 +383,12 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
 /// so the bound costs a commit nothing where storage answers.
 #[test]
 fn a_commit_whose_note_the_store_answers_does_not_wait_for_that_ceiling() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_commit_whose_note_the_store_answers_does_not_wait_for_that_ceiling",
+    ) {
+        return;
+    }
     let world: World = world("service-watch-note-answered");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving =

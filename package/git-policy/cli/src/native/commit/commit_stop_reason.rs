@@ -113,7 +113,7 @@ pub const KIND_UNIDENTIFIED: &str = "unidentified";
 ///   A reader of an `unidentified` record needs to know what was ruled out:
 ///  every route a commit can stop by is named,
 ///  and the record says they were all absent.
-const EVERY_ROUTE_A_MESSAGE_IS_NOT: [&str; 7] = [
+const EVERY_ROUTE_A_MESSAGE_IS_NOT: &[&str] = &[
     KIND_POLICY,
     KIND_CORE_FINDING,
     KIND_ENGINE_FAILURE,
@@ -128,8 +128,7 @@ const EVERY_ROUTE_A_MESSAGE_IS_NOT: [&str; 7] = [
 /// Why:
 ///  `reason_of_events` reads the events of a commit that reported a result,
 ///  so only the routes an event can carry were looked for.
-const EVERY_ROUTE_AN_EVENT_IS_NOT: [&str; 3] =
-    [KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
+const EVERY_ROUTE_AN_EVENT_IS_NOT: &[&str] = &[KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
 
 /// The step name the wrapper gives the `git commit` it builds in a scratch repository.
 /// It is the step a commit Git declined names when the runner noted none.
@@ -404,7 +403,7 @@ pub fn reason_of_stop(
         TransactionStop::Client(failure) => CommitStopReason::client_failure(failure),
         TransactionStop::Message(_) => match failed {
             Some(step) => CommitStopReason::git_step(step.name.as_str(), step.status),
-            None => CommitStopReason::unidentified(&EVERY_ROUTE_A_MESSAGE_IS_NOT),
+            None => CommitStopReason::unidentified(EVERY_ROUTE_A_MESSAGE_IS_NOT),
         },
         TransactionStop::Failed {
             code,
@@ -466,7 +465,7 @@ pub fn reason_of_events(events: &[PolicyEvent]) -> CommitStopReason {
             return CommitStopReason::policy(policy_descriptor(finding.policy).name);
         }
     }
-    return CommitStopReason::unidentified(&EVERY_ROUTE_AN_EVENT_IS_NOT);
+    return CommitStopReason::unidentified(EVERY_ROUTE_AN_EVENT_IS_NOT);
 }
 
 /// The reasons,

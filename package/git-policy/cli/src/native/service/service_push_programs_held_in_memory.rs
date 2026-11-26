@@ -53,7 +53,7 @@ use std::sync::Mutex;
 /// the service's pushes carry the never-prompt pair by the owner's decision
 /// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
 /// so `GIT_ASKPASS` and `SSH_ASKPASS` would be overwritten anyway and are left out rather than pretending to travel.
-pub const CARRIED: [&str; 5] = [
+pub const CARRIED: &[&str] = &[
     "PATH",
     "GIT_EXEC_PATH",
     "GIT_SSH",
@@ -73,7 +73,7 @@ pub const CARRIED: [&str; 5] = [
 /// never which program or which host,
 /// and a push whose list is gone searches the service's own and says so in its refusal
 /// (`lfs_pre_push::ProgramSearch`).
-pub const TRANSPORT: [&str; 3] = ["GIT_SSH", "GIT_SSH_COMMAND", "GIT_PROXY_COMMAND"];
+pub const TRANSPORT: &[&str] = &["GIT_SSH", "GIT_SSH_COMMAND", "GIT_PROXY_COMMAND"];
 
 /// What:
 ///  The variable a service's push carries so its refusals can say the list came from the command that asked for it.
@@ -206,7 +206,7 @@ pub fn of_this_process() -> PushPrograms {
 pub fn of(environment: &[(OsString, OsString)]) -> PushPrograms {
     let mut variables: Vec<(String, String)> = Vec::new();
     let mut not_text: Vec<String> = Vec::new();
-    for name in CARRIED {
+    for &name in CARRIED {
         let mut value: Option<&OsString> = None;
         for (held, held_value) in environment.iter().rev() {
             if held == OsStr::new(name) {
@@ -226,7 +226,7 @@ pub fn of(environment: &[(OsString, OsString)]) -> PushPrograms {
         variables.push((String::from(name), String::from(plain_value)));
     }
     let mut transport: bool = false;
-    for name in TRANSPORT {
+    for &name in TRANSPORT {
         transport = transport || last_value(environment, name).is_some();
     }
     return PushPrograms {

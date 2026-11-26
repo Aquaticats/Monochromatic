@@ -76,14 +76,14 @@ fn settle_within(
 
 /// The kinds that are folders,
 ///  with the file each holds in the test.
-const FOLDER_KINDS: [RenamedName; 3] = [
+const FOLDER_KINDS: &[RenamedName] = &[
     DATA_FOLDER,
     WORKTREE_COPY_RECORD_FOLDER,
     MERGE_INTENT_FOLDER,
 ];
 
 /// The kinds that are files.
-const FILE_KINDS: [RenamedName; 4] = [
+const FILE_KINDS: &[RenamedName] = &[
     DISCARD_AUDIT_LOG,
     COMMIT_TIMING_LOG,
     WORKTREE_ADD_TIMING_LOG,
@@ -345,7 +345,7 @@ fn awkward_directory_names_are_settled_like_any_other() {
 //  2026-11-07T08:24:40-05:00, so six names existed twice and every command printed six lines.
 
 /// The kinds that live in the common Git directory and exist twice in the measurement.
-const KINDS_EXISTING_TWICE: [RenamedName; 6] = [
+const KINDS_EXISTING_TWICE: &[RenamedName] = &[
     DATA_FOLDER,
     WORKTREE_COPY_RECORD_FOLDER,
     DISCARD_AUDIT_LOG,
@@ -373,7 +373,7 @@ fn log_lines(
 /// a folder with its own entry under each,
 ///  and one entry name that both folders hold.
 fn plant_both_spellings(directory: &Path) {
-    for kind in KINDS_EXISTING_TWICE {
+    for &kind in KINDS_EXISTING_TWICE {
         if FOLDER_KINDS.contains(&kind) {
             for spelling in [kind.earlier, kind.current] {
                 let folder: PathBuf = directory.join(spelling);
@@ -426,7 +426,7 @@ fn both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice() {
     let root: PathBuf = fixture("fold-no-notice");
     plant_both_spellings(root.as_path());
     settle_within(root.as_path(), root.as_path());
-    for kind in KINDS_EXISTING_TWICE {
+    for &kind in KINDS_EXISTING_TWICE {
         assert!(
             !root.join(kind.earlier).exists(),
             "{kind:?}: the earlier name is gone"
@@ -453,7 +453,7 @@ fn every_line_of_both_logs_survives_under_the_current_name() {
     let root: PathBuf = fixture("fold-lines");
     plant_both_spellings(root.as_path());
     settle_within(root.as_path(), root.as_path());
-    for kind in FILE_KINDS {
+    for &kind in FILE_KINDS {
         let mut wanted: Vec<String> = log_lines(kind.earlier, 10);
         wanted.extend(log_lines(kind.current, 20));
         wanted.sort();

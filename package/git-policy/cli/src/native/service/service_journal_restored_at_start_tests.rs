@@ -7,7 +7,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const [reached, letGo] = holdThePoint(THE_READ_AT_A_START); const [retries, watch] = restoredWithin(100, plan, watchDir, undefined);
+//! const [reached, letGo] = holdThePoint(readAtAStartPoint(plan)); const [retries, watch] = restoredWithin(100, plan, watchDir, undefined);
 //! ```
 
 use super::*;
@@ -138,7 +138,8 @@ fn a_read_that_gives_no_answer_within_its_ceiling_leaves_both_directories_and_re
         1,
         "the earlier service's plan is on disk"
     );
-    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(THE_READ_AT_A_START);
+    let (reached, let_go) =
+        crate::service_fault::hooks::hold_the_point(read_at_a_start_point(plan.as_path()).as_str());
     let started: Option<(PushRetries, ClaimWatch)> = started_within(
         SHORT_CEILING,
         plan.as_path(),

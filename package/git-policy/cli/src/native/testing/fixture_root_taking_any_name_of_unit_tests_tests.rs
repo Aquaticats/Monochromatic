@@ -29,7 +29,7 @@ use super::in_a_fixture_root_taking_any_name;
 /// `CapBnd` is left out on purpose:
 /// the bounding set says which capabilities a program could ever be given,
 /// and this control asks which ones it holds.
-const REPORTED_SETS: [&str; 4] = ["CapInh", "CapPrm", "CapEff", "CapAmb"];
+const REPORTED_SETS: &[&str] = &["CapInh", "CapPrm", "CapEff", "CapAmb"];
 
 /// What a set of held capabilities reads as when the program holds none.
 const NO_CAPABILITIES_HELD: u64 = 0;

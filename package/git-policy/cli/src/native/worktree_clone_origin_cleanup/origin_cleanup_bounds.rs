@@ -69,7 +69,7 @@ pub fn header_bytes() -> usize {
 /// Why:
 ///  A writer refuses a value wider than its key's bound,
 ///  so one rule proves a record cannot carry a field its reader would refuse.
-pub const FIELD_WIDEST_BYTES: [(&str, usize); 15] = [
+pub const FIELD_WIDEST_BYTES: &[(&str, usize)] = &[
     ("state", 7),
     ("startedAt", INSTANT_MAXIMUM_BYTES),
     ("attemptedAt", INSTANT_MAXIMUM_BYTES),
@@ -90,7 +90,7 @@ pub const FIELD_WIDEST_BYTES: [(&str, usize); 15] = [
 /// The widest one key's value may be,
 /// or nothing when the grammar has no such key.
 pub fn field_maximum_bytes(key: &str) -> Option<usize> {
-    for (named, widest) in FIELD_WIDEST_BYTES {
+    for &(named, widest) in FIELD_WIDEST_BYTES {
         if named == key {
             return Some(widest);
         }

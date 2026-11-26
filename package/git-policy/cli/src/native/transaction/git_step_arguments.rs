@@ -54,7 +54,7 @@ pub const AN_ARGUMENT: &str = "an argument";
 /// which is never named.
 ///  `-S` and `--gpg-sign` name a signing key rather than the person,
 /// and they are here because a key names its owner.
-const TEXT_OPTIONS: [&str; 12] = [
+const TEXT_OPTIONS: &[&str] = &[
     "-m",
     "--message",
     "-F",
@@ -82,7 +82,7 @@ fn option_name(word: &str) -> &str {
 ///  written either as `--message` with its value on the next word or as `-mtext` on this one.
 fn carries_the_person_s_text(word: &str) -> bool {
     let name: &str = option_name(word);
-    for known in TEXT_OPTIONS {
+    for &known in TEXT_OPTIONS {
         if name == known {
             return true;
         }

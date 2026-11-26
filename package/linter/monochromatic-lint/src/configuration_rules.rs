@@ -118,7 +118,7 @@ fn count_option(
     name: &str,
     value: &JsoncValue,
 ) -> Result<usize, ConfigError> {
-    return count_option_in(id, name, "line index", value);
+    return count_option_in(id, name, "line index", None, value);
 }
 
 /// What:
@@ -141,6 +141,7 @@ pub(crate) fn image_byte_bound(value: &JsoncValue) -> Result<u64, ConfigError> {
         "markdown/lfs-image-url",
         "max-image-bytes",
         "byte count",
+        Some(MAX_IMAGE_BYTES_BOUND),
         value,
     )?;
     // What: the same count as the reader's own type, which is what it adds one to.
@@ -152,7 +153,7 @@ pub(crate) fn image_byte_bound(value: &JsoncValue) -> Result<u64, ConfigError> {
     if wide > largest {
         return Err(ConfigError::new(
             format!(
-                "markdown/lfs-image-url max-image-bytes must be at most {largest}: the rule reads one byte past the bound to notice an image that grew."
+                "markdown/lfs-image-url max-image-bytes must be at most {largest}: the rule reads one byte past the bound to notice an image over it."
             )
             .as_str(),
         ));
@@ -166,15 +167,19 @@ pub(crate) fn image_byte_bound(value: &JsoncValue) -> Result<u64, ConfigError> {
 /// Why:
 ///  The same grammar carries line counts and byte counts,
 ///  and an error that calls a byte count a "line index" sends the reader to the wrong option.
+///  A count that has a smaller largest accepted value than the platform's word
+///  names that value in every refusal about a number too large to read,
+///  because the word size is not what its reader must stay under.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function countOptionIn(id: string, name: string, unit: string, value: JsoncValue): number;
+/// function countOptionIn(id: string, name: string, unit: string, ceiling: number | undefined, value: JsoncValue): number;
 /// ```
 fn count_option_in(
     id: &str,
     name: &str,
     unit: &str,
+    ceiling: Option<u64>,
     value: &JsoncValue,
 ) -> Result<usize, ConfigError> {
     // What: Extract the exact-number payload from a borrowed value.
@@ -214,22 +219,73 @@ fn count_option_in(
     // ```
     let (Ok(coefficient), Ok(exponent)) = (coefficient_result, exponent_result) else {
         return Err(ConfigError::new(
-            format!("{id} {name} must be a nonnegative integer that fits this platform's {unit}.")
-                .as_str(),
+            not_integer_message(id, name, unit, ceiling).as_str(),
         ));
     };
     // Checked arithmetic returns absence on overflow instead of wrapping the limit.
     let Some(scale) = 10_usize.checked_pow(exponent) else {
         return Err(ConfigError::new(
-            format!("{id} {name} exceeds this platform's {unit}.").as_str(),
+            over_message(id, name, unit, ceiling).as_str(),
         ));
     };
     let Some(result) = coefficient.checked_mul(scale) else {
         return Err(ConfigError::new(
-            format!("{id} {name} exceeds this platform's {unit}.").as_str(),
+            over_message(id, name, unit, ceiling).as_str(),
         ));
     };
     return Ok(result);
+}
+
+/// What:
+///  The refusal of a number whose digits or exponent do not fit the platform's count.
+/// Why:
+///  A rule with a smaller largest value must name it here too,
+///  or its reader learns only the platform's word size and still picks a value the rule refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function notIntegerMessage(id: string, name: string, unit: string, ceiling?: number): string;
+/// ```
+fn not_integer_message(
+    id: &str,
+    name: &str,
+    unit: &str,
+    ceiling: Option<u64>,
+) -> String {
+    return match ceiling {
+        Some(largest) => {
+            format!(
+                "{id} {name} must be a nonnegative integer that fits this platform's {unit}, and at most {largest}."
+            )
+        }
+        None => {
+            format!("{id} {name} must be a nonnegative integer that fits this platform's {unit}.")
+        }
+    };
+}
+
+/// What:
+///  The refusal of a number past the platform's count.
+/// Why:
+///  Here too a rule with a smaller largest value names it,
+///  so every refusal about a number too large for the rule holds the same value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function overMessage(id: string, name: string, unit: string, ceiling?: number): string;
+/// ```
+fn over_message(
+    id: &str,
+    name: &str,
+    unit: &str,
+    ceiling: Option<u64>,
+) -> String {
+    return match ceiling {
+        Some(largest) => {
+            format!("{id} {name} exceeds this platform's {unit}, and must be at most {largest}.")
+        }
+        None => format!("{id} {name} exceeds this platform's {unit}."),
+    };
 }
 
 /// What:

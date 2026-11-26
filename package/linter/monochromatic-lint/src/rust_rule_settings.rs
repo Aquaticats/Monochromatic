@@ -48,7 +48,8 @@ pub struct LayoutRule {
     pub severity: Severity,
     /// The file the rule's `allow` option names,
     ///  as written in configuration,
-    ///  relative to the configuration file's directory,
+    ///  resolved against that configuration's base folder:
+    ///  the working directory for `--config`, and the file's own folder for a discovered configuration,
     ///  or nothing when the rule tolerates no finding.
     pub allow: Option<String>,
 }
@@ -59,7 +60,8 @@ pub struct ClosureLint {
     /// Severity selected by matching configuration blocks.
     pub severity: Severity,
     /// The Dylint library directory as written in configuration,
-    ///  relative to the configuration file's directory.
+    ///  resolved against that configuration's base folder:
+    ///  the working directory for `--config`, and the file's own folder for a discovered configuration.
     pub library: String,
 }
 

@@ -105,7 +105,7 @@ const SCRATCH: &str = "ROOT/cos/home/scratch";
 /// each its own dataset tree so no two Sanoid runs take the same snapshot
 /// name,
 /// with whether the subtree holds the child dataset the order arms exclude.
-const SUBTREES: [(&str, bool); 6] = [
+const SUBTREES: &[(&str, bool)] = &[
     ("decided", false),
     ("order-ok", true),
     ("order-bad", true),
@@ -350,7 +350,7 @@ fn build_subtree(
 /// Every subtree of the layout,
 /// in the order the arms use them.
 fn build_layout(pool: &Pool) {
-    for (subtree, with_scratch) in SUBTREES {
+    for &(subtree, with_scratch) in SUBTREES {
         build_subtree(pool, subtree, with_scratch);
     }
 }

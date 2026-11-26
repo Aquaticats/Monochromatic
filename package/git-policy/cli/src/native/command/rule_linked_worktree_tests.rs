@@ -222,7 +222,7 @@ fn head_moves_need_the_dirtiness() {
 /// and every other form loses tracked changes only.
 #[test]
 fn each_form_asks_about_the_state_it_can_destroy() {
-    for command in GuardedCommand::ALL {
+    for &command in GuardedCommand::ALL {
         let expected: Option<DirtyQuestion> = match command {
             GuardedCommand::Clean | GuardedCommand::CleanIgnored => {
                 Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked))
@@ -309,7 +309,7 @@ fn harmless_forms_pass() {
 ///  each with its own text.
 #[test]
 fn only_main_and_absent_worktrees_are_rejected() {
-    for command in GuardedCommand::ALL {
+    for &command in GuardedCommand::ALL {
         assert_eq!(
             resolve_linked_worktree(command, EffectiveTarget::MainWorktree),
             Some(main_worktree_message(command))
@@ -339,7 +339,7 @@ fn only_main_and_absent_worktrees_are_rejected() {
 /// and the deliberate way to discard.
 #[test]
 fn every_text_names_the_loss_an_alternative_and_the_hatch() {
-    for command in GuardedCommand::ALL {
+    for &command in GuardedCommand::ALL {
         let main = main_worktree_message(command);
         let dirty = dirty_worktree_message(command);
         let outside = outside_worktree_message(command);

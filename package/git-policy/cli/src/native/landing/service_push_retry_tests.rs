@@ -1630,7 +1630,7 @@ const DECLINE_MESSAGE: &str = "protected: pushes to main need a review";
 /// person (the desktop's askpass helper,
 /// which the host's own settings may name and which waits on a window),
 /// may be waited for.
-const NO_PROMPT: [(&str, &str); 2] = [("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPASS", "/bin/true")];
+const NO_PROMPT: &[(&str, &str)] = &[("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPASS", "/bin/true")];
 
 /// The text of every record of a failed push the person has not been shown yet.
 fn notice_text(stage: &Stage) -> String {
@@ -1661,7 +1661,7 @@ fn round_with_real_git(
     retries: &mut PushRetries,
 ) -> Option<Duration> {
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     return round_of(stage.repo.join(".git").as_path(), &handlers, retries);
 }
 
@@ -2187,7 +2187,7 @@ fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_t
         "Git's own words carry the credentials, so the scan below is not vacuous"
     );
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let entries = crate::service_timing::capture::entries_of(|| {
         let _wake = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries);
@@ -2275,7 +2275,7 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
         transport: false,
     };
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     let mut verdict: Option<Verdict> = None;
     let entries = crate::service_timing::capture::entries_of(|| {
         verdict = Some(handlers.push(std::slice::from_ref(&item)));
@@ -3153,7 +3153,7 @@ fn the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers() {
     let (task_repo, task_remote, task_landed) =
         repository_with_a_landed_commit(root.as_path(), "task");
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     let from_a_thread: Verdict = handlers.push(std::slice::from_ref(&push_item(
         thread_repo.as_path(),
         thread_landed.as_str(),
@@ -3213,7 +3213,7 @@ fn the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answ
     let (task_repo, _task_remote, task_landed) =
         repository_with_a_landed_commit(root.as_path(), "task");
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     let from_a_thread: Verdict =
         handlers.maintenance(&push_item(thread_repo.as_path(), thread_landed.as_str()));
     let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(
@@ -3608,7 +3608,7 @@ fn a_terminal_refusal_whose_record_was_refused_keeps_the_plan_and_says_its_words
     // The plan is due at once, which is the state of one whose pause has passed.
     let mut retries: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
     assert_ne!(
         tip_of(remote.as_path()),
@@ -3678,7 +3678,7 @@ fn a_push_the_retry_plan_lands_keeps_what_the_server_said() {
     )
     .expect("the plan");
     let handlers: Arc<GitHandlers> =
-        Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
+        Arc::new(GitHandlers::new(git_context()).with_push_environment(NO_PROMPT));
     let mut retries: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
     let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
     assert_eq!(

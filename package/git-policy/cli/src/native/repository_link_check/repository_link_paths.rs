@@ -25,7 +25,7 @@ use std::path::{
 
 /// The environment variables that name a Git directory,
 /// a work tree or the common Git directory.
-const GIT_PATH_VARIABLES: [&str; 3] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"];
+const GIT_PATH_VARIABLES: &[&str] = &["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"];
 
 /// What:
 ///  The text of an option value that names a path,

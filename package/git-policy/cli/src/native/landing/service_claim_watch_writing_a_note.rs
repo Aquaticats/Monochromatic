@@ -34,12 +34,25 @@ use std::path::{
     PathBuf,
 };
 
-/// The point at which the landing writes its note for the service that starts next,
-/// for a control that holds that write (`service_fault_hooks_test_support.rs`).
-/// The work loop writes the same note through `write_down` and never reaches this point,
-/// so a hold here is the landing's own write and nothing else.
+/// What:
+///  The point at which the landing writes its note for the service that starts next,
+///  about `git_dir`,
+///  for a control that holds that write (`service_fault_hooks_test_support.rs`).
+///  The work loop writes the same note through `write_down` and never reaches this point,
+///  so a hold here is the landing's own write and nothing else.
+/// Why:
+///   The point names the Git directory the note is about,
+///  so two controls of one process hold the write of their own repository and neither answers the other (issue 6497),
+///  as `collection_point` names the directory it collects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nextServiceNotePoint = (gitDir: string) => `the-next-service-note-of-${gitDir}`;
+/// ```
 #[cfg(test)]
-pub(crate) const IN_THE_NEXT_SERVICE_NOTE: &str = "in-the-next-service-note";
+pub(crate) fn next_service_note_point(git_dir: &std::path::Path) -> String {
+    return format!("the-next-service-note-of-{}", git_dir.display());
+}
 
 /// What:
 ///  Writes `git_dir` down for the next service of `instance`,
@@ -68,7 +81,10 @@ pub fn note_for_the_next_service(
     // A control holds this write on whichever thread runs it, which `note_for_the_next_service_within` made a thread of its own
     //  (`service_claim_watch_note_within_a_ceiling.rs`).
     #[cfg(test)]
-    crate::service_fault::hooks::run_on_any_thread(IN_THE_NEXT_SERVICE_NOTE);
+    {
+        let held_point: String = next_service_note_point(git_dir);
+        crate::service_fault::hooks::run_on_any_thread(held_point.as_str());
+    }
     if of_another_instance(instance, git_dir) {
         return;
     }

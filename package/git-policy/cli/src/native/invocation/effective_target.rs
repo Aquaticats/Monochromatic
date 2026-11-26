@@ -252,7 +252,7 @@ pub fn cargo_build_script_output_dir(
 /// ```ts
 /// const CARGO_BUILD_DIRECTORY_VARIABLES = ['CARGO_BUILD_DIR', 'CARGO_BUILD_BUILD_DIR', 'CARGO_TARGET_DIR'];
 /// ```
-const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] = [
+const CARGO_BUILD_DIRECTORY_VARIABLES: &[&str] = &[
     "CARGO_BUILD_DIR",
     "CARGO_BUILD_BUILD_DIR",
     "CARGO_TARGET_DIR",

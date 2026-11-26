@@ -123,7 +123,7 @@ pub const MARGIN: Duration = Duration::from_secs(
 /// A network or user-space file system can be
 ///  written by a Git on another machine,
 /// whose process numbers mean nothing here.
-pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = [
+pub(crate) const LOCAL_FILE_SYSTEMS: &[&str] = &[
     "btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs",
 ];
 
@@ -237,7 +237,7 @@ impl Judge {
     /// and the filesystems this boot mounts.
     pub fn here() -> Self {
         let mut local_file_systems: Vec<String> = Vec::new();
-        for name in LOCAL_FILE_SYSTEMS {
+        for &name in LOCAL_FILE_SYSTEMS {
             local_file_systems.push(String::from(name));
         }
         return Self {

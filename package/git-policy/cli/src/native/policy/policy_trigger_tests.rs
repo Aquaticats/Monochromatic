@@ -26,7 +26,7 @@ use crate::policy_registry::{
 };
 
 /// The five triggers in the order the incumbent declares them.
-const ALL: [Trigger; 5] = [
+const ALL: &[Trigger] = &[
     Trigger::PreForward,
     Trigger::PostCommit,
     Trigger::ManualPush,
@@ -38,7 +38,7 @@ const ALL: [Trigger; 5] = [
 #[test]
 fn triggers_print_their_wire_spelling() {
     let mut names: Vec<&str> = Vec::<&str>::new();
-    for trigger in ALL {
+    for &trigger in ALL {
         names.push(trigger_name(trigger));
     }
     assert_eq!(
@@ -64,8 +64,8 @@ fn every_policy_declares_the_incumbent_triggers() {
         (PolicyId::LinkedWorktreeOnly, &[Trigger::PreForward]),
         (PolicyId::BranchWorktreeOnly, &[Trigger::PreForward]),
         (PolicyId::AddExplicit, &[Trigger::PreForward]),
-        (PolicyId::FinalNewline, &ALL),
-        (PolicyId::MarkdownAutofix, &ALL),
+        (PolicyId::FinalNewline, ALL),
+        (PolicyId::MarkdownAutofix, ALL),
         (
             PolicyId::ForbiddenRootContext,
             &[Trigger::PreForward, Trigger::DirectCheck],
@@ -101,7 +101,7 @@ fn every_policy_declares_the_incumbent_triggers() {
     for (index, (id, triggers)) in expected.iter().enumerate() {
         assert_eq!(POLICY_REGISTRY[index].id, *id, "registry order");
         assert_eq!(policy_triggers(*id), *triggers, "{id:?}");
-        for trigger in ALL {
+        for &trigger in ALL {
             assert_eq!(
                 policy_runs_on(*id, trigger),
                 triggers.contains(&trigger),
@@ -115,7 +115,7 @@ fn every_policy_declares_the_incumbent_triggers() {
 #[test]
 fn every_lifecycle_is_ported() {
     let mut ported: Vec<Trigger> = Vec::<Trigger>::new();
-    for trigger in ALL {
+    for &trigger in ALL {
         if trigger_is_ported(trigger) {
             ported.push(trigger);
         }

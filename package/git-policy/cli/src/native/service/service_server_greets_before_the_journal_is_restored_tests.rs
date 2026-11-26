@@ -7,12 +7,12 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const [reached, letGo] = holdThePoint(THE_READ_AT_A_START); expect(await greetingOf(service)).toBeDefined();
+//! const [reached, letGo] = holdThePoint(readAtAStartPoint(plans)); expect(await greetingOf(service)).toBeDefined();
 //! ```
 
 use super::*;
 use crate::service_client_listen_and_ask_to_retire::read_message;
-use crate::service_journal_restored_at_start::THE_READ_AT_A_START;
+use crate::service_journal_restored_at_start::read_at_a_start_point;
 use crate::service_land::LandContext;
 use crate::service_protocol::{
     ALLOWED_MODES,
@@ -187,8 +187,13 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 #[test]
 fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer() {
     let world: World = world("restore-stalled");
+    // What: the plan whose read this control holds, which the service reads from its own journal.
+    // Why:  the hold names the read of that plan, so it is this control's hold and no other control's (issue 6497).
+    let plans: std::path::PathBuf = world.journal.join(crate::push_retry::PLAN_DIRECTORY);
     // The journal's read answers only when this control lets it go.
-    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(THE_READ_AT_A_START);
+    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(
+        read_at_a_start_point(plans.as_path()).as_str(),
+    );
     let listener: UnixListener = UnixListener::bind(world.socket()).expect("bind");
     let context: LandContext = world.context();
     let settings: ServeSettings = world.settings();

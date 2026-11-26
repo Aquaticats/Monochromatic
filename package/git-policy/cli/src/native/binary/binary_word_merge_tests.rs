@@ -91,7 +91,7 @@ pub(super) enum Stop {
 
 /// Every operation,
 /// so a control covers all four.
-pub(super) const STOPS: [Stop; 4] = [Stop::Merge, Stop::Rebase, Stop::CherryPick, Stop::Revert];
+pub(super) const STOPS: &[Stop] = &[Stop::Merge, Stop::Rebase, Stop::CherryPick, Stop::Revert];
 
 /// A repository with the inputs tracked on `main`,
 /// ready for `stop`:

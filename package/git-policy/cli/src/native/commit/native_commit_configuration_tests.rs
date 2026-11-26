@@ -56,7 +56,7 @@ fn snapshot(records: &[(&str, &str, Option<&str>)]) -> ConfigSnapshot {
 /// ```ts
 /// const cases = [['commit.template', 'unused\ttemplate'], ['commit.cleanup', 'first\nsecond'], ...];
 /// ```
-const SPECIAL_VALUES: [(&str, &[u8]); 6] = [
+const SPECIAL_VALUES: &[(&str, &[u8])] = &[
     ("commit.template", b"unused\ttemplate"),
     ("commit.cleanup", b"first\nsecond"),
     ("core.commentchar", b"back\\slash"),
@@ -89,7 +89,7 @@ fn every_character_the_format_treats_specially_reads_back_from_the_carried_file(
         OsString::from("-z"),
         OsString::from("--get"),
     ]);
-    for (key, value) in SPECIAL_VALUES {
+    for &(key, value) in SPECIAL_VALUES {
         let mut asked: Vec<OsString> = query.clone();
         asked.push(OsString::from(key));
         let output: std::process::Output = git_output(root.as_path(), asked.as_slice());

@@ -137,7 +137,7 @@ pub const PROTECTED_BRANCH_TRIES: u32 = 5;
 ///   the server refused the login or the permission;
 /// - OpenSSH's `Permission denied (publickey).`,
 ///   which Git relays when the key is refused.
-pub const LOGIN_PHRASES: [&str; 5] = [
+pub const LOGIN_PHRASES: &[&str] = &[
     "Authentication failed for",
     "terminal prompts disabled",
     "returned error: 401",

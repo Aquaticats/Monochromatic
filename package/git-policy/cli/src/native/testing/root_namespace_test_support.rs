@@ -24,7 +24,7 @@
 const UNSHARE: &str = "unshare";
 
 /// The switches `unshare` takes before the program it runs in the namespace.
-const NAMESPACE_SWITCHES: [&str; 5] = [
+const NAMESPACE_SWITCHES: &[&str] = &[
     "--user",
     "--map-root-user",
     "--mount",
@@ -105,7 +105,7 @@ pub(crate) fn in_a_root_namespace(
         environment: environment.as_slice(),
         running_program: Some(ProgramRunningTheTest {
             program: UNSHARE,
-            arguments_before_the_test_binary: NAMESPACE_SWITCHES.as_slice(),
+            arguments_before_the_test_binary: NAMESPACE_SWITCHES,
         }),
         ..ChildTest::default()
     });

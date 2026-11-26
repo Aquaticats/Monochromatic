@@ -114,7 +114,7 @@ fn compare_by_name_bytes(
 /// these three are per-worktree,
 /// every other name is shared,
 /// and `git pack-refs` never packs these three.
-pub const PER_WORKTREE_NAMESPACES: [&str; 3] = ["refs/bisect", "refs/worktree", "refs/rewritten"];
+pub const PER_WORKTREE_NAMESPACES: &[&str] = &["refs/bisect", "refs/worktree", "refs/rewritten"];
 
 /// What:
 ///  Where a ref snapshot is read from:

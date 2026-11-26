@@ -261,7 +261,7 @@ impl CandidateAttributes {
             self.real_git.as_path(),
             arguments.as_slice(),
             self.overlay.as_slice(),
-            crate::conflict_side_modes::MODE_VARIABLES.as_slice(),
+            crate::conflict_side_modes::MODE_VARIABLES,
         ) {
             Ok(captured) => captured,
             Err(error) => {

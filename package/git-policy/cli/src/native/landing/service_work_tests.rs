@@ -544,7 +544,7 @@ fn a_claim_left_by_an_earlier_service_is_run_again_when_its_lease_is_over() {
     let started: ClaimTime = ClaimTime::read();
     // The earlier service claims it and dies.
     assert!(
-        claim_next_of(work_dir.as_path(), &started, &SERVICE_KINDS)
+        claim_next_of(work_dir.as_path(), &started, SERVICE_KINDS)
             .expect("claim")
             .is_some()
     );
@@ -784,7 +784,7 @@ fn a_push_given_up_by_recovery_leaves_a_notice() {
         claim_next_of(
             work_directory(repo.common.as_path()).as_path(),
             &started,
-            &SERVICE_KINDS
+            SERVICE_KINDS
         )
         .expect("claim")
         .is_some()
@@ -944,7 +944,7 @@ fn a_claim_in_the_common_directory_is_taken_back_only_after_its_lease() {
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: ClaimTime = ClaimTime::read();
     assert!(
-        claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS)
+        claim_next_of(work_dir.as_path(), &now, SERVICE_KINDS)
             .expect("claim")
             .is_some()
     );
@@ -1011,7 +1011,7 @@ fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_ma
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: ClaimTime = ClaimTime::read();
     assert!(
-        claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS)
+        claim_next_of(work_dir.as_path(), &now, SERVICE_KINDS)
             .expect("claim")
             .is_some(),
         "the main instance holds one item"
@@ -1047,7 +1047,7 @@ fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: ClaimTime = ClaimTime::read();
     assert!(
-        claim_next_of(work_dir.as_path(), &now, &SERVICE_KINDS)
+        claim_next_of(work_dir.as_path(), &now, SERVICE_KINDS)
             .expect("claim")
             .is_some()
     );
@@ -2562,6 +2562,12 @@ fn notices_of(git_dir: &Path) -> usize {
 /// ```
 #[test]
 fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes",
+    ) {
+        return;
+    }
     crate::parallel_test_support::room_for(
         "the record of a terminal failure goes before the plan's file",
         crate::parallel_test_support::ONE_PLACE,
@@ -3027,7 +3033,7 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
     ));
     let mut asked: Vec<&str> = Vec::new();
     if !recorder
@@ -3156,7 +3162,7 @@ fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
                 CLAIM_LEASE,
                 Renewal::Timed,
                 &mut replanning,
-                &SERVICE_KINDS,
+                SERVICE_KINDS,
                 Duration::ZERO,
             ),
         )
@@ -3232,7 +3238,7 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
             CLAIM_LEASE,
             Renewal::Timed,
             &mut replanning,
-            &SERVICE_KINDS,
+            SERVICE_KINDS,
             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         ),
     )
@@ -3268,7 +3274,7 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
     ));
     assert_eq!(
         recorder
@@ -3332,7 +3338,7 @@ fn the_awaited_drain_makes_a_snapshot_ahead() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
     ));
     assert_eq!(
         recorder
@@ -4050,7 +4056,7 @@ fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
     // One item at a time, so each item's own pause is what the slice is read against.
     crate::service_work_items_side_by_side::hold_the_width_to(1);
     let drained: DrainOfAControl =
-        drain_with(&repo, &handler, &SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
+        drain_with(&repo, &handler, SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
     crate::service_work_items_side_by_side::take_the_hosts_width();
     assert_eq!(
         names(&repo, DONE).len(),
@@ -4112,7 +4118,7 @@ fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
     let drained: DrainOfAControl = drain_with(
         &repo,
         &handler,
-        &PUSH_KINDS,
+        PUSH_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
     );
     let at_the_slow_branch: &Vec<String> = &drained
@@ -4174,7 +4180,7 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
     let _drained: DrainOfAControl = drain_with(
         &repo,
         &handler,
-        &PUSH_KINDS,
+        PUSH_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
     );
     assert_eq!(
@@ -4213,8 +4219,14 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
 /// (`housekeeping_of_one_round.rs`).
 #[test]
 fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again",
+    ) {
+        return;
+    }
     use crate::parallel_test_support::ONE_PLACE;
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
     assert_eq!(
         crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
         ONE_PLACE,
@@ -4245,7 +4257,7 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
     let drained: DrainOfAControl = drain_with(
         &repo,
         &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()),
-        &PUSH_KINDS,
+        PUSH_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
     );
     assert_eq!(

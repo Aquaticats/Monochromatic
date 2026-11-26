@@ -21,7 +21,7 @@ use crate::wrapper_names_old_and_new::{
 /// Every entry a shadow shares,
 /// beside the ones a fixture repository has,
 /// written into a common directory so the control names them itself.
-const ENTRIES_A_COMMIT_DOES_NOT_READ: [&str; 12] = [
+const ENTRIES_A_COMMIT_DOES_NOT_READ: &[&str] = &[
     "FETCH_HEAD",
     "ORIG_HEAD",
     "description",
