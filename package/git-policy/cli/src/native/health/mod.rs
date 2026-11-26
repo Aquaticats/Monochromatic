@@ -71,3 +71,13 @@ pub mod doctor_filesystem;
 /// Nothing reaches it from a command path until step 18 is wired.
 #[cfg(target_os = "linux")]
 pub mod doctor_zfs_route;
+
+/// Plan step 20's Sanoid coverage, built ahead and unwired:
+/// the generated `sanoid.conf` sections,
+/// the `com.sun:auto-snapshot=false` markers,
+/// `doctor`'s comparison of the measured dataset tree and store against
+/// recursive coverage with its printed correction,
+/// and the report of the space guard's actual scope.
+/// Nothing reaches it from a command path until step 20 is wired.
+#[cfg(target_os = "linux")]
+pub mod sanoid_coverage;
