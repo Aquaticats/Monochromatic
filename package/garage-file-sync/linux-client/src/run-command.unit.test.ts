@@ -7,18 +7,30 @@
 
 import { mkdtempDisposable, readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { setTimeout as delay, } from 'node:timers/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { runCommand, } from './run-command.ts';
+import {
+  type CommandResult,
+  runCommand,
+} from './run-command.ts';
 
 /**
  Longest time a test command may run before the runner stops it, in milliseconds.
  */
 const TEST_TIMEOUT_MS = 500;
+
+/**
+ How far past its timeout the runner may return a problem, in milliseconds.
+
+ Destroying the pipes makes the pending stream reads fail at once, so the runner has no
+ work left beyond reporting what the timeout stopped.
+ */
+const TIMEOUT_RETURN_MARGIN_MS = 2_000;
 
 /**
  How long the child that must overrun the timeout would run for, in milliseconds.
@@ -27,6 +39,15 @@ const TEST_TIMEOUT_MS = 500;
  on its own.
  */
 const OUTLIVING_LIFETIME_MS = 30_000;
+
+/**
+ How long the descendant that holds the child's pipes open would run for, in
+ milliseconds.
+
+ A timer, never a loop: the descendant only has to outlive the runner's timeout and the
+ test's assertions.
+ */
+const DESCENDANT_LIFETIME_MS = 60_000;
 
 /**
  Name of a command no machine has, so starting it fails the same way everywhere.
@@ -49,6 +70,58 @@ function stopIfRunning(pid: number,): boolean {
     if (Error.isError(error,) && ('code' in error) && (error.code === 'ESRCH')) return false;
     throw error;
   }
+}
+
+/**
+ Waits for a command, but not past a budget.
+
+ @param run - the command run to wait for
+
+ @param budgetMs - longest wait before reporting that the run did not finish
+
+ @returns what the command reported, or nothing when it overran the budget
+ */
+async function runWithinBudget(run: Promise<CommandResult>, budgetMs: number,): Promise<CommandResult | undefined> {
+  const outcome = await Promise.race([
+    run.then(function finished(result,) {
+      return { result, };
+    },),
+    delay(budgetMs,).then(function overran() {
+      return {};
+    },),
+  ],);
+  return outcome.result;
+}
+
+/**
+ Builds a script that starts a descendant inheriting the script's stdout and stderr, and
+ exits at once.
+
+ The descendant only exists to hold the pipes the child leaves open, so it waits on a
+ timer for a named lifetime.
+
+ @param pidFile - file the script records the descendant's process id in
+
+ @returns the script, for `node --eval`
+ */
+function descendantScript(pidFile: string,): string {
+  return `const { spawn } = require('node:child_process');
+const { writeFileSync } = require('node:fs');
+const descendant = spawn(process.execPath, ['--eval', 'setTimeout(function waited() {}, ${String(DESCENDANT_LIFETIME_MS,)})'], { stdio: ['ignore', 'inherit', 'inherit'] });
+writeFileSync(${JSON.stringify(pidFile,)}, String(descendant.pid,));
+descendant.unref();`;
+}
+
+/**
+ Reads the process id a script recorded.
+
+ @param pidFile - file the script wrote
+
+ @returns the process id, or nothing when the file holds no number
+ */
+async function readReportedPid(pidFile: string,): Promise<number | undefined> {
+  const pid = Math.trunc(Number(await readFile(pidFile, 'utf8',),),);
+  return Number.isNaN(pid,) ? undefined : pid;
 }
 
 await describe({
@@ -149,6 +222,49 @@ await describe({
         expect(result.exitCode,).toBeUndefined();
         expect(result.problem,).toContain(`${String(TEST_TIMEOUT_MS,)} ms`,);
       },
+    },),
+    it({
+      name: 'returns a problem within its timeout when a descendant keeps the pipes open',
+      fn: async function descendantHoldsPipes() {
+        await using home = await mkdtempDisposable(join(scratchRoot(), 'garage-run-command-',),);
+        /**
+         File the child records its descendant's process id in.
+         */
+        const pidFile = join(home.path, 'descendant-pid.txt',);
+        /**
+         When the runner was asked to start the command.
+         */
+        const startedAt = performance.now();
+        /**
+         What the command reported, or nothing when it overran the timeout and the
+         margin.
+         */
+        const result = await runWithinBudget(
+          runCommand({
+            command: process.execPath,
+            args: [
+              '--eval',
+              descendantScript(pidFile,),
+            ],
+            timeoutMs: TEST_TIMEOUT_MS,
+          },),
+          TEST_TIMEOUT_MS + TIMEOUT_RETURN_MARGIN_MS,
+        );
+        /**
+         How long the runner took to report.
+         */
+        const elapsedMs = performance.now() - startedAt;
+        /**
+         Process id of the descendant holding the pipes, which the test must end.
+         */
+        const pid = await readReportedPid(pidFile,);
+        if (pid !== undefined) stopIfRunning(pid,);
+        expect(result,).toBeDefined();
+        expect(result?.exitCode,).toBeUndefined();
+        expect(result?.problem,).toContain(`${String(TEST_TIMEOUT_MS,)} ms`,);
+        expect(elapsedMs,).toBeLessThanOrEqual(TEST_TIMEOUT_MS + TIMEOUT_RETURN_MARGIN_MS,);
+      },
+      timeout: 30_000,
     },),
     it({
       name: 'kills a stopped command that ignores SIGTERM, so it cannot hold the runner open',

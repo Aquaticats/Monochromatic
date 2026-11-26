@@ -66,8 +66,7 @@ async function collectStream(stream: NodeJS.ReadableStream,): Promise<string> {
 /**
  What stopping a command produced.
 
- `problem` is set when the command was still running after the kill of a command that
- never started, or when the kill itself failed.
+ `problem` is set when waiting for the stopped command's close failed.
  */
 type StopResult = {
   readonly problem?: string;
@@ -158,6 +157,24 @@ export async function runCommand({
       ],
     },
   );
+  /**
+   Drops the child's pipes when the timeout fires.
+
+   Node's abort of a spawned child emits its error only when the child could still be
+   killed. A process the child started can inherit its stdout and stderr and hold them
+   open after the child itself exited, and then the abort reports nothing and the reads
+   below would wait for the descendant forever. Destroying the pipes ends those reads
+   whatever the child's state.
+   */
+  const releasePipes = function releasePipes(): void {
+    started.stdout?.destroy();
+    started.stderr?.destroy();
+  };
+  timeout.addEventListener(
+    'abort',
+    releasePipes,
+    { once: true, },
+  );
   try {
     /**
      Both streams read together; a child that fills one pipe while the other is
@@ -176,8 +193,8 @@ export async function runCommand({
       ),
     ],);
     /**
-     Exit status of the finished process: a number for an exit, a signal name, or
-     nothing when the process never started.
+     Exit status of the finished process: its number for an exit, or -1 when a signal
+     ended it. It is absent only from the result a problem path returns.
      */
     const exitCode: unknown = closed.at(0,);
     return {
