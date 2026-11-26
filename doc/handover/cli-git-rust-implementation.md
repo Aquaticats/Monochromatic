@@ -119,8 +119,9 @@ and each stays in force until the owner changes it.
   started at 22:54.
 - The linter's alpha.9 release-pass fixes,
   window `monochromatic-lint-alpha-9-release-pass-fixes`,
-  branch `fix/monochromatic-lint-layout-allow-list-release-pass-findings`,
-  started at 23:16.
+  started at 23:16 and merged after this read;
+  `alpha.10` carries them (`6cfbcbb5f4`)
+  and `toolchain.lock.json` still locks `alpha.9`.
 - The layout rules' stale lists,
   window `layout-rules-on-with-a-shrinking-allow-list`,
   branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`,
