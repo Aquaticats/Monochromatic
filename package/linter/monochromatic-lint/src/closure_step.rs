@@ -355,7 +355,7 @@ fn missing_libraries(packages: &[ClosurePackage]) -> Vec<Diagnostic> {
             package.configuration.as_str(),
             file_start(),
             format!(
-                "{RULE} option library names {}, which holds no Cargo.toml of a Dylint library; no package was checked with it. Fix the path, which is relative to this configuration file.",
+                "{RULE} option library names {}, which holds no Cargo.toml of a Dylint library; no package was checked with it. Fix the path, which is resolved against this configuration's base folder: the working directory for `--config`, and the file's own folder for a discovered configuration.",
                 package.library.display()
             ),
         ));
