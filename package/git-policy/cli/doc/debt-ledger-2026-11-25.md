@@ -660,6 +660,16 @@ each of the 28 guards hands its body to that call and the three guards excuse it
 on the merged tree `commit::` answered `ok. 474 passed; 0 failed` in both runs,
 `source_guard::` `ok. 151 passed`,
 and each of the 34 controls `1 passed` alone with `--exact`.
+A sixth fact of the same shape was measured after that merge,
+in the first threaded run of `commit::`:
+`commit::git_step_failure::tests::a_note_never_carries_a_path_or_a_line_break` failed with
+`the note just written` (`FAILED. 473 passed; 1 failed`),
+because `commit/git_step_failure.rs` keeps the note of the last failed Git step in one
+`Mutex<Option<FailedStep>>` for the process,
+and a control beside it cleared the note between this control's write and its read.
+Its four controls hand their body to the child too,
+the ledger guard gains that note as a fifth requirement,
+and the module answers `ok. 4 passed; 0 failed` alone and `commit::` `ok. 474 passed; 0 failed` twice after it.
 The causes and all three guards' failing proofs,
 before and after that merge,
 are in

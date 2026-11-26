@@ -18,6 +18,11 @@
 //!  (issue 6509),
 //!  `commit_index_builds::tests` read another control's builds in five of its seven failures,
 //!  and one read an empty list because another control's record had taken its build.
+//!  One more fact of the same shape is no figure:
+//!  `commit/git_step_failure.rs` keeps the note of the last Git step that failed,
+//!  and a control that clears it empties the note a control beside it has just written,
+//!  so `commit::git_step_failure::tests::a_note_never_carries_a_path_or_a_line_break`
+//!  failed with `the note just written` in a threaded run of `commit::` on 2026-11-26.
 //!  The container gate starts each test in a process of its own,
 //!  so the gate cannot show it.
 //!  A control that starts `run_the_body_in_a_child_of_its_own` first asks its question in a child of the test
@@ -31,7 +36,8 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // every control that names drain_index_builds(, note_index_build(, commit_index_builds::,
-//! // drain_prepare_parts(, note_prepare_part(, drain_build_parts(, note_build_part(, drain_steps( or note_step(
+//! // drain_prepare_parts(, note_prepare_part(, drain_build_parts(, note_build_part(, drain_steps(, note_step(,
+//! // clear_failed_step(, note_failed_step( or drain_failed_step(
 //! // must also name run_the_body_in_a_child_of_its_own(.
 //! ```
 
@@ -189,6 +195,45 @@ const THE_STEPS: Requirement = Requirement {
     ],
 };
 
+/// What:
+///  `THE_FAILED_STEP` is the ban on clearing,
+///  noting or taking the last failed Git step in the run's own process.
+/// Why:
+///  The note of the last step that failed is one for the whole process,
+///  so a control that clears it empties a note another control has just written:
+///  measured on 2026-11-26,
+///  `commit::git_step_failure::tests::a_note_never_carries_a_path_or_a_line_break` failed with
+///  `the note just written` in a threaded run (issue 6509).
+const THE_FAILED_STEP: Requirement = Requirement {
+    what: "the note of the last Git step that failed",
+    named: &[
+        (
+            "clear_failed_step(",
+            "forgets the note the whole process holds",
+        ),
+        (
+            "note_failed_step(",
+            "writes the one note the whole process holds",
+        ),
+        (
+            "drain_failed_step(",
+            "takes the note the whole process holds",
+        ),
+    ],
+    excused_by: &[IN_A_CHILD_OF_ITS_OWN],
+    required: WHAT_A_CONTROL_MUST_DO,
+    files: &[
+        (
+            "commit/git_step_failure_tests.rs",
+            "four controls ask how the note is kept, dropped and taken",
+        ),
+        (
+            "worktree/worktree_clone_conversion_size_read_tests.rs",
+            "one control states that a read leaves another step's note alone",
+        ),
+    ],
+};
+
 /// Every ledger of a commit is one list for the whole process.
 /// A control that counts its own command's figures starts a child of its own first.
 #[test]
@@ -198,12 +243,13 @@ fn no_control_reads_a_commit_ledger_in_the_run_s_own_process() {
         &THE_PREPARE_PARTS,
         &THE_BUILD_PARTS,
         &THE_STEPS,
+        &THE_FAILED_STEP,
     ] {
         let read: Scan = scan(requirement).expect("the crate's sources");
         assert!(
             read.findings.is_empty(),
-            "{} are one ledger for the whole process, and a test run holds its controls as threads of it, so \
-             a control that asks about them reads another control's work: {}:\n{}",
+            "{}: one ledger for the whole process, and a test run holds its controls as threads of it, so a \
+             control that asks about it reads another control's work: {}:\n{}",
             requirement.what,
             requirement.required,
             read.findings.join("\n")
@@ -220,6 +266,7 @@ fn the_files_that_read_each_ledger_still_do() {
         &THE_PREPARE_PARTS,
         &THE_BUILD_PARTS,
         &THE_STEPS,
+        &THE_FAILED_STEP,
     ] {
         let read: Scan = scan(requirement).expect("the crate's sources");
         let missing: Vec<String> = missing_reader_files(&read, requirement);
@@ -260,6 +307,11 @@ fn asks_for_the_steps() {\n\
 }\n\
 \n\
 #[test]\n\
+fn asks_for_the_failed_step() {\n\
+    clear_failed_step();\n\
+}\n\
+\n\
+#[test]\n\
 fn asks_in_a_child_of_its_own() {\n\
     /// The doc comment names drain_build_parts( and it is no call.\n\
     run_the_body_in_a_child_of_its_own(module_path!(), \"asks_in_a_child_of_its_own\", || {\n\
@@ -296,5 +348,12 @@ fn plants_the_names_in_a_text() {\n\
         findings_in_text(&THE_STEPS, "planted_tests.rs", planted),
         vec![String::from("planted_tests.rs:16 (asks_for_the_steps)")],
         "the planted control that counts the run's steps was not the one finding"
+    );
+    assert_eq!(
+        findings_in_text(&THE_FAILED_STEP, "planted_tests.rs", planted),
+        vec![String::from(
+            "planted_tests.rs:21 (asks_for_the_failed_step)"
+        )],
+        "the planted control that clears the failed step's note was not the one finding"
     );
 }

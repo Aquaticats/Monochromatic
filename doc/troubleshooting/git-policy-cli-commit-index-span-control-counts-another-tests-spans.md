@@ -208,6 +208,42 @@ and with one control of issue 6507's module unwrapped,
 `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs` answered
 `commit/prepare_work_spans_tests.rs:80 (a_step_of_no_measurable_time_is_stated_as_one_call)`.
 
+## The failed step's note, measured after the merge (issue 6509)
+
+The run this page's counts come from left one control alone,
+and the first threaded run of `commit::` after the last merge of `origin/main` failed it:
+`test result: FAILED. 473 passed; 1 failed`,
+at `commit::git_step_failure::tests::a_note_never_carries_a_path_or_a_line_break`
+with `the note just written`.
+That is a sixth fact of the same shape,
+and one this page had not listed:
+`commit/git_step_failure.rs` keeps the note of the last Git step that failed
+in a `static LAST: Mutex<Option<FailedStep>>`,
+which every step writes,
+every step's start clears and every timing record takes.
+The mutex makes each call atomic,
+not the three calls a control makes,
+so a control beside it cleared the note between this control's write and its read.
+`source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs` gains a fifth requirement for it
+(`clear_failed_step(`,
+`note_failed_step(` and
+`drain_failed_step(`),
+whose files are `commit/git_step_failure_tests.rs` and
+`worktree/worktree_clone_conversion_size_read_tests.rs`,
+which notes and takes the note inside a child of its own since issue 6493.
+
+Each of the four controls of `commit/git_step_failure_tests.rs` now hands its body to
+`run_the_body_in_a_child_of_its_own`,
+and with one of them unwrapped,
+so that its body ran in the run's own process,
+the guard answered
+`commit/git_step_failure_tests.rs:84 (a_note_never_carries_a_path_or_a_line_break)`.
+Measured after it,
+threaded:
+`commit::git_step_failure::tests` `ok. 4 passed; 0 failed`,
+`commit::` `ok. 474 passed; 0 failed` in both runs,
+and `source_guard/no_control_reads_the_commit_ledgers` `ok. 3 passed; 0 failed`.
+
 ## What this page does not cover
 
 `commit::commit_index::tests::interactive_selection_succeeds_without_changes` runs `git add --interactive`,
