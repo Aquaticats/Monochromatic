@@ -15,7 +15,9 @@
   and the coordinator re-keyed the report for it at 2026-11-25T17:51:19-05:00
   and again at 2026-11-25T17:59:11-05:00 for the owner's round 4 requirements
   (see "Prior compatible report" and "Screening against the round 4 requirements").
-  Five candidates go on to targeted evidence.
+  Five candidates went on to targeted evidence;
+  watchexec then left on the owner's decision,
+  and the results for the other four are under "Targeted evidence results".
 - Subject:
   recursive file watcher for garage bisync.
 - Scope:
@@ -1504,6 +1506,72 @@ Whether these verdicts transfer to this job
 (no `-j` filter, queue mode, a one-level `systemctl` child on Linux)
 is unverified;
 the owner decides how to proceed (design record, "Owner answers").
+
+## Targeted evidence results (2026-11-25T18:49:25-05:00)
+
+One Pi run per candidate read its released source and wrote one record;
+none installed, built or ran the candidate,
+so every result is a source or document reading, not a measurement.
+The coordinating session spot-checked one deciding citation in each record it acted on.
+
+### directory-watcher 3.2.1: hard-gate confirmed
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/directory-watcher.md` (commits `cdfb72dcce`, `56945b23f8`):
+all seven hard constraints pass from source
+(queue with `run.concurrency: 1` and `run.interrupt: none`,
+the command as a shell string with changed paths only in `DW_*` environment variables,
+inotify, kqueue and ReadDirectoryChangesW backends,
+new folders watched through `addDirTree`).
+Open items:
+kqueue needs about 11786 descriptors for `~/Plain` on macOS and the tool never raises the limit;
+nothing is signed;
+a watch-limit failure exits without running the notification hook
+(`internal/app/service/runner.go` calls `CallOnError` only for `fsnotify.ErrEventOverflow`; spot-checked);
+one maintainer, no issue or pull-request history.
+
+### onchange 7.1.0: passes the letter, flagged on intent
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/onchange.md` (commit `2f92db4435`):
+the hard constraints pass from source,
+but it queues one job per event,
+unbounded and never merged,
+and has no quiet period,
+so a burst of file events becomes a burst of back-to-back syncs;
+`ENOSPC` is dropped silently unless `--verbose`.
+Whether that meets "queues one more run" is put to the owner.
+
+### modd 0.8: fails provenance as published
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/modd.md` (commits `b17e70447a`, `ee0ff3c792`):
+no release workflow, checksum or signature ties the 2019 release archives to tag `v0.8`,
+which the skill treats as a hard failure for prebuilt artifacts;
+the only macOS archive is `darwin`/`amd64`,
+and a source build needs cgo,
+so macOS arm64 is open.
+It queues one run per lull-closed batch,
+never signals a `prep:` command,
+and signals a `daemon:` command.
+Building it from source ourselves is the only route left; put to the owner.
+
+### Watchman 2026.11.23.00: exits
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/watchman.md` (commit `e734aa2805`):
+fails three hard constraints.
+`watchman/TriggerCommand.cpp` kills and waits for the running trigger command before spawning the next one
+(spot-checked at tag `v2026.11.23.00`),
+so it neither queues nor leaves a running sync alone;
+open issue 703 reports the same since 2019,
+and its own trigger documentation says the opposite.
+
+### Owner decisions on the results (2026-11-25T18:51:49-05:00)
+
+onchange exits on the intent of the round 3 requirement;
+modd exits on the provenance gate, building it from source declined;
+Watchman exits on three hard constraints.
+directory-watcher 3.2.1 is the only hard-gate-confirmed candidate and the only finalist.
+The skill's alternatives rule allows one survivor after saturated discovery;
+every exhausted source is in "Query log",
+and every exit is recorded with its evidence.
 
 ## Evidence records
 
