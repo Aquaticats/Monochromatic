@@ -7544,7 +7544,16 @@ identical-binary spread it was measured beside
 (`perf/sweep-cost-2026-11-23-statmount-interleaved.json`).
 A standing clone whose `done` receipt is already the one this request would
 file is answered without writing anything.
-A slot holding another dataset's mount is refused as the walk refuses it.
+The attach path asks that same proof once more where the walk stops,
+because the walk never crosses a mount:
+a request that reaches the walk with the clone's own mount at the slot is
+answered `done` from that mount under the request's nonce,
+and no second mount is attempted at the slot.
+A slot holding another dataset's mount,
+a bind of this clone (the same source over another root) and a mount without the
+`nosuid` and `nodev` attributes are each not this clone's own mount,
+so the walk's boundary refusal stands for them exactly as it did,
+and an empty slot is walked and attached as before.
 The holder reads the intent again after every release of a claim the turn took:
 after an attach,
 after answering a standing mount,
@@ -7616,7 +7625,10 @@ Item 2's measured arms map onto this module as follows:
 (`clone_slot_walk_tests::a_checkout_named_through_a_link_is_refused`,
 extended for the magic link),
 and a slot that already holds the clone's mount is refused as a boundary
-by the `refusals` arm with a real clone mounted there.
+by the `refusals` arm with a real clone mounted there,
+which is the walk's own answer and not the handler's:
+the handler's attach step proves such a slot with the sweep's standing-mount
+answer and replies from that mount instead ("The sweep's checks").
 
 The root-run integration test the plan suggests calls this module directly,
 because no account-side binary dispatch exists until step 5;
