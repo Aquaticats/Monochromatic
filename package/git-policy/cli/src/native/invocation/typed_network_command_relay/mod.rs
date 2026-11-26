@@ -12,6 +12,33 @@
 //!  and the person reads one sentence after OpenSSH's refusal at a new host key or a key no agent holds.
 //!  The four readers are Git's own answers, so `insteadOf` and a push URL are applied exactly as the command applies them.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `a_target_the_sentence_may_name.rs`:
+//!   the host a remote names as the person typed it,
+//!   and the words an `ssh` command needs to connect there.
+//! - `a_terminal_the_child_writes_its_error_stream_to.rs`:
+//!   the pseudo-terminal a child writes its error stream to when this process's standard error is a terminal.
+//! - `git_error_stream_relayed_as_it_arrives.rs`:
+//!   the child started with its error stream on a terminal or a pipe,
+//!   and the wait that reads it to the child's end.
+//! - `the_options_before_the_remote.rs`:
+//!   the first of a command's words that is not an option,
+//!   read with Git's own option table.
+//! - `the_relayed_bytes.rs`:
+//!   the relayed bytes:
+//!   read as they arrive,
+//!   written on,
+//!   and kept as a bounded tail.
+//! - `the_remote_a_typed_command_names.rs`:
+//!   the four command words,
+//!   the remote URL Git would use,
+//!   and whether ssh carries it.
+//! - `the_sentence_after_the_refusal.rs`:
+//!   the sentence printed after a refusal,
+//!   and the record that one was printed.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // relayWhenSshCarries(git, argv, env) : { outcome, code } | undefined  // undefined = keep today's process replacement

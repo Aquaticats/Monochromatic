@@ -32,7 +32,7 @@
 //!  object.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `underlay_entry_read.rs`:
 //!   the kernel's facts about the entry and its parent,

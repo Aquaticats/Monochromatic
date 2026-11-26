@@ -3,6 +3,130 @@
 //! Why:
 //!  Platform-specific code is easier to audit in one folder.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `fs_beneath.rs`:
+//!   directory-relative file operations that never follow a link:
+//!   the held-handle primitives of the clone rung and of the snapshot's stub removal.
+//! - `fs_beneath_mount_facts.rs`:
+//!   what a held descriptor says about the mount it is on and the path the kernel finds at it now.
+//! - `fs_beneath_walk_chain.rs`:
+//!   the walk down a chain of one-name hops,
+//!   and the last hop that may end on a mount.
+//! - `fs_beneath_directory_chain.rs`:
+//!   the directories a path walk has already opened,
+//!   kept as one chain from the root,
+//!   so a walk over paths in order opens each directory once.
+//! - `fs_mount_options.rs`:
+//!   the mount of a path read from `/proc/self/mountinfo`,
+//!   with its options (`user_subvol_rm_allowed`).
+//! - `fs_primitive_error.rs`:
+//!   the typed failure of one Linux filesystem primitive:
+//!   the call,
+//!   the path and the error number.
+//! - `fs_btrfs_ioctl.rs`:
+//!   the btrfs ioctls that create,
+//!   snapshot and destroy a subvolume,
+//!   called in process.
+//! - `fs_clone_exchange.rs`:
+//!   `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
+//! - `fs_kind.rs`:
+//!   which filesystem holds a path (btrfs,
+//!   overlayfs,
+//!   other) and whether a directory is a btrfs subvolume root.
+//! - `fs_uuid_of_source.rs`:
+//!   the UUID of the filesystem on a mount's source device,
+//!   from udev's `/dev/disk/by-uuid` links.
+//! - `subvolume_anchor.rs`:
+//!   an open directory that every operation inside it is addressed through,
+//!   so a replaced path cannot redirect them.
+//! - `subvolume_arguments.rs`:
+//!   the grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`.
+//! - `subvolume_entry_count.rs`:
+//!   the count of the entries under a checkout,
+//!   from which the free space a migration needs follows.
+//! - `subvolume_error.rs`:
+//!   the failure type of the subvolume migration and its simulated-kill hook.
+//! - `subvolume_file_write_steps.rs`:
+//!   write-and-flush and directory-flush steps that the migration's writers share.
+//! - `subvolume_journal.rs`:
+//!   the migration journal beside the checkout.
+//! - `subvolume_lock.rs`:
+//!   the index locks the migration holds,
+//!   marked with a token that names the migration.
+//! - `subvolume_platform.rs`:
+//!   the operating-system operations of the migration behind one trait,
+//!   and the Linux implementation.
+//! - `subvolume_preflight.rs`:
+//!   the paths of a migration and the refusals that stop it before anything is created.
+//! - `subvolume_registered_worktrees.rs`:
+//!   the linked worktrees of a main checkout and the registrations that are not one of them.
+//! - `subvolume_remove_walk.rs`:
+//!   empty a directory that is held open,
+//!   one descriptor-relative step at a time,
+//!   refusing every nested subvolume and mount point before anything is deleted.
+//! - `subvolume_remove.rs`:
+//!   removal of a directory tree whose directories may lack owner write permission.
+//! - `subvolume_remove_around.rs`:
+//!   the look that finds every volume below a tree without changing it,
+//!   and the pass that empties a tree around each one it did not make.
+//! - `subvolume_sha.rs`:
+//!   SHA-1 and SHA-256,
+//!   for the checksum of a rewritten Git index.
+//! - `subvolume_index.rs`:
+//!   the stat rewrite of a Git index file's bytes.
+//! - `subvolume_index_install_into_new_worktree.rs`:
+//!   the first index of a new worktree:
+//!   written into `index.lock` and linked under its name,
+//!   nothing replaced.
+//! - `subvolume_index_files.rs`:
+//!   the index stat rewrite applied to the checkout's index and to those of its linked worktrees.
+//! - `subvolume_index_refresh_of_every_worktree.rs`:
+//!   the index rewrite of a checkout and of every linked worktree inside it,
+//!   side by side within the host's budget.
+//! - `subvolume_sync_attrs.rs`:
+//!   copying owner,
+//!   permissions,
+//!   times and extended attributes onto a copy.
+//! - `subvolume_sync_pass_state_and_checks.rs`:
+//!   the pieces every step of a tree sync shares:
+//!   options,
+//!   statistics,
+//!   work entries,
+//!   the pass state and the entry checks.
+//! - `subvolume_sync.rs`:
+//!   one idempotent pass that makes a directory tree match another,
+//!   in process.
+//! - `subvolume_pass_report.rs`:
+//!   the lines a tree pass says about what it could not carry into the destination.
+//! - `subvolume_run.rs`:
+//!   the state a migration command carries between its steps.
+//! - `subvolume_migrate.rs`:
+//!   converting a main checkout into a btrfs subvolume,
+//!   resumably.
+//! - `subvolume_rollback_identity.rs`:
+//!   which directory a name holds,
+//!   by identity,
+//!   for the carry and the rollback's exchange.
+//! - `subvolume_rollback_stage.rs`:
+//!   which directory the rollback deletes as the migration's stage,
+//!   and the refusal when it is not the subvolume the migration made.
+//! - `subvolume_rollback_subvolume_removal.rs`:
+//!   removing a subvolume and every subvolume nested in it,
+//!   deepest first.
+//! - `subvolume_rollback.rs`:
+//!   undoing a migration and deleting the old tree.
+//! - `subvolume_command.rs`:
+//!   `git monochromatic-git-policy-cli migrate-to-subvolume`:
+//!   root discovery,
+//!   modes and exit statuses.
+//! - `subvolume_sync_copy_one_entry.rs`:
+//!   the copying of one source entry (file,
+//!   symbolic link,
+//!   named pipe) into the destination,
+//!   as methods of the pass.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // subvolume/index.ts: one `export * from './file'` per module below.

@@ -22,8 +22,11 @@
 //!  "Building later pieces ahead of the plan's order").
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
+//! - `settling_steps.rs`:
+//!   the two removal orders,
+//!   as data.
 //! - `settling_words.rs`:
 //!   the two flags,
 //!   the placeholders,
@@ -31,27 +34,24 @@
 //! - `settling_refusal.rs`:
 //!   every way the command stops,
 //!   and the sentence a person reads.
-//! - `settling_request.rs`:
-//!   the grammar's three values and the two checks that need no record.
-//! - `settling_steps.rs`:
-//!   the two removal orders,
-//!   as data.
 //! - `settling_absence.rs`:
 //!   what the pool answers about the recorded clone's existence.
+//! - `settling_removals.rs`:
+//!   the removals themselves,
+//!   proved gone one by one.
+//! - `settling_request.rs`:
+//!   the grammar's three values and the two checks that need no record.
 //! - `settling_record.rs`:
 //!   the binding record,
 //!   its identities,
 //!   and the two values the flags confirm.
-//! - `settling_standing_records.rs`:
-//!   a standing origin cleanup record and a standing destruction plan,
-//!   compared with the binding.
 //! - `settling_slot.rs`:
 //!   the slot's `.git`,
 //!   the registration's identity,
 //!   the slot's entries and the mount table.
-//! - `settling_removals.rs`:
-//!   the removals themselves,
-//!   proved gone one by one.
+//! - `settling_standing_records.rs`:
+//!   a standing origin cleanup record and a standing destruction plan,
+//!   compared with the binding.
 //! - `settling_lines.rs`:
 //!   the lines a person reads.
 //! - `settling_command.rs`:

@@ -6,6 +6,75 @@
 //!  These modules answer one question,
 //!  what happens to a file that has conflict state.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `abort_discard_guard.rs`:
+//!   the linked-worktree policy's carve-out for the abort and skip forms during an operation.
+//! - `autostash_carry.rs`:
+//!   the stash and conflict stages Git's apply of an autostash left in the commit's scratch repository,
+//!   carried back.
+//! - `command_conflict_side.rs`:
+//!   the `checkout` and `restore` command lines that take one side of a conflicted file.
+//! - `conflict_markers.rs`:
+//!   the marker lines a committed file still holds,
+//!   and the line about an operation a commit left open.
+//! - `conflict_side_modes.rs`:
+//!   the pathspec modes and their spellings,
+//!   which decide whether a token names one file.
+//! - `conflict_side_source.rs`:
+//!   finding and copying the file a command replaces.
+//! - `conflict_side_state.rs`:
+//!   the operation in progress and the conflicted paths.
+//! - `conflict_side_guard.rs`:
+//!   the linked-worktree policy's reading of a `checkout` or `restore` that would replace a conflicted file,
+//!   and the refusal that names every file it would replace.
+//! - `discard_audit_facts.rs`:
+//!   the named facts one audit record carries.
+//! - `discard_audit_pins.rs`:
+//!   whether one audit generation names a saved copy still on disk,
+//!   which keeps it past the bound every log shares.
+//! - `discard_audit.rs`:
+//!   the append-only record of every command form that can discard uncommitted state.
+//! - `abort_recheck.rs`:
+//!   the second measurement of an abort or a skip,
+//!   owed immediately before Git starts.
+//! - `discard_audit_record.rs`:
+//!   everything one audit record states,
+//!   and its line as JSON.
+//! - `discarded_prune_limits.rs`:
+//!   the two limits of the folder of saved copies,
+//!   their defaults and the reading of a size such as `256m`.
+//! - `discarded_store_records.rs`:
+//!   the plain values of the descriptor-based reader of the folder of saved copies.
+//! - `discarded_store.rs`:
+//!   the folder of saved copies opened once without following a link,
+//!   with every read and removal addressed through descriptors.
+//! - `discarded_prune_stamps.rs`:
+//!   the time stamps in the names of saved-copy directories.
+//! - `discarded_prune_plan.rs`:
+//!   what a pass removes and why.
+//! - `discarded_prune_audit_line.rs`:
+//!   the audit line one removed directory leaves.
+//! - `discarded_prune_problems.rs`:
+//!   what can go wrong in a pass over the folder,
+//!   the words that say it and the listing.
+//! - `conflict_sides.rs`:
+//!   the saved copy of each file a command replaces.
+//! - `discarded_nested_repository.rs`:
+//!   the move of the nested Git repositories a clean would delete beside the audit log.
+//! - `discarded_prune.rs`:
+//!   the bound on the folder of saved copies of conflicted files:
+//!   age,
+//!   size,
+//!   audit and doctor report.
+//! - `config_discarded.rs`:
+//!   the `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
+//! - `discarded_report.rs`:
+//!   what the folder of saved copies holds,
+//!   and the text the doctor prints for it,
+//!   read without moving anything.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // conflict/index.ts: one `export * from './file'` per module below.

@@ -24,17 +24,17 @@
 //!  so every reading says which copy it took.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `pointer_state.rs`:
 //!   the bytes at the slot against the recorded ones,
 //!   and which copy of the pointer the slot shows.
-//! - `pointer_restore.rs`:
-//!   the one write that puts the recorded bytes back,
-//!   by a staging name and one rename.
 //! - `link_facts.rs`:
 //!   every fact a damaged link is judged from,
 //!   read once.
+//! - `pointer_restore.rs`:
+//!   the one write that puts the recorded bytes back,
+//!   by a staging name and one rename.
 //! - `prune_guard.rs`:
 //!   the pass over every bound slot before a prune,
 //!   its restores and the slots nothing restores.
