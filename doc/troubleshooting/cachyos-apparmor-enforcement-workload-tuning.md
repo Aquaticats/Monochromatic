@@ -1090,6 +1090,16 @@ and prints each denial and a count per profile,
 operation,
 name and mask.
 
+Read a window across every rotated file,
+once the log rotates:
+`audit.log.2`,
+`audit.log.1` and `audit.log` together,
+because the five 8 MiB files rotate within minutes during a gate and a denial that started a batch
+can sit in an earlier file than the one read.
+In zsh pass the window's two times as two words,
+as `for from to in <from> <to>`,
+because an unquoted `$times` reaches the program as one argument and window matching then answers nothing.
+
 ### Tradeoffs
 
 - Git may create,
