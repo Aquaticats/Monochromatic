@@ -22,9 +22,14 @@ import {
 } from './units.ts';
 
 /**
+ Milliseconds in one minute.
+ */
+const MINUTE_MS = 60 * 1_000;
+
+/**
  One hour in milliseconds, the gap after which a still-failing unit alerts again.
  */
-const HOUR_MS = 60 * 60 * 1_000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 /**
  A failed run as systemd reports it.
@@ -68,13 +73,14 @@ type Recorded = {
 /**
  Builds the alert's effects as fakes, recording every call.
 
- @param options - streak to start with, journal lines to hand back, and whether
-   notify-send succeeds
+ @param options - streak to start with, the reason its file could not be used, journal
+   lines to hand back, and whether notify-send succeeds
 
  @returns the deps to run the alert with, and the record of what it did
  */
 function fakeDeps(options: Readonly<{
   streak?: Streak;
+  streakProblem?: string;
   journalLines?: readonly string[];
   journalProblem?: string;
   notifySucceeds?: boolean;
@@ -99,6 +105,7 @@ function fakeDeps(options: Readonly<{
   const deps: AlertDeps = {
     home: options.home ?? '/home/example',
     readStreak: async function readUnitStreak(): Promise<StreakLookup> {
+      if (options.streakProblem !== undefined) return { problem: options.streakProblem, };
       return recorded.streak === undefined ? {} : { streak: recorded.streak, };
     },
     writeStreak: async function writeUnitStreak(streak,): Promise<void> {
@@ -188,7 +195,7 @@ await describe({
          The run under test, with an alert one minute ago.
          */
         const { deps, recorded, } = fakeDeps({
-          streak: { lastAlertAtMs: HOUR_MS - 60_000, },
+          streak: { lastAlertAtMs: HOUR_MS - MINUTE_MS, },
           nowMs: HOUR_MS,
         },);
         /**
@@ -233,6 +240,32 @@ await describe({
       },
     },),
     //endregion Failure alerts
+
+    //region A state file that could not be used
+    it({
+      name: 'a state file that could not be used still alerts and logs the reason',
+      fn: async function unusableStreakStillAlerts() {
+        /**
+         The reason the state file could not be used.
+         */
+        const reason = 'could not read /home/example/.local/state/rclone-bisync-garage-alert/rclone-bisync-garage.service.json: EACCES: permission denied';
+        /**
+         The run under test, whose streak file could not be used.
+         */
+        const { deps, recorded, } = fakeDeps({ streakProblem: reason, nowMs: 5 * HOUR_MS, },);
+        /**
+         Exit status of the entry.
+         */
+        const status = await runAlert({ request: request(), deps, },);
+        expect(status,).toBe(0,);
+        expect(recorded.notifications,).toHaveLength(1,);
+        expect(recorded.notifications[0]?.summary,).toBe('Garage sync failed',);
+        expect(recorded.streak,).toEqual({ lastAlertAtMs: 5 * HOUR_MS, },);
+        expect(recorded.stderr.join('\n',),).toContain(reason,);
+        expect(recorded.stderr.join('\n',),).toContain('treating it as no open streak',);
+      },
+    },),
+    //endregion A state file that could not be used
 
     //region Recovery alerts
     it({
@@ -392,7 +425,7 @@ await describe({
 
     //region Journal
     it({
-      name: 'the journal read is the failed run\'s own invocation, and a failed read still alerts',
+      name: 'a failed journal read still alerts, names the failure, and logs the reason',
       fn: async function failedJournalReadStillAlerts() {
         /**
          The run under test, whose journal cannot be read.
