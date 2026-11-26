@@ -1676,7 +1676,7 @@ and every other line stays as it is.
   and the 60,300 lines of one measured loop are 1,681,290 bytes.
 - No key of this repository's Rust packages changes shape,
   so the lock bump regenerates both committed lists with no edit
-  (2,255 keys on `main` `0ba0b83009`,
+  (2,255 keys on `main` `c3b1b7efef`,
   one run of each binary,
   byte-identical streams,
   2026-11-26).
