@@ -370,8 +370,11 @@ untangle over time."
 `monochromatic-lint` `0.5.2-alpha.9` carries the `allow` option the list needs and is locked
 (`ef648a619e`).
 Against tonight's `main` the branch's lists are stale,
-and the alpha.9 release pass found the three defects a round is fixing for `alpha.10`,
-in that record's "When the rules land".
+and the defects the alpha.9 release pass found are fixed on `main`,
+released as `alpha.10` (`6cfbcbb5f4`);
+`toolchain.lock.json` still locks `alpha.9`,
+so the lock's bump is a step of its own
+(that record's "When the rules land").
 
 Every crate outside this one is formatted by the root `rustfmt.toml`,
 which the owner set on 2026-11-25.
