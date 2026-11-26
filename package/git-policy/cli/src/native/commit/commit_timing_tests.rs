@@ -749,33 +749,33 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
 /// and both are in the record without verbose mode.
 #[test]
 fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_record_states_every_index_build_with_whether_it_kept_the_stat_data",
-    ) {
-        return;
-    }
-    use crate::commit_index_builds::{
-        IndexBuildKind,
-        note_index_build,
-    };
-    let root: PathBuf = fixture("timing-index-builds");
-    let (timing, _covered) = filled(root.as_path());
-    note_index_build(IndexBuildKind::First, true);
-    note_index_build(IndexBuildKind::Retry, false);
-    timing.finish(0);
-    let text: String =
-        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
-    let value: serde_json::Value = parsed(text.as_str());
-    let expected: serde_json::Value = serde_json::from_str(
-        r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#,
-    )
-    .expect("the list of two builds");
-    assert_eq!(
-        value["indexBuilds"], expected,
-        "every build of the private index is stated in the order built: {value}"
+        || {
+            use crate::commit_index_builds::{
+                IndexBuildKind,
+                note_index_build,
+            };
+            let root: PathBuf = fixture("timing-index-builds");
+            let (timing, _covered) = filled(root.as_path());
+            note_index_build(IndexBuildKind::First, true);
+            note_index_build(IndexBuildKind::Retry, false);
+            timing.finish(0);
+            let text: String =
+                std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+            let value: serde_json::Value = parsed(text.as_str());
+            let expected: serde_json::Value = serde_json::from_str(
+                r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#,
+            )
+            .expect("the list of two builds");
+            assert_eq!(
+                value["indexBuilds"], expected,
+                "every build of the private index is stated in the order built: {value}"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// A proof is never undone by a later notice,

@@ -147,7 +147,8 @@ With one control's child starter taken out, it answered
 The two causes of that run that are no ledger have their own answers:
 
 - the two `commit::commit_preparation::tests` controls assert the state of this process's descendants, so
-  they own a process (`started_within_a_child_of_its_own`), whose only descendants are their own;
+  they own a process (`started_within_a_child_of_its_own` at the time; `run_the_body_in_a_child_of_its_own`
+  since issue 6503 moved the body into the child), whose only descendants are their own;
 - every control of `native_commit_waiting_notice_tests.rs` that steps a notice takes the two windows before
   it starts (`take_the_windows_a_notice_control_reads`, which states the one order that cannot deadlock a
   threaded run), and `source_guard/notice_controls_take_their_window_tests.rs` refuses a control that names

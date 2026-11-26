@@ -22,76 +22,76 @@ const SHORT: Duration = Duration::from_millis(5);
 ///  finds nothing.
 #[test]
 fn steps_are_ordered_by_start_and_measured_from_the_origin() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "steps_are_ordered_by_start_and_measured_from_the_origin",
-    ) {
-        return;
-    }
-    let origin: Instant = Instant::now();
-    let later: Instant = origin + Duration::from_millis(40);
-    let earlier: Instant = origin + Duration::from_millis(10);
-    // The later one ended first, as steps of two threads may.
-    note_step("git commit", later, Duration::from_millis(7));
-    note_step("git add", earlier, SHORT);
-    let (figures, dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
-    assert_eq!(dropped, 0);
-    assert_eq!(
-        figures,
-        vec![
-            StepFigure {
-                name: String::from("git add"),
-                arguments: None,
-                offset_ms: 10,
-                duration_ms: 5
-            },
-            StepFigure {
-                name: String::from("git commit"),
-                arguments: None,
-                offset_ms: 40,
-                duration_ms: 7
-            },
-        ]
+        || {
+            let origin: Instant = Instant::now();
+            let later: Instant = origin + Duration::from_millis(40);
+            let earlier: Instant = origin + Duration::from_millis(10);
+            // The later one ended first, as steps of two threads may.
+            note_step("git commit", later, Duration::from_millis(7));
+            note_step("git add", earlier, SHORT);
+            let (figures, dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
+            assert_eq!(dropped, 0);
+            assert_eq!(
+                figures,
+                vec![
+                    StepFigure {
+                        name: String::from("git add"),
+                        arguments: None,
+                        offset_ms: 10,
+                        duration_ms: 5
+                    },
+                    StepFigure {
+                        name: String::from("git commit"),
+                        arguments: None,
+                        offset_ms: 40,
+                        duration_ms: 7
+                    },
+                ]
+            );
+            assert!(drain_steps(origin).0.is_empty());
+        },
     );
-    assert!(drain_steps(origin).0.is_empty());
 }
 
 /// A step that began before the origin starts at zero.
 #[test]
 fn a_step_that_began_before_the_origin_starts_at_zero() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_step_that_began_before_the_origin_starts_at_zero",
-    ) {
-        return;
-    }
-    let early: Instant = Instant::now();
-    let origin: Instant = early + Duration::from_millis(50);
-    note_step("git rev-parse", early, SHORT);
-    let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
-    assert_eq!(figures[0].offset_ms, 0);
+        || {
+            let early: Instant = Instant::now();
+            let origin: Instant = early + Duration::from_millis(50);
+            note_step("git rev-parse", early, SHORT);
+            let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
+            assert_eq!(figures[0].offset_ms, 0);
+        },
+    );
 }
 
 /// The list holds `MAX_STEP_RUNS` steps and counts the rest,
 /// so a record never grows with the work and never hides that it was cut.
 #[test]
 fn the_list_is_bounded_and_counts_what_did_not_fit() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_list_is_bounded_and_counts_what_did_not_fit",
-    ) {
-        return;
-    }
-    let origin: Instant = Instant::now();
-    let extra: usize = 3;
-    for _ in 0..(MAX_STEP_RUNS + extra) {
-        note_step("git rev-parse", origin, SHORT);
-    }
-    let (figures, dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
-    assert_eq!(figures.len(), MAX_STEP_RUNS);
-    assert_eq!(dropped, extra);
-    // The count starts again with the next record.
-    assert_eq!(drain_steps(origin).1, 0);
+        || {
+            let origin: Instant = Instant::now();
+            let extra: usize = 3;
+            for _ in 0..(MAX_STEP_RUNS + extra) {
+                note_step("git rev-parse", origin, SHORT);
+            }
+            let (figures, dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
+            assert_eq!(figures.len(), MAX_STEP_RUNS);
+            assert_eq!(dropped, extra);
+            // The count starts again with the next record.
+            assert_eq!(drain_steps(origin).1, 0);
+        },
+    );
 }
 
 /// A name carries a program and a subcommand and nothing else:
@@ -99,25 +99,29 @@ fn the_list_is_bounded_and_counts_what_did_not_fit() {
 /// an option value or a separator is replaced.
 #[test]
 fn a_name_never_carries_a_path_or_a_separator() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_name_never_carries_a_path_or_a_separator",
-    ) {
-        return;
-    }
-    let origin: Instant = Instant::now();
-    note_step("git /home/person/secret;rm=1+2@3\n\"", origin, SHORT);
-    let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
-    let name: &str = figures[0].name.as_str();
-    assert!(
-        name.chars().all(|character| {
-            return character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_' | '?');
-        }),
-        "{name}"
-    );
-    assert!(
-        !name.contains('/') && !name.contains(';') && !name.contains('@') && !name.contains('+'),
-        "{name}"
+        || {
+            let origin: Instant = Instant::now();
+            note_step("git /home/person/secret;rm=1+2@3\n\"", origin, SHORT);
+            let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
+            let name: &str = figures[0].name.as_str();
+            assert!(
+                name.chars().all(|character| {
+                    return character.is_ascii_alphanumeric()
+                        || matches!(character, ' ' | '-' | '_' | '?');
+                }),
+                "{name}"
+            );
+            assert!(
+                !name.contains('/')
+                    && !name.contains(';')
+                    && !name.contains('@')
+                    && !name.contains('+'),
+                "{name}"
+            );
+        },
     );
 }
 
@@ -155,35 +159,37 @@ fn the_record_forms_name_every_step() {
 /// so the record stays as small as it was for the many short steps.
 #[test]
 fn a_slow_step_names_its_arguments_and_a_short_one_does_not() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_slow_step_names_its_arguments_and_a_short_one_does_not",
-    ) {
-        return;
-    }
-    let origin: Instant = Instant::now();
-    let arguments: Vec<OsString> = vec![
-        OsString::from("for-each-ref"),
-        OsString::from("--format=%(refname)%00%(objectname)%00%(symref)"),
-    ];
-    note_step_asked("git for-each-ref", arguments.as_slice(), origin, NAMED_STEP);
-    note_step("git add", origin, NAMED_STEP - Duration::from_millis(1));
-    let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
-    assert_eq!(
-        figures[0].arguments.as_deref(),
-        Some("for-each-ref --format=%(refname)%00%(objectname)%00%(symref)")
-    );
-    assert_eq!(
-        figures[1].arguments, None,
-        "a step under the bound names no arguments"
-    );
-    let written: String = steps_json(figures.as_slice());
-    assert!(
-        written.contains("\"name\":\"git for-each-ref\",\"arguments\":\"for-each-ref --format="),
-        "the arguments stand beside the step they belong to: {written}"
-    );
-    assert!(
-        written.contains("{\"name\":\"git add\",\"offsetMs\":"),
-        "a short step keeps its old shape: {written}"
+        || {
+            let origin: Instant = Instant::now();
+            let arguments: Vec<OsString> = vec![
+                OsString::from("for-each-ref"),
+                OsString::from("--format=%(refname)%00%(objectname)%00%(symref)"),
+            ];
+            note_step_asked("git for-each-ref", arguments.as_slice(), origin, NAMED_STEP);
+            note_step("git add", origin, NAMED_STEP - Duration::from_millis(1));
+            let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
+            assert_eq!(
+                figures[0].arguments.as_deref(),
+                Some("for-each-ref --format=%(refname)%00%(objectname)%00%(symref)")
+            );
+            assert_eq!(
+                figures[1].arguments, None,
+                "a step under the bound names no arguments"
+            );
+            let written: String = steps_json(figures.as_slice());
+            assert!(
+                written.contains(
+                    "\"name\":\"git for-each-ref\",\"arguments\":\"for-each-ref --format="
+                ),
+                "the arguments stand beside the step they belong to: {written}"
+            );
+            assert!(
+                written.contains("{\"name\":\"git add\",\"offsetMs\":"),
+                "a short step keeps its old shape: {written}"
+            );
+        },
     );
 }

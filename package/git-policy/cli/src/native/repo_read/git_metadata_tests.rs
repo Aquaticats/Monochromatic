@@ -340,44 +340,44 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
 /// so the preparation's record holds the child a slow commit waited on instead of the phase alone.
 #[test]
 fn a_read_the_in_process_readers_decline_is_noted_as_a_step() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_read_the_in_process_readers_decline_is_noted_as_a_step",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("metadata-step");
-    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
-    std::fs::write(repo.join("a.txt"), "a\n").expect("a file");
-    crate::test_support::git(repo.as_path(), &["add", "a.txt"]);
-    let began: std::time::Instant = std::time::Instant::now();
-    let arguments: Vec<OsString> = vec![
-        OsString::from(format!("--git-dir={}", repo.join(".git").display())),
-        OsString::from("ls-files"),
-        OsString::from("--stage"),
-        OsString::from("-z"),
-    ];
-    let output: MetadataOutput = run_metadata_git_within(
-        Path::new(REAL_GIT),
-        arguments.as_slice(),
-        crate::repo_read_hook::switch_off().as_slice(),
-        std::time::Duration::from_secs(30),
-    )
-    .expect("the read runs");
-    assert!(
-        output.success,
-        "{}",
-        String::from_utf8_lossy(output.stderr.as_slice())
+        || {
+            let root: PathBuf = fixture("metadata-step");
+            let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+            std::fs::write(repo.join("a.txt"), "a\n").expect("a file");
+            crate::test_support::git(repo.as_path(), &["add", "a.txt"]);
+            let began: std::time::Instant = std::time::Instant::now();
+            let arguments: Vec<OsString> = vec![
+                OsString::from(format!("--git-dir={}", repo.join(".git").display())),
+                OsString::from("ls-files"),
+                OsString::from("--stage"),
+                OsString::from("-z"),
+            ];
+            let output: MetadataOutput = run_metadata_git_within(
+                Path::new(REAL_GIT),
+                arguments.as_slice(),
+                crate::repo_read_hook::switch_off().as_slice(),
+                std::time::Duration::from_secs(30),
+            )
+            .expect("the read runs");
+            assert!(
+                output.success,
+                "{}",
+                String::from_utf8_lossy(output.stderr.as_slice())
+            );
+            let (steps, dropped) = crate::transaction_step_durations::drain_steps(began);
+            assert_eq!(dropped, 0);
+            assert!(
+                steps.iter().any(|step| {
+                    return step.name == "git ls-files";
+                }),
+                "the child the readers declined is a step of the record: {steps:?}"
+            );
+            remove(root.as_path());
+        },
     );
-    let (steps, dropped) = crate::transaction_step_durations::drain_steps(began);
-    assert_eq!(dropped, 0);
-    assert!(
-        steps.iter().any(|step| {
-            return step.name == "git ls-files";
-        }),
-        "the child the readers declined is a step of the record: {steps:?}"
-    );
-    remove(root.as_path());
 }
 
 /// What:

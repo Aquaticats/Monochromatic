@@ -18,7 +18,7 @@
 //!  (issue 6509).
 //!  A look that cannot be made clears the look before it,
 //!  so the credit starts again and the figures are a control that ran beside it.
-//!  A control that starts `started_within_a_child_of_its_own` first asks its question in a child of the test
+//!  A control that starts `run_the_body_in_a_child_of_its_own` first asks its question in a child of the test
 //!  binary,
 //!  whose windows nothing else planted in,
 //!  and one that starts `started_this_test_in_a_child` does the same for the descriptor limit
@@ -30,7 +30,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // every control that names step_started( must also name take_the_window(, started_this_test_in_a_child(
-//! // or started_within_a_child_of_its_own(.
+//! // or run_the_body_in_a_child_of_its_own(.
 //! ```
 
 use super::process_wide_fact_readers_tests::{
@@ -62,7 +62,7 @@ const EXCUSED_BY_A_WINDOW_OR_A_CHILD: &[&str] = &[
     "take_the_window(",
     "take_the_windows_a_notice_control_reads(",
     "started_this_test_in_a_child(",
-    "started_within_a_child_of_its_own(",
+    "run_the_body_in_a_child_of_its_own(",
 ];
 
 /// What:
@@ -85,7 +85,7 @@ const THE_NOTICE_WINDOW: Requirement = Requirement {
     named: STEPPED,
     excused_by: EXCUSED_BY_A_WINDOW_OR_A_CHILD,
     required: "take the control window first (`take_the_window` of the look's window and of the notice's, in \
-               that order) or start the control's body in a child of its own (`started_within_a_child_of_its_own`, \
+               that order) or start the control's body in a child of its own (`run_the_body_in_a_child_of_its_own`, \
                `testing/process_wide_state_child_test_support.rs`, issue 6509)",
     files: &[(
         "commit/native_commit_waiting_notice_tests.rs",
@@ -143,10 +143,9 @@ fn steps_with_the_window_taken() {\n\
 #[test]\n\
 fn steps_in_a_child_of_its_own() {\n\
     /// The doc comment names step_started( and it is no call.\n\
-    if started_within_a_child_of_its_own(module_path!(), \"steps_in_a_child_of_its_own\") {\n\
-        return;\n\
-    }\n\
-    notice.step_started(step_number(&step));\n\
+    run_the_body_in_a_child_of_its_own(module_path!(), \"steps_in_a_child_of_its_own\", || {\n\
+        notice.step_started(step_number(&step));\n\
+    });\n\
 }\n\
 \n\
 #[test]\n\

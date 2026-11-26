@@ -120,7 +120,7 @@ const THE_PREPARATION_STEPS: Requirement = Requirement {
     what: "the preparation's named steps",
     named: LEDGER_NAMES,
     excused_by: &[IN_A_CHILD_OF_ITS_OWN],
-    required: "start the control's body in a child of its own first (`started_within_a_child_of_its_own`, \
+    required: "start the control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
                `testing/process_wide_state_child_test_support.rs`, issue 6507)",
     files: FILES_THAT_READ_THE_LEDGER,
 };

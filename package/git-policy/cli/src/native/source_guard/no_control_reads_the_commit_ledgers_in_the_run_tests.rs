@@ -20,7 +20,7 @@
 //!  and one read an empty list because another control's record had taken its build.
 //!  The container gate starts each test in a process of its own,
 //!  so the gate cannot show it.
-//!  A control that starts `started_within_a_child_of_its_own` first asks its question in a child of the test
+//!  A control that starts `run_the_body_in_a_child_of_its_own` first asks its question in a child of the test
 //!  binary,
 //!  whose ledgers hold nothing but what that control noted
 //!  (`testing/process_wide_state_child_test_support.rs`).
@@ -32,7 +32,7 @@
 //! ```ts
 //! // every control that names drain_index_builds(, note_index_build(, commit_index_builds::,
 //! // drain_prepare_parts(, note_prepare_part(, drain_build_parts(, note_build_part(, drain_steps( or note_step(
-//! // must also name started_within_a_child_of_its_own(.
+//! // must also name run_the_body_in_a_child_of_its_own(.
 //! ```
 
 use super::process_wide_fact_readers_tests::{
@@ -48,7 +48,7 @@ use super::process_wide_fact_readers_tests::{
 /// Why:
 ///  A control that makes it asks its question where no other test noted a figure,
 ///  so a control that names a ledger and not this call is the finding.
-const IN_A_CHILD_OF_ITS_OWN: &str = "started_within_a_child_of_its_own(";
+const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
 
 /// What:
 ///  `WHAT_A_CONTROL_MUST_DO` is the answer every one of these four bans gives:
@@ -58,7 +58,7 @@ const IN_A_CHILD_OF_ITS_OWN: &str = "started_within_a_child_of_its_own(";
 ///  The four ledgers are read into one timing record,
 ///  so the four bans differ only in their names and not in what they ask a control to do.
 const WHAT_A_CONTROL_MUST_DO: &str = "start the control's body in a child of its own first \
-                                       (`started_within_a_child_of_its_own`, \
+                                       (`run_the_body_in_a_child_of_its_own`, \
                                        `testing/process_wide_state_child_test_support.rs`, issue 6509)";
 
 /// What:
@@ -262,10 +262,9 @@ fn asks_for_the_steps() {\n\
 #[test]\n\
 fn asks_in_a_child_of_its_own() {\n\
     /// The doc comment names drain_build_parts( and it is no call.\n\
-    if started_within_a_child_of_its_own(module_path!(), \"asks_in_a_child_of_its_own\") {\n\
-        return;\n\
-    }\n\
-    let taken = crate::commit_build_part_durations::drain_build_parts();\n\
+    run_the_body_in_a_child_of_its_own(module_path!(), \"asks_in_a_child_of_its_own\", || {\n\
+        let taken = crate::commit_build_part_durations::drain_build_parts();\n\
+    });\n\
 }\n\
 \n\
 #[test]\n\
