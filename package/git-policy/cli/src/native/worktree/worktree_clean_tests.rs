@@ -826,7 +826,8 @@ const THE_ONLY_PLACE_CHILD: &str = "CLI_GIT_CLEAN_ONLY_PLACE_CHILD";
 /// Only a job of the pool asks for a place of the process's bound on blocking jobs,
 ///  so an ask is the proof that the work left the calling thread:
 /// the holder gives its place back on that ask and never on a clock.
-///  The bound is the process's and is made once, never resized
+///  The bound is the process's and is made once,
+/// never resized
 /// (`foundation/blocking_jobs_within_the_budget.rs`),
 /// and so is the count of jobs waiting for a place,
 /// so the body runs in a helper process of its own:
@@ -867,7 +868,8 @@ fn the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool() {
 /// so its verdict always exists and the parent never waits for a file a panic kept from being written.
 ///  The bound is read before any of the work runs,
 /// because a process whose bound has more than one place cannot show that the work waited for one:
-/// the control holds one place of several, and the work under test takes another and starts at once.
+/// the control holds one place of several,
+/// and the work under test takes another and starts at once.
 fn the_tracked_files_are_proven_as_a_job_verdict(root: &Path) -> Vec<String> {
     let mut failures: Vec<String> = Vec::new();
     let repo: PathBuf = aged_repository(root);
