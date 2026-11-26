@@ -90,6 +90,26 @@ Times are UTC and every file keeps the host's own clock.
 - `second-round-arm-4g-create.log.txt` and `second-round-arm-4g-destroy.log.txt`:
   `mvm create` and `mvm destroy` output,
   whose timestamps give the two durations.
+- `second-round-samples-arm-8g.jsonl`:
+  the host's own samples around the default guest that built the crate itself,
+  in the same format.
+- `second-round-arm-8g-guest-memory.log.txt`:
+  that guest's own `/proc/meminfo` every 5 seconds,
+  whose `AnonPages` peak is the guest's own
+  build peak.
+- `second-round-arm-8g-prepare.log.txt`,
+  `second-round-arm-8g-build.log.txt`,
+  `second-round-arm-8g-toolchain.log.txt` and `second-round-arm-8g-crate-build.log.txt`:
+  its four preparation and build steps.
+- `second-round-arm-8g-push-subject.log.txt`,
+  `second-round-arm-8g-pool.log.txt`,
+  `second-round-arm-8g-lock-arm.log.txt` and `second-round-arm-8g-drop.log.txt`:
+  the push,
+  the pool,
+  the nextest run with its summary line and marker lines,
+  and the cache drop.
+- `second-round-arm-8g-create.log.txt` and `second-round-arm-8g-destroy.log.txt`:
+  `mvm create` and `mvm destroy` output for the same durations.
 - `second-round-memory-gate-log.txt`:
   the gate reading every 30 seconds while this revision waited for a guest window,
   each line naming `MemAvailable`,
