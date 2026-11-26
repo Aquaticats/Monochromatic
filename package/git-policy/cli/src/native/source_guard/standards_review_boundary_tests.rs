@@ -113,20 +113,70 @@ fn native_sources() -> Vec<(String, String)> {
     return native_sources_in(&source_root(), &real_roots()).expect("the crate's own sources");
 }
 
-/// The text without the bare `mod <service-only module>;` lines:
+/// The text without the bare `mod <service-only module>;` lines
+/// and without the file names the top doc's file list registers:
 /// a module file registers its own members,
 /// which is
 /// declaring them and not using them.
 fn without_declarations(text: &str) -> String {
-    let mut kept: Vec<&str> = Vec::new();
+    let mut kept: Vec<String> = Vec::new();
     for line in text.lines() {
         let declares_service_module: bool =
             module_name(line).is_some_and(|name| return SERVICE_ONLY_MODULES.contains(&name));
         if !declares_service_module {
-            kept.push(line);
+            kept.push(without_the_registered_file_name(line));
         }
     }
     return kept.join("\n");
+}
+
+/// What:
+///  `fn without_the_registered_file_name(line: &str) -> String` gives one top-doc line
+///  with the file name a file-list entry registers cut out of it,
+///  and the line unchanged when it registers none.
+/// Why:
+///  A folder's top doc lists one ``//! - `name.rs`:`` line per file of the folder,
+///  which is the register of the folder's members the layout rules read.
+///  A register names a module without reaching it,
+///  the way a `mod` line does,
+///  so the scan reads it as a declaration;
+///  what the entry says after the name stays,
+///  because a description that names a service-only module is a mention like any other.
+fn without_the_registered_file_name(line: &str) -> String {
+    // What: `strip_prefix` takes the list bullet and the opening backtick off,
+    //       giving `None` on any other line.
+    // Why:  Only a file-list entry has this shape, so no other line loses text.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const afterBullet: string | undefined = line.trim().startsWith('//! - `') ? line.trim().slice(7) : undefined;
+    // ```
+    let Some(after_bullet): Option<&str> = line.trim().strip_prefix("//! - `") else {
+        // What: `line.to_string()` copies the line into an owned `String`, its sibling being the borrowed `&str`.
+        // Why:  The result list holds lines of both shapes, and the unchanged line outlives this borrow only if copied.
+        return line.to_string();
+    };
+    // What: `split_once` cuts the entry at its closing backtick into the file name and everything after it.
+    // Why:  The name is what the scan must stop reading, and the tail is what it keeps.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [name, tail] = afterBullet.split('`');
+    // ```
+    let Some((name, tail)): Option<(&str, &str)> = after_bullet.split_once('`') else {
+        return line.to_string();
+    };
+    if !name.ends_with(".rs") {
+        return line.to_string();
+    }
+    // What: `format!` builds a fresh `String` from the bullet and the entry's tail, which begins with the closing backtick.
+    // Why:  The register line survives with its description and without the module name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return `//! - ${tail}`;
+    // ```
+    return format!("//! - {tail}");
 }
 
 /// The violations in a set of sources:

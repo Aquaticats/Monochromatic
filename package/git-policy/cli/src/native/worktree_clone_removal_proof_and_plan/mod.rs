@@ -33,29 +33,45 @@
 //!  "Building later pieces ahead of the plan's order").
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
+//! - `canonical_decimal.rs`:
+//!   the one spelling a plan's numbers take.
+//! - `loss_names.rs`:
+//!   the list of names a removal prints as lost.
+//! - `plan_refusal.rs`:
+//!   why bytes are not a plan,
+//!   and the sentence a person reads.
+//! - `plan_lines.rs`:
+//!   the one line reader both halves of the parse share.
 //! - `plan_words.rs`:
 //!   the header line,
 //!   the eighteen keys in order,
 //!   the five snapshot outcomes and the five head words.
-//! - `canonical_decimal.rs`:
-//!   the one spelling a plan's numbers take.
 //! - `plan_bounds.rs`:
 //!   the header and line bounds and the per-field widths they rest on.
-//! - `plan_refusal.rs`:
-//!   why bytes are not a plan,
-//!   and the sentence a person reads.
 //! - `plan_name.rs`:
 //!   the file's GUID name,
 //!   a dataset's name and a snapshot's.
+//! - `removal_stop.rs`:
+//!   every way the removal stops,
+//!   and the sentence each prints.
+//! - `fresh_holder_scan.rs`:
+//!   the fresh all-namespace scan each destroy is preceded by.
+//! - `removal_identities.rs`:
+//!   the identities the add recorded,
+//!   the origin-side inventory it recorded,
+//!   and the registration's own identity.
+//! - `removal_settle.rs`:
+//!   the Git settle of one removal.
+//! - `removal_slot_claim.rs`:
+//!   the per-slot claim the whole order takes first and releases last,
+//!   and what a release did.
 //! - `started_moment.rs`:
 //!   the `started` field's shape and value.
 //! - `plan_record.rs`:
 //!   the plan's fields,
 //!   its first write and its bytes.
-//! - `plan_lines.rs`:
-//!   the one line reader both halves of the parse share.
 //! - `plan_attempt_parse.rs`:
 //!   one attempt region read into one line per attempt.
 //! - `plan_parse.rs`:
@@ -64,33 +80,35 @@
 //!   the two-stage file read and the folder and owner checks.
 //! - `plan_publication.rs`:
 //!   the folder's creation and the one write a removal makes.
-//! - `removal_identities.rs`:
-//!   the identities the add recorded,
-//!   the origin-side inventory it recorded,
-//!   and the registration's own identity.
 //! - `removal_inventory.rs`:
 //!   the clone's live snapshots and bookmarks by kind,
 //!   name,
 //!   GUID,
 //!   owning dataset and `createtxg`.
+//! - `bookmark_rule.rs`:
+//!   the decided rule `A: Live or planned`.
+//! - `removal_head_destroy.rs`:
+//!   the names settled by their GUIDs,
+//!   the amended plan a new own snapshot takes,
+//!   and the head destroy with its absence proof.
 //! - `removal_reads.rs`:
 //!   the pool reads the proof makes,
 //!   as a seam with one live implementation over the binding.
-//! - `removal_stop.rs`:
-//!   every way the removal stops,
-//!   and the sentence each prints.
-//! - `removal_slot_claim.rs`:
-//!   the per-slot claim the whole order takes first and releases last,
-//!   and what a release did.
 //! - `lineage_proof.rs`:
 //!   the three checks,
 //!   the origin-side comparison and the refusal each makes.
-//! - `bookmark_rule.rs`:
-//!   the decided rule `A: Live or planned`.
+//! - `removal_records_end.rs`:
+//!   the removal's own records,
+//!   removed as the last witness.
+//! - `removal_report.rs`:
+//!   the lines a finished removal prints.
+//! - `removal_origin_step.rs`:
+//!   the answers removal origin step holds.
+//! - `removal_settle_step.rs`:
+//!   the Git settle of one removal,
+//!   called only with the proof that this slot's clone is gone.
 //! - `unmount_request.rs`:
 //!   the removal intent and the verified answer.
-//! - `loss_names.rs`:
-//!   the list of names a removal prints as lost.
 //! - `removal_entry.rs`:
 //!   the one order a removal's proof,
 //!   intent,
@@ -104,26 +122,13 @@
 //!   the removal's read-only reading:
 //!   what a removal would prove and lose,
 //!   and the lines a command prints instead of writing.
-//! - `fresh_holder_scan.rs`:
-//!   the fresh all-namespace scan each destroy is preceded by.
-//! - `removal_head_destroy.rs`:
-//!   the names settled by their GUIDs,
-//!   the amended plan a new own snapshot takes,
-//!   and the head destroy with its absence proof.
 //! - `removal_resume.rs`:
 //!   where a removal starts:
 //!   a fresh entry,
 //!   an adopted kept plan,
 //!   or the head-gone path.
-//! - `removal_settle.rs`:
-//!   the Git settle of one removal.
-//! - `removal_records_end.rs`:
-//!   the removal's own records,
-//!   removed as the last witness.
 //! - `removal_completion.rs`:
 //!   the whole order from the plan to the report.
-//! - `removal_report.rs`:
-//!   the lines a finished removal prints.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

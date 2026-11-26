@@ -22,33 +22,33 @@
 //!  this folder restores the state its failures leave and never ends a process.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `cancel_arguments.rs`:
 //!   the command's grammar and every caller mistake.
 //! - `cancel_refusal.rs`:
 //!   every state that prevents the command,
 //!   with its exit code and the sentence a person reads.
-//! - `the_removal_claim.rs`:
-//!   the per-clone removal claim,
-//!   taken through the repository's own generation claim.
 //! - `the_destroy_outcomes.rs`:
 //!   the plan's tuples settled by the clone's live inventory.
+//! - `the_plan_it_leaves.rs`:
+//!   the one plan action a cancellation takes.
 //! - `the_proof.rs`:
 //!   which slot,
 //!   which clone,
 //!   which records,
 //!   proved in the design's own order.
+//! - `the_removal_claim.rs`:
+//!   the per-clone removal claim,
+//!   taken through the repository's own generation claim.
 //! - `the_reversing_request.rs`:
 //!   one `mount` request under a fresh nonce and the answer it must carry.
-//! - `the_staged_state.rs`:
-//!   the staging folder,
-//!   its record and its claim settled on the answer.
 //! - `the_slot_mount.rs`:
 //!   where the clone stands,
 //!   read from the caller's mount table.
-//! - `the_plan_it_leaves.rs`:
-//!   the one plan action a cancellation takes.
+//! - `the_staged_state.rs`:
+//!   the staging folder,
+//!   its record and its claim settled on the answer.
 //! - `the_cancelling_sequence.rs`:
 //!   the order the two actors share.
 //! - `the_cancel_command.rs`:
