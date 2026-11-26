@@ -12,12 +12,17 @@
 //! describe('json text', () => { it('replaces only the value', () => { ... }); });
 //! ```
 
-use crate::json_ops::{
+/// Imports `Comparable`,
+/// `token_text`,
+/// `value_matches` from `crate::json_compare`.
+use crate::json_compare::{
     Comparable,
-    parse_json_text,
     token_text,
     value_matches,
 };
+/// Imports `parse_json_text` from `crate::json_ops`.
+use crate::json_ops::parse_json_text;
+/// Imports `Evaluated` from `crate::value_eval`.
 use crate::value_eval::Evaluated;
 
 /// What:

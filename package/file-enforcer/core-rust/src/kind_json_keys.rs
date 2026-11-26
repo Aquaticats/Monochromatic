@@ -17,14 +17,14 @@
 use crate::config_parts::KeyEdit;
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
-/// Imports `parse_json_text`,
-/// `token_text`,
-/// `value_matches` from `crate::json_ops`.
-use crate::json_ops::{
-    parse_json_text,
+/// Imports `token_text`,
+/// `value_matches` from `crate::json_compare`.
+use crate::json_compare::{
     token_text,
     value_matches,
 };
+/// Imports `parse_json_text` from `crate::json_ops`.
+use crate::json_ops::parse_json_text;
 /// Imports `parent_directory` from `crate::path_text`.
 use crate::path_text::parent_directory;
 /// Imports `EntryKind` from `crate::real_fs`.

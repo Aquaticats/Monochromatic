@@ -273,6 +273,20 @@ pub mod value_eval;
 mod toml_ops;
 
 /// What:
+///  `json_compare` says what a parsed JSON value compares as
+/// and whether a config value already equals it;
+/// it is private.
+/// Why:
+///  Only the `json-keys` kind compares,
+/// and the comparison keeps its own file so it and the splice each stay inside the size one file may reach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: type Comparable; comparableOf(value); valueMatches(found, wanted); tokenText(value)
+/// ```
+mod json_compare;
+
+/// What:
 ///  `json_ops` edits JSON text by splicing the bytes of one member,
 /// keeping member order,
 /// indentation and unowned members;
@@ -684,6 +698,7 @@ mod kinds_tests;
 ///  `json_ops_tests` checks the JSON splicing and comparison helpers behind the `json-keys` kind.
 /// Why:
 ///  Splicing must keep every byte it does not own and leave the original text alone when nothing is owned,
+/// and a comparison must read the decoded text,
 /// which a rule test alone cannot show.
 ///
 /// In TS you'd write (pseudocode):
