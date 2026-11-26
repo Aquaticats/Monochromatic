@@ -2321,6 +2321,20 @@ Under enforce,
 `{"IsTor":true,"IP":"204.8.96.168"}`,
 and the next 45 seconds held no `torbrowser-tor` denial.
 
+Upstream, on 2026-11-26:
+`roddhjav/apparmor.d` `main` at `4c4fec70fcd19307a871b3ecc7f117a9ad989c9f`
+(`apparmor.d/groups/browsers/torbrowser-tor`) still has `network inet stream` only,
+`PluggableTransports/** mix`, and `deny /etc/resolv.conf r` and `deny /etc/nsswitch.conf r`,
+so the failure is live there for any datagram or name-resolving transport.
+`gh search issues` and `gh search prs` in that repository for `lyrebird`, `snowflake`,
+`torbrowser-tor resolv` and `pluggable transport` returned nothing,
+while a broad `torbrowser` search returned closed issues (#1117, #539, #491, #490, #465, #251),
+so the search itself works.
+Issue #490, "Tor Browser profile should not give access to anything sensitive or identifying",
+is the likely reason for the denies and has to be read in full before any report;
+a transport-only child profile keeps those denies for `tor` itself.
+No draft was written; filing is the owner's decision.
+
 The same reader fault touches this batch's other "no denial" checks;
 re-read the same way,
 `ivpn-service` (since enforce), `ip` and `ps` (after 06:50:21 UTC)
