@@ -36,36 +36,6 @@ fn text_of(buffer: &Buffer) -> String {
     return String::from_utf8_lossy(buffer.0.lock().expect("buffer").as_slice()).into_owned();
 }
 
-/// What:
-///  `take_the_windows_a_notice_control_reads()` takes the two windows a notice control reads,
-///  in the one order that cannot deadlock a threaded run:
-///  the look's window first,
-///  then the notice's.
-/// Why:
-///  Both are one window for the whole process,
-///  so a control that plants a ceiling or a look that cannot be made changes the answer of every thread of the run,
-///  and a control that reads them without taking them fails by which control ran first (issue 6509):
-///  measured,
-///  `the_notice_reports_the_programs_that_ran_below_the_step` credited one 250 ms interval of a step it had watched for 1.2 s,
-///  because `commit_preparation_tests` planted blind looks while this control's notice looked.
-///  Two orders in one process hold each other for ever in a threaded run
-///  (`doc/troubleshooting/git-policy-cli-control-windows-taken-in-two-orders.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function takeTheWindowsANoticeControlReads() { const looks = takeTheLookWindow(); const notice = takeTheNoticeWindow(); return [looks, notice]; }
-/// ```
-fn take_the_windows_a_notice_control_reads() -> (
-    std::sync::MutexGuard<'static, ()>,
-    std::sync::MutexGuard<'static, ()>,
-) {
-    let looks: std::sync::MutexGuard<'static, ()> =
-        crate::scratch_step_look_below::the_controls_window::take_the_window();
-    let notice: std::sync::MutexGuard<'static, ()> = the_controls_window::take_the_window();
-    // The look's guard is held by the answer, so it is let go only when the answer is.
-    return (looks, notice);
-}
-
 /// The command line can ask for a signature,
 /// and `--no-gpg-sign` takes the request back;
 /// the arguments after `--` are paths.
@@ -161,10 +131,6 @@ fn ended_by_signal(child: &mut std::process::Child) -> Option<i32> {
 /// and the notice says it did so.
 #[test]
 fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
-    let _windows: (
-        std::sync::MutexGuard<'static, ()>,
-        std::sync::MutexGuard<'static, ()>,
-    ) = take_the_windows_a_notice_control_reads();
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
     let cadence: Cadence = Cadence {
@@ -267,10 +233,6 @@ fn a_step_that_ended_before_its_ceiling_reports_no_stop() {
 /// this control holds the reading that a missing process never takes the ceiling away.
 #[test]
 fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
-    let _windows: (
-        std::sync::MutexGuard<'static, ()>,
-        std::sync::MutexGuard<'static, ()>,
-    ) = take_the_windows_a_notice_control_reads();
     let cadence: Cadence = Cadence {
         grace: Duration::from_secs(60),
         interval: Duration::from_secs(60),
@@ -329,10 +291,6 @@ fn kept_below<'kept>(
 /// named as the kernel names it.
 #[test]
 fn the_notice_reports_the_programs_that_ran_below_the_step() {
-    let _windows: (
-        std::sync::MutexGuard<'static, ()>,
-        std::sync::MutexGuard<'static, ()>,
-    ) = take_the_windows_a_notice_control_reads();
     let mut step: std::process::Child =
         crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("2"))
             .expect("a long-running child");
@@ -680,10 +638,6 @@ fn a_process_beside_the_step() -> std::process::Child {
 /// is that a ceiling reaches only its own step.
 #[test]
 fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
-    let _windows: (
-        std::sync::MutexGuard<'static, ()>,
-        std::sync::MutexGuard<'static, ()>,
-    ) = take_the_windows_a_notice_control_reads();
     let mut beside: std::process::Child = a_process_beside_the_step();
     let mut step: std::process::Child = sleeping_step();
     let cadence: Cadence = Cadence {
@@ -988,10 +942,10 @@ const A_STALL_BOUND: Duration = Duration::from_secs(30);
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
-    let _windows: (
-        std::sync::MutexGuard<'static, ()>,
-        std::sync::MutexGuard<'static, ()>,
-    ) = take_the_windows_a_notice_control_reads();
+    // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
+    let _look_window: std::sync::MutexGuard<'_, ()> =
+        crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
@@ -1056,10 +1010,10 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn the_ceiling_that_stood_aside_prints_no_line_of_its_own() {
-    let _windows: (
-        std::sync::MutexGuard<'static, ()>,
-        std::sync::MutexGuard<'static, ()>,
-    ) = take_the_windows_a_notice_control_reads();
+    // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
+    let _look_window: std::sync::MutexGuard<'_, ()> =
+        crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();

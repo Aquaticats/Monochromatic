@@ -1045,12 +1045,6 @@ fn a_folder_the_wrapper_did_not_name_stays() {
 /// `note_refusal`).
 #[test]
 fn a_refused_member_is_named_in_the_build_parts() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_refused_member_is_named_in_the_build_parts",
-    ) {
-        return;
-    }
     let root: PathBuf = fixture("shadow-pool-refusal-evidence");
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, member) = a_member(repo.as_path());

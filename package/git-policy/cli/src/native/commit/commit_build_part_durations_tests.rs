@@ -9,11 +9,8 @@
 //!  would hide the stretch a stopped commit waited in,
 //! which is the defect the build's ledger was added for;
 //! and an unbounded list would grow with the work.
-//!  The ledger is one list for the whole process,
-//!  and other controls of this crate build shadows,
-//!  so each control here runs its body in a child of its own
-//!  (`crate::process_wide_state_child_test_support`),
-//!  whose list holds nothing but what it marked:
+//!  The ledger is one list for the whole process and other controls of this crate build shadows,
+//!  so each control here holds its own lock and empties the list before it starts:
 //!  the names it asserts on are the ones at the end of what it kept.
 //!
 //! In TS you'd write (pseudocode):
@@ -32,10 +29,28 @@ use super::{
 };
 use crate::commit_prepare_part_durations::PreparePart;
 use crate::transaction_step_durations::note_step;
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 use std::time::{
     Duration,
     Instant,
 };
+
+/// Held by every control here,
+/// so no two of them mark and drain the one list at the same time.
+static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+/// The lock and an empty list,
+/// which every control in this module starts from.
+fn exclusive() -> MutexGuard<'static, ()> {
+    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _taken: (Vec<PreparePart>, usize) = drain_build_parts();
+    return held;
+}
 
 /// The names the list ends with,
 /// which are the ones the control under test marked.
@@ -62,12 +77,7 @@ fn last(parts: &[PreparePart]) -> &PreparePart {
 /// The clock names each stretch and keeps the one that was running when the build left.
 #[test]
 fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "each_stretch_keeps_its_name_and_the_open_one_is_kept",
-    ) {
-        return;
-    }
+    let _held: MutexGuard<'static, ()> = exclusive();
     let mut clock: BuildPartClock = BuildPartClock::begin("branch");
     std::thread::sleep(Duration::from_millis(3));
     clock.next("shadow links");
@@ -84,12 +94,7 @@ fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
 /// it held no child.
 #[test]
 fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it",
-    ) {
-        return;
-    }
+    let _held: MutexGuard<'static, ()> = exclusive();
     let mut clock: BuildPartClock = BuildPartClock::begin("client build");
     note_step("git commit", Instant::now(), Duration::from_millis(500));
     std::thread::sleep(Duration::from_millis(3));
@@ -128,12 +133,7 @@ fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {
 /// A name marked more than once is added together and says how many stretches it is made of.
 #[test]
 fn a_name_marked_twice_adds_up_and_says_how_many_calls() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_name_marked_twice_adds_up_and_says_how_many_calls",
-    ) {
-        return;
-    }
+    let _held: MutexGuard<'static, ()> = exclusive();
     note_build_part(
         "shadow links",
         Duration::from_millis(11),
@@ -157,12 +157,7 @@ fn a_name_marked_twice_adds_up_and_says_how_many_calls() {
 /// The record carries at most `MAX_BUILD_PARTS` stretches and says how many it dropped.
 #[test]
 fn the_list_stops_at_its_bound_and_counts_the_rest() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "the_list_stops_at_its_bound_and_counts_the_rest",
-    ) {
-        return;
-    }
+    let _held: MutexGuard<'static, ()> = exclusive();
     let over: usize = MAX_BUILD_PARTS + 3;
     for at in 0..over {
         note_build_part(
@@ -185,12 +180,7 @@ fn the_list_stops_at_its_bound_and_counts_the_rest() {
 /// so a name can never break the record's line.
 #[test]
 fn a_name_with_delimiters_stays_one_member() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_name_with_delimiters_stays_one_member",
-    ) {
-        return;
-    }
+    let _held: MutexGuard<'static, ()> = exclusive();
     note_build_part("a\"b\\c\nd", Duration::from_millis(1), Duration::ZERO);
     let (parts, _dropped) = drain_build_parts();
     let json: String = build_parts_json(parts.as_slice());

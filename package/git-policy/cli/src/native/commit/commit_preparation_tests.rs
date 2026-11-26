@@ -730,12 +730,6 @@ fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
 /// the person's work is as it was and the same command can be run again.
 #[test]
 fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing",
-    ) {
-        return;
-    }
     let root: PathBuf = fixture("commit-preparation-ceiling");
     let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) =
         a_commit_whose_signer_never_answers(root.as_path());
@@ -1144,12 +1138,6 @@ fn an_x509_program_from_an_exact_gitdir_include_reaches_the_shadow() {
 #[cfg(unix)]
 #[test]
 fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling",
-    ) {
-        return;
-    }
     let root: PathBuf = fixture("commit-preparation-ceiling-no-notice");
     let (fixture, global_args, commit_args): (Fixture, Vec<OsString>, Vec<OsString>) =
         a_commit_whose_signer_never_answers(root.as_path());

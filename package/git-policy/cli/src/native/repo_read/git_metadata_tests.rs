@@ -340,12 +340,6 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
 /// so the preparation's record holds the child a slow commit waited on instead of the phase alone.
 #[test]
 fn a_read_the_in_process_readers_decline_is_noted_as_a_step() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_read_the_in_process_readers_decline_is_noted_as_a_step",
-    ) {
-        return;
-    }
     let root: PathBuf = fixture("metadata-step");
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a file");

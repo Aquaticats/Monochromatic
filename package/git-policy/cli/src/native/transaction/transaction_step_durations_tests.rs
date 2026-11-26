@@ -5,10 +5,6 @@
 //!  nothing but a program and a subcommand,
 //! offsets from an origin,
 //! and the two forms a record writes.
-//! The ledger is one list for the whole process,
-//! so each control that counts steps runs its body in a child of its own
-//! (`crate::process_wide_state_child_test_support`),
-//! as issue 6509 found.
 
 use super::*;
 
@@ -16,18 +12,19 @@ use super::*;
 /// in whole milliseconds.
 const SHORT: Duration = Duration::from_millis(5);
 
+/// Empty the process-wide ledger,
+/// which other controls of the same process may have filled.
+fn clean() {
+    let _taken = drain_steps(Instant::now());
+}
+
 /// Steps come back ordered by when they began,
 /// with offsets from the origin and whole-millisecond durations,
 /// and a second drain
 ///  finds nothing.
 #[test]
 fn steps_are_ordered_by_start_and_measured_from_the_origin() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "steps_are_ordered_by_start_and_measured_from_the_origin",
-    ) {
-        return;
-    }
+    clean();
     let origin: Instant = Instant::now();
     let later: Instant = origin + Duration::from_millis(40);
     let earlier: Instant = origin + Duration::from_millis(10);
@@ -59,12 +56,7 @@ fn steps_are_ordered_by_start_and_measured_from_the_origin() {
 /// A step that began before the origin starts at zero.
 #[test]
 fn a_step_that_began_before_the_origin_starts_at_zero() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_step_that_began_before_the_origin_starts_at_zero",
-    ) {
-        return;
-    }
+    clean();
     let early: Instant = Instant::now();
     let origin: Instant = early + Duration::from_millis(50);
     note_step("git rev-parse", early, SHORT);
@@ -76,12 +68,7 @@ fn a_step_that_began_before_the_origin_starts_at_zero() {
 /// so a record never grows with the work and never hides that it was cut.
 #[test]
 fn the_list_is_bounded_and_counts_what_did_not_fit() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "the_list_is_bounded_and_counts_what_did_not_fit",
-    ) {
-        return;
-    }
+    clean();
     let origin: Instant = Instant::now();
     let extra: usize = 3;
     for _ in 0..(MAX_STEP_RUNS + extra) {
@@ -99,12 +86,7 @@ fn the_list_is_bounded_and_counts_what_did_not_fit() {
 /// an option value or a separator is replaced.
 #[test]
 fn a_name_never_carries_a_path_or_a_separator() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_name_never_carries_a_path_or_a_separator",
-    ) {
-        return;
-    }
+    clean();
     let origin: Instant = Instant::now();
     note_step("git /home/person/secret;rm=1+2@3\n\"", origin, SHORT);
     let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
@@ -155,12 +137,7 @@ fn the_record_forms_name_every_step() {
 /// so the record stays as small as it was for the many short steps.
 #[test]
 fn a_slow_step_names_its_arguments_and_a_short_one_does_not() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "a_slow_step_names_its_arguments_and_a_short_one_does_not",
-    ) {
-        return;
-    }
+    clean();
     let origin: Instant = Instant::now();
     let arguments: Vec<OsString> = vec![
         OsString::from("for-each-ref"),

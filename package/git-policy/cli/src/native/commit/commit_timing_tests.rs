@@ -749,12 +749,6 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
 /// and both are in the record without verbose mode.
 #[test]
 fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
-        module_path!(),
-        "the_record_states_every_index_build_with_whether_it_kept_the_stat_data",
-    ) {
-        return;
-    }
     use crate::commit_index_builds::{
         IndexBuildKind,
         note_index_build,
