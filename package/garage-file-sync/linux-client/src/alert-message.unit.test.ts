@@ -47,9 +47,29 @@ const CLEAN_EXIT = {
 };
 
 /**
- A run stopped by hand as systemd reports it: a clean stop, not a clean exit.
+ A run stopped by hand as systemd reports it to the failure handler: the unit ends in
+ its signal result.
  */
-const STOPPED_BY_HAND = {
+const HAND_STOP_SIGNALLED_RUN = {
+  result: 'signal',
+  exitCode: 'killed',
+  exitStatus: 'TERM',
+};
+
+/**
+ A run stopped by hand whose rclone caught SIGTERM, ran its exit handlers and exited
+ with 128 + 15.
+ */
+const HAND_STOP_RCLONE_EXIT = {
+  result: 'exit-code',
+  exitCode: 'exited',
+  exitStatus: '143',
+};
+
+/**
+ A success result that is not exit status 0, as SuccessExitStatus= can make.
+ */
+const CLEAN_STOP = {
   result: 'success',
   exitCode: 'killed',
   exitStatus: 'TERM',
@@ -81,7 +101,7 @@ await describe({
           name: 'calls only a run that exited with status 0 a recovery',
           fn: async function onlyExitedZero() {
             expect(classifyOutcome({ result: 'success', exitCode: 'exited', exitStatus: '0', },),).toBe('recovery',);
-            expect(classifyOutcome({ result: 'success', exitCode: 'killed', exitStatus: 'TERM', },),).toBe('stopped',);
+            expect(classifyOutcome(CLEAN_STOP,),).toBe('stopped',);
             expect(classifyOutcome({ result: 'success', exitCode: 'killed', exitStatus: 'INT', },),).toBe('stopped',);
             expect(classifyOutcome({ result: 'exit-code', exitCode: 'exited', exitStatus: '1', },),).toBe('failure',);
             expect(classifyOutcome({ result: 'timeout', exitCode: 'killed', exitStatus: 'TERM', },),).toBe('failure',);
@@ -161,17 +181,20 @@ await describe({
       name: classifyRequest.name,
       children: [
         it({
-          name: 'a failure handler always reports a failure, even when systemd passed no variables',
+          name: 'a failure handler is silent for a hand stop and alerts for a failure or a timeout',
           fn: async function failureHandler() {
             expect(classifyRequest({ trigger: 'unit-failed', outcome: FAILED_RUN, },),).toBe('failure',);
             expect(classifyRequest({ trigger: 'unit-failed', outcome: NO_VARIABLES, },),).toBe('failure',);
+            expect(classifyRequest({ trigger: 'unit-failed', outcome: { result: 'timeout', exitCode: 'killed', exitStatus: 'TERM', }, },),).toBe('failure',);
+            expect(classifyRequest({ trigger: 'unit-failed', outcome: HAND_STOP_SIGNALLED_RUN, },),).toBe('stopped',);
+            expect(classifyRequest({ trigger: 'unit-failed', outcome: HAND_STOP_RCLONE_EXIT, },),).toBe('stopped',);
           },
         },),
         it({
           name: 'a success handler is a recovery only for exit status 0, and a stop otherwise, never a failure',
           fn: async function successHandler() {
             expect(classifyRequest({ trigger: 'unit-succeeded', outcome: CLEAN_EXIT, },),).toBe('recovery',);
-            expect(classifyRequest({ trigger: 'unit-succeeded', outcome: STOPPED_BY_HAND, },),).toBe('stopped',);
+            expect(classifyRequest({ trigger: 'unit-succeeded', outcome: CLEAN_STOP, },),).toBe('stopped',);
             expect(classifyRequest({ trigger: 'unit-succeeded', outcome: NO_VARIABLES, },),).toBe('stopped',);
           },
         },),
