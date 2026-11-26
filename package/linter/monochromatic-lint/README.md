@@ -1157,7 +1157,8 @@ A `.` segment and a trailing separator are read away,
 so `uses ./src/a/ -> src/b` is the same entry as `uses src/a -> src/b` and the second line for it is refused.
 A `uses` or `file-uses` path that holds a backslash is refused too,
 because a key writes `/` on every machine and a backslash would name a folder no finding names.
-A line that is a key may hold a backslash, because no rule prints one in a key:
+A line that is a key may hold a backslash,
+because no rule prints one in a key:
 such a line is read as the key it spells and reported as tolerating nothing any more.
 
 A rule reports the key of each finding it makes in `--debug`,
@@ -1172,10 +1173,12 @@ Every key names exactly one finding:
   or its own words when the kind has no name.
   The shapes are exactly these,
   each printed the way the item is written:
-  - `impl-<what it implements>` and then the members it declares, sorted,
+  - `impl-<what it implements>` and then the members it declares,
+    sorted,
     such as `impl-std::fmt::Display for Holder fmt` or `impl-Holder one two`,
     with the members left out when the block declares none.
-  - `private-use-<the tree as written>`, such as `private-use-std::fmt`,
+  - `private-use-<the tree as written>`,
+    such as `private-use-std::fmt`,
     or `private-use-anonymous`.
   - `macro-call-<path>!<the delimiter and arguments as written>`,
     such as `macro-call-vec![1, 2]` or `macro-call-thread_local!{ ... }`,
@@ -1190,8 +1193,16 @@ Every key names exactly one finding:
     or `extern-block-unstated` for a block that names none.
   - `assembly-block` for an assembly block,
     and `<kind>-<name>` for every other item,
-    where the kind is `function`, `struct`, `enum`, `union`, `trait`,
-    `constant`, `static`, `type-alias`, `macro-rules`, `macro-def` or `inline-module`,
+    where the kind is `function`,
+    `struct`,
+    `enum`,
+    `union`,
+    `trait`,
+    `constant`,
+    `static`,
+    `type-alias`,
+    `macro-rules`,
+    `macro-def` or `inline-module`,
     with `anonymous` in place of a name the item does not declare.
 - A key about an entry of a `uses` folder carries the fault,
   such as `link src/a/uses/b broken`,
@@ -1212,7 +1223,8 @@ Every key names exactly one finding:
   and removing one leaves a line that tolerates nothing.
   The number counts the findings of that shape from the first one the rule reports,
   so it moves only when an identical finding is added above or removed above it:
-  an edit above the finding, or a different block of the same type,
+  an edit above the finding,
+  or a different block of the same type,
   renumbers nothing.
 
 The rule holds the list to its size,
@@ -1344,7 +1356,8 @@ section "The `uses/` links and cargo").
 A link that points into a loop of folders makes `cargo package --list` walk without end:
 the wrapper measured 1.9 seconds over 3038 paths with its 109 links,
 and no answer after 120 seconds with 421 added
-(`doc/planning/cli-git-source-layout.md`, the paragraph under section "The `uses/` links and cargo"
+(`doc/planning/cli-git-source-layout.md`,
+the paragraph under section "The `uses/` links and cargo"
 that starts "Measured again on 2026-11-25"),
 which is why
 the decision record (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`)
@@ -1505,7 +1518,8 @@ and says to raise `max-image-bytes`:
 The bound is an option rather than a constant of this crate,
 because the rule ships inside a published binary and its user cannot edit that source;
 raising the option in the repository's own configuration is what a repository with a larger image does.
-The alternative, naming the image and skipping it,
+The alternative,
+naming the image and skipping it,
 was rejected because a skipped image's object URL is never checked or rewritten,
 so a reader who needs the rule's coverage would have to exclude the whole Markdown file from it.
 
