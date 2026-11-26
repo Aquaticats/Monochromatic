@@ -1067,7 +1067,8 @@ const THE_STEPS_DEADLINE: Duration = Duration::from_secs(30);
 const THE_STEPS_CEILING: Duration = Duration::from_millis(200);
 
 /// What:
-///  A `commondir` that is a named pipe gives the round's lane read no common directory, and answers at once.
+///  A `commondir` that is a named pipe gives the round's lane read no common directory,
+/// and answers at once.
 /// Why:
 ///  Finding 5 of the review of `b3d00b3be4`:
 /// the round read each directory's `commondir` on the task that runs it,
