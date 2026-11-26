@@ -45,12 +45,28 @@ Open:
 - The first change-triggered sync on live data ran at 2026-11-25T23:19:37-05:00,
   13 s after five files were deleted under `~/Plain`, and ended with both passes `Bisync successful`.
 - Smaller review findings left open are listed in the design record, section "Coverage and review fixes merged".
-- The five `main.kdbx.conflictN` copies were removed from this PC, the bucket and the Mac at 2026-11-25T23:19:24-05:00
-  (bucket first, then this PC, in one command; the next sync saw both sides deleted and queued nothing;
-  the Mac's agent then deleted its copies). A checksummed backup is in
-  `~/temp/agent/garage-main-kdbx-conflict-copies-removed-2026-11-25/`.
-- 28 other conflict copies remain on all three sides (under `Text/Reference/Health/`, `Text/Reference/Legal/` and `Text/Notes/`);
-  the owner is deciding what to do with them.
+- The five `main.kdbx.conflictN` copies were removed from this PC, the bucket and the Mac at 2026-11-25T23:19:24-05:00.
+- The other 29 conflict copies were resolved by 2026-11-25T23:53:24-05:00, so `~/Plain`, the bucket and the Mac hold none.
+  Seven were machine state (`Text/Reference/Legal/.git`, whose conflict ref pointed at a commit already in `main`, and two IDE files).
+  Thirteen documents had no unique text or a few superseded lines (owner: delete).
+  Seven were older versions of files later revised on purpose: `casl-spam-report-bell-2026-08.md.conflict2` equals the committed snapshot `a0248b6`,
+  whose lines the commit `0ccd0d9` removed; the `clinical-summary` set, `emails-to-send-2026-08-26.md` and the `carleton-handover` sidecar
+  each equal an earlier commit of the Health repository, and a named later commit removed their lines
+  (for example `90aaa00`, "correct ten problems the translation pass found in the English").
+  `Text/Notes/pcloud-console-client-mac-setup.md` was restored from `.conflict2`, a deliberate revision of `.conflict1`.
+  Every removed copy is backed up with checksums in `~/temp/agent/garage-*-conflict-copies-removed-2026-11-25/` (four folders, 7.2 MB);
+  the owner chose to keep them.
+- `Text/Reference/Health` is a Git working tree whose Git directory lives outside `~/Plain`.
+  Its pointer named the Bazzite path `/var/home/user/.local/share/health-records-git`, which does not exist on CachyOS;
+  the directory was restored at 2026-11-26T00:00:19-05:00 from the old Bazzite NVMe (`old-nvme-p2`, mounted read-only)
+  to `~/.local/share/health-records-git` (`git fsck` clean; last commit `cf05c3f`, 2026-09-25T03:46:26-04:00),
+  and `Health/.git` now reads `gitdir: /home/user/.local/share/health-records-git`.
+  206 of its 222 tracked files equal `HEAD`; 16 differ (14 Git LFS PDFs in `dist/`, `provider-requests.html`, `runbook-medication-continuity.md`).
+- Git works again in `Text/Reference/Health` and `Text/Reference/Legal` on this PC:
+  AppArmor's `git` profile had granted only project folders, and the twelfth batch of local rules
+  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) grants `~/Plain` and the Health Git directory.
+  Each Git run leaves one lock-holder record in the repository's `.git/cli-git-lock-holders/`,
+  removed by a later run (the Git wrapper's design); in Legal that folder is inside `~/Plain` and syncs.
 - The Mac keeps the files it set aside before its resync in
   `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` until the owner says to remove them.
 - The files this PC ran before the change are in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`

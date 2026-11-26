@@ -2035,6 +2035,59 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Twelfth batch: Git and pdftotext in ~/Plain, and systemd-analyze on user units, 2026-11-26T00:03:44-05:00
+
+Met while resolving the Garage sync's conflict copies and building `package/garage-file-sync/linux-client`,
+read from `/var/log/audit/audit.log` between 2026-11-25T21:00-05:00 and the batch:
+
+- `git` reading `~/Plain/Text/Reference/Legal/.git/HEAD` (5) and `~/Plain/Text/Reference/Health/.git` (4),
+  so Git in those repositories printed "not a git repository" or "error opening ... Permission denied";
+  the stock profile grants only `@{user_projects_dirs}`.
+  Health's Git directory was restored to `~/.local/share/health-records-git` the same night, so it is granted too.
+- `git` reading the Claude Code harness's per-command diff folders under `/tmp/claude-1000/bash-edit-diff/` (about 200).
+- `systemd-analyze --user verify` reading `~/.config/systemd/user/`, `/run/user/1000/systemd/user{,.control}/`,
+  the folders of the unit files it was given (scratch and worktree folders), `~/.config/environment.d/`,
+  and running the two user environment generators.
+  A writer and two reviewers worked around this by reading units by hand instead.
+- `pdftotext` opening `~/Plain/.../carleton-counter-2026-08-26--518a77e7.pdf.conflict1`,
+  a PDF whose name does not end in `.pdf`; the session fed it through standard input instead.
+
+Those two workarounds broke the owner's rule recorded under "Eleventh batch",
+because the session had not read this file; the owner then said "Add the rules".
+Applied with `append-a-batch-of-local-rules-and-load.ts` (labels `twelfth-batch-2026-11-26` and `twelfth-batch-environment-d-2026-11-26`):
+
+```text
+# /etc/apparmor.d/local/git
+owner @{HOME}/Plain/ r,
+owner @{HOME}/Plain/** rwlk -> @{HOME}/Plain/**,
+owner @{HOME}/.local/share/health-records-git/ r,
+owner @{HOME}/.local/share/health-records-git/** rwlk -> @{HOME}/.local/share/health-records-git/**,
+owner /tmp/claude-@{uid}/bash-edit-diff/ r,
+owner /tmp/claude-@{uid}/bash-edit-diff/** r,
+# /etc/apparmor.d/local/systemd-analyze
+owner @{HOME}/.config/systemd/user/ r,
+owner @{HOME}/.config/systemd/user/** r,
+owner @{run}/user/@{uid}/systemd/ r,
+owner @{run}/user/@{uid}/systemd/** r,
+owner @{HOME}/temp/agent/** r,
+owner @{HOME}/Monochromatic/** r,
+/usr/lib/systemd/user-environment-generators/* rix,
+owner @{HOME}/.config/environment.d/ r,
+owner @{HOME}/.config/environment.d/** r,
+# /etc/apparmor.d/local/pdftotext (new)
+owner @{HOME}/Plain/** r,
+```
+
+`apparmor_parser --replace` loaded `git`, `systemd-analyze` and `pdftotext`.
+Afterwards `git log` and `git status` worked in both repositories,
+`systemd-analyze --user verify` of the installed `rclone-bisync-garage*` units exited 0 with no message,
+and `pdftotext` read a PDF under `~/Plain`; the audit log held no new denial for these profiles.
+No exec grant was added under `~/Plain`, so repository hooks there still cannot run.
+
+Seen in the same window and not granted, since this work did not need them:
+`gh` running `~/Monochromatic/.cache/toolchain-launchers/monochromatic-git-policy-cli` (3; its `gh api` reads succeeded),
+`helium`, `systemd-coredump`, `wl-copy` and `systemd-oomd`.
+
 ## Eleventh batch: carving swap from the old NVMe, and the owner's rule to always widen, 2026-11-25
 
 The owner,

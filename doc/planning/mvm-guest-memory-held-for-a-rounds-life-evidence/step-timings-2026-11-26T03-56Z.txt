@@ -1,4 +1,4 @@
-# The third revision's one guest, step by step
+# The mem-third-8g-prebuilt guest, step by step
 
 # step                 start                          end                            seconds
 gate                 2026-11-26T03:56:49.365Z 2026-11-26T03:56:49.411Z 0.05
