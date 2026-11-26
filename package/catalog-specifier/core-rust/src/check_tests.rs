@@ -15,7 +15,12 @@
 
 /// Imports the public functions and types through the crate root,
 /// the same path a consumer uses.
-use super::{FindingKind, check_manifest, check_manifest_bytes, check_manifest_path};
+use super::{
+    FindingKind,
+    check_manifest,
+    check_manifest_bytes,
+    check_manifest_path,
+};
 
 /// What:
 /// `fn kinds(findings: &[Finding]) -> Vec<&'static str>` maps findings to their kebab-case kind names.
@@ -60,10 +65,17 @@ fn invalid_utf8_is_one_invalid_manifest_finding() {
 /// and a second one is not valid JSON.
 #[test]
 fn one_byte_order_mark_is_removed_and_a_second_is_invalid() {
-    let one: Vec<u8> = [&[0xEF_u8, 0xBB, 0xBF][..], b"{\"dependencies\":{\"a\":\"catalog:\"}}"].concat();
+    let one: Vec<u8> = [
+        &[0xEF_u8, 0xBB, 0xBF][..],
+        b"{\"dependencies\":{\"a\":\"catalog:\"}}",
+    ]
+    .concat();
     assert!(check_manifest_bytes("package.json", &one).is_empty());
     let two: Vec<u8> = [&[0xEF_u8, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF][..], b"{}"].concat();
-    assert_eq!(kinds(&check_manifest_bytes("package.json", &two)), vec!["invalid-manifest"]);
+    assert_eq!(
+        kinds(&check_manifest_bytes("package.json", &two)),
+        vec!["invalid-manifest"]
+    );
 }
 
 /// An unsupported file name is refused without reading the bytes,
@@ -78,7 +90,10 @@ fn unsupported_name_is_refused_without_reading_the_bytes() {
 /// A supported name routes to the byte check.
 #[test]
 fn supported_name_routes_to_the_byte_check() {
-    let findings = check_manifest("package/a/package.json", b"{\"dependencies\":{\"zod\":\"^4.6.7\"}}");
+    let findings = check_manifest(
+        "package/a/package.json",
+        b"{\"dependencies\":{\"zod\":\"^4.6.7\"}}",
+    );
     assert_eq!(kinds(&findings), vec!["disallowed-specifier"]);
 }
 
@@ -98,7 +113,10 @@ fn supported_name_routes_to_the_byte_check() {
 /// ```
 #[test]
 fn display_text_names_file_section_dependency_specifier_and_remedy() {
-    let findings = check_manifest_bytes("package/x/package.json", b"{\"devDependencies\":{\"zod\":\"^4.6.7\"}}");
+    let findings = check_manifest_bytes(
+        "package/x/package.json",
+        b"{\"devDependencies\":{\"zod\":\"^4.6.7\"}}",
+    );
     let text = format!("{}", findings[0]);
     assert!(text.contains("package/x/package.json"), "{text}");
     assert!(text.contains("devDependencies"), "{text}");
@@ -113,7 +131,10 @@ fn display_text_names_file_section_dependency_specifier_and_remedy() {
 fn duplicate_findings_print_distinct_sentences() {
     let section = check_manifest_bytes("p.json", b"{\"dependencies\":{},\"dependencies\":{}}");
     assert!(format!("{}", section[0]).contains("appears more than once"));
-    let name = check_manifest_bytes("p.json", b"{\"dependencies\":{\"a\":\"catalog:\",\"a\":\"catalog:\"}}");
+    let name = check_manifest_bytes(
+        "p.json",
+        b"{\"dependencies\":{\"a\":\"catalog:\",\"a\":\"catalog:\"}}",
+    );
     assert!(format!("{}", name[0]).contains("lists `a` more than once"));
 }
 
@@ -124,7 +145,10 @@ fn invalid_manifest_text_carries_a_reason() {
     let findings = check_manifest_bytes("p.json", b"");
     assert_eq!(kinds(&findings), vec!["invalid-manifest"]);
     let text = format!("{}", findings[0]);
-    assert!(text.contains("not a readable package.json object"), "{text}");
+    assert!(
+        text.contains("not a readable package.json object"),
+        "{text}"
+    );
 }
 
 /// A dependency name holding a lone surrogate is shown with the replacement character instead of failing.
@@ -151,7 +175,10 @@ fn lone_surrogate_name_prints_with_the_replacement_character() {
 /// ```
 #[test]
 fn findings_follow_source_order_across_sections() {
-    let findings = check_manifest_bytes("p.json", b"{\"peerDependencies\":{\"p\":\"1\"},\"dependencies\":{\"d\":\"1\"}}");
+    let findings = check_manifest_bytes(
+        "p.json",
+        b"{\"peerDependencies\":{\"p\":\"1\"},\"dependencies\":{\"d\":\"1\"}}",
+    );
     let mut sections: Vec<&str> = Vec::new();
     for finding in &findings {
         sections.push(finding.section.as_deref().unwrap_or(""));
@@ -162,10 +189,16 @@ fn findings_follow_source_order_across_sections() {
 /// Findings carry the caller's path unchanged and the exact dependency name and specifier.
 #[test]
 fn findings_carry_path_name_and_specifier() {
-    let findings = check_manifest_bytes("package/dsh-plugin/cost-dismissal/package.json", b"{\"dependencies\":{\"zod\":\"^4.6.7\"}}");
+    let findings = check_manifest_bytes(
+        "package/dsh-plugin/cost-dismissal/package.json",
+        b"{\"dependencies\":{\"zod\":\"^4.6.7\"}}",
+    );
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].kind, FindingKind::DisallowedSpecifier);
-    assert_eq!(findings[0].path, "package/dsh-plugin/cost-dismissal/package.json");
+    assert_eq!(
+        findings[0].path,
+        "package/dsh-plugin/cost-dismissal/package.json"
+    );
     assert_eq!(findings[0].section.as_deref(), Some("dependencies"));
     assert_eq!(findings[0].name.as_deref(), Some("zod"));
     assert_eq!(findings[0].specifier.as_deref(), Some("^4.6.7"));
@@ -176,7 +209,10 @@ fn findings_carry_path_name_and_specifier() {
 /// and holds no specifier text.
 #[test]
 fn non_string_findings_carry_path_section_and_name() {
-    let findings = check_manifest_bytes("package/x/package.json", b"{\"optionalDependencies\":{\"a\":[\"catalog:team\"]}}");
+    let findings = check_manifest_bytes(
+        "package/x/package.json",
+        b"{\"optionalDependencies\":{\"a\":[\"catalog:team\"]}}",
+    );
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].kind, FindingKind::NonStringSpecifier);
     assert_eq!(findings[0].path, "package/x/package.json");
