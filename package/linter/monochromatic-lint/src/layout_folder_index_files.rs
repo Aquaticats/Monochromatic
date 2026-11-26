@@ -209,7 +209,7 @@ pub(crate) fn space_finding(
         file: file.to_path_buf(),
         line: 0,
         message: format!(
-            "{} in the folder {} holds a space, so no `file-uses` line can name it: a use between two files is written as three words.",
+            "{} in the folder {} holds a space, so no `file-uses` line can name it: a use between two files is written as five words.",
             file_name(file),
             shown(folder, base)
         ),

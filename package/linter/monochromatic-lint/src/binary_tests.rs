@@ -2068,6 +2068,14 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
         "{}",
         found.stdout
     );
+    // The message names the line's real word count, so the reader writes the shape the refusal also prints.
+    assert!(
+        found
+            .stdout
+            .contains("a use between two files is written as five words"),
+        "{}",
+        found.stdout
+    );
     // Both lines name the file, so neither passes to another name.
     let key_lines: Vec<&str> = found
         .stderr
