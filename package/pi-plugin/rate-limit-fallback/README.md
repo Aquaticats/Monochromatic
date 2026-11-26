@@ -339,7 +339,9 @@ With no stop set aside,
 the pool returns the last
 refusal it set aside,
 as it arrived:
-a 429 or a transient status.
+a 429,
+a transient status,
+or a transport failure that never reached its member.
 When no member
 was attempted,
 the pool names the held members and their state:
