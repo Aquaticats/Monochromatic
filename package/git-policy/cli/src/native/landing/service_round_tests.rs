@@ -1145,67 +1145,67 @@ fn a_common_directory_that_is_a_named_pipe_gives_no_answer_and_holds_no_worker()
 #[test]
 fn a_job_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step() {
     use crate::parallel_test_support::ONE_PLACE;
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_job_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step",
-    ) {
-        return;
-    }
-    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
-    let root: PathBuf = fixture("round-place-held-past-its-ceiling");
-    let work_dir: PathBuf = root.join("work");
-    let measured: PathBuf = root.clone();
-    // The end of the job that takes the place: the control lets go of it once the step has answered.
-    let (let_go, holds) = std::sync::mpsc::channel::<()>();
-    let answered =
-        crate::parallel_test_support::finished_within_at(THE_STEPS_DEADLINE, move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("a runtime for the control");
-            let (read, step) = runtime.block_on(async move {
-                // A job of the pool, awaited no longer than this ceiling and held open by the control, so it outlasts its
-                //  ceiling and keeps its place while the step asks for one.
-                let read = run_a_job_awaited_no_longer_than(
-                    THE_STEPS_CEILING,
-                    holds,
-                    |waits: std::sync::mpsc::Receiver<()>| {
-                        let _held = waits.recv();
-                    },
-                )
-                .await;
-                // The drain's first storage step, given the same ceiling here so the control reaches its bound in a moment.
-                let step = crate::service_work_storage_awaited::claim_all_within_awaiting(
-                    THE_STEPS_CEILING,
-                    work_dir.as_path(),
-                    crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS,
-                )
-                .await;
-                return (read, step);
-            });
-            // The place cannot go back while the job waits, and a runtime's own drop waits for that job: the job is let go
-            // here, after the step has answered against the place it still held.
-            drop(let_go);
-            drop(runtime);
-            return (read, step);
-        });
-    let (read, step) = answered.expect(
+        || {
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
+            let root: PathBuf = fixture("round-place-held-past-its-ceiling");
+            let work_dir: PathBuf = root.join("work");
+            let measured: PathBuf = root.clone();
+            // The end of the job that takes the place: the control lets go of it once the step has answered.
+            let (let_go, holds) = std::sync::mpsc::channel::<()>();
+            let answered =
+                crate::parallel_test_support::finished_within_at(THE_STEPS_DEADLINE, move || {
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("a runtime for the control");
+                    let (read, step) = runtime.block_on(async move {
+                        // A job of the pool, awaited no longer than this ceiling and held open by the control, so it outlasts its
+                        //  ceiling and keeps its place while the step asks for one.
+                        let read = run_a_job_awaited_no_longer_than(
+                            THE_STEPS_CEILING,
+                            holds,
+                            |waits: std::sync::mpsc::Receiver<()>| {
+                                let _held = waits.recv();
+                            },
+                        )
+                        .await;
+                        // The drain's first storage step, given the same ceiling here so the control reaches its bound in a moment.
+                        let step = crate::service_work_storage_awaited::claim_all_within_awaiting(
+                            THE_STEPS_CEILING,
+                            work_dir.as_path(),
+                            crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS,
+                        )
+                        .await;
+                        return (read, step);
+                    });
+                    // The place cannot go back while the job waits, and a runtime's own drop waits for that job: the job is let go
+                    // here, after the step has answered against the place it still held.
+                    drop(let_go);
+                    drop(runtime);
+                    return (read, step);
+                });
+            let (read, step) = answered.expect(
         "the drain's first storage step never answered within the control's deadline, so it waited for the place a job that outlasted its ceiling holds and the round never ends",
     );
-    assert!(
-        matches!(read, TheAnswerOfAJobAwaited::NoAnswer),
-        "the control's job took the only place and outlasted its ceiling, so it still holds that place and the step can only answer from the bound it keeps itself"
-    );
-    let said: String = step.expect_err(
+            assert!(
+                matches!(read, TheAnswerOfAJobAwaited::NoAnswer),
+                "the control's job took the only place and outlasted its ceiling, so it still holds that place and the step can only answer from the bound it keeps itself"
+            );
+            let said: String = step.expect_err(
         "the drain's first storage step answered, so no round waits for a place nothing gives back",
     );
-    assert!(
-        said.contains("did not run"),
-        "the step says it did not run, so nothing it would have claimed was claimed: {said}"
+            assert!(
+                said.contains("did not run"),
+                "the step says it did not run, so nothing it would have claimed was claimed: {said}"
+            );
+            assert!(
+                said.contains("no place"),
+                "the step names the place it waited for: {said}"
+            );
+            crate::test_support::remove(measured.as_path());
+        },
     );
-    assert!(
-        said.contains("no place"),
-        "the step names the place it waited for: {said}"
-    );
-    crate::test_support::remove(measured.as_path());
 }

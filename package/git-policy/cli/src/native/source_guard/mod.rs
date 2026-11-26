@@ -68,6 +68,12 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a control reading a starter's marker to decide whether its body runs here:
+/// a control hands the starter its body, which runs in a child of the test binary.
+#[cfg(test)]
+#[path = "only_the_process_wide_starter_reads_its_marker_tests.rs"]
+mod only_the_process_wide_starter_reads_its_marker_tests;
+
 /// The ban on a list of text written as an array with a hand-counted length:
 /// a list of names, sites or words is a slice,
 /// so adding an entry never edits a count beside it.

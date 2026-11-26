@@ -56,38 +56,38 @@ const ROOM_FOR_THE_CONTROL: usize = 3;
 /// ```
 #[test]
 fn a_controls_room_is_what_this_process_plans_with_and_not_what_a_stated_host_gives() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_controls_room_is_what_this_process_plans_with_and_not_what_a_stated_host_gives",
-    ) {
-        return;
-    }
-    let _room: usize =
-        crate::room_for_blocking_jobs_in_a_control::for_a_control(ROOM_FOR_THE_CONTROL);
-    let large: HostResources = host(32);
-    assert_eq!(
-        workers_for_this_process(&large, &NO_LIMITS),
-        ROOM_FOR_THE_CONTROL,
-        "this process plans with the room its control gave it"
-    );
-    assert_eq!(
-        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
-        ROOM_FOR_THE_CONTROL,
-        "the bound on blocking jobs takes the same room the runtime plans with"
-    );
-    let expected: usize = large.parallelism - cpu_margin(large.parallelism);
-    assert_eq!(
-        budgeted_workers(&large, &NO_LIMITS),
-        expected,
-        "the host a caller states gives its own workers, whatever room a control gave this process"
-    );
-    assert_eq!(
-        plan_runtime(&large, &NO_LIMITS),
-        RuntimePlan::MultiThread {
-            workers: expected,
-            blocking_threads: expected
+        || {
+            let _room: usize =
+                crate::room_for_blocking_jobs_in_a_control::for_a_control(ROOM_FOR_THE_CONTROL);
+            let large: HostResources = host(32);
+            assert_eq!(
+                workers_for_this_process(&large, &NO_LIMITS),
+                ROOM_FOR_THE_CONTROL,
+                "this process plans with the room its control gave it"
+            );
+            assert_eq!(
+                crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+                ROOM_FOR_THE_CONTROL,
+                "the bound on blocking jobs takes the same room the runtime plans with"
+            );
+            let expected: usize = large.parallelism - cpu_margin(large.parallelism);
+            assert_eq!(
+                budgeted_workers(&large, &NO_LIMITS),
+                expected,
+                "the host a caller states gives its own workers, whatever room a control gave this process"
+            );
+            assert_eq!(
+                plan_runtime(&large, &NO_LIMITS),
+                RuntimePlan::MultiThread {
+                    workers: expected,
+                    blocking_threads: expected
+                },
+                "the plan of a stated host is its own, and never the room"
+            );
         },
-        "the plan of a stated host is its own, and never the room"
     );
 }
 

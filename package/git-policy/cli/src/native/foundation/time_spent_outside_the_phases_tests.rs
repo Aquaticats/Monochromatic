@@ -74,65 +74,65 @@ impl Write for Slow {
 /// and one that never finished is counted apart.
 #[test]
 fn every_removal_adds_its_span_and_an_unfinished_one_is_counted() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "every_removal_adds_its_span_and_an_unfinished_one_is_counted",
-    ) {
-        return;
-    }
-    note_scratch_removal(Duration::from_millis(7), true);
-    note_scratch_removal(Duration::from_micros(900), true);
-    note_scratch_removal(Duration::from_millis(3), false);
-    let outside = outside_the_phases();
-    assert_eq!(
-        outside.scratch_removal,
-        Duration::from_millis(10),
-        "7 ms plus 0.9 ms, each rounded down"
+        || {
+            note_scratch_removal(Duration::from_millis(7), true);
+            note_scratch_removal(Duration::from_micros(900), true);
+            note_scratch_removal(Duration::from_millis(3), false);
+            let outside = outside_the_phases();
+            assert_eq!(
+                outside.scratch_removal,
+                Duration::from_millis(10),
+                "7 ms plus 0.9 ms, each rounded down"
+            );
+            assert_eq!(outside.removals_that_did_not_finish, 1);
+            assert_eq!(outside.standard_error, Duration::ZERO);
+        },
     );
-    assert_eq!(outside.removals_that_did_not_finish, 1);
-    assert_eq!(outside.standard_error, Duration::ZERO);
 }
 
 /// A write and a flush each add the time they took,
 /// and the bytes still reach the stream underneath.
 #[test]
 fn a_write_and_a_flush_add_the_time_they_took() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_write_and_a_flush_add_the_time_they_took",
-    ) {
-        return;
-    }
-    let slow: Slow = Slow::new();
-    let kept: Rc<RefCell<Vec<u8>>> = Rc::clone(&slow.written);
-    let mut stream: MeasuredStandardError<Slow> = MeasuredStandardError::over(slow);
-    stream
-        .write_all(b"a line the person reads\n")
-        .expect("written");
-    stream.flush().expect("flushed");
-    let outside = outside_the_phases();
-    assert!(
-        outside.standard_error >= Duration::from_millis(6),
-        "one write and one flush of 3 ms: {outside:?}"
+        || {
+            let slow: Slow = Slow::new();
+            let kept: Rc<RefCell<Vec<u8>>> = Rc::clone(&slow.written);
+            let mut stream: MeasuredStandardError<Slow> = MeasuredStandardError::over(slow);
+            stream
+                .write_all(b"a line the person reads\n")
+                .expect("written");
+            stream.flush().expect("flushed");
+            let outside = outside_the_phases();
+            assert!(
+                outside.standard_error >= Duration::from_millis(6),
+                "one write and one flush of 3 ms: {outside:?}"
+            );
+            assert_eq!(kept.borrow().as_slice(), b"a line the person reads\n");
+            assert_eq!(outside.scratch_removal, Duration::ZERO);
+            assert_eq!(outside.removals_that_did_not_finish, 0);
+        },
     );
-    assert_eq!(kept.borrow().as_slice(), b"a line the person reads\n");
-    assert_eq!(outside.scratch_removal, Duration::ZERO);
-    assert_eq!(outside.removals_that_did_not_finish, 0);
 }
 
 /// A span the counter cannot hold is held at its end instead of wrapping around it.
 #[test]
 fn a_span_larger_than_the_counter_is_held_at_its_end() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_span_larger_than_the_counter_is_held_at_its_end",
-    ) {
-        return;
-    }
-    note_standard_error(Duration::from_secs(u64::MAX / 2));
-    note_standard_error(Duration::from_secs(u64::MAX / 2));
-    assert_eq!(
-        outside_the_phases().standard_error,
-        Duration::from_millis(u64::MAX / 1000)
+        || {
+            note_standard_error(Duration::from_secs(u64::MAX / 2));
+            note_standard_error(Duration::from_secs(u64::MAX / 2));
+            assert_eq!(
+                outside_the_phases().standard_error,
+                Duration::from_millis(u64::MAX / 1000)
+            );
+        },
     );
 }

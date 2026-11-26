@@ -159,14 +159,17 @@ and nowhere else: `ChildTest` is the request (`started` hands back the running c
 and `testing/test_process_owner.rs` is the ownership it stands on.
 Six bodies built that command their own way until 2026-11-25,
 and most of their children were owned by nothing (debt ledger item 10).
-The guard a body starts with reads `if <starter>(...) { return; }`:
-`started_within_a_child_of_its_own` and `ran_in_child` answer true in the process that started the child,
-so an inverted guard runs the body there as well,
-and a body that sets what belongs to the whole process then sets it for every test of the run
-(issue 6496 lowered the run's own thread limit,
-so three other controls failed at their fixture's first Git start).
-The setters refuse outside the child and name the starter,
-so an inverted guard fails at its own first line,
+A child a control starts for its own body is handed that body, and the parent never calls it:
+`run_the_body_in_a_child_of_its_own`,
+`run_the_body_where_no_thread_can_start` and `run_the_body_under_umask` take the test's `module_path!()`,
+its name and a closure,
+so no caller holds an answer it could read inverted.
+While those starters answered a yes or a no,
+two controls read the answer inverted and ran the bodies written for a process at its limit beside the run's own tests:
+the run's thread limit came down for every test (issue 6494),
+and a lazy runtime's body built the runtime the whole run shares (issue 6503).
+The setters still refuse outside the child and name the starter,
+so a body that reached the wrong process fails at its own first line,
 which is what the two refusals in `testing/no_threads_child_test_support.rs` and
 `subvolume/subvolume_file_write_steps_sync_counts_test_support.rs` are for.
 A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
