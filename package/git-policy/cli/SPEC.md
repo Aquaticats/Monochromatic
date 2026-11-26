@@ -5071,6 +5071,15 @@ and every step reads the state a kill at the step before it leaves:
   a clone inherits its parent's `mountpoint`,
   which is the clone container and not the origin,
   so the clone reads `mountpoint=legacy` inherited from the container.
+  A container that inherits `legacy` from an ancestor of its own gives every clone
+  that ancestor's name as the source,
+  which the read after the clone request refuses,
+  so the preflight requires the container to set `mountpoint=legacy` on itself and
+  refuses one that does not before the claim, the slot, the Git registration, the
+  snapshot and the clone are written.
+  `doctor` judges the same container with the same check
+  (`check_dataset`, the container role),
+  so the two reports a person can read name one requirement.
   `mountpoint` is also a delegation the design forbids the account,
   so a request that carried it is refused for the account the add runs as
   (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`,

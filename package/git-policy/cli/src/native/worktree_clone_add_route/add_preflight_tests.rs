@@ -866,6 +866,74 @@ fn a_container_the_design_does_not_serve_is_refused_before_any_write() {
     }
 }
 
+/// The ancestor a control's container inherits `legacy` from,
+/// which is the shape a pool whose home dataset set it passes down.
+const THE_ANCESTOR_DATASET: &str = "preflightfixturepool/home";
+
+/// What:
+///  A container that inherits `mountpoint=legacy` from an ancestor is refused in the
+///  preflight,
+///  and the clone it would hand a clone is refused by the read after the clone request,
+///  so the route's two checks of the same container agree and the refusal stands before
+///  any write.
+/// Why:
+///  A clone inherits the value from its own parent and OpenZFS names the nearest dataset
+///  that set it,
+///  so this container gives every clone `inherited from <the ancestor>` and the
+///  post-clone read refuses it after the claim, the slot, the registration, the
+///  snapshot and the clone were written (the alpha.47 release pass's Low 6, probe e13).
+///  The preflight judges the container by value alone before this,
+///  so it passed the one container the second check refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const container = DatasetBuilder.container().inheritsMountpointFrom(ANCESTOR).build();
+/// expect(refuseContainer(container).message).toContain('must set `legacy` on itself');
+/// const clone = DatasetBuilder.clone().inheritsMountpointFrom(ANCESTOR).build();
+/// expect(theClonesMountpointFailure(clone, CONTAINER_DATASET)).toContain(`inherited from \`${ANCESTOR}\``);
+/// ```
+#[test]
+fn a_container_that_inherits_legacy_is_refused_before_any_write() {
+    let facts: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts =
+        DatasetBuilder::container()
+            .inherits_mountpoint_from(THE_ANCESTOR_DATASET)
+            .build();
+    let container: DatasetFacts = route_test_facts::dataset(DatasetRole::Container, facts);
+    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err(
+        "a container that inherits `legacy` gives each clone the ancestor's name as its source",
+    );
+    assert!(
+        refusal.message.contains(THE_ANCESTOR_DATASET),
+        "the sentence names the dataset the value comes from: {}",
+        refusal.message
+    );
+    assert!(
+        refusal.message.contains("must set `legacy` on itself"),
+        "the sentence names the value the container must set itself: {}",
+        refusal.message
+    );
+    assert!(
+        refusal
+            .message
+            .contains("No claim, slot, Git registration, snapshot or clone was written"),
+        "the sentence says where the refusal stands: {}",
+        refusal.message
+    );
+    let clone: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts =
+        DatasetBuilder::clone()
+            .inherits_mountpoint_from(THE_ANCESTOR_DATASET)
+            .build();
+    let after: String = crate::worktree_clone_add_route::add_zfs::the_clones_mountpoint_failure(
+        &clone,
+        CONTAINER_DATASET,
+    )
+    .expect("the read after the clone request refuses the clone this container gives");
+    assert!(
+        after.contains(THE_ANCESTOR_DATASET),
+        "the post-clone read names the same ancestor: {after}"
+    );
+}
+
 /// What:
 ///  The container the design serves passes the same check,
 ///  which is what keeps the refusal from passing every container.
