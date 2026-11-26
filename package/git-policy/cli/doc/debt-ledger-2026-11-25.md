@@ -1126,6 +1126,7 @@ Label: approximated count; confirm by running the linter once before the round.
 Note of 2026-11-26T12:50-05:00: the linter, run on `987635373a`, counts 281 files over 300 and the ledger's measure gives the same count on the largest file (1012).
 The difference is the reformat of 2026-11-26 (`00b6a940b4`), which grew the crate's code lines 1.472 times; `worktree/worktree_remove_hand_over.rs` went from 572 to 1012.
 19 files were over 300 before it and are split now; the 262 over only because of it wait for the owner's answer on the budget
+(answered on 2026-11-26: "Keep 300, split everything", `doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`)
 (`doc/handover/questions-for-the-owner.md`; the counts are in `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/`).
 
 ### Item 16. Twenty-nine of fifty-five source folders sit in one dependency loop, and the layout rules are not enforced
