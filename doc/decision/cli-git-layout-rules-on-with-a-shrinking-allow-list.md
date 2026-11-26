@@ -55,6 +55,20 @@ and then the reformat and the split run.
 Each crate the split creates is switched on with an empty list,
 and every split round deletes the list lines of the folders it moves.
 
+The linter that carries the `allow` option this list needs is `monochromatic-lint` `0.5.2-alpha.9`,
+locked as `ef648a619e`,
+with the option's own branch merged as `3cefd4f7c5`.
+The alpha.9 release pass
+(`~/temp/agent/monochromatic-lint-alpha-9-release-review-2026-11-25/keep/review.md`)
+found three defects the next alpha has to fix,
+and a round on `fix/monochromatic-lint-layout-allow-list-release-pass-findings` is fixing them for
+`alpha.10`:
+a `no-file-list` line switches off every other file check for its folder,
+so a new file added to such a folder and not listed there passes;
+finding keys are not unique,
+so one line tolerates every finding that shares its key;
+and a folder in both a folder loop and a group loop can make a list that no set of lines satisfies.
+
 The `uses/` links for the 36 folders that lack one,
 named as a cost in "What it costs",
 cannot be written while their folders loop:
