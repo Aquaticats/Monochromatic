@@ -119,6 +119,12 @@ fn every_state_runs_once_and_answers_keep_their_order() {
 /// which a run that did them one after another could never pass.
 #[test]
 fn the_items_run_at_the_same_time() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_items_run_at_the_same_time",
+    ) {
+        return;
+    }
     let room: usize =
         crate::parallel_test_support::room_for("the items run at the same time", ITEMS);
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ITEMS.min(room)));

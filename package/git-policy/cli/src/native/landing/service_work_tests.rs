@@ -2562,6 +2562,12 @@ fn notices_of(git_dir: &Path) -> usize {
 /// ```
 #[test]
 fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes",
+    ) {
+        return;
+    }
     crate::parallel_test_support::room_for(
         "the record of a terminal failure goes before the plan's file",
         crate::parallel_test_support::ONE_PLACE,
@@ -4213,8 +4219,14 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
 /// (`housekeeping_of_one_round.rs`).
 #[test]
 fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again",
+    ) {
+        return;
+    }
     use crate::parallel_test_support::ONE_PLACE;
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
     assert_eq!(
         crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
         ONE_PLACE,

@@ -916,10 +916,10 @@ MXV:
  local host and interface names.
 
 HDG:
- A draft's title sits outside its body;
- its sections are `##` headings,
- the highest level the body leaves free,
- with prose under each.
+ A draft's heading levels never skip,
+ as HTML requires:
+ lint `# <title>` plus the body with `lint:monochromatic-lint`,
+ which ignores a file's first heading level.
 
  The new-issue
 draft contains:

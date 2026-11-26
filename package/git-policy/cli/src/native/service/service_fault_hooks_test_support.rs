@@ -123,10 +123,26 @@ pub(crate) struct HoldOnAnyThread {
     pub(crate) let_go: std::sync::mpsc::Receiver<()>,
 }
 
-/// The hold a control set,
-/// if any,
-/// taken by the thread that reaches it so a second reach passes.
-static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync::Mutex::new(None);
+/// What:
+///  The holds the controls of one process set,
+/// each taken by the thread that reaches its point so a second reach passes.
+/// Why:
+///  A list and not one slot:
+///  `cargo test --lib` runs a crate's tests as threads of one process,
+///  so two controls of one module arm their points side by side,
+///  and one slot made the later arming drop the earlier control's hold (issue 6497).
+///  A point names the instance its own control owns
+///  (its own directory,
+///  its own request,
+///  as `collection_point` and `instance_read_point` state),
+///  so two holds never answer for each other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HELD_ON_ANY_THREAD: HoldOnAnyThread[] = [];
+/// ```
+static HELD_ON_ANY_THREAD: std::sync::Mutex<Vec<HoldOnAnyThread>> =
+    std::sync::Mutex::new(Vec::new());
 
 /// What:
 ///  Holds `point` on whichever thread reaches it,
@@ -141,7 +157,31 @@ static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync
 /// const [reached, reachedWait] = channel(); const [letGo, held] = channel(); holdOnAnyThread({ point, reached, letGo: held });
 /// ```
 pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
-    *HELD_ON_ANY_THREAD.lock().expect("the hold registry") = Some(held);
+    let point: String = held.point.clone();
+    // What:     the arming and the question of whether this point is already held happen under the one lock, so two
+    //           controls of one process cannot both add a hold for one point.
+    // Why:      the refusal below is raised after the lock is let go, so a run that armed the same point twice reads
+    //           that refusal and not a poisoned registry.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const armed = withRegistry((holds) => holds.some((h) => h.point === point) ? false : (holds.push(held), true));
+    // ```
+    let armed: bool = {
+        let mut registry = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
+        let duplicated: bool = registry.iter().any(|live| return live.point == point);
+        if !duplicated {
+            registry.push(held);
+        }
+        !duplicated
+    };
+    assert!(
+        armed,
+        "the fault point `{point}` is held twice in one process, and a hold answers the first thread that reaches \
+         its point, so the two controls that armed it answer for each other; name the point with the value the \
+         control owns (`collection_point`, `instance_read_point`), or run the body in a child of its own \
+         (`process_wide_state_child_test_support`), as issue 6497's controls do"
+    );
 }
 
 /// What:
@@ -198,11 +238,20 @@ pub(crate) struct HoldAwaitingOnAnyThread {
     pub(crate) let_go: tokio::sync::oneshot::Receiver<()>,
 }
 
-/// The hold awaited at a point,
-/// if any,
-/// taken by the task that reaches it so a second reach passes.
-static HELD_AWAITING: std::sync::Mutex<Option<HoldAwaitingOnAnyThread>> =
-    std::sync::Mutex::new(None);
+/// What:
+///  The holds the controls of one process wait at,
+/// each taken by the task that reaches its point so a second reach passes.
+/// Why:
+///  A list and not one slot,
+///  for the reason `HELD_ON_ANY_THREAD` gives:
+///  two controls of one module arm their points in one process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HELD_AWAITING: HoldAwaitingOnAnyThread[] = [];
+/// ```
+static HELD_AWAITING: std::sync::Mutex<Vec<HoldAwaitingOnAnyThread>> =
+    std::sync::Mutex::new(Vec::new());
 
 /// What:
 ///  Holds `point` on whichever task reaches it,
@@ -217,7 +266,29 @@ static HELD_AWAITING: std::sync::Mutex<Option<HoldAwaitingOnAnyThread>> =
 /// const [reached, reachedWait] = channel(); const [letGo, held] = channel(); holdAwaiting({ point, reached, letGo: held });
 /// ```
 pub(crate) fn hold_awaiting_on_any_thread(held: HoldAwaitingOnAnyThread) {
-    *HELD_AWAITING.lock().expect("the hold registry") = Some(held);
+    let point: String = held.point.clone();
+    // What:     the awaiting hold is armed under the same lock and with the same refusal as the thread's hold.
+    // Why:      a run reads one answer for a point armed twice, whichever of the two kinds of hold it is.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const armed = withRegistry((holds) => holds.some((h) => h.point === point) ? false : (holds.push(held), true));
+    // ```
+    let armed: bool = {
+        let mut registry = HELD_AWAITING.lock().expect("the hold registry");
+        let duplicated: bool = registry.iter().any(|live| return live.point == point);
+        if !duplicated {
+            registry.push(held);
+        }
+        !duplicated
+    };
+    assert!(
+        armed,
+        "the fault point `{point}` is held twice in one process, and a hold answers the first task that reaches \
+         its point, so the two controls that armed it answer for each other; name the point with the value the \
+         control owns, or run the body in a child of its own (`process_wide_state_child_test_support`), as issue \
+         6497's controls do"
+    );
 }
 
 /// What:
@@ -226,9 +297,9 @@ pub(crate) fn hold_awaiting_on_any_thread(held: HoldAwaitingOnAnyThread) {
 /// Why:
 ///   A hold is taken when it is reached,
 /// so a later reach of the same point passes and a control cannot block a second request.
-/// A reach of another point leaves the hold where it is:
-/// other points are reached by other threads all through a run,
-/// and one that took this hold and found another point would discard the control's hold before the point it names.
+/// A reach of another point leaves the holds where they are:
+/// other points are reached by other tasks all through a run,
+/// and one that took a hold and found another point would discard the control's hold before the point it names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -237,10 +308,8 @@ pub(crate) fn hold_awaiting_on_any_thread(held: HoldAwaitingOnAnyThread) {
 pub(crate) async fn await_on_any_thread(point: &str) {
     let taken: Option<HoldAwaitingOnAnyThread> = {
         let mut registry = HELD_AWAITING.lock().expect("the hold registry");
-        match registry.as_ref() {
-            Some(held) if held.point == point => registry.take(),
-            _ => None,
-        }
+        let found: Option<usize> = registry.iter().position(|held| return held.point == point);
+        found.map(|index| return registry.remove(index))
     };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
@@ -253,7 +322,7 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 /// Why:
 ///   A hold is taken when it is reached,
 /// so a later reach of the same point passes and a control cannot block a second request.
-/// A reach of another point leaves the hold where it is,
+/// A reach of another point leaves the holds where they are,
 /// for the reason `await_on_any_thread` gives.
 ///
 /// In TS you'd write (pseudocode):
@@ -263,12 +332,17 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 pub(crate) fn run_on_any_thread(point: &str) {
     let taken: Option<HoldOnAnyThread> = {
         let mut registry = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
-        match registry.as_ref() {
-            Some(held) if held.point == point => registry.take(),
-            _ => None,
-        }
+        let found: Option<usize> = registry.iter().position(|held| return held.point == point);
+        found.map(|index| return registry.remove(index))
     };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
     let _let_go = held.let_go.recv();
 }
+
+/// The controls of the holds themselves:
+/// each answers the point its own control names,
+/// and one point armed twice in one process is refused.
+#[cfg(test)]
+#[path = "service_fault_hooks_test_support_tests.rs"]
+mod tests;

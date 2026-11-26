@@ -1,14 +1,17 @@
 # IVPN UI 3.15.15 AUR build stops in `prepare()` when the builder's `~/.npmrc` sets `prefix`, via nvm 0.40.8
 
 Diagnosis recorded on `2026-11-26T01:41:13-05:00`.
-The fix was prototyped in a scratch copy of the recipe; nothing was posted upstream.
+The fix was prototyped in a scratch copy of the recipe;
+nothing was posted upstream.
 This record is unapproved.
 
 ## Symptom
 
-On CachyOS, the Shelly UI ran `shelly install aur ivpn-ui ivpn --ui-mode` through `pkexec`.
+On CachyOS,
+the Shelly UI ran `shelly install aur ivpn-ui ivpn --ui-mode` through `pkexec`.
 `ivpn` built and installed.
-`ivpn-ui` `3.15.15-1` failed in `prepare()`, right after nvm downloaded node v22.12.0.
+`ivpn-ui` `3.15.15-1` failed in `prepare()`,
+right after nvm downloaded node v22.12.0.
 The per-build log (`~/.cache/Shelly/ivpn-ui/ivpn-ui-<id>.log`) ends:
 
 ```text
@@ -20,15 +23,19 @@ The per-build log (`~/.cache/Shelly/ivpn-ui/ivpn-ui-<id>.log`) ends:
 ```
 
 The UI reported `Could not build "ivpn-ui". The build failed during prepare.`
-The literal `${HOME}` in the message is nvm's own path sanitizing, not an unexpanded variable.
-The host's `~/.npmrc` holds one line, `prefix=/home/user/.local`.
+The literal `${HOME}` in the message is nvm's own path sanitizing,
+not an unexpanded variable.
+The host's `~/.npmrc` holds one line,
+`prefix=/home/user/.local`.
 
 ## Root cause
 
 ### The recipe loads nvm with the builder's real home
 
 The recipe at AUR commit `d18e66dec2b72b366a3718a7085de7f2f4d6e6e7` points `NVM_DIR` into `$srcdir`,
-but leaves `HOME` alone, then installs node in `prepare()`. [AUR recipe][aur-recipe]
+but leaves `HOME` alone,
+then installs node in `prepare()`.
+[AUR recipe][aur-recipe]
 
 ```bash
 # PKGBUILD:26-43
@@ -55,7 +62,8 @@ After installing a version,
 nvm runs `nvm_die_on_prefix`.
 Its user-npmrc check takes the path from `HOME`,
 not from npm's `userconfig` setting,
-and returns `10` unless asked to delete the line. [nvm user npmrc check][nvm-user-npmrc]
+and returns `10` unless asked to delete the line.
+[nvm user npmrc check][nvm-user-npmrc]
 
 ```bash
 # nvm.sh:3194-3206 (v0.40.8)
@@ -74,7 +82,8 @@ and returns `10` unless asked to delete the line. [nvm user npmrc check][nvm-use
   fi
 ```
 
-The test is a plain line match on the file. [nvm npmrc test][nvm-bad-news]
+The test is a plain line match on the file.
+[nvm npmrc test][nvm-bad-news]
 
 ```bash
 # nvm.sh:3091-3098 (v0.40.8)
@@ -108,7 +117,8 @@ try environment.put("PATH", path);
 ```
 
 `HOME` is on the reserved list,
-so `shellybuild.conf` cannot point it elsewhere. [Shelly reserved variables][shelly-reserved]
+so `shellybuild.conf` cannot point it elsewhere.
+[Shelly reserved variables][shelly-reserved]
 
 ```zig
 // Shelly.PackageManager/src/aur/shellybuild.zig:423-428
@@ -120,18 +130,23 @@ if (containsString(&.{
 
 This is not a Shelly defect:
 `makepkg` does not change `HOME` either
-(its only uses read `$HOME/.makepkg.conf` and the XDG config folder, `/usr/share/makepkg/util/config.sh:53-58`).
+(its only uses read `$HOME/.makepkg.conf` and the XDG config folder,
+`/usr/share/makepkg/util/config.sh:53-58`).
 A `makepkg` build of the same recipe was not run.
 
 ## Verification
 
 Versions:
-AUR `ivpn-ui` at `d18e66dec2b72b366a3718a7085de7f2f4d6e6e7` (`pkgver=3.15.15`, `pkgrel=1`),
-Arch `nvm` `0.40.8-1` (upstream tag `v0.40.8`, commit `a885b885fef16fac4bc544188fb25e9e37ae83e8`),
-CachyOS `shelly` `3.4.1-1` (tag `v3.4.1`, commit `852e56e4c4db255eb93b4d6feca12a86aa9e9485`).
+AUR `ivpn-ui` at `d18e66dec2b72b366a3718a7085de7f2f4d6e6e7` (`pkgver=3.15.15`,
+`pkgrel=1`),
+Arch `nvm` `0.40.8-1` (upstream tag `v0.40.8`,
+commit `a885b885fef16fac4bc544188fb25e9e37ae83e8`),
+CachyOS `shelly` `3.4.1-1` (tag `v3.4.1`,
+commit `852e56e4c4db255eb93b4d6feca12a86aa9e9485`).
 `nvm` (a make dependency) was installed for each run and removed afterwards.
 
-Harness, run as the regular user in a fresh `git clone https://aur.archlinux.org/ivpn-ui.git`,
+Harness,
+run as the regular user in a fresh `git clone https://aur.archlinux.org/ivpn-ui.git`,
 with a minimal environment so the session's variables do not leak into the build:
 
 ```bash
@@ -145,19 +160,32 @@ A probe recipe whose `prepare()` printed `$HOME` confirmed that a user-level `sh
 
 ### Fails
 
-- Unmodified recipe, `HOME=/home/user` (holds `prefix=/home/user/.local`):
-  the nvm message from "Symptom", `Technical details: StepFailed`, exit `1`.
-- The Shelly UI run (`pkexec`, building as the invoking user): the same message.
+- Unmodified recipe,
+  `HOME=/home/user` (holds `prefix=/home/user/.local`):
+  the nvm message from "Symptom",
+  `Technical details: StepFailed`,
+  exit `1`.
+- The Shelly UI run (`pkexec`,
+  building as the invoking user):
+  the same message.
 
 ### Works
 
-- Unmodified recipe, `HOME` set to an empty scratch folder:
-  `Now using node v22.12.0`, `Built ivpn-ui: .../ivpn-ui-3.15.15-1-x86_64.pkg.tar.zst`, exit `0`, in 26 seconds.
-- Recipe with the patch in "Recipe fix", `HOME=/home/user`:
-  `Now using node v22.12.0 (npm v10.9.0)`, `Built ivpn-ui`, exit `0`.
+- Unmodified recipe,
+  `HOME` set to an empty scratch folder:
+  `Now using node v22.12.0`,
+  `Built ivpn-ui: .../ivpn-ui-3.15.15-1-x86_64.pkg.tar.zst`,
+  exit `0`,
+  in 26 seconds.
+- Recipe with the patch in "Recipe fix",
+  `HOME=/home/user`:
+  `Now using node v22.12.0 (npm v10.9.0)`,
+  `Built ivpn-ui`,
+  exit `0`.
 
 The archive from the scratch-home build was installed with `sudo shelly install standard <archive>`.
-`pacman -Qi ivpn-ui` then reported `3.15.15-1`, `Explicitly installed`.
+`pacman -Qi ivpn-ui` then reported `3.15.15-1`,
+`Explicitly installed`.
 
 ## Verified workarounds
 
@@ -174,12 +202,14 @@ sudo shelly install standard ./ivpn-ui-3.15.15-1-x86_64.pkg.tar.zst
 
 Tradeoffs:
 the build cannot see anything else in the real home
-(npm and Electron caches start empty, so every build downloads them again);
+(npm and Electron caches start empty,
+so every build downloads them again);
 `shelly upgrade aur` and the Shelly UI still build with the real home,
 so each `ivpn-ui` release needs this procedure again.
 Shelly still lists the package among AUR packages,
 because it discovers them from pacman's foreign inventory
-(see `doc/troubleshooting/shelly-browsers-bin-package-root-check.md`, "Upgrade behavior").
+(see `doc/troubleshooting/shelly-browsers-bin-package-root-check.md`,
+"Upgrade behavior").
 
 ### Recipe fix (prototype)
 
@@ -210,9 +240,14 @@ Upgrades work unchanged only once the recipe itself carries this.
 
 ### Remove the `prefix` line from `~/.npmrc` (applied 2026-11-26T01:59:51-05:00)
 
-On the owner's choice, the line was deleted; the file had no other line and is now empty, mode `0600`.
+On the owner's choice,
+the line was deleted;
+the file had no other line and is now empty,
+mode `0600`.
 A fresh clone of the unmodified recipe then built with `HOME=/home/user` in the harness environment:
-`Now using node v22.12.0 (npm v10.9.0)`, `Built ivpn-ui`, exit `0`.
+`Now using node v22.12.0 (npm v10.9.0)`,
+`Built ivpn-ui`,
+exit `0`.
 That is the reading of the source as well:
 with no `prefix` or `globalconfig` line,
 `nvm_npmrc_bad_news_bears` returns `1` and the check passes,
@@ -233,12 +268,14 @@ The previous file is kept at `~/temp/agent/ivpn-ui-npmrc-prefix-removal-check-20
   and `NPM_CONFIG_USERCONFIG` does not move the file nvm checks.
 - Moving the setting to `NPM_CONFIG_PREFIX`:
   nvm rejects that variable too when it points outside `NVM_DIR`.
-- `nvm use --delete-prefix`, as the message suggests:
+- `nvm use --delete-prefix`,
+  as the message suggests:
   it deletes the line from the owner's `~/.npmrc`.
 - `shelly install aur --isolated ivpn-ui` (not run):
   Shelly's isolated builds provision global `depends` as build inputs and accept only repository packages,
   and `ivpn>=3.15.15` exists only in the AUR
-  (Shelly `docs/isolated-builds.md`, "Isolated plans require repository artifacts for every build dependency").
+  (Shelly `docs/isolated-builds.md`,
+  "Isolated plans require repository artifacts for every build dependency").
 - Building from an agent session without clearing the environment:
   the session's `NODE_OPTIONS=--permission-audit` reaches node v22.12.0,
   which exits with `node: --permission-audit is not allowed in NODE_OPTIONS` (build step code `9`),
@@ -250,25 +287,35 @@ The previous file is kept at `~/temp/agent/ivpn-ui-npmrc-prefix-removal-check-20
 Target:
 the AUR package `ivpn-ui`,
 whose recipe is not in `ivpn/desktop-app`
-(that repository's top level holds `cli`, `daemon`, `docs`, `snap` and `ui`, and no `PKGBUILD`).
-No `.out-of-scope/` entry covers IVPN, nvm or Shelly.
+(that repository's top level holds `cli`,
+`daemon`,
+`docs`,
+`snap` and `ui`,
+and no `PKGBUILD`).
+No `.out-of-scope/` entry covers IVPN,
+nvm or Shelly.
 
 Searches on `2026-11-26T01:41:13-05:00`:
-the AUR comment page (`?PP=250`) had four matches for `npmrc`, `prefix` or `nvm`,
-all about the `nvm` dependency listing or nvm defaults, none about this failure;
-`gh search issues --repo ivpn/desktop-app` for `npmrc`, `nvm prefix` and `PKGBUILD nvm` returned nothing.
+the AUR comment page (`?PP=250`) had four matches for `npmrc`,
+`prefix` or `nvm`,
+all about the `nvm` dependency listing or nvm defaults,
+none about this failure;
+`gh search issues --repo ivpn/desktop-app` for `npmrc`,
+`nvm prefix` and `PKGBUILD nvm` returned nothing.
 No work in progress on the recipe was found.
 
 ### Is it really upstream's fault?
 
-Yes, at the recipe level:
+Yes,
+at the recipe level:
 nvm's refusal is deliberate,
 and a `prefix` line is an ordinary npm setup,
 but the recipe lets the builder's home configuration decide whether it builds.
 
 ### Can upstream fix it?
 
-Yes; the prototype is three lines.
+Yes;
+the prototype is three lines.
 
 ### Are they supporting this use case?
 
@@ -283,7 +330,10 @@ AUR comments are the package's intake,
 and a comment thanking the maintainer for an earlier fix shows they respond.
 On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
 its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
-had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
+had no match for `AI`,
+`LLM`,
+`generated` or `ChatGPT`;
+no ban was found.
 The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
 The "Arch User Repository" page's "Commenting on packages" tip says:
 "Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
@@ -295,11 +345,13 @@ so the live package page was read with `curl` only.
 
 ### Will they likely fix it?
 
-Plausible; no sign of refusal.
+Plausible;
+no sign of refusal.
 
 ### Have we prototyped a minimal fix compatible with their architecture?
 
-Yes; see "Recipe fix (prototype)".
+Yes;
+see "Recipe fix (prototype)".
 
 Readiness on `2026-11-26T01:41:13-05:00`:
 reproduction re-run on the only release line the AUR carries (`3.15.15-1`);
@@ -324,7 +376,7 @@ After `nvm install`, nvm 0.40.8 checks [`${HOME}/.npmrc` and returns 10][nvm] wh
 [`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`,
 so whether the package builds depends on the builder's dotfiles.
 npm's own docs suggest [`npm config set prefix`][npmprefix] for installing global packages without root,
-and `npm config set` [writes to the user configuration file][npmset], `~/.npmrc`.
+and `npm config set` [writes to the user configuration file][npmset], [`~/.npmrc` by default][userconfig].
 
 Setting `HOME` inside the helper fixes it; with this change the package built with the same `~/.npmrc`:
 
@@ -336,14 +388,48 @@ mkdir -p "${HOME}"
 
 npm's cache [defaults to `~/.npm`][npmcache], so it moves into `$srcdir/.home` and a clean build downloads packages again.
 
+Until the recipe changes, two workarounds built it here:
+pointing `HOME` at an empty folder for the build, or removing the line from `~/.npmrc`.
+The error's own `nvm use --delete-prefix` is the second one:
+it [deletes `prefix` and `globalconfig` from your real `~/.npmrc`][deleteprefix].
+
 This comment was prepared with an AI assistant; the build results above were run on the commenter's machine.
 
 [nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
 [recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
 [npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
 [npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
+[userconfig]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Default%3A%20%22~%2F.npmrc%22
 [npmcache]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Posix%3A%20~%2F.npm
+[deleteprefix]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3196-L3199
 ~~~
+
+Review of the comment on 2026-11-26,
+at the owner's question whether it is good:
+
+- No duplicate:
+  the package page's 13 comments,
+  read with `curl`,
+  never mention `.npmrc` or `prefix`;
+  the RPC reports `3.15.15-1`,
+  not flagged out of date,
+  last modified 2026-09-04T07:47:56Z.
+- "nvm 0.40.8" holds:
+  `pacman -Si nvm` reports `extra` `0.40.8-1`,
+  the build's copy is `/var/cache/pacman/pkg/nvm-0.40.8-1-any.pkg.tar.zst`,
+  and the linked commit `a885b885fe` is the `v0.40.8` tag.
+- Rendered with Python-Markdown 3.11.3 and the extensions aurweb's `rendercomment.py` passes
+  (`md_in_html`,
+  `fenced_code`):
+  every link resolves,
+  both code blocks render,
+  and newlines render as spaces,
+  so the wrapped lines stay.
+- Added:
+  a workaround paragraph for users who hit the error before the recipe changes,
+  a link for `~/.npmrc` as npm's default user configuration file,
+  and a warning that the error's own `nvm use --delete-prefix` edits the real `~/.npmrc`;
+  both new links were opened in `agent-browser` and land on their quoted text.
 
 [aur-recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
 [nvm-user-npmrc]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
@@ -353,5 +439,119 @@ This comment was prepared with an AI assistant; the build results above were run
 
 The `nvm` and Shelly links were opened in `agent-browser` on `2026-11-26T01:41:13-05:00` and land on the quoted lines.
 The AUR site refused `agent-browser` (Anubis "Access Denied"),
-so the recipe is linked through the AUR's GitHub mirror (`archlinux/aur`, same commit),
-which `agent-browser` opened on 2026-11-26 and which shows the quoted lines; so do the two links in the comment draft.
+so the recipe is linked through the AUR's GitHub mirror (`archlinux/aur`,
+same commit),
+which `agent-browser` opened on 2026-11-26 and which shows the quoted lines;
+so do the two links in the comment draft.
+
+
+## Reaching the maintainer without an AUR account (2026-11-26)
+
+The owner reported that AUR registration is closed.
+Arch's news item of 2026-06-12,
+[Active AUR malicious packages incident](https://archlinux.org/news/active-aur-malicious-packages-incident/#:~:text=Creating%20new%20accounts%20on%20the%20AUR),
+lists creating new accounts among the affected features,
+and no later news item announces reopening,
+so an AUR comment has no date it could go out.
+
+The AUR maintainer `stenya` is Alexandr Stelnykovych:
+the recipe's `# Maintainer:` line gives an `ivpn.net` address,
+and GitHub `stenya` is the top contributor to `ivpn/desktop-app` (2469 commits;
+latest commit 2026-11-16,
+release v3.16.1 on 2026-10-06,
+while the AUR package is still 3.15.15).
+That repository's tracker already carries AUR packaging bugs that he fixed in the AUR:
+#335 and #242 (filed by IVPN staff,
+fixed within days),
+and #120 (filed by an outsider on 2022-01-27,
+fixed the next day as v3.5.1-3).
+#585,
+an outsider's build report of 2026-07-23,
+has no reply yet.
+`.github/CONTRIBUTING.md` asks for issues through the "Bug report" or "Feature request" template and has no rule on AI-assisted reports.
+The recipe is not in that repository (it lives in the AUR's own Git),
+so the channel is an issue,
+not a pull request.
+No issue there mentions `.npmrc` or the nvm prefix check.
+
+Channels,
+best first:
+an issue on `ivpn/desktop-app` under the owner's GitHub account;
+e-mail to the maintainer's `ivpn.net` address,
+which is private and leaves nothing for other users to find;
+waiting for AUR registration,
+which has no announced end.
+The draft below follows their bug-report template without its `# Bug report` line,
+keeps each paragraph on one line because GitHub renders newlines as line breaks,
+and renders with every link resolving.
+Issue title:
+`(Linux) AUR ivpn-ui build fails when ~/.npmrc has a prefix line`.
+Posting is the owner's decision;
+the post would carry the owner's GitHub account.
+
+~~~md
+## Describe your environment
+
+* Device: x86_64 desktop
+* OS name and version: CachyOS (Arch-based), building the AUR package `ivpn-ui` 3.15.15-1 with the Shelly AUR helper
+* IVPN app version: 3.15.15
+
+## Describe the problem
+
+### Steps to reproduce:
+
+1. Have a `prefix=` line in `~/.npmrc`. npm's docs suggest [`npm config set prefix`][npmprefix] for installing global packages without root, and `npm config set` [writes to the user configuration file][npmset], [`~/.npmrc` by default][userconfig].
+2. Build the AUR package `ivpn-ui` 3.15.15-1.
+
+### Observed Results:
+
+`prepare()` fails after `nvm install 22.12.0`:
+
+```text
+Your user’s .npmrc file (${HOME}/.npmrc)
+has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
+Run `nvm use --delete-prefix v22.12.0` to unset it.
+```
+
+nvm 0.40.8 [checks `${HOME}/.npmrc` and returns 10][nvm] when such a line is there. [`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`, so whether the package builds depends on the builder's dotfiles.
+
+### Expected Results:
+
+The package builds whatever the builder's npm configuration is.
+
+### Relevant Code:
+
+Setting `HOME` inside `_ensure_local_nvm` fixes it; with this change the package built with the same `~/.npmrc`:
+
+```diff
+     export NVM_DIR="${srcdir}/.nvm"
++    export HOME="${srcdir}/.home"
++    mkdir -p "${HOME}"
+```
+
+npm's cache [defaults to `~/.npm`][npmcache], so it moves into `$srcdir/.home` and a clean build downloads packages again.
+
+Until the package changes, two workarounds built it here: pointing `HOME` at an empty folder for the build, or removing the line from `~/.npmrc`. The error's own `nvm use --delete-prefix` is the second one: it [deletes `prefix` and `globalconfig` from your real `~/.npmrc`][deleteprefix].
+
+I'm reporting here instead of on the AUR page because AUR account registration is closed; Arch's [incident notice][incident] lists account creation among the affected features.
+
+This report was prepared with an AI assistant; the build results above were run on the reporter's machine.
+
+[npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
+[npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
+[userconfig]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Default%3A%20%22~%2F.npmrc%22
+[nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
+[recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
+[npmcache]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Posix%3A%20~%2F.npm
+[deleteprefix]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3196-L3199
+[incident]: https://archlinux.org/news/active-aur-malicious-packages-incident/#:~:text=Creating%20new%20accounts%20on%20the%20AUR
+~~~
+
+Filed on the owner's choice as [ivpn/desktop-app#691](https://github.com/ivpn/desktop-app/issues/691) at `2026-11-26T08:34:00Z`,
+exactly as drafted,
+under the owner's GitHub account.
+GitHub serves it with no `<br>`,
+`<h2>` and `<h3>` sections under the page title,
+and all eight links.
+The AUR comment draft stays recorded for when AUR sign-up reopens;
+whether to post it then is the owner's decision.

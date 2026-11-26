@@ -107,32 +107,64 @@ and each stays in force until the owner changes it.
 
 `main` was `7bc2c0d820`.
 
-### Rounds open (2026-11-26T02:45-05:00)
+### Rounds open (2026-11-26T04:45-05:00)
 
-Writers:
-OpenCode Go refused every request from about 02:35 with its monthly usage limit,
-so every round now starts with `WRITER_POOL=neuralwatt-flex`,
-the owner's second writer pool (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`);
-standard Neuralwatt stays closed.
-Three rounds the limit ended (the split rescan, step 23, issue 6494) restart on flex with a note to continue from their worktree.
-The thirteen starts run three minutes apart behind the memory test,
-logged in `~/temp/agent/rounds-on-neuralwatt-flex-launch-2026-11-26.log`.
+Writers take Qwen first,
+then OpenCode Go,
+then Neuralwatt flex,
+by `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`;
+the round launcher (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`)
+takes `qwen` unless `WRITER_POOL` names another,
+until the virtual writer round merges and rounds start on `--provider=rate-limit-fallback --model=writer`.
+Rounds started before that decision run on flex.
 
-- The crate split's move order step 1, the rescan of `main` after the reformat,
-  window `cli-git-split-rescan-after-the-reformat`;
-  it also places debt ledger items 7, 12 and 15 in the split's order.
+- The crate split's round 1 (the rest of move-order step 2),
+  briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
+  starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
+  at 04:58 issues 6489, 6494, 6497 and 6498 did.
+  The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
 - Plan step 23, the host-kernel qualification guest,
-  window `zfs-step-23-host-kernel-qualification`.
+  window `zfs-step-23-host-kernel-qualification`, run 2 on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
-  window `no-threads-child-helper-read-the-right-way`.
-- Issues 6483, 6484, 6485, 6486, 6487, 6489, 6493 and 6495,
+  window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
+- Issues 6489, 6493 and 6495 (flex),
   one window each, `issue-<number>-<words>`.
-- Debt ledger item 19, window `fixed-length-lists-become-slices`.
-- The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
-- The linter's `alpha.12`: fixes merged as `a48f7bac54`, the release running;
-  then its Sonnet release pass and the lock bump (no list line changes, measured).
+- Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
+  briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
+  starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
+- Debt ledger item 19, window `fixed-length-lists-become-slices`, run 2 on Qwen
+  (run 1 on flex ended when the writer did not begin a response in time; its work is committed).
+- The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
+  (run 1 on flex ended the same way, its edits committed as `45de70f8fd`; it touches `invocation/`, one of the split round 1 folders).
+- The linter's `alpha.14` fixes for the `alpha.13` release pass
+  (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
+  a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
+  window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
+  then the `alpha.14` release, its Sonnet release pass and the lock bump.
+- The virtual writer with Qwen first,
+  window `virtual-writer-qwen-first`,
+  starting on flex behind its launch delay.
 
 ### Merged tonight
+
+- The reformat of every Rust crate with the root `rustfmt.toml` as `00b6a940b4`.
+- The crate split's rescan of `main` after the reformat as `6329f89af0`,
+  with its round order in `doc/planning/cli-git-source-layout-target-tree.md`, "Next".
+- 6492 (the descriptor-limit controls in child processes) as `1a03e26dfe`.
+- 6483 as `ae1a14676b`,
+  6484 as `b50016e728`,
+  6485 as `d124f60f82`,
+  6486 as `ff8b9427c2`,
+  6487 as `f9096f7531`,
+  6498 as `ed9766ffad`,
+  6496 as `03212a32ff`,
+  6497 as `ad67562f20` and
+  6499 as `2f5b9c87bd`.
+- The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
+- The linter's `alpha.13` fixes as `88e77f3553`,
+  the release commit `e58ba6f078`,
+  its lock as `07c8785fa9`
+  (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
 
 - 6462 as `d169557d37`:
   a clone inherits `mountpoint=legacy` from its container,
@@ -171,20 +203,43 @@ with what each failed".
 No gate has covered tonight's merges yet;
 the next one is due on `main`'s tip and a failure outside the recorded baseline starts a fix round.
 
+### The session wrapper is a build of 2026-11-22
+
+`.cache/monochromatic-git-policy-cli-bin/git` links to
+`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`
+(measured 2026-11-26T04:08-05:00).
+That build predates `4acb1b04b6` (2026-11-24T19:39:21-05:00),
+so every `git worktree remove` warns and keeps the removed worktree's service journal
+because it "holds rules-repository, a file this release does not know";
+`package/git-policy/cli/SPEC.md`'s sweep on `main` removes that file with the journal.
+The kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
+After this batch's whole gate on `main`,
+the wrapper's next alpha (alphas of everything are covered,
+with the Sonnet release pass) carries the fix,
+and the session wrapper moves to it;
+the newer build's `service stop-units-of-removed-worktrees` then sweeps the kept journals.
+
 ### Threaded-only test failures
 
 A control that passes in the gate and fails in a threaded `cargo test` is that control's defect
 (`AGENTS.md`'s SUF,
 `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`,
 "Tests hold as threads of one process").
-Five are filed and open tonight:
-6483 (the content-safety control misses a same-tick write),
-6484 (two heartbeat controls share one manager switch),
-6485 (two supervisor controls plant kills in one process-wide registry),
-6486 (four `run_progress` controls read the shared test process) and
-6487 (the process-wide blocking room in `foundation`).
-They are debt ledger item 3's,
-and they wait for the crate split's window.
+Of those filed tonight,
+6483,
+6484,
+6485,
+6486,
+6487,
+6498,
+6496,
+6497 and
+6499 are merged (`### Merged tonight`),
+and 6489,
+6493,
+6494,
+6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
+They are debt ledger item 3's.
 
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
 it is the wrapper or the service started as a child by the fault-limit controls,

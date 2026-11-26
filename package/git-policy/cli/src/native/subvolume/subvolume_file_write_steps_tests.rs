@@ -1,7 +1,8 @@
 //! Controls for the shared write steps and the switch a control uses to keep
 //! its writes in the page cache,
 //! for the extent that switch covers inside the command and the conversion,
-//! and for the writer that replaces a link at a name and never writes through it.
+//! for the writer that replaces a link at a name and never writes through it,
+//! and for the refusal of the syncs' count to a control that does not own its process.
 //! The refusal of a directory flush is shown with `procfs`,
 //! which answers `EINVAL` to it,
 //! the way `private_storage_tests` shows a directory sync that a filesystem cannot do.
@@ -324,4 +325,18 @@ fn a_write_that_cannot_be_put_in_place_leaves_nothing_behind() {
         "nothing is left in the directory that exists"
     );
     remove(root.as_path());
+}
+
+/// What:
+///  Taking the count of the syncs this process made is refused outside a child of the control's own.
+/// Why:
+///  The counts belong to the whole process,
+///  and two controls of a threaded run that take them read each other's work and set each other's to nothing
+///  (issue 6496);
+///  the refusal is what makes a control that forgot its child fail here
+///  instead of passing on a count it never made.
+#[test]
+#[should_panic(expected = "belongs to the whole process")]
+fn taking_the_sync_counts_outside_a_child_of_the_control_is_refused() {
+    let _taken: SyncCounts = take_sync_counts();
 }

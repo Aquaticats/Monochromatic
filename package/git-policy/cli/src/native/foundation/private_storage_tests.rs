@@ -395,6 +395,12 @@ fn a_named_pipe_where_a_record_is_expected_is_refused_without_waiting() {
 #[cfg(unix)]
 #[test]
 fn the_durability_answer_decides_whether_a_file_is_flushed() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_durability_answer_decides_whether_a_file_is_flushed",
+    ) {
+        return;
+    }
     use std::os::fd::FromRawFd;
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `pipe` writes the two descriptors it created into the array.
@@ -417,4 +423,23 @@ fn the_durability_answer_decides_whether_a_file_is_flushed() {
     // SAFETY: the read end is a descriptor this control opened and closes once.
     let closed: libc::c_int = unsafe { libc::close(read_end) };
     assert_eq!(closed, 0, "the read end is closed");
+}
+
+/// What:
+///  The switch that skips this process's durability syncs refuses a process that is not a child of a control's own.
+/// Why:
+///  `cargo test --lib` runs a crate's tests as threads of one process,
+///  so the switch a control sets here reached every later control of the run:
+///  measured 2026-11-26 on a pair of tests in one process,
+///  the control that skips them first makes `directory_sync_needs_the_directory` fail
+///  (`sync_directory` of a missing folder answered `Ok`),
+///  and the same pair with the skip second passes (issue 6498).
+///  So the switch refuses where it would reach another control,
+///  and this control is that refusal.
+#[test]
+#[should_panic(
+    expected = "the switch that skips this process's durability syncs belongs to the whole process"
+)]
+fn the_durability_switch_refuses_a_process_that_is_not_its_child() {
+    crate::private_storage::skip_the_durability_syncs_here();
 }

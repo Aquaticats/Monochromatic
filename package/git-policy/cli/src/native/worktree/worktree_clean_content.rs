@@ -353,6 +353,14 @@ impl<'a> ContentJudge<'a> {
     ///   A swap,
     /// a `chmod` or a write while the file is read must refuse instead of passing,
     /// and the read is bounded.
+    /// Gotcha:
+    ///  the comparison sees a write whose stamps differ from the state read before it,
+    /// and the kernel stamps the times from the coarse clock,
+    /// so a rewrite in place that keeps the size and lands in the same tick as the state compared
+    /// changes no field it reads and is not seen (issue 6483);
+    /// the bytes read were still this file's own,
+    /// and its content is what settles the entry,
+    /// as Git settles a racily clean one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
