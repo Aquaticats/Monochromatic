@@ -90,6 +90,16 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
     no rule kind does that today (`file-enforcer.schema.json`),
     so this needs a change to file-enforcer.
     The runbook's Stage D is rewritten from the result.
+    Superseded at 2026-11-25T21:00:45-05:00 by the owner's build-time answer:
+    a new package, `package/garage-file-sync/linux-client`, following the repository's precedent
+    (`package/claude-cpu-cap/daemon/systemd/`):
+    unit sources in `systemd/`, the watcher YAML, and the alert script as tested package source,
+    installed as plain copies by a task, with a check task that fails when an installed copy drifts.
+    The watcher config needs no templating: `WorkingDirectory=%h` and `path: Plain`
+    (relative paths resolve against the launch folder, `docs/guide/configuration.md:143` at `v3.2.1`).
+    The watcher binary is named by absolute path,
+    because neither `/bin/sh -l` (what `|@` runs) nor the fish login shell finds the toolchain's `bin/`.
+    The Mac's agent gets `--conflict-resolve newer` and its two passes through `/bin/sh -c` in the plist (owner, same time).
 
 ### Verified before go-live, on the real user manager
 
