@@ -158,7 +158,7 @@ pub fn receipt_of(answer: &TheActsAnswer, boot: &str, time: &str) -> Result<Clon
 /// the word is too long for the receipts field,
 /// or the folder refused the write.
 pub fn file_the_receipt(folder: &ReceiptsFolder, answer: &TheActsAnswer) -> Result<(), FilingRefusal> {
-    let boot: String = std::fs::read_to_string(BOOT_ID_PATH)
+    let boot: String = crate::plain_file::read_plain_text(std::path::Path::new(BOOT_ID_PATH))
         .map(|text| return text.trim().to_string())
         .map_err(|error| return FilingRefusal::Boot { path: BOOT_ID_PATH, said: error.to_string() })?;
     let receipt: CloneMountReceipt = receipt_of(answer, boot.as_str(), now_iso().as_str())?;

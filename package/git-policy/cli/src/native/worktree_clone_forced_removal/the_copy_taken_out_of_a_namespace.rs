@@ -489,7 +489,7 @@ fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
 ///  The table is the kernel's own and this child's, not the handler's,
 ///  which is what makes the read-after a fact about the namespace it changed.
 fn read_the_table() -> Result<String, std::io::Error> {
-    return std::fs::read_to_string(MOUNTINFO_PATH);
+    return crate::plain_file::read_plain_text_at(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT);
 }
 
 /// What:

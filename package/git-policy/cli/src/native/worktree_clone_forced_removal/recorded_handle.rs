@@ -259,7 +259,7 @@ pub fn open_from_the_handle(mount: &std::fs::File, recorded: &RecordedHandle) ->
 /// The descriptor's `fdinfo` could not be read or carries no mount id.
 pub fn mount_id_of(descriptor: &std::fs::File) -> Result<u64, HandleRefusal> {
     let path: String = format!("/proc/self/fdinfo/{}", descriptor.as_raw_fd());
-    let text: String = std::fs::read_to_string(path.as_str()).map_err(|error| return HandleRefusal {
+    let text: String = crate::plain_file::read_plain_text(std::path::Path::new(path.as_str())).map_err(|error| return HandleRefusal {
         calling: "fdinfo",
         errno: error.raw_os_error().unwrap_or(libc::ENOENT),
         said: String::from("a descriptor's own record"),
