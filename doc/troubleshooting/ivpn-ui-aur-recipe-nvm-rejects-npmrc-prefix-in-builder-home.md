@@ -259,36 +259,47 @@ all about the `nvm` dependency listing or nvm defaults, none about this failure;
 `gh search issues --repo ivpn/desktop-app` for `npmrc`, `nvm prefix` and `PKGBUILD nvm` returned nothing.
 No work in progress on the recipe was found.
 
-1.  **Is it really upstream's fault?**
-     Yes, at the recipe level:
-    nvm's refusal is deliberate,
-     and a `prefix` line is an ordinary npm setup,
-     but the recipe lets the builder's home configuration decide whether it builds.
-2.  **Can upstream fix it?**
-     Yes; the prototype is three lines.
-3.  **Are they supporting this use case?**
-     Soft yes:
-    the package is meant to build for AUR users,
-     whose home folders vary;
-     no statement either way was found.
-4.  **Would the repo welcome our contribution?**
-     AUR comments are the package's intake,
-     and a comment thanking the maintainer for an earlier fix shows they respond.
-    On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
-     its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
-     had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
-    The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
-    The "Arch User Repository" page's "Commenting on packages" tip says:
-     "Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
-     or even use a [[pastebin]]."
-    The draft's three-line excerpt is short,
-     but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
-    The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
-     so the live package page was read with `curl` only.
-5.  **Will they likely fix it?**
-     Plausible; no sign of refusal.
-6.  **Have we prototyped a minimal fix compatible with their architecture?**
-     Yes; see "Recipe fix (prototype)".
+### Is it really upstream's fault?
+
+Yes, at the recipe level:
+nvm's refusal is deliberate,
+and a `prefix` line is an ordinary npm setup,
+but the recipe lets the builder's home configuration decide whether it builds.
+
+### Can upstream fix it?
+
+Yes; the prototype is three lines.
+
+### Are they supporting this use case?
+
+Soft yes:
+the package is meant to build for AUR users,
+whose home folders vary;
+no statement either way was found.
+
+### Would the repo welcome our contribution?
+
+AUR comments are the package's intake,
+and a comment thanking the maintainer for an earlier fix shows they respond.
+On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
+its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
+had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
+The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
+The "Arch User Repository" page's "Commenting on packages" tip says:
+"Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
+or even use a [[pastebin]]."
+The draft's three-line excerpt is short,
+but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
+The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
+so the live package page was read with `curl` only.
+
+### Will they likely fix it?
+
+Plausible; no sign of refusal.
+
+### Have we prototyped a minimal fix compatible with their architecture?
+
+Yes; see "Recipe fix (prototype)".
 
 Readiness on `2026-11-26T01:41:13-05:00`:
 reproduction re-run on the only release line the AUR carries (`3.15.15-1`);
@@ -301,31 +312,38 @@ filing is the owner's decision.
 On 2026-11-26T01:59:51-05:00 the owner chose to post the draft themself.
 
 ~~~md
-ivpn-ui 3.15.15-1 fails in prepare() when the builder's ~/.npmrc contains a prefix= (or globalconfig=) line:
+`ivpn-ui` 3.15.15-1 fails in `prepare()` when the builder's `~/.npmrc` has a `prefix=` (or `globalconfig=`) line:
 
     Your user’s .npmrc file (${HOME}/.npmrc)
     has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
     Run `nvm use --delete-prefix v22.12.0` to unset it.
 
-nvm 0.40.8 checks "${HOME}/.npmrc" after `nvm install` (nvm.sh lines 3194-3206 at v0.40.8) and returns 10.
-_ensure_local_nvm moves NVM_DIR into $srcdir but keeps the builder's HOME, so the result depends on the
-builder's dotfiles. A prefix= line is a common way to install npm globals without root.
+After `nvm install`, nvm 0.40.8 checks [`${HOME}/.npmrc` and returns 10][nvm] when such a line is there.
+[`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`,
+so whether the package builds depends on the builder's dotfiles.
+A `prefix=` line is a common way to install npm globals without root.
 
-Setting HOME inside the helper fixes it; with this change the package builds with the same ~/.npmrc:
+Setting `HOME` inside the helper fixes it; with this change the package built with the same `~/.npmrc`:
 
     export NVM_DIR="${srcdir}/.nvm"
     export HOME="${srcdir}/.home"
     mkdir -p "${HOME}"
 
-npm and electron-builder then cache under $srcdir, so a clean build downloads them again.
+npm and electron-builder then cache under `$srcdir`, so a clean build downloads them again.
+
+This comment was prepared with an AI assistant; the build results above were run on the commenter's machine.
+
+[nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
+[recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
 ~~~
 
-[aur-recipe]: https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h=ivpn-ui&id=d18e66dec2b72b366a3718a7085de7f2f4d6e6e7#n26
+[aur-recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
 [nvm-user-npmrc]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
 [nvm-bad-news]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3091-L3098
 [shelly-env]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/852e56e4c4db255eb93b4d6feca12a86aa9e9485/Shelly.PackageManager/src/aur/builder/builder.zig#L263-L292
 [shelly-reserved]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/852e56e4c4db255eb93b4d6feca12a86aa9e9485/Shelly.PackageManager/src/aur/shellybuild.zig#L415-L432
 
 The `nvm` and Shelly links were opened in `agent-browser` on `2026-11-26T01:41:13-05:00` and land on the quoted lines.
-The AUR link could not be opened there (Anubis "Access Denied");
-its lines were checked with `git show d18e66dec2b72b366a3718a7085de7f2f4d6e6e7:PKGBUILD` in a clone.
+The AUR site refused `agent-browser` (Anubis "Access Denied"),
+so the recipe is linked through the AUR's GitHub mirror (`archlinux/aur`, same commit),
+which `agent-browser` opened on 2026-11-26 and which shows the quoted lines; so do the two links in the comment draft.
