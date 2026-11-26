@@ -69,12 +69,12 @@ getent hosts app.datapacket.com; echo "exit=$?"
 
 ### Works
 
-- Outside the profile: `185.59.222.177  1232748490.rsc.cdn77.org`, `exit=0`.
+- Outside the profile: `<address>  <name>`, `exit=0`.
 - With the local workaround (next section), after a full Tor Browser restart:
   `lyrebird` ran as `torbrowser-tor//lyrebird`,
   the owner reported Tor Browser connected,
   and `curl --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip` returned
-  `{"IsTor":true,"IP":"204.8.96.168"}`, with the child profile enforcing.
+  `{"IsTor":true,"IP":"<exit address>"}`, with the child profile enforcing.
 - The upstream patch beside this file
   ([the patch file][patch]),
   applied to the installed abi 4.0 build and loaded under a test name with no attachment:
@@ -121,24 +121,35 @@ the file's commits are `7b4db8fd41` (2024-09-12, profile added), `5ed4df6916`, `
 (abi and whitespace changes),
 and none of the 21 open pull requests touches Tor.
 
-1.  **Is it really upstream's fault?**
-     Yes: the shipped rules stop a supported Tor Browser feature on every system that uses them.
-2.  **Can upstream fix it?**
-     Yes; the patch is one changed rule, one signal rule and one child profile.
-3.  **Are they supporting this use case?**
-     Yes: they ship `torbrowser` and `torbrowser-tor`,
-     and Snowflake is one of Tor Browser's built-in bridge choices.
-4.  **Would the repo welcome our contribution?**
-     `docs/report.md:9` asks for "an issue on Github" with a paste of `aa-log -R`. [Report docs][report]
-    There are no issue templates (`.github` holds `FUNDING.yml` and `workflows`),
-     and `docs/` has no rule on AI-assisted reports; no ban was found.
-5.  **Will they likely fix it?**
-     Likely: in #490 the maintainer answered the same day, "I will fix this shortly". [Issue 490][i490]
-    That issue argues for strict Tor Browser profiles;
-     the patch keeps every `deny` on `tor` itself and confines the transports separately,
-     in line with the guidelines' "The use of `deny` should be limited to the minimum". [Guidelines][guide]
-6.  **Have we prototyped a minimal fix compatible with their architecture?**
-     Yes; see "Verification".
+### Is it really upstream's fault?
+
+Yes: the shipped rules stop a supported Tor Browser feature on every system that uses them.
+
+### Can upstream fix it?
+
+Yes; the patch is one changed rule, one signal rule and one child profile.
+
+### Are they supporting this use case?
+
+Yes: they ship `torbrowser` and `torbrowser-tor`,
+and Snowflake is one of Tor Browser's built-in bridge choices.
+
+### Would the repo welcome our contribution?
+
+`docs/report.md:9` asks for "an issue on Github" with a paste of `aa-log -R`. [Report docs][report]
+There are no issue templates (`.github` holds `FUNDING.yml` and `workflows`),
+and `docs/` has no rule on AI-assisted reports; no ban was found.
+
+### Will they likely fix it?
+
+Likely: in #490 the maintainer answered the same day, "I will fix this shortly". [Issue 490][i490]
+That issue argues for strict Tor Browser profiles;
+the patch keeps every `deny` on `tor` itself and confines the transports separately,
+in line with the guidelines' "The use of `deny` should be limited to the minimum". [Guidelines][guide]
+
+### Have we prototyped a minimal fix compatible with their architecture?
+
+Yes; see "Verification".
 
 Readiness on 2026-11-26:
 reproduced on the only line apparmor.d ships (`main`, the installed commit);
@@ -149,11 +160,12 @@ the work-in-progress search is recorded.
 Reproduction repository: [apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction),
 created private on 2026-11-26 in the owner's account (author `Aquaticat` with the account's noreply address).
 Its workflow builds apparmor.d at `4c4fec70fc` with `just build` and `prebuild` on `ubuntu-26.04`
-(the only Ubuntu release that `prebuild` accepts),
+(the only Ubuntu release that `prebuild` [accepts](https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/cmd/prebuild/main.go#L34-L40)),
 installs `torbrowser-tor` alone in enforce mode,
 and checks the mode with `aa-status --json`.
 Runs [45776389452](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776389452) (push) and
-[45776560760](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776560760) (manual) gave the same result:
+[45776560760](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776560760) (manual) gave the same result,
+as did [45780122920](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45780122920) (the README push of 2026-11-26):
 the stock job's control lookup passed and its asserting step,
 `aa-exec --profile torbrowser-tor -- getent hosts app.datapacket.com`, exited `2`;
 the patched job passed the lookup under `torbrowser-tor//pluggable-transports`
@@ -185,24 +197,30 @@ Posting puts the owner's GitHub account in front of the maintainer,
 and filing is the owner's decision.
 Before posting, check the live repository again for a duplicate or a fix.
 
-~~~md
-**Title:** torbrowser-tor: pluggable transports cannot resolve names or open UDP sockets, so Snowflake never connects
+Issue title: `torbrowser-tor: pluggable transports cannot resolve names or open UDP sockets, so Snowflake never connects`.
 
+~~~md
 With `torbrowser-tor` enforcing, Tor Browser cannot connect through Snowflake bridges.
 
-**Cause.** The profile runs every pluggable transport inside Tor's own profile
-([`PluggableTransports/** mix`][pt]), which allows only [`network inet stream`][net]
-and denies [`/etc/nsswitch.conf` and `/etc/resolv.conf`][deny].
+## Cause
+
+The profile runs every pluggable transport inside Tor's own profile
+([`PluggableTransports/** mix`][pt]),
+whose only network rules are [`network inet stream` and `network netlink raw`][net],
+and which denies [`/etc/nsswitch.conf` and `/etc/resolv.conf`][deny].
 Snowflake's client needs name resolution and UDP:
 its configuration names a [domain front][front] and [ICE server URLs][ice].
 The socket half is logged.
-The lookup half is not, because `deny` rules are silent,
-and they [are enforced even in complain mode][complain].
+The lookup half is not, because a `deny` rule [denies without logging][quiet],
+and `deny` rules [are enforced even in complain mode][complain].
 Without a readable `resolv.conf`, glibc [uses `INADDR_LOOPBACK`][glibc]
-and Go's resolver [uses `127.0.0.1:53` and `[::1]:53`][go];
-on systems using systemd-resolved nothing listens there.
+and Go's resolver [uses `127.0.0.1:53` and `[::1]:53`][go],
+while systemd-resolved [listens on `127.0.0.53` and `127.0.0.54`][resolved],
+so on systems using it the fallback misses the resolver.
 
-**Logs** (trimmed, from `/var/log/audit/audit.log`):
+## Logs
+
+Trimmed, from `/var/log/audit/audit.log`:
 
 ```text
 apparmor="DENIED" operation="create" class="net" profile="torbrowser-tor" comm="lyrebird" family="inet" sock_type="dgram"
@@ -211,8 +229,11 @@ apparmor="DENIED" operation="create" class="net" profile="torbrowser-tor" comm="
 apparmor="DENIED" operation="signal" class="signal" profile="torbrowser-tor" requested_mask="receive" signal=term peer="torbrowser"
 ```
 
-**Reproduction.** [This workflow][repo] builds apparmor.d at `4c4fec7` on a clean Ubuntu 26.04 runner
-with `just build` and `prebuild`, installs only `torbrowser-tor` in enforce mode,
+## Reproduction
+
+[This workflow][repo] builds apparmor.d at [`4c4fec7`][commit] on a clean Ubuntu 26.04 runner
+with [`just build`][jbuild] and [`prebuild`][jprebuild],
+installs only `torbrowser-tor` with [`just local`][jlocal], puts it in enforce mode,
 and runs `getent hosts app.datapacket.com`:
 the name resolves outside the profile and fails under it ([run 1][run1], [run 2][run2]).
 Locally:
@@ -221,14 +242,16 @@ Locally:
 $ aa-exec --profile torbrowser-tor -- getent hosts app.datapacket.com; echo $?
 2
 $ getent hosts app.datapacket.com; echo $?
-185.59.222.177  1232748490.rsc.cdn77.org
+<address>  <name>
 0
 ```
 
-**Proposed fix** ([patch][patch]), in `apparmor.d/groups/browsers/torbrowser-tor`:
+## Proposed fix
+
+The [patch][patch] changes [`apparmor.d/groups/browsers/torbrowser-tor`][file]:
 
 - run the transports in a child profile, `PluggableTransports/** rcx -> pluggable-transports`,
-  with `golang`, `nameservice-strict` and `ssl_certs`,
+  with the [`golang`][golang], [`nameservice-strict`][nss] and [`ssl_certs`][ssl] abstractions,
   IPv4 and IPv6 stream and datagram sockets, `netlink raw`, and their `pt_state` folder;
 - keep every `deny` on `tor` itself, so the change adds no `deny` and loosens nothing for Tor
   (the guidelines ask to [limit `deny` to the minimum][guide]);
@@ -244,18 +267,28 @@ This report was prepared with an AI assistant;
 the commands and results above were run on the reporter's machine and in the linked workflow.
 
 [pt]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/groups/browsers/torbrowser-tor#L25
-[net]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/groups/browsers/torbrowser-tor#L18
+[net]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/groups/browsers/torbrowser-tor#L18-L19
 [deny]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/groups/browsers/torbrowser-tor#L41-L44
-[complain]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/docs/issues.md#L26
-[guide]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/docs/development/guidelines.md#L119-L125
-[glibc]: https://github.com/bminor/glibc/blob/04e750e75b73957cf1c791535a3f4319534a52fc/resolv/res_init.c#L613-L617
-[go]: https://github.com/golang/go/blob/983064c1b5bd8e0ad581607aa140167c698cd4eb/src/net/dnsconfig.go#L27
 [front]: https://pkg.go.dev/gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2@v2.15.4/client/lib#:~:text=FrontDomain%20is%20the%20full%20URL%20of%20an%20optional%20front%20domain
 [ice]: https://pkg.go.dev/gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2@v2.15.4/client/lib#:~:text=ICEAddresses%20are%20a%20slice%20of%20ICE%20server%20URLs
+[quiet]: https://manpages.debian.org/forky/apparmor/apparmor.d.5.en.html#:~:text=denied%20without%20logging
+[complain]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/docs/issues.md#L26
+[glibc]: https://github.com/bminor/glibc/blob/04e750e75b73957cf1c791535a3f4319534a52fc/resolv/res_init.c#L613-L617
+[go]: https://github.com/golang/go/blob/983064c1b5bd8e0ad581607aa140167c698cd4eb/src/net/dnsconfig.go#L27
+[resolved]: https://www.freedesktop.org/software/systemd/man/262/systemd-resolved.service.html#:~:text=local%20DNS%20stub%20listener%20on%20the%20IP%20addresses%20127.0.0.53
 [repo]: https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction
+[commit]: https://github.com/roddhjav/apparmor.d/commit/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f
+[jbuild]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/Justfile#L88-L94
+[jprebuild]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/Justfile#L101-L104
+[jlocal]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/Justfile#L180-L203
 [run1]: https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776389452
 [run2]: https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776560760
 [patch]: https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/blob/55449290df95bc6eb915a955879b3a9d8f4a54dc/torbrowser-tor-pluggable-transports.patch
+[file]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/groups/browsers/torbrowser-tor
+[golang]: https://sources.debian.org/src/apparmor/4.1.8-3/profiles/apparmor.d/abstractions/golang/
+[nss]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/abstractions/nameservice-strict
+[ssl]: https://sources.debian.org/src/apparmor/4.1.8-3/profiles/apparmor.d/abstractions/ssl_certs/
+[guide]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/docs/development/guidelines.md#L119-L125
 ~~~
 
 [patch]: apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.patch
@@ -272,3 +305,37 @@ glibc `resolv/res_init.c:613-617` at `04e750e75b73`, Go `src/net/dnsconfig.go:27
 the Snowflake client's `FrontDomain` and `ICEAddresses` fields (pkg.go.dev, `v2.15.4`, text fragments),
 the pinned patch and both runs.
 Snowflake's own GitLab sends anonymous browsers to a sign-in page, so it is not linked.
+A second pass on 2026-11-26, after the owner asked why the profile path had no link, linked the rest,
+each opened in `agent-browser` and landing on its quoted text:
+the profile file, the commit, the `Justfile` recipes (`build`, `prebuild`, `local`),
+the profile's network rules (lines 18 to 19; the first draft wrongly said `network inet stream` was the only one),
+the `deny` sentence of `apparmor.d(5)` (Debian manpages, forky),
+the stub-listener sentence of `systemd-resolved.service(8)` (freedesktop.org, systemd 262),
+`nameservice-strict` in apparmor.d,
+and the `golang` and `ssl_certs` abstractions, which AppArmor itself ships
+(this host: `pacman -Qo` names `apparmor 4.1.8-2.1`),
+linked through Debian's source browser at `4.1.8-3` because AppArmor's GitLab serves headless browsers a challenge page.
+
+## Filed (2026-11-26T08:09:10Z)
+
+On the owner's go-ahead ("I've read everything. Good enough. Do it."),
+the draft went out under the owner's account as
+[issue #1328](https://github.com/roddhjav/apparmor.d/issues/1328) at `2026-11-26T08:09:10Z`,
+with [pull request #1329](https://github.com/roddhjav/apparmor.d/pull/1329) at `2026-11-26T08:09:34Z`,
+which closes it.
+The pull request is one commit, `7963e3ab47` on `Aquaticat/apparmor.d` branch `fix/torbrowser-tor-pluggable-transports`,
+authored as `Aquaticat` with the account's noreply address,
+and applies the same patch as the reproduction repository to `4c4fec7`.
+
+Same-day checks before posting:
+`gh search issues --include-prs` for torbrowser, snowflake, lyrebird, "pluggable transport" and obfs4 found no duplicate
+(#1117, closed, is about `torbrowser_firefox` reading `stub-resolv.conf`, not the transports);
+the open-pull-request filter's only hits, #1308 and #1310, matched "tor" inside "qbittorrent" and "stores" and touch no Tor profile;
+`main` was still `4c4fec7`, and the profile's last change was `8bba967187` (2026-07-26, abi 5);
+`.github` still holds only `FUNDING.yml` and `workflows/main.yml`,
+and `docs/development/index.md` asks only for a branch and a pull request.
+
+The risk stays the owner's: both posts carry the owner's GitHub account.
+What happens next is the maintainer's call; follow-ups are the owner's decision.
+At the owner's request both bodies were edited at 2026-11-26T08:14:30Z to use `##` section headings,
+since the title sits outside the body and level 2 was free.

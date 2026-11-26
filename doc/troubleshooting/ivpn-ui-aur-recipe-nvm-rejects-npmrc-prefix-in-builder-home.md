@@ -259,36 +259,47 @@ all about the `nvm` dependency listing or nvm defaults, none about this failure;
 `gh search issues --repo ivpn/desktop-app` for `npmrc`, `nvm prefix` and `PKGBUILD nvm` returned nothing.
 No work in progress on the recipe was found.
 
-1.  **Is it really upstream's fault?**
-     Yes, at the recipe level:
-    nvm's refusal is deliberate,
-     and a `prefix` line is an ordinary npm setup,
-     but the recipe lets the builder's home configuration decide whether it builds.
-2.  **Can upstream fix it?**
-     Yes; the prototype is three lines.
-3.  **Are they supporting this use case?**
-     Soft yes:
-    the package is meant to build for AUR users,
-     whose home folders vary;
-     no statement either way was found.
-4.  **Would the repo welcome our contribution?**
-     AUR comments are the package's intake,
-     and a comment thanking the maintainer for an earlier fix shows they respond.
-    On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
-     its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
-     had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
-    The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
-    The "Arch User Repository" page's "Commenting on packages" tip says:
-     "Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
-     or even use a [[pastebin]]."
-    The draft's three-line excerpt is short,
-     but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
-    The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
-     so the live package page was read with `curl` only.
-5.  **Will they likely fix it?**
-     Plausible; no sign of refusal.
-6.  **Have we prototyped a minimal fix compatible with their architecture?**
-     Yes; see "Recipe fix (prototype)".
+### Is it really upstream's fault?
+
+Yes, at the recipe level:
+nvm's refusal is deliberate,
+and a `prefix` line is an ordinary npm setup,
+but the recipe lets the builder's home configuration decide whether it builds.
+
+### Can upstream fix it?
+
+Yes; the prototype is three lines.
+
+### Are they supporting this use case?
+
+Soft yes:
+the package is meant to build for AUR users,
+whose home folders vary;
+no statement either way was found.
+
+### Would the repo welcome our contribution?
+
+AUR comments are the package's intake,
+and a comment thanking the maintainer for an earlier fix shows they respond.
+On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
+its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
+had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
+The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
+The "Arch User Repository" page's "Commenting on packages" tip says:
+"Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
+or even use a [[pastebin]]."
+The draft's three-line excerpt is short,
+but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
+The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
+so the live package page was read with `curl` only.
+
+### Will they likely fix it?
+
+Plausible; no sign of refusal.
+
+### Have we prototyped a minimal fix compatible with their architecture?
+
+Yes; see "Recipe fix (prototype)".
 
 Readiness on `2026-11-26T01:41:13-05:00`:
 reproduction re-run on the only release line the AUR carries (`3.15.15-1`);
@@ -303,27 +314,35 @@ On 2026-11-26T01:59:51-05:00 the owner chose to post the draft themself.
 ~~~md
 `ivpn-ui` 3.15.15-1 fails in `prepare()` when the builder's `~/.npmrc` has a `prefix=` (or `globalconfig=`) line:
 
-    Your user’s .npmrc file (${HOME}/.npmrc)
-    has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
-    Run `nvm use --delete-prefix v22.12.0` to unset it.
+```text
+Your user’s .npmrc file (${HOME}/.npmrc)
+has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
+Run `nvm use --delete-prefix v22.12.0` to unset it.
+```
 
 After `nvm install`, nvm 0.40.8 checks [`${HOME}/.npmrc` and returns 10][nvm] when such a line is there.
 [`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`,
 so whether the package builds depends on the builder's dotfiles.
-A `prefix=` line is a common way to install npm globals without root.
+npm's own docs suggest [`npm config set prefix`][npmprefix] for installing global packages without root,
+and `npm config set` [writes to the user configuration file][npmset], `~/.npmrc`.
 
 Setting `HOME` inside the helper fixes it; with this change the package built with the same `~/.npmrc`:
 
-    export NVM_DIR="${srcdir}/.nvm"
-    export HOME="${srcdir}/.home"
-    mkdir -p "${HOME}"
+```bash
+export NVM_DIR="${srcdir}/.nvm"
+export HOME="${srcdir}/.home"
+mkdir -p "${HOME}"
+```
 
-npm and electron-builder then cache under `$srcdir`, so a clean build downloads them again.
+npm's cache [defaults to `~/.npm`][npmcache], so it moves into `$srcdir/.home` and a clean build downloads packages again.
 
 This comment was prepared with an AI assistant; the build results above were run on the commenter's machine.
 
 [nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
 [recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
+[npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
+[npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
+[npmcache]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Posix%3A%20~%2F.npm
 ~~~
 
 [aur-recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
