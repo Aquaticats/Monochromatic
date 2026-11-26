@@ -482,7 +482,9 @@ fn a_copy_in_the_holder(fixture: &Fixture, checkout: &Path, slot: &Path, holder:
     let ours: NamespaceTable = NamespaceTable { namespace: String::from("the host's"), rows: the_table(), at_the_slot: topmost_at(the_table().as_slice(), slot) };
     let copy: MountRow = the_copy(fixture, theirs.rows.as_slice(), slot);
     let tables: Vec<NamespaceTable> = vec![theirs.clone(), ours.clone()];
-    let handled: Vec<String> = vec![theirs.namespace.clone(), ours.namespace.clone()];
+    // The act handles the holder's namespace and never the host's, so a host that receives the unmount is the
+    // outside receiver the design's closure names.
+    let handled: Vec<String> = vec![theirs.namespace.clone()];
     let receivers: ReceiverSet = plan_the_receivers(&theirs, &copy, tables.as_slice(), fixture.clone().as_str(), handled.as_slice());
     let namespace: &'static std::fs::File = Box::leak(Box::new(std::fs::File::open(format!("/proc/{}/ns/mnt", holder.pid)).expect("the holder's namespace is opened")));
     let identity: &'static str = Box::leak(theirs.namespace.clone().into_boxed_str());
@@ -556,7 +558,7 @@ fn phase_peer(fixture: &Fixture) -> String {
     make_the_checkout_shared(checkout.as_path()).expect("the host makes the checkout a group of its own");
     let holder: AHolder = hold(AShape::NamespaceOfItsOwn, checkout.as_path(), slot.as_path(), false);
     pause(Duration::from_millis(200));
-    let (copy, _theirs, ours, receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
+    let (copy, _theirs, _ours, receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
     fields.push(("way-eight", if receivers.way_eight { "true" } else { "false" }));
     fields.push(("outside", if receivers.outside.is_empty() { "none" } else { "the-host" }));
     let route: Route = if receivers.way_eight { Route::InPlaceByTheHandle } else { Route::SlaveMoveAndUnmount };
@@ -580,8 +582,7 @@ fn phase_peer(fixture: &Fixture) -> String {
     fields.push(("caller-job", if alive { "alive" } else { "gone" }));
     holder.end();
     caller_job.end();
-    assert!(taken.directory.is_some());
-    assert_eq!(ours.namespace, "the host's");
+    assert!(taken.directory.is_some(), "way 7 is the route the closure sends this shape to");
     return phase_line("namespace-way8-peer-sent-to-way7", fields.as_slice());
 }
 
