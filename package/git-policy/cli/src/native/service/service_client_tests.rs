@@ -3,7 +3,8 @@
 //!  The two controls that note a stop write one flag of the whole process,
 //!  and a wait of any other control resets that flag when its watch starts and ends,
 //!  so both run their body in a child of its own
-//!  (`testing/process_wide_state_child_test_support.rs`, issue 6522).
+//!  (`testing/process_wide_state_child_test_support.rs`,
+//!  issue 6522).
 
 use super::*;
 use crate::service_client_listen_and_ask_to_retire::read_message;
