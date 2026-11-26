@@ -512,7 +512,7 @@ fn own_loop_search(
             continue;
         }
         // What: the entry the group's own code belongs to, which is the outer group of a nested one.
-        // Why: the walk back starts at entries, so a nested group's own use must leave from its entry.
+        // Why: the search holds entries only, so a nested group's own use must leave from its entry.
         let source: PathBuf = entry_of(from, groups);
         for (to, proof) in targets {
             let target_entry: PathBuf = entry_of(to, groups);
@@ -622,7 +622,8 @@ struct OwnFileLoop {
 ///  and the allow list promises that new code cannot add one.
 ///  The search runs over the entry graph with every own-file use added as an edge,
 ///  so a loop that two own-file uses close is seen as one that a single use closes,
-///  and it walks back once per entry whose own file holds a use rather than once per use.
+///  and it walks forward once per own-file use that closes a loop,
+///  from the entry that use reaches to the group, rather than once per group or per use of the graph.
 ///  A group nested in another group leaves its uses from that outer entry,
 ///  so a nested group is searched like any other.
 ///  Two entries close a loop exactly when the searched graph puts them in one strongly connected set,
@@ -654,7 +655,7 @@ fn group_own_loop_uses(
             continue;
         }
         // What: the entry the group's own code belongs to, which is the outer group of a nested one.
-        // Why: the walk back starts at entries, so a nested group's own use must leave from its entry.
+        // Why: the walk stops at the source entry, so a nested group's own use must leave from its entry.
         let source: PathBuf = entry_of(from, groups);
         for (to, proof) in targets {
             let target_entry: PathBuf = entry_of(to, groups);
@@ -667,15 +668,16 @@ fn group_own_loop_uses(
                 continue;
             }
             // One strongly connected set means the used entry reaches the group back, so the use closes a loop.
-            if own_loops.get(&source).is_none()
-                || own_loops.get(&source) != own_loops.get(&target_entry)
-            {
+            let Some(group_loop) = own_loops.get(&source) else {
+                continue;
+            };
+            if own_loops.get(&target_entry) != Some(group_loop) {
                 continue;
             }
             let Some(route) = forward_path(search, &target_entry, &source) else {
                 continue;
             };
-            // What: the steps the finding's message spells, from the used entry back to the group.
+            // What: the steps the finding's message spells, from the used entry to the group.
             // Why: the finding shows the shortest route the walk found, so a reader can check that the loop is real.
             let mut steps: Vec<String> = Vec::<String>::new();
             for (step_from, step_to, step_proof) in &route {
@@ -976,7 +978,7 @@ fn use_inside_a_reported_own_file_loop(
         file: proof.file.clone(),
         line: proof.line,
         message: format!(
-            "{} uses the folder {} (`{}`), and both sit inside one loop a group's own file closes, which the list does not record yet; a loop is tolerated only while every use inside it is on the list, so this use and every other one in that loop needs its own `uses` line.",
+            "{} uses the folder {} (`{}`), and both sit inside one loop a group's own file closes, which the list does not record yet; a loop is tolerated only while every use inside it is on the list, so this use and every other one in that loop need their own `uses` lines.",
             shown(from, base),
             shown(to, base),
             proof.text
