@@ -48,9 +48,22 @@
 //!   the reader-neutral declaration of one module's types,
 //!   the four duties every reader owes it,
 //!   and the vocabulary everything after it reads.
+//! - `expected_member_and_container.rs`:
+//!   one member or container the module must declare,
+//!   the three builders a table states one with,
+//!   and the byte width of each fixed-size name field.
+//! - `expected_dmu_objset_stats.rs`:
+//!   the `dmu_objset_stats` record compared member by member.
+//! - `expected_zinject_record.rs`:
+//!   the `zinject_record` record compared member by member.
+//! - `expected_zc_inject_overlay.rs`:
+//!   the anonymous union the struct holds,
+//!   the destroy control inside it,
+//!   and the padding that holds the control fields in place.
 //! - `expectations.rs`:
-//!   the layout this crate's type compiles,
-//!   and the two records compared member by member.
+//!   the `zfs_cmd` table the walk starts at,
+//!   the structures it descends into,
+//!   and the two record types the comparison names.
 //! - `expected_requests.rs`:
 //!   the request numbers this crate can send and the range's two endpoints.
 //! - `mismatch.rs`:
@@ -87,10 +100,22 @@ mod comparison;
 mod comparison_requests;
 /// The reader-neutral declaration everything after it reads.
 mod declaration;
-/// The layout this crate's type compiles.
+/// The `zfs_cmd` table the walk starts at,
+/// and the structures it descends into.
 mod expectations;
+/// The `dmu_objset_stats` record compared member by member.
+mod expected_dmu_objset_stats;
+/// One member or container the module must declare,
+/// the builders a table states one with,
+/// and the byte width of each fixed-size name field.
+mod expected_member_and_container;
 /// The request numbers this crate can send.
 mod expected_requests;
+/// The anonymous union the struct holds,
+/// and the destroy control inside it.
+mod expected_zc_inject_overlay;
+/// The `zinject_record` record compared member by member.
+mod expected_zinject_record;
 /// The one difference value both walks return.
 mod mismatch;
 /// The step a refusal names.
