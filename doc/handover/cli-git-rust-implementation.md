@@ -136,13 +136,13 @@ Rounds started earlier run on the pool they named.
   passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
   The round filed two issues:
   6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
-  which waits for 6493 (it edits that helper) and the split's round 1;
+  which waits for the split's round 1 (6493, which edited that helper, merged at 08:53);
   and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
   briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
   running on the virtual writer since 6494 merged.
 - One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
-- Issue 6493 (flex),
-  one window each, `issue-<number>-<words>`.
+- Issue 6511 (twelve `push::child_watch::` controls fail on `main` under load, a different set each run),
+  window `issue-6511-push-child-watch-controls-own-their-clock`, starts when the virtual writer has a free slot (starter `b335agb1n`).
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
@@ -188,6 +188,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6493 as `65b27b84cc`: 22 size-read controls run in children of their own,
+  and the holds they arm refuse a body outside a child; its `push::child_watch::` reds fail on `main` too (issue 6511).
 - 6507 as `3d11fc0526`: the five controls that drain the preparation-span ledger run in children of their own,
   and `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs` refuses one that does not.
 - The wrapper's `0.6.1-alpha.47`, released from `68af165851` after the gate at `196b8d0c87`;
