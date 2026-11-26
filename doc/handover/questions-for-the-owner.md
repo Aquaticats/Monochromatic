@@ -18,6 +18,19 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: should local lists of names become slices too? Recorded 2026-11-26T06:41-05:00
+
+Debt ledger item 19 (merged as `df7e6467c5`) turned every constant list of names with a hand-counted length into a slice,
+and a source guard now refuses a new one.
+It left 297 local `let NAME: [&str; N] = [...]` lists in 184 files,
+almost all in test files,
+because the item measured constants and no one has said whether locals are in it.
+Converting them is the same mechanical change and the guard can be widened to refuse them;
+the cost is a large diff across test files the crate split is about to move.
+If yes,
+the natural time is after the split's moves,
+so it is written once on the files' final paths.
+
 ## Open: the crate split's points after the rescan of `main`, recorded 2026-11-26T05:05-05:00
 
 The rescan after the reformat (merged as `6329f89af0`) left these for the owner,
