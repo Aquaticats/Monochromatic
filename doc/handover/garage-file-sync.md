@@ -30,6 +30,14 @@ The four older `main.kdbx.conflict*` files remain on both sides;
 they are historical artifacts,
 not evidence that the latest sync failed.
 
+## Planned change: sync on file change (confirmed 2026-11-25T20:54:22-05:00)
+
+The owner confirmed the design in `doc/planning/garage-bisync-run-on-file-change.md`,
+section "Current design, as settled":
+a directory-watcher user unit, a trigger unit, a two-pass sync, a 5-minute timer and reworked alerts on this PC,
+then the same parity on the Mac.
+Not implemented yet; Stage D is rewritten from the result when it is.
+
 ## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
 
 Read-only over ssh; nothing was changed.
@@ -56,7 +64,7 @@ output in `~/temp/agent/mac-plain-vs-bucket-compare-2026-11-25/` on the Mac):
 rclone's `docs/content/bisync.md` at `v1.76.0` says `--resync` implies `--resync-mode path1`,
 so a default resync uploads the 214, downloads the 312,
 and overwrites the 12 on the Mac with the bucket's versions.
-The Mac's LaunchAgent in Stage D (macOS) also lacks `--conflict-resolve newer` and the settle pass this PC's unit has.
+The Mac's LaunchAgent in Stage D (macOS) also lacks `--conflict-resolve newer`; neither client's unit has the settle pass yet (the design adds it).
 
 Recovered at 2026-11-25T20:04:52-05:00 on the owner's word
 ("Treat the bucket as the golden copy. I intentionally deleted the game mods from the bucket. Resync."):
@@ -361,7 +369,7 @@ Status:
 
      ```ini
      [Unit]
-     Description=Bisync ~/Seafile/Plain with Garage S3
+     Description=Bisync ~/Plain with Garage S3
      Documentation=https://rclone.org/bisync/
      After=network-online.target
      Wants=network-online.target
@@ -370,7 +378,7 @@ Status:
      Type=oneshot
      WorkingDirectory=%h
      TimeoutStartSec=3000
-     ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+     ExecStart=|@rclone bisync garage:files/Plain %h/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
      Nice=10
      IOSchedulingClass=best-effort
      IOSchedulingPriority=6

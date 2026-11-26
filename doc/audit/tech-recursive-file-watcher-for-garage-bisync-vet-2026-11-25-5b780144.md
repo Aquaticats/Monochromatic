@@ -3,10 +3,15 @@
 ## Report metadata
 
 - Status:
-  recommendation made (directory-watcher 3.2.1),
-  not adopted,
-  not reviewed,
-  not approved by the owner.
+  adopted by the owner in round 7 and kept in round 8 with an accepted exception
+  (names starting with `.` or `_` are not watched; they sync by the timer);
+  not final until the design is confirmed and implemented.
+  Earlier status, kept for the record:
+  recommendation suspended:
+  a design review found that directory-watcher 3.2.1 cannot watch names starting with `.` or `_`
+  (see "Hard constraint failure found in review");
+  the owner adopted it in round 7 before that finding;
+  not approved as final.
 - Lifecycle phase:
   discovery and screening complete (saturated);
   targeted evidence, finalist validation and scoring not started.
@@ -27,7 +32,7 @@
 - Started:
   2026-11-25T17:19:41-05:00.
 - Last updated:
-  2026-11-25T17:59:11-05:00.
+  2026-11-25T20:18:41-05:00.
 - Governing skill:
   `.claude/skills/choosing-technology/SKILL.md` at commit `45d42d9b23d2f2752f9c512683b45905e13afe99`,
   SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -1625,6 +1630,29 @@ above launchd's default soft limit of 256.
 This is a recommendation, not adoption;
 adoption needs a separate owner decision and then a decision record.
 
+## Hard constraint failure found in review (2026-11-25T20:18:41-05:00)
+
+A cross-vendor design review found, and the coordinating session confirmed in the source docs,
+that directory-watcher 3.2.1 never watches files or folders whose names start with `.` or `_`
+("Files and folders whose names start with `.` or `_` are not watched", `docs/guide/events.md:82`),
+and that a `!` pattern cannot watch them again (`:108`).
+`~/Plain` holds 168 such entries.
+GW-19 recorded the default exclusion,
+but screening and validation did not test it against the hard constraint
+"watches every folder under the root recursively",
+and the runtime fixture held no such name.
+Under the governing skill this is a hard-gate failure,
+so no candidate now passes every hard constraint;
+whether to relax that constraint for these names, change the tool, or fall back is the owner's decision
+(design record, "Review findings").
+
+## Owner decision on the failure (2026-11-25T20:41:14-05:00)
+
+Round 8: "Keep directory-watcher".
+The owner accepts that names starting with `.` or `_` are not watched
+and reach the bucket through the 5-minute timer,
+as an exception to the recursion constraint for those names only.
+
 ## Evidence records
 
 Every record below was read on 2026-11-25 between 17:22 and 17:41 -05:00.
@@ -1899,3 +1927,5 @@ Node `fs.watch`; plus the smaller libraries listed in the ledger.
 
 Not started here: targeted evidence, external execution gate, finalist validation, scoring,
 recommendation, and re-keying the fingerprint for the round-3 requirement.
+(Written at discovery's end; all of these were done later, in the sections above,
+and the recommendation is now suspended, see "Hard constraint failure found in review".)
