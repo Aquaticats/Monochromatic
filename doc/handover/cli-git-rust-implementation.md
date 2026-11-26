@@ -125,8 +125,8 @@ Rounds started earlier run on the pool they named.
   at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
   and the setgroups round that also touched `invocation/` merged at 07:31.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6504 (two driver controls fail in its parallel suite and pass alone),
-  window `issue-6504-driver-suite-controls-fail-together-and-pass-alone`, the first round on the virtual writer.
+- Issue 6506 (the watch's wall-clock control fails in the driver's parallel suite, the class 6504 fixed),
+  window `issue-6506-watch-wall-clock-control-sized-from-its-own-run`, on the virtual writer.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
 - Issue 6493 (flex),
@@ -168,6 +168,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6495 as `2024335d64` and
   6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
 - 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
+- 6504 (two driver controls size their wall clock from a run of their own and own the child they read) as `6ffc826871`,
+  the first round written on the virtual writer.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
   the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
   proved in an Ubuntu 6.8 guest with the remedy arm.
