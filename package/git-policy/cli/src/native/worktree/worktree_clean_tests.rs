@@ -877,31 +877,32 @@ fn the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool() {
 /// The body runs in a child process that is refused every thread it asks for.
 #[test]
 fn a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start",
-    ) {
-        return;
-    }
-    // The fixture's Git runs are processes of their own, so the limit is lifted while the repository is made and put back
-    //  for the part this control measures.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    let root: PathBuf = fixture("clean-no-thread");
-    let repo: PathBuf = aged_repository(root.as_path());
-    std::fs::write(repo.join("a.txt"), b"edited\n").expect("edit");
-    git(repo.as_path(), &["add", "a.txt"]);
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let refused: Result<CleanSource, CleanRefusal> = check(repo.as_path());
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises again");
-    let why: CleanRefusal = refused.expect_err("a staged change is not clean");
-    assert!(
-        why.reason.contains("a.txt is staged with a change"),
-        "{}",
-        why.reason
+        || {
+            // The fixture's Git runs are processes of their own, so the limit is lifted while the repository is made and put back
+            //  for the part this control measures.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            let root: PathBuf = fixture("clean-no-thread");
+            let repo: PathBuf = aged_repository(root.as_path());
+            std::fs::write(repo.join("a.txt"), b"edited\n").expect("edit");
+            git(repo.as_path(), &["add", "a.txt"]);
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            let refused: Result<CleanSource, CleanRefusal> = check(repo.as_path());
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises again");
+            let why: CleanRefusal = refused.expect_err("a staged change is not clean");
+            assert!(
+                why.reason.contains("a.txt is staged with a change"),
+                "{}",
+                why.reason
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// What:

@@ -39,26 +39,26 @@ fn a_job_that_panics_is_an_error_and_the_next_job_still_runs() {
 /// and nothing panics.
 #[test]
 fn where_no_thread_can_start_the_job_fails_plainly_and_gives_no_value() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_job_fails_plainly_and_gives_no_value",
-    ) {
-        return;
-    }
-    let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let flag = std::sync::Arc::clone(&ran);
-    let outcome = run_on_runtime(run_blocking_job(move || {
-        flag.store(true, std::sync::atomic::Ordering::SeqCst);
-    }))
-    .expect("a current-thread runtime stands in where no thread can start");
-    assert_eq!(
-        outcome,
-        Err(BlockingJobError::MayStillRunAfterItsThreadWasRefused),
-        "nothing here can stop the closure the pool queued"
-    );
-    assert!(
-        !ran.load(std::sync::atomic::Ordering::SeqCst),
-        "the job had not run at the moment the refusal was answered; the pool still held it queued"
+        || {
+            let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let flag = std::sync::Arc::clone(&ran);
+            let outcome = run_on_runtime(run_blocking_job(move || {
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            }))
+            .expect("a current-thread runtime stands in where no thread can start");
+            assert_eq!(
+                outcome,
+                Err(BlockingJobError::MayStillRunAfterItsThreadWasRefused),
+                "nothing here can stop the closure the pool queued"
+            );
+            assert!(
+                !ran.load(std::sync::atomic::Ordering::SeqCst),
+                "the job had not run at the moment the refusal was answered; the pool still held it queued"
+            );
+        },
     );
 }
 

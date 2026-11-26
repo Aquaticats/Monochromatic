@@ -629,37 +629,38 @@ fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
 #[cfg(unix)]
 #[test]
 fn where_no_thread_can_start_the_input_writer_names_the_limit() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_input_writer_names_the_limit",
-    ) {
-        return;
-    }
-    // The reader is a process of its own, which the refusal refuses as well, so it starts while the limit still allows it.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    let mut reader: Command = shell("sleep 20");
-    let mut reading: Child = reader
-        .stdin(Stdio::piped())
-        .spawn()
-        .expect("the reader starts");
-    let pipe: ChildStdin = reading.stdin.take().expect("the input");
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let refused: Result<InputWriter, String> = feed_standard_input(
-        Some(pipe),
-        b"request".to_vec(),
-        Duration::from_secs(1),
-        None,
-    );
-    let _killed = reading.kill();
-    let _waited = reading.wait();
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises again");
-    let said: String = refused
-        .err()
-        .expect("no thread could be started to give the command its request");
-    assert!(
-        said.contains("ulimit -u") && said.contains("pids.max"),
-        "the refusal names the limits that refused the thread: {said}"
+        || {
+            // The reader is a process of its own, which the refusal refuses as well, so it starts while the limit still allows it.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            let mut reader: Command = shell("sleep 20");
+            let mut reading: Child = reader
+                .stdin(Stdio::piped())
+                .spawn()
+                .expect("the reader starts");
+            let pipe: ChildStdin = reading.stdin.take().expect("the input");
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            let refused: Result<InputWriter, String> = feed_standard_input(
+                Some(pipe),
+                b"request".to_vec(),
+                Duration::from_secs(1),
+                None,
+            );
+            let _killed = reading.kill();
+            let _waited = reading.wait();
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises again");
+            let said: String = refused
+                .err()
+                .expect("no thread could be started to give the command its request");
+            assert!(
+                said.contains("ulimit -u") && said.contains("pids.max"),
+                "the refusal names the limits that refused the thread: {said}"
+            );
+        },
     );
 }

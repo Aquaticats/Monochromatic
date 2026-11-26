@@ -753,40 +753,41 @@ fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_rev
 /// ```
 #[test]
 fn where_no_thread_can_start_the_review_names_the_limit() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_review_names_the_limit",
-    ) {
-        return;
-    }
-    static OWN: crate::standards_review_run::Containment =
-        crate::standards_review_run::Containment::new();
-    // The fixture is made of Git processes, which the refusal refuses as well, so it is made while a process may start.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    let fixture: Fixture = fixture_with_log("review-no-thread");
-    let item: WorkItem = commit(&fixture, &[("src/a.rs", "fn a() {}\n")], "feat(a): add a");
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let verdict: Verdict = review_item_in(
-        &OWN,
-        &git_context(),
-        &item,
-        options(&item, "http://127.0.0.1:1/unused"),
-        Duration::from_secs(60),
-    );
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises again");
-    remove(fixture.parent.as_path());
-    let Verdict::Failed(said) = verdict else {
-        panic!("a review that never started is a failed item: {verdict:?}")
-    };
-    assert!(said.contains(&item.oid), "the item is named: {said}");
-    assert!(
-        said.contains("ulimit -u") && said.contains("pids.max"),
-        "the refusal names the limits that refused the thread, and is not an internal error: {said}"
-    );
-    assert!(
-        !said.contains("internal error"),
-        "a refused thread is not a defect of this program: {said}"
+        || {
+            static OWN: crate::standards_review_run::Containment =
+                crate::standards_review_run::Containment::new();
+            // The fixture is made of Git processes, which the refusal refuses as well, so it is made while a process may start.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            let fixture: Fixture = fixture_with_log("review-no-thread");
+            let item: WorkItem = commit(&fixture, &[("src/a.rs", "fn a() {}\n")], "feat(a): add a");
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            let verdict: Verdict = review_item_in(
+                &OWN,
+                &git_context(),
+                &item,
+                options(&item, "http://127.0.0.1:1/unused"),
+                Duration::from_secs(60),
+            );
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises again");
+            remove(fixture.parent.as_path());
+            let Verdict::Failed(said) = verdict else {
+                panic!("a review that never started is a failed item: {verdict:?}")
+            };
+            assert!(said.contains(&item.oid), "the item is named: {said}");
+            assert!(
+                said.contains("ulimit -u") && said.contains("pids.max"),
+                "the refusal names the limits that refused the thread, and is not an internal error: {said}"
+            );
+            assert!(
+                !said.contains("internal error"),
+                "a refused thread is not a defect of this program: {said}"
+            );
+        },
     );
 }

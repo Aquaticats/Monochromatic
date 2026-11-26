@@ -122,13 +122,21 @@ Rounds started earlier run on the pool they named.
 - The crate split's round 1 (the rest of move-order step 2),
   briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
   starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
-  at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
-  and the setgroups round that also touched `invocation/` merged at 07:31.
+  the last two that did (6494 and the setgroups skip) merged by 07:57,
+  so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6504 (two driver controls fail in its parallel suite and pass alone),
-  window `issue-6504-driver-suite-controls-fail-together-and-pass-alone`, the first round on the virtual writer.
-- Issue 6494, the no-threads child helper read the wrong way,
-  window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
+- Issue 6506 (the watch's wall-clock control fails in the driver's parallel suite, the class 6504 fixed),
+  window `issue-6506-watch-wall-clock-control-sized-from-its-own-run`, on the virtual writer.
+- Issue 6494 merged as `c72c68f022` (07:57) and was closed by comment, its branch carrying no closing keyword.
+  Its merge check's one red, `commit::commit_index`'s span control (the `index::` filter also matches `commit::commit_index::`),
+  passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
+  The round filed two issues:
+  6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
+  which waits for 6493 (it edits that helper) and the split's round 1;
+  and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
+  briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
+  running on the virtual writer since 6494 merged.
+- One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
 - Issue 6493 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
@@ -168,6 +176,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6495 as `2024335d64` and
   6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
 - 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
+- 6504 (two driver controls size their wall clock from a run of their own and own the child they read) as `6ffc826871`,
+  the first round written on the virtual writer.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
   the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
   proved in an Ubuntu 6.8 guest with the remedy arm.
