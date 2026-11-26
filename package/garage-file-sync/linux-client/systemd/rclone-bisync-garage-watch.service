@@ -1,0 +1,29 @@
+[Unit]
+Description=Start a Garage bisync run when ~/Plain changes
+Documentation=file://%h/Monochromatic/package/garage-file-sync/linux-client/README.md
+# No start limit. Measured under systemd 262 with Restart=on-failure and RestartSec=1:
+# five crashes in ten seconds reached the default start limit and left the unit failed
+# with Result=start-limit-hit, after which nothing watched the folder. The thirty-second
+# delay below alone would already stay under the default limit, and this line makes the
+# guarantee independent of the delay.
+StartLimitIntervalSec=0
+# The watcher's own crash is an outage worth a desktop alert; the entry deduplicates
+# repeated failures into one alert per hour, and reports the recovery when it starts again.
+OnFailure=rclone-bisync-garage-alert@%n.service
+
+[Service]
+# A long-running watcher, not a oneshot: it holds the inotify watches until it is stopped.
+Type=simple
+# The launch folder is the home folder, so `path: Plain` in the config names ~/Plain
+# and every relative path in a hook resolves against the home folder.
+WorkingDirectory=%h
+# Named by absolute path: the login shell (which `|@` would use) and the user manager's
+# PATH do not include the repository toolchain's bin/ folder. directory-watcher 3.2.1
+# is installed there by `mise run toolchain:install`.
+ExecStart=%h/.local/share/monochromatic-dev/toolchain/bin/directory-watcher --config-path %h/.config/directory-watcher/garage-plain.yml
+# Start again after a crash; a clean exit (a stop signal) is not restarted.
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

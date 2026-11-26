@@ -1,0 +1,69 @@
+[Unit]
+Description=Bisync ~/Plain with Garage S3
+Documentation=https://rclone.org/bisync/
+After=network-online.target
+Wants=network-online.target
+# No start limit: the five-minute timer and the change trigger can ask for a run
+# while every run fails fast. With systemd's default limit (five starts in ten
+# seconds, `systemctl --user show rclone-bisync-garage.service` before this line)
+# that pattern ends in `Result=start-limit-hit`, and then the timer's start is
+# refused too, so nothing retries and no alert fires.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h
+# Finite timeout (< the five-minute interval) so a stalled run is reaped before the
+# next one; --recover/--resilient below let the following run pick up cleanly.
+# Measured under systemd 262: the timeout applies to each ExecStart= pass separately,
+# so a stalled two-pass run can hold every follow-up and timer start for up to
+# 6000 s before it fails and alerts. The owner accepted that bound.
+TimeoutStartSec=3000
+# Resolve rclone through the account's login-shell PATH on every invocation.
+# systemd's | prefix invokes the user's shell; @ enables login-shell startup.
+# The mpm shadow owns toolchains; do not pin a Mise shim or tool payload here.
+# No --check-access: bisync's built-in --max-delete defaults to 50%, which
+# already aborts on a catastrophic one-sided deletion (e.g. an empty source).
+# --fast-list: one bulk recursive S3 listing instead of a per-directory walk.
+# --use-server-modtime: compare on each object's LastModified (already in the
+# listing) instead of HEADing every object for its mtime metadata; over a
+# high-latency link the per-object HEAD made each run take minutes. Local file
+# mtimes become the server-side LastModified, not the original authoring time.
+# --filter-from excludes the double-encoded "phantom" keys (names containing
+# U+201B) that Garage lists but cannot HEAD/GET; without this, bisync aborts the
+# whole run. The pattern MUST be '- **‛**' (full-path match): '- *‛*' only
+# matches the base name and misses a phantom nested inside a phantom folder, which
+# is what the full-path pattern above is for.
+# this by skipping the un-HEAD-able phantom; --use-server-modtime does not.
+# See doc/troubleshooting/rclone-double-encode-phantom-keys.md.
+# Changing this filter requires a one-off `... --resync --filter-from <file>`.
+# --conflict-resolve newer: --use-server-modtime above makes bisync record an
+# uploaded file's source mtime in its baseline while comparing the object's
+# LastModified, so every file it uploads reads back as "Path1 File changed:
+# time (newer)" on the next run with no size change. That phantom is harmless
+# alone (it self-heals on the copy back down), but a file edited across two
+# consecutive runs then shows BOTH sides changed, and the default
+# --conflict-resolve=none renames both copies and leaves the original name on
+# neither side. Six occurrences, always on actively-edited files. With `newer`
+# the genuinely newer local edit wins and KEEPS its filename. Deliberately no
+# --conflict-loser: its default `num` renames the loser to <name>.conflict1
+# rather than deleting it, so the fallback copy survives if `newer` ever picks
+# wrong. Verified on a throwaway fixture: default leaves f3.txt absent with
+# .conflict1+.conflict2; with the flag f3.txt survives holding the newer bytes.
+# Adding this flag does NOT require --resync (unlike a filter change).
+# See doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md.
+ExecStart=|@rclone bisync garage:files/Plain %h/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+# Settle pass: the same command again, straight after the first.
+# The wait for an hour between runs is what let a second save of one file turn into
+# a .conflictN copy, and what brought a locally deleted file back from the bucket;
+# a second pass closes the deleted-file case and narrows the conflict window to the
+# length of the first pass (measured on a throwaway Garage). Every run pays one more
+# bucket listing for it, the five-minute timer runs included.
+# systemd starts the passes one after another and runs no later ExecStart= line after
+# one fails, so a failed first pass skips this one. That is harmless: the settle pass
+# only matters after a successful upload.
+ExecStart=|@rclone bisync garage:files/Plain %h/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+# Stay out of the way of interactive desktop use.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6

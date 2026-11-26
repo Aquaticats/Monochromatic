@@ -1,0 +1,20 @@
+[Unit]
+Description=Run Garage bisync every five minutes
+
+[Timer]
+# Every five minutes, so a change made on another device reaches this PC within
+# five minutes. Garage cannot notify a client that the bucket changed (its S3
+# compatibility page lists the notification endpoints as missing), so listing the
+# bucket on a timer is the only way to see another device's change.
+OnCalendar=*:0/5
+# A missed run still happens on the next boot when the machine was off.
+Persistent=true
+# Small jitter, so the run does not start at exactly :00 against the bucket.
+RandomizedDelaySec=30
+# The default accuracy of one minute would let a run slip up to 90 s past its slot,
+# and the change trigger's follow-up would then trail it further. One second keeps
+# the timer run where the schedule puts it.
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

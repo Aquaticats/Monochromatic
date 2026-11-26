@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/seungyeop-lee/directory-watcher/v3/directory-watcher.schema.json
+# directory-watcher config for rclone-bisync-garage-watch.service.
+# The unit sets WorkingDirectory=%h, so `path: Plain` is ~/Plain and relative paths in
+# hooks resolve against the home folder (directory-watcher resolves a relative path
+# against the folder it was started in: docs/guide/configuration.md at v3.2.1).
+# Installed as ~/.config/directory-watcher/garage-plain.yml by
+# `mise run //package/garage-file-sync/linux-client:install`;
+# this file is the single source of the installed copy.
+# Hooks run through `sh -c`, so $HOME is the home folder and `||` chains commands.
+global:
+  lifeCycle:
+    # A watcher outage has no other way to announce its end: the watcher's crash is
+    # reported by the unit's OnFailure=, and this hook reports the recovery, once, for
+    # the watcher's open alert streak. It is silent when no streak is open.
+    onStartWatch:
+      - >-
+        /usr/bin/env node "$HOME/Monochromatic/package/garage-file-sync/linux-client/src/alert.ts"
+        rclone-bisync-garage-watch.service --trigger=watcher-started
+watchTargets:
+  - path: Plain
+    lifeCycle:
+      # A change starts the trigger unit, which starts the sync unit once the run that
+      # may be going now has ended; systemd merges requests that land during a run.
+      # directory-watcher only logs a failed hook command and keeps watching
+      # (docs/guide/configuration.md, "The failure is logged as an [ERROR] line"), so the
+      # fallback reports it with the alert entry run directly under node: systemd itself
+      # may be what failed, and the notice must not depend on it.
+      onChange:
+        - >-
+          /usr/bin/systemctl --user start --no-block rclone-bisync-garage-after-current.service
+          || /usr/bin/env node "$HOME/Monochromatic/package/garage-file-sync/linux-client/src/alert.ts"
+          rclone-bisync-garage-watch.service --trigger=hook-failed
+    option:
+      watch:
+        # Files that are still being written elsewhere: a download in progress, an editor's
+        # temporary file, a browser's partial download. Their final name is what bisync
+        # should see, and the rename to it is a change of its own.
+        exclude:
+          - '**/*.partial'
+          - '**/*.part'
+          - '**/*.tmp'
+          - '**/*.crdownload'
+      hookBatch:
+        # A save is a burst (KeePassXC saves after every change, and an editor writes a
+        # temporary file and renames it), so wait for ten seconds of quiet before starting
+        # a run, and never wait longer than a minute when changes keep arriving.
+        waitMillisecond: 10000
+        maxWaitMillisecond: 60000
+# Everything else (run concurrency, interrupt, queue size, dirBatch) stays at the
+# defaults documented in docs/guide/configuration.md and docs/guide/running.md at v3.2.1.
