@@ -44,12 +44,12 @@ export const NO_MEMORY_KILL: unique symbol = Symbol('container that met no memor
 /**
  Tells whether a container's own events count a kill for memory.
 
- `oom_kill` counts kills the cgroup caused, and `oom` counts out-of-memory events there even when the kernel chose no
- process to end; either says the bound decided something.
+ `oom_kill` counts the kills the container's bound caused. `oom` counts out-of-memory events there, which an event that
+ ended no process also raises, so it alone does not say a kill happened.
 
  @param events - the `memory.events` counters of a container's cgroup
 
- @returns true when the bound killed or refused something inside it, false when it did not, including for an empty set
+ @returns true when the bound killed something inside it, false when it did not, including for an empty set
 
  @example
  ```ts
@@ -57,7 +57,7 @@ export const NO_MEMORY_KILL: unique symbol = Symbol('container that met no memor
  ```
  */
 export function containerMemoryKilled({ events }: { readonly events: Readonly<Record<string, number>>; },): boolean {
-  return ((events.oom_kill ?? 0) > 0) || ((events.oom ?? 0) > 0);
+  return (events.oom_kill ?? 0) > 0;
 }
 
 /**

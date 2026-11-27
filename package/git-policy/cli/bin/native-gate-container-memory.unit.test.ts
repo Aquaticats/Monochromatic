@@ -333,10 +333,10 @@ await describe({
       name: containerMemoryKilled.name,
       children: [
         it({
-          name: 'counts a cgroup whose events hold a kill, or an out-of-memory event alone',
+          name: 'counts a cgroup whose events hold a kill, and not one whose out-of-memory event ended no process',
           fn: async () => {
             expect(containerMemoryKilled({ events: { oom_kill: 1, }, },),).toBe(true,);
-            expect(containerMemoryKilled({ events: { oom: 1, }, },),).toBe(true,);
+            expect(containerMemoryKilled({ events: { oom: 1, oom_kill: 0, }, },),).toBe(false,);
             expect(containerMemoryKilled({ events: { oom: 0, oom_kill: 0, }, },),).toBe(false,);
             expect(containerMemoryKilled({ events: {}, },),).toBe(false,);
           },

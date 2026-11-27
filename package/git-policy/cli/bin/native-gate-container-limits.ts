@@ -88,13 +88,19 @@ export const gateClippyMemory = '8g';
  Memory the gate's suite container may use: 4 GiB.
 
  Not the repository default, which the mutation campaigns and the planted controls keep. The suite runs the crate's whole
- test run at four test threads inside the gate's image, and on 2026-11-27 a gate whose suite bound no step met peaked at
- 1,516.8 MiB, almost all of it page cache and the tests' own anonymous memory, while the same morning's gates read
- 1,149.3 to 1,516.5 MiB of the 2 GiB they shared with Clippy (issue 6583).
+ test run at four test threads inside the gate's image: measured 2026-11-27T08:21:45-05:00 in a gate whose suite bound
+ no step met, it peaked at 1,486.0 MiB, and 892 MiB of that was one control holding its own memory for 25 seconds
+ (`service::service_main::tests::the_service_setup_and_its_words_are_used_only_by_the_service_mode`), 469.3 MiB was the
+ page cache of what the suite read, and the four tests beside that control held about 170 MiB between them; the fixture
+ root's tmpfs held nothing at the peak. The same morning's gates read 1,149.3 to 1,516.5 MiB of the 2 GiB they shared
+ with Clippy (issue 6583).
 
- 4 GiB is 4,096 MiB, 2.70 times that peak and 2,579.2 MiB above it, so a suite that gains a large control still fits
- with its pages kept, and the room has the shape the two bounds beside it were sized with: {@link gateBuildMemory} is
- 1.53 times its measured peak and {@link gateClippyMemory} 1.55 times its own.
+ 4 GiB is 4,096 MiB, 2.76 times the measured peak and 2,610 MiB above it. The room is sized for controls of the size this
+ run found rather than for the test threads: two more controls holding 892 MiB each still fit, at 3,270 MiB, inside
+ 4,096 MiB. {@link gateBuildMemory} is 1.53 times its measured peak and {@link gateClippyMemory} 1.55 times its own, and
+ this bound is deliberately further above its peak than those two, because what grows a suite is controls rather than
+ jobs (`doc/planning/git-policy-cli-cachyos-test-containers.md`, "The suite container's own memory bound, measured
+ 2026-11-27").
 
  A container held at its cap is not a smaller container but a slower one: its pages are reclaimed instead of used, and a
  process the kernel picks there is killed with no diagnostic beside the line the gate now prints for it
