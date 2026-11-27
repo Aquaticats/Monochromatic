@@ -112,6 +112,12 @@
 //! - `push_minimum_rate.rs`:
 //!   the least traffic a push's connection must carry in one window and still count as progress,
 //!   the variable that sets it and its measured default.
+//! - `push_retry_store_plan_record.rs`:
+//!   the record a retry plan is kept as:
+//!   its version and the JSON that reads back as the plan.
+//! - `push_retry_store_loaded.rs`:
+//!   reading every plan a service instance's journal holds,
+//!   one plan per branch and whether something could not be read.
 //! - `push_retry.rs`:
 //!   the service's own retry of a push it stopped or that failed:
 //!   the pauses,
@@ -327,6 +333,14 @@ pub mod push_server_naming;
 
 /// The first of Git's own lines that gives a reason for a push's failure.
 pub mod push_retry_cause_line;
+
+/// The record a retry plan is kept as:
+/// its version and the JSON that reads back as the plan.
+pub mod push_retry_store_plan_record;
+
+/// Reading every plan a service instance's journal holds,
+/// one plan per branch and whether something could not be read.
+pub mod push_retry_store_loaded;
 
 /// The retry plan on disk,
 /// in the service instance's journal,
