@@ -245,8 +245,6 @@ file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> workt
 file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_clears_the_ahead_pool.rs
 file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_interrupted_destroy.rs
 file-uses src/native/worktree worktree_removal_interrupted_destroy.rs -> worktree_removal_finishes_an_interrupted_destroy.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_remove_around.rs
-file-uses src/native/worktree worktree_remove_around.rs -> worktree_remove.rs
 file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_interrupted_destroy.rs
 file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_remove_hand_over.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs

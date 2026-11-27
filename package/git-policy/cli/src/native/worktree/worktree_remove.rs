@@ -51,11 +51,7 @@ use crate::diagnostic_log::{
     debug,
     warn,
 };
-use crate::fs_beneath::{
-    handle_path,
-    identity_at,
-    remove_at,
-};
+use crate::fs_beneath::handle_path;
 use crate::fs_btrfs_ioctl::{
     snapshot_destroy_by_id,
     snapshot_destroy_in,
@@ -65,9 +61,7 @@ use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{
     Boundary,
-    empty_directory,
     find_boundary_below_except,
-    verify_below,
 };
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::{
@@ -98,8 +92,17 @@ use crate::worktree_remove_registry::{
     Registration,
     registration_of,
 };
+// What:     `use crate::worktree_remove_clears_the_registration::finish;` imports the step
+//           that clears a registration once the subvolume is gone.
+// Why:      This file destroys the subvolume and hands the rest to that step, which the
+//           around pass finishes a removal with too.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { finish } from './worktree_remove_clears_the_registration';
+// ```
+use crate::worktree_remove_clears_the_registration::finish;
 use crate::worktree_remove_reports::{
-    incomplete_report,
     leftover_stage_report,
     pending_deletion_report,
     registration_volume_report,
@@ -108,7 +111,6 @@ use crate::worktree_remove_reports::{
     unwalkable_registration_report,
 };
 use std::ffi::OsStr;
-use std::fs::File;
 use std::path::{
     Path,
     PathBuf,
@@ -374,129 +376,6 @@ impl RemoveOperations for LinuxOperations {
             Err(error) => Err(error.to_string()),
         };
     }
-}
-
-/// What:
-///  After the destroy,
-/// remove the registration through the descriptors that were held,
-/// and report how that ended.
-/// Why:
-///   The registration is emptied through its held descriptor and removed from the held `worktrees` directory by name,
-/// which
-///  succeeds only for an empty directory;
-/// a registration that another process replaced is therefore never touched.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function finish(held: Held, registration: Registration, request: RemoveRequest): Promise<RemoveOutcome>;
-/// ```
-/// The outcome of a removal whose subvolume is gone but whose registration could not be cleared:
-/// the report is also logged.
-fn incomplete(
-    registration: &Registration,
-    request: &RemoveRequest<'_>,
-    reason: String,
-) -> RemoveOutcome {
-    let report: String = incomplete_report(
-        request.plan.target.as_path(),
-        registration,
-        request.common_dir,
-        reason.as_str(),
-    );
-    warn(TAG, report.as_str());
-    return RemoveOutcome::Incomplete(report);
-}
-
-pub(crate) fn finish(
-    held: &Held,
-    registration: &Registration,
-    request: &RemoveRequest<'_>,
-) -> RemoveOutcome {
-    let target: &Path = request.plan.target.as_path();
-    match identity_at(&held.worktrees, registration.id.as_os_str()) {
-        Ok(found) if found == held.admin_identity => {}
-        Ok(_other) => {
-            return incomplete(
-                registration,
-                request,
-                String::from(
-                    "another registration took its place while the worktree was being removed, and it was left untouched",
-                ),
-            );
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            debug(
-                TAG,
-                format!(
-                    "the registration {} is already gone",
-                    registration.admin.display()
-                )
-                .as_str(),
-            );
-            return RemoveOutcome::Removed;
-        }
-        Err(error) => {
-            return incomplete(
-                registration,
-                request,
-                format!("it cannot be looked up ({error})"),
-            );
-        }
-    }
-    let admin: File = match held.admin.try_clone() {
-        Ok(admin) => admin,
-        Err(error) => {
-            return incomplete(
-                registration,
-                request,
-                format!("its directory cannot be used ({error})"),
-            );
-        }
-    };
-    // The snapshots ahead of an add are this program's own and sit in the registration, so they go before the walk that
-    // refuses every nested subvolume. A pool a fill made in the moments since the removal cleared it is the one case this
-    // second clear answers, and a member that cannot go is the reason the registration stays.
-    if let Err(reason) =
-        clear_the_pools_ahead_of_a_worktree(request.common_dir, handle_path(&held.admin).as_path())
-    {
-        return incomplete(
-            registration,
-            request,
-            format!("its content cannot be removed ({reason})"),
-        );
-    }
-    let emptied = match verify_below(&admin, registration.admin.as_path()) {
-        Ok(()) => empty_directory(&admin, registration.admin.as_path()),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = emptied {
-        return incomplete(
-            registration,
-            request,
-            format!("its content cannot be removed ({error})"),
-        );
-    }
-    if let Err(error) = remove_at(&held.worktrees, registration.id.as_os_str(), true) {
-        return incomplete(
-            registration,
-            request,
-            format!(
-                "the directory cannot be removed from {} ({error})",
-                registration.worktrees.display()
-            ),
-        );
-    }
-    // Git removes the `worktrees` directory when the last registration goes; a directory that still holds others stays.
-    let _kept = std::fs::remove_dir(registration.worktrees.as_path());
-    debug(
-        TAG,
-        format!(
-            "destroyed the subvolume {} and its administrative directory",
-            target.display()
-        )
-        .as_str(),
-    );
-    return RemoveOutcome::Removed;
 }
 
 /// What:

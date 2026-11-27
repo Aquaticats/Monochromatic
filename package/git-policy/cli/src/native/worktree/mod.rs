@@ -567,6 +567,11 @@
 //!   and the words for what a person still has to do.
 //! - `worktree_remove_reports.rs`:
 //!   the three reports a removal can end with.
+//! - `worktree_remove_clears_the_registration.rs`:
+//!   what a removal does after the subvolume is gone:
+//!   the snapshots ahead of an add cleared out of the registration,
+//!   the registration emptied through the descriptors the removal holds,
+//!   and the words for what still stands when it cannot go.
 //! - `worktree_removal_goes_around_a_foreign_volume.rs`:
 //!   the removal that goes around a subvolume or a mount point it did not make,
 //!   and the words it says about what it left.
@@ -895,6 +900,12 @@ pub mod worktree_remove;
 /// What one removal is asked to do,
 /// and one question its caller answers while it runs.
 pub mod worktree_remove_request_and_last_look;
+
+/// What a removal does after the subvolume is gone:
+/// the snapshots ahead of an add cleared out of the registration,
+/// the registration emptied through the descriptors the removal holds,
+/// and the words for what still stands when it cannot go.
+pub mod worktree_remove_clears_the_registration;
 
 /// How one attempt to remove a worktree ended,
 /// and what each ending needs of the caller.
