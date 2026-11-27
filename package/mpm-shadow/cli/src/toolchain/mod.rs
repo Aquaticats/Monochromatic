@@ -413,6 +413,12 @@ mod install_cargo_tests;
 #[cfg(test)]
 mod published_archive_tests;
 
+/// The unit tests of the order a recovery's newest-only rule keeps:
+/// the link is moved before the older version is removed,
+/// and what the report says about the version that went.
+#[cfg(all(test, unix))]
+mod a_recovery_moves_current_before_it_removes_an_older_version_tests;
+
 /// The unit tests of the launcher's decision.
 #[cfg(test)]
 mod launcher_tests;

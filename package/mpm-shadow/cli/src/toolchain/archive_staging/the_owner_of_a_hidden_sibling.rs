@@ -353,6 +353,43 @@ fn existence_of(pid: u32) -> Existence {
 }
 
 /// What:
+/// The bytes of one process's `/proc/<pid>/stat` record,
+/// or the answer the read gave.
+/// Why:
+/// The record is the one thing read of another process,
+/// so one place names the path it comes from,
+/// and one seam can answer as a `/proc` that hides a record does
+/// without a mount.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theRecordOf(pid: number): Buffer  // throws
+/// ```
+fn the_record_of(pid: u32) -> std::io::Result<Vec<u8>> {
+    #[cfg(test)]
+    if a_proc_that_hides_records() {
+        // What: the record is one `/proc` does not hold, which is what a `hidepid` mount leaves for a live process's
+        //  record, and the caller then asks the kernel whether the number is held.
+        // Why: the arm that tells a hidden live process from a free number is the one this seam has to reach, and no
+        //  disposable fixture can hide a record on this machine.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // throw Object.assign(new Error('hidden'), { code: 'ENOENT' });
+        // ```
+        return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+    }
+    // What: the record itself, read from the kernel's own path for that number.
+    // Why: it is the only evidence of when the process started, which is the fact a leftover is judged by.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return fs.readFileSync(statPath(pid));
+    // ```
+    return std::fs::read(stat_path(pid));
+}
+
+/// What:
 /// The moment `/proc/<pid>/stat` reports as the process's start,
 /// in clock ticks since boot.
 /// Why:
@@ -380,7 +417,7 @@ fn start_time_of(pid: u32) -> StartTime {
             ForcedStart::Unreadable => StartTime::Unreadable,
         };
     }
-    let record: Vec<u8> = match std::fs::read(stat_path(pid)) {
+    let record: Vec<u8> = match the_record_of(pid) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             // What: the record is absent; the kernel's own answer for the number decides whether that means ended.
@@ -525,6 +562,81 @@ fn read_the_forcing_view<T>(pick: impl FnOnce(&ReaderView) -> Option<T>) -> Opti
 #[cfg(test)]
 pub(crate) struct ReaderViewGuard;
 
+// What:
+// Whether this test thread reads every process record as one `/proc` hides it.
+// Why:
+// A `hidepid` mount is a state this module guards against and no disposable fixture can make it,
+// so a control asks for the answer of such a mount through a seam of the code's own.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// let theRecordIsHidden = false;
+// ```
+#[cfg(test)]
+thread_local! {
+    // The hidden-record answer of the thread reading now.
+    static THE_RECORD_IS_HIDDEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What:
+/// Whether this test thread reads every process record as one `/proc` hides it.
+/// Why:
+/// The record path is the one place a hidden record is read from,
+/// so one question decides it there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aProcThatHidesRecords(): boolean { return theRecordIsHidden; }
+/// ```
+#[cfg(test)]
+fn a_proc_that_hides_records() -> bool {
+    return THE_RECORD_IS_HIDDEN.with(|hidden| return hidden.get());
+}
+
+/// What:
+/// Puts this test thread under a `/proc` that hides every process's record until the guard drops.
+/// Why:
+/// A control reaches the arm that asks the kernel whether a number is held only when the record is absent,
+/// and the guard takes the answer away when the control leaves,
+/// however it left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readAsAProcThatHidesRecords(): { [Symbol.dispose](): void };
+/// ```
+#[cfg(test)]
+pub(crate) struct HiddenRecordGuard;
+
+/// Clears the hidden-record answer when the guard leaves.
+#[cfg(test)]
+impl Drop for HiddenRecordGuard {
+    /// Puts the thread's real `/proc` back.
+    fn drop(&mut self) {
+        THE_RECORD_IS_HIDDEN.with(|hidden| {
+            hidden.set(false);
+        });
+    }
+}
+
+/// What:
+/// Arms the hidden-record answer for this test thread.
+/// Why:
+/// The control describes a record `/proc` does not hold,
+/// which is what a `hidepid` mount leaves,
+/// and the guard takes the description away when the test ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readAsAProcThatHidesRecords(): HiddenRecordGuard { theRecordIsHidden = true; return new HiddenRecordGuard(); }
+/// ```
+#[cfg(test)]
+pub(crate) fn read_as_a_proc_that_hides_records() -> HiddenRecordGuard {
+    THE_RECORD_IS_HIDDEN.with(|hidden| {
+        hidden.set(true);
+    });
+    return HiddenRecordGuard;
+}
+
 /// Clears the forcing view when the guard leaves.
 #[cfg(test)]
 impl Drop for ReaderViewGuard {
@@ -594,6 +706,8 @@ impl Owner {
     /// a number now held by another program carries a different start and is that program,
     /// while a record that could not be read says nothing at all.
     /// A name from another boot is an installer that reboot certainly ended.
+    /// A name that carries no start time cannot be judged,
+    /// because a record this reader cannot read says nothing about the process it belongs to.
     /// A name from another namespace,
     /// or one an earlier build wrote without these facts,
     /// is never judged.
@@ -601,11 +715,11 @@ impl Owner {
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// function liveness(owner: Owner): Liveness {
-    ///   if (owner.started === 0) return 'unknown';
     ///   const reader = thisReader();
     ///   if (reader.boot === undefined || reader.namespace === undefined) return 'unknown';
     ///   if (owner.boot === undefined || owner.namespace === undefined) return 'unknown';
     ///   if (owner.boot !== reader.boot) return 'gone';
+    ///   if (owner.started === 0) return 'unknown';
     ///   if (owner.namespace !== reader.namespace) return 'unknown';
     ///   const seen = startTimeOf(owner.pid);
     ///   if (seen === 'gone') return 'gone';
@@ -614,9 +728,6 @@ impl Owner {
     /// }
     /// ```
     pub(crate) fn liveness(&self) -> Liveness {
-        if self.started == 0 {
-            return Liveness::Unknown;
-        }
         let reader: Reader = this_reader();
         let (Some(this_boot), Some(this_namespace)) = (reader.boot, reader.namespace) else {
             return Liveness::Unknown;
@@ -624,8 +735,17 @@ impl Owner {
         let (Some(named_boot), Some(named_namespace)) = (&self.boot, self.namespace) else {
             return Liveness::Unknown;
         };
+        // What: the boot this name belongs to, which decides before anything the name says about its own process.
+        // Why: no process survives a reboot, so a name of another boot is an installer that certainly ended, whatever
+        //  its start time field holds; the zero a run writes when it cannot read its own record cannot keep it for ever.
         if *named_boot != this_boot {
             return Liveness::Gone;
+        }
+        // What: a name of this boot that carries no start time.
+        // Why: the record this reader gets is no evidence about which startup wrote the name, so nothing may be
+        //  concluded; a record it can read would be compared with a moment no run ever reported.
+        if self.started == 0 {
+            return Liveness::Unknown;
         }
         if named_namespace != this_namespace {
             return Liveness::Unknown;
