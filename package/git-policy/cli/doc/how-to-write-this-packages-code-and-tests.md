@@ -465,6 +465,39 @@ sixty seconds,
 which only stops a hang.
 A control's own bound then rests on a promise the test's own threads do not have to keep.
 
+A control of a step the kernel holds states both of the facts such a hold gives the wait.
+One is the kernel's answer about the process's state,
+which `the_kernel_holds` states
+(`commit/scratch_step_look_below_control_window.rs`).
+The other is the step's end not collected until the control lets it go,
+which `hold_the_reap` states
+(`process/wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs`).
+One without the other tests a wait that never lasts:
+the step acts on the `SIGKILL` at once,
+the wait after the stop returns before its first look,
+and the control passes on a wait it never made.
+On 2026-11-27 the never-released control of `commit/commit_preparation_tests.rs` stated only the state,
+passed alone in 1.41 s,
+and then failed a gate run in 31.9 s,
+because a loaded host's own disk wait held the real step and the control allowed the command twenty seconds
+(issue 6589).
+The gate's log is what measured it:
+the line naming process `12876` is the step,
+which that control never stated,
+so `/proc` itself reported the step in state `D` until the kernel let it go,
+about thirty seconds after the `SIGKILL` at 1.3 s.
+
+No control bounds the kernel's release of a step.
+The release waits for it with no bound after the stop
+(`SPEC.md`,
+the owner's answer of 2026-11-10,
+"Keep waiting and say so"),
+so a control asserts what the release does promise:
+the step was ended at the bound the control planted,
+its words say the step was waited for,
+and the command answers once the control let the reap go,
+within a multiple of the wait's own `AFTER_THE_STOP` pause.
+
 A control whose subject is a notice said to a waiting client reads what the client has said while it still waits,
 and reads it before the client ends
 (`Told` in `landing/service_land_hung_write_tests.rs`):
