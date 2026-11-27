@@ -31,7 +31,25 @@ use super::support::{
     fixture,
     link_real_git,
     observe,
+    observe_under,
     remove,
+};
+/// What:
+///  `crate::supervisor` is the hang guard of the binary tests:
+///  the limits it judges a command by (`Limits`),
+///  and the shared limits themselves (`SHARED`),
+///  whose window and backstop this control keeps and whose processor budget it replaces.
+/// Why:
+///   The processor budget of the shared limits is sized for one Git command's work,
+///  and one start of this control's wrapper reads more than that figure allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Limits, SHARED } from './binary_supervisor.ts';
+/// ```
+use crate::supervisor::{
+    Limits,
+    SHARED,
 };
 use std::ffi::{
     OsStr,
@@ -41,6 +59,44 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{
     Path,
     PathBuf,
+};
+use std::time::Duration;
+
+/// What:
+///  The processor time one start of this control's wrapper may use,
+///  thirty seconds.
+/// Why:
+///  A start here makes the wrapper's self-exclusion read its own image once for every PATH candidate
+///  whose bytes could be a copy of it,
+///  and the seven forms of the wrapper this control plants put four such candidates on PATH,
+///  so one start as `copy-early/git` or `copy-late/git` reads its own 161,674,320-byte image eight times,
+///  1,293,394,560 bytes,
+///  before it can answer.
+///  Measured on 2026-11-27 on this host at load average 79.6 on ten threads:
+///  one such start used 0.72 s of processor time inside its reads and 1.0 s in all,
+///  and the same command through the real Git in that fixture 0.002 s.
+///  Issue 6547 records the same start using 10.0 s of processor time on the loaded host of
+///  2026-11-26,
+///  where the shared processor budget of ten seconds ended it and reported a loop.
+///  Thirty seconds is three times the slowest figure on record,
+///  and a start that really loops through the copies is still ended by it.
+const SELF_EXCLUSION_CPU_BUDGET: Duration = Duration::from_secs(30);
+
+/// What:
+///  The limits this control states for each start it observes:
+///  the window the shared limits give a command to show movement,
+///  the shared ten-minute backstop,
+///  and the processor budget above.
+/// Why:
+///  A window sized from a quiet host ends a start this control's own work makes slow,
+///  and a figure sized from what one start reads does not (issue 6547).
+///  The command is still watched,
+///  and still ended by the monitor,
+///  with this control's figures.
+const SELF_EXCLUSION: Limits = Limits {
+    no_progress: SHARED.no_progress,
+    cpu_budget: SELF_EXCLUSION_CPU_BUDGET,
+    backstop: SHARED.backstop,
 };
 
 /// Join fixture-relative directories (and absolute ones) into one PATH value.
@@ -237,7 +293,11 @@ fn wrapper_never_selects_itself_or_a_copy_of_itself() {
         "nested/bin-link/git",
         "wrapper/monochromatic-git-policy-cli",
     ] {
-        let observed: Observed = observe(
+        // What: one start under the limits this control states for it, `bounded` giving the command its
+        //       own `timeout` and the shared ten-minute backstop.
+        // Why:  the monitor watches this start with the budget above, so a loaded host's slower reads of the
+        //       copies are not reported as a loop.
+        let observed: Observed = observe_under(
             bounded(
                 &fixture,
                 fixture.root.join(started).as_path(),
@@ -245,6 +305,7 @@ fn wrapper_never_selects_itself_or_a_copy_of_itself() {
             )
             .args(["rev-parse", "--sq-quote", "reached real git"]),
             b"",
+            SELF_EXCLUSION,
         );
         assert_eq!(observed, expected, "{started}");
     }
