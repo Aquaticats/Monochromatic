@@ -211,7 +211,7 @@ fn a_start_refused_because_the_program_is_being_written_says_what_the_refusal_pr
     for expected in [
         "mpm installed",
         "is open for writing by some other process",
-        "the interpreter named on the program's first line",
+        "the interpreter its first line names (`/bin/sh`)",
         "cannot tell which process holds that file",
         "run the same command again",
         "126",
@@ -268,7 +268,7 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
         "mpm installed",
         "Text file busy",
         "is open for writing by some other process",
-        "the interpreter named on the program's first line",
+        "its dynamic linker (`",
         "cannot tell which process holds that file",
         "run the same command again",
         "the start succeeds as soon as the file is free and whole",

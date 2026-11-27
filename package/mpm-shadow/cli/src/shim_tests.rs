@@ -17,6 +17,12 @@
 
 /// Imports the exit-code offset and the functions under test from this crate.
 use crate::constants::SIGNAL_EXIT_CODE_OFFSET;
+/// Imports one `mpm` the PATH lookup saw and the lookup's whole answer,
+/// which the message carries.
+use crate::real_binary::{
+    Candidate,
+    Lookup,
+};
 use crate::shim::{
     ProgramRun,
     invoked_as_name,
@@ -122,6 +128,15 @@ fn a_program_that_is_gone_before_its_start_keeps_the_systems_kind_and_gets_the_m
         retry.refusals, 0,
         "a missing program is not a refusal to retry"
     );
+    // What:     The lookup that chose the missing program: the message carries it, and no shadow was refused here.
+    // Why:      A `Lookup` is what the shadow's own search answers, so the fixture states one.
+    let lookup: Lookup = Lookup {
+        candidates: vec![Candidate {
+            path: missing.clone(),
+            skipped_because: None,
+        }],
+        chosen: Some(missing.clone()),
+    };
     let text: String = describe_start_failure(&StartFailure {
         outer: &arguments,
         program: &missing,
@@ -130,6 +145,7 @@ fn a_program_that_is_gone_before_its_start_keeps_the_systems_kind_and_gets_the_m
         },
         retry,
         depth: 0,
+        lookup: &lookup,
     });
     assert!(text.contains("is not there"), "{text}");
     assert!(text.contains("install it again"), "{text}");

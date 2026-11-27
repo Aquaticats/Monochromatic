@@ -1202,6 +1202,9 @@ whichever route installed them.
   at the version's name,
   count as finished and cause the working older version to be deleted.
   A failed install removes its staging directory and touches no copy that was already there.
+  A publish that fails keeps the finished copy under the hidden name that run holds it at,
+  which the next install of that version publishes without downloading,
+  and its message names that path and the version's name.
   A directory without the marker (one an earlier release unpacked in place,
   or one cut short) is never finished:
   it is never the newest,
@@ -1220,6 +1223,13 @@ whichever route installed them.
   (`.<version>.replaced.<process id>.<process start time>`)
   and the finished one renamed in after it,
   which leaves one instant in which the version's name holds nothing.
+  Two of those answers,
+  `EPERM` and `EACCES`,
+  are denials of permission rather than a file system that cannot exchange two names,
+  so a policy that refuses only the exchange would be silent;
+  one of them is named on standard error:
+  `mpm-shadow: warning: <the error>: changing <the finished copy's path> and <the version's name> in one exchange was refused, so they are changed in two renames instead, and the instant between those renames, in which <the version's name> names nothing, is back; a file system that cannot exchange two names answers the same way, and so does a policy that refuses only that one call`.
+  The other three answers fall back in silence.
 - A release archive of this repository gets one link per declared program before the marker is written:
   `<version directory>/<program name>`,
   pointing at the program inside the folder the archive unpacked into
@@ -1316,6 +1326,29 @@ because the marker is written after the archive's SHA-256 matched the lock and a
 while the copy at the version's name was unfinished,
 which is why it was being replaced at all.
 
+A recovery whose own publish fails keeps the copy it claimed:
+the copy stays under its `.recovered` name with that run's pair,
+which the next install of that version finds dead,
+claims and publishes,
+and the failure names both the version's name and the path the copy is at.
+A recovery that fails does not stop the install that follows it:
+the tool is installed from the network when the network is there,
+the recovery's message is then a warning in the report,
+and when that install fails too the report names both causes in one failure.
+A publish that finds a copy at the version's name in the instant between its own check and its rename replaces it,
+in the same step it uses for a copy that was there all along,
+so a second install's put-back costs no finished copy.
+
+The copy a killed install moved aside is put back only when no installer the system reports as running holds a claim or
+a staging name for that version:
+such an installer is between its claim and its publish,
+and a copy put at the version's name in that instant would make its rename fail.
+Then the copy waits where it is,
+and a later install puts it back once nothing live holds that version.
+A name whose installer cannot be judged does not hold the copy back,
+because putting it back costs nothing once the publish replaces a name that appeared,
+and an earlier release's name carries no start time to judge it by.
+
 A dead install's copy is claimed before anything is published from it:
 one rename to a `.recovered` name of this process's own,
 so two installs recovering the same copy cannot both take it,
@@ -1343,8 +1376,48 @@ and a directory whose installer it cannot judge is left alone.
 A finished copy under another version's name may be the only copy of that version,
 so it is left for that version's own install to publish.
 
-`install` prints one line for each version it finished this way,
-for example `toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed the 2 hidden directories killed installs left behind`.
+`install` prints one sentence for each version a recovery touched.
+The publish it finished:
+
+```text
+toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed 1 hidden directory that a killed install left behind
+```
+
+The copy it dropped because another install published the version meanwhile:
+
+```text
+toolchain install: dropped the copy of mpm-shadow 0.2.7-alpha.13 that a killed install left, because another install published that version meanwhile
+```
+
+The finished copy it left hidden because an older repository tool is never kept:
+
+```text
+toolchain install: left the finished copy of mpm-shadow 0.2.7-alpha.13 that a killed install left under its hidden name, because 0.2.7-alpha.14 is installed and an older repository tool is never kept
+```
+
+The copy a killed install had moved aside,
+either put back or waiting for a live install to publish:
+
+```text
+toolchain install: put back the copy of mpm-shadow 0.2.7-alpha.13 that a killed install had moved aside
+```
+
+and the hidden directories it removed,
+counted in the singular or the plural:
+
+```text
+toolchain install: removed 2 hidden directories that killed installs of mpm-shadow left behind
+```
+
+A recovery never publishes an older version beside a newer installed one:
+an older repository tool is never kept,
+which the run also warns about,
+so a version that is older than a finished one installed in either toolchain root stays under its hidden name,
+where a later install publishes it if that version may be kept again.
+After a recovery that does put a version at its name,
+`install` removes every version directory older than the newest finished one,
+as it does after an install,
+and the report names each version it removed that way.
 
 ### One set across both toolchain roots
 
@@ -1612,7 +1685,10 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   A file that vanishes between the check and the start still gets a `could not start` line:
   the program is gone,
   or the interpreter named on its first line is,
-  and the command that writes the tool's links again is the remedy for both.
+  and the launcher cannot tell which,
+  because `execve` answers one error for both;
+  the message gives the command that writes the tool's links again,
+  and adds installing the interpreter when the interpreter is the file that is missing.
   A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
   some process holds open for writing the program's file,
   or the interpreter named on its first line,
@@ -2026,6 +2102,21 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   so skipping only the binary's own path took the launcher for the real `mpm`,
   started it,
   and the chain repeated until the host refused new processes (issue 6259).
+  When no candidate is left,
+  the message names every `mpm` the lookup saw,
+  in the order it read them,
+  with the reason each was passed over
+  (this shadow,
+  a launcher of it,
+  a shadow of another version,
+  a directory of that name,
+  a file with no execute bit,
+  or a symbolic link that leads to no file),
+  and the remedy that fits what was found:
+  `chmod +x` for a file without its execute bit,
+  a replacement or a `PATH` edit for a directory of that name,
+  a repaired link,
+  and installing the real `mpm` only where that is what is missing.
 - Never starts a shadow of any version as the real `mpm`:
   A shadow never starts a shadow of any version as its real tool,
   whatever the path or the version of the candidate
@@ -2056,7 +2147,10 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   the fact that the same path was not a shadow when the lookup read it a moment earlier,
   so the file there or a launcher record beside it changed in between,
   and what repairs it:
-  `command -v -a mpm` lists every `mpm` on PATH in the order the lookup reads them,
+  the message itself lists every `mpm` the lookup read,
+  in that order,
+  with why it took or passed over each,
+  so no sentence sends the reader to a command a shell may reject,
   the shadow's own directory belongs first and the real `mpm`'s after it,
   and `mpm install` in a launcher's tree writes a record that names a shadow again.
   A shadow that finds `MONOCHROMATIC_SHADOW_STARTED_BY` left for its own process or its direct parent
@@ -2086,7 +2180,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   a start the system refused because another process holds open for writing a file it needs
   (`ETXTBSY`,
   "Text file busy"):
-  the message says the file is the program or the interpreter named on its first line,
+  the message says the file is the program or the interpreter the program names,
+  which is the program after `#!` on a script's first line or a compiled program's dynamic linker,
+  and which of the two whenever the program's own file says so,
   that the shadow cannot tell which process holds it or why,
   that the same command works once that write has finished and left a whole program,
   and that a write cut short leaves a broken program,
@@ -2163,15 +2259,16 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   Each cause is one arm chosen by what happened,
   so a refused shadow is never read as a program fault,
   and the arm that names the program says what it turned out to be rather than "the first `mpm` on PATH that is not this shadow".
-  An error no arm classifies keeps the system's own words and says what a hand run can and cannot show:
-  the same words when the program's own file is at fault,
-  and something else or nothing when a limit of the machine,
-  a limit of the shadow's own process,
-  or the shape of the command line is the cause,
-  because a shell may run a file the kernel refuses as a script rather than report the refusal.
-  The file the kernel will not start has an arm of its own for that reason.
+  An error no arm classifies keeps the system's own words and names no step that cannot show the error:
+  it does not send the reader to run the program by hand,
+  which cannot reproduce a refusal of this start,
+  and for `E2BIG`,
+  `ENAMETOOLONG` and `ELOOP` it says that running the same command again cannot succeed
+  and names what to change instead,
+  while the words about a damaged file and the words about a limit stay what to act on.
+  The file the kernel will not start has an arm of its own for the same reason.
   Every error that can still reach the last arm,
-  with what a hand run shows for each,
+  with what a shell repeats and which step shows nothing for it,
   is listed in `doc/troubleshooting/mpm-shadow-a-start-that-does-not-happen-says-what-is-known.md`.
 - Shows that it is a shadow in the two places a person looks,
   after mpm's own output and only after a successful run:
