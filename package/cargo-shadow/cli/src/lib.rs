@@ -187,6 +187,9 @@ pub mod git_objects;
 /// The check that a commit stored in a pack file is a commit (split out of the git objects module).
 pub mod git_objects_packed_commit;
 
+/// The reader of a version 2 pack index: its fan-out table and the offset of one object's entry (split out of the git objects module).
+pub mod git_objects_pack_index;
+
 /// The reading of the Git configuration files in Git's order,
 /// split out of `git_refs.rs`.
 pub mod git_settings;
