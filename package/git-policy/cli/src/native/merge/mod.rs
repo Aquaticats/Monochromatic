@@ -176,6 +176,12 @@
 //! - `pull_isolation.rs`:
 //!   a pull that merges,
 //!   read as its fetch and its merge of `FETCH_HEAD`.
+//! - `word_merge_tokens.rs`:
+//!   the lines and the words a text is cut into,
+//!   and the diff algorithm that reads two lists of them.
+//! - `word_merge_invented_text.rs`:
+//!   the text a word merge of one region may not write,
+//!   which keeps that region in conflict.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
 //! - `merge_second_pass.rs`:
@@ -238,14 +244,15 @@
 //!   the word-level second pass after a forwarded merge,
 //!   rebase,
 //!   cherry-pick or revert that Git stopped with a conflict.
-//! - `word_merge_invented_text.rs`:
-//!   the text a word merge of one region may not write,
-//!   which keeps that region in conflict.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // merge/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// The lines and the words a text is cut into,
+/// and the diff algorithm that reads two lists of them.
+pub mod word_merge_tokens;
 
 /// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
 pub mod word_merge;
