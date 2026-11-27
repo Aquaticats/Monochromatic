@@ -45,6 +45,7 @@ use super::super::launcher_chain::chain_problem;
 use super::super::launcher_current_link::{
     MissingProgram,
     missing_program_advice,
+    repair_command,
 };
 /// Imports what this module uses from `super::super::repository_link_cause`.
 use super::super::repository_link_cause::{
@@ -67,6 +68,8 @@ use crate::constants::{
     EXEC_FAILED_EXIT_CODE,
     NOT_FOUND_EXIT_CODE,
 };
+/// Imports the shared words for a start refused because the program's file is being written.
+use crate::start_failure::being_written_cause_and_remedy;
 
 /// Replaces this process with `program`,
 /// keeping `arguments` (argv[0] included) as they were;
@@ -225,15 +228,38 @@ pub fn run_launcher(
         );
     }
     let error: std::io::Error = exec_program(&launch.program, arguments);
+    // What:     A refusal because another process holds a file this start needs open for writing is explained in the
+    //           same words the shadow mode uses: what the refusal proves, and both remedies.
+    // Why:      `execve` cannot start a file that is being written either, and the bare operating-system text read
+    //           as a permanent fault when the same command works a moment later.
+    if error.kind() == std::io::ErrorKind::ExecutableFileBusy {
+        let (cause, remedy) = being_written_cause_and_remedy(&error);
+        eprintln!(
+            "mpm-shadow: could not start {}: {cause}",
+            launch.program.display()
+        );
+        eprintln!("mpm-shadow: what to do: {remedy}");
+        return EXEC_FAILED_EXIT_CODE;
+    }
+    if error.kind() == std::io::ErrorKind::NotFound {
+        // What:     `execve` answers `ENOENT` both for a program that is gone and for the interpreter its first line
+        //           names, so the cause says both and the launcher says it cannot tell them apart.
+        // Why:      The program passed the check a moment ago, so "no file exists there" would be false here,
+        //           and the advice's own sentence about no program being found would be false for a missing interpreter.
+        eprintln!(
+            "mpm-shadow: could not start {}: the program is gone, or the interpreter named on its first line (`#!`) is ({error}); it was there when this launcher checked the path",
+            launch.program.display()
+        );
+        eprintln!(
+            "mpm-shadow: what to do: {}, and install the interpreter its first line names if that is the file that is missing",
+            repair_command(record.scope, &record.lock_file)
+        );
+        return NOT_FOUND_EXIT_CODE;
+    }
     eprintln!(
         "mpm-shadow: could not start {}: {error}",
         launch.program.display()
     );
-    if error.kind() == std::io::ErrorKind::NotFound {
-        // The file vanished between the check and the start (another install deleted it): the same advice applies.
-        eprintln!("mpm-shadow: {}", advice_for(record, lock_text.as_deref()));
-        return NOT_FOUND_EXIT_CODE;
-    }
     return EXEC_FAILED_EXIT_CODE;
 }
 

@@ -75,6 +75,11 @@ pub mod walk_target;
 /// The PATH lookup that finds the real tool while skipping the shadow itself.
 pub mod real_binary;
 
+/// What a refused start gives its callers:
+/// the one line the shadow prints,
+/// and the error it hands a caller that reports a start it could not make.
+pub mod refused_start;
+
 /// The rule that a shadow never starts a shadow:
 /// the identity every shadow carries,
 /// the check of a candidate,
@@ -132,6 +137,10 @@ mod policy_walk_tests;
 /// the launcher-record follow and the arrival marker.
 #[cfg(test)]
 mod shadow_identity_tests;
+
+/// The unit tests of what a refused start prints and hands on.
+#[cfg(test)]
+mod refused_start_tests;
 
 /// Scratch directories for the unit tests,
 /// placed beside the build output.

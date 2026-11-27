@@ -419,6 +419,668 @@ where C's figure holds only for stalls no longer than the one that sized it.
 C beats A because A leaves the refusal recurring under load,
 which this host has every day.
 
+## Open: where the wrapper package's TypeScript unit tests and lint run (issue 6584, recorded 2026-11-27T08:32:56-05:00)
+
+On 2026-11-27 the wrapper package's TypeScript side was found red on `main` with nothing running it:
+`test:unit` failed two files and `lint:oxlint` reported 850 errors.
+The unit tests are fixed (issues 6579 and 6580);
+the lint has four rounds (issue 6581).
+The release gate runs the Rust suite and Clippy,
+and what the gate runs is recorded as the owner's.
+The proposal is `doc/planning/git-policy-cli-where-the-typescript-unit-tests-and-lint-run.md`.
+
+What the three checks cost,
+measured once on this host:
+`lint:types` 2.8 s and 0.45 GB,
+`lint:oxlint` 12.8 s and 1.0 GB,
+`test:unit` 22.2 s and 4.5 GB,
+37.8 s one after another.
+
+- A:
+  inside the release gate,
+  as a third check beside the suite and Clippy,
+  run on the host inside the gate's unit.
+  It runs whenever a batch's gate runs,
+  and a refusal names it.
+  A TypeScript failure then turns a batch's gate red.
+- C:
+  at the coordinator's tip check after a batch of merges,
+  through the package's `native:ts-checks`.
+  It answers before the gate starts;
+  it is a routine,
+  and a routine that lapses does so silently,
+  which is what happened.
+- B:
+  a unit beside the gate,
+  started with it.
+  A second verdict to read,
+  with nothing tying the two together.
+- E:
+  a CI workflow of its own,
+  filtered by path.
+  It reports without anyone deciding to run it,
+  on a surface that was not read:
+  `forbidden-strings` failed on `main` on each of the last three pushes.
+- D:
+  the advisory CI workflow's fast subset,
+  whose budget of eight runs a day misses most merges.
+- F:
+  in every round that changes the package,
+  before its branch merges.
+  It cannot see a break two branches make together.
+- G:
+  required checks on pull requests,
+  as comparable repositories do,
+  which the recorded merge bar rules out.
+
+Ranking,
+the round's:
+A > C > B > E > D > F > G,
+by how soon and how surely a red check is seen by someone who was not watching.
+A beats C because the gate is what a release waits for,
+so its step cannot lapse unnoticed.
+C beats B because it adds one command to a step that happens anyway and answers first.
+B beats E because its answer is read where the batch's green is declared.
+E beats D because it runs on every matching push.
+D beats F because it needs no brief to be obeyed.
+F beats G because G cannot run without pull requests.
+
+The proposal's other questions:
+whether a red check may hold a merge;
+whether the placement lands before or after issue 6581 is fixed,
+since a gate that runs the lint while it is red refuses every batch;
+what memory bound the step gets;
+and whether `native:ts-checks` should run `lint:oxlint` by default.
+
+Until an answer,
+the coordinator runs C by hand:
+`test:unit`,
+`lint:types` and `lint:oxlint` on `main` with each batch check.
+
+## Open: four choices the release passes of 2026-11-27 left, with five picks beside them (recorded 2026-11-27T09:40:05-05:00)
+
+Each comes from a round's report or a release pass
+(Claude Sonnet reads,
+same vendor as some of the authors,
+so second passes and not independent reviews).
+None holds a merge or a release.
+
+### Where `mpm-shadow`'s two plan-insert modules live
+
+The splits put the plan insert's place and spans code in two files beside `plan_insert.rs`
+(`src/toolchain/plan_insert_place.rs`,
+`src/toolchain/plan_insert_spans.rs`),
+so `pub(super)` on their items means all of `toolchain`,
+where before the split the same items were private to the plan insert.
+The round narrowed seventeen declarations from `pub` to `pub(super)` (`cc61079f82`).
+
+- B:
+  move both files into a `plan_insert/` folder,
+  so `pub(super)` means the plan insert again.
+  The compiler then refuses any other module of `toolchain` that reaches them.
+  It changes two module paths,
+  and it adds folder findings under the layout rules,
+  which this crate does not switch on.
+- A:
+  leave the files where they are.
+  Nothing moves;
+  the items stay reachable from every module of `toolchain`,
+  held back only by review.
+
+Ranking:
+B > A,
+because B makes the compiler hold the reach the code had before the split,
+and A leaves it to readers.
+
+### How far `mpm-shadow`'s five test-only names reach
+
+Five names are `pub(crate)` only so tests under `src/toolchain/` can read them.
+
+- A:
+  narrow them to `pub(in crate::toolchain)`.
+  The tests that read them still compile,
+  and nothing outside `toolchain` can.
+- B:
+  leave them `pub(crate)`.
+
+Ranking:
+A > B,
+because A serves the same readers with a smaller reach and changes no behaviour.
+
+### What shows that an alpha of `cargo-shadow` was tested
+
+The crate-release workflow runs no test for an alpha:
+the run that published `0.1.5-alpha.11` holds no line of the `test` task
+(`package/cargo-shadow/cli/README.md`,
+"Which host each check runs on").
+The evidence is a round's local run of the package's suite,
+which needs a delegated control group of the account's service manager.
+
+- C:
+  the package's release task refuses to start unless a suite result is recorded for the commit it releases.
+  The evidence is then tied to the released commit.
+  It needs a place for that record and a rule for what counts.
+- A:
+  as now.
+  The suite runs in the rounds that change the package,
+  on their branches,
+  and nothing ties a run to the commit that is released.
+- B:
+  the workflow runs the suite.
+  It would report without anyone deciding to run it.
+  Not measured:
+  whether a hosted runner gives the suite the delegated control group it needs;
+  the tests that cannot run without one are left out by the package's own task,
+  so a green run there could cover less than a local one.
+
+Ranking:
+C > A > B.
+C beats A because it ties the evidence to the commit.
+A beats B until someone measures what B's runner can run,
+because a green workflow that skips the scope tests reads as more than it is.
+
+### Whether the two fence measurement scripts of 2026-11-21 stay
+
+The two scripts under `package/git-policy/cli/perf/` can no longer measure what they measured:
+the crate no longer reads their switch,
+and this host takes another rung
+(`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+"The harness after 2026-11-27").
+Their results are in that record.
+
+- A:
+  remove them.
+  The record keeps what they found;
+  nothing has to keep dead scripts lint-clean.
+- B:
+  keep them,
+  as they are,
+  for whoever measures the fence again and wants a starting point.
+
+Ranking:
+A > B,
+because a script that cannot run its measurement misleads the next reader more than its absence would,
+and the record says how the measurement was made.
+
+### Picks made, veto open
+
+- `cargo-shadow`'s library surface is alpha.10's without the `git_objects_packed_commit` path,
+  which was internal layout,
+  and with `ByteCount` (`d134b5f836`).
+  The alternative is one `pub use` alias so the paths match exactly.
+  Picked because the library goes to GitHub releases only and nothing outside this repository names it.
+- `cargo-shadow`'s `bounded_run_end` stays `pub(crate)`.
+- `LISTING_BOUND`,
+  the time `cargo-shadow` gives a refusal to list what a scope still holds,
+  is 500 ms (`c59a4f5fd5`).
+  The round measured the listing at 37.5 to 45.6 ms for a scope of three thousand threads,
+  and the value sits beside that measurement in `src/control_group_stop.rs`.
+  It is the only delay a refusal adds after its own bound.
+- A notice's record outlives a line that could not be written.
+  `package/git-policy/cli/SPEC.md` says two things about the record of a failed push or a kept worktree:
+  that one "whose words could not be written stays for the next command",
+  and,
+  since the fix for issue 6421,
+  that these records are among the "lines a person can live without".
+  Since `6ea539bc91` the code follows the second,
+  and the release pass of `0.6.1-alpha.48` showed the record lost with standard error closed.
+  No decision record chooses between them
+  (`doc/decision/` and `doc/planning/` searched for both phrasings).
+  The round `wrapper-alpha-48-release-pass-a-notice-record-outlives-a-line-that-was-not-written`
+  builds the first:
+  the command is never held,
+  and the record stays until its line is known written.
+  The alternative is to accept the loss and correct the first passage.
+
+What proves the reload remedy,
+now that no release this host holds comes from before it,
+is its own proposal:
+`doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`
+(issue 6587's second round).
+The reload proof's control arm must end a desktop stand-in by a manager-wide reload,
+and every release since the remedy of 2026-11-12 asks for none.
+Its options:
+A keeps two pre-remedy releases for the arm,
+B has a stand-in ask the manager for the reload,
+C retires the arm and plants one reload in the arm that remains,
+which must then survive the steps;
+D,
+separable,
+writes an earlier release's unit text into the machine,
+since no arm meets one today.
+Its ranking is C > A > B,
+and D > A for the earlier text.
+
+## Open: what a repository with slot records does with a shell alias the wrapper cannot read (recorded 2026-11-27T10:01:17-05:00)
+
+The release pass of `0.6.1-alpha.48` found that a shell alias took a slot removal,
+a move or a prune past the refusals.
+The round for it made the refusals read every alias the destructive-command guard can follow
+(`!git <words>`,
+the bare `!git`,
+a plain alias that chains to one;
+merged as `cd62517318`).
+What is left is an alias the wrapper cannot read,
+such as `-c "alias.x=!sh -c 'git worktree remove -f -f <slot>'" x`,
+which still reaches Git and deletes a bound slot's registration,
+in alpha.47 and alpha.48 alike.
+The proposal is `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`.
+
+- A:
+  refuse every shell alias the wrapper cannot read,
+  in a repository that holds slot records.
+  No alias can then reach a slot command unread.
+  It also refuses aliases that touch no worktree
+  (`!sh -c 'git status'`),
+  in every repository the ZFS route has served.
+- B:
+  refuse a shell alias whose value text names `worktree` with `remove`,
+  `move` or `prune`.
+  It catches the spelled-out case and leaves unrelated aliases alone.
+  `eval`,
+  a variable or a script file hides the command from it,
+  and an alias that only mentions the words is refused.
+- C:
+  leave such an alias to Git,
+  as now and as the guard's recorded rule does.
+  Nothing unrelated stops working;
+  the spelled-out case still deletes the registration.
+
+The round's ranking is C > B > A,
+with a note that A is the choice consistent with the four answers of 2026-11-26,
+which refused every slot command the wrapper cannot prove
+(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+The coordinating session's reading differs in one place:
+the proposal says A is "still defeated by the same `eval`",
+and under A an alias that hides its command behind `eval` is an alias the wrapper cannot read,
+so A refuses it.
+Read that way,
+A is the only option that closes the route,
+and its price is the unrelated aliases.
+
+## Open: five choices and three proposals from the rounds that ended by 09:45 on 2026-11-27 (recorded 2026-11-27T09:53:22-05:00)
+
+None holds a merge or a release.
+
+### Whether `mpm-shadow` repeats a start refused as busy
+
+`0.2.7-alpha.13` explains a start refused with "Text file busy" and does not repeat it (issue 6585,
+`c513ee060c`).
+That was recorded here as a pick,
+on the round's finding that every writer the tool starts publishes by rename.
+The release pass of alpha.13 then showed the grounds were wider than the evidence:
+this repository's own records measure a window of 0.5 to 3 ms in which a forked child holds a copied write descriptor
+(`doc/troubleshooting/shadow-tests-that-write-a-program-and-start-it-are-refused-with-etxtbsy.md`,
+`doc/troubleshooting/git-policy-cli-a-fixture-git-is-refused-with-etxtbsy.md`),
+the round's probe was single-threaded and could not see it,
+and `go install` writes its published path in place across file systems,
+though no start of the shadow or the launcher resolves that path.
+The record is corrected since
+(`doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`),
+and it ends with the same two options and the same ranking.
+What its round measured:
+with one thread writing a program and another forking,
+5 to 12 of 20 starts were refused,
+and none of 20 without the forking thread;
+`go install` held its published path open for 3.5 ms across file systems,
+and a prober starting that path was refused seven times in that interval;
+`uv tool upgrade`,
+which the self-upgrade runs,
+stages the script and renames it.
+Its counter-argument stands beside the ranking:
+the window is measured in probes and test processes,
+never in a production writer.
+
+- B:
+  repeat the start within a bound sized from the measured windows,
+  then explain.
+  The one cause anyone measured ends by itself in milliseconds,
+  so the person's command works with no second try.
+  It needs a bound with its measurement beside it,
+  and a start held by a real writer waits that bound before it is explained.
+- A:
+  explain only,
+  as released.
+  Nothing waits;
+  the person runs the command again by hand for a cause that was gone before they read the line.
+
+Ranking:
+B > A,
+because B turns the only measured cause into a start that works and still explains the rest,
+and A hands a transient to the person.
+
+### What the five seconds of the start retry rest on
+
+`START_RETRY_BUDGET` is five seconds in `mpm-shadow` and in the wrapper's `push/start_retry.rs`:
+how long a start the system refused for want of a process is repeated.
+It came with the design `doc/planning/cli-git-spawn-and-sync-reduction.md`,
+"Process-start retry (slice R)",
+which gives no measurement,
+and no decision record names it (issue 6597).
+The repository's rule asks a shipped bound to cite a measurement or a decision.
+How long such a refusal lasts here cannot be measured on purpose,
+since making that load is banned.
+
+- C:
+  both,
+  in this order:
+  record five seconds as decided now,
+  and size it again from the first refusal met in ordinary work.
+- A:
+  record five seconds as decided,
+  and leave it.
+- B:
+  leave it uncited until a refusal is met and measured.
+
+Ranking:
+C > A > B.
+C beats A because it keeps the value answerable to a measurement when one exists.
+A beats B because B leaves a shipped bound resting on nothing for an unknown time.
+
+### Which program may provision the account's commit service
+
+Issue 6586's round made a test build unable to offer itself to the account's service manager (`7d6bd90c92`),
+and wrote the wider question as a proposal:
+`doc/planning/cli-git-provisioning-from-a-program-that-is-not-an-installed-wrapper.md`.
+Today whatever wrapper program runs points the account's shared link at itself,
+and this machine's link names a build from `main`,
+not an installation.
+Its options:
+A keeps that,
+B refuses unless the program is the installed wrapper,
+C refuses unless the build was made as a release,
+D keeps it and prints which program the link now names.
+Its ranking is A > D > B > C,
+with the reason for each pair and five questions at its end.
+B and C would refuse this machine's current practice.
+
+### What the waiting notice says after a step's bound has come
+
+Issue 6589's round found that the notice keeps promising a stop in the future tense after the stop was sent,
+while a child in an uninterruptible wait holds the step
+(a `gpg` held one 31.9 s under load).
+`doc/planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md` gives four options,
+ranked A > B > C > D:
+A says the stop was sent and that the command still waits for the kernel to let the child go.
+
+### What a push does when its step's watch cannot start
+
+Issue 6590's round found that a watch whose runtime is late reads as a refused thread,
+and that the answer waits for a scan that names a leftover program.
+`doc/planning/git-policy-cli-a-step-whose-watch-cannot-start.md` separates two choices:
+for the watch,
+A1 > A2 > A3
+(A1 waits,
+bounded,
+for a runtime that is coming);
+for the scan,
+B1 > B3 > B2
+(B1 moves it off the answer's path).
+
+### What clears a scope unit a killed `cargo-shadow` leaves
+
+A shadow killed while its launcher has not become a member of the scope leaves the unit loaded and empty,
+and nothing in the package sweeps it (issue 6578,
+whose two rounds fixed every path a living shadow controls).
+`doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md` gives five options,
+ranked D > A > E > C > B:
+D has a recovery stop the unit its own journal recorded,
+A sweeps when a run starts,
+E sweeps in the lean service,
+which this host has disabled,
+C leaves it and documents it,
+and B,
+a unit property that makes the manager collect an empty scope,
+does not exist.
+
+### Picks made, veto open
+
+- The gate's suite container is bounded at 4 GiB (`2da7ccd13a`,
+  issue 6583),
+  2.76 times the 1,486.0 MiB peak one measured run reached,
+  with that measurement beside the value.
+  A gate at its bounds then holds 12 GiB at once.
+- The container ledger lists Rust test files that name `podman`
+  (two of the four Rust entries),
+  where it skips TypeScript test files:
+  a Rust test that starts a real container is then read for its limits (issue 6594).
+- The ledger does not read a container start written through a shell in a Rust string
+  (`Command::new("sh").arg("-c").arg("podman run ...")`).
+  The file is still listed by the program name it holds,
+  and its role is read by hand.
+- Nothing that runs on `main` after a merge runs the ledger's test,
+  so a file that names `podman` lands unlisted until someone runs it (issue 6588).
+  This waits on the same answer as issue 6584's entry,
+  "where the wrapper package's TypeScript unit tests and lint run":
+  whichever place is chosen should run `package/container-limit/core`'s `test:unit` too.
+
+## Open: choices the rounds that ended between 10:46 and 11:35 on 2026-11-27 left (recorded 2026-11-27T11:42:35-05:00)
+
+None of these holds a round or a release:
+each waits here while the release work moves,
+and each names what was done meanwhile.
+The reports they come from are in scratch and expire,
+so what a choice needs is stated here.
+
+### Which slice a TypeScript check's scope is counted in (issue 6605)
+
+`native:ts-checks` starts each check in a scope of its own,
+with bounds its round measured
+(merged as `71d9ce980d`).
+The scope sits in systemd's default slice,
+`app.slice`,
+which is where the recorded readings were taken.
+A round starts the check from inside `agent-work.slice`,
+the slice agent work is counted in,
+and the check's own scope then leaves that slice.
+
+- A:
+  every check's scope goes in `agent-work.slice`.
+  A round's checks are then counted with the rest of its work;
+  a person's own run from a terminal is counted as agent work too.
+- B:
+  the scope takes the slice its caller is in.
+  A round's checks are counted in `agent-work.slice` and a person's are not;
+  it is one more thing the runner reads at its start.
+- C:
+  as now,
+  `app.slice`.
+  The readings stand as measured;
+  a round's checks are outside the slice the machine's limits for agents are set on.
+
+Ranking:
+B > A > C.
+B beats A because a person's run stays out of the agents' count.
+A beats C because nearly every run of these checks is a round's,
+and C leaves those uncounted.
+
+### Whether a check that passed while held at its quota says so (issue 6605)
+
+The runner prints the scope's counters only for a check that did not pass,
+because its sentence is that a bound and not a test failed.
+
+- A:
+  one line for a passed check too,
+  with the share of periods it was held.
+  A slow pass explains itself;
+  on a busy host most runs print it.
+- B:
+  as now.
+  A pass prints nothing more;
+  a pass that took several times as long says nothing about why.
+
+Ranking:
+A > B,
+because the counters are read either way,
+and the line is what tells a slow host from a slow check.
+
+### One set of bounds for every check, or one per check (issue 6605)
+
+One set serves every check:
+1,024 tasks,
+4 GiB,
+800% of one CPU,
+sized for the unit suite.
+`lint:types` peaks at 39 tasks.
+
+- A:
+  as now,
+  one set.
+  One measurement to keep;
+  a runaway in a small check is caught only at the large check's bound.
+- B:
+  each check carries bounds from its own measurement.
+  A runaway is caught near the check's own need;
+  every bound is one more that a grown check can meet,
+  which is what issue 6605 was.
+
+Ranking:
+A > B,
+because the defect on record is a bound set too low,
+and no check has yet run away.
+
+### Whether the package guide's rule on a test's children binds its TypeScript tests (issues 6596 and 6608)
+
+`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md` states this for the Rust crate
+(its section `Own every child, end it on every path`),
+and in another section that every wait has a deadline:
+
+```text
+A helper whose state a control reads is one the control ends,
+never one that ends by itself:
+```
+
+Two defects of that class were found in the package's TypeScript tests on 2026-11-27
+(issue 6596,
+merged as `a7dff54ebc`;
+issue 6608,
+whose round runs and was told the question is open).
+
+- A:
+  the guide says its sections on children and waits bind the package's TypeScript tests too,
+  and one round reads those tests against them.
+- B:
+  the guide stays the Rust crate's,
+  and each TypeScript defect of the class is fixed as it is found.
+
+Ranking:
+A > B,
+because a brief can then cite the rule,
+and two finds in one day say more are there.
+
+### Whether the repository link's messages name this machine's drive (wrapper alpha.48 pass)
+
+The pass found one machine's wording in what the wrapper prints.
+Its round reworded the two messages the finding named
+("so the repository link is not checked for this command",
+merged as `14e54207de`)
+and left the rest:
+the walk's messages still say "the 860 drive is not mounted yet",
+"ready (on the 860)",
+"the link to the 860 is gone" and the like
+(`repository_link_check_walk.rs`),
+and a moved-aside copy is named with the suffix `.nvme-before-860-`.
+Those sentences are pinned by `repository_link_shared_table.json`,
+which `package/repository-link/check` reads too,
+and that package's own README says it checks
+"whether the repository link to the 860 drive is usable".
+
+- A:
+  both packages' messages and the shared table say
+  "the drive recorded for this repository" and "the repository link";
+  the suffix on disk stays.
+  No message names one machine;
+  the suffix still does,
+  on copies only this machine's move has made.
+- B:
+  A,
+  and new moves write a suffix that names no drive,
+  with both suffixes read.
+  Nothing new names the machine;
+  every reader of old copies handles two names.
+- C:
+  as now.
+  The check is this machine's and says so;
+  another user of the wrapper reads about a drive they do not have.
+
+Ranking:
+A > B > C.
+A beats B because the old suffix is on disk either way,
+and a second one doubles what a reader must know.
+B beats C because C keeps one machine's drive in messages every user of the wrapper can meet.
+
+### Whether `pnpm-shadow` and `search-shadow` are released as alphas now (issue 6609, recorded 2026-11-27T11:46:49-05:00)
+
+`mpm-shadow`'s copies of the rule the four shadow tools share had changed alone,
+so the comparison in `search-shadow`'s tests failed on `main`.
+The round for issue 6609 carried the change into the other three crates
+(merged as `7e215a38c2`):
+each package's own test task now runs the comparison,
+and `pnpm-shadow` and `search-shadow` print a refused start with the system's own answer and its kind
+(`could not start <path>: No such file or directory (os error 2)`,
+where the path stood twice before).
+The text that marks a program as a shadow did not change,
+so the installed shadows still know each other.
+The standing answer on alphas names the wrapper,
+`cargo-shadow`,
+`mpm-shadow` and the Pi driver packages
+(`doc/decision/cli-git-wrapper-owner-answers-2026-11-12.md`,
+item 4.9);
+these two are not in it,
+so neither was released.
+`cargo-shadow` and `mpm-shadow` take the change in their next alphas.
+
+- A:
+  release `pnpm-shadow` `0.1.3-alpha.2` and `search-shadow` `0.2.3-alpha.2` now,
+  lock and install them,
+  and count both under the standing answer from here on.
+  The installed tools then match `main`;
+  two more tools release without a question each time.
+- B:
+  release both this once,
+  and ask again next time.
+- C:
+  leave both at their installed alphas until a change of their own asks for a release.
+  The installed tools print the older line;
+  nothing else differs.
+
+Ranking:
+A > B > C.
+A beats B because the four tools change together whenever their shared rule does,
+and a question per release would hold two of the four behind the others.
+B beats C because an installed tool that differs from `main` is one more thing a reader of a report must know.
+
+### Picks the coordinating session made, veto open
+
+- `cargo-shadow`,
+  from the round that held the refusal's branches with controls (`9c4c5aac42`).
+  The listing does not read each group a second time after it opens its descriptors:
+  the refusal's decision does not rest on the names,
+  and a second read doubles the reads under the listing's own bound.
+  The README says what the descriptor proves in its place.
+- `cargo-shadow`,
+  same round.
+  Two things it asked are taken as work,
+  because the repository's rules already decide them:
+  the refusal for a scope the manager collected goes on to say what the next run does with the kept journal,
+  and the `Nothing` leftover gets a control that does not depend on a race.
+  Both go to the round that follows the `0.1.5-alpha.13` pass.
+- Issue 6605's readings stay where its round put them,
+  beside the values and in the package README;
+  no copy goes to `doc/planning/`.
+
+### Waiting on a pass before they are put
+
+`mpm-shadow`'s republish (issue 6600,
+merged as `08ae962d40`,
+released in `0.2.7-alpha.14`) left three things its round named:
+two installs in two process namespaces that share one toolchain root can each read the other's live directory as a dead installer's,
+because a process id and its start time are read in the reader's own namespace;
+hidden names written by builds before this one carry no start time and are left alone for ever;
+and `mpm-shadow prune --toolchain` does not remove hidden directories.
+The `0.2.7-alpha.14` pass was asked each of them,
+and the choice is written here once it has answered.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.

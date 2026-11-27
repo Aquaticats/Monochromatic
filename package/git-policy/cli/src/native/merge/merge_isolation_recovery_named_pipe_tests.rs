@@ -79,15 +79,20 @@ fn pipe_where_a_record_goes(
 }
 
 /// What:
-///  The three words every control below reads in the answer and in the pipe's name.
+///  The words every control below reads in the answer and in the pipe's name.
 /// Why:
 ///  One refusal says what failed,
 ///  the name of the file and what stands there,
-///  so a control that matches all three proves the command told the person what to look at.
+///  and what a person does about it,
+///  so a control that matches all of it proves the command told the person what to look at and how to end the stop.
+///  The last words are the package's rule for a diagnostic
+///  (`AGENTS.md`,
+///  rule `DGT`):
+///  a line that names the file and no way out leaves the person with a repository no command of it can enter.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(message).toContain('not a plain file'); expect(message).toContain(pipe);
+/// expect(message).toContain('not a plain file'); expect(message).toContain(pipe); expect(message).toContain('remove it'); expect(message).toContain('run the command again');
 /// ```
 fn the_record_it_could_not_read(
     message: &str,
@@ -100,6 +105,14 @@ fn the_record_it_could_not_read(
     assert!(
         message.contains(pipe.to_string_lossy().as_ref()),
         "the answer names the record: {message}"
+    );
+    assert!(
+        message.contains("Nothing was changed"),
+        "the answer says that it changed nothing: {message}"
+    );
+    assert!(
+        message.contains("remove it,") && message.contains("run the command again"),
+        "the answer says which file a person removes and that the command then runs: {message}"
     );
 }
 

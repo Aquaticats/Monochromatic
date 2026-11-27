@@ -36,7 +36,7 @@ use std::path::{
 /// Why:
 ///  A diagnostic is read beside the others of its subject,
 ///  and a tag that changed with the file would hide half of them.
-const TAG: &str = "worktreeRemoveHandOver";
+pub(super) const TAG: &str = "worktreeRemoveHandOver";
 
 /// The folder of the common Git directory that holds one record per removal the service has begun,
 /// named by the record's id.

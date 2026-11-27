@@ -1,7 +1,11 @@
 //! What:
-//! What the stop of a scope reports in the two cases issue 6528 could not tell apart:
+//! What the stop of a scope reports in the cases issue 6528 could not tell apart:
 //! a member that has exited and only waits to be reaped,
-//! and a member that is still alive when the stop's bound passes.
+//! a member that is still alive when the stop's bound passes,
+//! a member that stands in a group below the scope,
+//! a listing that could not be read,
+//! a scope whose directory was gone,
+//! and a listing that was cut at its own bound.
 //! Why:
 //! The install step refused a command after printing that a process cargo started "could not be stopped",
 //! and the round that met it read the process from `ps` as a zombie (issue 6528).
@@ -11,8 +15,12 @@
 //! with the time the stop waited and the state of what it was waiting for,
 //! and the run must be treated as one that cannot be settled (the README's
 //! "install and update then stop with the lockfiles neither rolled back nor accepted and the journal kept").
-//! Both controls here use a delegated scope and say so,
-//! so neither passes on a host that cannot give one.
+//! The kernel's `populated` word counts the groups below the scope,
+//! so a scope whose own `cgroup.procs` is empty can still hold a live process
+//! (`doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
+//! and the refusal must name that process rather than say nothing it listed can write.
+//! Every control that runs a scope uses a delegated one and says so,
+//! so none passes on a host that cannot give one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,7 +37,8 @@ use std::path::{
 /// Starts the fixture and waits for it.
 use std::process::Command;
 /// The bound of the contained run,
-/// and the time the stop is given to show the scope empty.
+/// the time the stop is given to show the scope empty,
+/// and how long reading its members may take.
 use std::time::{
     Duration,
     Instant,
@@ -50,6 +59,15 @@ use crate::cgroup_test_support::{
     scope_directory_of,
     this_test_needs_a_delegated_scope,
     wait_until,
+    wait_up_to,
+};
+/// The report's own words,
+/// and the listing it is built from.
+use crate::control_group_stop::report::{
+    Listing,
+    MemberListing,
+    MemberStanding,
+    StopReport,
 };
 /// The lockfile snapshot a transaction is begun over.
 use crate::crates::LockSnapshot;
@@ -177,27 +195,149 @@ int main(int count, char **arguments) {
 "#;
 
 /// What:
-/// `fn compile_zombie_fixture(directory: &Path) -> PathBuf` builds the fixture in `directory` and answers its path.
+/// `NESTED_SOURCE` is the C source of the fixture whose only live member stands in a group below the scope.
 /// Why:
-/// The fixture is a program of this test alone,
+/// The kernel's `populated` word counts a group below the scope,
+/// so this fixture makes the case the refusal used to misword:
+/// the scope's own `cgroup.procs` is empty and `populated` is 1
+/// (measured 2026-11-27 in `doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`).
+/// The program forks a member that makes `nested` below the scope,
+/// moves itself into it,
+/// and only then reports itself;
+/// the program ends,
+/// so the member in `nested` is all that is left and the direct child was reaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NESTED_SOURCE = `
+///   // fork a member, mkdir <scope>/nested, move the member in, report it, then end`
+/// ```
+const NESTED_SOURCE: &str = r#"
+/* What: includes the calls that read /proc, make a directory, fork and sleep.
+   Why: the fixture reads its own scope, makes a group below it and moves a member into it. */
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+/* What: writes the path of this process's scope below /sys/fs/cgroup into `out`, or an empty text when it cannot.
+   Why: a group below the scope is made by its path, and only the version 2 line of /proc/self/cgroup names it. */
+static void scope_path(char *out, size_t size) {
+  FILE *in = fopen("/proc/self/cgroup", "r");
+  char line[1024];
+  out[0] = 0;
+  if (in == NULL) {
+    return;
+  }
+  while (fgets(line, sizeof line, in) != NULL) {
+    if (strncmp(line, "0::", 3) == 0) {
+      int written = snprintf(out, size, "/sys/fs/cgroup%s", line + 3);
+      if (written > 0 && (size_t) written < size) {
+        char *end = strchr(out, '\n');
+        if (end != NULL) {
+          *end = 0;
+        }
+      }
+      break;
+    }
+  }
+  fclose(in);
+}
+
+/* What: moves this process into the group whose cgroup.procs is `procs`, by writing its own id there.
+   Why: a process moves itself into a group below its own when the group is delegated to its user, which is what makes the
+   scope's own list empty while the kernel still counts a member. */
+static int move_self_into(const char *procs) {
+  FILE *out = fopen(procs, "w");
+  if (out == NULL) {
+    return -1;
+  }
+  int written = fprintf(out, "%d\n", (int) getpid());
+  fclose(out);
+  return written > 0 ? 0 : -1;
+}
+
+/* What: makes `nested` below the scope, moves into it and reports itself there, then lives until it is killed.
+   Why: this is the member a refusal must name as one that stands below the scope and can still write. */
+static void stand_below_the_scope(const char *ready_path) {
+  char scope[1024];
+  scope_path(scope, sizeof scope);
+  if (scope[0] == 0) {
+    _exit(2);
+  }
+  char nested[1200];
+  snprintf(nested, sizeof nested, "%s/nested", scope);
+  if (mkdir(nested, 0755) != 0 && errno != EEXIST) {
+    _exit(3);
+  }
+  char procs[1300];
+  snprintf(procs, sizeof procs, "%s/cgroup.procs", nested);
+  if (move_self_into(procs) != 0) {
+    _exit(4);
+  }
+  char partial[1200];
+  snprintf(partial, sizeof partial, "%s.part", ready_path);
+  FILE *out = fopen(partial, "w");
+  if (out != NULL) {
+    fprintf(out, "%d\n%s\n", (int) getpid(), nested);
+    fclose(out);
+    rename(partial, ready_path);
+  }
+  for (;;) {
+    sleep(600);
+  }
+}
+
+/* What: starts the member below the scope, waits until it has reported itself, and then ends.
+   Why: the program must end so the run's stop begins, and the member it left is the only live one.
+   The member's parent is this program, so it is re-parented when this program ends and keeps running. */
+int main(int count, char **arguments) {
+  (void) count;
+  pid_t member = fork();
+  if (member == 0) {
+    freopen("/dev/null", "r", stdin);
+    freopen("/dev/null", "w", stdout);
+    freopen("/dev/null", "w", stderr);
+    stand_below_the_scope(arguments[1]);
+    _exit(0);
+  }
+  while (access(arguments[1], F_OK) != 0) {
+    usleep(1000);
+  }
+  return 0;
+}
+"#;
+
+/// What:
+/// `fn compile_fixture(directory: &Path, name: &str, source: &str) -> PathBuf` builds one fixture in `directory` and answers
+/// its path.
+/// Why:
+/// Each fixture is a program of the test that needs it,
 /// so two tests never share one binary,
 /// and its schedule is made before the run that is judged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function compileZombieFixture(directory: string): string
+/// function compileFixture(directory: string, name: string, source: string): string
 /// ```
-fn compile_zombie_fixture(directory: &Path) -> PathBuf {
-    let source: PathBuf = directory.join("zombie.c");
-    let program: PathBuf = directory.join("zombie");
-    fs::write(&source, ZOMBIE_SOURCE).expect("write the C source");
+fn compile_fixture(
+    directory: &Path,
+    name: &str,
+    source: &str,
+) -> PathBuf {
+    let source_path: PathBuf = directory.join(format!("{name}.c"));
+    let program: PathBuf = directory.join(name);
+    fs::write(&source_path, source).expect("write the C source");
     let status = Command::new("cc")
         .arg("-o")
         .arg(&program)
-        .arg(&source)
+        .arg(&source_path)
         .status()
         .expect(
-            "a C compiler named cc must be on PATH: the control of an exited member compiles a small C fixture",
+            "a C compiler named cc must be on PATH: the controls of a report compile small C fixtures",
         );
     assert!(status.success(), "the C fixture did not compile");
     return program;
@@ -228,6 +368,22 @@ fn bound(limit: Duration) -> Bound {
     };
 }
 
+/// Asks the manager to stop the scope unit a test's run made,
+/// through the package's own retirement,
+/// so no unit of this test stays loaded once its members are gone.
+fn retire(scope: &Path) {
+    let route = crate::cgroup_test_support::delegated_route();
+    let unit: String = scope
+        .file_name()
+        .map(|name| return name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let _ = crate::control_group::retire::retire_unit(
+        &route.systemctl,
+        &unit,
+        crate::control_group::retire::RETIRE_BOUND,
+    );
+}
+
 /// Stops a scope a test left behind,
 /// through its recorded path,
 /// and waits until it is empty or gone.
@@ -239,6 +395,45 @@ fn clean_up(scope: &Path) {
                 return text.contains("populated 0");
             });
     });
+    retire(scope);
+}
+
+/// Stops a scope a test left behind whose `nested` group this test made,
+/// removes that group,
+/// stops the scope's unit,
+/// and waits until the scope itself is gone.
+/// Why the group is removed here:
+/// the manager removes a scope's directory only when nothing is below it,
+/// so a group this test made would keep the scope of the host behind;
+/// and a scope whose directory the test removed first stays an active unit,
+/// so the unit is stopped after the group is gone,
+/// when there is nothing left for its own removal to fail on.
+fn clean_up_a_nested_scope(
+    scope: &Path,
+    nested: &Path,
+) {
+    let _ = fs::write(scope.join("cgroup.kill"), "1");
+    wait_until("the nested group's end", &|| {
+        return fs::read_to_string(nested.join("cgroup.procs")).is_ok_and(|text| {
+            return text.trim().is_empty();
+        });
+    });
+    // The group is empty now, so the directory below the scope can be removed; a removal that is still refused is retried.
+    let removed: bool = wait_up_to(Duration::from_secs(20), &|| {
+        return !nested.exists() || fs::remove_dir(nested).is_ok();
+    });
+    assert!(
+        removed,
+        "the nested group {} could not be removed",
+        nested.display()
+    );
+    // The manager removes a scope it could not remove while the group was below it only when it is asked to end the unit, so the
+    // package's own retirement is asked last.
+    retire(scope);
+    let gone: bool = wait_up_to(Duration::from_secs(20), &|| {
+        return !scope.exists();
+    });
+    assert!(gone, "the scope {} could not be removed", scope.display());
 }
 
 /// The control issue 6528 asks for first:
@@ -253,7 +448,7 @@ fn clean_up(scope: &Path) {
 fn a_member_that_has_exited_and_waits_to_be_reaped_is_counted_as_stopped() {
     this_test_needs_a_delegated_scope();
     let directory = scratch();
-    let program: PathBuf = compile_zombie_fixture(directory.path());
+    let program: PathBuf = compile_fixture(directory.path(), "zombie", ZOMBIE_SOURCE);
     let ready: PathBuf = directory.path().join("exited-member");
     let root = repository();
     let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
@@ -372,8 +567,8 @@ fn a_member_alive_past_the_stop_bound_is_named_with_the_time_the_stop_waited() {
         "the refusal does not say how long the stop waited: {said}"
     );
     assert!(
-        said.contains("alive") || said.contains("live"),
-        "the refusal does not say what it was waiting for: {said}"
+        said.contains("it is alive, so it can still write"),
+        "the refusal does not name the live member with its state: {said}"
     );
     assert!(
         transaction.writers_may_remain(),
@@ -387,6 +582,221 @@ fn a_member_alive_past_the_stop_bound_is_named_with_the_time_the_stop_waited() {
     );
     drop(transaction);
 }
+
+/// A live writer in the scope's own group,
+/// started by a payload that ends once the writer is ready,
+/// so the stop that follows is the one this test judges.
+fn leave_a_writer(ready: &Path) -> String {
+    return format!(
+        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        ready = ready.display()
+    );
+}
+
+/// Issue 6528's review,
+/// Medium 1:
+/// the scope's own `cgroup.procs` is empty while the kernel still reports the scope populated,
+/// because its only live member stands in a group below it.
+/// The refusal must name that member as one that may still write,
+/// and must say where it stands,
+/// because `populated` counts the groups below the scope and the lockfiles hang on what can still write.
+#[test]
+fn a_member_in_a_group_below_the_scope_is_named_where_it_stands_and_as_one_that_may_still_write() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let program: PathBuf = compile_fixture(directory.path(), "nested", NESTED_SOURCE);
+    let ready: PathBuf = directory.path().join("nested-member");
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
+
+    // The stop reports at once that a member could not be stopped, so the report is made while the member below the scope
+    // really stands there (`report_now`), and nothing was killed that could have emptied the group first.
+    arm(Point::ContainmentStopStuck);
+    let result = output_within(
+        Command::new(&program).arg(&ready),
+        None,
+        &bound(Duration::from_secs(60)),
+    );
+
+    let groups: String = journal.join("groups").display().to_string();
+    assert_scope_record(&groups);
+    let scope: PathBuf = scope_directory_of(&groups);
+    let own: String = fs::read_to_string(scope.join("cgroup.procs")).unwrap_or_default();
+    let nested: PathBuf = scope.join("nested");
+    let readiness: String = fs::read_to_string(&ready).unwrap_or_default();
+    let member: i32 = readiness
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .parse::<i32>()
+        .unwrap_or(0);
+    let member_group: String =
+        fs::read_to_string(format!("/proc/{member}/cgroup")).unwrap_or_default();
+    let populated: String = fs::read_to_string(scope.join("cgroup.events")).unwrap_or_default();
+    clean_up_a_nested_scope(&scope, &nested);
+
+    // The case really is the one under test: the scope's own group is empty, the kernel still reports it populated, and the
+    // member really stands in the group below the scope.
+    assert!(
+        member > 0 && readiness.lines().nth(1) == Some(nested.display().to_string().as_str()),
+        "the fixture did not report a member below the scope, so the test shows nothing: {readiness:?}"
+    );
+    assert!(
+        own.trim().is_empty(),
+        "the scope's own group still lists a member, so the case is not the one under test: {own:?}"
+    );
+    assert!(
+        populated.contains("populated 1"),
+        "the kernel did not report the scope populated, so the test shows nothing: {populated:?}"
+    );
+    assert!(
+        crate::cgroup_test_support::v2_path_of_cgroup_file(&member_group).ends_with("/nested"),
+        "the member does not stand in the group below the scope: {member_group:?}"
+    );
+    let error: RunError = result.expect_err("a member that may still write is not a stopped run");
+    let said: String = error.to_string();
+    assert!(
+        matches!(error, RunError::NotQuiescent { .. }),
+        "a member below the scope was reported as another failure: {said}"
+    );
+    assert!(
+        said.contains(&member.to_string()),
+        "the refusal does not name the member below the scope ({member}): {said}"
+    );
+    assert!(
+        said.contains("in nested"),
+        "the refusal does not say that the member stands in a group below the scope: {said}"
+    );
+    assert!(
+        said.contains("it is alive, so it can still write"),
+        "the refusal does not say that the member may still write: {said}"
+    );
+    assert!(
+        said.contains("a member of the scope could not be shown stopped"),
+        "the refusal does not open by naming a member it could not show stopped: {said}"
+    );
+    assert!(
+        !said.contains("not a process of this scope's own group"),
+        "the refusal still says the member is not a process of the scope's own group instead of naming it: {said}"
+    );
+    drop(transaction);
+}
+
+/// Issue 6528's review,
+/// Medium 1:
+/// the listing of the members failed,
+/// so the refusal must say that and must not say what its members can do.
+/// A listing that could not be read is not a list of members that cannot write.
+#[test]
+fn a_refusal_whose_members_could_not_be_read_says_nothing_about_what_they_can_do() {
+    this_test_needs_a_delegated_scope();
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
+    let ready: PathBuf = root.path().join("writer-ready");
+    // The stop reports at once, so the listing is the report's own and the failure lands there.
+    arm(Point::ContainmentStopStuck);
+    arm(Point::ContainmentInspection);
+
+    let result = output_within(
+        Command::new("sh").args(["-c", &leave_a_writer(&ready)]),
+        None,
+        &bound(Duration::from_secs(60)),
+    );
+
+    let groups: String = journal.join("groups").display().to_string();
+    assert_scope_record(&groups);
+    let scope: PathBuf = scope_directory_of(&groups);
+    let listed: String = fs::read_to_string(scope.join("cgroup.procs")).unwrap_or_default();
+    clean_up(&scope);
+    assert!(
+        ready.exists() && !listed.trim().is_empty(),
+        "no writer was left in the scope, so the test shows nothing"
+    );
+    let error: RunError = result.expect_err("a run whose members could not be read is not stopped");
+    let said: String = error.to_string();
+    assert!(
+        said.contains("its members could not be read"),
+        "the refusal does not say that the members could not be read: {said}"
+    );
+    assert!(
+        said.contains("and its members could not be read;"),
+        "the refusal does not open by saying its members could not be read: {said}"
+    );
+    assert!(
+        !said.contains("can still write") && !said.contains("can write nothing"),
+        "the refusal says what the members it could not read can do: {said}"
+    );
+    drop(transaction);
+}
+
+/// Issue 6528's review,
+/// Medium 1,
+/// last case:
+/// the scope vanished between the last `populated` read and the listing,
+/// so the refusal must say its directory was gone and must not say anything about members it never read.
+/// The window is too short to produce from outside
+/// (a removal before that read makes the stop report the scope empty at once),
+/// so a test build makes the listing find the scope gone,
+/// and the test judges the words the refusal carries;
+/// the member is a real one that still stands in the scope,
+/// so the report is made of real facts.
+#[test]
+fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
+    this_test_needs_a_delegated_scope();
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
+    let ready: PathBuf = root.path().join("writer-ready");
+    arm(Point::ContainmentStopStuck);
+    arm(Point::ContainmentScopeGoneAtListing);
+
+    let result = output_within(
+        Command::new("sh").args(["-c", &leave_a_writer(&ready)]),
+        None,
+        &bound(Duration::from_secs(60)),
+    );
+
+    let groups: String = journal.join("groups").display().to_string();
+    assert_scope_record(&groups);
+    let scope: PathBuf = scope_directory_of(&groups);
+    clean_up(&scope);
+    assert!(
+        ready.exists(),
+        "no writer was left in the scope, so the test shows nothing"
+    );
+    assert!(
+        !crate::failpoints::fires(Point::ContainmentScopeGoneAtListing),
+        "the listing never ran, so the test shows nothing"
+    );
+    let error: RunError = result.expect_err("a run whose scope vanished is not stopped");
+    let said: String = error.to_string();
+    assert!(
+        said.contains("its directory was gone when its members were read"),
+        "the refusal does not say the scope was gone when its members were read: {said}"
+    );
+    assert!(
+        said.contains("and its directory was gone when its members were read;"),
+        "the refusal still opens by claiming something about members it never read: {said}"
+    );
+    assert!(
+        !said.contains("can still write") && !said.contains("can write nothing"),
+        "the refusal says what the members it never read can do: {said}"
+    );
+    drop(transaction);
+}
+
 /// The unit control of the distinction issue 6528 asks for:
 /// the state of one process's threads tells a member that has exited from one that is alive,
 /// and the case the stop's own comment warns about is never read as gone:
@@ -395,9 +805,10 @@ fn a_member_alive_past_the_stop_bound_is_named_with_the_time_the_stop_waited() {
 /// so no state is assumed from the text of a document.
 #[test]
 fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
-    use crate::control_group_stop::report::{
-        MemberStanding,
-        standing_of,
+    use crate::control_group_stop::LISTING_BOUND;
+    use crate::control_group_stop::report::standing_of_within;
+    let within_the_listing_bound = || {
+        return Instant::now() + LISTING_BOUND;
     };
     // A process that runs: its threads are alive.
     let mut running: std::process::Child = Command::new("sleep")
@@ -405,7 +816,10 @@ fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
         .spawn()
         .expect("starts a process that runs");
     let running_pid: i32 = i32::try_from(running.id()).expect("an id that fits");
-    assert_eq!(standing_of(running_pid), MemberStanding::Alive);
+    assert_eq!(
+        standing_of_within(running_pid, within_the_listing_bound()),
+        MemberStanding::Alive
+    );
     running.kill().expect("kills the process that runs");
     running.wait().expect("reaps it");
 
@@ -435,7 +849,7 @@ fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
         "the fixture's leader is not a zombie, so the case shows nothing"
     );
     assert_eq!(
-        standing_of(leader_pid),
+        standing_of_within(leader_pid, within_the_listing_bound()),
         MemberStanding::ThreadLives,
         "a leader that exited behind a live thread was not read as one that can still write"
     );
@@ -449,51 +863,83 @@ fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
         .expect("starts a process that ends");
     let ending_pid: i32 = i32::try_from(ending.id()).expect("an id that fits");
     crate::cgroup_test_support::wait_until("the process's end without its reaping", &|| {
-        return standing_of(ending_pid) == MemberStanding::Exited;
+        return standing_of_within(ending_pid, within_the_listing_bound())
+            == MemberStanding::Exited;
     });
     assert!(!MemberStanding::Exited.can_still_write());
     ending.wait().expect("reaps it");
     assert_eq!(
-        standing_of(ending_pid),
+        standing_of_within(ending_pid, within_the_listing_bound()),
         MemberStanding::Gone,
         "a reaped process was not read as gone"
     );
+
+    // A number that names no process this one can see, which is how `cgroup.procs` writes a process of another pid namespace,
+    // is never read as gone: it is not proven to hold nothing.
+    let unseeable: MemberStanding = standing_of_within(0, within_the_listing_bound());
+    assert!(
+        unseeable.can_still_write() && unseeable.text().contains("another pid namespace"),
+        "a listed number that names no visible process was read as gone: {}",
+        unseeable.text()
+    );
+}
+
+/// A report of a scope that was not shown empty,
+/// built from the facts a case names.
+fn report_of(
+    populated: Option<bool>,
+    listing: Listing,
+) -> StopReport {
+    return StopReport::new(QUIESCE_BOUND, false, populated, listing);
+}
+
+/// A member in the scope's own group.
+fn at_home(
+    pid: i32,
+    standing: MemberStanding,
+) -> MemberListing {
+    return MemberListing {
+        pid,
+        below: None,
+        standing,
+    };
+}
+
+/// A member in a group below the scope,
+/// by that group's path below the scope.
+fn below(
+    pid: i32,
+    group: &str,
+    standing: MemberStanding,
+) -> MemberListing {
+    return MemberListing {
+        pid,
+        below: Some(group.to_string()),
+        standing,
+    };
 }
 
 /// The control of the sentence a refusal carries:
 /// it states how long the stop waited,
-/// names every member that was left with its state,
+/// names every member that was left with its state and the group it stands in,
 /// and says which of them can still write.
 /// The report is built from the same facts the stop hands it,
 /// so the words are the stop's own reading and not a second one.
 #[test]
 fn the_sentence_of_a_report_states_the_wait_and_the_state_of_every_member() {
-    use crate::control_group_stop::report::{
-        MemberListing,
-        MemberStanding,
-        StopReport,
-    };
-    let report: StopReport = StopReport::new(
-        QUIESCE_BOUND + Duration::from_millis(3),
-        false,
+    let report: StopReport = report_of(
         Some(true),
-        vec![
-            MemberListing {
-                pid: 4242,
-                standing: MemberStanding::Alive,
-            },
-            MemberListing {
-                pid: 4243,
-                standing: MemberStanding::Exited,
-            },
-        ],
-        None,
+        Listing::Read(vec![
+            at_home(4242, MemberStanding::Alive),
+            at_home(4243, MemberStanding::Exited),
+            below(4244, "nested", MemberStanding::Alive),
+        ]),
     );
 
     let said: String = report.sentence(Path::new("/sys/fs/cgroup/a.scope"));
 
     assert!(
-        said.contains(&format!("{:?}", QUIESCE_BOUND + Duration::from_millis(3))),
+        said.contains(&format!("{:?}", QUIESCE_BOUND)),
         "the sentence does not state the time the stop waited: {said}"
     );
     assert!(
@@ -506,11 +952,18 @@ fn the_sentence_of_a_report_states_the_wait_and_the_state_of_every_member() {
         "the sentence does not tell the exited member from the live one: {said}"
     );
     assert!(
+        said.contains("4244 in nested"),
+        "the sentence does not say which group below the scope the member stands in: {said}"
+    );
+    assert!(
         said.contains("/sys/fs/cgroup/a.scope"),
         "the sentence does not name the scope: {said}"
     );
     assert!(
-        report.may_still_write(),
+        matches!(
+            report.leftover(),
+            crate::control_group_stop::report::Leftover::Writer
+        ),
         "a report with a live member was read as one that cannot still write"
     );
     let unknown: MemberStanding = MemberStanding::Unknown("the read failed".to_string());
@@ -520,4 +973,108 @@ fn the_sentence_of_a_report_states_the_wait_and_the_state_of_every_member() {
         "an unreadable member was read as one that cannot write: {}",
         unknown.text()
     );
+}
+
+/// Issue 6528's review,
+/// Low 5:
+/// a listing whose members all ended says so,
+/// and the refusal does not claim a member that can still write.
+#[test]
+fn a_refusal_whose_members_all_ended_says_no_member_it_listed_can_still_write() {
+    let report: StopReport = report_of(
+        Some(true),
+        Listing::Read(vec![
+            at_home(5001, MemberStanding::Gone),
+            at_home(5002, MemberStanding::Exited),
+        ]),
+    );
+    let said: String = report.sentence(Path::new("/sys/fs/cgroup/b.scope"));
+
+    assert_eq!(
+        report.headline(),
+        "the scope did not read as empty, and no member it listed can still write"
+    );
+    assert!(
+        said.contains("it listed 2 members: 5001 (it has ended and been reaped, so it can write nothing), 5002"),
+        "the sentence does not name both members that ended: {said}"
+    );
+}
+
+/// Issue 6528's review,
+/// Medium 1:
+/// a listing that read every group and found no member says that,
+/// and the refusal does not say what such a member can do.
+#[test]
+fn a_refusal_that_listed_no_member_says_so() {
+    let report: StopReport = report_of(Some(true), Listing::Read(Vec::new()));
+    let said: String = report.sentence(Path::new("/sys/fs/cgroup/c.scope"));
+
+    assert_eq!(
+        report.headline(),
+        "the scope did not read as empty, and it listed no member of the scope or of any group below it"
+    );
+    assert!(
+        said.contains("it listed no member of the scope or of any group below it"),
+        "the sentence does not say that no member was listed: {said}"
+    );
+    assert!(
+        !said.contains("can still write") && !said.contains("can write nothing"),
+        "the sentence says what a member it did not read can do: {said}"
+    );
+}
+
+/// Issue 6528's review,
+/// Low 4:
+/// a listing that was cut at its own bound says which bound it hit and names what it read before that,
+/// so a member it never reached is not counted as one that cannot write.
+#[test]
+fn a_refusal_whose_listing_was_cut_states_the_bound_it_hit() {
+    use crate::control_group_stop::LISTING_BOUND;
+    let cut: StopReport = report_of(Some(true), Listing::Cut(Vec::new()));
+    let cut_said: String = cut.sentence(Path::new("/sys/fs/cgroup/d.scope"));
+    assert_eq!(
+        cut.headline(),
+        format!(
+            "the scope did not read as empty, and its members could not all be read within {LISTING_BOUND:?}"
+        )
+    );
+    assert!(
+        cut_said.contains(&format!(
+            "the listing of its members was cut at its own bound of {LISTING_BOUND:?} before one was read"
+        )),
+        "the sentence does not say the listing was cut before it read one: {cut_said}"
+    );
+
+    // A listing cut after it read one member that had ended names it and still says the rest were not read.
+    let partly: StopReport = report_of(
+        Some(true),
+        Listing::Cut(vec![at_home(6001, MemberStanding::Gone)]),
+    );
+    let partly_said: String = partly.sentence(Path::new("/sys/fs/cgroup/e.scope"));
+    assert!(
+        partly_said.contains("after it listed 1 member: 6001")
+            && partly_said.contains("cut at its own bound"),
+        "the sentence does not name the member it read before the cut, or does not say the rest were not read: {partly_said}"
+    );
+}
+
+/// Issue 6528's review,
+/// Low 3:
+/// a scope whose absence was verified is worded as absent,
+/// never as a kernel that reported it empty,
+/// and no wait is stated for it.
+#[test]
+fn a_scope_proved_absent_is_worded_as_gone_and_not_as_the_kernel_speaking() {
+    let report: StopReport = StopReport::absent(Duration::from_micros(12));
+    let said: String = report.sentence(Path::new("/sys/fs/cgroup/f.scope"));
+
+    assert!(
+        said.contains("was gone when the stop looked, and its absence was verified"),
+        "the sentence does not say the scope's directory was gone: {said}"
+    );
+    assert!(
+        !said.contains("kernel") && !said.contains("waited"),
+        "the sentence claims a word or a wait the kernel never gave: {said}"
+    );
+    assert!(report.empty(), "a report of an absent scope is not empty");
 }

@@ -533,7 +533,7 @@ version = "0.1.3"
 
 [[package]]
 name = "monochromatic-mpm-shadow"
-version = "0.2.7-alpha.12"
+version = "0.2.7-alpha.14"
 dependencies = [
  "clap",
  "flate2",
@@ -542,6 +542,7 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "monochromatic-jsonc-edit",
+ "rustix",
  "serde_json",
  "sha2",
  "tempfile",

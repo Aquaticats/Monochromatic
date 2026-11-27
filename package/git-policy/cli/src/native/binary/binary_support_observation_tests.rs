@@ -596,40 +596,145 @@ fn the_signal_at_the_bound_reaches_the_command_and_no_other_process() {
 }
 
 /// What:
-///  No signal in the two files of the wait takes a number that may already belong to another process.
+///  `THE_WAIT` is every file the wait is made of,
+///  each with its text and the text that proves it is still about the wait.
+/// Why:
+///  The ban below is about the wait,
+///  and the alpha.48 split moved nine items out of `binary_support_observation.rs` and seven out of
+///  `binary_support_observation_bound.rs` into two siblings,
+///  so a ban over the two originals stopped reading half of it (issue 6599).
+///  This folder is a target of its own,
+///  where the shared scan of `source_guard` is not compiled,
+///  so the files are named here:
+///  each receiver is named,
+///  and each entry states the text the file is still about,
+///  so a file that leaves the wait fails beside a file that was never added.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_WAIT = [{ file: 'binary_support_observation.rs', source: read('binary_support_observation.rs'), about: 'wait_under_bound(' }, ...];
+/// ```
+const THE_WAIT: &[(&str, &str, &str)] = &[
+    (
+        "binary_support_observation.rs",
+        include_str!("binary_support_observation.rs"),
+        "wait_under_bound(",
+    ),
+    (
+        "binary_support_observation_bound.rs",
+        include_str!("binary_support_observation_bound.rs"),
+        "libc::WNOWAIT",
+    ),
+    (
+        "binary_support_observation_bound_what_the_wait_answers_with.rs",
+        include_str!("binary_support_observation_bound_what_the_wait_answers_with.rs"),
+        "LineBound",
+    ),
+    (
+        "binary_support_observation_waiting_for_the_after_commit_work.rs",
+        include_str!("binary_support_observation_waiting_for_the_after_commit_work.rs"),
+        "settle_service_work(",
+    ),
+];
+
+/// What:
+///  `THE_BOUNDED_WAIT` is the one file whose order this control pins.
+/// Why:
+///  The look before the signal and the pin the command is signalled through are a sequence inside one file,
+///  and the control names it so a move fails instead of passing over a file it never read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_BOUNDED_WAIT = 'binary_support_observation_bound.rs';
+/// ```
+const THE_BOUNDED_WAIT: &str = "binary_support_observation_bound.rs";
+
+/// What:
+///  `files_that_left_the_wait(sources)` is every file of `THE_WAIT` whose text no longer holds what that file is
+///  about.
+/// Why:
+///  A file that stopped holding its own names has been split again,
+///  and a ban that went on reading it would guard the less without saying so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filesThatLeftTheWait = (sources) => sources.filter(([, source, about]) => !source.includes(about)).map(([file]) => file);
+/// ```
+fn files_that_left_the_wait(sources: &[(&str, &str, &str)]) -> Vec<String> {
+    return sources
+        .iter()
+        .filter(|(_file, source, about)| {
+            return !source.contains(*about);
+        })
+        .map(|(file, _source, about)| return format!("{file} holds no `{about}`"))
+        .collect();
+}
+
+/// What:
+///  `lines_holding(source, needles)` is every line of one source that holds one of `needles`,
+///  comments dropped.
+/// Why:
+///  Every rule below is about a call in code,
+///  and a file explains in a comment what it may not do as often as it says what it does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesHolding = (source, needles) => source.split('\n').filter((line) => !line.trimStart().startsWith('//')).filter((line) => needles.some((needle) => line.includes(needle)));
+/// ```
+fn lines_holding<'a>(
+    source: &'a str,
+    needles: &[&str],
+) -> Vec<&'a str> {
+    let mut found: Vec<&'a str> = Vec::new();
+    for line in source.lines() {
+        if line.trim_start().starts_with("//") {
+            continue;
+        }
+        if !needles.iter().any(|needle| return line.contains(*needle)) {
+            continue;
+        }
+        found.push(line);
+    }
+    return found;
+}
+
+/// What:
+///  No signal in the wait's files takes a number that may already belong to another process.
 /// Why:
 ///  A control cannot wait for a process number to be reused,
 ///  so this is a control over the source:
 ///  the command is signalled through a pinned process,
 ///  the group is signalled only after a `WNOWAIT` look and before the command is reaped,
-///  and no other signal call exists in either file.
+///  and no other signal call exists in any file the split made of the wait.
 #[test]
 fn no_signal_in_the_wait_takes_a_number_its_child_no_longer_holds() {
-    let files: [(&str, &str); 2] = [
-        (
-            "binary_support_observation.rs",
-            include_str!("binary_support_observation.rs"),
-        ),
-        (
-            "binary_support_observation_bound.rs",
-            include_str!("binary_support_observation_bound.rs"),
-        ),
-    ];
-    for (name, text) in files {
+    let left: Vec<String> = files_that_left_the_wait(THE_WAIT);
+    assert!(
+        left.is_empty(),
+        "a file of the wait no longer holds what it is about, so this ban reads less than it says: move the \
+         entry to the file that holds it now, or delete it:\n{}",
+        left.join("\n")
+    );
+    for (name, source, _about) in THE_WAIT {
         assert!(
-            !text.contains("killpg("),
+            lines_holding(source, &["killpg("]).is_empty(),
             "{name}: a whole group is signalled through its leader with `kill(-leader)`, never through `killpg`"
         );
-        for (index, _) in text.match_indices("libc::kill(") {
-            let after: &str = &text[index..];
+        for line in lines_holding(source, &["libc::kill("]) {
+            let after: &str = &line[line
+                .find("libc::kill(")
+                .expect("the line holds the call it was found by")..];
             assert!(
                 after.starts_with("libc::kill(-leader, libc::SIGKILL)"),
-                "{name}: a signal may name only a group its leader still pins, and this call is {}",
-                after.lines().next().unwrap_or_default()
+                "{name}: a signal may name only a group its leader still pins, and this call is {after}"
             );
         }
     }
-    let bound: &str = include_str!("binary_support_observation_bound.rs");
+    let bound: &str = THE_WAIT
+        .iter()
+        .find(|(file, _source, _about)| return *file == THE_BOUNDED_WAIT)
+        .map(|(_file, source, _about)| return *source)
+        .expect("the bounded wait is one of the wait's files");
     let checked: usize = bound
         .find("WNOWAIT | libc::WNOHANG")
         .expect("the wait looks before it signals, without reaping");

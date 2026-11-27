@@ -2,14 +2,19 @@
 //!  every line arrives once and whole,
 //!  the order the bytes arrived in is the order the stream holds,
 //!  a line still being built is said at its newline or at the end of the stream,
-//!  and a stretch with no end is handed over at its block.
-//! Every control reads a collector of its own rather than this process's standard error,
-//! so no control changes state another control of the run shares.
+//!  a stretch with no end is handed over at its block,
+//!  and a write answers an error when the line it completed did not reach the stream.
+//! Most controls read a collector of their own rather than this process's standard error,
+//! so they change no state another control of the run shares.
+//! The two that hand this process's queue a stream of their own run their bodies in a child
+//! (`run_the_body_in_a_child_of_its_own`),
+//! because that queue and its thread are one for the whole process.
 
 use super::{
     LONGEST_STRETCH_WITHOUT_AN_END,
     StandardErrorOffTheCallingThread,
 };
+use crate::lines_written_by_a_thread::HandedOver;
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
@@ -27,7 +32,7 @@ use std::rc::Rc;
 /// const said = []; const stream = new StandardErrorOffTheCallingThread({ hand: (line) => said.push(line) });
 /// ```
 fn a_stream_that_keeps_what_it_said() -> (
-    StandardErrorOffTheCallingThread<impl FnMut(&[u8])>,
+    StandardErrorOffTheCallingThread<impl FnMut(&[u8]) -> HandedOver>,
     Rc<RefCell<Vec<Vec<u8>>>>,
 ) {
     let said: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
@@ -35,6 +40,7 @@ fn a_stream_that_keeps_what_it_said() -> (
     let stream: StandardErrorOffTheCallingThread<_> =
         StandardErrorOffTheCallingThread::handing_to(move |line: &[u8]| {
             kept.borrow_mut().push(line.to_vec());
+            return HandedOver::Written;
         });
     return (stream, said);
 }
@@ -195,5 +201,107 @@ fn a_stretch_with_no_end_is_handed_over_at_the_block() {
     assert!(
         stream.buffered.is_empty(),
         "the stretch is no longer held here"
+    );
+}
+
+/// What:
+///  A line the hand took is answered as a write that succeeded.
+/// Why:
+///  The answer is the whole of what a caller that must not lose its line reads,
+///  and it comes from the thread that wrote it rather than from the write.
+#[test]
+fn a_line_the_stream_took_is_answered_as_a_write_that_succeeded() {
+    let mut stream = StandardErrorOffTheCallingThread::handing_to(|_line: &[u8]| {
+        return HandedOver::Written;
+    });
+    let written: std::io::Result<()> = writeln!(stream, "a line the person reads");
+    assert!(written.is_ok(), "a line the stream took is no error");
+}
+
+/// What:
+///  A line the hand did not take is an error of the write that completed it.
+/// Why:
+///  A caller that must not lose what its line says keeps its record on this error
+///  (`Notice::show`),
+///  and the write of the line is the only place the answer is known.
+#[test]
+fn a_line_the_stream_did_not_take_is_an_error_of_the_write_that_completed_it() {
+    let mut stream = StandardErrorOffTheCallingThread::handing_to(|_line: &[u8]| {
+        return HandedOver::Unwritten;
+    });
+    let refused: std::io::Result<()> = writeln!(stream, "a line nobody can read");
+    assert_eq!(
+        refused.as_ref().err().map(std::io::Error::kind),
+        Some(std::io::ErrorKind::BrokenPipe),
+        "a line the stream did not take is refused: {refused:?}"
+    );
+}
+
+/// What:
+///  A line whose end never arrived is answered at the flush that hands it over.
+/// Why:
+///  A line is handed over at its newline or at the end of the stream,
+///  so the answer belongs to whichever call hands it over,
+///  and a caller that flushes reads the same error there.
+#[test]
+fn a_line_the_stream_did_not_take_is_an_error_of_the_flush_that_handed_it_over() {
+    let mut stream = StandardErrorOffTheCallingThread::handing_to(|_line: &[u8]| {
+        return HandedOver::Unwritten;
+    });
+    let kept: std::io::Result<()> = write!(stream, "a line with no end yet");
+    assert!(
+        kept.is_ok(),
+        "no line left the stream yet, so there is nothing to refuse"
+    );
+    let refused: std::io::Result<()> = stream.flush();
+    assert!(
+        refused.is_err(),
+        "the flush hands the line over, so the flush reads the refusal"
+    );
+}
+
+/// What:
+///  A line this process's own queue could not put in its stream is an error of the stream,
+///  and the line is answered as one that never reached the person.
+/// Why:
+///  This is the path every note of a command takes,
+///  and the answer is what `Notice::show` reads to keep its record.
+#[test]
+fn a_line_the_thread_of_this_process_refused_is_an_error_of_the_stream() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_the_thread_of_this_process_refused_is_an_error_of_the_stream",
+        || {
+            crate::diagnostic_lines_off_the_calling_thread::give_the_thread(Box::new(
+                crate::test_support::AStreamThatRefusesEveryByte,
+            ));
+            let mut stream = StandardErrorOffTheCallingThread::new();
+            let refused: std::io::Result<()> = writeln!(stream, "a line nobody can read");
+            assert!(
+                refused.is_err(),
+                "the thread that writes standard error says the line did not reach the person"
+            );
+        },
+    );
+}
+
+/// What:
+///  A line this process's own queue put in its stream is no error of the stream.
+/// Why:
+///  The check above is only worth its answer if a line that reaches the stream is told apart
+///  from one that does not.
+#[test]
+fn a_line_the_thread_of_this_process_took_is_no_error_of_the_stream() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_the_thread_of_this_process_took_is_no_error_of_the_stream",
+        || {
+            crate::diagnostic_lines_off_the_calling_thread::give_the_thread(Box::new(
+                std::io::sink(),
+            ));
+            let mut stream = StandardErrorOffTheCallingThread::new();
+            let written: std::io::Result<()> = writeln!(stream, "a line the person reads");
+            assert!(written.is_ok(), "the stream took the line: {written:?}");
+        },
     );
 }

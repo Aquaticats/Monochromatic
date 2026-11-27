@@ -120,3 +120,87 @@ pub(crate) fn release_root(path: &str) -> CrateRoot {
         test_only: false,
     };
 }
+
+/// What:
+///  `pub(crate) fn code_lines(text: &str) -> String` is one source file's code:
+///  every line that is not a comment,
+///  joined with newlines.
+/// Why:
+///  A comment may name a call the file does not make,
+///  and the header of a file is exactly where the name of a call that moved out survives.
+///  This crate writes every comment as whole lines,
+///  so cutting at a leading `//` loses no code.
+/// Gotcha:
+///  The cut is textual:
+///  a call written inside a string literal is kept and would be read as a call,
+///  which is why the words a file says about itself are checked by its own module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function codeLines(text: string): string {
+///   return text.split('\n').filter((line) => !line.trimStart().startsWith('//')).join('\n');
+/// }
+/// ```
+pub(crate) fn code_lines(text: &str) -> String {
+    // What: `filter` keeps the lines that do not start with a comment marker, and `collect` gathers them.
+    // Why:  The join below needs the whole list, and the newlines it puts back are the only ones lost.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kept = text.split('\n').filter((line) => !line.trimStart().startsWith('//'));
+    // ```
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect();
+    // What: `join` puts one newline between the lines it kept.
+    // Why:  A needle that spans two lines of code then reads as it does in the file.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return kept.join('\n');
+    // ```
+    return kept.join("\n");
+}
+
+/// What:
+///  `pub(crate) fn source_text(relative: &str) -> String` is the text of the one source file that `relative` names,
+///  read as a path under `src/native`.
+///  `&str` is borrowed text,
+///  whose owned sibling is `String`,
+///  and the `String` it gives back is owned,
+///  because the caller keeps the text after this read returns.
+/// Why:
+///  A check that looks for a needle in the sources needs one file at a time:
+///  this crate's sources hold 46,090,082 bytes,
+///  and the guard that held them all read the same tree through its `uses` links and spent 892 MiB
+///  (issue 6598).
+///  A file that cannot be read stops the check with its own name rather than passing as a file with no findings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function sourceText(relative: string): string  // throws Error
+/// ```
+pub(crate) fn source_text(relative: &str) -> String {
+    // What:
+    //  `source_root()` is `src/native` of this crate and `join` builds the file's path below it.
+    // Why:
+    //  Every check names a source by its `/`-separated identity under that root,
+    //  so the caller never holds a second spelling of a path.
+    let path: PathBuf = source_root().join(relative);
+    // What:
+    //  `read_to_string` reads the whole file as UTF-8 text and gives `Result<String, std::io::Error>`;
+    //  `unwrap_or_else` takes the text or runs the closure that stops the check, and `|error|` is a closure
+    //  (an arrow function in TS).
+    // Why:
+    //  A file the check cannot read must fail the check by name, never count as one with no findings.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const text = readFileSync(path, 'utf8') // or throw new Error(`${path} cannot be read: ${error}`)
+    // ```
+    return std::fs::read_to_string(path.as_path())
+        .unwrap_or_else(|error| panic!("{} cannot be read: {error}", path.display()));
+}

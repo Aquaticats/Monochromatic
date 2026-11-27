@@ -1,6 +1,7 @@
 //! What:
 //!  Guard for the commit path's notes:
-//!  no file of this crate that says one writes standard error on the command's own thread.
+//!  no release file of this crate that says a note of the commit path writes standard error on the
+//!  command's own thread.
 //! Why:
 //!  A write to a pipe whose reader stopped draining waits in the kernel until it resumes,
 //!  so a note written where the commit stands holds a commit that may already have landed
@@ -17,49 +18,51 @@
 //!  (`foundation/standard_error_descriptor.rs`),
 //!  so a note written through it would hold every later line of the process behind the reader.
 //!
+//! A note file is found rather than remembered:
+//! every release source that names the hand-over's own vocabulary is one,
+//! so the split that moved `write_stderr` out of `commit/commit_command.rs` into
+//! `commit/commit_command_words.rs` covered the receiver the day it landed
+//! (issue 6599).
+//! Two files of the lane talk to the shared handle for reasons that are not a note,
+//! and `MAY_HOLD` records each of those.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(filesSayingTheStream(shippedCommitPathNotes()).flatMap(findings)).toEqual([]);
+//! expect(releaseSourcesHolding(NOTE_LANE).flatMap(([file, text]) => linesNoEntryExcuses(linesHoldingOneOf(file, text, THE_SHARED_HANDLE).filter((line) => !line.includes(THE_ONE_ALLOWED)), MAY_HOLD))).toEqual([]);
 //! ```
 
-use crate::source_guard::source_scan_tests::source_root;
+use super::{
+    HoldingLine,
+    MayHold,
+    entries_that_match_nothing,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_holding,
+};
 
 /// What:
-///  Every release file that says a note of the commit path,
-///  as its `/`-separated identity under `src/native`.
+///  `NOTE_LANE` is the vocabulary that makes a release file a note file:
+///  the hand-over's type,
+///  the measured stream built over it,
+///  and the two writers `commit/commit_command_words.rs` hands a line to.
 /// Why:
-///  These are the files the notes of a commit and of the steps before it are said from,
-///  and each one hands its lines to the thread that writes standard error.
+///  A file that says a note names one of these,
+///  so the set of note files is read from the tree instead of from a list somebody maintains,
+///  and a receiver of a split is a note file by its own text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const NOTES = ['commit/commit_command.rs', 'landing/service_commit.rs', ...];
+/// const NOTE_LANE = ['StandardErrorOffTheCallingThread', 'MeasuredStandardError', 'write_stderr'];
 /// ```
-const NOTE_FILES: &[&str] = &[
-    "commit/commit_command.rs",
-    "landing/service_commit_input_notes_and_embedded_commit.rs",
-    "landing/service_commit_the_answers_of_the_service.rs",
-    "landing/service_commit_rebuild_ceiling.rs",
-    "landing/service_commit_requests_and_landing_report.rs",
-    "landing/service_landed_aftermath.rs",
-    "invocation/wrapped_command_notices_snapshots_and_manual_push.rs",
+const NOTE_LANE: &[&str] = &[
+    "StandardErrorOffTheCallingThread",
+    "MeasuredStandardError",
+    "write_stderr",
 ];
 
 /// What:
-///  The words a note file carries to hand a line to the thread that writes it.
-/// Why:
-///  A file that says notes names no stream of its own,
-///  so it names this one;
-///  a file that lost the name is a file whose lines went back to the shared handle.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const THE_HAND_OVER = 'StandardErrorOffTheCallingThread';
-/// ```
-const THE_HAND_OVER: &str = "StandardErrorOffTheCallingThread";
-
-/// What:
-///  The shapes that ask for this process's shared standard error rather than a stream of their own.
+///  `THE_SHARED_HANDLE` is the shapes that ask for this process's shared standard error rather than a stream of
+///  their own.
 /// Why:
 ///  A note written through the shared handle waits for the reader where the command stands,
 ///  and it is also one lock for the whole process;
@@ -74,7 +77,7 @@ const THE_HAND_OVER: &str = "StandardErrorOffTheCallingThread";
 const THE_SHARED_HANDLE: &[&str] = &["std::io::stderr(", "std::io::Stderr"];
 
 /// What:
-///  The one write a note file may still make on the command's own thread:
+///  `THE_ONE_ALLOWED` is the one write a note file may still make on the command's own thread:
 ///  the sentence a commit says when its standard output refused the summary it had to print.
 /// Why:
 ///  A commit that cannot say its summary ends as Git does,
@@ -89,179 +92,219 @@ const THE_SHARED_HANDLE: &[&str] = &["std::io::stderr(", "std::io::Stderr"];
 const THE_ONE_ALLOWED: &str = "fatal: write error";
 
 /// What:
-///  The lines of a file that are not comments,
-///  joined as one text.
+///  `THE_NOTE_FILES` is every file `main` says a note of the commit path from.
 /// Why:
-///  A comment says what the code may not do as often as a file says what it does,
-///  and a check that read the comments would forbid the explanation of its own rule.
+///  The lane is found by its vocabulary,
+///  and a file that stops naming it leaves the lane without saying so:
+///  this list is what fails then,
+///  so a split that moves the last hand-over out of one of these names the file that holds it now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const codeOnly = (text) => text.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')
+/// const THE_NOTE_FILES = ['commit/commit_command.rs', 'landing/service_commit_input_notes_and_embedded_commit.rs', ...];
 /// ```
-fn code_only(text: &str) -> String {
-    let mut lines: Vec<&str> = Vec::new();
-    for line in text.lines() {
-        if line.trim_start().starts_with("//") {
-            continue;
-        }
-        lines.push(line);
-    }
-    return lines.join("\n");
-}
+const THE_NOTE_FILES: &[&str] = &[
+    "commit/commit_command.rs",
+    "invocation/wrapped_command_notices_snapshots_and_manual_push.rs",
+    "landing/service_commit_input_notes_and_embedded_commit.rs",
+    "landing/service_commit_rebuild_ceiling.rs",
+    "landing/service_commit_requests_and_landing_report.rs",
+    "landing/service_commit_the_answers_of_the_service.rs",
+    "landing/service_landed_aftermath.rs",
+];
 
 /// What:
-///  What one note file's text gets wrong,
-///  as one sentence per finding,
-///  and nothing when it hands its lines over and writes no stream of its own.
+///  `MAY_HOLD` is the one note file that keeps the shared handle,
+///  and the reason it does.
 /// Why:
-///  The check is a function of the text so a control can plant a note file that asks for the shared
-///  handle and read the finding,
-///  which is what proves the check can fail at all.
+///  The measured stream is built over any stream,
+///  and the shared one is the other arm of that measurement rather than a note of the commit path;
+///  an entry whose line went fails here instead of excusing the file for ever.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const findingsOfANoteFile = (path, text) => { const code = codeOnly(text); return [...(code.includes(THE_HAND_OVER) ? [] : [`${path} hands no line to the thread`]), ...code.split('\n').filter((l) => l.includes('std::io::stderr(') && !l.includes(THE_ONE_ALLOWED)).map((l) => `${path} writes standard error where the command stands: ${l}`)] };
+/// const MAY_HOLD = [{ file: 'foundation/time_spent_outside_the_phases.rs', text: 'std::io::stderr(', why: '...' }];
 /// ```
-fn findings_of_a_note_file(
-    path: &str,
-    text: &str,
-) -> Vec<String> {
-    let code: String = code_only(text);
-    let mut found: Vec<String> = Vec::new();
-    if !code.contains(THE_HAND_OVER) {
-        found.push(format!(
-            "{path} names no `{THE_HAND_OVER}`, so its notes reach no thread of their own"
-        ));
-    }
-    for line in code.lines() {
-        let asks_for_the_handle: bool = THE_SHARED_HANDLE
-            .iter()
-            .any(|shape| return line.contains(*shape));
-        if !asks_for_the_handle {
-            continue;
-        }
-        if line.contains(THE_ONE_ALLOWED) {
-            continue;
-        }
-        found.push(format!(
-            "{path} writes standard error where the command stands: {line}"
-        ));
-    }
-    return found;
-}
+const MAY_HOLD: &[MayHold] = &[
+    MayHold {
+        file: "foundation/time_spent_outside_the_phases.rs",
+        text: "std::io::stderr(",
+        why: "the measured stream's other arm is built over this process's own standard error, which is what the \
+              timing record counts; it says no note of the commit path",
+    },
+    MayHold {
+        file: "foundation/time_spent_outside_the_phases.rs",
+        text: "std::io::Stderr",
+        why: "the same arm, named as the type the measured stream is built over",
+    },
+];
 
 /// What:
-///  Every finding of every note file of this crate.
+///  `note_files()` is every release source that says a note,
+///  each as its identity and its text.
 /// Why:
-///  One call for the whole class,
-///  so a new note file joins the guard by being named once.
+///  The set is the tree's answer,
+///  so a new note file joins the guard by being written and no receiver of a split is left behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const findingsOfTheNotes = (files) => files.flatMap(([path, text]) => findingsOfANoteFile(path, text));
-/// ```
-fn findings_of_the_notes(files: &[(String, String)]) -> Vec<String> {
-    let mut found: Vec<String> = Vec::new();
-    for (path, text) in files {
-        found.extend(findings_of_a_note_file(path, text.as_str()));
-    }
-    return found;
-}
-
-/// What:
-///  The note files of this crate,
-///  each read as its `/`-separated identity and its text.
-/// Why:
-///   The guard reads the sources that ship,
-///   not a list of remembered lines.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const noteFiles = () => NOTES.map((path) => [path, readFile(join(sourceRoot(), path))]);
+/// const noteFiles = () => releaseSourcesHolding(NOTE_LANE);
 /// ```
 fn note_files() -> Vec<(String, String)> {
-    let root: std::path::PathBuf = source_root();
-    let mut files: Vec<(String, String)> = Vec::new();
-    for path in NOTE_FILES {
-        let full: std::path::PathBuf = root.join(path);
-        let text: String = std::fs::read_to_string(full.as_path())
-            .unwrap_or_else(|error| panic!("{} cannot be read: {error}", full.display()));
-        files.push((String::from(*path), text));
-    }
-    return files;
+    return release_sources_holding(NOTE_LANE).expect("the crate's release sources");
+}
+
+/// What:
+///  `writes_where_the_command_stands(sources)` is every code line of a note file that asks for the shared handle,
+///  with the one sentence a refused summary leaves taken out.
+/// Why:
+///  The sentence is the whole of what a person gets when the commit's summary could not be printed,
+///  so it is no finding,
+///  and the line is dropped before the list is asked whether an entry still excuses anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writesWhereTheCommandStands = (sources) => linesHoldingOneOf(sources, THE_SHARED_HANDLE).filter((held) => !held.line.includes(THE_ONE_ALLOWED));
+/// ```
+fn writes_where_the_command_stands(sources: &[(String, String)]) -> Vec<HoldingLine> {
+    return lines_holding_one_of(sources, THE_SHARED_HANDLE)
+        .into_iter()
+        .filter(|held| {
+            return !held.line.contains(THE_ONE_ALLOWED);
+        })
+        .collect();
+}
+
+/// What:
+///  `files_the_lane_no_longer_holds(sources)` is every file `THE_NOTE_FILES` names that the lane no longer answered
+///  with.
+/// Why:
+///  A file that leaves the lane is read by no rule of this guard,
+///  which is exactly the hole the split left,
+///  so its leaving has to fail here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filesTheLaneNoLongerHolds = (sources) => THE_NOTE_FILES.filter((name) => !sources.some(([file]) => file === name));
+/// ```
+fn files_the_lane_no_longer_holds(sources: &[(String, String)]) -> Vec<String> {
+    return THE_NOTE_FILES
+        .iter()
+        .filter(|name| {
+            return !sources.iter().any(|(file, _)| {
+                return file == *name;
+            });
+        })
+        .map(|name| return String::from(*name))
+        .collect();
 }
 
 /// No note file of the commit path writes standard error where the command stands.
 #[test]
 fn no_note_of_the_commit_path_is_written_on_the_command_s_own_thread() {
-    assert_eq!(
-        findings_of_the_notes(note_files().as_slice()),
-        Vec::<String>::new(),
-        "a note of the commit path is handed to the thread that writes standard error, never written by the commit's own thread"
+    let sources: Vec<(String, String)> = note_files();
+    let unexplained: Vec<String> = lines_no_entry_excuses(
+        writes_where_the_command_stands(sources.as_slice()).as_slice(),
+        MAY_HOLD,
+    );
+    assert!(
+        unexplained.is_empty(),
+        "a note of the commit path is handed to the thread that writes standard error, never written by the \
+         command's own thread:\n{}",
+        unexplained.join("\n")
     );
 }
 
-/// The check fails on a note file that asks for the shared standard error.
+/// Every `MAY_HOLD` entry still excuses a line,
+/// so an arm that went leaves the list no longer than it is.
+#[test]
+fn every_entry_of_the_list_still_excuses_a_line() {
+    let sources: Vec<(String, String)> = note_files();
+    let stale: Vec<String> = entries_that_match_nothing(
+        writes_where_the_command_stands(sources.as_slice()).as_slice(),
+        MAY_HOLD,
+    );
+    assert!(
+        stale.is_empty(),
+        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        stale.join("\n")
+    );
+}
+
+/// The lane still reaches every file `main` says a note of the commit path from.
+#[test]
+fn the_lane_still_reads_every_file_that_says_a_note() {
+    let sources: Vec<(String, String)> = note_files();
+    let left: Vec<String> = files_the_lane_no_longer_holds(sources.as_slice());
+    assert!(
+        left.is_empty(),
+        "these files name no word of the note lane, so this guard reads nothing in them: move each entry to the \
+         file that says the note now, or delete it:\n{}",
+        left.join("\n")
+    );
+}
+
+/// The scan fails on a note file that asks for the shared standard error.
 #[test]
 fn the_check_fails_on_a_note_file_that_takes_the_shared_standard_error() {
     let planted: Vec<(String, String)> = vec![(
         String::from("landing/a_note.rs"),
         String::from(
-            "fn say(line: &str) { let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new(); let _ = writeln!(std::io::stderr(), \"{line}\"); }\n",
+            "use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;\nfn say(line: &str) { let _ = writeln!(std::io::stderr(), \"{line}\"); }\n",
         ),
     )];
-    let found: Vec<String> = findings_of_the_notes(planted.as_slice());
-    assert!(
-        !found.is_empty(),
-        "a note file that writes standard error where the command stands is a finding"
+    let found: Vec<String> = lines_no_entry_excuses(
+        writes_where_the_command_stands(planted.as_slice()).as_slice(),
+        MAY_HOLD,
     );
     assert!(
         found
             .iter()
             .any(|sentence| return sentence.contains("std::io::stderr(")),
-        "the finding names the write: {found:?}"
+        "a note file that writes standard error where the command stands is a finding: {found:?}"
     );
 }
 
-/// The check fails on a note file that lost its hand-over.
-#[test]
-fn the_check_fails_on_a_note_file_with_no_hand_over() {
-    let planted: Vec<(String, String)> = vec![(
-        String::from("landing/a_note.rs"),
-        String::from("fn say(line: &str) -> usize { return line.len(); }\n"),
-    )];
-    let found: Vec<String> = findings_of_the_notes(planted.as_slice());
-    assert!(
-        found
-            .iter()
-            .any(|sentence| return sentence.contains("names no `StandardErrorOffTheCallingThread`")),
-        "a note file that hands its lines to no thread is a finding: {found:?}"
-    );
-}
-
-/// The check answers nothing for the one sentence a refused summary leaves.
+/// The scan answers nothing for the one sentence a refused summary leaves.
 #[test]
 fn the_check_allows_the_sentence_a_refused_summary_leaves() {
     let allowed: Vec<(String, String)> = vec![(
         String::from("landing/a_note.rs"),
         String::from(
-            "fn print_summary() { let _ = writeln!(std::io::stderr(), \"fatal: write error: {error}\"); }\n",
+            "use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;\nfn print_summary() { let _ = writeln!(std::io::stderr(), \"fatal: write error: {error}\"); }\n",
         ),
     )];
-    assert!(
-        findings_of_the_notes(allowed.as_slice())
-            .iter()
-            .all(|sentence| return !sentence.contains("std::io::stderr(")),
-        "the sentence a commit says when its summary could not be printed is allowed"
-    );
-    let mut with_hand_over: Vec<(String, String)> = allowed;
-    with_hand_over[0]
-        .1
-        .push_str("fn hand() { let _ = StandardErrorOffTheCallingThread::new(); }\n");
     assert_eq!(
-        findings_of_the_notes(with_hand_over.as_slice()),
+        lines_no_entry_excuses(
+            writes_where_the_command_stands(allowed.as_slice()).as_slice(),
+            MAY_HOLD,
+        ),
         Vec::<String>::new(),
-        "the allowed sentence and the hand-over are no finding at all"
+        "the sentence a commit says when its summary could not be printed is no finding"
+    );
+}
+
+/// A file that says no note is read by no rule of this guard,
+/// and a file that says one is read by both.
+#[test]
+fn the_lane_is_what_the_hand_over_makes_it() {
+    let lane: Vec<(String, String)> =
+        release_sources_holding(NOTE_LANE).expect("the crate's release sources");
+    assert!(
+        !lane.is_empty(),
+        "the note lane reached no release file, so this guard passes every tree"
+    );
+    let notes: Vec<&str> = lane
+        .iter()
+        .filter(|(_, text)| return text.contains("StandardErrorOffTheCallingThread"))
+        .map(|(file, _)| return file.as_str())
+        .collect();
+    assert!(
+        notes.contains(&"commit/commit_command.rs"),
+        "the commit command hands no note over: {notes:?}"
+    );
+    assert!(
+        !notes.contains(&"foundation/earlier_names_folded_into_current.rs"),
+        "a file that writes the shared handle itself is no note file: {notes:?}"
     );
 }

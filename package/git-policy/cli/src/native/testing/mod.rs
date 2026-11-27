@@ -144,6 +144,13 @@ pub(crate) mod descriptor_limit_child_test_support;
 #[cfg(test)]
 pub(crate) mod process_wide_state_child_test_support;
 
+/// The action in place for a signal,
+/// which belongs to the whole process and which a control reads before and after the body it judges;
+/// never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+pub(crate) mod signal_disposition_of_the_process;
+
 /// A point where threads must all arrive,
 /// for controls that prove work overlapped.
 #[cfg(test)]
@@ -209,3 +216,50 @@ pub(crate) mod fixture_zfs_binding_record;
 #[cfg(test)]
 #[cfg(target_os = "linux")]
 pub(crate) mod standing_slot_mounts;
+
+/// The destruction plan's writer,
+/// named once here for the plan helper both test targets include by `#[path]`:
+/// that helper reaches these names through `super::`,
+/// and the `native_binary` crate declares the same module over its own paths to them;
+/// never part of the release executable,
+/// which holds no test-only module to mark this one against.
+pub(crate) mod the_destruction_plans_writer {
+    pub(crate) use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+    pub(crate) use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+    pub(crate) use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
+    pub(crate) use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+        DestructionPlan,
+        PlanAttempt,
+        PlanFacts,
+        PlanSnapshot,
+    };
+    pub(crate) use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+        HeadWord,
+        SnapshotOutcome,
+    };
+    pub(crate) use crate::worktree_clone_removal_proof_and_plan::started_moment::now_with_offset;
+}
+
+/// The destruction plan a control plants,
+/// published by the removal's own writer;
+/// never part of the release executable,
+/// and included by path in the binary controls' crate,
+/// which cannot reach this one.
+#[cfg(test)]
+pub(crate) mod the_destruction_plan_a_control_plants;
+
+/// One line of a planted plan's own snapshot,
+/// for the controls that plant a history of more than a first write;
+/// never part of the release executable,
+/// and kept out of the binary controls' crate,
+/// which plants a removal's first write and no history.
+#[cfg(test)]
+pub(crate) mod a_planted_plans_snapshot_line;
+
+/// The controls of the plan helper above;
+/// never part of the release executable,
+/// and kept out of the binary controls' crate,
+/// which plants plans through the same helper.
+#[cfg(test)]
+#[path = "the_destruction_plan_a_control_plants_tests.rs"]
+pub(crate) mod the_destruction_plan_a_control_plants_tests;

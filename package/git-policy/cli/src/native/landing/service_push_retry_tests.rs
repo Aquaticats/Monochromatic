@@ -21,7 +21,7 @@
 
 use super::*;
 use crate::lazy_runtime::spawn_on_runtime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::push_failure_notice::{
     notice_directory,
     push_failures,
@@ -82,7 +82,7 @@ fn round_of<H: WorkHandlers + Sync + Send + 'static>(
     retries: &mut PushRetries,
 ) -> Option<Duration> {
     let asked: Vec<(PathBuf, Duration)> = run_planned_round(
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
         &[git_dir.to_path_buf()],
         handlers,
         retries,

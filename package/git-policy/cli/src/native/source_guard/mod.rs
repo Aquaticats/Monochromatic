@@ -8,6 +8,26 @@
 //! // source_guard/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// The modules a library root reaches,
+/// with the visibility of every `mod` declaration on the way,
+/// which is what decides whether another crate can name an item.
+#[cfg(test)]
+#[path = "modules_a_library_root_reaches_tests.rs"]
+pub(crate) mod modules_a_library_root_reaches_tests;
+
+/// The names another crate can reach through the library root,
+/// read once from the module tree and the `pub use` lines.
+#[cfg(test)]
+#[path = "nameable_items_of_a_source_tree_tests.rs"]
+pub(crate) mod nameable_items_of_a_source_tree_tests;
+
+/// The names the library target publishes,
+/// read from the `pub mod` chains and the public re-exports the source text writes,
+/// and the ban on publishing one without a line in the list beside the check.
+#[cfg(test)]
+#[path = "nothing_becomes_nameable_from_outside_tests.rs"]
+mod nothing_becomes_nameable_from_outside_tests;
+
 /// The ban on Git starting the wrapper for a hook,
 /// and the pin of the one entry that decides what a start is.
 #[cfg(test)]
@@ -90,7 +110,8 @@ mod no_test_changes_the_process_directory_tests;
 mod only_the_process_wide_starter_reads_its_marker_tests;
 
 /// The ban on a list of text written as an array with a hand-counted length:
-/// a list of names, sites or words is a slice,
+/// a list of names,
+/// sites or words is a slice,
 /// so adding an entry never edits a count beside it.
 #[cfg(test)]
 #[path = "lists_are_slices_tests.rs"]
@@ -136,6 +157,14 @@ mod no_control_reads_the_preparation_steps_in_the_run_tests;
 #[path = "no_control_reads_the_commit_ledgers_in_the_run_tests.rs"]
 mod no_control_reads_the_commit_ledgers_in_the_run_tests;
 
+/// The ban on a control folding one earlier log twice in the process the run holds:
+/// the fold's journal lock is dropped as the fold answers,
+/// so such a control starts a child of its own first,
+/// which forks nothing while the lock is held.
+#[cfg(test)]
+#[path = "no_control_folds_a_log_twice_in_the_run_tests.rs"]
+mod no_control_folds_a_log_twice_in_the_run_tests;
+
 /// The ban on a control recording,
 /// preparing or reading the service's stop in the process the run holds:
 /// such a control starts a child of its own first,
@@ -143,6 +172,13 @@ mod no_control_reads_the_commit_ledgers_in_the_run_tests;
 #[cfg(test)]
 #[path = "no_control_records_or_reads_the_service_stop_in_the_run_tests.rs"]
 mod no_control_records_or_reads_the_service_stop_in_the_run_tests;
+
+/// The ban on a control leaving `SIGPIPE` at its default in the process the run holds:
+/// such a control starts a child of its own first,
+/// so its action reaches no other thread's next write to a pipe nobody reads.
+#[cfg(test)]
+#[path = "no_control_leaves_sigpipe_at_its_default_tests.rs"]
+mod no_control_leaves_sigpipe_at_its_default_tests;
 
 /// The ban on a control taking the process's one queue of log lines in the process the run holds:
 /// such a control starts a child of its own first,
@@ -185,6 +221,13 @@ mod no_control_writes_a_fixture_git_in_the_run_tests;
 #[cfg(test)]
 #[path = "no_release_read_of_a_test_only_switch_tests.rs"]
 mod no_release_read_of_a_test_only_switch_tests;
+
+/// The ban on a release file reading this session's runtime directory or its session-bus address outside the
+/// one place that reads them:
+/// a build made for tests answers those two only from what a control handed in.
+#[cfg(test)]
+#[path = "no_release_read_of_the_session_places_tests.rs"]
+mod no_release_read_of_the_session_places_tests;
 
 /// Every record folder this program fills is read through `plain_file`:
 /// a named pipe at a record's name answers at once instead of holding every wrapped command.
@@ -305,6 +348,13 @@ mod removal_command_path_writes_nothing_tests;
 #[path = "add_route_issues_no_destroy_tests.rs"]
 mod add_route_issues_no_destroy_tests;
 
+/// Every release call that replaces this process puts back the action this process had for
+/// `SIGPIPE` when the replacement fails,
+/// because every path that goes on after it writes the wrapper's own words.
+#[cfg(test)]
+#[path = "every_exec_puts_the_signal_action_back_tests.rs"]
+mod every_exec_puts_the_signal_action_back_tests;
+
 /// The text with every whitespace character removed,
 /// so `args_os ()` reads as `args_os()` and `clippy ::` as `clippy::`.
 ///
@@ -321,13 +371,16 @@ pub(super) fn squeezed(text: &str) -> String {
 }
 
 /// What:
-///  One pinned file's code text: each line as written,
-///  a line that is only a comment dropped, leading and trailing blanks trimmed.
+///  One pinned file's code text:
+/// each line as written,
+///  a line that is only a comment dropped,
+/// leading and trailing blanks trimmed.
 /// Why:
 ///  The two files this reads are held to comments on their own line,
 ///  which the assertion below checks,
 ///  so cutting at a leading `//` is exact and no lexer decides what a line is.
-///  Every byte of every literal stays, because a module's constants and its format text are behaviour.
+///  Every byte of every literal stays,
+/// because a module's constants and its format text are behaviour.
 pub(super) fn pinned_code_lines(
     source: &str,
     what: &str,
@@ -376,8 +429,10 @@ pub(super) fn assert_whole_line_comments_only(
 ///  A pin over a whole tree cannot be maintained file by file,
 ///  so the tree's scans classify it once and every one of them reads the same
 ///  list:
-///  test sidecars, binary-level controls and support that only tests compile
-///  are told apart by the declarations that reach them, never by file name,
+///  test sidecars,
+/// binary-level controls and support that only tests compile
+///  are told apart by the declarations that reach them,
+/// never by file name,
 ///  and a tree that cannot be fully classified is an error.
 pub(super) fn release_sources_in(
     root: &std::path::Path,
@@ -391,3 +446,25 @@ pub(super) fn release_sources_in(
     }
     return Ok(found);
 }
+
+/// The scan a ban over part of the release tree reads:
+/// which sources it covers,
+/// which of their code lines hold the text it forbids,
+/// which entries excuse one,
+/// and the anchor that proves the scope is still the code the ban is about;
+/// never in the release build.
+#[cfg(test)]
+#[path = "source_scan_banned_lines_tests.rs"]
+pub(crate) mod source_scan_banned_lines_tests;
+
+/// That scan under the names each ban of this folder calls it by.
+pub(crate) use source_scan_banned_lines_tests::{
+    HoldingLine,
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    entries_that_match_nothing,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_holding,
+    release_sources_under,
+};

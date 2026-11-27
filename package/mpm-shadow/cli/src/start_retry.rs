@@ -10,6 +10,36 @@
 //! so the shadow never stalls:
 //! a shortage that outlasts the budget is reported to the caller.
 //!
+//! A start refused because another program holds the program's file open for writing
+//! (`ETXTBSY`,
+//! `ErrorKind::ExecutableFileBusy`) is not retried,
+//! and `is_refusal` stays what its name says.
+//! For the two paths a start through this tool resolves,
+//! the real `mpm` the shadow starts and the program a launcher's record names,
+//! every writer traced or read on 2026-11-27 stages the new file under another name
+//! and renames it into place:
+//! `uv tool install` and `uv tool upgrade` for `mpm`,
+//! `cargo binstall`,
+//! `cargo install` and this tool's archive install for a launcher's program.
+//! Two writers this tool starts do open a published path for writing:
+//! `go install` where its work directory is on another file system (3.5 ms,
+//! traced,
+//! and the only refusal this round measured),
+//! and `pnpm add --global` (0.09 ms,
+//! traced);
+//! neither writes a path a start through this tool resolves.
+//! A window a retry could carry does exist,
+//! and it is not a writer's:
+//! a `fork` copies a write descriptor,
+//! and the child holds that copy from its `fork` to its own `execve`,
+//! about 1 to 3 ms in this crate's own tests,
+//! which the record's threaded arm refused in 5 to 12 of 20 starts.
+//! `start_failure` explains that refusal rather than retrying it,
+//! and the record sets the two options before the owner.
+//! The arms,
+//! the probe and the syscall timestamps are in
+//! `doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! for (let delay = 10; ; delay = Math.min(delay * 2, 500)) { try { return start(); } catch (e) { if (!isEagain(e) || waited > 5000) throw e; await wait(delay); } }
@@ -107,6 +137,8 @@ pub fn retry_refused_start<T>(start: &mut dyn StartAttempt<T>) -> (Result<T>, Re
 }
 
 /// Whether an error is the system's refusal to create another process.
+/// A refusal to start a file that is being written is not one of these:
+/// the module document above says why it is explained rather than retried.
 pub fn is_refusal(error: &Error) -> bool {
     return error.kind() == std::io::ErrorKind::WouldBlock;
 }

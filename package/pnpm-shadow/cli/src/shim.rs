@@ -104,6 +104,11 @@ use crate::notice_marker::{
 };
 /// Imports the PATH lookup.
 use crate::real_binary::find_in_path;
+/// Imports the line a refused start prints and the error it hands a caller.
+use crate::refused_start::{
+    describe_refused_start,
+    into_error,
+};
 /// Imports the report renderer.
 use crate::report::render_report;
 /// Imports the workspace scan.
@@ -171,7 +176,17 @@ pub fn run_program(
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
     // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
-    let vetted: Vetted = vet(program).map_err(std::io::Error::other)?;
+    // What:     The check answers one of two things (the system could not open the program, or the program is or leads to a
+    //           shadow), and both become the error the caller reports.
+    // Why:      The caller prints one line for both, and `into_error` keeps the system's kind on the way there.
+    let vetted: Vetted = match vet(program) {
+        // What:     `Ok(checked)` takes the program the check handed back.
+        // Why:      Nothing was refused, so the start goes ahead.
+        Ok(checked) => checked,
+        // What:     `Err(refusal)` leaves this function with the refusal as the error the caller reports.
+        // Why:      The caller turns it into the message and the exit status the person sees.
+        Err(refusal) => return Err(into_error(refusal)),
+    };
     let mut command: Command = vetted.command();
     command.args(arguments);
     if let Some(value) = guard_value {
@@ -344,11 +359,10 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     if request == TopLevelRequest::Other {
         let vetted: Vetted = match vet(&program) {
             Ok(checked) => checked,
-            Err(reason) => {
-                eprintln!(
-                    "pnpm-shadow: could not start {}: {reason}",
-                    program.display()
-                );
+            // What:     `Err(refusal)` is the start check's refusal, printed as the one line this crate prints for it.
+            // Why:      The shadow has not replaced itself yet, so it can still say what it found.
+            Err(refusal) => {
+                eprintln!("{}", describe_refused_start(&program, &refusal.to_string()));
                 return EXEC_FAILED_EXIT_CODE;
             }
         };
@@ -356,10 +370,7 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
         mark_start(&mut command, StartMode::Exec);
         let error: std::io::Error = command.exec();
-        eprintln!(
-            "pnpm-shadow: could not start {}: {error}",
-            program.display()
-        );
+        eprintln!("{}", describe_refused_start(&program, &error.to_string()));
         return EXEC_FAILED_EXIT_CODE;
     }
 
@@ -397,10 +408,7 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             return code;
         }
         Err(error) => {
-            eprintln!(
-                "pnpm-shadow: could not start {}: {error}",
-                program.display()
-            );
+            eprintln!("{}", describe_refused_start(&program, &error.to_string()));
             return EXEC_FAILED_EXIT_CODE;
         }
     }

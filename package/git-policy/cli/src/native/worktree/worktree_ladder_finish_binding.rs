@@ -31,8 +31,12 @@ use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_snapshot_source::SnapshotSource;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// The tag every line about the ladder's work is tagged with.
+/// Why:
+///  The subject is one,
+/// so every file it was split into carries the same word,
+///  and a person's search of the log keeps finding all of it.
+pub(super) const TAG: &str = "worktreeLadder";
 
 /// What:
 ///  Bind the add to the directories Git made,

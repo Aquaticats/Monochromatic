@@ -99,6 +99,27 @@ pub fn first_bin_of_tool(tool: &LockedTool) -> &str {
 }
 
 /// What:
+/// The program an install of this tool must hold to count as finished:
+/// the first declared bin of a tool this repository publishes,
+/// and nothing for any other tool,
+/// which finishes on the marker alone.
+/// Why:
+/// Every reader of "is this version finished" asks the same question of the same tool,
+/// and one answer here keeps the install,
+/// the pruning and the repair of a killed install from disagreeing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function programThatFinishesTheInstall(tool: LockedTool): string
+/// ```
+pub fn program_that_finishes_the_install(tool: &LockedTool) -> &str {
+    if !is_published_archive(tool) {
+        return "";
+    }
+    return first_bin_of_tool(tool);
+}
+
+/// What:
 /// Whether the install in `version_dir` finished:
 /// it carries the completion marker (written last,
 /// after the unpacking succeeded and the program was found),

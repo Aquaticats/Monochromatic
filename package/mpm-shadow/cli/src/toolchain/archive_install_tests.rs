@@ -375,57 +375,6 @@ fn a_single_binary_that_fails_to_decompress_leaves_no_directory() {
 }
 
 #[test]
-fn publishing_keeps_a_complete_copy_another_run_installed_and_puts_back_a_copy_when_the_rename_fails()
- {
-    let rig = Rig::new();
-    let tool_dir = tool_directory(&rig.scope.toolchain_root, ID).expect("a plain name");
-    let final_dir = tool_dir.join("0.2.1");
-
-    // A complete copy is already there: the staged one is discarded and the copy is kept.
-    fs::create_dir_all(&final_dir).expect("make");
-    fs::write(final_dir.join("program"), "the first run's").expect("write");
-    write_complete_marker(&final_dir, ID, "0.2.1").expect("mark");
-    let staging = staging_dir_of(&final_dir);
-    fs::create_dir_all(&staging).expect("make");
-    fs::write(staging.join("program"), "the second run's").expect("write");
-    publish_staged(&staging, &final_dir, "").expect("kept");
-    assert_eq!(
-        fs::read_to_string(final_dir.join("program")).expect("read"),
-        "the first run's"
-    );
-    assert!(!staging.exists());
-
-    // A copy without the marker is replaced.
-    fs::remove_file(final_dir.join(COMPLETE_MARKER)).expect("unmark");
-    fs::create_dir_all(&staging).expect("make");
-    fs::write(staging.join("program"), "the replacement").expect("write");
-    publish_staged(&staging, &final_dir, "").expect("replaced");
-    assert_eq!(
-        fs::read_to_string(final_dir.join("program")).expect("read"),
-        "the replacement"
-    );
-    assert_eq!(
-        names_of(&tool_dir),
-        vec!["0.2.1".to_string()],
-        "the moved-aside copy is removed"
-    );
-
-    // The staged directory is missing, so the rename fails and the copy that was there is put back.
-    let missing: &Path = &tool_dir.join(".0.2.1.staging.missing");
-    let error = publish_staged(missing, &final_dir, "").expect_err("nothing to publish");
-    assert!(
-        error.message.contains("cannot move the finished install"),
-        "{error}"
-    );
-    assert_eq!(
-        fs::read_to_string(final_dir.join("program")).expect("read"),
-        "the replacement",
-        "the copy is back"
-    );
-    assert_eq!(names_of(&tool_dir), vec!["0.2.1".to_string()]);
-}
-
-#[test]
 fn a_link_named_like_the_marker_does_not_mark_a_directory() {
     let rig = Rig::new();
     let directory = rig.scope.toolchain_root.join("probe");
@@ -441,7 +390,7 @@ fn a_link_named_like_the_marker_does_not_mark_a_directory() {
 
 /// The names directly inside `directory`,
 /// sorted.
-fn names_of(directory: &Path) -> Vec<String> {
+pub(super) fn names_of(directory: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(directory)
         .expect("list")
         .flatten()

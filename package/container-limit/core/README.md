@@ -72,9 +72,17 @@ so `.github/workflows/pnpr-publish.yml` keeps a literal
 
 `src/container-start-sites.unit.test.ts` lists every tracked file that starts a container or builds an image,
 and fails
-when a file names `podman` or `docker` as a program and is not on the list,
+when a tracked file names `podman` or `docker` as a program and is not on the list,
 so a new start site cannot skip the limits
 unnoticed.
+The scan reads every extension whose comment syntax the reader knows,
+which `src/source-text-without-comments.ts` holds once (`SOURCE_LANGUAGE_BY_EXTENSION`):
+`.ts`,
+`.mjs`,
+`.toml`,
+`.yml`,
+`.yaml`
+and `.rs`.
 Each listed starter must carry one of the shared helpers or the literal options.
 
 The list is not the whole check:
@@ -88,10 +96,35 @@ no process option and no disk weight).
 (an array literal after the program name,
 the program name as an array literal first element,
 a call that returns the arguments,
-or a shell command line with its continuations joined),
+a shell command line with its continuations joined,
+or the calls chained after the one that named the program,
+which is how a Rust source passes them),
 `src/defined-text-in-source-text.ts` and `src/imported-module-by-name.ts` follow the names that text uses to where
 the arguments are written,
 and `src/source-text-without-comments.ts` blanks each language's comments so a mention in one is not a start.
+A Rust source is blanked by `src/rust-comments-in-source-text.ts`,
+because its block comments nest,
+and because its literals hold quotes and apostrophes
+that a reader of another language's strings pairs together.
+
+A Rust source starts a container through `Command::new("podman")`
+followed by `.args([...])` or by one `.arg(...)` per argument,
+and that call shape is the only one the scan reads as a start there:
+`podman run` inside a Rust string is a message or a sample line of another file,
+where the same words in a `mise.toml` or a workflow are a command line.
+So a Rust source whose start the reader does not recognise,
+such as one that hands a shell `-c` a command line in a string,
+still lists by the program name it holds,
+and its entry here says by hand what it does with the tool.
+
+No Rust source of this repository starts a container today:
+`package/cargo-shadow/cli/src/lean_podman_real.rs` runs `podman images`,
+`ps`,
+`rmi`,
+`volume ls` and `volume rm` through `Command::new("podman").args(...)`,
+whose arguments its callers build,
+and the three other Rust sources that name the tool do so in prose,
+in a sample source line and in a doc comment.
 
 A start whose bound is a size decision the owner has not made is listed by path in the test
 (`UNBOUNDED_SITE_DECISIONS`) with the reason,
@@ -102,3 +135,11 @@ so an entry leaves the list with its fix.
 ## Verification
 
 `mise run //package/container-limit/core:test:unit` runs the tests.
+
+`src/container-start-sites.unit.test.ts` is the test that holds the ledger:
+a tracked file that names `podman` or `docker` as a program and is not listed fails it,
+and so does a listed path that no longer exists.
+So a change that adds or renames such a file runs that task itself:
+the advisory `advisory-core` workflow does run this suite,
+but only when its admission gate lets a push to `main` through,
+and that gate can skip one (issue 6588).

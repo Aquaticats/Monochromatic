@@ -18,6 +18,8 @@
 //! export function replacementWarning(id: string, observed: string | undefined, locked: string): string | undefined;
 //! ```
 
+/// Imports what a later install did with the leftovers of a killed one.
+use super::super::archive_staging::Recovered;
 /// Imports the version comparison the warning uses.
 use super::super::parse_output::version_matches;
 /// What `install` did:
@@ -37,6 +39,11 @@ pub struct SyncReport {
     /// (one another program put at the locked version,
     /// which `install_tool` never sees).
     pub reconciled: Vec<String>,
+    /// One sentence per version this run finished the publish of,
+    /// or whose copy a killed install had moved aside and this run put back,
+    /// with the hidden directories it removed,
+    /// each of which it found gone afterwards.
+    pub recovered: Vec<String>,
     /// Tool id and failure text.
     pub failed: Vec<(String, String)>,
     /// Declared bin names without a resolving link.
@@ -61,6 +68,51 @@ pub struct SyncReport {
     /// (empty when the lock declares none,
     /// or for a partial sync that leaves the fragment alone).
     pub exported_env: Vec<String>,
+}
+
+/// What:
+/// The sentence the install report prints for a version a killed install left unfinished,
+/// or `None` when the recovery found and did nothing.
+/// Why:
+/// An install that finished the publish of a version without downloading anything did something a person should see,
+/// and one that only removed hidden directories of an installer known to have ended says what went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function recoverySentence(id: string, version: string, recovered: Recovered): string | undefined
+/// ```
+pub(crate) fn recovery_sentence(
+    id: &str,
+    version: &str,
+    recovered: &Recovered,
+) -> Option<String> {
+    let removed: usize = recovered.removed.len();
+    if recovered.published {
+        let mut sentence: String =
+            format!("finished the publish of {id} {version} that a killed install left");
+        if removed > 0 {
+            sentence.push_str(&format!(
+                ", and removed the {removed} hidden directories killed installs left behind"
+            ));
+        }
+        return Some(sentence);
+    }
+    if recovered.restored {
+        let mut sentence: String =
+            format!("put back the copy of {id} {version} that a killed install had moved aside");
+        if removed > 0 {
+            sentence.push_str(&format!(
+                ", and removed the {removed} hidden directories killed installs left behind"
+            ));
+        }
+        return Some(sentence);
+    }
+    if removed > 0 {
+        return Some(format!(
+            "removed the {removed} hidden directories that killed installs of {id} left behind"
+        ));
+    }
+    return None;
 }
 
 /// What:

@@ -1185,3 +1185,172 @@ after 1,681 ms.
 - The two flaky tests named above are pre-existing and were left alone.
   Each one makes a whole gate red,
   and so costs a release another gate.
+
+### The suite container's own memory bound, measured 2026-11-27
+
+The suite's container took the repository default of 2 GiB until issue 6583,
+while the image build and Clippy took 8 GiB each.
+The gates of the Clippy round read it at 1,149.3,
+1,160.0,
+1,459.9,
+1,354.6,
+1,462.8 and 1,516.5 MiB of that bound,
+with `memory.events` `max` 0 and `oom_kill` 0 every time,
+and the reading rose across one morning as the suite grew,
+which is what the issue asked about:
+what the peak is made of,
+what bound to give it,
+and what the gate says when the container is killed at that bound.
+
+One arm was run,
+because the gate's own run is the measurement:
+`native:gate` started 2026-11-27T08:21:45-05:00 as
+`gpc-gate-issue-6583-suite-measurement-20261127T082145-0500.service`
+with `--unit-io-weight 1` and `--container-memory 8g`,
+so every container of it ran under a bound no step of the run met,
+in the worktree of this round (`83826b055e`).
+Each of the run's two containers was read every 100 ms through
+`bin/native-gate-container-peaks.ts`,
+the reader this round added to the package beside the gate,
+which writes one JSON line per sample:
+`memory.current`,
+`memory.peak`,
+`memory.max`,
+the whole of `memory.stat` and `memory.events`,
+the process figures,
+and the heaviest processes of the container named by what they are
+(a nextest process is named by the test it was started for).
+Its samples are `suite-measurement-peaks.jsonl` in that round's scratch folder,
+and what this record uses from them is stated here.
+The run passed both checks:
+`Summary [1011.311s] 12115 tests run: 12115 passed (7 slow), 51 skipped`
+and `Clippy passed beside the test run.`,
+with `gate-exit-status=0`.
+
+- The suite's container peaked at 1,486.0 MiB of the 8,192 MiB its arm gave it
+  (`memory.peak` 1,486.0 MiB,
+  the highest `memory.current` sample 1,483.5 MiB),
+  with `memory.events` `max` 0,
+  `oom` 0 and `oom_kill` 0,
+  and `pids.peak` 455.
+  It ran 1,011.311 s.
+- What that peak is made of,
+  read from `memory.stat` at the highest sample:
+  976.7 MiB of anonymous memory,
+  469.3 MiB of file (the page cache of what the suite read),
+  25.0 MiB of kernel memory and 21.7 MiB of slab,
+  and 0 MiB of shared memory:
+  the fixture root's tmpfs held nothing at the peak,
+  so the fixture file system is not what holds it.
+- Of the 976.7 MiB anonymous,
+  892.2 MiB was one process:
+  `service::service_main::tests::the_service_setup_and_its_words_are_used_only_by_the_service_mode`,
+  which held 891.8 to 892.3 MiB of resident memory for 25.4 s,
+  from 13:28:41.379 to 13:29:06.845 in the samples that named it.
+  Beside it,
+  `cargo-nextest` itself held 82.2 MiB,
+  and the three `source_guard::` controls sharing the other test threads held 28.2 to 29.1 MiB each.
+- The peak is therefore not nextest's concurrency:
+  four test threads of ordinary controls hold about 170 MiB between them,
+  and one control of this suite holds five times that on its own.
+- Page cache has a peak of its own later in the run:
+  930.3 MiB at 13:38:36.759,
+  during the binary controls,
+  when the container's charge was 1,097.1 MiB.
+  Page cache is reclaimable,
+  so it adds to `memory.peak` without being memory the run needs.
+- The container's charge was above 1,000 MiB in 6.0 percent of its 9,822 samples,
+  above 1,200 MiB in 4.1 percent,
+  and its median was 596.5 MiB.
+  The bound is sized from the peak,
+  not the median:
+  a bound that binds at the peak costs a whole gate.
+- Clippy's container,
+  in the same run and under the same 8 GiB,
+  peaked at 5,219.4 MiB with `memory.events` `max` 0 and `oom_kill` 0,
+  which agrees with the five gates of 2026-11-27 (4,790.0 to 5,278.7 MiB)
+  and sits inside the bound they sized.
+
+So the suite's container is bounded at 4 GiB
+(`gateSuiteMemory` in `bin/native-gate-container-limits.ts`):
+4,096 MiB,
+2.76 times the highest peak any run of it read and 2,610 MiB above that peak.
+The room is sized for the shape of this suite's peak rather than for its test threads:
+two more controls holding what the largest one holds (892 MiB each) still fit,
+at 3,270 MiB,
+inside 4,096 MiB.
+The bound is further above its measured peak than the build's 1.53 and Clippy's 1.55 are above theirs,
+and that is the point:
+a suite grows by controls,
+and one control of this suite is most of the suite's peak.
+
+What it costs and how a person lowers it:
+
+- A gate at its bounds can now hold 12 GiB of the host at once
+  (4 GiB for the suite,
+  8 GiB for Clippy,
+  both started together),
+  where it held 10 GiB while the suite shared the repository default.
+  The image build's 8 GiB runs before either container.
+- A host that cannot spare 4 GiB for the suite lowers it with
+  `--memory <size>` after `native:test:container`'s task name,
+  or with `--container-memory <size>` on `native:gate`,
+  which bounds the suite,
+  the build and Clippy together.
+  Below what the suite's largest control needs,
+  that host gets the kill the next section describes rather than a slower
+  suite.
+- The bound is sized at the gate's own four test threads.
+  A gate given more CPUs runs more tests at once and wants `--memory` raised with them;
+  nothing here measured more than four.
+
+### What the gate says when its suite's container is killed for memory
+
+A container killed inside its bound reads like a failing test:
+the kernel ends whichever process the bound picked,
+the check reports a signal or a crash,
+and nothing in that account names the bound.
+Issues 6455 and 6562 each cost a gate that way.
+
+So each container's own `memory.events` is read every 100 ms while it runs
+(`bin/native-gate-container-memory.ts`),
+because a `--rm` container's cgroup goes with it and a figure asked for after the container ended is a figure asked of a
+directory that is gone.
+When the client ends,
+the gate prints one line of its own,
+beside whatever the check said,
+and only when the events
+count a kill:
+
+```text
+The suite's container was killed for memory: its cgroup counted 1 out-of-memory kill at the 4.0 GiB memory.max bound it
+was given, with a peak of 4,096.0 MiB. That is the bound and not a failing test: raise it with --memory after the task
+name, or with --container-memory when native:gate starts the run.
+```
+
+The bound in that line is the container's own `memory.max` as the kernel states it,
+so it is the bound the container ran under and not a number a reader has to trust the log for,
+and the peak is the highest charge the same cgroup held.
+Both containers get the line,
+each named as its own,
+and a run that met no kill prints nothing.
+What the line cannot see is a kill the kernel made and the container's own teardown removed within one 100 ms interval;
+that window is why the reader polls rather than reading once at the end.
+
+### What is left for the suite's container
+
+- The 892 MiB control is the largest single figure in the suite and the first thing to look at when a gate is short of
+  memory.
+  Nothing here explains why that control holds 892 MiB;
+  a control that holds a fifth of its bound on its own is worth its own issue.
+- One arm was measured and it has no control arm of its own.
+  The peak is the kernel's exact high-water mark for that container,
+  but a suite that adds a control between two gates reads higher without anything else changing,
+  so a bound is a reading of one day rather than a ceiling.
+- The reader names the processes of a sample once per second,
+  so the sample at the very peak may not be the one that names what held it.
+  Reading the processes again whenever a sample sets a new high-water mark is the change that would close that gap.
+- The fixture root's tmpfs holds nothing at the peak,
+  at 768 MiB of its own ceiling,
+  which is worth re-reading only if a
+  control that writes a large fixture is added.

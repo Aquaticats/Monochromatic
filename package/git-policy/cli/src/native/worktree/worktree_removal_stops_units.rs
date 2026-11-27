@@ -229,10 +229,18 @@ pub fn stop_units_after_removal(
 /// await stopUnitsOfRemovedWorktree(about, env); // never throws
 /// ```
 pub fn stop_units_of_removed_worktree(about: &WorktreeAboutToGo) {
-    let Some(runtime) = non_empty_variable("XDG_RUNTIME_DIR") else {
+    // What:     the runtime directory this session names, read in the one place this crate reads it.
+    // Why:      a build made for tests answers only a runtime directory a control handed in, so a test process
+    //           reads and stops no unit of this account's (issue 6586).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); if (!runtime) return;
+    // ```
+    let Some(runtime_dir) = crate::session_runtime_directory_and_bus_address::runtime_directory()
+    else {
         return;
     };
-    let runtime_dir: PathBuf = PathBuf::from(runtime);
     // The journal's state directory, which the units' `StateDirectory=` names and the sweep reads back: without it a
     // removed worktree's journal outlives its units.
     let state_dir: Option<PathBuf> = state_dir_of_the_user();
@@ -243,7 +251,7 @@ pub fn stop_units_of_removed_worktree(about: &WorktreeAboutToGo) {
     if !worktree_is_gone(about.git_dir.as_path()) || !has_units(&folders, about.instance.as_str()) {
         return;
     }
-    let address: Option<String> = non_empty_variable("DBUS_SESSION_BUS_ADDRESS");
+    let address: Option<String> = crate::session_runtime_directory_and_bus_address::bus_address();
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
         warn(
             TAG,

@@ -352,8 +352,10 @@ pub(crate) use fixture_inode::renew_inode;
 mod fixture_notice_sinks;
 
 pub(crate) use self::fixture_notice_sinks::{
+    AStreamThatRefusesEveryByte,
     ActionSink,
     SharedSink,
+    standard_error_whose_writer_refuses_every_line,
 };
 
 /// The shell condition that holds while the test that started a fixture script is still there.

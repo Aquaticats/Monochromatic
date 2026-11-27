@@ -383,7 +383,10 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
         index.exists() && tree.exists(),
         "the landing has the tree it reads"
     );
-    crate::service_server::remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
+    crate::service_server_scratch_trees_of_a_group::remove_the_trees(
+        trees.as_slice(),
+        &std::collections::HashSet::new(),
+    );
     let began: std::time::Instant = std::time::Instant::now();
     while tree.exists() {
         assert!(
@@ -422,7 +425,10 @@ fn a_queued_tree_is_held_until_the_group_that_request_is_in_is_over() {
         crate::service_scratch_trees_of_queued_requests::is_held(tree.as_path()),
         "the landing of the queued request has still to read the tree"
     );
-    crate::service_server::remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
+    crate::service_server_scratch_trees_of_a_group::remove_the_trees(
+        trees.as_slice(),
+        &std::collections::HashSet::new(),
+    );
     assert!(
         !crate::service_scratch_trees_of_queued_requests::is_held(tree.as_path()),
         "the tree goes back to the age rule with the request that named it"
@@ -433,7 +439,10 @@ fn a_queued_tree_is_held_until_the_group_that_request_is_in_is_over() {
     let handed_back: std::collections::HashSet<String> =
         [String::from("sent-back")].into_iter().collect();
     crate::service_scratch_trees_of_queued_requests::note("sent-back", tree.as_path());
-    crate::service_server::remove_the_trees(sent_back.as_slice(), &handed_back);
+    crate::service_server_scratch_trees_of_a_group::remove_the_trees(
+        sent_back.as_slice(),
+        &handed_back,
+    );
     assert!(
         !crate::service_scratch_trees_of_queued_requests::is_held(tree.as_path()),
         "a tree the service handed back is its client's"
@@ -474,7 +483,10 @@ fn a_group_that_is_over_leaves_the_tree_of_the_next_attempt_held() {
     // The group answered this attempt by handing it back, so its tree is the client's and the service removes nothing.
     let trees: Vec<(String, std::path::PathBuf)> = vec![(request.clone(), left.clone())];
     let handed_back: std::collections::HashSet<String> = [request.clone()].into_iter().collect();
-    crate::service_server::remove_the_trees(trees.as_slice(), &handed_back);
+    crate::service_server_scratch_trees_of_a_group::remove_the_trees(
+        trees.as_slice(),
+        &handed_back,
+    );
     assert!(
         crate::service_scratch_trees_of_queued_requests::is_held(retried.as_path()),
         "the attempt that is still queued keeps the tree its landing reads"
@@ -498,7 +510,10 @@ fn a_handed_back_tree_is_not_removed_by_the_service() {
     let trees: Vec<(String, std::path::PathBuf)> = vec![(String::from("sent-back"), tree.clone())];
     let handed_back: std::collections::HashSet<String> =
         [String::from("sent-back")].into_iter().collect();
-    crate::service_server::remove_the_trees(trees.as_slice(), &handed_back);
+    crate::service_server_scratch_trees_of_a_group::remove_the_trees(
+        trees.as_slice(),
+        &handed_back,
+    );
     std::thread::sleep(std::time::Duration::from_millis(50));
     assert!(
         index.exists(),
@@ -552,7 +567,10 @@ fn only_a_tree_no_client_still_reads_is_released_to_the_service() {
             .into_iter()
             .collect();
     let released: Vec<&std::path::PathBuf> =
-        crate::service_server::released_trees(trees.as_slice(), &handed_back);
+        crate::service_server_scratch_trees_of_a_group::released_trees(
+            trees.as_slice(),
+            &handed_back,
+        );
     assert_eq!(
         released,
         vec![&std::path::PathBuf::from("/trees/landed")],
@@ -560,7 +578,11 @@ fn only_a_tree_no_client_still_reads_is_released_to_the_service() {
     );
     let nothing_kept: std::collections::HashSet<String> = std::collections::HashSet::new();
     assert_eq!(
-        crate::service_server::released_trees(trees.as_slice(), &nothing_kept).len(),
+        crate::service_server_scratch_trees_of_a_group::released_trees(
+            trees.as_slice(),
+            &nothing_kept
+        )
+        .len(),
         trees.len(),
         "a group none of whose requests was handed back releases every tree"
     );

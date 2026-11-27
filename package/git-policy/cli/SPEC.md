@@ -3844,7 +3844,10 @@ A worktree whose branch a merge landed is removed by those same routes,
  with the path,
  the branch and the reason,
  and a record whose words could not be written stays for the next command,
- exactly as a failed push's record does.
+ exactly as a failed push's record does:
+ the words count as written only when the thread that writes standard error answers that every byte of the line is in
+ the stream,
+ so a reader that had gone costs the command no wait and loses the person nothing.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
  The hand-over writes,
@@ -8960,6 +8963,19 @@ free,
 staying under its claim otherwise,
 where a later command finds it once this one is gone
 (`Notice::show`).
+The words count as written only when the thread that writes standard error answers that every byte of the line is in
+the stream,
+which is the one place that knows:
+the write of the line answers as soon as the queue has it,
+and a line still waiting when the command gave up is answered as one that did not reach the person,
+so a reader that stopped draining costs the command the one `WARNING_WRITE_CEILING` it owes that reader and never the
+record
+(`src/native/foundation/standard_error_off_the_calling_thread.rs`).
+A line answered so belongs to the thread that writes it until that thread ends,
+so a reader that starts draining again before the command ends may still take it,
+and the next command then shows the record a second time:
+the statement is kept,
+and a notice shown twice is the price of never losing one.
 
 #### A blocked commit is never published
 
@@ -17304,6 +17320,20 @@ When real Git does not run:
   transaction,
   or engine failure.
 
+A start of the real Git that cannot run its program leaves the wrapper running,
+because a replacement that failed replaced nothing:
+the wrapper puts back the action this process had for `SIGPIPE` after every failed try,
+so the words it says and the status it ends with behave as everywhere else,
+and a write to a standard error nobody reads answers `EPIPE` and never ends the process by `SIGPIPE`.
+A Git that ran and was ended by a signal still ends the wrapper by that signal
+(`forwarding::end_as_git_ended`),
+and a start that failed ran no Git at all.
+Tests:
+`a_wrapper_that_could_not_start_git_ends_by_the_status_it_means`,
+`a_replacement_that_cannot_run_the_program_puts_sigpipe_back`,
+`a_failed_exec_returns_its_error_and_puts_the_signal_action_back`,
+and `source_guard/every_exec_puts_the_signal_action_back_tests.rs`.
+
 When real Git runs,
 preserve its exit code except for a landed commit followed by a post-commit policy or engine failure,
 which returns `2`.
@@ -17466,7 +17496,7 @@ That age is read from the clock reading the record carries,
 written with the record itself (`service/service_journal_record_age.rs`):
 the boot and machine IDs,
 the monotonic clock and the wall clock,
-the reading a claim's lease is judged by (`service/claim_time.rs`),
+the reading a claim's lease is judged by (`landing/claim_time.rs`),
 so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
 a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
 and only a record of an earlier release,
@@ -19705,9 +19735,23 @@ They are lines a person can live without:
 the exit status already carries the result,
 and the one stream a commit's own last words keep blocking is its standard output,
 which carries Git's summary and the wrapper's summary line as Git writes them.
+A line is not the record behind it,
+though:
+the notice of a failed push,
+of a kept worktree or of a removal that went around speaks for a record that is the only trace of what it says,
+so a line the thread could not put in the stream answers so,
+and a record whose line was answered unwritten stays for the next command instead of going with the line
+(the two sections above say the same about the same records).
 A control runs a commit whose standard error is a pipe filled to its capacity and never read,
 and expects the command to return with the commit on the branch and the pipe still full
 (`src/native/binary/binary_commit_stalled_standard_error_tests.rs`).
+A control runs a commit whose standard error is a pipe whose reader has gone,
+with a failed push's record waiting,
+and expects the command to return,
+the commit to land,
+and that record to stay for the next command,
+which shows it once
+(the same file).
 Every site above has such a control of its own,
 beside the scenario that makes its line
 (`src/native/binary/`).
@@ -21237,6 +21281,11 @@ and replaced by the word pass.
 A marker of a file whose lines end with a carriage return and a line feed ends with both bytes,
 as Git writes that file's markers,
 so both endings are a marker's own and such a file is still merged.
+A region's own text is the bytes of its stages at the places found,
+not the bytes of the answer:
+Git writes a line end after the last line of every side,
+so a region that ends a file whose last line has no line end of its own holds that byte in the answer alone,
+and the merge writes the ending the file has rather than Git's.
 Those three labels do not reach the split marker,
 which Git writes as seven equals signs and a line end with no room for a label,
 so a line of the person's file that is exactly that cannot be told from Git's own by its bytes.
@@ -21311,9 +21360,9 @@ merge `b928c5fa6999`,
 whose resolution `24f8c1947b` corrected by hand).
 A base line written twice in the region is read by word:
 which copy a side deleted cannot be told there.
-A region whose word merge would write back a line the base held,
-while one side's part holds that line fewer times than the base did
-and the other side's part holds it as often as the base did,
+A region whose word merge would write more copies of a line the base held
+than the side that holds it fewer times than the base did still holds,
+while the other side's part holds it as often as the base did,
 is refused rather than merged,
 and keeps both sides
 (`keeps_a_deleted_line` in the same file).
@@ -21984,7 +22033,7 @@ The age is read from the reading of the clocks the record carries,
 written with the record itself (`service/service_journal_record_age.rs`):
 the boot and machine IDs,
 the monotonic clock and the wall clock,
-the reading a claim's lease is judged by (`service/claim_time.rs`),
+the reading a claim's lease is judged by (`landing/claim_time.rs`),
 so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
 a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
 and only a record of an earlier release,
@@ -22584,6 +22633,9 @@ opening a pipe for reading waits for a writer that may never come,
 which held every wrapped command in such a repository for ever (issue 6415).
 The merge record folder's first read runs on the start of every wrapped command,
 so a pipe at a record's name stops the command with a line naming that record,
+what stands there,
+the file to remove,
+and that the command then runs,
 and a pipe at the identity file's name is an identity this command cannot use,
 which it says before the command goes on.
 An entry of the queue that is not a plain file is moved to `failed` with a line naming it,

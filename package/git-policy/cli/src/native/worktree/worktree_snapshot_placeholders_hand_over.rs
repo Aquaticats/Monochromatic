@@ -59,8 +59,12 @@ use std::path::{
     PathBuf,
 };
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeSnapshotPlaceholders";
+/// The tag every line about one placeholder pass is tagged with.
+/// Why:
+///  The subject is one,
+/// so every file it was split into carries the same word,
+///  and a person's search of the log keeps finding all of it.
+pub(super) const TAG: &str = "worktreeSnapshotPlaceholders";
 
 /// The bits of a folder's mode that a fresh folder takes from the one it replaces.
 /// Why:

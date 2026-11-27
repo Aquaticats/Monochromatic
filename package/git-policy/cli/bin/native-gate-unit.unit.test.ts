@@ -113,5 +113,17 @@ await describe({
         }),).toContain('--property=StandardOutput=truncate:/l/u.log',);
       },
     }),
+    it({
+      name: 'passes a container memory bound the caller lowered, and says nothing about memory when the caller named none',
+      fn: async () => {
+        expect(gateUnitShellCommand({ caps: defaultGateCaps, }),).not.toContain('--memory',);
+        expect(gateUnitShellCommand({
+          caps: {
+            ...defaultGateCaps,
+            containerMemory: '3g',
+          },
+        }),).toContain('--memory 3g',);
+      },
+    }),
   ],
 });

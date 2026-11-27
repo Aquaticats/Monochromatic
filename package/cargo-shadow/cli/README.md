@@ -596,8 +596,9 @@ Every shadow program (`cargo-shadow`,
 `mpm-shadow`,
 `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
 (`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
-byte-identical copies in each crate;
-`package/search-shadow/cli/tests/shadow_identity_copies.rs` fails when the copies differ).
+byte-identical copies in each crate,
+and `tests/shadow_identity_copies.rs` is one of the copies,
+so the test task of any of the four packages fails when the copies differ).
 The lookup skips a candidate that carries it,
 or a launcher whose record leads to one,
 without starting it,
@@ -835,6 +836,46 @@ and an HTTP 429 is retried after its `Retry-After`.
   the stop ends only when the kernel says `populated 0` or the absence of the scope is verified,
   and every failure on
   this path after the program started is "not quiescent".
+  After a last read of the scope's `populated` line shows no member,
+  the run ends the unit it started
+  (`src/control_group_retire.rs`),
+  on every path that ends a run,
+  because a scope whose process was already exiting when the manager wrote its id into the scope's
+  `cgroup.procs` never becomes populated,
+  so the kernel sends no empty notification and the unit would stay `active (running)` with no member
+  (issue 6578;
+  [the census, the reproduction and the count](../../../doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md)).
+  The last look at the scope is answered from the kernel,
+  and it is what keeps the ordinary run free:
+  a member keeps the unit,
+  and the run says so;
+  an absence counts only when `absence_is_verified` holds,
+  and a `populated` read that failed is reported;
+  and `pids.peak` says whether any process was ever counted in the group.
+  A group that held one changed its `populated` line,
+  which is the change the manager watches and ends the unit on,
+  so that run asks the manager nothing;
+  a group that is gone was collected,
+  and asks nothing either.
+  Only a group that never held a process is the leftover this step exists for,
+  and only that run asks the manager,
+  once:
+  `systemctl --user --no-ask-password stop <name>.scope`.
+  The answer is the manager's exit status,
+  and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
+  which is a collected unit and not a refusal,
+  so the second question the alpha.12 release asked (`show <name>.scope --property=LoadState --value`) is gone.
+  A stop the manager refuses for another reason is a warning that names the exact command that ran,
+  because the run's own proof that no writer is left has already held.
+  The question keeps one bound (`RETIRE_BOUND`,
+  five seconds),
+  and a request the bound kills is given a measured grace to be reaped before the warning is built.
+  Measured 2026-11-27 on this host:
+  before this change a trivial shadow call asked four stop questions and up to one `LoadState` question,
+  one per scoped run;
+  after it,
+  none,
+  and the call's ratio to alpha.11's release binary is the control's own.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
@@ -958,6 +999,28 @@ and an HTTP 429 is retried after its `Retry-After`.
   A journal with no ready record is removed only when every lockfile equals its snapshot (the copies are then redundant);
   otherwise it is kept and named,
   because a lost ready record looks the same.
+  Before such a journal goes,
+  each live file it stands for is made durable by the path the journal recorded,
+  byte for byte:
+  a manifest whose name is not UTF-8 is synced itself,
+  never through the text a lossy conversion spells for that name,
+  and a barrier that fails keeps the journal and names the file.
+  That is what release `0.1.5-alpha.11` changed in this behaviour beyond issue 6528 (issue 6550,
+  `1c0303a1ba`):
+  `0.1.5-alpha.10` carried those live files as `String`,
+  so such a manifest was skipped as absent (or another file under the spellable name was synced in its place)
+  and the journal was removed while the live manifest had never been made durable.
+  The control is
+  `journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`:
+  it arms the manifest's own data barrier and holds a file under the spellable name beside it,
+  and on alpha.10's code it fails here:
+
+  ```text
+  the live manifest's own barrier was never reached, so the recovery asked for a name this file does not have: []
+  ```
+
+  (measured 2026-11-27 on this host,
+  the red quoted in `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md`).
   A replacement temporary left by a killed run is reported and never deleted.
   Finishing a run has three phases that fail differently (round 7):
   the outputs are forced to disk (the owner's "Force at leaving";
@@ -1044,11 +1107,32 @@ and an HTTP 429 is retried after its `Retry-After`.
   neither rolled back nor accepted and the journal kept,
   and the command is not run.
   That refusal says how long the stop waited for `populated 0` and what it was waiting for:
-  every process the scope still listed,
-  with the state of its threads,
+  every process the scope and the groups below it still listed,
+  with the group below the scope a member stands in and the state of its threads,
   so a reader can tell a member that has exited and only waits to be reaped (it can write nothing)
   from one that is alive,
   and from a leader that exited behind a live thread (which can still write).
+  The listing has a bound of its own (`LISTING_BOUND`),
+  and it is looked at between reads,
+  at the top of each group and before each member of it,
+  so a scope with many threads delays a refusal by that much and no
+  more;
+  a single read is not bounded by it:
+  `cgroup.procs`,
+  a group's directory,
+  `/proc/<pid>/task`
+  and one thread's `stat`
+  are blocking calls of the operating system with no bound of their own,
+  and the kept measurement beside the constant
+  (`control_group_stop::measure_tests::the_listing_of_a_scope_with_this_many_threads_takes`)
+  times a whole walk of such reads,
+  never one of them.
+  A listing that hit its bound,
+  one that could not be read at all,
+  and one that stopped at a group below the scope it could not read
+  are said to have done so,
+  and the members read before that are still named,
+  rather than read as a scope whose members can write nothing.
   A member that has exited is never what refuses a command:
   the `populated` line of a group's `cgroup.events` counts no process whose last thread has ended,
   and `cgroup.procs` does not list one (measured on this host 2026-11-27,
@@ -1578,6 +1662,29 @@ Unit tests sit beside the modules as `*_tests.rs`;
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
 
+Two guards read this crate's own sources:
+the ban on a lean tool starting cargo or itself (`src/lean_no_recursion_tests.rs`),
+and the guard of the lazy trace (`src/bounded_run_trace_guard_tests.rs`).
+Both read them through `src/test_scratch/source_tree_files.rs`,
+which visits each file once and never enters a symbolic link,
+because `AGENTS.md` rules `LYD`,
+`LYL` and `LYF` put a `uses/` folder of links in a crate's source folders.
+Both compare what they read with what the tree holds:
+a `.rs` file that is not a test and whose own name or a folder above it starts `lean_`,
+at any depth,
+fails the lean guard when it was not read,
+and a production source that writes a trace event and is not one of the trace guard's files fails that guard.
+The comparison is what closed the blindness the release read of 0.1.5-alpha.11 found (Medium 4,
+2026-11-27):
+the splits moved lean code into `lean_idle_trees`,
+`lean_podman_cleanup`,
+`lean_removal` and `lean_run`,
+and a guard that listed `src` itself kept reading 30 files while 18 more,
+2,174 lines,
+stood beside it unread.
+A control that lists a fixture folder it made itself is not a source walk and may list it directly,
+saying what it does about a link it meets there.
+
 A control that sizes a fixture it wrote a moment earlier counts by the fixture's length
 (`length_bytes` in `src/lean_test_support.rs`),
 not by the disk blocks it holds (`allocated_bytes_of`),
@@ -1593,9 +1700,50 @@ issue 6552;
 `doc/troubleshooting/zfs-reports-one-block-for-a-file-written-moments-ago.md`).
 The tools pass `allocated_bytes_of` as the same rule,
 because their caps and their freed-byte reports are about the disk (the "Limits" heading).
+That seam changed no production call when `0.1.5-alpha.11` added it
+(issue 6552,
+`7a609527d9`):
+every tool of this package passes `allocated_bytes_of`,
+which is what it counted by before,
+so what the lean tools count and report is unchanged by the release,
+and only a control passes `length_bytes`.
+The production call sites are the size walks of `lean_idle_trees` (its own and the qualified tree's removal),
+the trash sweep and the unit removal in `lean_removal`,
+the run-record sweep and its steps,
+and the rustup toolchain removal.
+
+The library's visible surface was counted by paths,
+not by members and signatures.
+`0.1.5-alpha.12`'s commits quote 663 paths at `0.1.5-alpha.10`,
+710 at `0.1.5-alpha.11`,
+and 663 again after the twenty split modules went `pub(crate)` (`c2bb0fd6e8`,
+`c361bd9212`),
+read over `pub` items and `pub use` leaves.
+That count says which paths a consumer can name.
+It does not see a member or a signature that changed while its path stayed,
+and between alpha.10 and alpha.12 these did,
+all of them with `0.1.5-alpha.11`'s seam of issue 6552:
+the field `SizeCap::count_bytes`,
+`writers_may_remain_reason` on `RunScope` and on `Transaction`,
+and a `count_bytes: ByteCount` parameter on `add_tree_bytes`,
+`delete_claimed`,
+`sweep_run_records`,
+and `tree_bytes`.
+`tests/shim.rs` is the only consumer in the repository,
+and it reads `cargo_run::CARGO_CALL_SECONDS` and three names from `journal`,
+none of which changed.
 
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
 its bound plus twice `QUIESCE_BOUND` (5 s).
+A stop that has to refuse then lists the members it found,
+inside the listing's own bound (`LISTING_BOUND` in
+`src/control_group_stop.rs`),
+so a refusal answers within its bound plus twice `QUIESCE_BOUND` and that listing bound.
+The end of a run adds the retirement's own bound only where the scope is the leftover of issue 6578:
+the manager is asked once there (`RETIRE_BOUND`,
+five seconds,
+in `src/control_group_retire.rs`),
+and the ordinary run asks nothing and waits for nothing.
 On this host under a load average near 100,
 two of them failed that window once (`the judged run ended after 15.294850135s, not at its bound of 1.6s` and
 `the call answered after 12.513946534s, not within its bound 10s`),
@@ -1692,6 +1840,21 @@ Why it is not simply skipped is the same reason as above:
 a control that returns green without making the name proves nothing about the recovery it guards.
 The record is `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md` (issue 6550).
 
+The recycled time-namespace control (`round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`)
+needs a namespace number the kernel hands back:
+the writer's time namespace must be destroyed and the recovery's must be handed
+the number it had.
+It used to free that number and only then plant its journal and start its reader,
+which is the window in which another session on this host takes it (issue 6599).
+An armed reader now holds the writer's namespace by an open descriptor while the test ends its processes,
+and then gives the number back and takes the numbers the kernel hands it,
+holding each,
+until the writer's number is the one it is handed.
+`CARGO_SHADOW_ROUND_FOURTEEN_PLANT_FOREIGN_NAMESPACE=1` plants the allocation that other session makes,
+and the control must pass
+with it.
+The record is `doc/the-recycled-time-namespace-control-builds-its-own-schedule.md`.
+
 The tests run where this account has a user manager on a cgroup v2 mount:
 
 ```sh
@@ -1718,6 +1881,40 @@ The fixtures therefore stand in a temporary folder of their own below a folder e
 then `/var/tmp`),
 and where the host has neither,
 each control prints the `not run` line above with its reason and the `test` task leaves it out of its totals.
+
+### Which host each check runs on
+
+- This machine runs the `test` task,
+  and it can give the tests a delegated control group:
+  `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope` passes here
+  (`cargo nextest run --release -E 'test(=cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope)'`,
+  exit status 0,
+  measured 2026-11-27),
+  so the suite runs as the gate always did and no run here is a degraded one.
+  The rounds that wrote this release ran the whole suite here,
+  each arm beside another
+  (`doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md`).
+- The release workflow's runner runs no test of this package,
+  so it never meets the question and no answer of it is recorded.
+  Run `46000914401`,
+  the crate-release workflow for `0.1.5-alpha.11`
+  (2026-11-27T12:42:42Z,
+  runner image `ubuntu-26.04`),
+  prints no line of the `test` task,
+  and its bump step says in its own words:
+
+  ```text
+  no cargo check: an alpha is committed without compiling here, and cargo-publish.yml builds the binary of the pushed commit on both Linux targets
+  ```
+
+  `.github/workflows/cargo-publish.yml` builds this crate with `cargo package` (which verifies by compiling)
+  and `cargo build --release --locked` for its two Linux targets,
+  and runs `cargo nextest` nowhere.
+  So the release's test evidence is no test run rather than a degraded run:
+  there is no test that such a run leaves out
+  (read from that log,
+  2026-11-27).
+  Whether the release gate should run this package's tests at all is the owner's to decide.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store

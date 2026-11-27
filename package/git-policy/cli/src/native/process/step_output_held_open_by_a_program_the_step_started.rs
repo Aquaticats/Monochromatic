@@ -15,6 +15,9 @@
 //! ```
 
 use crate::process_use::ProcessUser;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in.
+use crate::shown_so_it_cannot_rewrite_the_line::shown_so_it_cannot_rewrite_the_line;
 use std::time::Duration;
 
 /// How long the read of a step's output may go on after the step itself has ended.
@@ -81,20 +84,38 @@ pub(super) fn error_cut_short_text(
 
 /// What:
 ///  The program that still holds a stream of the step,
-/// named as the person knows it.
+/// named as the person knows it,
+///  with its own name shown so that no byte of it can rewrite the sentence.
 /// Why:
 ///  Both sentences about a held-open stream name the same program,
 /// and a number alone tells the person nothing.
+///  A program sets its own name to any bytes it likes (`/proc/<pid>/comm`),
+///  and this is a child the step started,
+///  so the name is that program's text and never this one's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holders.length === 0 ? 'a program it started, which no longer shows in the process table' : `process ${holders[0].pid} (${holders[0].command})`;
+/// holders.length === 0 ? 'a program it started, which no longer shows in the process table' : `process ${holders[0].pid} (${shownSoItCannotRewriteTheLine(holders[0].command)})`;
 /// ```
 fn holder_named(holders: &[ProcessUser]) -> String {
     return match holders.first() {
         Some(holder) => match holder.command.as_ref() {
-            Some(command) => format!("process {} ({command})", holder.pid),
-            None => format!("process {}", holder.pid),
+            // What: the program's own name, shown so that no byte of it can rewrite this sentence.
+            // Why:  a line break or a terminal escape inside the name would change what the person reads about
+            //  which program holds the step's stream.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return `process ${holder.pid} (${shownSoItCannotRewriteTheLine(command)})`;
+            // ```
+            Some(command) => {
+                return format!(
+                    "process {} ({})",
+                    holder.pid,
+                    shown_so_it_cannot_rewrite_the_line(command)
+                );
+            }
+            None => return format!("process {}", holder.pid),
         },
         None => String::from("a program it started, which no longer shows in the process table"),
     };
@@ -143,3 +164,8 @@ pub fn is_output_held_open(error: &std::io::Error) -> bool {
 fn is_the_held_open_error(inner: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     return inner.is::<OutputHeldOpen>();
 }
+
+/// Controls of these sentences stay out of the release executable.
+#[cfg(test)]
+#[path = "step_output_held_open_by_a_program_the_step_started_tests.rs"]
+mod tests;
