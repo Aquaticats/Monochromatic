@@ -4,6 +4,7 @@
 use super::*;
 use crate::auto_push_single_flight::PushGit;
 use crate::merge_second_pass::tests::await_it;
+use crate::parallel_budget::HostResources;
 use crate::push_failure_notice::{
     PushOutcome,
     notice_directory,
@@ -25,6 +26,10 @@ use crate::service_claim_renewal_running::{
 };
 use crate::service_review_key::ReviewKey;
 use crate::service_work_common_directory::is_bare_common_directory;
+use crate::service_work_items_side_by_side::{
+    A_HOST_THAT_BOUNDS_NO_BATCH,
+    A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME,
+};
 use crate::service_work_run_round::run_round;
 use crate::test_support::{
     fixture,
@@ -1629,6 +1634,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
             &lane_handlers,
             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
             crate::service_work::CLAIM_LEASE,
+            &HostResources::read(),
         ),
     );
     let seen: String = mock.finish().seen.to_ascii_lowercase();
@@ -3063,6 +3069,7 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         Renewal::Timed,
         &Retrying::none(),
         SERVICE_KINDS,
+        &HostResources::read(),
     ));
     let mut asked: Vec<&str> = Vec::new();
     if !recorder
@@ -3193,6 +3200,7 @@ fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
                 &mut replanning,
                 SERVICE_KINDS,
                 Duration::ZERO,
+                &HostResources::read(),
             ),
         )
         .expect("the process runtime runs the drain");
@@ -3269,6 +3277,7 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
             &mut replanning,
             SERVICE_KINDS,
             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+            &HostResources::read(),
         ),
     )
     .expect("the process runtime runs the drain");
@@ -3304,6 +3313,7 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
         Renewal::Timed,
         &Retrying::none(),
         SERVICE_KINDS,
+        &HostResources::read(),
     ));
     assert_eq!(
         recorder
@@ -3368,6 +3378,7 @@ fn the_awaited_drain_makes_a_snapshot_ahead() {
         Renewal::Timed,
         &Retrying::none(),
         SERVICE_KINDS,
+        &HostResources::read(),
     ));
     assert_eq!(
         recorder
@@ -4016,6 +4027,7 @@ fn drain_with(
     handler: &Controlled,
     kinds: &'static [WorkKind],
     slice: Duration,
+    host: &HostResources,
 ) -> DrainOfAControl {
     let mut replanning: Replanning = Replanning {
         first: None,
@@ -4033,6 +4045,7 @@ fn drain_with(
             &mut replanning,
             kinds,
             slice,
+            host,
         )
         .await;
     })
@@ -4082,11 +4095,15 @@ fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
             .takes
             .push((Controlled::name_of(entry), ONE_ITEM_TAKES));
     }
-    // One item at a time, so each item's own pause is what the slice is read against.
-    crate::service_work_items_side_by_side::hold_the_width_to(1);
-    let drained: DrainOfAControl =
-        drain_with(&repo, &handler, SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
-    crate::service_work_items_side_by_side::take_the_hosts_width();
+    // One item at a time, so each item's own pause is what the slice is read against: the width of a batch is the
+    //  host's answer, so this states a host of one CPU rather than changing every other test's width (issue 6567).
+    let drained: DrainOfAControl = drain_with(
+        &repo,
+        &handler,
+        SERVICE_KINDS,
+        A_SLICE_ONE_ITEM_SPENDS,
+        &A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME,
+    );
     assert_eq!(
         names(&repo, DONE).len(),
         1,
@@ -4149,6 +4166,7 @@ fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
         &handler,
         PUSH_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+        &A_HOST_THAT_BOUNDS_NO_BATCH,
     );
     let at_the_slow_branch: &Vec<String> = &drained
         .seen
@@ -4211,6 +4229,7 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
         &handler,
         PUSH_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+        &A_HOST_THAT_BOUNDS_NO_BATCH,
     );
     assert_eq!(
         names(&repo, DONE).len(),
@@ -4288,6 +4307,7 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
                 &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()),
                 PUSH_KINDS,
                 crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+                &A_HOST_THAT_BOUNDS_NO_BATCH,
             );
             assert_eq!(
                 drained.look_again,

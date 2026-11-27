@@ -41,6 +41,7 @@
 /// whose settings and review are `service_work_git_handlers.rs`.
 pub use super::service_work_git_handlers::GitHandlers;
 use crate::claim_time::ClaimTime;
+use crate::parallel_budget::HostResources;
 use crate::push_retry::Retrying;
 use crate::service_claim_renewal_running::Renewal;
 pub(crate) use crate::service_work_common_directory::common_directory_of;
@@ -188,7 +189,7 @@ pub fn drain_planned(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
+/// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying, readHost()))
 /// ```
 pub fn drain_planned_with(
     git_dir: &Path,
@@ -198,6 +199,9 @@ pub fn drain_planned_with(
     renewal: Renewal<'_>,
     retrying: &Retrying,
 ) -> Drained {
+    // What: the CPUs and memory every batch of this drain is sized by, read once for the drain.
+    // Why:  a drain outside the round has no caller stating a host, and its batches must not each read the machine.
+    let host: HostResources = HostResources::read();
     return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(
         git_dir,
         handlers,
@@ -206,6 +210,7 @@ pub fn drain_planned_with(
         renewal,
         retrying,
         SERVICE_KINDS,
+        &host,
     )) {
         Ok(drained) => drained,
         Err(refusal) => {
@@ -281,7 +286,7 @@ pub fn drain_common_records_with_lease(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
+/// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying, readHost()))
 /// ```
 pub fn drain_common_records_planned(
     git_dir: &Path,
@@ -290,6 +295,9 @@ pub fn drain_common_records_planned(
     lease: Duration,
     retrying: &Retrying,
 ) -> Drained {
+    // What: the CPUs and memory every batch of this drain is sized by, read once for the drain.
+    // Why:  a drain outside the round has no caller stating a host, and its batches must not each read the machine.
+    let host: HostResources = HostResources::read();
     return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(
         git_dir,
         handlers,
@@ -297,6 +305,7 @@ pub fn drain_common_records_planned(
         lease,
         retrying,
         SERVICE_KINDS,
+        &host,
     )) {
         Ok(drained) => drained,
         Err(refusal) => {

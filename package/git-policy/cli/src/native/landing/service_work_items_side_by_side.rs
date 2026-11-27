@@ -152,7 +152,50 @@ pub(crate) fn slow_items_side_by_side(
 }
 
 /// What:
-///  The width a control stated for the next batches of this process,
+///  A host whose CPUs and memory narrow no batch of the sizes these controls make.
+/// Why:
+///   Every batch's width is the host's answer (`worker_budget`),
+/// and the memory figure of this machine's control groups is what a build's own page cache fills,
+/// so a run inside a capped scope reads no headroom at all and every batch runs one item at a time
+/// (measured for issue 6567 in a threaded `landing::` run whose build filled its scope's memory cap:
+/// the host read no bytes free and both side-by-side controls saw one item inside the handler).
+/// A control that asserts two items run beside each other states this host,
+/// as a control that asserts how many workers a budget allows names the host that budget is derived from
+/// (`A_HOST_THAT_BOUNDS_NO_WORKER` in `worktree/worktree_clone_slices.rs`, issue 6537).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_HOST_THAT_BOUNDS_NO_BATCH = { parallelism: SLOW_ITEMS_CEILING * 8, memoryAvailable: undefined };
+/// ```
+#[cfg(test)]
+pub(crate) const A_HOST_THAT_BOUNDS_NO_BATCH: HostResources = HostResources {
+    parallelism: SLOW_ITEMS_CEILING * 8,
+    memory_available: None,
+};
+
+/// What:
+///  A host that puts one item of a batch at a time,
+///  which a control about a batch that keeps its turn states.
+/// Why:
+///   A round's bound on the housekeeping it starts is one item at a time in these controls,
+/// and the width of a batch is the host's answer,
+/// so a control that spends a slice on one item names a host of one CPU rather than changing the width of every
+/// batch of the run through a value of the whole process
+/// (`a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent` in `landing/service_work_tests.rs`,
+/// issue 6567).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME = { parallelism: 1, memoryAvailable: undefined };
+/// ```
+#[cfg(test)]
+pub(crate) const A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME: HostResources = HostResources {
+    parallelism: 1,
+    memory_available: None,
+};
+
+/// What:
+///  The width a measurement stated for the next batches of this process,
 ///  or nothing when it stated none.
 /// Why:
 ///  A measurement of what running a batch beside each other is worth has to ask both widths of one binary on one host,
@@ -164,6 +207,12 @@ static WIDTH_FOR_A_CONTROL: std::sync::atomic::AtomicUsize = std::sync::atomic::
 
 /// State the width of the batches that follow,
 /// for a measurement of one binary against itself.
+///  Only a measurement names these two calls, and a measurement runs alone with `--run-ignored`:
+/// a control that stated a width this way changed what every other test of a threaded run got
+/// (issue 6567:
+/// `a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent` held the width at one while the
+///  side-by-side controls of the same process read it).
+/// A control states a host instead (`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`).
 #[cfg(test)]
 pub(crate) fn hold_the_width_to(width: usize) {
     WIDTH_FOR_A_CONTROL.store(width, std::sync::atomic::Ordering::SeqCst);
