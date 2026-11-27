@@ -33,7 +33,11 @@ the narrow check of tip `f2e2f551fe`, under
 `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/keep/`,
 `~/temp/agent/zfs-staging-under-cache-design-owner-answers-gate-review-2026-11-19/keep/`,
 `~/temp/agent/zfs-staging-under-cache-design-third-revision-gate-recheck-2026-11-19/keep/` and
-`~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-gate-check-2026-11-19/keep/`. No review's finding
+`~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-gate-check-2026-11-19/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+No review's finding
 numbers are used here: every reference is to a fact, an assumption, a limit or a measurement arm of this design.
 The reviews' points stay where they apply: the folder's name derived on both sides from the clone's dataset GUID in
 "The staging target and who creates it", the staged-folder record in A1 and "The staged-folder record", the recovery
@@ -226,7 +230,13 @@ read-only reads named.
   hardening it is outside the proposal ([proposal][proposal], "One-time move and checkout boot protection").
 - F4. The measured staging route was a bind of the staging directory made private: item 3's harness ran
   `mount --bind <stage> <stage>` then `mount --make-private <stage>` in the guest's boot namespace
-  (`guest-probe.py`, item 3, in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`), and the
+  (`guest-probe.py`,
+  item 3,
+  in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
+  and the
   item's log reads the staging row as `private` ([measurements][measurements], item 3). The measured order is the
   bind first and the propagation change second, because the bind is attached under a shared parent (F22).
 - F5. `move_mount` refuses `EINVAL` when the moved mount's current parent is shared (Linux `v6.8`,
@@ -2038,7 +2048,11 @@ the entry says what they add, so the name stays the revision's first commit rath
   own arms at the end of the measurements. Its label is the committer timestamp of `7ce390f69a` at
   `2026-11-19T21:03:31-05:00`, the last commit that changed this revision before this label was written, because a
   commit cannot name its own hash; the prose checker under
-  `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
+  `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
+  passes on this
   revision and fails on a control copy with planted faults.
 - `353d37ad15` at `2026-11-19T21:43:49-05:00`: this revision, answering the gate review of `e8f7ec4fa6`, which found
   no high finding, six mediums and seven lows, and no change to a decision the project made. It gives a successful
@@ -2062,7 +2076,11 @@ the entry says what they add, so the name stays the revision's first commit rath
   "Choices this revision marks for the project's veto" for the behaviour the project never chose. Its label is the
   committer timestamp of `1ae91c7351` at `2026-11-19T21:56:48-05:00`, the last commit that changed this revision's
   text before this label was written, because a commit cannot name its own hash; the prose checker under
-  `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/` passes on this
+  `~/temp/agent/zfs-staging-under-cache-design-second-revision-gate-recheck-2026-11-19/notes/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
+  passes on this
   revision and fails on a control copy with planted faults.
 - `500e3d71d8` at `2026-11-19T22:36:35-05:00`: this revision, answering the gate re-check of `9f1e0c9087`, which
   found no high finding, two mediums and seven lows, and no change to a decision the project made. Every finding was
@@ -2095,7 +2113,11 @@ the entry says what they add, so the name stays the revision's first commit rath
   proposal citation was re-checked against `main` at `59152e567b` and none changed. Its label is the committer
   timestamp of `367ac87e1a` at `2026-11-19T22:49:35-05:00`, the last commit that changed this revision's text before
   this label was written, because a commit cannot name its own hash; the prose checker kept in
-  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`, with
+  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
+  with
   copies of its output for this revision and the planted-fault control, moved there from the scratch folder that run
   used, passes on this revision and fails on a control copy with planted faults.
 - `146bc62e42` at `2026-11-19T23:25:49-05:00`: this revision, answering the narrow check of `f2e2f551fe`, which
@@ -2128,7 +2150,11 @@ the entry says what they add, so the name stays the revision's first commit rath
   `7c17fb2766` at `2026-11-19T23:29:30-05:00`, the last commit that changed this revision's text before this label
   was written, because a commit cannot name its own hash; this entry was written at
   `2026-11-19T23:29:39-05:00`. The prose checker kept in
-  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`, with
+  `~/temp/agent/zfs-staging-under-cache-design-fourth-revision-narrow-check-findings-fixed-2026-11-19/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
+  with
   its output for this revision and the planted-fault control, passes on this revision and fails on the control, and
   the citation checker finds every one of its checks in `main`'s plan and proposal; its output and quote list are
   kept beside the prose checker, and its script, which lived only in that round's scratch, is kept in the next
@@ -2164,7 +2190,10 @@ the entry says what they add, so the name stays the revision's first commit rath
   `2026-11-20T00:13:36-05:00`. Its label is the time this entry was written, `2026-11-20T00:14:25-05:00`, because a
   commit cannot name its own commit; the entry names every commit the round made before it instead. The prose checker
   and the citation checker are both kept in
-  `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed-2026-11-20/keep/`,
+  `~/temp/agent/zfs-staging-under-cache-design-fifth-revision-diff-check-findings-fixed-2026-11-20/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   with their outputs, the citation quote list and the planted-fault control: the prose checker passes on this
   revision and fails on the control, and the citation checker finds all of its checks in `main`'s plan and proposal.
 
@@ -2204,7 +2233,11 @@ the entry says what they add, so the name stays the revision's first commit rath
   `package/git-policy/cli/src/native/worktree_copying/worktree_copy_unreadable_records.rs`,
   `package/git-policy/cli/src/native/service/wait_ceilings.rs`.
 - The measurement harness items 3 and 4 ran: `guest-probe.py` in
-  `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`, read for the staging bind's creation and
+  `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
+  read for the staging bind's creation and
   the unmount calls.
 - This host, read-only, 2026-11-19: `findmnt --output TARGET,SOURCE,FSTYPE,PROPAGATION --target /home/user/.cache`,
   `findmnt --list --noheadings --output MAJ:MIN,FSTYPE,TARGET`, `stat --format '%n %i %U %a' /home/user/.cache`,

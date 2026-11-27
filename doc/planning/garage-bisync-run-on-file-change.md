@@ -518,7 +518,11 @@ on the real user manager,
 against a throwaway Garage in podman on `127.0.0.1:39000`, a scratch rclone config and a scratch tree with `.` and `_` names.
 The proof sync unit had one added line, `ExecStartPre=/usr/bin/sleep 20`, so an edit could land inside a run;
 the alert units ran the package's entry with a scratch home and a stand-in `notify-send` that only logged.
-Logs: `~/temp/agent/garage-file-sync-unit-stack-proof-2026-11-25/keep/`.
+Logs:
+`~/temp/agent/garage-file-sync-unit-stack-proof-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 - Every unit loaded (`LoadState=loaded`) with no warning in the user journal.
 - One edit gave one sync run.

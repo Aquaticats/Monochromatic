@@ -15,7 +15,10 @@ and the wrapper's dependency install.
 
 All on OpenZFS 2.4.4 (`zfs version`), pool `zpcachyos`, home dataset `zpcachyos/ROOT/cos/home`,
 block cloning active and `zfs_bclone_enabled` 1, one sample each while about twenty agents ran,
-scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/keep/`.
+scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 - The wrapper's `git worktree add --detach` of `main` took 48.84 s and left 56,478 files;
   the repository tracks 24,129 (`git ls-files`), so most of that time is the dependency install, not Git's checkout.
@@ -118,7 +121,10 @@ The owner, 2026-11-18: "My impression is ZFS event daemon is the best idea. It's
 Am I missing something? Are you missing something?"
 The earlier ranking put the regex rule first for its install cost alone, and neither mechanism had been run
 from the places where worktrees get made, so both were probed again on throwaway datasets under `zpcachyos/nosnap`
-(scripts and output in `~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/keep/`:
+(scripts and output in `~/temp/agent/zed-against-sudo-for-clone-mounts-2026-11-18/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 `probe-zed-against-sudo-from-each-caller-context.ts` with `zed-against-sudo-probe.txt`,
 `probe-confined-unit-sight-and-the-regex-rule-run-for-real.ts` with `confined-unit-sight-and-regex-rule-probe.txt`,
 `probe-confined-unit-control-and-reflink-fallback.ts` with `confined-unit-control-and-reflink-fallback-probe.txt`;
@@ -385,7 +391,10 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   So a blocklist in sanoid's config works only with `recursive = yes` and each excluded child's section below its
   parent's, which the config's own comments should say. A dataset outside home's tree, like those under
   `zpcachyos/nosnap`, is never reached by home's recursion at all, whatever the order. Records:
-  `~/temp/agent/snapshot-blocklist-candidates-measured-2026-11-18/keep/`.
+  `~/temp/agent/snapshot-blocklist-candidates-measured-2026-11-18/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - **What the snapshots hold today** (measured 2026-11-18 with `zfs diff` between consecutive hourly snapshots of
   `zpcachyos/ROOT/cos/home`; sanoid names its snapshots in UTC; counts are changed files, not bytes):
   - 17:00 to 18:00 local (6.87 GB written into the next snapshot; the raw diff is kept as
@@ -459,7 +468,11 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   holds 32,604 MiB of logical bytes (29,970 MiB allocated), of which `.claude/worktrees/` holds 27,058 MiB (23,300 MiB
   allocated), so the checkout without its worktrees is about 5,546 MiB; most of what the move copies is worktrees, and
   removing finished ones before the move shrinks it most (readings in
-  `~/temp/agent/checkout-logical-size-2026-11-18/keep/du-readings.txt`). The question put
+  `~/temp/agent/checkout-logical-size-2026-11-18/keep/du-readings.txt`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
+  The question put
   to the owner called the boundary ratios "inside" the control spread of 1.091; the highest, 1.101, is just above it, as
   the pnpm document says ("comparable"), and the ratios went both ways.
 - **Who owns `.claude/worktrees`** (question tool, same evening): "B: Account owns it (Recommended)". The account
@@ -475,7 +488,12 @@ Asked through the question tool after the probes of 2026-11-18; the design as a 
   entered the Pi skill on 2026-11-08 (1a907ccfb9) and the driver's launcher, and a rule is proposed to the owner.
   A second, wider search the same evening (GPT through Pi; every ref, every stored version of `AGENTS.md`, `CLAUDE.md`
   and the skills, unreachable objects and the 66 retired codes, with a positive control; report and evidence in
-  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/keep/`) found the same: `WTU` (d507a55f0e) is the first
+  `~/temp/agent/agents-md-worktree-place-rule-search-2026-11-18/keep/`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
+  found the same:
+  `WTU` (d507a55f0e) is the first
   repository-wide rule, and nothing was added and later removed. It found where the memory comes from: the handover of
   2026-11-04 (031cfafaa6) records that briefs and a trace script put worktrees there, that an `AGENTS.md` rule was
   proposed, and the answer "Wrapper fix only" with the note "What do you mean \"wrapper fix\" here?". The rule was

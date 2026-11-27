@@ -44,7 +44,7 @@ use crate::worktree_copy_stage_claim::{
     StageClaim,
     claim_stage_for_creation,
 };
-use crate::worktree_copy_synchronize::synchronize_after;
+use crate::worktree_copy_synchronize_after_git::synchronize_after;
 use crate::worktree_ladder::{
     LadderResult,
     begin_ladder_holding,

@@ -15,7 +15,10 @@ what it checked is named with every figure,
 and what it could not check is under "What the probes did not show".
 
 This text is the proposal as revised after the gate review kept at
-`~/temp/agent/gate-review-host-key-next-step-sixth-revision-2026-11-25/keep/review.md`,
+`~/temp/agent/gate-review-host-key-next-step-sixth-revision-2026-11-25/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose verdict was "not ready to put to the owner as written",
 with one High finding,
 eight Medium findings and a list of Low findings.
@@ -58,12 +61,18 @@ branch `docs/planning-host-key-next-step-design-seventh-revision`,
 made from `main` at `4db44a2f1c`, merged with `main` at `69140e6791`
 (2026-11-25T18:22:14-05:00) as `80e89d20e9`.
 Round folder:
-`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/`,
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose `keep/` holds this round's container log and its script,
 the launch line that names the container's limits,
 `lib.sh`, the three stand-ins and the four sentence files.
 A bare `keep/...` path anywhere else in this document means the sixth round's folder,
-`~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`,
+`~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose log or file the sentence names with the arm it reads;
 this round's own log is always named with its full folder path.
 Only this file changed in the repository;
@@ -116,7 +125,11 @@ The command ends 128.
 A key whose passphrase nobody can be asked for,
 with the host key known,
 ends 128 with `root@localhost: Permission denied (publickey).` between `Cloning into` and Git's `fatal:` line
-(run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
+(run,
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 arm `f-locked-direct-a-wrappers-value`;
 the passphrase sentence this design uses is that round's file byte for byte).
 
@@ -218,7 +231,10 @@ They are two decisions, and the ranking takes the family first and the terminal 
 ### What each option shows a person at a new host key
 
 Each block is a measured transcript from this round's log,
-`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`,
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 or, for A, the state on `main`;
 `probe` stands where the arm's own clone directory stood,
 and the sentence is cut short here and printed whole under "The words".
@@ -347,7 +363,10 @@ to end.
 - C2 with its ranked gate, exit 128, covers `clone`, `fetch` and a `push`, and does not cover `pull`, because a
   `pull` at a new host key ends 1 (run, `keep/run-11-the-words-as-revised.log`, arms `w-pull-newkey-c2-status` and
   `w-pull-newkey-c2-check-unknown`, both exit 1 with no sentence; the `pull` status was first measured in
-  `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`,
+  `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   arm `a-pull-newkey exit=1`).
   That gap is a gate choice and not a property of C2: a gate on any non-zero status would cover `pull`, but it would
   also speak after every other non-zero end (a rejected push, a merge conflict) whenever its check finds no key, and
@@ -397,7 +416,10 @@ Every option that keeps a child changes that:
 The figures are medians of per-round differences against a control measured in the same rounds,
 with the range and the count of positive rounds
 (`keep/derived-medians.txt`, from
-`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-3-steps.log`;
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-3-steps.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 the typed-path figures are from `keep/run-10-typed-path-with-every-twin.log`).
 The last term of each line is the read of the remote,
 `+0.85 ms` for a named remote
@@ -415,7 +437,10 @@ which the second question under "The owner's question" either pays on every comm
   the alpha.47 release pass measured the relay at `114.9 ms` against `21.1 ms` for the same wrapper on a remote it does
   not relay, 25 interleaved rounds, median `+93.8 ms`
   (`e11-relay-added-latency-pty-vs-pipe-interleaved.txt` in the alpha.47 release pass's `keep/evidence/`,
-  `~/temp/agent/wrapper-alpha-47-release-review-the-rest-2026-11-26/`).
+  `~/temp/agent/wrapper-alpha-47-release-review-the-rest-2026-11-26/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)).
   The relay now closes its own handle on that stream before it waits,
   and the same comparison in one interleaved run of 25 rounds measured `+0.1 ms` at a terminal and `+0.3 ms` in the
   pipe shape.)
@@ -464,7 +489,10 @@ and the owner is free to pick any of the six.
   At a terminal, the place where a person watches a clone and meets a security key's touch notice,
   K behaves as plain Git does:
   measured, plain Git and K each draw the progress lines and C draws none
-  (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`,
+  (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   the `TERMINAL` lines; and this round's log, arms `o-terminal-ok-*`),
   and OpenSSH writes the touch notice to standard error only when that stream is a terminal
   (`readpass.c:252`, `:253` and `:279`, source only).
@@ -688,7 +716,10 @@ One pass, each Low and its change:
 - "the same log" in the owner's C2 and D blocks: each block names its arm, and the block intro names the log.
 - the change log's nonexistent folder: this change log replaces that text.
 - `KnownHostsCommand` cited to the after-its-review round: now
-  `typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:280-290`.
+  `typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:280-290`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `c-relay` at a host never seen cited to run-11: now `keep/run-7-unreachable-host-and-pull.log`,
   `u-never-seen-c-relay`.
 - `c2-status` and `c2-check-known` at strict checking and `BatchMode` cited to run-11: now the arms in
@@ -816,7 +847,12 @@ Each family ran the same arms:
   It requires the last line, the strict sentence, or the wrapper's own sentence as the only host-key-naming lines,
   so it is silent at a changed key and speaks at `BatchMode=yes`,
   exactly as `reads_as_unknown_host_key` does.
-  The round whose folder is `~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/` used a
+  The round whose folder is
+  `~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
+  used a
   substring test, and so its arms spoke over a changed key where the shipped reader is silent.
 - The stand-in speaks only when the child ended non-zero,
   it drops the lines Git prefixes with `remote: ` before it reads,
@@ -829,7 +865,11 @@ Each family ran the same arms:
   Its options come from `STANDIN_SSH_OPTS`, which is a stand-in for the source a shipped wrapper would have to
   find; the arms without that source are under "What each option gave, family by family".
 - No arm has `Match exec`, `CanonicalizeHostname`, `KnownHostsCommand`, `HostKeyAlias` or `VerifyHostKeyDNS` set.
-  The round whose folder is `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/`
+  The round whose folder is
+  `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   measured `KnownHostsCommand` (which makes D speak while the clone succeeds) and `@cert-authority` (which does
   not); those results stand and are quoted in D's section.
   The round whose folder is `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/` measured
@@ -1493,7 +1533,10 @@ The sentence can also be wrong about why a command failed, and the rounds named 
 Of the three classes the revision at `79962f9ccc` listed, one holds, one does not and one is unrun:
 `KnownHostsCommand` holds, as `run-1.log:280-290` shows;
 `@cert-authority` supplies the key by certificate and `ssh-keygen -F` finds the line, so D stays silent, which is
-right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`);
+right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here));
 and `VerifyHostKeyDNS=yes` would be a third, and is unrun, because no DNSSEC setup was available.
 
 Two limits stand:
@@ -1520,7 +1563,11 @@ Covers: `clone`, `fetch`, `pull` and a non-LFS `push`, because it speaks before 
 (measured on the stand-ins; see "Which commands each option covers" for the wrapper paths that were not traced).
 
 Two costs the round whose folder is
-`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24/` did not name, both read from the
+`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
+did not name, both read from the
 source:
 
 - `ssh -G` runs the person's `Match exec` commands, measured in the round whose folder is
@@ -1581,6 +1628,9 @@ The sentence the round whose folder is
 (its `keep/run-1-behaviour.log:4`);
 the two figures are different texts, and the 369-byte value's failure line is in
 `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-3.log:61`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 (`File name too long`), which is the value the sixth round ran.
 
 Measured in the sixth round, per transport
@@ -1981,7 +2031,10 @@ each `--rm --init --network=none --cpus=2 --memory=2g --pids-limit=400 --blkio-w
 each started in a `systemd-run --user` scope with `--slice=agent-work.slice`, `RuntimeMaxSec`, `CPUQuota=300%`,
 `MemoryMax=5G`, `TasksMax=512` and `IOWeight=10`.
 Its report holds the eighteen starts, and its launch lines were not kept; this round keeps its own at
-`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-launch.txt`:
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-launch.txt`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `keep/run-5-remote-line-under-a-terminal.log`, 18 arms: the `remote: ` drop rule with `TERM=xterm-256color`,
   in a pipe and on a terminal, and the red control without the escape strip;
@@ -2179,7 +2232,10 @@ The control's own median is 195.07 ms and its twin's 200.30 ms.
   the only figure this harness resolves.
 
 The other typed-path run, whose log is
-`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-4-typed-path.log`,
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-4-typed-path.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 measured a floor of `+0.11 ms` and D at `+5.76 ms` with 23 of 24 positive, and resolved nothing else.
 Its warm-up reached one arm only, which the rotation spreads over the arm list rather than over the control alone,
 and both runs agree on the conclusion.
@@ -2318,6 +2374,9 @@ All three are answered in the sections named with them.
 
 The gate review kept at
 `~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 answered it with nine Medium findings and a list of Low findings.
 The revision that followed it (`cfbfa7aaf6`, 2026-11-25T17:20:11-05:00) answered all of them, and the git history
 holds that change log.
@@ -2388,3 +2447,6 @@ Nothing it found reverses K2 first.
 - The release pass's finding and its container run:
   `~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/commit-push-lfs-lock-and-the-rest/keep/review.md`
   (H1 and "For the owner"), and the OpenSSH sources kept beside it.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).

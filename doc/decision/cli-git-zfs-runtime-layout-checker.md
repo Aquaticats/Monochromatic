@@ -305,9 +305,20 @@ or the release keeps lagging its own main on the widened masks the report names.
 and the pre-scan reads only the header,
 so a kernel that widened either field would be read as the narrower one rather than refused;
 step 6's integration pass measured a kind-33 entry read as compatible
-(`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`,
+(`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 M1),
 and no kernel on record writes a wider field.
+That pass set a kind field of 33 on the approved module's first entry,
+an integer:
+the entry was refused at `Header` before the reader swap
+and read `COMPATIBLE` after it,
+because the five-bit mask reads 33 as kind 1.
+The host's two BTF files carry kinds 1 to 19 only,
+with a largest member count of 451,
+in 151,181 and 13,141 entries.
 Asked whether step 6 should also refuse such an entry,
 with a pre-scan check or by waiting for a `btf-rs` release as the other choices,
 the project answered "A:
@@ -436,7 +447,10 @@ so it adds no second bound.
 
 The check is the diff-only gate check of the design's sixth revision.
 It is kept at
-`/home/user/temp/agent/zfs-runtime-layout-checker-design-sixth-revision-diff-only-gate-check-2026-11-19/keep/review.md`.
+`/home/user/temp/agent/zfs-runtime-layout-checker-design-sixth-revision-diff-only-gate-check-2026-11-19/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It found no high and no medium finding.
 It called the design ready to put to the project,
 and it carried ten lows beside it.

@@ -297,7 +297,10 @@ and is retracted after the user's correction.
 ## Native probe evidence
 
 Disposable hooks and session logs live under
-`/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/`.
+`/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 All probes ran on Claude Code 2.1.332.
 
 ### Bare numeric sleeps
@@ -322,7 +325,10 @@ so this evidence does not establish a one-second return.
 The task later exited 0.
 A retained copy of its output at
 `/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/wrapped-chained-sleep.output`
-contains `done`.
+contains `done`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 This proves the accepted filter-dependent termination versus auto-background divergence.
 
 ### Timeout input matrix

@@ -91,6 +91,9 @@ The question took three exchanges before it settled, and the record keeps the fi
 - the coordinator then compared OpenZFS `zfs-2.2.2`, `zfs-2.3.0` and `zfs-2.4.4` for the twelve
   requests the binding uses, the handlers and key tables of `module/zfs/zfs_ioctl.c`, fetching
   them under `/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   with the script `diff-handlers.ts` and keeping the `diff-*.diff` files there;
 - with that evidence the owner answered "Any version, layout decides (Recommended)".
 
@@ -204,7 +207,10 @@ gave it, and a caller in a user namespace is the case the proposal's
 
 What the layout comparison still catches. The three layout changes sit at 2.4.4:
 `zinject_record_t` carries `zi_match_count` and `zi_inject_count`
-(`/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/zfs_ioctl_h-zfs-2.4.4.h:425-426`),
+(`/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/zfs_ioctl_h-zfs-2.4.4.h:425-426`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 `zfs_cmd_t` carries the anonymous union with `zc_pad1` (`:547`), and `dmu_objset_stats` carries
 `dds_flags`, and neither the 2.2.2 copy nor the 2.3.0 copy carries any of them. The comparison
 refuses all three, as [the comparison's walk](#the-comparison) shows.
@@ -464,7 +470,10 @@ the pick is not made here.
 - `2026-11-19T18:10:30-05:00`, commit `3ac4d96ae3`: the first version.
 - `2026-11-19T18:53:37-05:00`, commit `8bef7121d0`: the revision that answered the independent
   gate review of the first version, kept at
-  `/home/user/temp/agent/zfs-runtime-layout-checker-design-gate-review-2026-11-19/keep/review.md`.
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-gate-review-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That review is independent of this file's author (rule `IRW`) and is not an approval.
   This revision applied every finding it raised:
   the pre-scan's section order now accepts this host's own vmlinux (F1);
@@ -493,7 +502,10 @@ the pick is not made here.
   `9e5ade92a9` at 19:38:01, `0219e1a1fb` at 19:38:24, `18f1b860a7` at 19:38:38 and `3c547a825d`
   at 19:38:58 on this branch: this revision, answering the independent gate
   re-check of the revision at `a3bb5a8c21`, kept at
-  `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/keep/review.md`.
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found
   no high finding and called the file not ready for the owner. This revision applies its mediums
   R1 to R7 and lows L1 to L16: owed measurement 16 now swaps two same-size members inside
@@ -515,7 +527,10 @@ the pick is not made here.
 - `2026-11-19T20:17:01-05:00`, commit `fa66afaed0`, and the commit that carries this entry, which
   changes only this record: the revision answering the second gate re-check of `3c547a825d`, kept
   at
-  `/home/user/temp/agent/zfs-runtime-layout-checker-design-second-revision-gate-recheck-2026-11-19/keep/review.md`.
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-second-revision-gate-recheck-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That re-check is independent of this file's author (rule `IRW`) and is not an approval; it found
   no high finding and called the file not ready for the owner, with N1 to N6 as mediums and N7 to
   N15 as lows. This revision answers every one of them: the bounding list states only what the
@@ -572,7 +587,10 @@ the pick is not made here.
 - `2026-11-19T21:40:21-05:00`, commit `affe04d592`, which applies the findings, and
   `2026-11-19T21:41:00-05:00`, commit `92649a27f0`, which changes only this record: the revision
   that applies the gate review of the answers round, kept at
-  `/home/user/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/keep/review.md`.
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-owner-answers-gate-review-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That review is independent of this file's author (rule `IRW`) and is not an approval; it found one
   high finding, four mediums and thirteen lows, and called the file not ready for the project.
   This revision applies the high finding (H1):
@@ -609,7 +627,10 @@ the pick is not made here.
   `0fe23040da` at 22:29:32, which names the revision that first recorded the BTF file's time, and
   `71829d109c` at 22:30:30, which makes the read order quote the tested module's text as `2.4.4-1`:
   the revision that answers the third gate re-check, kept at
-  `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`.
+  `/home/user/temp/agent/zfs-runtime-layout-checker-design-third-revision-gate-recheck-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   The five commits' recorded dates, 22:31:12, 22:33:00, 22:36:00, 22:40:00 and 22:43:00, were set
   by hand and are not when they were made; the five times this entry gives are the ones the design
   worktree's reflog recorded, to the second, and the corrective comment 210970301 on `71829d109c`
@@ -659,7 +680,10 @@ the pick is not made here.
   `7219884657` and `fe6ba8ed59`, and the read sits between `45455bb4b6` at 23:03:57 and step 2's
   move to `478a097260` at 23:04:45, which is why it saw `08c9dea25f` as the tip. They are the
   revision that answers the narrow gate check of the fourth revision, kept at
-  `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-gate-check-2026-11-19/keep/review.md`.
+  `~/temp/agent/zfs-runtime-layout-checker-design-fourth-revision-narrow-gate-check-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, one medium and nine lows, and called the file not ready for the project.
   The medium: the fourth revision entry's commit times were the recorded dates, not the times the
@@ -715,7 +739,10 @@ the pick is not made here.
   heading and the dated read, and the commit that carries this sentence is the last fix after
   them, which changes only this record. This
   is the revision that answers the diff-only gate check of the fifth revision, kept at
-  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/review.md`.
+  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That check is independent of this file's author (rule `IRW`) and is not an approval; it found no
   high finding, no medium and fifteen lows, six of them to fix first, and called the file not ready
   for the project.
@@ -838,7 +865,10 @@ the pick is not made here.
   written on Sonnet,
   a different vendor from the report's author,
   and kept at
-  `/home/user/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  `/home/user/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   It makes three changes here:
   [Q1](#q1-which-reader-parses-the-module-btf) says the report recommends none and gives its
   conditional result;
@@ -863,7 +893,10 @@ the pick is not made here.
   This is the revision that answers the gate re-check of the vet report,
   written by a reviewer from another vendor,
   and kept at
-  `/home/user/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  `/home/user/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   It makes four changes here:
   [Q1](#q1-which-reader-parses-the-module-btf) carries the report's 32-point baseline only,
   states that `btf-rs` is first in every defined test at the frozen weights,
@@ -912,7 +945,10 @@ read at lines 40398 onward of the file at `e4003a8563`, the range that carries t
 The three-release behaviour comparison that answer rests on, at tags `zfs-2.2.2`, `zfs-2.3.0` and
 `zfs-2.4.4`: the copies of `module/zfs/zfs_ioctl.c`, `include/sys/fs/zfs.h` and
 `include/sys/zfs_ioctl.h`, the script `diff-handlers.ts` and the two `diff-*.diff` files under
-`/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/`.
+`/home/user/temp/agent/openzfs-ioctl-behaviour-across-releases-2026-11-19/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 OpenZFS, at tag `zfs-2.4.4`, commit `71a9f9578616`:
 `META`, `config/zfs-meta.m4`, `include/sys/fs/zfs.h`,
@@ -952,6 +988,9 @@ the same revision the OpenZFS vet recorded.
 
 Candidate sources, cloned under
 `/home/user/temp/agent/zfs-runtime-layout-checker-design-2026-11-19/scratch/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 with `git remote set-url --push origin DISABLED` before any other command:
 
 - `retis-org/btf-rs` at tag `v2.0.1`, commit `03fd01bd9505d0888b568cd3aaa9b232b7e3fb20`;
@@ -1000,7 +1039,10 @@ Run on this host, read only:
 Run in the revision that applied the owner's answers of 2026-11-19, read only:
 
 - A script of this revision's own, in that revision's scratch folder
-  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-applied-2026-11-19/scratch/`,
+  `~/temp/agent/zfs-runtime-layout-checker-design-owner-answers-applied-2026-11-19/scratch/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   named `compare-handlers-and-key-tables-across-three-openzfs-releases.ts`.
   It reads the comparison's three `zfs_ioctl-*.c` copies and compares every handler and key table
   in memory for the twelve requests the binding uses, and writes nothing.
@@ -1095,7 +1137,10 @@ Run in the revision that answered the narrow gate check of the fourth revision, 
 Run in the revision that answered the diff-only gate check of the fifth revision, read only:
 
 - The diff-only check's kept review and its evidence folder,
-  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/`,
+  `~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-only-gate-check-2026-11-19/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   read for what each finding rests on before this revision weighed it.
 - `git rev-list --count 13bc5036d2..08c9dea25f`, `git log` and `git diff --stat` over that range,
   and `git log --format=%p` on `58a1bba2f5`, which give the one commit, the three documentation
@@ -1189,7 +1234,10 @@ Not run:
 ### The prose checks
 
 A checker written for the revision gate re-check, kept at
-`/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/notes/check-prose.ts`,
+`/home/user/temp/agent/zfs-runtime-layout-checker-design-revision-gate-recheck-2026-11-19/notes/check-prose.ts`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 read this file after the revision that answered the diff-only gate check of the fifth revision.
 The checker is not part of the repository, so its path is a scratch path like the logs this file
 cites.
@@ -1231,7 +1279,10 @@ the sibling design files, and the other four are the injected missing anchor, th
 a file that does not exist, and the injected unused definition, which counts once as unused and
 once as a file that does not exist, so the checker detects each kind it reports.
 The copy, its generator and the two logs are in
-`~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-check-findings-fixed-2026-11-19/scratch/`.
+`~/temp/agent/zfs-runtime-layout-checker-design-fifth-revision-diff-check-findings-fixed-2026-11-19/scratch/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## The open item and the decisions that bound it
 
@@ -1347,7 +1398,10 @@ a probe is a command this session ran, listed under
   with `tr - _`, when a matching tag exists (`config/zfs-meta.m4:73-88`).
   A tarball build keeps the `META` value, and a distribution may set its own:
   the guest's packaged module reported `2.2.2-0ubuntu9.5`
-  (`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/guest-prepare.log:469`),
+  (`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/guest-prepare.log:469`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   while the tarball build the same record used reported `2.4.4-1`
   (`item-1-exact.log:8-11`).
 - libzfs reads the attribute with `fopen(ZFS_SYSFS_DIR "/version", "re")` and one `getline`,
@@ -1539,7 +1593,10 @@ a probe is a command this session ran, listed under
   `linux-headers-6.8.0-147-generic`, and its log records
   `BTF [M] .../module/zfs.ko` followed by
   `Skipping BTF generation for .../module/zfs.ko due to unavailability of vmlinux`
-  (`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/guest-openzfs-build.log:834-838`).
+  (`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/guest-openzfs-build.log:834-838`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That guest's module reported `2.4.4-1` (`item-1-exact.log:8-11`), and the module that log
   built carries no BTF; whether the guest still exposed a file from another module was not
   recorded.
@@ -3070,7 +3127,10 @@ and ran no product code.
 Every step's command,
 output,
 exit status and checksum is kept under
-`/home/user/temp/agent/zfs-layout-checker-reader-finalist-validation-2026-11-20/keep/`.
+`/home/user/temp/agent/zfs-layout-checker-reader-finalist-validation-2026-11-20/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The crate's logs are in `keep/evidence/btf-rs-2.0.1/`,
 and the tools' outputs are in `keep/evidence/`,
 both under that root.
@@ -3304,7 +3364,10 @@ a module truncated the same way,
 and a module whose magic byte changed,
 each refused with its own message and none panicking or stalling.
 The evidence sits under
-`/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/evidence/ebeepf-0.1.0/`.
+`/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/evidence/ebeepf-0.1.0/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The skill's validation therefore holds for `ebeepf` on the one platform this host has,
 at the same depth as `btf-rs`'s:
@@ -3796,7 +3859,10 @@ Every measurement stays owed, and no item here touches this host's pool or modul
     single probe run, which reported a base parse of 42.8 ms, a whole run of 49.3 ms and a
     `VmHWM` of 57,808 kB, with no control and no spread, in
     `notes/btf-rs-shape-probe-output.txt` under
-    `/home/user/temp/agent/zfs-runtime-layout-checker-design-gate-review-2026-11-19/`.
+    `/home/user/temp/agent/zfs-runtime-layout-checker-design-gate-review-2026-11-19/`
+    (scratch,
+    deleted on 2026-11-27;
+    what this record uses from it is stated here).
     One run without a control is not a finding under the repository's timing rule, so the
     thresholds sit above that reading as a guess, and this item is the run that replaces them.
     The peak threshold and the base BTF cap under

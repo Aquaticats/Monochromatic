@@ -28,17 +28,35 @@ and "What the project decided" says what each one changes here.
 This revision answers six reviews,
 all outside this repository:
 the gate review of `124ea5b573`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review.md`),
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 the second pass over `3e34817184`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`),
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 the diff check of `f82f20ecab`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-diff-check.md`),
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-diff-check.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 the review after the project's answers of `1f7a0800fa`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-after-the-owners-answers.md`),
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-after-the-owners-answers.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 the check before acceptance of `946578a8e5`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-check-before-acceptance.md`)
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-check-before-acceptance.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 and the last diff read of `d0ff7604b7`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-last-diff-read.md`).
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-last-diff-read.md`)
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 "Revisions" lists what each commit changed,
 and "What this revision rewrote" says which sections each review's findings turned over
 and which stand as the first version wrote them.
