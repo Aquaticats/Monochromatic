@@ -70,11 +70,11 @@ fn both_ends_of_every_range_print_as_nothing() {
 #[test]
 fn a_code_point_outside_every_range_prints_as_something() {
     for (from, to) in DEFAULT_IGNORABLE_CODE_POINTS.iter() {
-        for letter in [
+        for neighbour in [
             char::from_u32(*from as u32 - 1),
             char::from_u32(*to as u32 + 1),
         ] {
-            let Some(letter) = letter else {
+            let Some(letter) = neighbour else {
                 continue;
             };
             let in_another_range: bool = DEFAULT_IGNORABLE_CODE_POINTS
