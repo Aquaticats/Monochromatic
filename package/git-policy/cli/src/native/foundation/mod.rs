@@ -139,6 +139,14 @@
 //! - `test_only_switches.rs`:
 //!   the one read of every test-only switch,
 //!   which a build the release ships holds not at all.
+//! - `what_a_built_runtime_is.rs`:
+//!   the runtime a build made,
+//!   how its build came out,
+//!   the time that build took,
+//!   and why a future could not be run on it.
+//! - `the_build_of_the_process_runtime.rs`:
+//!   the process's multi-thread runtime built on a helper thread under a deadline,
+//!   and the runtime a build that missed that deadline keeps.
 //! - `lazy_runtime.rs`:
 //!   the process's one tokio runtime:
 //!   built on the first need,
@@ -475,6 +483,17 @@ pub mod runtime_limits;
 
 /// How many workers and blocking threads a runtime gets from the budget and the limits.
 pub mod runtime_plan;
+
+/// What a build made of a runtime:
+/// the runtime itself,
+/// how its build came out,
+/// the time that build took,
+/// and why a future could not be run on it.
+pub mod what_a_built_runtime_is;
+
+/// The process's multi-thread runtime built on a helper thread under a deadline,
+/// and the runtime a build that missed that deadline keeps.
+pub mod the_build_of_the_process_runtime;
 
 /// The process's one tokio runtime:
 /// built on the first need,
