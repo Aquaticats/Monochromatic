@@ -3,10 +3,80 @@
  */
 import {
   containerGit,
+  containerUser,
   inside,
   type Machine,
   worktreePaths,
 } from './service-manager-machine.ts';
+
+/**
+ The folder inside the machine that the scratch repository and its worktrees are made in, which is also the folder every
+ Git call of these proofs writes.
+ */
+export const worktreeRoot: string = '/work';
+
+/**
+ What:
+  The lines of shell that make the scratch repository and its second worktree of its own.
+
+ Why:
+  This host's `git` AppArmor profile attaches to `/usr/bin/git` inside a container too, and it grants `/work` to the folder's
+  owner alone: a process of another user writing there asks for `dac_override`, which the profile refuses, so Git cannot
+  create even a leading directory and the step ends with `fatal: could not create leading directories of
+  '/work/two/.git': Permission denied`. The image leaves `/work` owned by its own user (1000), and every command of these
+  proofs runs as `containerUser`, so the first line gives that folder to that user; after it every Git call writes files
+  whose owner is the user running it, and no call needs a capability
+  (`doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
+
+  The hand-over comes before every Git call on purpose, and it is written as one line of a script rather than beside the
+  calls: a machine started from an older image, or an image whose `/work` comes back owned by another user, is fixed by the
+  same line, and a Git call that runs while the folder still belongs to someone else is the failure this script began with.
+
+ @param root - the folder the repository is made in, whose owner the hand-over sets
+
+ @param first - the repository's first worktree
+
+ @param second - the second worktree, which is a second commit service instance
+
+ @param git - the real Git inside the machine, which every call here runs as the user above
+
+ @param user - the user every command in the machine runs as, which owns what Git writes below the folder
+
+ @returns the script, one line per step, in the order the machine runs them
+
+ @example
+ ```ts
+ worktreeScript({ root: '/work', first: '/work/one', second: '/work/two', git: '/usr/bin/git', user: '0' });
+ ```
+ */
+export function worktreeScript({
+  root,
+  first,
+  second,
+  git,
+  user,
+}: {
+  readonly root: string;
+  readonly first: string;
+  readonly second: string;
+  readonly git: string;
+  readonly user: string;
+}): string {
+  return [
+    `mkdir --parents ${root}`,
+    `chown ${user}:${user} ${root}`,
+    `rm -rf ${first} ${second}`,
+    `mkdir --parents ${first}`,
+    `cd ${first}`,
+    `${git} init --quiet --initial-branch=main .`,
+    `${git} config user.email a@example.invalid`,
+    `${git} config user.name 'a person'`,
+    String.raw`printf "base\n" > a.txt`,
+    `${git} add a.txt`,
+    `${git} commit --quiet --message base`,
+    `cd ${first} && ${git} worktree add --quiet --detach ${second}`,
+  ].join('\n',);
+}
 
 /**
  What:
@@ -25,19 +95,13 @@ import {
 export async function makeWorktrees({ machine, }: { readonly machine: Machine; }): Promise<void> {
   await inside({
     machine,
-    script: [
-      'mkdir --parents /work',
-      `rm -rf ${worktreePaths.first} ${worktreePaths.second}`,
-      `mkdir --parents ${worktreePaths.first}`,
-      `cd ${worktreePaths.first}`,
-      `${containerGit} init --quiet --initial-branch=main .`,
-      `${containerGit} config user.email a@example.invalid`,
-      `${containerGit} config user.name 'a person'`,
-      String.raw`printf "base\n" > a.txt`,
-      `${containerGit} add a.txt`,
-      `${containerGit} commit --quiet --message base`,
-      `cd ${worktreePaths.first} && ${containerGit} worktree add --quiet --detach ${worktreePaths.second}`,
-    ].join('\n',),
+    script: worktreeScript({
+      root: worktreeRoot,
+      first: worktreePaths.first,
+      second: worktreePaths.second,
+      git: containerGit,
+      user: containerUser,
+    }),
   });
 }
 
