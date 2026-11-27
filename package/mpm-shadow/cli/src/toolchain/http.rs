@@ -43,7 +43,9 @@ use std::path::Path;
 mod a_client_that_never_reaches_the_network;
 /// The redirect rules and the one request that follows them.
 mod one_request_and_its_redirects;
-/// The real client over `hyper`, its redirects and its two bounded reads.
+/// The two bounded reads of the real client:
+/// the GET that collects a body,
+/// and the download that hashes the file it writes.
 mod the_bounded_get_and_the_download;
 /// The client that owns the runtime and answers `HttpGet`.
 mod the_real_client_over_hyper;
