@@ -5,6 +5,10 @@
 //! and what a dangling link prints.
 
 use super::*;
+use crate::child_test_process::{
+    ChildTest,
+    finished,
+};
 use crate::repository_link_fixture_probe::{
     FixtureProbe,
     World,
@@ -283,6 +287,76 @@ fn an_identity_file_that_is_a_named_pipe_lets_the_command_go_on_at_once() {
     );
     assert!(path.exists(), "the pipe is left where it is");
     remove(home.as_path());
+}
+
+/// The variable that marks the child of the control about the sentence a command says.
+const SAYS_ONCE_CHILD_VARIABLE: &str = "CLI_GIT_LINK_GATE_SAYS_ONCE_CHILD";
+
+/// What:
+///  A command whose identity file cannot be used says so once,
+///  although the entry and the startup step read the file on their own
+///  and neither reads the other's answer.
+/// Why:
+///  The sentence names the file and the reason,
+///  and the person reads it as one fault of one command;
+///  said twice it reads as two faults.
+///  Measured on 2026-11-26 against the released alpha.48 and alpha.49:
+///  `git status --short` with `not json` in the identity file printed the line twice in both.
+///  The gate writes to this process's standard error,
+///  so the body runs in a child of its own and the control counts the line in what the child wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = finished({ exactTest: 'repository_link_check::repository_link_gate::tests::a_command_whose_identity_file_cannot_be_used_says_so_once', environment: [[MARK, '1']] });
+/// expect(count(child.stderr, LEAD)).toBe(1);
+/// ```
+#[test]
+fn a_command_whose_identity_file_cannot_be_used_says_so_once() {
+    if !this_is_the_child() {
+        let environment: [(&str, &std::ffi::OsStr); 1] =
+            [(SAYS_ONCE_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+        let said: std::process::Output = finished(ChildTest {
+            exact_test: "repository_link_check::repository_link_gate::tests::a_command_whose_identity_file_cannot_be_used_says_so_once",
+            environment: environment.as_slice(),
+            ..ChildTest::default()
+        })
+        .expect("the child says its line and ends within the deadline");
+        let stderr: String = String::from_utf8_lossy(said.stderr.as_slice()).into_owned();
+        assert_eq!(
+            stderr.matches(UNUSABLE_IDENTITY_LEAD).count(),
+            1,
+            "one command met two gates that read an identity file it cannot use, so the person reads one fault \
+             once and not twice; the child's standard error was:\n{stderr}"
+        );
+        return;
+    }
+    // What: the two gates of one command, in the order `entry.rs` runs them.
+    // Why:  a control that ran one of them proves nothing about the sentence a person reads.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // invocationLinkGate({ home, cwd: '/', prefix: [], environment: [] }); linkGate({ home, paths: ['/home/u/Monochromatic'] });
+    // ```
+    let home: PathBuf = fixture("link-gate-says-once");
+    let path: PathBuf = home.join(IDENTITY_RELATIVE_PATH);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("config folder");
+    std::fs::write(path, b"not json").expect("file");
+    assert_eq!(
+        invocation_link_gate(Some(home.as_path()), Path::new("/"), &[], &[]),
+        LinkGate::Clear
+    );
+    assert_eq!(
+        link_gate(Some(home.as_path()), &[PathBuf::from(LINK)]),
+        LinkGate::Clear
+    );
+    remove(home.as_path());
+}
+
+/// Whether this process is the child the control about the said-once sentence started.
+///  The variable names it,
+///  and nothing else sets it.
+fn this_is_the_child() -> bool {
+    return std::env::var_os(SAYS_ONCE_CHILD_VARIABLE).is_some();
 }
 
 /// A world in which the repository is ready on the 860 under the identity `write_identity` records in phase `after`.

@@ -135,6 +135,60 @@ fn this_host_has_a_thread() {
     assert!(HostResources::read().parallelism >= 1);
 }
 
+/// What:
+///  A batch whose host could not say how much memory is free is bounded by the CPUs and by nothing else:
+///  its width is the threads less the margin,
+///  which is what a host with more free memory than any item can spend answers too.
+/// Why:
+///  `memory_available_now` answers `None` when the crate that reads this machine cannot start,
+///  and `worker_budget` reads that as no memory bound at all (`by_memory = usize::MAX`),
+///  while a failed thread count answers one thread.
+///  So the two failures do not fall on the same side:
+///  one leaves the width at what the CPUs allow and the other holds it at one.
+///  No record decides which side the memory failure belongs on,
+///  and a bound there would take the width of every batch of every caller down to one item at a time,
+///  which is the owner's choice to make and not this file's:
+///  the question,
+///  and what each answer costs,
+///  wait in `doc/handover/questions-for-the-owner.md`.
+///  This control states what the code answers today and claims nothing more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unknown = TheHostOfABatch.Stated({ parallelism: 32, memoryAvailable: undefined });
+/// expect(workerBudget({ items: Infinity, host: unknown.now() })).toBe(28);
+/// ```
+#[test]
+fn a_host_whose_memory_could_not_be_read_bounds_no_batch() {
+    // What: the host a batch is sized by, stated, holding the value a failed memory reading answers.
+    // Why:  the reading is one call to the crate that reads this machine and no seam makes it fail,
+    //       so the figure a failure leaves is the one a control can state.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const unknown = TheHostOfABatch.Stated({ parallelism: CPU_MARGIN_DIVISOR * 4, memoryAvailable: undefined });
+    // ```
+    let unknown: TheHostOfABatch = TheHostOfABatch::Stated(host(CPU_MARGIN_DIVISOR * 4, None));
+    let sized_by: HostResources = unknown.now();
+    assert_eq!(
+        worker_budget(&request(usize::MAX, &sized_by)),
+        sized_by.parallelism - cpu_margin(sized_by.parallelism),
+        "a host that could not say how much memory is free lifts the memory bound rather than making it the tightest one"
+    );
+    // What: the same host with the room for one item, which the memory bound answers.
+    // Why:  a control that read only the width above could not tell a missing bound from a bound too tight to see.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(workerBudget({ items: Infinity, host: TheHostOfABatch.Stated({ parallelism: 32, memoryAvailable: ITEM_BYTES * MEMORY_SHARE_DIVISOR }).now() })).toBe(1);
+    // ```
+    let one_item: TheHostOfABatch = TheHostOfABatch::Stated(host(
+        CPU_MARGIN_DIVISOR * 4,
+        Some(ITEM_BYTES * MEMORY_SHARE_DIVISOR),
+    ));
+    assert_eq!(worker_budget(&request(usize::MAX, &one_item.now())), 1);
+}
+
 /// File-tree jobs take the host's budget up to their ceiling:
 /// the margin and the memory bound them on a small host,
 /// the ceiling on a
