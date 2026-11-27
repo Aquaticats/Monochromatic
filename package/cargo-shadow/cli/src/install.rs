@@ -653,3 +653,39 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         (Err(error), _) => Err(error),
     };
 }
+
+/// What:
+/// `#[cfg(test)] mod install_policy_tests;` declares the tests in `src/install_policy_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the policy checks of a local (not frozen) install:"
+/// so the behavior of `install` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // install_policy_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "install_policy_tests.rs"]
+mod install_policy_tests;
+
+/// What:
+/// `#[cfg(test)] mod install_tests;` declares the tests in `src/install_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the install step,"
+/// so the behavior of `install` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // install_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "install_tests.rs"]
+mod install_tests;

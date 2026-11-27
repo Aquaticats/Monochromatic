@@ -479,3 +479,10 @@ pub(crate) fn caller_limits(
     };
     return read_inherited_limits(cgroup_root, &origin, destination);
 }
+
+/// The tests of the limits a run's scope keeps from its caller.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "inherited_limits_tests.rs"]
+mod inherited_limits_tests;

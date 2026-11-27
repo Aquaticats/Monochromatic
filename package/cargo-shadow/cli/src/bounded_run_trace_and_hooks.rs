@@ -226,3 +226,10 @@ pub(crate) fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>) {
         *slot.borrow_mut() = hook;
     });
 }
+
+/// The guard that a production build never computes a trace event.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "bounded_run_trace_guard_tests.rs"]
+mod bounded_run_trace_guard_tests;
