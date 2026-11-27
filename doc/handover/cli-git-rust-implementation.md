@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T09:52:06-05:00
+## The state at 2026-11-27T10:18:06-05:00
 
-`main` was `ff1ae3e5c7`.
+`main` was `fdd9ce0e83`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 193 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 197 more by this time.
 
 ### Rounds running
 
@@ -134,18 +134,20 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the round for the `perf/` and service-manager scripts is merged as `2218beae78`,
   and `lint:oxlint` then reported 594 errors,
   all in those guest scripts);
-- `issue-6587-service-manager-proofs-run-to-their-end`,
-  the issue's second round,
-  `issue-6596-scratch-root-removal-test-owns-the-process-it-names`
-  and `issue-6598-source-reading-controls-walk-the-tree-without-following-links`
+- `issue-6598-source-reading-controls-walk-the-tree-without-following-links`
+  and `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
   ("What the rounds found");
-- six rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
+- four rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
   each named `wrapper-alpha-48-release-pass-<what>`.
   For the behaviour pass:
-  `slot-refusals-read-a-shell-alias-and-say-true-words`,
-  `a-notice-record-outlives-a-line-that-was-not-written`,
-  `merge-pass-reaches-a-last-line-without-a-newline`
-  and `four-small-points-outside-the-slot-route`.
+  `a-notice-record-outlives-a-line-that-was-not-written`
+  and `four-small-points-outside-the-slot-route`;
+  its other two are merged
+  (the slot refusals read every shell alias the guard can follow,
+  `cd62517318`;
+  the merge pass reaches a last line with no line end,
+  `f583a0d9bf`,
+  where a generated control also found and fixed a correct merge that was refused).
   For the splits pass:
   `splits-keep-the-reach-and-the-platform-gates-items-had`
   and `readme-layout-numbers-and-the-shutdown-unmount-help-row`;
@@ -182,17 +184,15 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Three reads run as background agents of the coordinating session,
+Two reads run as background agents of the coordinating session,
 each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
 that writes `keep/review.md` under its scratch folder:
 the linter's `0.5.2-alpha.19`
-(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`),
-`cargo-shadow`'s `0.1.5-alpha.12`
-(`~/temp/agent/cargo-shadow-alpha-12-release-review-2026-11-27/`),
-and a second read of seven refactor commits on the wrapper's service paths that the splits pass named and did not read
-(`~/temp/agent/git-policy-cli-alpha-48-second-read-of-seven-refactor-commits-2026-11-27/`).
+(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`)
+and `cargo-shadow`'s `0.1.5-alpha.12`
+(`~/temp/agent/cargo-shadow-alpha-12-release-review-2026-11-27/`).
 The coordinator rewrites what lasts from each into this file before scratch expires.
 
 A whole gate on `main` at `ff1ae3e5c7` was started at 2026-11-27T09:50:35-05:00
@@ -202,11 +202,21 @@ the first since the suite's container got a bound of its own (4 GiB,
 issue 6583)
 and since issue 6586 changed release code.
 Beside it,
-on the same tip,
-run the package's TypeScript checks,
-`package/container-limit/core`'s `test:unit`
-and the three feature Clippy arms,
-with their output under `~/temp/agent/main-tip-checks-at-ff1ae3e5c7-2026-11-27/keep/`.
+on the same tip:
+`lint:types` exited 0;
+`package/container-limit/core`'s `test:unit` exited 0;
+the package's `test:unit` exited 0 at `fdd9ce0e83` in a scope whose caps did not bind
+(17 s,
+`pids.peak` 420,
+`memory.peak` 2,040 MiB,
+at a load average of 36).
+`native:ts-checks` itself exited 2 with six unit tests failed,
+because its scope allows 400 tasks and the suite reaches 420:
+a refused `spawn` read as failing tests (issue 6605).
+The three feature Clippy arms exited 0,
+but Rust merges landed under them,
+so they are void and are run again in the gate's worktree,
+a tree no merge moves.
 
 Round 3 of the crate split's order is done but for three lines.
 Every folder's file loops are broken and merged,
@@ -484,15 +494,32 @@ Neither pass ran `git commit` in a release binary,
 because without a session bus every commit form stops at one refusal,
 so for the service paths the evidence is the reading,
 the gate,
-and the service-manager install proof once issue 6587's second round runs it to its end.
+and the service-manager install proof,
+which issue 6587's second round ran to its end (`fdd9ce0e83`):
+alpha.48 installed over alpha.47 in a container of the gate image,
+"THE PROOF PASSED: the instance the older release loaded started as this release,
+and the pair of commits each landed once".
 
 - Medium:
   at least 31 definitions became nameable from outside the crate,
   seven of them private helpers a split made bare `pub`
   (one removes directories).
 - Medium:
-  the extract-function refactors are unread but for ten commits;
-  the second read of seven more is running.
+  the extract-function refactors are unread but for ten commits.
+  A second read of the seven the pass named first,
+  all on the client's and the service's commit paths,
+  found each equivalent by reading
+  (`e90482f100`,
+  `dde5c4be3b`,
+  `bad45d0420`,
+  `01c2f32e2c`,
+  `6a24c6342b`,
+  `f4e8d2fb9b`,
+  `8af8f56255`),
+  with one guard that now covers less
+  (`source_guard/hook_self_invocation_tests.rs` reads 263 of the 699 code lines the commit preparation spans),
+  which the list-guards round takes first.
+  About three hundred refactor commits stay unread.
 - Medium:
   71 pairs of a source guard and a file it names,
   where code left the file in a split and the guard does not name where it went.
@@ -593,7 +620,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6604,
+  issues 6524 to 6605,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -696,17 +723,23 @@ and the two `truepeak` files wait on their branch.
 - `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again and is brought up to date (`f69208a309`);
   its scan reads no Rust file,
   which issue 6594 holds.
-- The service-manager install proof now passes its Git step (`6b1a8e91f4`) and stopped at the next:
-  the commit service's landing failed because this host's Git profile refused the marks file
-  `git fast-import` writes beside the journal when the service cannot hand it an unnamed scratch file,
+- The service-manager install proof passes end to end (issue 6587,
+  `6b1a8e91f4` and `fdd9ce0e83`).
+  Two things stopped it:
+  Git wrote `/work` as a user that did not own it,
+  and this host's Git profile refused the marks file `git fast-import` writes beside the journal
+  when the service cannot hand it an unnamed scratch file,
   as in a container's root home.
-  The profile grants that name now
+  The coordinator's first rule for that name matched nothing
+  (`@{int}` stops at ten digits and the marks carry sixteen);
+  the corrected rule is proved with a refused control name
   (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
-  seventeenth batch),
-  and the issue's second round reruns both proofs.
-  `test:service-manager`'s control arm needs a release from before the remedy of 2026-11-12,
-  which this host does not hold;
-  that round writes the choice as a proposal.
+  seventeenth batch).
+  The reload proof's control arm cannot pass:
+  it needs a release from before the remedy of 2026-11-12,
+  and its choices are
+  `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`,
+  ranked C > A > B there.
 - The gate's suite container peaked at 1,486.0 MiB in a measured run,
   and 892 MiB of it was one control for 25 seconds,
   `service::service_main::tests::the_service_setup_and_its_words_are_used_only_by_the_service_mode`,
