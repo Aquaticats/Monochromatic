@@ -171,9 +171,11 @@ pub mod git_system_config_lookup;
 /// without Git.
 pub mod git_config;
 
-/// The plain-file reader of `HEAD`,
-/// branch configuration and references that chooses the trust base without Git.
+/// The plain-file reader of `HEAD` and of where a repository's files are that chooses the trust base without Git.
 pub mod git_refs;
+
+/// What a reference names and the reference a branch's upstream names (split out of `git_refs.rs`).
+pub mod git_reference_lookup;
 
 /// The environment and the Git program a native read runs with.
 /// (split out of the git refs module).
