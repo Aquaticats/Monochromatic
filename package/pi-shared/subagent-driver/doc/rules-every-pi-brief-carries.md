@@ -216,9 +216,11 @@ Each rule is the project's own requirement.
   reset or revert anyone else's work,
   and edit only the files the task needs.
   Do not run `pnpm install` in the worktree:
-  `git worktree add` hands the filling of `node_modules` to the commit service,
-  which runs it after the add returns,
-  and an install started in that window left two worktrees on 2026-11-21 whose copy could never finish,
+  `git worktree add` copies `node_modules` from the checkout and relinks it,
+  in the commit service after the add returns
+  or in the add itself where no service answers,
+  and the launcher that started the run installs nothing for the same reason.
+  An install started in that window left two worktrees on 2026-11-21 whose copy could never finish,
   with a warning on every `git` command of every session until they were removed
   (issue 6339).
   If something a build needs is missing,
