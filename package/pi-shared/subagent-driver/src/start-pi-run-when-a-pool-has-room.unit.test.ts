@@ -648,9 +648,11 @@ await describe({
         expect(asked.some(function addedAWorktree(line,) {
           return line.startsWith('git worktree add',);
         },),).toBe(true,);
-        expect(asked.some(function linkedDependencies(line,) {
-          return line.startsWith('mise ') && line.includes('pnpm install --offline --frozen-lockfile',);
-        },),).toBe(true,);
+        // The wrapper's worktree add copies node_modules and relinks it, so the launcher installs nothing: a second install in
+        // the window where that copy and its relink run is what left two worktrees whose copy could never finish (issue 6339).
+        expect(asked.some(function installedDependencies(line,) {
+          return line.startsWith('mise ') && line.includes('pnpm install',);
+        },),).toBe(false,);
       },
     },),
     it({

@@ -71,9 +71,13 @@
 //!   the test-only switch and its fixtures.
 //! - `companion_lines.rs`:
 //!   the verdict and the lines a person reads.
+//! - `companion_parent_verdict.rs`:
+//!   what one ended run means for the add.
+//! - `companion_parent_run.rs`:
+//!   one run inside its scratch directory,
+//!   its bounded wait and the records it reads.
 //! - `companion_parent.rs`:
-//!   one run,
-//!   its bounded wait and its verdict.
+//!   the lines the add calls the companion through.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -107,8 +111,15 @@ pub mod companion_lines;
 pub mod companion_mount_calls;
 /// The mount ID and the mount table's facts.
 pub mod companion_mount_table;
-/// One run and its verdict.
+/// The lines the add calls the companion through,
+/// and one run and its verdict beside them.
 pub mod companion_parent;
+
+/// One run inside its scratch directory and its bounded wait.
+pub mod companion_parent_run;
+
+/// What one ended run means for the add.
+pub mod companion_parent_verdict;
 /// The pipe,
 /// the fork,
 /// the wait,

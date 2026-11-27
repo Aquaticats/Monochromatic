@@ -9,6 +9,21 @@
 //! Why:
 //! `main` stays a startup sequence,
 //! and the mapping from user action to `Command` lives in one place.
+//! The folder chooser that the Open callback starts lives in `ui_wire/folder_dialog.rs`.
+
+/// What:
+/// `mod folder_dialog;` the folder chooser and the messages it may post to the window
+/// (`src/ui_wire/folder_dialog.rs`).
+/// Why:
+/// the chooser blocks on a worker thread and posts its answer back,
+/// which is a different
+/// concern from the callbacks registered here,
+/// and it is started from the Open callback below.
+mod folder_dialog;
+
+/// Re-exports the chooser entry,
+/// which the window's host and overlays start through this module's path.
+pub(crate) use self::folder_dialog::open_folder_dialog;
 
 /// Imports the shared ownership type that shares the engine and host with the callbacks.
 use std::rc::Rc;
@@ -298,92 +313,6 @@ fn wire_keys(
         tracing::debug!(zone, "the focus zone changed");
         if let Some(window) = zone_weak.upgrade() {
             crate::ui_state_log::emit(&window, "focus");
-        }
-    });
-}
-
-/// What:
-/// `show_missing_chooser_message` tells the user in the main window that no folder chooser is installed.
-/// Why:
-/// the chooser check runs on a worker thread,
-/// and only the event-loop thread may touch the window.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function showMissingChooserMessage(): void { mainWindow?.showError(NO_DIALOG_MESSAGE); }
-/// ```
-fn show_missing_chooser_message() {
-    let main_window = MAIN_WINDOW
-        .with(std::cell::RefCell::clone)
-        .into_inner()
-        .as_ref()
-        .and_then(slint::Weak::upgrade);
-    if let Some(window) = main_window {
-        crate::ui_overlays::show_error(&window, music_player::dialog_backend::NO_DIALOG_MESSAGE);
-    }
-}
-
-/// What:
-/// `show_chooser_failure_message` tells the user in the main window what the folder chooser said when it failed.
-/// Why:
-/// the chooser runs on a worker thread,
-/// and only the event-loop thread may touch the window;
-/// the message itself is built on that thread because it is plain text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function showChooserFailureMessage(message: string): void { mainWindow?.showError(message); }
-/// ```
-fn show_chooser_failure_message(message: String) {
-    let main_window = MAIN_WINDOW
-        .with(std::cell::RefCell::clone)
-        .into_inner()
-        .as_ref()
-        .and_then(slint::Weak::upgrade);
-    if let Some(window) = main_window {
-        crate::ui_overlays::show_error(&window, &message);
-    }
-}
-
-/// What:
-/// `open_folder_dialog` asks for a folder on a worker thread and opens it without autoplay.
-/// Why:
-/// the chooser blocks,
-/// so it runs off the event-loop thread;
-/// the engine receives the chosen root.
-/// What happened is decided in `src/folder_chooser.rs`,
-/// so a cancel,
-/// a missing chooser,
-/// and a chooser that failed are no longer the same silence
-/// (issue 1010).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function openFolderDialog(sender): void { spawn(() => { switch (advice(chooseFolder())) { case open: sender.send({kind: 'openRoot', root, select: undefined, play: false}); break; case nothing: break; case tellNoChooser: showMissingChooserMessage(); break; case tellFailure: showChooserFailureMessage(message); } }); }
-/// ```
-pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
-    std::thread::spawn(move || {
-        match music_player::folder_chooser::advice(music_player::folder_chooser::choose_folder()) {
-            music_player::folder_chooser::ChooserAdvice::Open {
-                folder,
-            } => sender.send(Command::OpenRoot {
-                root: folder,
-                select: None,
-                play: false,
-            }),
-            // A cancel closes the window the user just used, so it says nothing.
-            music_player::folder_chooser::ChooserAdvice::Nothing => {}
-            music_player::folder_chooser::ChooserAdvice::TellNoChooser => {
-                tracing::warn!("no folder chooser is available; the user is told how to proceed");
-                let _ = slint::invoke_from_event_loop(show_missing_chooser_message);
-            }
-            music_player::folder_chooser::ChooserAdvice::TellFailure {
-                message,
-            } => {
-                tracing::error!(%message, "the user is told why the folder chooser failed");
-                let _ =
-                    slint::invoke_from_event_loop(move || show_chooser_failure_message(message));
-            }
         }
     });
 }
