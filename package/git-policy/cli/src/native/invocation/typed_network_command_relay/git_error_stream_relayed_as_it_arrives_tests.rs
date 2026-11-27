@@ -12,6 +12,14 @@ use super::{
     shape_of_this_process,
     start_relaying,
 };
+// What: The bound the relayed tail is trimmed to, which lives with the code that trims it.
+// Why:  The control below proves the tail keeps no more than this, so it names the one constant the release reads.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { KEPT_TAIL_BYTES } from './the-relayed-bytes';
+// ```
+use crate::typed_network_command_relay::the_relayed_bytes::KEPT_TAIL_BYTES;
 // What: `ChildTest` is a request for this test binary running one named test, and `passed` is that request plus the check
 //       that exactly one test ran and passed.
 // Why:  A stream belongs to one process, so the answer below is read in a child whose own standard error this control
@@ -136,8 +144,8 @@ fn the_kept_tail_is_the_stream_s_end_and_no_more() {
         start_relaying(ErrorStreamShape::Pipe, None, command).expect("the child starts");
     let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes)
         .expect("the relay reads to the child's end");
-    assert_eq!(relayed.kept.len(), super::KEPT_TAIL_BYTES);
-    assert_eq!(&relayed.kept[super::KEPT_TAIL_BYTES - 10..], b"BBBBBBBBBB");
+    assert_eq!(relayed.kept.len(), KEPT_TAIL_BYTES);
+    assert_eq!(&relayed.kept[KEPT_TAIL_BYTES - 10..], b"BBBBBBBBBB");
 }
 
 /// A process the child started that holds its standard error does not hold the wrapper:

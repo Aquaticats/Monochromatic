@@ -31,7 +31,7 @@ use crate::command_config::{
     ConfigRegion,
     parse_config_region,
 };
-use crate::command_options::OptionError;
+use crate::command_options_types::OptionError;
 use crate::global_arguments::{
     GlobalLayout,
     GlobalOutcome,

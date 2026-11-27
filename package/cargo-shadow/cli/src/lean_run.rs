@@ -32,25 +32,20 @@
 //! ```ts
 //! export function runLean(options: RunOptions): number
 //! ```
+//!
+//! The run's parts are one file each:
+//! the mechanisms,
+//! what the caller asked for and the order (`mechanisms_and_options.rs`),
+//! what a mechanism reports and what it is given (`report_and_context.rs`),
+//! the dispatch of one mechanism (`mechanism_dispatch.rs`),
+//! the profile directories the units pass walks (`unit_profile_listing.rs`),
+//! and the dated nightlies no checkout pins (`retired_toolchains.rs`).
 
-/// Sets,
-/// paths and time.
-use std::{
-    collections::HashSet,
-    path::{
-        Path,
-        PathBuf,
-    },
-    time::Duration,
-};
+/// The set of toolchain names the checkouts pin.
+use std::collections::HashSet;
+/// The owned path type the recorded positions are keys of.
+use std::path::PathBuf;
 
-/// Imports the names this file uses from `crate::lean_build_trees`.
-use crate::lean_build_trees::{
-    Tree,
-    TreeKind,
-    list_trees,
-    profile_dirs_of,
-};
 /// Imports the names this file uses from `crate::lean_checkouts`.
 use crate::lean_checkouts::list_checkouts;
 /// Imports the names this file uses from `crate::lean_guard`.
@@ -60,22 +55,11 @@ use crate::lean_identity::Deadline;
 /// Imports the names this file uses from `crate::lean_keyed_folder`.
 use crate::lean_keyed_folder::configured_base;
 /// Imports the names this file uses from `crate::lean_policy`.
-use crate::lean_policy::{
-    GRACE_SECONDS,
-    HOST_PROFILE_CAP_BYTES,
-    IN_TREE_PROFILE_CAP_BYTES,
-};
+use crate::lean_policy::GRACE_SECONDS;
 /// Imports the names this file uses from `crate::lean_progress`.
 use crate::lean_progress::{
-    LongPass,
     Progress,
-    resume_index,
     state_directory,
-};
-/// Imports the names this file uses from `crate::lean_run_discovery`.
-use crate::lean_run_discovery::{
-    target_directories,
-    verification_directories,
 };
 /// Imports the names this file uses from `crate::lean_run_report`.
 use crate::lean_run_report::{
@@ -83,413 +67,38 @@ use crate::lean_run_report::{
     measure_places,
     space_lines,
 };
-/// Imports the names this file uses from `crate::lean_run_steps`.
-use crate::lean_run_steps::{
-    UnitsPass,
-    run_podman,
-    run_records,
-    run_toolchains,
-    sweep_and_cap,
+
+/// The dispatch of one mechanism of a run.
+mod mechanism_dispatch;
+/// The mechanisms a run takes,
+/// what the caller asked for and the order they are taken in.
+mod mechanisms_and_options;
+/// What one mechanism reports and what the run hands it.
+mod report_and_context;
+/// The dated nightlies whose folders exist and that no checkout pins.
+mod retired_toolchains;
+/// The profile directories the units pass walks.
+mod unit_profile_listing;
+
+/// Re-exports the dispatch of one mechanism.
+pub(crate) use self::mechanism_dispatch::run_mechanism;
+/// Re-exports the mechanisms,
+/// what the caller asked for and the order they are taken in.
+pub use self::mechanisms_and_options::{
+    Mechanism,
+    RUN_ORDER,
+    RunOptions,
+    long_pass,
+    run_order,
 };
-/// Imports the names this file uses from `crate::lean_run_trees`.
-use crate::lean_run_trees::{
-    tree_report,
-    trees_in_order,
-};
-/// Imports the names this file uses from `crate::lean_rustup_toolchains`.
-use crate::lean_rustup_toolchains::dated_nightly_name;
-
-/// The mechanisms of the run,
-/// by the name `--only` takes.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum Mechanism {
-    /// C:
-    /// idle trees of the host build base.
-    Trees,
-    /// B and E:
-    /// the older-compiler sweep and the size caps of profile directories.
-    Units,
-    /// D:
-    /// verification run records.
-    Records,
-    /// Dated nightly toolchains no checkout pins.
-    Toolchains,
-    /// Unused Podman images and volumes.
-    Podman,
-}
-
-/// What the caller asked for.
-#[derive(Clone, Debug)]
-pub struct RunOptions {
-    /// Report what would be removed and remove nothing.
-    pub dry_run: bool,
-    /// The mechanisms to run (all when empty).
-    pub only: Vec<Mechanism>,
-    /// The longest the whole run may take.
-    pub deadline: Duration,
-    /// The directory the run starts from,
-    /// inside a checkout.
-    pub start: PathBuf,
-}
-
-/// The mechanisms in the order a run takes them:
-/// cheapest first,
-/// the units pass last.
-/// Why the order is this and not the plan's:
-/// one deadline covers the whole run,
-/// and the measured cost of the first run (2026-11-07,
-/// `doc/handover/cargo-shadow-lean-build-folders.md`,
-/// section "First run") is
-/// 2.5 minutes for records and toolchains together,
-/// 20.5 minutes for Podman,
-/// 29 minutes for the idle trees,
-/// and hours for the units pass,
-/// which reached about 700 of several thousand profile directories in 40 minutes.
-/// A pass that a deadline cuts off waits for the next run;
-/// a pass put last therefore starves only itself.
-pub const RUN_ORDER: [Mechanism; 5] = [
-    Mechanism::Records,
-    Mechanism::Toolchains,
-    Mechanism::Podman,
-    Mechanism::Trees,
-    Mechanism::Units,
-];
-
-/// What:
-/// `pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism>` is the mechanisms of a run in the order it takes them.
-/// Why:
-/// The deadline cuts what it reaches first,
-/// so the order is decided here once and the run walks it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function runOrder(requested: Mechanism[]): Mechanism[]
-/// ```
-pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism> {
-    let mut order: Vec<Mechanism> = Vec::new();
-    for mechanism in RUN_ORDER {
-        if requested.is_empty() || requested.contains(&mechanism) {
-            order.push(mechanism);
-        }
-    }
-    return order;
-}
-
-/// What:
-/// `fn retired_toolchain_names(trees: &[Tree], pinned: &HashSet<String>) -> HashSet<String>` lists the dated nightlies whose keyed
-/// folders exist and that no checkout pins.
-/// Why:
-/// Retiring a toolchain is removing its folder.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function retiredToolchainNames(trees: Tree[], pinned: Set<string>): Set<string>
-/// ```
-pub(crate) fn retired_toolchain_names(
-    trees: &[Tree],
-    pinned: &HashSet<String>,
-) -> HashSet<String> {
-    let mut retired: HashSet<String> = HashSet::new();
-    for tree in trees {
-        if let TreeKind::Keyed(name) = &tree.kind
-            && dated_nightly_name(name).is_some()
-            && !pinned.contains(name)
-        {
-            retired.insert(name.clone());
-        }
-    }
-    return retired;
-}
-
-/// What:
-/// `pub struct MechanismReport` is what one mechanism of a run did.
-/// Why:
-/// A run needs its lines and,
-/// for the two long passes,
-/// where the next run continues.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct MechanismReport {
-    /// The lines the mechanism reports.
-    pub lines: Vec<String>,
-    /// The last item a pass judged,
-    /// when the deadline stopped it before the end of the list it was given;
-    /// nothing when the pass finished,
-    /// so the next run starts at the front.
-    pub resume_after: Option<PathBuf>,
-}
-
-/// What:
-/// `fn say(summary: &mut Vec<String>, lines: Vec<String>)` prints each line at once and keeps it.
-/// Why:
-/// A run of hours shows each mechanism's result when that mechanism ends,
-/// not only at the very end.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function say(summary: string[], lines: string[]): void
-/// ```
-fn say(
-    summary: &mut Vec<String>,
-    lines: Vec<String>,
-) {
-    for line in lines {
-        crate::lean_run_report::summary_line(&line);
-        summary.push(line);
-    }
-}
-
-/// What:
-/// `fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u64)>` lists every profile directory the sweep and the size caps reach,
-/// each with the cap that applies to it.
-/// Why:
-/// Mechanisms B and E read the same directories with the same caps,
-/// in the checkout's own `target/` directories and in the host build base,
-/// and the list is sorted so a recorded position names the same place on the next run.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unitProfiles(base: string | undefined, checkouts: string[]): [string, number][]
-/// ```
-fn unit_profiles(
-    base: Option<&Path>,
-    checkouts: &[PathBuf],
-) -> Vec<(PathBuf, u64)> {
-    let mut profiles: Vec<(PathBuf, u64)> = Vec::new();
-    for checkout in checkouts {
-        for target in target_directories(checkout) {
-            for profile in profile_dirs_of(&target) {
-                profiles.push((profile, IN_TREE_PROFILE_CAP_BYTES));
-            }
-        }
-    }
-    if let Some(found) = base {
-        for tree in list_trees(found) {
-            for profile in profile_dirs_of(&tree.path) {
-                profiles.push((profile, HOST_PROFILE_CAP_BYTES));
-            }
-        }
-    }
-    profiles.sort_by(by_profile);
-    profiles.dedup_by(same_profile);
-    return profiles;
-}
-
-/// What:
-/// `fn by_profile(left: &(PathBuf, u64), right: &(PathBuf, u64)) -> std::cmp::Ordering` is the order a recorded position
-/// indexes.
-/// Why:
-/// The units pass continues after a key,
-/// so two runs must walk the profile directories in the same order.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const byProfile = (left: [string, number], right: [string, number]): number => left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0;
-/// ```
-fn by_profile(
-    left: &(PathBuf, u64),
-    right: &(PathBuf, u64),
-) -> std::cmp::Ordering {
-    return left.0.cmp(&right.0);
-}
-
-/// What:
-/// `fn same_profile(left: &mut (PathBuf, u64), right: &mut (PathBuf, u64)) -> bool` says whether two entries name the same
-/// directory.
-/// Why:
-/// A checkout and a build tree can name one profile directory,
-/// and judging it twice would pay for it twice.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const sameProfile = (left: [string, number], right: [string, number]): boolean => left[0] === right[0];
-/// ```
-fn same_profile(
-    left: &mut (PathBuf, u64),
-    right: &mut (PathBuf, u64),
-) -> bool {
-    return left.0 == right.0;
-}
-
-/// What a mechanism is given when the run reaches it.
-pub(crate) struct RunContext<'a> {
-    /// What the caller asked for.
-    pub(crate) options: &'a RunOptions,
-    /// The run's deadline.
-    pub(crate) deadline: Deadline,
-    /// The real `/proc` the guards read.
-    pub(crate) environment: &'a GuardEnvironment,
-    /// The checkouts the run found.
-    pub(crate) checkouts: &'a [PathBuf],
-    /// The toolchains a checkout's lock pins.
-    pub(crate) pinned: &'a HashSet<String>,
-    /// The host build base,
-    /// when the Cargo configuration has one.
-    pub(crate) base: Option<&'a Path>,
-    /// The rustup home the toolchains live in.
-    pub(crate) rustup_home: &'a Path,
-    /// Where the last run stopped in each long pass.
-    pub(crate) progress: &'a Progress,
-}
-
-/// What:
-/// `pub fn long_pass(mechanism: Mechanism) -> Option<LongPass>` is the long pass a mechanism continues,
-/// when it is one.
-/// Why:
-/// Only the idle-trees pass and the units pass are longer than a run's bound,
-/// so only they keep a position between runs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const longPass = (mechanism: Mechanism): LongPass | undefined => mechanism === Mechanism.Trees ? LongPass.Trees : mechanism === Mechanism.Units ? LongPass.Units : undefined;
-/// ```
-pub fn long_pass(mechanism: Mechanism) -> Option<LongPass> {
-    return match mechanism {
-        Mechanism::Trees => Some(LongPass::Trees),
-        Mechanism::Units => Some(LongPass::Units),
-        Mechanism::Records | Mechanism::Toolchains | Mechanism::Podman => None,
-    };
-}
-
-/// What:
-/// `pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> MechanismReport` runs one mechanism and returns
-/// its summary lines and where the next run continues.
-/// Why:
-/// `run_lean` walks `RUN_ORDER` and each mechanism is one arm here,
-/// so the order has one place to change,
-/// and the two long passes start after the position the last run recorded.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function runMechanism(mechanism: Mechanism, context: RunContext): MechanismReport
-/// ```
-pub(crate) fn run_mechanism(
-    mechanism: Mechanism,
-    context: &RunContext,
-) -> MechanismReport {
-    return match mechanism {
-        Mechanism::Trees => match context.base {
-            Some(found) => {
-                let trees: Vec<Tree> = trees_in_order(found);
-                let mut keys: Vec<PathBuf> = Vec::with_capacity(trees.len());
-                for tree in &trees {
-                    keys.push(tree.path.clone());
-                }
-                let start: usize = resume_index(&keys, context.progress.after(LongPass::Trees));
-                tree_report(
-                    &trees,
-                    start,
-                    context.options,
-                    &context.deadline,
-                    context.environment,
-                    found,
-                    context.pinned,
-                )
-            }
-            None => MechanismReport {
-                lines: vec![String::from(
-                    "idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base",
-                )],
-                resume_after: None,
-            },
-        },
-        Mechanism::Units => {
-            // Listing the profile directories reads every tree and every target directory,
-            // and the deadline only starts to apply once a profile directory is judged.
-            let listing_began: std::time::Instant = std::time::Instant::now();
-            let profiles: Vec<(PathBuf, u64)> = unit_profiles(context.base, context.checkouts);
-            let listing_seconds: u64 = listing_began.elapsed().as_secs();
-            let mut keys: Vec<PathBuf> = Vec::with_capacity(profiles.len());
-            for (profile, _cap) in &profiles {
-                keys.push(profile.clone());
-            }
-            let start: usize = resume_index(&keys, context.progress.after(LongPass::Units));
-            let chosen: &[(PathBuf, u64)] = &profiles[start..];
-            let UnitsPass {
-                mut lines,
-                judged,
-            } = sweep_and_cap(
-                chosen,
-                context.options.dry_run,
-                &context.deadline,
-                context.environment,
-            );
-            let last_judged: Option<&(PathBuf, u64)> = if judged > 0 {
-                Some(&chosen[judged - 1])
-            } else {
-                None
-            };
-            let resume_after: Option<PathBuf> = match (judged < chosen.len(), last_judged) {
-                (true, Some(last)) => Some(last.0.clone()),
-                (true, None) if start > 0 => Some(profiles[start - 1].0.clone()),
-                _ => None,
-            };
-            lines.insert(
-                1,
-                format!(
-                    "  listed {} profile directories in {} s",
-                    profiles.len(),
-                    listing_seconds
-                ),
-            );
-            // The position notes come before the notes of what was skipped or left alone.
-            if let (true, Some(last)) = (judged < chosen.len(), last_judged) {
-                lines.insert(1, format!("  the deadline passed after {judged} of {} profile directories, at {}; the next run continues after it", chosen.len(), last.0.display()));
-            }
-            if start > 0 {
-                lines.insert(1, format!("  this pass started after {}, the profile directory the last run stopped at", profiles[start - 1].0.display()));
-            }
-            MechanismReport {
-                lines,
-                resume_after,
-            }
-        }
-        Mechanism::Records => {
-            let mut targets: Vec<PathBuf> = Vec::new();
-            for checkout in context.checkouts {
-                targets.extend(target_directories(checkout));
-            }
-            MechanismReport {
-                lines: run_records(
-                    &verification_directories(&targets),
-                    context.options.dry_run,
-                    &context.deadline,
-                    context.environment,
-                ),
-                resume_after: None,
-            }
-        }
-        Mechanism::Toolchains => MechanismReport {
-            lines: run_toolchains(
-                &context.rustup_home.join("toolchains"),
-                context.pinned,
-                context.options.dry_run,
-                &context.deadline,
-                context.environment,
-            ),
-            resume_after: None,
-        },
-        Mechanism::Podman => {
-            let main: PathBuf = match crate::lean_checkouts::main_checkout(&context.options.start) {
-                Some(found) => found,
-                None => match context.checkouts.first() {
-                    Some(first) => first.clone(),
-                    None => {
-                        return MechanismReport {
-                            lines: vec![String::from(
-                                "podman: no checkout was found, so nothing was judged",
-                            )],
-                            resume_after: None,
-                        };
-                    }
-                },
-            };
-            MechanismReport {
-                lines: run_podman(&main, context.options.dry_run, &context.deadline),
-                resume_after: None,
-            }
-        }
-    };
-}
+/// Re-exports what one mechanism of a run reports.
+pub use self::report_and_context::MechanismReport;
+/// Re-exports what a mechanism is given when the run reaches it.
+pub(crate) use self::report_and_context::RunContext;
+/// Imports the printing of each mechanism's result as that mechanism ends.
+use self::report_and_context::say;
+/// Re-exports the dated nightlies no checkout pins.
+pub(crate) use self::retired_toolchains::retired_toolchain_names;
 
 /// What:
 /// `pub fn run_lean(options: &RunOptions) -> i32` runs the selected mechanisms in `RUN_ORDER` and prints the summary.

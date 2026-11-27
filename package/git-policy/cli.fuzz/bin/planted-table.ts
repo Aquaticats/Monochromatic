@@ -151,7 +151,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a claim naming PID 0 is accepted',
-    file: 'package/git-policy/cli/src/native/lock/single_owner_claim.rs',
+    file: 'package/git-policy/cli/src/native/lock/single_owner_claim_record.rs',
     edits: [{
       from: 'if pid <= 0 {',
       to: 'if pid < 0 {',
