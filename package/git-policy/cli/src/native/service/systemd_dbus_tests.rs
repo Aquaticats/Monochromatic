@@ -1242,7 +1242,8 @@ const THE_CLIENT: &str = "service/systemd_dbus.rs";
 fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
     let sources: Vec<(String, String)> =
         release_sources_under(THE_CLIENT_MODULE).expect("the crate's release sources");
-    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
         abandoned.is_empty(),
         "the scope reached no file holding what this ban is about:\n{}",
@@ -1265,10 +1266,7 @@ fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
         .iter()
         .find(|(file, _)| return file == THE_CLIENT)
         .expect("the client file is a release source of its own module");
-    assert!(
-        client.1.contains("zbus::"),
-        "the client does not use zbus"
-    );
+    assert!(client.1.contains("zbus::"), "the client does not use zbus");
 }
 
 /// The scan flags a socket a split carried into a receiver,
@@ -1291,9 +1289,9 @@ fn the_scan_flags_a_socket_in_a_receiver_file() {
         String::from("service/systemd_dbus_wire_format.rs"),
         String::from("fn built(serial: u32) { let _bytes = encode_call(serial); }\n"),
     )];
-    let holding = lines_holding_one_of(format.as_slice(), THE_WIRE_ITSELF);
+    let written = lines_holding_one_of(format.as_slice(), THE_WIRE_ITSELF);
     assert_eq!(
-        lines_no_entry_excuses(holding.as_slice(), MAY_HOLD),
+        lines_no_entry_excuses(written.as_slice(), MAY_HOLD),
         Vec::<String>::new(),
         "the format's own builder is the one arm the ban lets stand"
     );
