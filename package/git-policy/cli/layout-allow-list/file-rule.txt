@@ -265,8 +265,6 @@ file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_remove.rs
 file-uses src/native/worktree worktree_remove_last_look.rs -> worktree_remove.rs
 file-uses src/native/worktree worktree_remove_reports.rs -> worktree_snapshot_ahead.rs
 file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_snapshot_ahead_claim.rs
-file-uses src/native/worktree worktree_snapshot_ahead_claim.rs -> worktree_snapshot_ahead.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs

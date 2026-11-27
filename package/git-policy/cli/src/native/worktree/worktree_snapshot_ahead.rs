@@ -301,12 +301,6 @@ pub fn hand_over_with(
     return Ok(());
 }
 
-/// The add's own look for a snapshot the service made ahead of it:
-/// the proof,
-/// the claim,
-/// the bounded wait and the sweep.
-pub use crate::worktree_snapshot_ahead_claim::look_for_a_snapshot_ahead;
-
 /// Controls of the snapshots made ahead stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_snapshot_ahead_tests.rs"]
