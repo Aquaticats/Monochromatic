@@ -64,13 +64,27 @@ fn a_short_record_is_blind() {
     assert_eq!(word, RefusalWord::HolderBlind);
 }
 
-/// A command name carrying a control byte is escaped,
-/// and one longer than the kernel's own bound is cut to it.
+/// The record keeps the kernel's name as the kernel holds it,
+/// and cuts one longer than the kernel's own bound.
+/// Why:
+///  The escape belongs to the sentence that shows the name
+///  (`caller_holds_in_its_working_directory` escapes it for its parenthesis),
+///  so a control byte reaches the record and only the bound is the record's own.
 #[test]
-fn a_command_name_is_bounded_and_escaped() {
-    let escaped: CommandWord = CommandWord::of("a\nb");
-    assert_eq!(escaped.text(), "a\\x0ab");
+fn a_command_name_is_cut_to_the_kernel_bound_and_kept_as_it_is() {
+    let kept: CommandWord = CommandWord::of("a\nb");
+    assert_eq!(
+        kept.text(),
+        "a\nb",
+        "the record keeps the kernel's bytes, and the sentence escapes them"
+    );
     let long: CommandWord = CommandWord::of("abcdefghijklmnopqrst");
+    assert_eq!(
+        long.text(),
+        "abcdefghijklmnopqrst".get(..COMMAND_MAXIMUM_BYTES).expect(
+            "the input is longer than the bound and its first bytes are one character each"
+        )
+    );
     assert_eq!(long.text().len(), COMMAND_MAXIMUM_BYTES);
 }
 

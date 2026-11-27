@@ -102,23 +102,23 @@ pub(crate) fn record_and_context(
                 Ok(mut entries) => match entries.next() {
                     None => None,
                     Some(Ok(_)) => Some(Finding::Uncertain(format!(
-                        "{}: the record of the containment of the killed run is missing, so a child of that run may still be writing; {hint}",
+                        "{}: the record of the containment of an earlier run is missing, so a child of that run may still be writing; {hint}",
                         directory.display()
                     ))),
                     Some(Err(listing_error)) => Some(Finding::Uncertain(format!(
-                        "{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}",
+                        "{}: the journal could not be listed ({listing_error}), so a child of that run may still be writing; {hint}",
                         directory.display()
                     ))),
                 },
                 Err(listing_error) => Some(Finding::Uncertain(format!(
-                    "{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}",
+                    "{}: the journal could not be listed ({listing_error}), so a child of that run may still be writing; {hint}",
                     directory.display()
                 ))),
             });
         }
         Err(error) => {
             return Err(Some(Finding::Uncertain(format!(
-                "{}: the record of the containment of the killed run could not be read ({error}), so a child of that run may still be writing; {hint}",
+                "{}: the record of the containment of an earlier run could not be read ({error}), so a child of that run may still be writing; {hint}",
                 directory.display()
             ))));
         }
@@ -158,7 +158,7 @@ pub(crate) fn record_and_context(
                 && populated_at(&scope_path).unwrap_or(false)
             {
                 return Err(Some(Finding::Live(format!(
-                    "{}: the scope {} of the killed run has a member although the boot id changed since the run; the journal was kept for a later run",
+                    "{}: the scope {} of an earlier run has a member although the boot id changed since the run; the journal was kept for a later run",
                     directory.display(),
                     scope_path.display()
                 ))));

@@ -311,6 +311,41 @@ pub struct InstallRequest<'a> {
 }
 
 /// What:
+/// `pub(crate) fn refusal_of_writers(nouns: &str, shortfall: &str) -> String` is why a run's stop refused it,
+/// in the words a person reads.
+/// Why:
+/// The install and the update refuse for the same reason and differ only in what the run would have written,
+/// so the words are built once here and both interpolate the one sentence about the journal
+/// (`journal_recover::KEPT_JOURNAL`),
+/// which names no scope because a stop of a bare process group keeps the same journal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function refusalOfWriters(nouns: string, shortfall: string): string
+/// ```
+pub(crate) fn refusal_of_writers(
+    nouns: &str,
+    shortfall: &str,
+) -> String {
+    // What:     `if shortfall.is_empty() { String::new() } else { format!(": {shortfall}") }` keeps the colon inside the reason.
+    // Why:      A stop that recorded no reason (a test's stand-in) must not print a colon with nothing after it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reason = shortfall === '' ? '' : `: ${shortfall}`;
+    // ```
+    let reason: String = if shortfall.is_empty() {
+        String::new()
+    } else {
+        format!(": {shortfall}")
+    };
+    return format!(
+        "a process started by cargo could not be stopped, so it may still write the {nouns}{reason}; they were not rolled back or accepted; {}",
+        crate::journal_recover::KEPT_JOURNAL
+    );
+}
+
+/// What:
 /// `pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError>` runs the install over the
 /// listed crate roots.
 /// Why:
@@ -490,15 +525,13 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // In TS you'd write (pseudocode):
         // ```ts
         // const shortfall = transaction.writersMayRemainReason() ?? '';
-        // return refused(`... could not be stopped, ... ${shortfall ? ` (${shortfall})` : ''} ...`);
+        // return refused(refusalOfWriters('lockfiles', shortfall));
         // ```
-        let shortfall: String = match transaction.writers_may_remain_reason() {
-            Some(reason) => format!(": {reason}"),
-            None => String::new(),
-        };
+        let shortfall: String = transaction.writers_may_remain_reason().unwrap_or_default();
         return Err(InstallError::Unsettled {
             message: format!(
-                "cargo-shadow: a process started by cargo could not be stopped, so it may still write the lockfiles{shortfall}; they were not rolled back or accepted, the journal of this run was kept and a later run that resolves dependencies or runs `cargo-shadow update` settles it once it reads the recorded scope gone, while a command that resolves nothing (`cargo fmt`, `cargo --version`) and a frozen run (`--locked`, `--frozen`, or `CI`) leave it to such a run and print nothing about it, and the command was not run"
+                "cargo-shadow: {}",
+                refusal_of_writers("lockfiles", &shortfall)
             ),
         });
     }

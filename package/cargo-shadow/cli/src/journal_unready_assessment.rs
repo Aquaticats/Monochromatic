@@ -183,7 +183,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
             Err(reason) => note_uncertain(
                 &mut uncertain,
                 format!(
-                    "{}: the record of the containment of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
+                    "{}: the record of the containment of an earlier run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
                     directory.display()
                 ),
             ),
@@ -224,7 +224,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                         None => unsettled.push(scope_path.clone()),
                         Some((pid, LauncherState::Alive)) => {
                             return Some(Finding::Live(format!(
-                                "{}: the launcher (pid {pid}, which becomes the program) of the scope {} of the killed run is still running; the journal was kept for a later run",
+                                "{}: the launcher (pid {pid}, which becomes the program) of the scope {} of an earlier run is still running; the journal was kept for a later run",
                                 directory.display(),
                                 scope_path.display()
                             )));
@@ -244,7 +244,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                     Membership::Gone => {}
                     Membership::Alive => {
                         return Some(Finding::Live(format!(
-                            "{}: a process in the scope {} of the killed run is still running; the journal was kept for a later run",
+                            "{}: a process in the scope {} of an earlier run is still running; the journal was kept for a later run",
                             directory.display(),
                             scope_path.display()
                         )));
@@ -252,7 +252,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                     Membership::Unknown(reason) => note_uncertain(
                         &mut uncertain,
                         format!(
-                            "{}: whether the scope of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
+                            "{}: whether the scope of that run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
                             directory.display()
                         ),
                     ),
@@ -272,7 +272,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                 };
                 if alive {
                     return Some(Finding::Live(format!(
-                        "{}: a process group of the killed run (pid {leader}) is still running; the journal was kept for a later run",
+                        "{}: a process group of an earlier run (pid {leader}) is still running; the journal was kept for a later run",
                         directory.display()
                     )));
                 }
@@ -304,7 +304,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
         note_uncertain(
             &mut uncertain,
             format!(
-                "{}: the killed run announced a child (the weaker path, no delegated control group) and never recorded its process group, so that child may still be writing; {hint}",
+                "{}: an earlier run announced a child (the weaker path, no delegated control group) and never recorded its process group, so that child may still be writing; {hint}",
                 directory.display()
             ),
         );
@@ -313,7 +313,7 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
         note_uncertain(
             &mut uncertain,
             format!(
-                "{}: the killed run had no delegated control group, so a process that left its process group cannot be found and the end of that group does not show that the run's writers stopped; {hint}",
+                "{}: an earlier run had no delegated control group, so a process that left its process group cannot be found and the end of that group does not show that the run's writers stopped; {hint}",
                 directory.display()
             ),
         );

@@ -171,8 +171,10 @@ the same check and the same marker are in the other three shadows
 as byte-identical copies of `src/shadow_identity.rs` and its parts under `src/shadow_identity/`:
 the four crates share no dependency,
 and `tests/shadow_identity_copies.rs`, itself one of the copies,
-fails when they differ,
-in whichever of the four packages runs it.
+fails when they differ:
+a change to the copy in `cargo-shadow`,
+`mpm-shadow` or `pnpm-shadow` fails all four suites,
+and a change to `search-shadow`'s own copy alone fails only its own.
 
 ## Version and help
 

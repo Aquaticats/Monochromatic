@@ -122,7 +122,7 @@ impl std::fmt::Display for RunError {
                 shortfall,
             } => write!(
                 formatter,
-                "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; {shortfall}; this tool changed no file because of that and the journal of the run was kept"
+                "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; {shortfall}; this tool changed no file because of that"
             ),
             RunError::IncompleteOutput {
                 what,

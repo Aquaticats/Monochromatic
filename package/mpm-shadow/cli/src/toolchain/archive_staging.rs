@@ -134,6 +134,9 @@ pub(crate) use self::leftovers_of_a_killed_install::{
     FinishedCopy,
     HoldingInstaller,
     Recovered,
+    RemovedFinishedCopy,
+    RemovedLeftover,
+    WhyNotPublished,
     hidden_siblings,
     recover_leftovers,
 };
