@@ -140,7 +140,6 @@ file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_retire.rs
 file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_walk.rs
 file-uses src/native/lock stopped_git_locks.rs -> stale_ref_lock_judge.rs
 file-uses src/native/lock stopped_git_locks.rs -> stale_ref_locks.rs
-file-uses src/native/merge merge_isolation_carry.rs -> merge_isolation_worktree_entry.rs
 file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_kept_path.rs
 file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_notice.rs
 file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_place.rs
@@ -201,7 +200,6 @@ file-uses src/native/merge merge_isolation_recovery_steps.rs -> merge_isolation_
 file-uses src/native/merge merge_isolation_recovery_steps.rs -> merge_isolation_take_asides.rs
 file-uses src/native/merge merge_isolation_take_asides.rs -> merge_isolation_kept_copies_decisions.rs
 file-uses src/native/merge merge_isolation_take_asides.rs -> merge_isolation_recovery_steps.rs
-file-uses src/native/merge merge_isolation_worktree_entry.rs -> merge_isolation_carry.rs
 file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
 file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
 file-uses src/native/process signal_relay.rs -> signal_report.rs

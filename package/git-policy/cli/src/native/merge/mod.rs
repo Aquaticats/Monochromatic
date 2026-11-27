@@ -64,11 +64,12 @@
 //!   the words a recovery refuses a merge with:
 //!   each names the paths,
 //!   the record and what the person can do.
+//! - `merge_isolation_worktree_entry.rs`:
+//!   what stands at one worktree path,
+//!   as a merge reads it.
 //! - `merge_isolation_carry.rs`:
 //!   reading the person's own work in the paths a merge changes:
-//!   what stands at one worktree path,
-//!   the mode and permission bits Git records for it,
-//!   and one capture of every layer.
+//!   one capture of every layer.
 //! - `merge_isolation_carry_landed.rs`:
 //!   what Git's own update left at each path of a merge,
 //!   which tells its own file from a save that accepts it.
@@ -148,9 +149,6 @@
 //! - `merge_isolation_take_asides.rs`:
 //!   the take of a worktree file a merge must replace or delete,
 //!   and the private names it leaves behind.
-//! - `merge_isolation_worktree_entry.rs`:
-//!   what stands at one worktree path,
-//!   as a merge reads it.
 //! - `merge_isolation_marks_the_status_hides.rs`:
 //!   the paths a merge changes whose edit Git's status does not show,
 //!   because their index entry carries the `assume-unchanged` or `skip-worktree` mark.
