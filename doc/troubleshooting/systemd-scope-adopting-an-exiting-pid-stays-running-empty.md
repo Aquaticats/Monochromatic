@@ -789,6 +789,168 @@ by variant:
   Not a leak,
   but a caller that adopts without handling the error loses the adoption.
 
+### The 2026-11-27 census: cargo-shadow's own scopes on this host
+
+The round of issue 6576 first saw this state in `cargo-shadow`'s test scopes,
+and issue 6578 asked for a census, a reproduction and a count.
+Census taken at 2026-11-27T07:43:26-05:00:
+
+```sh
+systemctl --user list-units 'cargo-shadow-*.scope'
+```
+
+listed 12 units,
+all `LoadState=loaded`, `ActiveState=active`, `SubState=running`, `Result=success`,
+`TasksCurrent=0`, `CollectMode=inactive-or-failed`,
+activated between 03:03:54 and 07:31:23 the same day.
+Each one's `cgroup.events` read `populated 0` and its `cgroup.procs` was empty,
+and each one's only journal line was `Started [systemd-run] <command>.`
+Eleven of them ran `/usr/bin/true`;
+one ran `/usr/bin/sh -c "sleep 30 & echo $$! > .../pid; sleep 30"` under a test scratch folder.
+None of them is a unit the issue's other two journal lines name:
+the nine `Failed with result 'resources'` lines (02:22:59 to 04:44:50)
+and the six `PID <n> vanished before we could move it` lines (03:30:54 to 04:44:50)
+name units that are not in the loaded list.
+That is the "reaped before the start job" case below:
+the launcher was gone when the manager ran the start job,
+the scope failed,
+and `CollectMode=inactive-or-failed` freed it.
+So those lines are a different matter, not this leak.
+
+The count comes from the same journal:
+between 2026-11-27T00:00 and 07:45 the user manager started 11360 distinct
+`cargo-shadow-*.scope` units
+(`journalctl --user --output=json` over that window,
+`jq` selecting `USER_UNIT`),
+so 12 of 11360 starts were left loaded and empty,
+about one in a thousand.
+
+#### The adopted process here is the launcher, not the program
+
+`cargo-shadow` starts every external command as
+`systemd-run --user --scope --unit=<name> ... -- <program>`,
+and the process the manager attaches is the `systemd-run` launcher,
+which waits for the start job to complete before it execs the program.
+So a program that ends at once does not reach the race by itself:
+2000 starts of `/usr/bin/true` through the real bounded runner with a 120 second bound left
+0 units before the caller-side fix,
+because the launcher was alive when the manager wrote its id.
+What reaches it is the runner killing that launcher while the start job is still running
+(a bound that passes, or a test that kills its wrapper):
+the launcher is a zombie at the manager's write,
+`cg_attach` returns success without moving it,
+the group never becomes populated,
+and the empty notification never comes.
+Most of the 12 were `/usr/bin/true` for exactly that reason:
+the test's bound passed while the launcher was still asking the manager.
+
+The user manager on this host accepts that adoption directly,
+which is how the controls plant the state without waiting for the race.
+On 2026-11-27,
+systemd 262.2-1-arch and kernel 7.3.5-2-cachyos,
+a process that was a zombie when its parent had not reaped it was adopted with:
+
+```sh
+busctl --user call org.freedesktop.systemd1 /org/freedesktop/systemd1 \
+  org.freedesktop.systemd1.Manager StartTransientUnit 'ssa(sv)a(sa(sv))' \
+  <name>.scope fail 3 PIDs au 1 <zombie pid> Description s probe \
+  CollectMode s inactive-or-failed 0
+```
+
+The unit answered `LoadState=loaded`, `ActiveState=active`, `SubState=running`, `Result=success`,
+`TasksCurrent=0`, `CollectMode=inactive-or-failed`,
+and its `cgroup.events` read `populated 0`:
+the same state as the 12,
+made on purpose in a unit of the test's own.
+
+#### The shape that makes the race common, and the count before and after
+
+300 starts through the real bounded runner of `/usr/bin/true`,
+8 worker threads,
+a bound of 40 ms (the run kills its launcher while the manager is starting the scope),
+counted by asking the manager whether each unit the run's own trace named is still loaded
+500 ms after the last start:
+
+```text
+before the caller-side fix (the retire step removed):  34 of 300 left
+after it (two runs, alternating around the before run):  0 of 300, 0 of 300
+```
+
+At 25 ms the same shape left 4 of 300 before the fix;
+at 15 ms and below it left 0 of 300,
+because the kill lands before the launcher has asked the manager for the scope,
+and at 120 seconds it left 0 of 2000,
+because the launcher is then never killed.
+
+#### What cargo-shadow does now
+
+The run asks the manager to stop the unit it started,
+after the control group is shown empty,
+on every path that ends a run:
+a normal end,
+a bound that passes,
+a refusal after the program started,
+and a launcher that is gone
+(`retire_unit` in `package/cargo-shadow/cli/src/control_group_retire.rs`,
+called from `stop_everything` in `bounded_run_containment.rs`):
+
+```sh
+systemctl --user --no-ask-password stop <name>.scope
+```
+
+A unit the manager had already collected is not a refusal:
+that stop fails with "Unit <name>.scope not loaded.",
+and the question after it (`show <name>.scope --property=LoadState --value`) reads `not-found`.
+A stop the manager refuses for another reason is a warning naming the unit and the state,
+because the run already proved that no writer is left;
+the unit is housekeeping after the proof, not part of it.
+The cost is one `systemctl` call per scoped run:
+`systemctl --user stop` of such an empty scope took 4 ms to 5 ms in three probes on 2026-11-27,
+and the manager showed the unit `not-found` as soon as the stop returned in all three.
+
+A recovery reads such a unit as what it is:
+`query` (`src/control_group_records.rs`) finds the scope's directory present and its
+`cgroup.events` at `populated 0`,
+and answers `Membership::Gone`.
+The manager's active state does not enter that answer,
+so a unit it left `active (running)` is still an ended run for the journal.
+The controls `a_recovery_reads_a_loaded_empty_scope_as_gone`,
+`retiring_a_loaded_empty_scope_unit_removes_it`
+and one per run-ending path
+(`a_run_that_ends_by_itself_retires_its_scope_unit`,
+`a_run_whose_bound_passes_retires_its_scope_unit`,
+`a_refused_run_retires_its_scope_unit`,
+`a_run_whose_launcher_is_gone_retires_its_scope_unit`)
+hold this;
+each was run with its guard taken out and each failed
+(the retirement removed: the four path controls found no stop request,
+and the unit stayed loaded; the stop itself removed: the planted unit stayed `loaded`).
+
+#### What was tried and did not work, or was not chosen
+
+- Leaving the scope to the manager:
+  this file's root cause is that the manager never gets an event for it,
+  and nothing else re-checks a running scope.
+- `CollectMode=inactive-or-failed` alone:
+  it frees a unit only once it becomes inactive or failed,
+  and a stuck scope never does.
+- `systemctl --user daemon-reload`:
+  it ends every stuck scope (see "Verified workarounds"),
+  but it re-reads every unit file of the manager,
+  and a run must not clear other sessions' scopes.
+- `RuntimeMaxSec` on the scope:
+  it bounds how long the stuck unit lives and then fails it,
+  which still leaves a unit for the whole bound and changes its result.
+- Writing `1` to `cgroup.freeze` of the empty scope:
+  it did work (the manager re-read `populated` on the `cgroup.events` change and collected the unit),
+  and it needs no process,
+  but it depends on the inotify watch a missed notification does not prove is there,
+  so the code asks the manager to stop the unit instead.
+  That probe ran on 2026-11-27 and the unit was `not-found` before the write could be undone.
+
+What a run cannot do is fix the manager:
+the prototype patch in this file is the manager's side,
+and the caller-side step above removes the unit the manager left behind.
 ### Link verification method
 
 `verify-links` (scratch,
