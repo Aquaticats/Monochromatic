@@ -232,23 +232,23 @@ and no independent read has reviewed them.
   is kept together in
   `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
   deleted on 2026-11-27;
-  not kept).
+  what this record uses from it is stated here).
   That file began as a copy of the first revision's file,
   which still sits at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/lock-record.json` (scratch,
   deleted on 2026-11-27;
-  not kept),
+  what this record uses from it is stated here),
   and the second revision's writer appended to it as the first one's did.
   The third revision appended its records,
   record 13 onwards,
   to a copy of that file at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
   deleted on 2026-11-27;
-  not kept).
+  what this record uses from it is stated here).
   The fourth appended records 23 to 27 to a copy at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-final-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
   deleted on 2026-11-27;
-  not kept),
+  what this record uses from it is stated here),
   and record 23's `preEditSha256` `dce1ebeb4e07...` is record 22's `postEditSha256`,
   so the chain crosses from the third revision into this one with no break.
   Record 13's `preEditSha256` `965b95ecb0...` is record 12's `postEditSha256`,
@@ -292,7 +292,7 @@ and no independent read has reviewed them.
   from a copy at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
   deleted on 2026-11-27;
-  not kept).
+  what this record uses from it is stated here).
   The sixth revision wrote it three times,
   from the worktree `.claude/worktrees/zfs-step-6-integration-findings`,
   where the file it edits lives,
@@ -309,7 +309,7 @@ and no independent read has reviewed them.
   from a copy at
   `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
   deleted on 2026-11-27;
-  not kept).
+  what this record uses from it is stated here).
 
   The chain does not hold inside the second revision,
   and the report says so rather than leaving it to a reader:
