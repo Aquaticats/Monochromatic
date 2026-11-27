@@ -31,12 +31,12 @@ use crate::private_storage::rename_noreplace;
 use crate::stale_ref_lock_found::{
     Found,
     Outcome,
+    Verdict,
 };
 use crate::stale_ref_lock_judge::{
     Examined,
     Identity,
     Judge,
-    Verdict,
     identity_of,
 };
 use crate::stale_ref_lock_walk::{

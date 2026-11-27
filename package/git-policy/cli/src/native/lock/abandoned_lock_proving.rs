@@ -147,8 +147,13 @@ use crate::stale_ref_lock_judge::{
     Judge,
     LOCAL_FILE_SYSTEMS,
 };
-/// The name a lock's PID file has.
-use crate::stale_ref_lock_walk::pid_file_beside;
+/// The name a lock's PID file has,
+/// and the read of it this proof holds.
+use crate::stale_ref_lock_names::{
+    pid_file_beside,
+    pid_file_contents,
+    pid_named_in,
+};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{
     Path,
@@ -285,10 +290,8 @@ pub fn clear_one(
     let pid_file: PathBuf = pid_file_beside(lock);
     // The contents the PID file has when it is judged, byte for byte, and the number they name. One read gives both, and
     //  the removal holds it until its last look, where the file is unlinked only if these very bytes are still there.
-    let judged_contents: Vec<u8> = crate::stopped_git_locks::pid_file_contents(pid_file.as_path())?;
-    if crate::stopped_git_locks::pid_named_in(judged_contents.as_slice())
-        != Some(i32::try_from(pid).ok()?)
-    {
+    let judged_contents: Vec<u8> = pid_file_contents(pid_file.as_path())?;
+    if pid_named_in(judged_contents.as_slice()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
     let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> =
@@ -303,7 +306,8 @@ pub fn clear_one(
     //  `IndexLockFile::acquire` after the lock was taken). It compares the file's contents byte for byte with the contents it
     //  judged, and the one case left open is a program that writes the very same bytes back, and the instant between the last
     //  read and the unlink. The read is the bounded one `pid_file_contents` makes of a file that holds `pid <number>`.
-    let still_the_judged_contents: bool = matches!(crate::stopped_git_locks::pid_file_contents(pid_file.as_path()), Some(later) if later == judged_contents);
+    let still_the_judged_contents: bool =
+        matches!(pid_file_contents(pid_file.as_path()), Some(later) if later == judged_contents);
     // The PID file goes with the lock it belongs to only when it is still the very file that was judged: its device,
     //  inode and change time as read before the unlink, and the contents it held. Git's own PID file cannot stand at that
     //  name while the judged one does, because it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is

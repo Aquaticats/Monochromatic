@@ -5,8 +5,6 @@
 # How: a line is `file-uses <folder> <file> -> <file>`, the folder relative to package/git-policy/cli.
 #      A line matches only while the use is still made and its two files are still in one loop.
 #      A line that matches nothing is a finding, so a round that untangles a use deletes its line.
-file-uses src/native/commit scratch_step_held_by_the_kernel.rs -> scratch_step_stall_decided_once.rs
-file-uses src/native/commit scratch_step_stall_decided_once.rs -> scratch_step_held_by_the_kernel.rs
 file-uses src/native/foundation diagnostic_lines_off_the_calling_thread.rs -> lines_written_by_a_thread.rs
 file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_calling_thread.rs
 file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs
@@ -100,28 +98,6 @@ file-uses src/native/landing work_item.rs -> work_item_queued_ids.rs
 file-uses src/native/landing work_item_enqueue.rs -> work_item.rs
 file-uses src/native/landing work_item_holding.rs -> work_item.rs
 file-uses src/native/landing work_item_queued_ids.rs -> work_item.rs
-file-uses src/native/lock index_lock_evidence.rs -> index_lock_evidence_words.rs
-file-uses src/native/lock index_lock_evidence_words.rs -> index_lock_evidence.rs
-file-uses src/native/lock index_lock_holder_parsers.rs -> index_lock_holders.rs
-file-uses src/native/lock index_lock_holders.rs -> index_lock_holder_parsers.rs
-file-uses src/native/lock stale_ref_lock_found.rs -> stale_ref_lock_judge.rs
-file-uses src/native/lock stale_ref_lock_judge.rs -> stale_ref_lock_found.rs
-file-uses src/native/lock stale_ref_lock_judge.rs -> stale_ref_lock_walk.rs
-file-uses src/native/lock stale_ref_lock_judge.rs -> stopped_git_locks.rs
-file-uses src/native/lock stale_ref_lock_retire.rs -> stale_ref_lock_found.rs
-file-uses src/native/lock stale_ref_lock_retire.rs -> stale_ref_lock_judge.rs
-file-uses src/native/lock stale_ref_lock_retire.rs -> stale_ref_lock_walk.rs
-file-uses src/native/lock stale_ref_lock_walk.rs -> stopped_git_locks.rs
-file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_found.rs
-file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_judge.rs
-file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_retire.rs
-file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_walk.rs
-file-uses src/native/lock stopped_git_locks.rs -> stale_ref_lock_judge.rs
-file-uses src/native/lock stopped_git_locks.rs -> stale_ref_locks.rs
-file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
-file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
-file-uses src/native/process signal_relay.rs -> signal_report.rs
-file-uses src/native/process signal_report.rs -> signal_relay.rs
 file-uses src/native/push auto_push.rs -> auto_push_awaiting.rs
 file-uses src/native/push auto_push.rs -> auto_push_reconcile.rs
 file-uses src/native/push auto_push.rs -> push_retry_failure.rs
