@@ -62,5 +62,5 @@ a leader that exited behind a live thread,
 exited and waiting to be reaped,
 gone,
 or unreadable).
-The controls are `control_group_stop_report_tests` and
+The controls are `control_group_stop::report_tests` (in `src/control_group_stop_report_tests.rs`) and
 `install_step_tests::a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_names_it`.
