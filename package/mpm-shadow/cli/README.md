@@ -1977,8 +1977,8 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   and that the same command works once the write has finished.
   It never names running the program by hand,
   which shows nothing once the write is over.
-  There is no such writer of the two paths a start through this tool resolves.
-  Traced 2026-11-27 with a prober starting the published path while the writer ran under `strace`,
+  No writer of the two paths a start through this tool resolves opens them for writing.
+  Traced 2026-11-27 with a prober starting the published path while the writer ran under `strace`:
   `uv tool upgrade --all` writes the tool environment's console script as `bin/.tmpXXXXXX`
   and renames it,
   then removes the `bin` entry and makes it again:
@@ -1987,19 +1987,25 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   (`~/.local/bin/mpm` to the tool environment's `bin/mpm`).
   `cargo install` stages the program under `bin/cargo-installXXXXXX` and renames it
   (24.9 ms under the temporary name),
-  `cargo binstall` renames, or copies to a temporary file beside the target and renames that
-  (read, not run),
-  and this tool's own launcher placement, download, gunzip and `tar` extraction write only the staging name.
+  `cargo binstall` renames,
+  or copies to a temporary file beside the target and renames that
+  (read,
+  not run),
+  and this tool's own launcher placement,
+  download,
+  gunzip and `tar` extraction write only the staging name.
   Two writers this tool starts do open a published path for writing:
   `go install` where its work directory is on another file system
-  (3.5 ms, the one refusal this round measured)
+  (3.5 ms,
+  the one refusal this round measured)
   and `pnpm add --global` (0.09 ms);
   neither writes a path a start through this tool resolves,
   because a Go-route tool is linked straight into the exposure directory.
-  A window a retry could carry does exist, and it is not a writer:
+  A window a retry could carry does exist,
+  and it is not a writer:
   a `fork` copies a write descriptor and the child holds that copy from its `fork` to its own `execve`,
   about 1 to 3 ms in this crate's own tests,
-  which the record's threaded arm refused in 8 and in 12 of 20 starts
+  which the record's threaded arm refused in 5 to 12 of 20 starts
   and in none of 20 with the forking thread off.
   A start that meets one of those renames instead of a write finds the program absent,
   which the archive install and `uv` both show,

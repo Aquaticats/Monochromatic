@@ -30,7 +30,8 @@ and the wording is alpha.12's,
 before this change.
 Alpha.13 replaced the cause and the advice;
 the words themselves are the other half of issue 6585
-and are pinned by the crate's tests, not by this record.
+and are pinned by the crate's tests,
+not by this record.
 
 The launcher mode printed the same refusal as one bare line
 (`mpm-shadow: could not start <path>: Text file busy (os error 26)`),
@@ -70,8 +71,13 @@ There are two ways the file comes to be open for writing:
 
 Every program this tool starts that writes a file is named here,
 with how it puts the file it writes into place.
-The read-only runs (`uv tool list`, `rustup which`, `rustc --version`, `bin list`, `gh auth token`)
-write no program that a start resolves, and are not listed again.
+The read-only runs (`uv tool list`,
+`rustup which`,
+`rustc --version`,
+`bin list`,
+`gh auth token`)
+write no program that a start resolves,
+and are not listed again.
 Each entry says whether that was traced in a throwaway root on this machine
 (`strace --follow-forks`,
 an absolute timestamp on every line,
@@ -85,7 +91,8 @@ and the tracer's path decoding is left out where it only repeats the open's argu
 
 ### `uv tool upgrade --all`, and `uv tool install --force`
 
-Routes: `mpm-uvx` (`src/toolchain/install_managers.rs`,
+Routes:
+`mpm-uvx` (`src/toolchain/install_managers.rs`,
 `install_mpm_uvx`),
 which is how `mpm` itself is installed from the lock's wheel,
 and the mechanism `mpm upgrade` uses for a uv-installed tool:
@@ -94,8 +101,11 @@ the installed 8.3.0 `meta-package-manager` wheel's `managers/uv.py` returns
 Traced,
 with uv 0.13.8,
 a hand-built wheel `mpmprobe` installed at `0.0.1` and upgraded to `0.0.2`
-from a local wheel directory, offline,
-in a throwaway `HOME`, `UV_TOOL_DIR`, `UV_TOOL_BIN_DIR` and `UV_CACHE_DIR`.
+from a local wheel directory,
+offline,
+in a throwaway `HOME`,
+`UV_TOOL_DIR`,
+`UV_TOOL_BIN_DIR` and `UV_CACHE_DIR`.
 
 The environment's console script is written under a temporary name and renamed,
 and the advertised entry point is a symbolic link that is removed and made again:
@@ -108,10 +118,13 @@ unlink("<fixture>/uv/bin/mpmprobe") = 0
 symlink("<fixture>/uv/tools/mpmprobe/bin/mpmprobe", "<fixture>/uv/bin/mpmprobe") = 0
 ```
 
-- The console script is open from `09:57:39.310429` to its rename at `09:57:39.310620`: 191 us.
+- The console script is open from `09:57:39.310429` to its rename at `09:57:39.310620`:
+  191 us.
 - The old console script is unlinked at `09:57:39.265949` and the new one renamed in at
-  `09:57:39.310620`: the file the `bin` link resolves to is **absent for 44.7 ms**.
-- The `bin` link itself is removed at `09:57:39.313733` and made again at `09:57:39.315059`: 1.3 ms.
+  `09:57:39.310620`:
+  the file the `bin` link resolves to is **absent for 44.7 ms**.
+- The `bin` link itself is removed at `09:57:39.313733` and made again at `09:57:39.315059`:
+  1.3 ms.
 
 No process opened the published path for writing at any point.
 The two probers running throughout saw the absence and no refusal:
@@ -135,14 +148,16 @@ which is the file uv stages and renames.
 
 ### `go install`
 
-Route: `go-install` (`src/toolchain/install_managers.rs`,
+Route:
+`go-install` (`src/toolchain/install_managers.rs`,
 `install_go_install`),
 which runs `go install <module>@v<version>` with `GOBIN` set to
 `<toolchain root>/<id>/<version>/bin` (`src/toolchain/layout/install_directories.rs`,
 `go_bin_dir_of`).
 Traced,
 with Go 1.27.4,
-on a local module (`go install .`, no network),
+on a local module (`go install .`,
+no network),
 `GOBIN` on this machine's ZFS home and Go's build directory in a tmpfs,
 which is the cross-device case.
 
@@ -156,7 +171,8 @@ openat(AT_FDCWD, "<fixture>/go/gobin/hello", O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC,
 close(8<<fixture>/go/gobin/hello>) = 0
 ```
 
-`09:59:25.436332` to `09:59:25.439863`: the published path is open for writing
+`09:59:25.436332` to `09:59:25.439863`:
+the published path is open for writing
 for **3.531 ms** while a 2.4 MB program is copied into it.
 The prober starting that path saw the refusal:
 
@@ -164,10 +180,12 @@ The prober starting that path saw the refusal:
 START_PROBE path=<fixture>/go/gobin/hello span_ms=4000 pause_us=300 ran=1528 refused=7 absent=994 other=[] first_refusal_us=570481 last_refusal_us=573269
 ```
 
-Seven refusals between 570.481 ms and 573.269 ms of the probe's span: 2.788 ms of refusals,
+Seven refusals between 570.481 ms and 573.269 ms of the probe's span:
+2.788 ms of refusals,
 which is inside the 3.531 ms the writer held the file.
 
-The fallback is Go's, not this route's:
+The fallback is Go's,
+not this route's:
 `moveOrCopyFile` tries `os.Rename` and then `CopyFile`
 (`/usr/lib/go/src/cmd/go/internal/work/shell.go`),
 and `CopyFile` opens the destination `O_WRONLY|O_CREATE|O_TRUNC`.
@@ -178,11 +196,13 @@ and with the target already up to date it wrote nothing at all.
 
 ### `pnpm add --global`
 
-Route: `mpm-pnpm` (`src/toolchain/install_managers.rs`,
+Route:
+`mpm-pnpm` (`src/toolchain/install_managers.rs`,
 `install_mpm_pnpm`).
 Traced,
 with pnpm 12.21.0,
-a hand-built package installed globally from a local tarball, offline,
+a hand-built package installed globally from a local tarball,
+offline,
 in a throwaway `PNPM_HOME` and store.
 
 The published shim is written in place:
@@ -194,7 +214,8 @@ write(10<<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm>, "#!/bin/sh\n# Resolve $0 
 close(10<<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm>) = 0
 ```
 
-`10:01:23.424865` to `10:01:23.424959`: **0.094 ms** open for writing,
+`10:01:23.424865` to `10:01:23.424959`:
+**0.094 ms** open for writing,
 with no temporary name and no rename.
 The same run then removed the shim again,
 which is why this arm has no refusal count to quote:
@@ -213,7 +234,8 @@ and are not quoted here.
 
 ### `cargo install`
 
-Route: `cargo-git` (`src/toolchain/install_cargo.rs`,
+Route:
+`cargo-git` (`src/toolchain/install_cargo.rs`,
 `install_cargo_git`),
 `cargo install --git <url> --rev <revision> --root <install dir>`.
 The same `cargo install` writes the program for a registry route the plan does not use here.
@@ -234,7 +256,8 @@ close(7<<fixture>/cargo-install/root/bin/cargo-install0HL2Sh/mpmprobe-cargo>) = 
 rename("<fixture>/cargo-install/root/bin/cargo-install0HL2Sh/mpmprobe-cargo", "<fixture>/cargo-install/root/bin/mpmprobe-cargo") = 0
 ```
 
-`10:02:26.287813` to `10:02:26.312798`: 24.985 ms open for writing,
+`10:02:26.287813` to `10:02:26.312798`:
+24.985 ms open for writing,
 under the temporary name only,
 with the rename at `10:02:26.313301`.
 The prober saw no refusal:
@@ -248,7 +271,8 @@ before the first install there is no program at that path.
 
 ### `cargo binstall`
 
-Route: `cargo` (`src/toolchain/install_cargo.rs`,
+Route:
+`cargo` (`src/toolchain/install_cargo.rs`,
 `install_cargo_binstall`),
 `cargo binstall --root <version directory>`,
 which is how a repository-published tool is installed.
@@ -263,12 +287,15 @@ Its cross-file-system fallback copies into a `NamedTempFile` made in the
 destination's own directory and then `persist`s it,
 which is a rename,
 so the published path is never opened for writing there either.
-This is the crate's `main` branch on 2026-11-27, not the version pinned by the lock,
+This is the crate's `main` branch on 2026-11-27,
+not the version pinned by the lock,
 and binstall's own call site was not read.
 
 ### `bin install`, `android sdk install`, `rustup`
 
-Read from this tool's code only, not run, and their producers' publish steps were not read:
+Read from this tool's code only,
+not run,
+and their producers' publish steps were not read:
 
 - `bin install --force <tag url>` (`src/toolchain/install_bin.rs`,
   `install_bin_sourced`)
@@ -279,7 +306,8 @@ Read from this tool's code only, not run, and their producers' publish steps wer
   runs the SDK manager behind the installed `android` CLI with `ANDROID_HOME`
   set to the toolchain's SDK root,
   and needs the network.
-- `rustup toolchain install`, `rustup component add` and `rustup target add`
+- `rustup toolchain install`,
+  `rustup component add` and `rustup target add`
   (`src/toolchain/install_rust_android.rs`,
   `install_rust_toolchain` and `install_rust_components`)
   write under rustup's own home,
@@ -287,13 +315,23 @@ Read from this tool's code only, not run, and their producers' publish steps wer
 
 ### The writers inside this tool
 
-Read from the code, and traced on the same syscall shapes
-(`cp`, `mv`, `tar` and `gunzip`, GNU's, in the same directories the code uses;
+Read from the code,
+and traced on the same syscall shapes
+(`cp`,
+`mv`,
+`tar` and `gunzip`,
+GNU's,
+in the same directories the code uses;
 the code's own calls differ in the flags the standard library adds,
-such as `O_CLOEXEC`, and `fs::rename` in place of `mv`'s `renameat2`):
+such as `O_CLOEXEC`,
+and `fs::rename` in place of `mv`'s `renameat2`):
 
 - The launcher placement (`src/toolchain/launcher/making_the_launcher.rs`,
-  `place_binary`): a hard link, or `fs::copy`, to `.<name>.<pid>.bin`, then `fs::rename`.
+  `place_binary`):
+  a hard link,
+  or `fs::copy`,
+  to `.<name>.<pid>.bin`,
+  then `fs::rename`.
 
   ```text
   openat(AT_FDCWD<<fixture>/arms/published>, ".program.4242.bin", O_WRONLY|O_CREAT|O_EXCL, 0755) = 4<<fixture>/arms/published/.program.4242.bin>
@@ -301,14 +339,19 @@ such as `O_CLOEXEC`, and `fs::rename` in place of `mv`'s `renameat2`):
   renameat2(AT_FDCWD<<fixture>/arms/published>, ".program.4242.bin", AT_FDCWD<<fixture>/arms/published>, "program", 0) = 0
   ```
 
-  `09:59:53.990774` to `09:59:53.993776`: 3.002 ms, on the temporary name.
+  `09:59:53.990774` to `09:59:53.993776`:
+  3.002 ms,
+  on the temporary name.
 
   ```text
   START_PROBE path=<fixture>/arms/published/program span_ms=1500 pause_us=200 ran=1037 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
   ```
 
-- The plain copy (`src/toolchain/install_archive.rs`, `unpack_into`: `fs::copy`)
-  and the gunzip (`gunzip_to`: `File::create` plus `io::copy`),
+- The plain copy (`src/toolchain/install_archive.rs`,
+  `unpack_into`:
+  `fs::copy`)
+  and the gunzip (`gunzip_to`:
+  `File::create` plus `io::copy`),
   both into the hidden staging directory.
 
   ```text
@@ -316,7 +359,8 @@ such as `O_CLOEXEC`, and `fs::rename` in place of `mv`'s `renameat2`):
   close(4<<fixture>/arms/tools/other/.1.0.0.staging.4243/program>) = 0
   ```
 
-  `10:00:13.533651` to `10:00:13.534171`: 0.520 ms,
+  `10:00:13.533651` to `10:00:13.534171`:
+  0.520 ms,
   because GNU `cp` copies this file with `copy_file_range` after one 65536-byte write,
   so the interval is a property of this file (5.5 MB of it is zeros this machine's ZFS compresses)
   and not a figure to carry elsewhere.
@@ -325,13 +369,15 @@ such as `O_CLOEXEC`, and `fs::rename` in place of `mv`'s `renameat2`):
   START_PROBE path=<fixture>/arms/tools/other/1.0.0/program span_ms=1200 pause_us=200 ran=728 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
   ```
 
-  The gunzip shape, `gunzip --stdout <archive> > staged/program`:
+  The gunzip shape,
+  `gunzip --stdout <archive> > staged/program`:
 
   ```text
   openat(AT_FDCWD<<fixture>/arms/tools/gunzipped/.1.0.0.staging.4245>, "program", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3<<fixture>/arms/tools/gunzipped/.1.0.0.staging.4245/program>
   ```
 
-  from `10:00:35.526280` to the writer's exit at `10:00:35.563339`: 37.059 ms,
+  from `10:00:35.526280` to the writer's exit at `10:00:35.563339`:
+  37.059 ms,
   on the staged name.
 
   ```text
@@ -339,22 +385,27 @@ such as `O_CLOEXEC`, and `fs::rename` in place of `mv`'s `renameat2`):
   ```
 
 - The extraction by `tar` (`src/toolchain/install_support.rs`,
-  `extract_archive`, `--directory` the staging directory).
+  `extract_archive`,
+  `--directory` the staging directory).
 
   ```text
   openat(AT_FDCWD<<fixture>/arms/tools/tarred/.1.0.0.staging.4244>, "program", O_WRONLY|O_CREAT|O_EXCL|O_NOCTTY|O_NONBLOCK|O_CLOEXEC, 0755) = 4<<fixture>/arms/tools/tarred/.1.0.0.staging.4244/program>
   close(4<<fixture>/arms/tools/tarred/.1.0.0.staging.4244/program>) = 0
   ```
 
-  `10:00:29.007274` to `10:00:29.040386`: 33.112 ms, on the staged name.
+  `10:00:29.007274` to `10:00:29.040386`:
+  33.112 ms,
+  on the staged name.
 
   ```text
   START_PROBE path=<fixture>/arms/tools/tarred/1.0.0/program span_ms=1200 pause_us=200 ran=602 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
   ```
 
-- The download (`src/toolchain/install_support.rs`, `download_verified`)
+- The download (`src/toolchain/install_support.rs`,
+  `download_verified`)
   writes `<name>.download` and renames it,
-  and the archive publish (`src/toolchain/archive_staging.rs`, `publish_staged`)
+  and the archive publish (`src/toolchain/archive_staging.rs`,
+  `publish_staged`)
   moves the old version directory aside and renames the staging directory in.
   Read from the code;
   the renames were traced in the absence arm below.
@@ -363,7 +414,8 @@ such as `O_CLOEXEC`, and `fs::rename` in place of `mv`'s `renameat2`):
 
 The shadow starts one program:
 the real `mpm` it found on `PATH`
-(`src/shim.rs`, `start_and_wait`).
+(`src/shim.rs`,
+`start_and_wait`).
 The launcher starts one program:
 the path its record names (`src/toolchain/launcher/starting_it.rs`,
 the record's `real` field),
@@ -371,16 +423,20 @@ which for a tool this repository publishes is that tool's installed program.
 
 For those two paths the writers are:
 
-- the real `mpm`: `uv tool install --force` from the `mpm` wheel,
-  traced above, which stages the console script and renames it,
+- the real `mpm`:
+  `uv tool install --force` from the `mpm` wheel,
+  traced above,
+  which stages the console script and renames it,
   and swaps the `bin` link;
-- a launcher's program: `cargo binstall` (read),
+- a launcher's program:
+  `cargo binstall` (read),
   `cargo install` (traced) and this tool's archive install (traced shapes).
 
 `go install` and `pnpm add --global` write a published path in place,
 and neither writes a path a start through this tool resolves:
 a Go-route tool is linked straight into the exposure directory
-(`src/toolchain/exposure.rs`, `exposed_target`:
+(`src/toolchain/exposure.rs`,
+`exposed_target`:
 only a repository-published tool gets a launcher),
 and a pnpm global shim is not a path this tool starts either.
 
@@ -389,7 +445,8 @@ that every writer this tool starts or stands in front of renames,
 is false as it stood:
 `go install` and `pnpm add --global` are both writers this tool starts and both open a
 published path for writing.
-What is true is narrower, and it is what the decision rests on:
+What is true is narrower,
+and it is what the decision rests on:
 the writers of the two paths a start through this tool resolves
 stage the file and rename it into place.
 
@@ -407,12 +464,14 @@ and the published file is refused to any start in that interval.
 This repository measured that interval before this round:
 
 - `doc/troubleshooting/shadow-tests-that-write-a-program-and-start-it-are-refused-with-etxtbsy.md`
-  (this crate, 2026-11-27):
+  (this crate,
+  2026-11-27):
   the hold is "from that `fork` to its own `execve` (about 1 to 3 ms)",
   a threaded probe was refused in 4 of 20 and 1 of 20 attempts,
   and before the fix the test binaries that write a program they start failed on it.
 - `doc/troubleshooting/git-policy-cli-a-fixture-git-is-refused-with-etxtbsy.md`
-  (2026-11-26): the holder "released its descriptor 554 us after the refused start",
+  (2026-11-26):
+  the holder "released its descriptor 554 us after the refused start",
   and a scan of every process's descriptors at the moment of the error found none.
 - `doc/handover/cli-git-native-foundation.md`
   "Intermittent test failure":
@@ -436,7 +495,8 @@ The writer is the prober's own main thread,
 so no descriptor of it outlives the write,
 and the forking thread starts `/bin/true` in a loop,
 so each of its children holds a copy of that descriptor from its own fork to its own start.
-Two runs of the arm, and two of its control:
+Two runs of the arm,
+and two of its control:
 
 ```text
 START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=37 elapsed_us=92034 ran=15 refused=5 absent=0 other=[] first_refusal_us=2433 last_refusal_us=69857
@@ -451,7 +511,8 @@ on the same file,
 in the same loop,
 with the same 2 ms hold.
 The counts move with how many forks the host lets the forking thread make in the same span
-(37 and 38 here, 51 and 67 in two earlier runs of the same arm,
+(37 and 38 here,
+51 and 67 in two earlier runs of the same arm,
 which were refused 8 and 12 of 20),
 so the figure to keep is the shape and not the count:
 the cause needs a fork while the descriptor is open,
@@ -464,7 +525,9 @@ What this does and does not show:
   nothing wrote the published path at the moment of the refusal.
 - It does not show which production writer produces it.
   None of the traced writers above forks while it holds a file open for writing,
-  and `uv`, `go`, `cargo` and `pnpm` are separate processes whose children are their own.
+  and `uv`,
+  `go`,
+  `cargo` and `pnpm` are separate processes whose children are their own.
   The holder in the two sibling records is a test process that starts programs,
   and the holder in issue 6585's reproduction was made by hand.
 - It does not size the window for a production program.
@@ -479,14 +542,16 @@ and renaming the staging directory in
 (`src/toolchain/archive_staging.rs`,
 `publish_staged`),
 with two renames rather than one exchange.
-Traced on the same shape (`mv`, which uses `renameat2` with `RENAME_NOREPLACE`):
+Traced on the same shape (`mv`,
+which uses `renameat2` with `RENAME_NOREPLACE`):
 
 ```text
 renameat2(AT_FDCWD<<fixture>/arms/tools/other>, "1.0.0", AT_FDCWD<<fixture>/arms/tools/other>, ".1.0.0.replaced.4246", RENAME_NOREPLACE) = 0
 renameat2(AT_FDCWD<<fixture>/arms/tools/other>, ".1.0.0.staging.4246", AT_FDCWD<<fixture>/arms/tools/other>, "1.0.0", RENAME_NOREPLACE) = 0
 ```
 
-`10:00:50.666269` to `10:00:50.671294`: the program does not exist for **5.025 ms**,
+`10:00:50.666269` to `10:00:50.671294`:
+the program does not exist for **5.025 ms**,
 which is what the `absent=` counts in the arms above are.
 
 ```text
@@ -510,9 +575,13 @@ For a writer this tool starts or stands in front of,
 no traced or read one opens the two paths a start resolves:
 they stage and rename.
 The writers that do hold a published path open are:
-`go install` across file systems (3.531 ms, traced, and a refusal it caused),
-`pnpm add --global` (0.094 ms, traced),
-and, outside this tool,
+`go install` across file systems (3.531 ms,
+traced,
+and a refusal it caused),
+`pnpm add --global` (0.094 ms,
+traced),
+and,
+outside this tool,
 a person's `cp` over the file,
 an editor,
 an installer that writes in place,
@@ -571,8 +640,10 @@ The prober source is beside this record;
 the traces and the prober's output lines are quoted here,
 and nothing here cites a scratch folder that a later reader cannot open.
 
-Read, not run:
-`cargo-binstall`'s `atomic-file-install` (`main` branch, 2026-11-27),
+Read,
+not run:
+`cargo-binstall`'s `atomic-file-install` (`main` branch,
+2026-11-27),
 the messages and the route code named beside each claim,
 and the installed 8.3.0 `meta-package-manager` wheel's `managers/uv.py`
 (`~/.local/share/uv/tools/meta-package-manager/lib/python3.14/site-packages/meta_package_manager/managers/uv.py`).
@@ -583,16 +654,22 @@ quoted above.
 
 What was not run or read:
 
-- `cargo binstall` itself: no crate archive can be fetched offline, and no release
+- `cargo binstall` itself:
+  no crate archive can be fetched offline,
+  and no release
   archive for a crate of this repository is on this machine.
-- `bin install`: the `bin` CLI's own publish step.
-- `android sdk install` and the SDK manager behind it: it needs the network.
+- `bin install`:
+  the `bin` CLI's own publish step.
+- `android sdk install` and the SDK manager behind it:
+  it needs the network.
 - `rustup`'s own writes.
-- `unzip`'s extraction; only `tar`'s was traced.
+- `unzip`'s extraction;
+  only `tar`'s was traced.
 - The writers named under "What does not work" as outside this tool:
   no in-place writer's window was measured here.
 - A start of the real `mpm` while `uv tool upgrade` replaces it:
-  the mechanism was traced, the end-to-end start was not.
+  the mechanism was traced,
+  the end-to-end start was not.
 - Windows and macOS.
 
 Corrections this version carries:
@@ -613,7 +690,8 @@ Corrections this version carries:
   the copy arm's interval depends on the file and the copy method
   (0.520 ms here with `copy_file_range` over a file this machine's ZFS compresses).
 - The uv section quoted one command's trace and said the other used the same mechanism.
-  Both are traced here, and the self-upgrade command `mpm` runs is the one traced.
+  Both are traced here,
+  and the self-upgrade command `mpm` runs is the one traced.
 
 ## What the evidence says about repeating a refused start
 
@@ -667,7 +745,10 @@ Pros:
 Cons:
 
 - It adds the budget to every holder that does not clear in time,
-  which is every outside writer: a person's `cp` over the file, an editor, an in-place installer.
+  which is every outside writer:
+  a person's `cp` over the file,
+  an editor,
+  an in-place installer.
   The bound has to be small for that reason,
   and a small bound does not cover a writer that takes 20 ms or more,
   so the message arrives later and still arrives.

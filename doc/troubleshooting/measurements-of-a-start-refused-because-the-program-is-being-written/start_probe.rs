@@ -151,7 +151,8 @@ fn start_forever(
     );
 }
 
-/// The hook the writer modes count: one write of the program,
+/// The hook the writer modes count:
+/// one write of the program,
 /// held open,
 /// then closed and started.
 fn write_and_start(

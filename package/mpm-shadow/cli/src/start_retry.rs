@@ -22,15 +22,18 @@
 //! `cargo binstall`,
 //! `cargo install` and this tool's archive install for a launcher's program.
 //! Two writers this tool starts do open a published path for writing:
-//! `go install` where its work directory is on another file system (3.5 ms, traced,
+//! `go install` where its work directory is on another file system (3.5 ms,
+//! traced,
 //! and the only refusal this round measured),
-//! and `pnpm add --global` (0.09 ms, traced);
+//! and `pnpm add --global` (0.09 ms,
+//! traced);
 //! neither writes a path a start through this tool resolves.
-//! A window a retry could carry does exist, and it is not a writer's:
+//! A window a retry could carry does exist,
+//! and it is not a writer's:
 //! a `fork` copies a write descriptor,
 //! and the child holds that copy from its `fork` to its own `execve`,
 //! about 1 to 3 ms in this crate's own tests,
-//! which the record's threaded arm refused in 8 and in 12 of 20 starts.
+//! which the record's threaded arm refused in 5 to 12 of 20 starts.
 //! `start_failure` explains that refusal rather than retrying it,
 //! and the record sets the two options before the owner.
 //! The arms,
