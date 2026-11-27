@@ -20,8 +20,10 @@ use forbidden_strings::{
     Scanner,
 };
 /// What:
-///  `Cow` is "a borrowed value or an owned one", which reads the same either way;
-///  the siblings a reader might expect are `String` (always owned, so always a copy) and `&str` (borrowed only).
+///  `Cow` is "a borrowed value or an owned one",
+/// which reads the same either way;
+///  the siblings a reader might expect are `String` (always owned,
+/// so always a copy) and `&str` (borrowed only).
 /// Why:
 ///  A child's output is usually valid UTF-8 and so is borrowed from the bytes already read,
 ///  and only an output with an invalid byte is copied and repaired.
@@ -37,7 +39,8 @@ use std::process::Command;
 ///  The fixture-root question this control asks before it makes a rule file whose name is not valid UTF-8,
 ///  and the re-execution that puts the control on a tmpfs where the root refuses that name.
 /// Why:
-///  `CARGO_TARGET_TMPDIR` sits on this host's home dataset, which refuses such a name under `utf8only=on`
+///  `CARGO_TARGET_TMPDIR` sits on this host's home dataset,
+/// which refuses such a name under `utf8only=on`
 ///  and answers `EILSEQ` (issue 6491),
 ///  so the control would fail for a file system's reason rather than the scanner's;
 ///  the mechanism lives in its own file so this driver reads as what it checks.
@@ -46,9 +49,14 @@ use std::process::Command;
 mod fixture_root_taking_any_name;
 
 /// What:
-///  The name libtest answers to for this file's driver control, which is the function's own name.
+///  The name libtest answers to for this file's driver control,
+/// which is the function's own name.
 /// Why:
-///  The half that runs where the fixture root refuses the byte name starts that same test by this name, with `--exact`.
+///  The half that runs where the fixture root refuses the byte name starts that same test by this name,
+/// with `--exact`,
+///  and a platform whose paths are not bytes asks nothing,
+/// so the name is only written where a path is bytes.
+#[cfg(unix)]
 const THE_DRIVER_CONTROL: &str = "public_embedding_runs_without_real_user_state";
 
 /// What:
@@ -150,7 +158,8 @@ fn native_rule_path(_root: &Path) {}
 ///  not just an early-returning probe.
 ///  Where `CARGO_TARGET_TMPDIR` refuses a name that is not valid UTF-8,
 ///  this test re-runs itself in a namespace of its own with a tmpfs there
-///  (`fixture_root_taking_any_name`), so the native rule-file control still runs.
+///  (`fixture_root_taking_any_name`),
+/// so the native rule-file control still runs.
 #[test]
 fn public_embedding_runs_without_real_user_state() {
     let fixture_root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
