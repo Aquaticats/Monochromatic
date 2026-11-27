@@ -71,8 +71,9 @@
 //! - `started_moment.rs`:
 //!   the `started` field's shape and value.
 //! - `plan_record.rs`:
-//!   the plan's fields,
-//!   its first write and its bytes.
+//!   the plan's fields and its first write.
+//! - `plan_record_bytes.rs`:
+//!   the bytes a plan publishes.
 //! - `plan_attempt_parse.rs`:
 //!   one attempt region read into one line per attempt.
 //! - `plan_header_fields.rs`:
@@ -164,6 +165,7 @@ pub mod plan_parse;
 pub mod plan_publication;
 pub mod plan_reading;
 pub mod plan_record;
+pub mod plan_record_bytes;
 pub mod plan_refusal;
 pub mod plan_words;
 pub mod removal_completion;
