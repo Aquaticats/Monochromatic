@@ -75,6 +75,20 @@ pub const JOURNAL_SUFFIX: &str = ".json";
 pub const TEMPORARY_SUFFIX: &str = ".tmp";
 
 /// What:
+///  The folder under the journal root that keeps the records this release cannot read.
+/// Why:
+///   A record is the only trace of what an interrupted copy was doing,
+/// so it is moved rather than deleted,
+/// and one name keeps every one of them out of the readers' way,
+/// including the look that decides whether the journal root holds work at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const UNREADABLE_FOLDER = 'unreadable';
+/// ```
+pub const UNREADABLE_FOLDER: &str = "unreadable";
+
+/// What:
 ///  The durable phase a copy has reached.
 /// Why:
 ///   Recovery resumes an installation and finishes a completed cleanup differently.

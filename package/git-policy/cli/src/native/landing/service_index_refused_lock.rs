@@ -21,27 +21,14 @@
 //! remember(lock, waited); const earlier = recall(lock); // Duration | undefined
 //! ```
 
-use crate::index_lock_evidence::{
-    LockMetadata,
-    read_lock_metadata,
-};
+use crate::index_lock_evidence::read_lock_metadata;
 use crate::landing_state_carried_by_its_task::{
     LandingState,
+    Refused,
     on_the_landing_state,
 };
 use std::path::Path;
 use std::time::Duration;
-
-/// The lock that outlasted a wait,
-/// and how long that wait was.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Refused {
-    /// Device,
-    /// inode and change time of the lock file.
-    identity: LockMetadata,
-    /// How long the commits that waited for this file waited in all.
-    waited: Duration,
-}
 
 /// Keeps `refused` as the lock the landing last gave up on,
 /// or nothing.

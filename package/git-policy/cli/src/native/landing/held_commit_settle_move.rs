@@ -15,7 +15,6 @@
 //! ```
 
 use crate::held_commit_record::Held;
-use crate::held_commit_settle::kept_reference;
 use crate::service_journal::Intent;
 use crate::transaction_git::{
     GitContext,
@@ -29,6 +28,11 @@ use std::ffi::OsStr;
 /// in one sentence the callers share.
 pub(crate) fn git_did_not_start(error: std::io::Error) -> String {
     return format!("Git could not be started ({error})");
+}
+
+/// The reference a batch's commit is kept on while its branch has not moved.
+pub fn kept_reference(sequence: u64) -> String {
+    return crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(sequence);
 }
 
 /// What:

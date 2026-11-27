@@ -16,18 +16,20 @@ use super::*;
 use crate::auto_push::{
     AutoPushOutcome,
     AutoPushResult,
-    push_once,
 };
+use crate::auto_push_awaiting::push_once;
 use crate::auto_push_single_flight::PushGit;
 use crate::blocked_commit_lines::{
-    UNRECORDED_REASON,
     held_back_line,
-    named_reason,
     unanswered_line,
 };
 use crate::blocked_commit_questions::{
     ContextHistory,
     held_back_lines,
+};
+use crate::push_held_back_by_a_blocked_commit::{
+    UNRECORDED_REASON,
+    named_reason,
 };
 /// The trait the service's push handler is reached through.
 use crate::service_work::WorkHandlers;
@@ -244,7 +246,7 @@ fn await_push(
 ) -> AutoPushResult {
     let mut err: Vec<u8> = Vec::new();
     let result: Result<AutoPushResult, crate::auto_push_single_flight::SingleFlightError> =
-        crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(
+        crate::lazy_runtime::run_on_runtime(crate::auto_push_awaiting::push_once_awaiting(
             &queue_git(world.repo.as_path()),
             BRANCH,
             landed,

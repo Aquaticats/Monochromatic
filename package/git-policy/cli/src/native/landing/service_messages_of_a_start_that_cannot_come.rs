@@ -15,7 +15,7 @@
 //! socketPathTooLong({ path, length, longest, longestRuntime }) // the sentence a person reads
 //! ```
 
-use crate::service_messages::NOTHING_CHANGED;
+use crate::service_messages_what_a_failure_gives_a_person::NOTHING_CHANGED;
 
 /// What:
 ///  The sentence for an address longer than one socket address can hold.

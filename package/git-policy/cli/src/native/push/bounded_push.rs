@@ -38,11 +38,6 @@
 //! const { exitCode, output } = await nanoSpawn(gitPath, pushArgs, { cwd, signal: AbortSignal.timeout(deadlineMs) });
 //! ```
 
-/// The attempt record a finished or stopped push produces.
-use crate::auto_push_single_flight::{
-    PushAttempt,
-    SingleFlightError,
-};
 use crate::child_awaited_through_a_pidfd::{
     OwnedChild,
     adopt,
@@ -50,6 +45,11 @@ use crate::child_awaited_through_a_pidfd::{
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
+/// The attempt record a finished or stopped push produces.
+use crate::one_push_attempt_and_its_failure::{
+    PushAttempt,
+    SingleFlightError,
+};
 /// How to allow a push longer,
 /// in the words of the program that runs it.
 use crate::push_deadline_advice::extend_clause;
@@ -60,6 +60,7 @@ pub use crate::push_deadline_and_patience_settings::{
     DEFAULT_PUSH_DEADLINE,
     PUSH_DEADLINE_VARIABLE,
     Patience,
+    STOP_GRACE,
     positive_seconds,
     push_deadline,
     push_patience,
@@ -75,7 +76,7 @@ pub use crate::push_minimum_rate::{
 };
 /// The clock that stops a push on a stall,
 /// and the wait it lets pass instead.
-use crate::push_progress::WaitReport;
+use crate::push_progress_meter::WaitReport;
 /// The server a wait and a stop name,
 /// and the word a command gave as its destination.
 pub use crate::push_server_naming::{
@@ -140,24 +141,6 @@ pub use crate::stop_cause_and_words::{
     StopWindow,
 };
 
-/// How long a stopped push gets to end after the polite stop signal before it is killed.
-///  Citation:
-/// partial.
-/// The helpers of a stopped push were measured on 2026-11-03 to outlive it for 60 seconds,
-/// and a `git-lfs` that
-///  never answers for good,
-/// and empty tracking-ref locks appeared about 37 seconds after a stop;
-/// those justify the kill that
-///  follows the grace and the sweep,
-/// not five seconds,
-/// and no measurement of how long Git takes to remove its own locks on a
-///  polite stop exists.
-/// An open question for the owner.
-pub const STOP_GRACE: Duration = Duration::from_secs(5);
-
-/// The flood look,
-/// which a bounded query reads for the output it watches too.
-pub(crate) use crate::push_wait_until_done::flooded;
 /// The words of a wait without the program's name,
 /// which the attempt's own line adds once.
 use crate::push_wait_until_done::wait_line_words;

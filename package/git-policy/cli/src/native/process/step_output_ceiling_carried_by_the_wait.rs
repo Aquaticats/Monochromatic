@@ -72,7 +72,7 @@ pub enum CeilingWhy {
     /// Nothing watches this read and nothing else bounds it:
     /// it is a read-only query,
     /// and its ceiling is the longest one of those waits
-    /// (`src/native/push/manual_push_range.rs`),
+    /// (`src/native/push/manual_push_update_and_query_limits.rs`),
     /// or the whole bound a caller set on a fact it can do without
     /// (`src/native/repo_read/git_metadata.rs`).
     TheQueryIsBounded,
