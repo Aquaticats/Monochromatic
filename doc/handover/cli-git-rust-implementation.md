@@ -150,13 +150,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 - `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`,
   started 2026-11-27T12:15:56-05:00
   (the gate's reader of a container's control group has the defect issue 6610 fixed in a check scope's reader:
-  a container killed for memory can be reported as one that met no kill).
-  Issue 6617 has no round yet
+  a container killed for memory can be reported as one that met no kill);
+- `issue-6617-a-typescript-check-prints-the-commit-it-ran-on`,
+  started 2026-11-27T12:44:52-05:00
   (`native:ts-checks` prints no commit when started inside the package folder,
   because the wrapper refuses its `git -C <folder>` away from the checkout's root);
-  it changes `bin/native-ts-checks.ts`,
-  which no round holds now,
-  so it starts with the next list;
 - nothing in the linter:
   its alpha.19 pass round is merged and `0.5.2-alpha.20` is released ("Releases of 2026-11-27"),
   to be locked,
