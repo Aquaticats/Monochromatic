@@ -1011,7 +1011,10 @@ Each line is something this run did not expect from the source record or the des
 ## Where the evidence lives
 
 Logs and measurements are kept in
-`/home/user/temp/agent/watcher-finalist-validation-directory-watcher-scratch-2026-11-25/keep/`:
+`/home/user/temp/agent/watcher-finalist-validation-directory-watcher-scratch-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `tree2-goversion.log`, `tree2-build.log`, `tree2-vet.log`, `tree2-smoke.log`;
 - `tree2-test.log` and `tree2-test-status.txt`, the first, failing test step;
@@ -1021,9 +1024,6 @@ Logs and measurements are kept in
 - `tree2-serial.log` and `tree2-serial-load.txt`, the stopped serial diagnostic;
 - `tree3-measure.log` (the 212-line marker log), `tree3-watcher.log` (1065 lines),
   `tree3-config.yml`, `tree3-fixture-listing.txt` and `tree3-snapshot.txt`.
-  (scratch,
-  deleted on 2026-11-27;
-  what this record uses from it is stated here).
 
 Retained test diagnostics from the diagnostic reruns are in the scratch folder's
 `e2e-diag-scenarios/`, `e2e-diag-init/` and `e2e-diag-initfull/` while they exist;
