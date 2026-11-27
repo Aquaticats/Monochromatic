@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T16:19:44-05:00
+## The state at 2026-11-27T16:27:17-05:00
 
-`main` was `a49bf155cd`.
+`main` was `b2afb5b775`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 264 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 265 more by this time.
 
 ### Rounds running
 
@@ -586,8 +586,19 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (`cda9f0c7b3`,
   `2c6513069b`,
   `7a216deafc`),
-  and so is the follow-up round on the report's sentences (`a49bf155cd`),
-  so `0.2.7-alpha.16` is released next.
+  and so is the follow-up round on the report's sentences (`a49bf155cd`).
+  `0.2.7-alpha.16` is released
+  (release commit `5db66260eb`,
+  published 2026-11-27T16:24:48-05:00 by the follower's log),
+  locked (`b2afb5b775`) and installed,
+  with the session's `git` link put back at 2026-11-27T16:26:38-05:00;
+  the install named `rustup` as an unresolved bin,
+  which the lock's Rust toolchain row declares and no toolchain folder holds;
+  the release changed nothing in how that line is computed,
+  so it is not new with this release.
+  A Claude Sonnet read of it runs since about 2026-11-27T16:26-05:00,
+  a same-vendor second pass,
+  writing `~/temp/agent/mpm-shadow-alpha-16-release-review-2026-11-27/keep/review.md`.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -799,7 +810,9 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-No read runs.
+One read runs as a background agent of the coordinating session,
+of `mpm-shadow` `0.2.7-alpha.16`,
+at the path this section gives beside that release.
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's
