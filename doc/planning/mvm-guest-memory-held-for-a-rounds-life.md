@@ -303,16 +303,25 @@ cargo nextest run --release --locked --features test-only-switches --test native
   --no-capture --status-level all --filterset "test(zfs_managed_lock_guest)"
 ```
 
-Every line number this document gives for these four drivers names the state of
-`20f2caa93e` (2026-11-27),
-the round of issue 6581 that rewrote them to a clean oxlint:
-their shared steps moved to `package/git-policy/cli/bin/mvm-guest-*.ts`,
-and the removal arm's two guest scripts moved to
-`e2e/removal-lineage-proof-guest-arm-scripts.ts`.
-Before that commit the same sentences pointed at other lines of the same files.
+Every line number this document gives names the state of `main` at `9e13d87bbd`
+(2026-11-27),
+after the rounds of issue 6581 that rewrote the guest drivers to a clean oxlint
+and then split three of them:
+their shared plumbing lives in `package/git-policy/cli/bin/mvm-guest-*.ts`
+and in `e2e/guest-host/`,
+the removal arm's two guest scripts in `e2e/removal-lineage-proof-guest-arm-scripts.ts`,
+and the arms of the adoption,
+start-probe and step-22 drivers in
+`e2e/adoption-guest-arms/`,
+`e2e/start-probe-arms/` and
+`e2e/step-22-arms/`.
+Issue 6611's round changed the lock driver's build alone
+(`managed-git-lock-guest.ts`).
+Before those commits the same sentences pointed at other lines of the same files.
 The commands those lines hold,
 and the flags the cells differ in,
-did not change.
+did not change,
+except for that one build.
 
 The measuring cells did not run that command.
 The guest that built the crate ran `cargo nextest` without `--features test-only-switches`,
@@ -325,17 +334,11 @@ so it is an arm the build location can move without losing its subject.
 
 ### How a round uses guests today
 
-The line numbers this section gives for `doctor-zfs-route-guest.ts`,
-`slot-state-and-move-refusal-guest.ts`,
-`deferred-origin-check-guest.ts` and `forced-act-guest.ts`
-resolve against those files as they stood at `1c8acd5bfb`:
-issue 6581's third round rewrote all four to a clean oxlint in `52ab79caf8`.
-So each of those four citations now names a different line.
-What moved:
-the cited code of each lives in that driver's `CRATE_DIR` constant
-and in its `all` step
-or in the `run` step,
-the `build` step and the `arm` step beside it.
+Every line number in this section resolves against the same `main` (`9e13d87bbd`),
+and each driver's `all` step is cited as the `async function all` its table hands the run.
+A driver whose arms were split names the file of the step it runs,
+such as `adoption-guest-arms/crate-build.ts`,
+because the driver file no longer holds that step.
 
 A round is one agent's work on this repository,
 a revising round or a test round alike.
@@ -348,15 +351,17 @@ it creates the guest,
 prepares it,
 runs every arm of that driver run in it,
 and destroys it
-(`deferred-origin-check-guest.ts:252`,
-`doctor-zfs-route-guest.ts:265`,
-`managed-git-lock-guest.ts:530`,
-`mount-git-worktree-clone-datasets-guest.ts:931`,
-`removal-lineage-proof-guest.ts:438`,
-`sanoid-coverage-guest.ts:572`,
-`settling-command-guest.ts:537`,
-`slot-state-and-move-refusal-guest.ts:249`,
-`start-probe-guest.ts:859`).
+(`deferred-origin-check-guest.ts:304`,
+`doctor-zfs-route-guest.ts:377`,
+`forced-act-guest.ts:314`,
+`managed-git-lock-guest.ts:488`,
+`mount-git-worktree-clone-datasets-guest.ts:309`,
+`removal-lineage-proof-guest.ts:413`,
+`sanoid-coverage-guest.ts:548`,
+`settling-command-guest.ts:491`,
+`slot-state-and-move-refusal-guest.ts:405`,
+`start-probe-guest.ts:298`,
+`zfs-step-22-measurements-guest.ts:206`).
 So a guest lives for one driver run,
 not for a round's arms,
 and a round that runs several drivers creates and destroys one guest per driver.
@@ -365,13 +370,16 @@ A guest's charge matters between the arms of one driver run and not after them.
 Every driver builds in that guest,
 at a path of its own:
 
-- `deferred-origin-check-guest.ts:36` and `:203`,
+- `deferred-origin-check-guest.ts:53` and `:201`,
   at `/opt/deferred-origin-check`;
-- `doctor-zfs-route-guest.ts:27` and `:191` to `:193`,
+- `doctor-zfs-route-guest.ts:49` and `:255` to `:257`,
   at `/opt/git-policy-cli-doctor-route`;
-- `managed-git-lock-guest.ts:55` and `:340`,
+- `forced-act-guest.ts:56` and `:211`,
+  at `/opt/forced-act`;
+- `managed-git-lock-guest.ts:55` and `:358`,
   at `/opt/git-policy-cli-lock`;
-- `mount-git-worktree-clone-datasets-guest.ts:37` and `:435`,
+- `mount-git-worktree-clone-datasets-guest.ts`'s `adoption-guest-arms/adoption-fixture.ts:21`
+  and `adoption-guest-arms/crate-build.ts:71`,
   at `/opt/git-policy-cli-adoption`;
 - `removal-lineage-proof-guest-arm-scripts.ts:14` and `:260`,
   at `/opt/removal-lineage-proof`;
@@ -379,54 +387,106 @@ at a path of its own:
   at `/opt/git-policy-cli-sanoid-coverage`;
 - `settling-command-guest.ts:66` and `:379`,
   at `/opt/settling-command`;
-- `slot-state-and-move-refusal-guest.ts:33` and `:212`,
+- `slot-state-and-move-refusal-guest.ts:50` and `:253`,
   at `/opt/git-policy-cli-slot-state`;
-- `start-probe-guest.ts:40` and `:207` to `:208`,
-  at `/opt/git-policy-cli-start-probe`.
+- `start-probe-guest.ts`'s `start-probe-arms/probe-fixture.ts:21`
+  and `start-probe-arms/crate-build.ts:60` to `:61`,
+  at `/opt/git-policy-cli-start-probe`;
+- `zfs-step-22-measurements-guest.ts`'s `step-22-arms/measurement-fixture.ts:20`
+  and `step-22-arms/crate-build.ts:76`,
+  at `/opt/step22-measurement`.
 
 The build's flags differ too:
-every driver but `sanoid-coverage-guest.ts` passes `--features test-only-switches`
-(`sanoid-coverage-guest.ts:403` passes none),
+eight drivers pass `--features test-only-switches`,
+and three pass none:
+`sanoid-coverage-guest.ts:403`,
+`forced-act-guest.ts:211` and
+`zfs-step-22-measurements-guest.ts`'s `step-22-arms/crate-build.ts:76`.
 `sanoid-coverage-guest.ts` builds and runs without `--release`,
-`start-probe-guest.ts:208` builds a second tree in `target/raised-deadline`,
-and four drivers cap the compiler's parallelism:
-`removal-lineage-proof-guest-arm-scripts.ts:260` and `settling-command-guest.ts:379` with `--jobs 1`,
-`mount-git-worktree-clone-datasets-guest.ts:435` with `CARGO_BUILD_JOBS=1`,
-and `sanoid-coverage-guest.ts:402` with `CARGO_BUILD_JOBS=2`.
+`start-probe-guest.ts`'s `start-probe-arms/crate-build.ts:60` to `:61` builds the executable twice,
+the second time in `target/raised-deadline`,
+and nine drivers cap what they start:
+
+- `removal-lineage-proof-guest-arm-scripts.ts:260`,
+  `settling-command-guest.ts:379` and `managed-git-lock-guest.ts:358` with `--jobs 1`,
+  each beside a swap file in the guest
+  (`:258`,
+  `:377` and `:350`):
+  one release rustc of this crate's tests takes 6.7 to 6.9 GiB of the guest's 8 GiB
+  (`doc/handover/cli-git-rust-implementation.md`,
+  its list of rounds),
+  and issue 6611's round measured one at 7,019,956 kB of the guest's 7,755 MiB
+  while four jobs reached 7,701,208 kB and the guest's killer ended the build;
+- `mount-git-worktree-clone-datasets-guest.ts`'s `adoption-guest-arms/crate-build.ts:71`
+  and `zfs-step-22-measurements-guest.ts`'s `step-22-arms/crate-build.ts:76`
+  with `CARGO_BUILD_JOBS=1`,
+  each beside the swap file of the shared bounds
+  (`e2e/guest-host/guest-host-bounds.ts:36`,
+  `:70` and `:74`),
+  for the same one-rustc reason;
+- `sanoid-coverage-guest.ts:402` with `CARGO_BUILD_JOBS=2`,
+  which builds without `--release`,
+  so its two rustcs and their linker stay inside the guest;
+- `slot-state-and-move-refusal-guest.ts:253`,
+  `deferred-origin-check-guest.ts:201` and `forced-act-guest.ts:211` with `-j 2`,
+  each building the one test target its arm starts rather than every target:
+  a release rustc of this crate's tests took 6.9 GiB of that guest's 8 GiB,
+  and four jobs is what the kernel killed.
+
+`doctor-zfs-route-guest.ts:255` to `:257` and
+`start-probe-guest.ts`'s `start-probe-arms/crate-build.ts:60` to `:61`
+cap nothing:
+the first builds executables and one test target at the compiler's own count,
+and the second builds executables alone.
 The guest recipe caps its own wrapper builds at `--jobs 2`
-(`run-fixture.ts:660`)
+(`run-fixture.ts:747`,
+and `:1151`,
+`:2053` and `:2225` for its other steps)
 and OpenZFS's at `make --jobs=4`
-(`run-fixture.ts:386`).
+(`run-fixture.ts:470` to `:471`).
 
 Two drivers run more than one test binary in their one guest:
-`doctor-zfs-route-guest.ts:212` runs `native_binary` through nextest and `:215` runs the lib through `cargo test`,
+`doctor-zfs-route-guest.ts:292` runs `native_binary` through nextest and `:294` runs the lib through `cargo test`,
 and `removal-lineage-proof-guest-arm-scripts.ts:284` runs the lib and `:291` the `native_binary`,
 both through nextest.
-One driver runs four nextest invocations and a Python probe in its guest
-(`mount-git-worktree-clone-datasets-guest.ts:457`,
-`:510`,
-`:650` and `:896`),
-one runs its own probe steps against the built wrapper and no test binary
-(`start-probe-guest.ts:859`),
+One driver runs four nextest invocations and a Python probe in its guest:
+`mount-git-worktree-clone-datasets-guest.ts`'s
+`adoption-guest-arms/adoption-arm.ts:73`,
+`sweep-arm.ts:116`,
+`holder-scan-arm.ts:98` and
+`unmount-arm.ts:83`,
+beside `store-dataset-and-fsync.ts:175` for the probe.
+`zfs-step-22-measurements-guest.ts` runs two more:
+`step-22-arms/measurement-arm.ts:129` and
+`holder-scan-arm.ts:72`.
+One driver runs its own probe steps against the built wrapper and no test binary
+(`start-probe-guest.ts`'s `start-probe-arms/`),
 and every other driver runs one nextest invocation.
 So a build placed on the host must reproduce each driver's features,
 path,
 target directory and profile,
 and a driver that runs two test binaries needs both.
 
-Every driver's transfers go through `/mnt/shared`
-(`deferred-origin-check-guest.ts:197`,
-`doctor-zfs-route-guest.ts:183`,
-`managed-git-lock-guest.ts:190`,
-`mount-git-worktree-clone-datasets-guest.ts:421`,
-`removal-lineage-proof-guest.ts:305`,
-`sanoid-coverage-guest.ts:383`,
-`settling-command-guest.ts:358`,
-`slot-state-and-move-refusal-guest.ts:199`,
-`start-probe-guest.ts:201`),
-and three of them run a step itself from there through `guestStart` and `guestFinish`
-(`mount-git-worktree-clone-datasets-guest.ts:321` and `:356`,
-`removal-lineage-proof-guest.ts:310` and `:318`,
+Every driver's transfers go through `/mnt/shared`.
+The eight drivers that still unpack the archive themselves name it in the guest
+(`deferred-origin-check-guest.ts:192`,
+`doctor-zfs-route-guest.ts:247`,
+`forced-act-guest.ts:199`,
+`managed-git-lock-guest.ts:342`,
+`removal-lineage-proof-guest-arm-scripts.ts:233`,
+`sanoid-coverage-guest.ts:393`,
+`settling-command-guest.ts:368`,
+`slot-state-and-move-refusal-guest.ts:237`),
+and the three whose arms were split hand it to `pushWorktreeSnapshot`
+(`e2e/guest-host/host-side-commands.ts:164`,
+which `adoption-guest-arms/crate-build.ts:57`,
+`start-probe-arms/crate-build.ts:47` and
+`step-22-arms/crate-build.ts:51` call).
+A step that runs detached from the command that started it does so through `detachedStep`
+(`adoption-guest-arms/detached-step.ts:73`,
+`step-22-arms/detached-step.ts:55`)
+or through `startDetachedGuestScript` and `awaitDetachedGuestScript`
+(`removal-lineage-proof-guest.ts:310` and `:318`,
 `settling-command-guest.ts:381` and `:389`).
 
 ### The host paths the test binaries carry
@@ -968,6 +1028,73 @@ with two other rounds' guests on the host and the host's `MemAvailable` between 
 - destroy:
   1.17 seconds by the driver's clock,
   0.90 seconds between the two lines of `mvm destroy`'s own log (04:02:18.686Z to 04:02:19.581Z).
+
+### The lock driver's build at one job, and its arm
+
+Guest `git-policy-lock-bounded` was `mvm`'s default,
+8,192 MiB asked for (`MemTotal` 8,131,780 kB,
+7,755 MiB),
+prepared by the ZFS binding's recipe as the arms' guests are.
+It then ran `managed-git-lock-guest.ts`'s `run` step as issue 6611's round left it:
+a 6 GiB swap file in the guest,
+then `cargo build --release --tests --locked --features test-only-switches --jobs 1`.
+
+The same driver ran the same step on a guest of the same recipe before that change,
+at cargo's default of one job per vCPU,
+four in this guest,
+and the guest's own killer ended it.
+Its build log reads:
+
+```text
+# issue-6611-main-guest-lock-build.log.txt: the four-job build's own reasons
+error: could not compile `monochromatic-git-policy-cli` (lib test)
+Caused by:
+```
+
+The `Caused by` line holds the rustc command line,
+34,157 characters of it,
+and ends `(signal: 9, SIGKILL: kill)`;
+the log's next line is `warning: build failed, waiting for other jobs to finish...`.
+The kernel's own line,
+and the guest's figures at that moment,
+are in `issue-6611-main-guest-oom.log.txt`:
+
+```text
+# issue-6611-main-guest-oom.log.txt: the guest's sampler and its kernel at the kill
+1795798798 MemTotal:=8131780 MemFree:=141500 MemAvailable:=63928 Cached:=18272 SwapTotal:=0 SwapFree:=0 AnonPages:=7701208 rustc_rss_kb=960704 cargo_rss_kb=116792
+[Fri Nov 27 16:59:59 2026] Out of memory: Killed process 149027 (rustc) total-vm:8964104kB, anon-rss:6668028kB, file-rss:2292kB, shmem-rss:0kB, UID:0 pgtables:15928kB oom_score_adj:0
+```
+
+That guest had no swap at all (`SwapTotal` 0 kB),
+and the killed rustc is the lib test's,
+the target this arm never runs.
+The host's own `guest-crate-build.log` for that run was empty:
+`set -eu` ended the script at the build,
+before the `tail` that would have printed the log,
+which is why the step now prints it and exits with the build's status.
+
+At one job the same guest's `/proc/meminfo`,
+sampled every two seconds for the whole build,
+reads `AnonPages` at 7,019,956 kB of 8,131,780 kB at the highest,
+`MemAvailable` at 625,704 kB at the lowest,
+and one `rustc` at a time at 7,174,296 kB of resident memory at its highest
+(`issue-6611-one-job-guest-memory.log.txt`).
+The swap file never held more than 7,216 kB of its 6 GiB,
+and the build took 22 minutes 22 seconds,
+inside the 40-minute bound the step keeps
+(`issue-6611-one-job-guest-build.log.txt`).
+The arm then ran to its end,
+and the log the driver pulled carries all 15 `LOCK` lines and no `SKIP`:
+
+```text
+# issue-6611-one-job-lock-arm.log.txt: the arm's own summary line
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1369 filtered out; finished in 0.79s
+```
+
+So one release rustc of this crate's tests is the 6.7 to 6.9 GiB the handover names,
+and a second one beside it is what this guest cannot hold:
+that is what one job and the swap file answer,
+and the figure the bound rests on is the guest's own `AnonPages` beside one rustc's resident memory.
 
 ### The four guests of 2026-11-25T21:14:34+00:00 to 2026-11-25T23:35:20+00:00
 
