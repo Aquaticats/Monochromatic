@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:30:22-05:00
+## The state at 2026-11-27T17:33:10-05:00
 
-`main` was `45b9aaeb94`.
+`main` was `ca0f353f5c`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -162,7 +162,14 @@ because Pi fits the answer into what the window leaves,
 and it keeps no margin.
 Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
 A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
-issue 6631.
+issue 6631,
+whose round,
+`issue-6631-the-watch-control-that-delivers-a-message-to-a-later-turn-holds-in-a-whole-run`,
+started 2026-11-27T17:31:49-05:00.
+That round is the first started on the rebuilt copy:
+its session selects the virtual writer and Qwen's member answers it.
+The window a new run records is in its `summary.json` when it ends,
+which the coordinator reads for the first such run.
 The owner also wrote,
 of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
 "nw-large is advisor,
@@ -808,7 +815,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The row's `cargo-fmt` and `rustfmt` resolve here only because the `rustfmt` component was added by hand on 2026-11-25,
   which no component the plan declares installs:
   issue 6630,
-  with the pick in `doc/handover/questions-for-the-owner.md`.
+  with the pick in `doc/handover/questions-for-the-owner.md`,
+  and its round,
+  `issue-6630-the-rust-rows-bins-are-the-programs-its-declared-components-install`,
+  started 2026-11-27T17:31:49-05:00.
+  The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
+  saying what issue 6626's merge changed and which files that round has.
   Its Claude Sonnet read returned,
   a same-vendor second pass,
   and was read whole
