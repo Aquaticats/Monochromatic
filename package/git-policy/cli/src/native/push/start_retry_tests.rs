@@ -165,11 +165,20 @@ fn real_commands_start_through_the_retrying_calls() {
 
 /// A failed replacement of the process returns its error,
 /// and a missing program is not retried.
+/// The body runs in a child,
+/// because a replacement that cannot run its program leaves that process's `SIGPIPE` at its default,
+/// so a later write to a pipe nobody reads would end the whole run (issue 6604).
 #[cfg(unix)]
 #[test]
 fn a_failed_exec_returns_its_error_at_once() {
-    let error: Error = exec_retrying(&mut Command::new("/nonexistent-cli-git-program"));
-    assert_eq!(error.kind(), ErrorKind::NotFound);
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_failed_exec_returns_its_error_at_once",
+        || {
+            let error: Error = exec_retrying(&mut Command::new("/nonexistent-cli-git-program"));
+            assert_eq!(error.kind(), ErrorKind::NotFound);
+        },
+    );
 }
 
 /// The retry run on a current-thread runtime next to a ticking task:

@@ -36,8 +36,8 @@ use crate::worktree_ladder_target::{
 use std::ffi::OsString;
 use std::path::Path;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// Import the tag every line of this folder's ladder work carries.
+use crate::worktree::worktree_ladder_finish_binding::TAG;
 
 /// What:
 ///  Complete the worktree the way Git does after a refused rung:

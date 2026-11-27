@@ -168,6 +168,7 @@ pub mod lfs_pointer;
 /// the commits it has parsed,
 /// their committer times,
 /// and the comparisons it has made.
+#[cfg(unix)]
 pub mod lfs_pointer_scan_object_reads;
 
 /// The LFS objects a push introduces,

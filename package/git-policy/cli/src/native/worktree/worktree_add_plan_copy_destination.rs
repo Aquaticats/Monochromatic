@@ -122,7 +122,8 @@ fn is_valued_global_with_equals(word: &[u8]) -> bool {
 /// ```ts
 /// const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: [number, number] = [2, 56];
 /// ```
-pub const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: (u64, u64) = (2, 56);
+#[cfg(test)]
+pub(crate) const COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE: (u64, u64) = (2, 56);
 
 /// The global options that take no value and change nothing about where a relative destination lies.
 const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[

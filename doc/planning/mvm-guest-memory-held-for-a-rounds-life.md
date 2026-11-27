@@ -314,6 +314,18 @@ so it is an arm the build location can move without losing its subject.
 
 ### How a round uses guests today
 
+The line numbers this section gives for `doctor-zfs-route-guest.ts`,
+`slot-state-and-move-refusal-guest.ts`,
+`deferred-origin-check-guest.ts` and `forced-act-guest.ts`
+resolve against those files as they stood at `1c8acd5bfb`:
+issue 6581's third round rewrote all four to a clean oxlint in `52ab79caf8`.
+So each of those four citations now names a different line.
+What moved:
+the cited code of each lives in that driver's `CRATE_DIR` constant
+and in its `all` step
+or in the `run` step,
+the `build` step and the `arm` step beside it.
+
 A round is one agent's work on this repository,
 a revising round or a test round alike.
 A round that runs guest arms runs one or more drivers' `all` steps.

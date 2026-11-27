@@ -95,7 +95,7 @@ fn text_answered_by(
 /// ```ts
 /// const reused = await reusedCommit(git, cwd, '-C' value)
 /// ```
-pub fn reused_commit(
+pub(super) fn reused_commit(
     context: &GitContext,
     cwd: &Path,
     revision: &str,
@@ -114,7 +114,7 @@ pub fn reused_commit(
 }
 
 /// `reused_commit` with its Git children awaited on the runtime.
-pub async fn reused_commit_awaiting(
+pub(super) async fn reused_commit_awaiting(
     context: &GitContext,
     cwd: &Path,
     revision: &str,
@@ -202,7 +202,7 @@ fn reused_of(raw: Vec<u8>) -> Option<(String, String)> {
 /// ```ts
 /// await subjectOf(git, cwd, '-C' value)
 /// ```
-pub fn subject_of(
+pub(super) fn subject_of(
     context: &GitContext,
     cwd: &Path,
     revision: &str,
@@ -217,7 +217,7 @@ pub fn subject_of(
 }
 
 /// `subject_of` with its Git child awaited on the runtime.
-pub async fn subject_of_awaiting(
+pub(super) async fn subject_of_awaiting(
     context: &GitContext,
     cwd: &Path,
     revision: &str,

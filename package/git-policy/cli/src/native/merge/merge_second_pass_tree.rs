@@ -77,8 +77,8 @@ pub use crate::merge_second_pass_tree_attributes::{
     merge_attribute_source,
 };
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "wordMergeTree";
+/// Import the tag this module's diagnostics carry.
+use crate::merge::merge_second_pass_tree_attributes::TAG;
 
 /// A merge tree whose every conflicted file resolved.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -1796,6 +1796,21 @@ Why it is not simply skipped is the same reason as above:
 a control that returns green without making the name proves nothing about the recovery it guards.
 The record is `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md` (issue 6550).
 
+The recycled time-namespace control (`round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`)
+needs a namespace number the kernel hands back:
+the writer's time namespace must be destroyed and the recovery's must be handed
+the number it had.
+It used to free that number and only then plant its journal and start its reader,
+which is the window in which another session on this host takes it (issue 6599).
+An armed reader now holds the writer's namespace by an open descriptor while the test ends its processes,
+and then gives the number back and takes the numbers the kernel hands it,
+holding each,
+until the writer's number is the one it is handed.
+`CARGO_SHADOW_ROUND_FOURTEEN_PLANT_FOREIGN_NAMESPACE=1` plants the allocation that other session makes,
+and the control must pass
+with it.
+The record is `doc/the-recycled-time-namespace-control-builds-its-own-schedule.md`.
+
 The tests run where this account has a user manager on a cgroup v2 mount:
 
 ```sh

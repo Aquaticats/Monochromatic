@@ -93,7 +93,7 @@ pub(super) fn answer_the_withdrawals(
 /// ```ts
 /// type ReadBatch = { groups: [GroupKey, Queued[]][]; retiring: boolean; commits: number };
 /// ```
-pub struct ReadBatch {
+pub(super) struct ReadBatch {
     /// The groups to land,
     /// each with the requests that land as it does.
     pub groups: Vec<(GroupKey, Vec<Queued>)>,
