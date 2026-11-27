@@ -6,7 +6,9 @@ under the one-second policy in `doc/decision/claude-code-bash-blocking-timeout.m
 and propose how to stop it.
 Status:
 a proposal awaiting the owner's decision,
-not accepted.
+not accepted;
+two of its separate choices were answered on 2026-11-27T12:26:54-05:00,
+recorded under "Owner answers".
 First committed 2026-11-27T12:19:19-05:00 (`1f2f98005c`) by a Claude Code session;
 a gate review by Claude Sonnet started after that commit,
 and its verdict is not yet folded in.
@@ -275,11 +277,13 @@ uses the documented hook input rewrite;
 stays under this repository's tests.
 
 Cons:
+on its own,
 an unwrapped `sleep`-first chain with a caller timeout is then stopped at one second
 (exit 143,
 measured on 2026-11-25 in `doc/planning/claude-code-bash-blocking-timeout.md`,
-"Chained leading sleeps")
-unless the hook gains another exemption;
+"Chained leading sleeps",
+and again as `m9` under "A prefix keeps sleep-first commands running");
+the prefix in that section removes this;
 new code,
 tests and a decision amendment;
 the native handoff measured about 2 s anyway,
@@ -309,16 +313,66 @@ while the Bash tool schema itself advertises a day-long maximum;
   quick commands would lose their synchronous result,
   the behavior the 2026-11-25 decision replaced.
 
+### A prefix keeps sleep-first commands running
+
+The owner asked on 2026-11-27T12:26:54-05:00,
+as a note on the first question:
+"Surely hook clamp can leave them running in background?"
+It can.
+The [tools reference][tools-reference-foreground-move] says a foreground command that reaches its timeout moves
+to the background "unless the command starts with `sleep`",
+and the filter wrapper already avoids that by starting the command with `set -o pipefail &&`.
+A hook that also starts each unwrapped `sleep`-first command with a no-op such as `true &&`
+gets the same treatment.
+
+Probe on Claude Code 2.1.332 at about 12:27 -05:00,
+one disposable session without the native cap,
+the live hook passing both commands through unwrapped because of their redirects,
+caller `timeout: 1000` standing in for the clamp:
+
+- `m8`,
+  `true && sleep 5 && printf m8-done > m8.out`:
+  moved at 2133 ms with "Command did not complete within its 1s timeout";
+  `m8.out` later held `m8-done`.
+- `m9`,
+  `sleep 5 && printf m9-done > m9.out`:
+  "Exit code 143 Command timed out after 1s" at 1082 ms;
+  `m9.out` was never written.
+
+A single sample;
+the prefix relies on Claude Code checking only the first command of the text,
+which a release could change,
+so it needs the same re-probe after upgrades as the native cap.
+If that check changed,
+the prefixed command would be stopped at its timeout,
+where the native cap's failure is a call left waiting in front.
+
 ### Ranking
 
-Native cap > hook clamp > agent rule.
-The native cap beats the hook clamp because it leaves `sleep`-first commands running instead of stopping them
-and needs no code,
-while the clamp's one-second nominal value buys nothing over a measured 2-second handoff.
-The hook clamp beats the agent rule because it is enforced,
-while the rule depends on models that the tool schema invites to set long timeouts.
+Four combinations remain:
 
-## Separate choices if the native cap is adopted
+- Hook clamp with the sleep prefix:
+  the hook lowers every main-session caller timeout above 1000 to 1000
+  and starts each unwrapped `sleep`-first command with `true &&`.
+- Native cap with the sleep prefix:
+  the settings variable,
+  plus the hook prefix for the `sleep`-first commands the cap leaves in front.
+- Native cap alone.
+- Agent rule.
+
+Hook clamp with prefix > native cap with prefix > native cap alone > agent rule.
+The clamp with prefix beats the cap with prefix because both move the same calls,
+including `sleep`-first ones,
+but the clamp rests on the documented hook input rewrite and the documented `sleep` rule,
+while the cap rests on a variable no documentation names and a release can drop without notice.
+The cap with prefix beats the cap alone because the prefix also moves filter-skipped `sleep`-first commands,
+which the cap alone leaves waiting in front for their whole timeout.
+The cap alone beats the agent rule because it is enforced,
+while the rule depends on models that the tool schema invites to set long timeouts.
+Building the hook code is a cost of the first two,
+not a reason to rank them lower.
+
+## Separate choices
 
 ### Bare sleeps
 
@@ -331,6 +385,8 @@ as the decision's sleep exemption intends.
 Recommendation:
 accept,
 because no bare sleep was measured in the recent calls.
+Under the hook clamp the same answer means the hook drops its bare-sleep exemption,
+so a bare sleep receives `timeout: 1000` and moves like any other command.
 
 ### The hook's own default
 
@@ -340,6 +396,20 @@ calls without a timeout moved at the same time with or without the hook's `timeo
 Recommendation:
 keep the hook's default,
 because it is the documented fallback if a release stops reading the undocumented variable.
+Under the hook clamp the default stays in any case.
+
+### Owner answers
+
+On 2026-11-27T12:26:54-05:00,
+asked through the question tool with both choices framed as mattering only under the native cap:
+
+- Bare sleeps:
+  "Accept the move (Recommended)".
+- The hook's own default:
+  "Keep both (Recommended)".
+- The first question (which fix) received no selection,
+  only the note quoted under "A prefix keeps sleep-first commands running",
+  and is asked again with the four combinations.
 
 ## Changes once a choice is accepted
 
@@ -362,10 +432,11 @@ For the native cap:
 
 ## Open
 
-- The owner's choice among the options and the two separate choices.
+- The owner's choice among the four combinations under "Ranking".
 - The Claude Sonnet gate review's findings.
 - The REPL surface under the cap stays unprobed until an interactive code-mode session runs with the variable set.
 - A background subagent under the cap was not probed;
   the source reads the variable only for the main agent.
 
 [tools-reference-background-limit]: https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands
+[tools-reference-foreground-move]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background
