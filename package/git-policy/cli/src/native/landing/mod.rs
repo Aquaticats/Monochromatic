@@ -152,8 +152,21 @@
 //!   the witness of the live index file as the landing found it under the index lock,
 //!   recorded in the journal,
 //!   and the comparison a replay makes with it.
+//! - `owed_index_repair_the_entries_it_reads.rs`:
+//!   what the repair reads about one path:
+//!   the entries in which the commit's own index differs from the live index,
+//!   and the object the worktree holds there.
+//! - `owed_index_repair_the_commit_index_writes.rs`:
+//!   the writes the repair makes to the commit's own index.
 //! - `owed_index_repair.rs`:
 //!   the repair that repeats a landed batch's owed index update for the entries the landing left.
+//! - `service_message_the_identity.rs`:
+//!   the identities a commit the service lands records.
+//! - `service_message_the_text_steps.rs`:
+//!   the text steps of a commit's message in the order Git applies them.
+//! - `service_message_what_a_commit_says.rs`:
+//!   the message and subject of an existing commit,
+//!   read for an amend or a fixup.
 //! - `service_message.rs`:
 //!   the message and identities of a service commit,
 //!   made as native `git commit` makes them.
@@ -217,9 +230,6 @@
 //!   with the face a task of the runtime asks.
 //! - `service_pruned.rs`:
 //!   how a commit headed for the service notices that its prepared content was removed before it landed.
-//! - `service_replay_capture_order.rs`:
-//!   the capture order of every shared path of a replay,
-//!   from one walk over the history.
 //! - `service_replay_conclusion.rs`:
 //!   the refusal of a conclusion whose operation another command ended while the commit was prepared.
 //! - `service_replay_line_text.rs`:
@@ -266,6 +276,19 @@
 //!   the shapes a service preparation hands back.
 //! - `service_prepare_changes_config_and_pathspec_steps.rs`:
 //!   the smaller steps of a service preparation.
+//! - `service_replay_the_captured_change.rs`:
+//!   what a first preparation captured,
+//!   kept for the retry,
+//!   and the records a replay speaks in.
+//! - `service_replay_capture_order.rs`:
+//!   the capture order of every shared path of a replay,
+//!   from one walk over the history.
+//! - `service_replay_the_word_pass.rs`:
+//!   the word-level second pass over the files a line merge could not settle.
+//! - `service_replay_the_merge_onto_the_branch.rs`:
+//!   the tree the captured change makes,
+//!   the merge of it onto the branch as it is now,
+//!   and the commit that landed first on a path that still conflicts.
 //! - `service_replay.rs`:
 //!   the retry of a commit the service sent back:
 //!   the captured change merged onto the branch,
@@ -438,6 +461,21 @@
 //! - `earlier_service_journal_adopted.rs`:
 //!   the batches the commit service of an earlier release left open,
 //!   finished by the service of this release when none runs.
+//! - `service_prepare_what_it_reads.rs`:
+//!   what a preparation reads once before it stages anything:
+//!   the layout,
+//!   the selection,
+//!   the capture,
+//!   the scratch directory,
+//!   and the two index files.
+//! - `service_prepare_the_commit_index.rs`:
+//!   the commit's own index,
+//!   from the change a retry captured or from the working copy the command line selects.
+//! - `service_prepare_the_ready_shape.rs`:
+//!   the shape every ending of a preparation shares,
+//!   and the conclusion state a retry is compared against.
+//! - `service_prepare_the_policies.rs`:
+//!   the policies a preparation runs over the commit's own index.
 //! - `service_prepare.rs`:
 //!   the answers service prepare holds.
 //! - `service_branch_shows.rs`:
@@ -499,6 +537,23 @@
 //!   the plans of a repository that is gone or cannot be reached.
 //! - `service_work_handlers_replanning_and_acceptance.rs`:
 //!   the one name a caller uses for all of the files listed before it here.
+//! - `service_work_git_handlers.rs`:
+//!   the handlers that run real Git:
+//!   the settings a round copies,
+//!   the Git one push runs,
+//!   and the review a landed commit is given.
+//! - `service_work_pushes.rs`:
+//!   the push of one branch:
+//!   the commit it may send,
+//!   the records that hold it back,
+//!   and the words each answer comes to.
+//! - `service_work_worktree_upkeep.rs`:
+//!   the worktree work a landed commit leaves:
+//!   trash,
+//!   Cargo build directories,
+//!   a removal's subvolume,
+//!   a snapshot ahead,
+//!   and the automatic upkeep.
 //! - `service_work.rs`:
 //!   the service's consumer of after-commit push and upkeep work.
 //! - `push_record_of_a_moved_branch.rs`:
@@ -825,6 +880,14 @@ pub mod conclusion_state_copy;
 /// The record of an index update a landed batch owes.
 pub mod owed_index_update;
 
+/// What the repair reads about one path:
+/// the entries in which the commit's own index differs from the live index,
+/// and the object the worktree holds there.
+pub mod owed_index_repair_the_entries_it_reads;
+
+/// The writes the repair makes to the commit's own index.
+pub mod owed_index_repair_the_commit_index_writes;
+
 /// The repair that repeats a landed batch's owed index update for the entries the landing left.
 pub mod owed_index_repair;
 
@@ -898,6 +961,25 @@ pub mod service_index_watch;
 /// The notices a commit's preparation prints on standard error,
 /// given to the descriptor under a ceiling.
 pub mod preparation_notice;
+
+/// What a preparation reads once before it stages anything:
+/// the layout,
+/// the selection,
+/// the capture,
+/// the scratch directory,
+/// and the two index files.
+pub mod service_prepare_what_it_reads;
+
+/// The commit's own index,
+/// from the change a retry captured or from the working copy the command line selects.
+pub mod service_prepare_the_commit_index;
+
+/// The shape every ending of a preparation shares,
+/// and the conclusion state a retry is compared against.
+pub mod service_prepare_the_ready_shape;
+
+/// The policies a preparation runs over the commit's own index.
+pub mod service_prepare_the_policies;
 
 pub mod service_prepare;
 
@@ -991,14 +1073,27 @@ pub mod service_commit_request_of;
 /// per worktree.
 pub mod service_captures;
 
-/// The retry of a commit the service sent back:
-/// the captured change merged onto the branch,
-/// never prepared again from the worktree.
-pub mod service_replay;
+/// What a first preparation captured,
+/// kept for the retry,
+/// and the records a replay speaks in.
+pub mod service_replay_the_captured_change;
 
 /// The capture order of every shared path of a replay,
 /// from one walk over the history.
 pub mod service_replay_capture_order;
+
+/// The word-level second pass over the files a line merge could not settle.
+pub mod service_replay_the_word_pass;
+
+/// The tree the captured change makes,
+/// the merge of it onto the branch as it is now,
+/// and the commit that landed first on a path that still conflicts.
+pub mod service_replay_the_merge_onto_the_branch;
+
+/// The retry of a commit the service sent back:
+/// the captured change merged onto the branch,
+/// never prepared again from the worktree.
+pub mod service_replay;
 
 /// The small text steps of the replay of captured changes.
 pub mod service_replay_line_text;
@@ -1011,6 +1106,16 @@ pub mod service_route;
 
 /// The message and identities of a service commit,
 /// made as native `git commit` makes them.
+/// The identities a commit the service lands records.
+pub mod service_message_the_identity;
+
+/// The message and subject of an existing commit,
+/// read for an amend or a fixup.
+pub mod service_message_what_a_commit_says;
+
+/// The text steps of a commit's message in the order Git applies them.
+pub mod service_message_the_text_steps;
+
 pub mod service_message;
 
 /// What an amend takes from the commit it replaces:
@@ -1045,6 +1150,26 @@ pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The handlers that run real Git:
+/// the settings a round copies,
+/// the Git one push runs,
+/// and the review a landed commit is given.
+pub mod service_work_git_handlers;
+
+/// The push of one branch:
+/// the commit it may send,
+/// the records that hold it back,
+/// and the words each answer comes to.
+pub mod service_work_pushes;
+
+/// The worktree work a landed commit leaves:
+/// trash,
+/// Cargo build directories,
+/// a removal's subvolume,
+/// a snapshot ahead,
+/// and the automatic upkeep.
+pub mod service_work_worktree_upkeep;
 
 /// The notice for a push whose branch the person deleted.
 pub mod service_work_branch_is_gone;
