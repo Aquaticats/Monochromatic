@@ -321,10 +321,12 @@
 //! - `worktree_removal_finishes_an_interrupted_destroy.rs`:
 //!   the finish of a removal a command killed once its destroy happened,
 //!   and the words for what a person still has to do.
+//! - `worktree_remove_request_and_last_look.rs`:
+//!   what one removal is asked to do,
+//!   and one question its caller answers while it runs.
 //! - `worktree_remove_last_look.rs`:
-//!   the question a removal's caller asks again as the removal runs,
-//!   immediately before anything is destroyed,
-//!   and the printing of the request that carries it.
+//!   the one step of a removal that asks its caller that question,
+//!   immediately before anything is destroyed.
 //! - `worktree_remove_notices.rs`:
 //!   the four lines a removal that destroyed a subvolume prints,
 //!   and the one place that chooses between them.
@@ -889,6 +891,10 @@ pub mod worktree_removal_holds_the_worktree;
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+
+/// What one removal is asked to do,
+/// and one question its caller answers while it runs.
+pub mod worktree_remove_request_and_last_look;
 
 /// How one attempt to remove a worktree ended,
 /// and what each ending needs of the caller.

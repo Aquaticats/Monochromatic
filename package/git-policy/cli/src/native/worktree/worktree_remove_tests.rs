@@ -6,6 +6,15 @@
 //!  removal of a clean subvolume worktree (where the mount allows it) and every case that must be left to Git.
 
 use super::*;
+// What:     `use crate::worktree_command_facts::RemovePlan;` imports the record of the
+//           one `git worktree remove` a control's request serves.
+// Why:      The control builds requests itself, so it names the plan's type rather
+//           than reading one the release code made.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { RemovePlan } from '../worktree_command_facts';
+// ```
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::{
     btrfs_fixture,
@@ -18,6 +27,7 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::worktree_command_facts::RemovePlan;
 
 /// The plan for a target typed as its real path.
 fn plan_for(target: &Path) -> RemovePlan {

@@ -9,6 +9,15 @@
 //! the destroy and the removal of the registration.
 
 use super::*;
+// What:     `use crate::worktree_command_facts::RemovePlan;` imports the record of the
+//           one `git worktree remove` a control's request serves.
+// Why:      The control builds requests itself, so it names the plan's type rather
+//           than reading one the release code made.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { RemovePlan } from '../worktree_command_facts';
+// ```
 use crate::fs_beneath::handle_path;
 use crate::push_failure_notice::{
     orphaned_push_failures,
@@ -24,6 +33,7 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_removal_interrupted_destroy::{
     finish_interrupted_destroys,
     record_destroy_with_owner,

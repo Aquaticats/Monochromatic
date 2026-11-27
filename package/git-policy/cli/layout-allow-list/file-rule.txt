@@ -254,7 +254,6 @@ file-uses src/native/worktree worktree_remove.rs -> worktree_removal_interrupted
 file-uses src/native/worktree worktree_remove.rs -> worktree_removal_takes_its_pending_deletions.rs
 file-uses src/native/worktree worktree_remove.rs -> worktree_remove_around.rs
 file-uses src/native/worktree worktree_remove.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_remove_last_look.rs
 file-uses src/native/worktree worktree_remove.rs -> worktree_remove_reports.rs
 file-uses src/native/worktree worktree_remove_around.rs -> worktree_removal_goes_around_a_foreign_volume.rs
 file-uses src/native/worktree worktree_remove_around.rs -> worktree_removal_interrupted_destroy.rs
@@ -262,7 +261,6 @@ file-uses src/native/worktree worktree_remove_around.rs -> worktree_remove.rs
 file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_goes_around_a_foreign_volume.rs
 file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_interrupted_destroy.rs
 file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_remove.rs
-file-uses src/native/worktree worktree_remove_last_look.rs -> worktree_remove.rs
 file-uses src/native/worktree worktree_remove_reports.rs -> worktree_snapshot_ahead.rs
 file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_remove_hand_over.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs

@@ -74,7 +74,6 @@ use crate::worktree_clean::{
     check_clean,
     check_clean_by_content,
 };
-use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::{
     clear_the_pools_ahead_of_a_worktree,
     data_folders,
@@ -115,8 +114,13 @@ use std::path::{
     PathBuf,
 };
 
-/// Tag used for diagnostics from this module.
-pub(crate) const TAG: &str = "worktreeRemove";
+/// Tag used for diagnostics from this module,
+/// re-exported from the file that holds what a removal is asked.
+/// Why:
+///   The request travels through every step of a removal,
+/// and the tag of its log lines moved with it,
+/// so every file of the removal still writes the same word.
+pub(crate) use crate::worktree_remove_request_and_last_look::TAG;
 
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
@@ -147,35 +151,23 @@ pub use crate::worktree_remove_notices::{
 /// so the subject moved and the name did not.
 pub use crate::worktree_remove_outcome::RemoveOutcome;
 
-/// What:
-///  What one removal is asked to do and in which repository.
+/// What one removal is asked to do and in which repository,
+/// and the question its caller asks again before anything is destroyed,
+/// re-exported where every caller already names them.
 /// Why:
-///   The repository that was invoked decides which registrations count;
-/// the worktree's own pointers never do.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RemoveRequest = { context: GitContext; plan: RemovePlan; commonDir: string };
-/// ```
-#[derive(Clone, Copy)]
-pub struct RemoveRequest<'a> {
-    /// How to start real Git for the cleanliness proof.
-    pub context: &'a GitContext,
-    /// The directory the person named.
-    pub plan: &'a RemovePlan,
-    /// The canonical common Git directory of the repository the command was run in.
-    pub common_dir: &'a Path,
-    /// The question the caller asks again as the removal runs,
-    /// immediately before anything is destroyed,
-    /// whose refusal is why nothing is removed.
-    pub last_look: Option<&'a dyn LastLook>,
-}
+///   The request is one subject (`worktree_remove_request_and_last_look.rs`),
+/// and the removal's own file reached the repository's
+///  length limit with it in it,
+/// so the subject moved and the names did not.
+pub use crate::worktree_remove_request_and_last_look::{
+    LastLook,
+    RemoveRequest,
+};
 
-/// The question a removal's caller asks again as the removal runs,
-/// and the printing of a request that carries one.
+/// The last look before the destroy,
+/// asked of a request its caller handed in.
 #[path = "worktree_remove_last_look.rs"]
 mod last_look;
-pub use last_look::LastLook;
 
 /// What:
 ///  The operations of one removal that touch the kernel or start Git,
