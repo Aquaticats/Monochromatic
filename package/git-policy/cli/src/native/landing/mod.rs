@@ -529,6 +529,22 @@
 //! - `service_land_finish_replay_gate.rs`:
 //!   whether a restart may replay an open batch's index update,
 //!   and the two words a settlement comes to.
+//! - `held_commit_settle_the_intent_of_a_batch.rs`:
+//!   the records a settlement reads before it decides anything:
+//!   the batch's intent,
+//!   the finished record of a batch whose intent is gone,
+//!   and whether the branch already holds the commit the batch made.
+//! - `held_commit_settle_what_stands_in_the_way.rs`:
+//!   the reference locks that can refuse the branch write,
+//!   the ones standing,
+//!   and whether a settlement may remove one at all.
+//! - `held_commit_settle_carrying_the_change.rs`:
+//!   the change of a held batch carried onto the branch as it is now.
+//! - `held_commit_settle_what_the_move_owes.rs`:
+//!   what a settlement owes after the move:
+//!   the index lock taken again,
+//!   the entries installed under it,
+//!   and the conclusion state, the push and the owed record that follow.
 //! - `held_commit_settle.rs`:
 //!   moving the branch of a held commit once nothing stands in the way,
 //!   and finishing what the landing owes after the move.
@@ -1671,6 +1687,19 @@ pub mod held_commit_record;
 /// The change of a held commit put onto the branch as it is now,
 /// when that branch moved while the lock stood.
 pub mod held_commit_replay;
+
+/// The records a settlement reads before it decides anything about a held commit.
+pub mod held_commit_settle_the_intent_of_a_batch;
+
+/// The reference locks that can refuse a held commit's branch write,
+/// and whether a settlement may remove one at all.
+pub mod held_commit_settle_what_stands_in_the_way;
+
+/// The change of a held batch carried onto the branch as it is now.
+pub mod held_commit_settle_carrying_the_change;
+
+/// What a settlement owes after the branch of a held commit moved.
+pub mod held_commit_settle_what_the_move_owes;
 
 /// Moving the branch of a held commit once nothing stands in the way,
 /// and finishing what the landing owes after the move.

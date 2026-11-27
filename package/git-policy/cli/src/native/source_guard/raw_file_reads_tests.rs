@@ -105,7 +105,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("invocation/started_as_git.rs", 2, "system"),
     ("landing/claim_time.rs", 2, "system"),
     ("landing/earlier_service_command_line_read.rs", 1, "system"),
-    ("landing/held_commit_settle.rs", 2, "own-record"),
+    (
+        "landing/held_commit_settle_the_intent_of_a_batch.rs",
+        2,
+        "own-record",
+    ),
     ("landing/service_index_identity.rs", 2, "system"),
     ("landing/service_index_same.rs", 2, "git-directory"),
     ("landing/service_land_finish.rs", 1, "own-record"),
