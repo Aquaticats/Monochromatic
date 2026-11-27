@@ -33,6 +33,7 @@ use crate::claim_time::ClaimTime;
 use crate::parallel_budget::{
     BudgetRequest,
     HostResources,
+    TheHostOfABatch,
     worker_budget,
 };
 use crate::parallel_runner::Event;
@@ -138,7 +139,7 @@ pub struct RoundAnswer {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RoundDrain<H> = { directories: string[]; handlers: H; now: ClaimTime; host: HostResources };
+/// type RoundDrain<H> = { directories: string[]; handlers: H; now: ClaimTime; host: TheHostOfABatch };
 /// ```
 pub struct RoundDrain<'a, H: WorkHandlers + Sync + Send + 'static> {
     /// The Git directories named by the round's wakes,
@@ -152,8 +153,9 @@ pub struct RoundDrain<'a, H: WorkHandlers + Sync + Send + 'static> {
     pub handlers: Arc<H>,
     /// The reading of the clock the round started at.
     pub now: &'a ClaimTime,
-    /// The CPUs and memory the budget is derived from.
-    pub host: &'a HostResources,
+    /// Where the CPUs and memory the budget and every batch are derived from come from:
+    /// the host the round's caller states, or the machine read as each batch is sized.
+    pub host: TheHostOfABatch,
 }
 
 /// What:
@@ -279,7 +281,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
     handlers: &H,
     now: &ClaimTime,
     assignment: &Assignment,
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> (Option<Duration>, Vec<RetryChange>) {
     let own: Drained = drain_planned_awaiting(
         assignment.directory.as_path(),
@@ -332,13 +334,13 @@ struct DrainEachDirectory<H> {
     handlers: Arc<H>,
     /// The time the drain judges leases and retries by.
     now: ClaimTime,
-    /// The CPUs and memory every batch of this round is sized by,
-    /// which the caller of the round stated.
+    /// Where the CPUs and memory every batch of this round are taken from:
+    /// the host this round's caller stated, or the machine read as each batch is sized.
     /// Why:
-    ///   The batches of a directory would otherwise read the machine again,
-    /// and a control would then depend on what the machine answers rather than on what it states
-    /// (issue 6567).
-    host: HostResources,
+    ///   A shipped round states the machine, so a batch is sized by the room it has when it starts and not by a
+    ///  reading taken before the round's earlier work ran;
+    /// a control states a host of its own, so its answer does not depend on what the machine answers (issue 6567).
+    host: TheHostOfABatch,
 }
 
 impl<H: WorkHandlers + Sync + Send>
@@ -352,7 +354,7 @@ impl<H: WorkHandlers + Sync + Send>
         _say: LinesToTheConsumer<(Option<Duration>, Vec<RetryChange>)>,
     ) -> Pin<Box<dyn Future<Output = (Option<Duration>, Vec<RetryChange>)> + Send + 'a>> {
         return Box::pin(async move {
-            return drain_one(self.handlers.as_ref(), &self.now, assignment, &self.host).await;
+            return drain_one(self.handlers.as_ref(), &self.now, assignment, self.host).await;
         });
     }
 }
@@ -423,7 +425,7 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
 ) -> (RoundAnswer, Option<OrderedRunError>) {
     let directories: &[Assignment] = request.directories;
     let now: &ClaimTime = request.now;
-    let host: &HostResources = request.host;
+    let host: TheHostOfABatch = request.host;
     // The lane of each directory is read off the pool, and a read that gives no answer puts every directory in one lane: the
     //  directories of one repository must never be drained side by side, and one lane is always that.
     let lanes: Vec<Vec<usize>> = match lane_keys_awaiting(directories).await {
@@ -441,12 +443,20 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
             one_lane_of(directories.len())
         }
     };
+    // What: the host the round's lanes are sized by, from the caller's own source.
+    // Why:  the lanes start together at the round's start, so one reading there is the room they all begin with.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const lanesSizedBy = host.now();
+    // ```
+    let lanes_sized_by: HostResources = host.now();
     let workers: usize = worker_budget(&BudgetRequest {
         items: lanes.len(),
         per_item_memory: REPOSITORY_MEMORY,
         ceiling: None,
         cap: None,
-        host,
+        host: &lanes_sized_by,
     });
     let mut answer: RoundAnswer = RoundAnswer::default();
     let finished: Result<(), OrderedRunError> =
@@ -457,8 +467,8 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
             work: Arc::new(DrainEachDirectory {
                 handlers: Arc::clone(&request.handlers),
                 now: now.clone(),
-                // The round's own reading, so the batches of every directory it drains are sized by one host.
-                host: *host,
+                // The caller's source, so each batch of every directory it drains takes its own reading when it is sized.
+                host,
             }),
             on_event: &mut CollectWaitsAndChanges {
                 directories,

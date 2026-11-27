@@ -31,7 +31,7 @@ use super::{
     the_mounts,
 };
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::push_retry::{
     RetryChange,
     Retrying,
@@ -346,7 +346,7 @@ fn a_deleted_repository_ends_its_plans() {
             Renewal::Timed,
             &retrying_for(git_dir.as_path(), worktree.as_path()),
             SERVICE_KINDS,
-            &HostResources::read(),
+            TheHostOfABatch::TheMachinesOwn,
         ));
     assert!(
         !drained
@@ -392,7 +392,7 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
             Renewal::Timed,
             &retrying_for(git_dir.as_path(), root.join("drive/repository").as_path()),
             SERVICE_KINDS,
-            &HostResources::read(),
+            TheHostOfABatch::TheMachinesOwn,
         ));
     assert!(
         !drained
@@ -719,7 +719,7 @@ fn a_repository_renamed_back_before_the_change_lands_keeps_its_plans() {
             Renewal::Timed,
             &retrying,
             SERVICE_KINDS,
-            &HostResources::read(),
+            TheHostOfABatch::TheMachinesOwn,
         ));
     assert!(
         matches!(&drained.changes[0], RetryChange::Forget { .. }),

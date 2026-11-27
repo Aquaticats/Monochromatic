@@ -159,6 +159,90 @@ impl HostResources {
 }
 
 /// What:
+///  Where the CPUs and memory one batch of independent work is sized by come from:
+///  a host the caller states,
+///  or the machine itself, read as that batch is sized.
+/// Why:
+///  A control states a host, so its answer is the same on every machine and inside every capped scope
+///  (issue 6567: a build's page cache charged to a capped group read no headroom, and every batch then ran one item at a
+///  time).
+///  A shipped run states the machine instead: a reading taken before earlier batches ran can be minutes old,
+///  and a batch of four items that each hold `SLOW_ITEM_MEMORY` bytes starts four of them on a host that has since
+///  lost that room, which asks the kernel to kill one of them.
+///  The batch's own reading is taken where the width is decided, so the figure is the room of that moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheHostOfABatch = { kind: 'stated'; host: HostResources } | { kind: 'theMachinesOwn' };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TheHostOfABatch {
+    /// A host the caller states, so a control's answer does not depend on this machine.
+    Stated(HostResources),
+    /// This machine, read when the batch is sized.
+    TheMachinesOwn,
+}
+
+/// What:
+///  The host the batch being sized is measured against:
+///  the stated host itself, or the machine read now.
+/// Why:
+///  One call is what every width decision makes,
+///  so the reading cannot be taken somewhere else and carried to the decision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theHost.now() // the stated host, or readHost()
+/// ```
+impl TheHostOfABatch {
+    /// The host to size this batch by, as the source of this value says.
+    pub fn now(&self) -> HostResources {
+        return match self {
+            TheHostOfABatch::Stated(host) => *host,
+            TheHostOfABatch::TheMachinesOwn => {
+                // What: a control's own count of the readings of the machine this seam took,
+                //  so a control can prove a batch reads the machine where it is sized.
+                //  It is the whole process's, so the control that reads it runs its body in a child of its own.
+                // Why:  the count is how a control tells one reading for a round from one reading for each batch.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // if (kind === 'theMachinesOwn') readsForAControl += 1;
+                // ```
+                #[cfg(test)]
+                {
+                    let _counted: usize = MACHINE_READS_FOR_A_CONTROL
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+                HostResources::read()
+            }
+        };
+    }
+}
+
+/// How many times a batch of this process took the machine's own reading, for the controls that prove each batch reads
+/// the machine where it is sized.
+///  It is the whole process's, so a control that reads it runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`).
+#[cfg(test)]
+static MACHINE_READS_FOR_A_CONTROL: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+/// What:
+///  How many batches of this process have taken the machine's own reading.
+/// Why:
+///  A control proves the machines is read at each batch, and not once for a round, by counting these.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// machineReadsForAControl() // the count so far
+/// ```
+#[cfg(test)]
+pub(crate) fn machine_reads_for_a_control() -> usize {
+    return MACHINE_READS_FOR_A_CONTROL.load(std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What:
 ///  The bytes that can still be given out:
 /// the smaller of the system's available memory and the room left in the control group
 ///  this process runs in and the groups above it,

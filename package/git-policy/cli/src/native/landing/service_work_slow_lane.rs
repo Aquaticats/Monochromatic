@@ -53,7 +53,7 @@ use crate::housekeeping_of_one_round::{
     HOUSEKEEPING_OF_ONE_ROUND,
     LOOK_AGAIN_AFTER_DEFERRING,
 };
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{
@@ -298,16 +298,16 @@ async fn run_awaiting(
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
-                // What: the host every batch of this look is sized by, read once for the look.
-                // Why:  a look's widths are one reading of the machine, and a control reaches the same batches by
-                //       stating a host of its own instead of letting the machine decide (issue 6567).
-                let host: HostResources = HostResources::read();
+                // What: the host every batch of this look is sized by: this machine, read as each batch is sized.
+                // Why:  a look can run for minutes, and a reading taken before it began can be wrong by the time its
+                //       last batch starts; a control reaches the same batches by stating a host of its own
+                //       (issue 6567).
                 if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(
                     git_dir.as_path(),
                     &handlers.for_round(keys),
                     housekeeping,
                     lease,
-                    &host,
+                    TheHostOfABatch::TheMachinesOwn,
                 ))
                 .await
                 {
@@ -357,9 +357,9 @@ async fn run_awaiting(
 /// A directory whose look left housekeeping for a later one names the pause it wants (`housekeeping_of_one_round.rs`),
 /// as a claim it keeps names the moment its lease runs out,
 /// and the earlier of the two looks is what the lane waits.
-///  The CPUs and memory `host` names size every batch of both looks,
-/// so a control states a host of its own rather than depending on what the machine answers
-/// (issue 6567).
+///  The CPUs and memory `host` measures size every batch of both looks:
+/// the machine read as each batch is sized,
+/// or a host a control states rather than depending on what the machine answers (issue 6567).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -370,7 +370,7 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
     handlers: &H,
     housekeeping: Duration,
     lease: Duration,
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> Option<Duration> {
     let own: Option<Duration> =
         drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease, host).await;
@@ -414,7 +414,7 @@ async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(
     handlers: &H,
     housekeeping: Duration,
     lease: Duration,
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning {
         first: None,

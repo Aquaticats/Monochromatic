@@ -238,13 +238,19 @@ handler;
 the same run with a warm build read 23.5 GB free and passed,
 `doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
 So the batches are sized by a host the caller states:
-`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take it,
-the shipped round reads the machine once and hands that one reading to every batch it drains,
+`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take where the host comes from
+(`TheHostOfABatch`,
+`foundation/parallel_budget.rs`),
+the shipped round and the slow lane name the machine itself,
+so each batch reads it where the batch is sized and not before the round's earlier work ran,
 and a control that needs two items beside each other states a host of its own
-(`A_HOST_THAT_BOUNDS_NO_BATCH`),
+(`TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH)`),
 as a control whose subject is a batch that keeps its turn states one that puts a single item at a time
-(`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
-both in `landing/service_work_items_side_by_side.rs`.
+(`TheHostOfABatch::Stated(A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME)`),
+both hosts in `landing/service_work_items_side_by_side.rs`.
+A control counts those readings (`machine_reads_for_a_control`)
+to prove a batch reads where it is sized,
+and a count of the whole process is read in a child of the control's own.
 A width a control states for the whole process
 (`hold_the_width_to`,
 `landing/service_work_items_side_by_side.rs`)
