@@ -116,10 +116,20 @@
 //!   and the shape of one journal record.
 //! - `worktree_copy_journal_encoding_and_validation.rs`:
 //!   the exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
+//! - `worktree_copy_private_path.rs`:
+//!   the check that a path the copy acts on is canonical,
+//!   this account's,
+//!   private,
+//!   and of the kind it claims.
+//! - `worktree_copy_atomic_write.rs`:
+//!   the publication of one record of the copy whole:
+//!   the name of its temporary,
+//!   the write into it,
+//!   and the one rename that gives it its final name.
 //! - `worktree_copy_journal.rs`:
 //!   the durable journal of one copy:
 //!   private storage,
-//!   atomic writes and reading.
+//!   creating a journal and reading the root.
 //! - `worktree_copy_stage_binding.rs`:
 //!   the registration one staged copy is bound to,
 //!   recorded beside its payload and checked before every write into a worktree.
@@ -206,6 +216,12 @@
 //! - `worktree_copy_stage_reaping_proof_and_words.rs`:
 //!   whether that record proves the folder standing at a container's name,
 //!   and the words a sweep says about a stage it keeps or removes.
+//! - `worktree_copy_stage_claim_held_by_a_command.rs`:
+//!   the claim one command holds on a stage container's name:
+//!   the marking of its add as complete,
+//!   the naming of the Git it started,
+//!   the binding recorded once Git returned,
+//!   and the release that removes its three files.
 //! - `worktree_copy_stage_claim.rs`:
 //!   the durable claim on a stage container's name,
 //!   and the removal of stages an interrupted copy left behind.
@@ -260,6 +276,10 @@
 //!   what it was,
 //!   where it went,
 //!   and what may still stand on disk.
+//! - `worktree_copy_records_that_name_a_worktree.rs`:
+//!   the records a copy leaves that name a worktree rather than a private stage:
+//!   the record of a worktree whose copy did not finish,
+//!   and the destination record of an add whose claim is gone.
 //! - `worktree_copy_unreadable_records.rs`:
 //!   the records of an interrupted copy that cannot be read:
 //!   each is moved aside with one line,
@@ -272,6 +292,16 @@
 //!   the destination is still the registration the add made,
 //!   the source is still a worktree of this repository,
 //!   and anything at the stage's name is provably this copy's own.
+//! - `worktree_copy_owed_copy_records.rs`:
+//!   what the claim and the two records beside it say about the copy an add owes:
+//!   its selection,
+//!   its destination,
+//!   and the identity that proves the worktree there is still that one.
+//! - `worktree_copy_owed_copy_making_it.rs`:
+//!   how one owed copy is made:
+//!   the checks that still hold,
+//!   the staging and installation under the journal,
+//!   and the record of an unfilled worktree when it cannot be made.
 //! - `worktree_copy_owed_copy.rs`:
 //!   the ignored-state copy an interrupted `git worktree add` still owes,
 //!   made by a command in the worktree it fills.
@@ -449,9 +479,23 @@ pub mod worktree_copy_install;
 #[cfg(unix)]
 pub mod worktree_copy_rollback;
 
+/// The check that a path the copy acts on is canonical,
+/// this account's,
+/// private,
+/// and of the kind it claims.
+#[cfg(unix)]
+pub mod worktree_copy_private_path;
+
+/// The publication of one record of the copy whole:
+/// the name of its temporary,
+/// the write into it,
+/// and the one rename that gives it its final name.
+#[cfg(unix)]
+pub mod worktree_copy_atomic_write;
+
 /// The durable journal of one copy:
 /// private storage,
-/// atomic writes and reading.
+/// creating a journal and reading the root.
 #[cfg(unix)]
 pub mod worktree_copy_journal;
 
@@ -473,6 +517,14 @@ pub mod worktree_copy_journal_removal;
 /// and the readers that answer what it says.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_record;
+
+/// The claim one command holds on a stage container's name:
+/// the marking of its add as complete,
+/// the naming of the Git it started,
+/// the binding recorded once Git returned,
+/// and the release that removes its three files.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_held_by_a_command;
 
 /// The durable claim on a stage container's name,
 /// and the removal of stages an interrupted copy left behind.
@@ -635,6 +687,20 @@ pub mod worktree_copy_owed_taking;
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy_proofs;
 
+/// What the claim and the two records beside it say about the copy an add owes:
+/// its selection,
+/// its destination,
+/// and the identity that proves the worktree there is still that one.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_records;
+
+/// How one owed copy is made:
+/// the checks that still hold,
+/// the staging and installation under the journal,
+/// and the record of an unfilled worktree when it cannot be made.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_making_it;
+
 /// The ignored-state copy an interrupted `git worktree add` still owes,
 /// made by a command in the worktree it fills.
 #[cfg(unix)]
@@ -673,6 +739,12 @@ pub mod worktree_copy_recovery_destinations;
 /// and the pending check.
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
+
+/// The records a copy leaves that name a worktree rather than a private stage:
+/// the record of a worktree whose copy did not finish,
+/// and the destination record of an add whose claim is gone.
+#[cfg(unix)]
+pub mod worktree_copy_records_that_name_a_worktree;
 
 /// The records of an interrupted copy that cannot be read:
 /// each is moved aside with one line,

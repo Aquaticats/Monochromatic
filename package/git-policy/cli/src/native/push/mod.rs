@@ -173,11 +173,18 @@
 //! - `child_watch.rs`:
 //!   a watcher for waits that block on a child process:
 //!   notices at the cadence and the child stopped at the bound.
+//! - `child_watch_one_shot_clear_hold.rs`:
+//!   the hold a control takes between a watched step's end
+//!   and the clearing of the cell that published its child's number.
 //! - `child_watch_one_shot_run.rs`:
 //!   the one-shot run of a watched step:
 //!   the command started,
 //!   its output read whole,
 //!   and the watch that ends it.
+//! - `bounded_query_run_of_one_command.rs`:
+//!   one read-only Git command run to its end,
+//!   or until it has shown no sign of work for its window,
+//!   with the answer it printed and how it ended.
 //! - `bounded_query.rs`:
 //!   read-only Git queries of the auto-push,
 //!   each with a deadline and separate output streams.
@@ -197,6 +204,10 @@
 //! - `auto_push_destination_settings.rs`:
 //!   the settings that decide where one branch is pushed,
 //!   read from one listing of the configuration.
+//! - `bounded_push_output.rs`:
+//!   the output a push keeps:
+//!   the text read back through whole lines,
+//!   and the line that says only the head of it is kept.
 //! - `bounded_push.rs`:
 //!   the auto-push's real `git push` with a deadline and its low-speed abort.
 //! - `auto_push_reconcile_merge_commit_answer_ceilings.rs`:
@@ -268,6 +279,16 @@
 //! - `manual_push_range.rs`:
 //!   the range computation for manual-push scans:
 //!   which pushed commits a remote does not have.
+//! - `manual_push_probe_confirmation.rs`:
+//!   one destination's confirmation:
+//!   the updates it confirmed,
+//!   and everything its one `ls-remote` reported.
+//! - `manual_push_probe_destination_blocks.rs`:
+//!   one destination's block of Git's own dry-run report,
+//!   confirmed:
+//!   the local objects a new ref needs,
+//!   the updates Git printed for that destination,
+//!   and the pieces that confirm every destination side by side.
 //! - `manual_push_probe.rs`:
 //!   the updates a manual `git push` would send,
 //!   learned from Git's own dry-run report and confirmed against the remote.
@@ -412,6 +433,11 @@ pub mod child_watch_running_task;
 /// with the bound and the notice grace of each.
 pub mod child_class;
 
+/// One read-only Git command run to its end,
+/// or until it has shown no sign of work for its window,
+/// with the answer it printed and how it ended.
+pub mod bounded_query_run_of_one_command;
+
 /// Read-only Git queries of the auto-push,
 /// each with a deadline and separate output streams.
 pub mod bounded_query;
@@ -419,6 +445,11 @@ pub mod bounded_query;
 /// The thread that gives a second-pass command its request,
 /// and the bounds it runs under.
 pub mod bounded_query_input;
+
+/// The output a push keeps:
+/// the text read back through whole lines,
+/// and the line that says only the head of it is kept.
+pub mod bounded_push_output;
 
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
@@ -576,6 +607,10 @@ pub mod child_watch_task_loop_and_notice;
 /// The watched one-shot run for a caller that is itself a task of the runtime.
 pub mod child_watch_output_watched_on_the_runtime;
 
+/// The hold a control takes between a watched step's end
+/// and the clearing of the cell that published its child's number.
+pub mod child_watch_one_shot_clear_hold;
+
 /// The one-shot run of a watched step:
 /// the command started,
 /// its output read whole,
@@ -623,6 +658,18 @@ pub mod manual_push_cause;
 /// Why the probe of a manual push could not establish the updates Git would push,
 /// and what Git said when it refused.
 pub mod manual_push_probe_error;
+
+/// One destination's confirmation:
+/// the updates it confirmed,
+/// and everything its one `ls-remote` reported.
+pub mod manual_push_probe_confirmation;
+
+/// One destination's block of Git's own dry-run report,
+/// confirmed:
+/// the local objects a new ref needs,
+/// the updates Git printed for that destination,
+/// and the pieces that confirm every destination side by side.
+pub mod manual_push_probe_destination_blocks;
 
 /// The updates a manual `git push` would send,
 /// learned from Git's own dry-run report and confirmed against the remote.
