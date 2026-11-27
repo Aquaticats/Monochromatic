@@ -3809,3 +3809,45 @@ the coordinating session's:
 move the whole bug > leave it > move this cause alone,
 because the first keeps the rule and the record whole,
 and the last trades one for the other.
+
+## Veto open: whether a command the linter prints may spell a name it must hold raw (recorded 2026-11-27T18:17:40-05:00)
+
+The Claude Sonnet read of the linter's `0.5.2-alpha.22` found that the loop message,
+the missing-link message and the command that message gives
+(`mkdir --parents <folder>/uses && ln --symbolic ...`)
+print a folder's name raw when it holds a character that prints as nothing,
+a right-to-left override among them.
+The list reader's own messages spell such a character since alpha.22.
+No round builds any of this yet;
+the read's other findings went to a round.
+
+- Sentences spell the name,
+  and a command keeps it raw and says in words that it holds such a character (the coordinating session's pick):
+  the command works when copied.
+  The cost:
+  the raw character still reaches the terminal inside the command's text.
+- Spell the name everywhere,
+  commands too:
+  nothing raw reaches a terminal.
+  The cost:
+  the copied command names a folder that is not there,
+  so the message has to say how to type the real name.
+- Leave the messages as they are:
+  no work.
+  The cost:
+  the module's own comment says every message spells such a character,
+  which is then not so.
+
+Ranking,
+the coordinating session's:
+sentences spell and commands stay raw > spell everywhere > leave them,
+because the first keeps the command usable and the second gives a command that fails,
+and because the second still tells a person what the name holds where the third prints it unseen.
+
+The Braille blank,
+U+2800,
+prints as an empty cell and is printed raw by both releases:
+Unicode does not count it among the characters that print as nothing.
+The pick is to leave it;
+the other way is to add it to the set by hand,
+which ties the set to a list of the linter's own beside Unicode's.
