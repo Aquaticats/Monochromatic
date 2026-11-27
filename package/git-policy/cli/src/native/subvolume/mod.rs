@@ -25,10 +25,17 @@
 //!   the typed failure of one Linux filesystem primitive:
 //!   the call,
 //!   the path and the error number.
+//! - `fs_btrfs_ioctl_request_numbers.rs`:
+//!   the request numbers the btrfs ioctls are called by,
+//!   and the kernel encodings they are computed from.
+//! - `fs_btrfs_ioctl_argument_structures.rs`:
+//!   the kernel structures the btrfs ioctls read and write,
+//!   each at the size its request number states.
 //! - `fs_btrfs_ioctl.rs`:
-//!   the btrfs ioctls that create,
-//!   snapshot and destroy a subvolume,
-//!   called in process.
+//!   the calls that create,
+//!   snapshot,
+//!   destroy and read a subvolume,
+//!   and the whole paths their callers hold.
 //! - `fs_clone_exchange.rs`:
 //!   `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
 //! - `fs_kind.rs`:
@@ -154,9 +161,20 @@ pub mod fs_mount_options;
 #[cfg(target_os = "linux")]
 pub mod fs_uuid_of_source;
 
-/// The btrfs ioctls that create,
-/// snapshot and destroy a subvolume,
-/// called in process.
+/// The request numbers the btrfs ioctls are called by,
+/// and the kernel encodings they are computed from.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl_request_numbers;
+
+/// The kernel structures the btrfs ioctls read and write,
+/// each at the size its request number states.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl_argument_structures;
+
+/// The calls that create,
+/// snapshot,
+/// destroy and read a subvolume,
+/// and the whole paths their callers hold.
 #[cfg(target_os = "linux")]
 pub mod fs_btrfs_ioctl;
 
