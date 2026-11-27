@@ -64,7 +64,8 @@ The pack decode count is one of them too:
 so a control that counts the decodes of its own answer runs its body in a child of its own,
 as `repo_read::repo_read_tree_cached::tests::the_directories_the_cache_tree_proves_equal_are_not_read`
 and `repo_read::repo_read_query::tests::the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories` do
-(issue 6539: in a threaded run of `repo_read::` the cache tree control counted decodes of another test's reads).
+(issue 6539:
+in a threaded run of `repo_read::` the cache tree control counted another test's decodes).
 So does a program a control starts that reads standard input:
 the run's standard input is the terminal the run was started from,
 and a control that starts such a program runs its body in a child of its own,
