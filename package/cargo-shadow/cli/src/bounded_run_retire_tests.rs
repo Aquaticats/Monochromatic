@@ -657,7 +657,15 @@ fn the_question_at_a_run_end_keeps_the_bound_the_promise_names() {
     this_test_needs_a_delegated_scope();
     let directory = scratch();
     // The question's own bound, its reap grace, and the time a run spends around it (the scope's start and stop).
-    let limit: Duration = RETIRE_BOUND + KILL_REAP_GRACE + Duration::from_secs(5);
+    // What:     `MEASURED_RUN_OVERHEAD` is one second, and it is what this control allows the run around the question.
+    // Why:      Measured 2026-11-27 (the round's report and the "The question keeps one bound" paragraph of
+    //           `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`): the same helper process,
+    //           run on its own with a scope of its own around it, took 5068, 5073 and 5079 ms from start to exit, which is
+    //           the bound, the grace the reap actually used (about 5 ms) and 63 to 74 ms of process start and one scoped run.
+    //           Five seconds of slack, which this control allowed before, let a bound raised by three seconds at the call site
+    //           pass; one second, about thirteen times the spread of those three runs, does not.
+    const MEASURED_RUN_OVERHEAD: Duration = Duration::from_secs(1);
+    let limit: Duration = RETIRE_BOUND + KILL_REAP_GRACE + MEASURED_RUN_OVERHEAD;
     let began: Instant = Instant::now();
     // What:     `started` is the helper process of this control, written in its own stdio so the parent reads its failure.
     // Why:      The helper makes the run, so the parent can bound how long that run is allowed to take.
@@ -707,7 +715,7 @@ fn the_question_at_a_run_end_keeps_the_bound_the_promise_names() {
     let output = reaped.wait_with_output().expect("the helper's answer");
     assert!(
         finished,
-        "a manager that never answers held the end of a run for {elapsed:?}, past the {limit:?} this bound allows the bound of {RETIRE_BOUND:?}, its reap grace of {KILL_REAP_GRACE:?} and five seconds: {}",
+        "a manager that never answers held the end of a run for {elapsed:?}, past the {limit:?} this bound allows the bound of {RETIRE_BOUND:?}, its reap grace of {KILL_REAP_GRACE:?} and the {MEASURED_RUN_OVERHEAD:?} measured around them: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
@@ -842,11 +850,15 @@ fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() 
             "may still be loaded",
             "the stand-in refuses the stop",
         ),
-        ("member", "was left loaded", "still has a member"),
+        (
+            "member",
+            "was left loaded",
+            "the kernel's `populated 1` line was read",
+        ),
         (
             "gone-at-the-peak",
             "may be left loaded",
-            "`populated 0` line was read for it",
+            "`populated 0` line was read for it, and then",
         ),
     ];
     for (scenario, state, detail) in scenarios {
@@ -918,19 +930,23 @@ fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() 
         }
         if scenario == "member" {
             assert!(
-                printed[0].contains(
-                    "a member that joins after this look is killed by that stop with nothing printed"
-                ),
-                "the printed warning does not name the window after the look: {}",
+                printed[0].contains("so this step asked for no stop"),
+                "the printed warning does not say that this run asked for no stop: {}",
                 printed[0]
             );
             assert!(
-                !printed[0].contains("and a stop would kill it"),
+                !printed[0].contains("stop this step makes")
+                    && !printed[0].contains("killed by that stop"),
                 "the printed warning describes a stop this run never asked for: {}",
                 printed[0]
             );
         }
         if scenario == "gone-at-the-peak" {
+            assert!(
+                printed[0].contains("and then the scope's directory"),
+                "the printed warning does not say what happened after the line it read: {}",
+                printed[0]
+            );
             assert!(
                 !printed[0].contains("so it is not shown that no member is left"),
                 "the printed warning denies the emptiness the run read before the directory went away: {}",

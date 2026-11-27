@@ -914,12 +914,20 @@ The look is answered from the kernel and it is what keeps the ordinary run free 
   the refusal's report names it,
   and a manager stop would kill it;
   a member that joins after the look is killed by such a stop with nothing printed.
-- An absent directory counts only when `absence_is_verified` holds,
+- An absence counts only when `absence_is_verified` holds,
   the same check the stop accepts,
   so that unit was collected and nothing is asked.
   An absence that cannot be verified keeps the unit,
   and the run says so.
   A `populated` read that failed is reported.
+  The two errors an absence answers are read differently:
+  `ENODEV` is the kernel taking the group's own files away,
+  which it does only for a group that holds no task,
+  so that unit is the manager's to free;
+  `ENOENT` is a name that is not there,
+  and it is the group's absence only when the group's directory is gone as well
+  ("Which absence means what",
+  measured on 2026-11-27).
 - A `populated 0` line is the proof that no member is left,
   and `pids.peak` then says whether any process was ever counted in the group.
   A group that held one changed its `populated` line,
@@ -977,6 +985,16 @@ so a killed `systemctl` was reaped 5.069852 ms after the kill at the median and 
 in a scope capped at one core on 2026-11-27,
 and 5.079712 ms and 5.145821 ms with the same scope throttled to a `CPUQuota` of 2%,
 which is twenty polls in 100 ms.
+The control that holds that bound allows the run around it one second more,
+and no more:
+the helper process it starts,
+run on its own with a scope of its own around it,
+took 5068 to 5079 ms from start to exit on 2026-11-27,
+which is the five seconds,
+the grace the reap actually used (about 5 ms)
+and 63 to 74 ms of process start and one scoped run.
+Five seconds of slack let a bound raised by three seconds at the call site pass;
+one second of slack does not.
 
 The cost,
 measured 2026-11-27 through builds of this branch and alpha.11's release binary,
@@ -1078,6 +1096,92 @@ Each turned its control red:
 - dropping the `NODEV` half of `is_the_group_being_gone`:
   `a_removed_group_reads_as_gone_with_either_error`.
 
+#### Which absence means what, measured on 2026-11-27
+
+A read of `cgroup.events` can fail because the group is not there,
+and the kernel has two answers for that.
+The round that closed the alpha.15 window read the kernel's source and concluded
+that no lookup ever sees a group's directory without its control files in it;
+the release that was merged read the same source and concluded the opposite.
+Neither had observed it,
+so this round measured it on this host (kernel 7.3.5-2-cachyos,
+systemd 262.2),
+inside a delegated scope of its own,
+with a program of two threads that makes and removes child groups of that scope and nothing else:
+one thread reads a child's `cgroup.events` through a new open,
+the way the look does,
+and the other makes the group,
+or removes it.
+Each iteration records what the read answered and whether the child's directory was there before it and after it,
+because only one of those two orders can answer the question:
+a directory that is made during a read cannot be un-made by it,
+so "there before" is the strict side for a creation,
+and a directory that is removed during a read cannot come back,
+so "there after" is the strict side for a removal.
+
+```text
+creation, 300 iterations, 3090 reads:
+  `ENOENT` with the directory there before the read     0
+  `ENOENT` with the directory there after the read     73   (the group appeared during the read: a stale answer)
+  `ENODEV`                                              0
+  first sight of the new directory held `cgroup.events`   300 of 300
+        (a listing of the directory in 88 iterations, the successful read itself in the other 212)
+
+removal, one read of an open `cgroup.events` per attempt, 300 iterations, 3655 reads:
+  read before the removal                               `populated 0` every time
+  `ENODEV`, directory there before the read            293
+  `ENODEV`, directory gone before the read              76
+  read of the same open file after the removal answered  `ENODEV` in 300 of 300
+
+removal, a new open for every read (the look's own read), 300 iterations:
+  `ENODEV`                                              77
+  `ENOENT`                                             325
+
+removal, a new open for every read and the directory check the look makes right after it, 300 iterations, 3525 reads
+(the same arm run a second time gave the same four counts):
+  reads that answered `ENODEV`                          24
+  of those, the directory check found the directory there  20
+  of those, the directory check found it gone                4
+  reads that answered `ENOENT`                         299
+  of those, the directory check found the directory there    0
+```
+
+A control for the counting itself:
+the same creation arm against a plain directory and a file written after it,
+which is the state the release assumed the kernel makes,
+counted `ENOENT` with the directory there 1640 times in 7946 reads over 300 iterations,
+so an arm that counts nothing sees nothing because the kernel does not do it,
+not because the count is blind.
+
+What the counts settle:
+
+- The creation row is not produced.
+  A new group's directory and files become visible together
+  (the control group root is created deactivated,
+  `KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5,
+  and `cgroup_mkdir` activates the whole subtree under one write lock,
+  `kernfs_activate` at `:6157` after `css_populate_dir` at `:6146`;
+  `kernfs_iop_lookup` answers nothing for a node that is not active,
+  `fs/kernfs/dir.c:1266`).
+  The answer the release gave that row is kept for a kernel that shows it,
+  and this host is not one.
+- The removal row is produced,
+  and it is the row the kernel answers for a group it is removing.
+  The files go before the directory in one removal (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`,
+  `kernfs_remove` at `:6362`),
+  and a file opened before that and read after it answers `ENODEV` (`kernfs_seq_start` at `fs/kernfs/file.c:166`).
+  The kernel removes a group only when it holds no task (`:6333` of the same file),
+  so a unit behind that read is one the manager is freeing:
+  the answer is the collected unit alpha.14 gave,
+  and the directory check is not made for it,
+  because the directory is measured to be there while the group is already going away,
+  and a check that asked would print that the unit may be left loaded while the manager is removing it in 20 of 24 samples.
+- `ENOENT` on the look's read is the group's absence:
+  the directory check found the directory there in 0 of 299 samples.
+  The same check is what the peak read needs,
+  and there it is live:
+  a group whose parent does not enable the pids controller has no `pids.peak` file at all.
+
 #### A directory that was never made reads as a collected scope
 
 A launcher that exits before the manager has made the scope's group leaves a third state beside
@@ -1122,7 +1226,7 @@ Two exist:
 asking the manager whether the unit is still loaded
 (`systemctl --user show <unit> --property=LoadState --value`),
 which is the second question the alpha.12 release removed because it cost a scoped run a program start
-(see "The cost of the retirement"),
+(see the cost paragraph of "What cargo-shadow does now"),
 or a record the run makes of the group it made,
 so that an absent directory afterwards is a group the manager collected
 and an absent directory with no such record is one that was never made.
