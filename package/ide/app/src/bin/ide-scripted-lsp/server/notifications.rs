@@ -4,7 +4,8 @@
 //!  or closed,
 //!  and the end of the session.
 
-/// The loop's state, whose method this is.
+/// The loop's state,
+/// whose method this is.
 use super::Session;
 /// Text mirroring for a document the client changed.
 use crate::document::apply_change;

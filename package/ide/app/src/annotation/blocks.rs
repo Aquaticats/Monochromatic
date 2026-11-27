@@ -12,7 +12,8 @@
 
 /// The block of each annotated line.
 mod assemble;
-/// The hint labels of each line, and the space a reload holds open.
+/// The hint labels of each line,
+/// and the space a reload holds open.
 mod hints;
 /// The message rows a line's diagnostics need.
 mod message_rows;

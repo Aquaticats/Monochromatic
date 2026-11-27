@@ -4,7 +4,8 @@
 //!  a document's diagnostics,
 //!  and a hover answer.
 
-/// The loop's state, whose methods these are.
+/// The loop's state,
+/// whose methods these are.
 use super::Session;
 /// Position arithmetic for a hover answer.
 use crate::document::{
