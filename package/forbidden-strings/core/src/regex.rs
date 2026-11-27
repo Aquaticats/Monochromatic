@@ -10,7 +10,90 @@
 //! ```ts
 //! // module regex: see exported functions and types below.
 //! ```
-
+/// What:
+///     Imports the node algebra used by the rule sink's node lists.
+/// Why:
+///      The code below uses `Node` directly;
+///  importing from `crate/ast/node` keeps each call
+///          site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Node } from "crate/ast/node";
+/// ```
+use crate::ast::node::Node;
+/// What:
+///     Imports the back-end selection for a parsed pattern.
+/// Why:
+///      The code below uses `build_engine` directly;
+///  importing from `crate/build` keeps each
+///          call site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { build_engine } from "crate/build";
+/// ```
+use crate::build::build_engine;
+/// What:
+///     Imports the byte set used for the line-start first-byte fast reject.
+/// Why:
+///      The code below uses `ByteSet` directly;
+///  importing from `crate/charset` keeps each
+///          call site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ByteSet } from "crate/charset";
+/// ```
+use crate::charset::ByteSet;
+/// What:
+///     Imports the counting NFA type for the seedless-union oracle.
+/// Why:
+///      The code below uses `CountingNfa` directly;
+///  importing from `crate/counting` keeps
+///          each call site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CountingNfa } from "crate/counting";
+/// ```
+use crate::counting::CountingNfa;
+/// What:
+///     Imports the per-pattern back-end.
+/// Why:
+///      The code below uses `Engine` directly;
+///  importing from `crate/engine` keeps each call
+///          site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Engine } from "crate/engine";
+/// ```
+use crate::engine::Engine;
+/// What:
+///     Imports the error type.
+/// Why:
+///      The code below uses `CompileError` directly;
+///  importing from `crate/error` keeps each
+///          call site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CompileError } from "crate/error";
+/// ```
+use crate::error::CompileError;
+/// What:
+///     Imports the RegexSet-level combined literal prefilter.
+/// Why:
+///      The code below uses `SetGate` directly;
+///  importing from `crate/gate` keeps each call
+///          site focused on the matcher logic instead of the full Rust path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { SetGate } from "crate/gate";
+/// ```
+use crate::gate::SetGate;
 /// What:
 ///     Imports the serde derives for persisting compiled matchers.
 /// Why:
@@ -27,154 +110,63 @@ use serde::{
     Deserialize,
     Serialize,
 };
-
-/// What:
-///     Imports the node algebra used by the rule sink's node lists.
-/// Why:
-///      The code below uses `Node` directly;
-///  importing from `crate/ast/node` keeps each call
-///          site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Node } from "crate/ast/node";
-/// ```
-use crate::ast::node::Node;
-
-/// What:
-///     Imports the byte set used for the line-start first-byte fast reject.
-/// Why:
-///      The code below uses `ByteSet` directly;
-///  importing from `crate/charset` keeps each
-///          call site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { ByteSet } from "crate/charset";
-/// ```
-use crate::charset::ByteSet;
-
-/// What:
-///     Imports the rule construction,
-///  the seedless fold,
-///  and the line-start matcher.
-/// Why:
-///      The code below uses `BuiltRule`,
-///  `build_engine`,
-///  `build_seedless_union`,
-///          `line_start_match` directly;
-///  importing from `crate/build` keeps each call site
-///          focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import {
-///   BuiltRule,
-///   build_engine,
-///   build_seedless_union,
-///   line_start_match,
-/// } from "crate/build";
-/// ```
-use crate::build::{
-    BuiltRule,
-    build_engine,
-    build_seedless_union,
-    line_start_match,
-};
-
-/// What:
-///     Imports the threaded per-rule builder.
-/// Why:
-///      The code below uses `build_rules` directly;
-///  importing from `crate/parallel` keeps
-///          each call site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { build_rules } from "crate/parallel";
-/// ```
-use crate::parallel::build_rules;
-
-/// What:
-///     Imports the seedless-rule grouping into union DFAs.
-/// Why:
-///      The code below uses `group_seedless` directly;
-///  importing from `crate/group` keeps
-///          each call site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { group_seedless } from "crate/group";
-/// ```
-use crate::group::group_seedless;
-
-/// What:
-///     Imports the counting NFA type for the seedless-union oracle.
-/// Why:
-///      The code below uses `CountingNfa` directly;
-///  importing from `crate/counting` keeps
-///          each call site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { CountingNfa } from "crate/counting";
-/// ```
-use crate::counting::CountingNfa;
-
-/// What:
-///     Imports the per-pattern back-end.
-/// Why:
-///      The code below uses `Engine` directly;
-///  importing from `crate/engine` keeps each call
-///          site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Engine } from "crate/engine";
-/// ```
-use crate::engine::Engine;
-
-/// What:
-///     Imports the error type.
-/// Why:
-///      The code below uses `CompileError` directly;
-///  importing from `crate/error` keeps each
-///          call site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { CompileError } from "crate/error";
-/// ```
-use crate::error::CompileError;
-
-/// What:
-///     Imports the RegexSet-level combined literal prefilter.
-/// Why:
-///      The code below uses `SetGate` directly;
-///  importing from `crate/gate` keeps each call
-///          site focused on the matcher logic instead of the full Rust path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { SetGate } from "crate/gate";
-/// ```
-use crate::gate::SetGate;
-
 /// Registers the per-line checks the gate walk and the line scans use.
 mod line_checks;
-/// Imports the per-line checks that carry a line's state as a named type.
-use line_checks::{
-    AnchoredRuleCheck,
-    CheckedFull,
-    RejectEveryCandidate,
-    RuleCheck,
-    RuleCollector,
-    any_group_matches,
-    any_line_start_match,
-    has_id_at_least,
-    is_nonempty_text,
-};
-
+/// What:
+///     Building a ruleset from pattern text.
+/// Why:
+///      The package keeps that concept in a separate Rust file so this module can refer to
+///          it by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import "./ruleset_construction";
+/// ```
+mod ruleset_construction;
+/// What:
+///     The counts a built ruleset reports about what it holds.
+/// Why:
+///      The package keeps that concept in a separate Rust file so this module can refer to
+///          it by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import "./ruleset_diagnostics";
+/// ```
+mod ruleset_diagnostics;
+/// What:
+///     Matching one line against a ruleset.
+/// Why:
+///      The package keeps that concept in a separate Rust file so this module can refer to
+///          it by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import "./ruleset_matching";
+/// ```
+mod ruleset_matching;
+/// What:
+///     The profiling hooks that run one component of a line match on its own.
+/// Why:
+///      The package keeps that concept in a separate Rust file so this module can refer to
+///          it by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import "./ruleset_profiling";
+/// ```
+mod ruleset_profiling;
+/// What:
+///     Persisting a built ruleset to bytes and loading one back.
+/// Why:
+///      The package keeps that concept in a separate Rust file so this module can refer to
+///          it by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import "./ruleset_serialization";
+/// ```
+mod ruleset_serialization;
 /// What:
 ///     Imports the parser entry point.
 /// Why:
@@ -187,7 +179,6 @@ use line_checks::{
 /// import { parse } from "crate/parse";
 /// ```
 use crate::parse::parse;
-
 /// What:
 ///     Batched,
 ///  many-lines-at-once matching for `Regex` and `RegexSet`.
@@ -200,7 +191,6 @@ use crate::parse::parse;
 /// import "./batch";
 /// ```
 mod batch;
-
 /// A compiled single pattern.
 ///
 /// What:
@@ -231,7 +221,6 @@ pub struct Regex {
     /// ```
     engine: Engine,
 }
-
 /// What:
 ///     Matching and (de)serialization for a single pattern.
 /// Why:
@@ -263,7 +252,6 @@ impl Regex {
     ) -> bool {
         return self.engine.is_match(line);
     }
-
     /// Serializes the compiled pattern to bytes.
     ///
     /// What:
@@ -281,7 +269,6 @@ impl Regex {
     pub fn to_bytes(&self) -> Result<Vec<u8>, CompileError> {
         return bincode::serialize(self).map_err(CompileError::serialize_failed);
     }
-
     /// Loads a compiled pattern from bytes,
     ///  validating it first.
     ///
@@ -312,7 +299,6 @@ impl Regex {
         return Ok(regex);
     }
 }
-
 /// Compiles one pattern into a `Regex`.
 ///
 /// What:
@@ -349,7 +335,6 @@ pub fn compile(pattern: &str) -> Result<Regex, CompileError> {
         engine,
     });
 }
-
 /// What:
 ///      `pub struct RegexSet { ... }` declares an exported Rust record type.
 ///           `pub` makes the type name public while its fields stay private.
@@ -546,7 +531,6 @@ pub struct RegexSet {
     #[serde(skip)]
     gate: SetGate,
 }
-
 /// Accumulates the per-rule matching structures while a ruleset is compiled.
 ///
 /// What:
@@ -663,867 +647,6 @@ struct RuleSink {
     /// ```
     reference_nodes: Vec<Node>,
 }
-
-/// What:
-///     Recording one built rule and finishing into a `RegexSet`.
-/// Why:
-///      The program attaches these functions to the named Rust type so callers can use
-///          method syntax.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // Methods are written inside a class or as functions that take the value.
-/// ```
-impl RuleSink {
-    /// Records a built rule,
-    ///  tracking its routing and oracle node by rule id.
-    ///
-    /// What:
-    ///  appends the engine and,
-    ///  by route,
-    ///  its anchored DFA,
-    ///  line-start DFA,
-    ///  or
-    /// seedless id and node,
-    ///  plus the original-seedless node for the oracle.
-    ///  Why:
-    ///  one
-    /// place keeps every parallel vector aligned with the rule id.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function push(built: BuiltRule): void {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    fn push(
-        &mut self,
-        built: BuiltRule,
-    ) {
-        let id = self.rules.len();
-        if built.seedless {
-            self.seedless_ids.push(id);
-            if let Some(node) = built.node {
-                self.seedless_nodes.push(node);
-            }
-        }
-        if let Some(engine) = built.routing.line_start {
-            self.line_start.push(engine);
-            self.line_start_ids.push(id);
-        }
-        if let Some(node) = built.reference_node {
-            self.reference_nodes.push(node);
-        }
-        self.rules.push(built.engine);
-        self.anchored.push(built.routing.anchored);
-    }
-
-    /// Assembles the accumulated rules into a prepared `RegexSet`.
-    ///
-    /// What:
-    ///  groups the truly-seedless nodes into union DFAs,
-    ///  hands each union the state
-    /// cap rejects back to its rules' own engines,
-    ///  builds the oracle
-    /// counting union over the original-seedless nodes,
-    ///  stores everything,
-    ///  then builds
-    /// the gate.
-    ///  Why:
-    ///  the one place that wires the matching structures together,
-    ///  and the
-    /// place holding both the seedless nodes and the per-rule engines that cover them.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function assemble(): RegexSet {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    fn assemble(self) -> RegexSet {
-        let seedless_union = build_seedless_union(&self.reference_nodes);
-        // What:    The per-rule engine of every seedless rule, in the order its node was recorded.
-        // Why:     A union group the state cap rejects falls back to these engines, so the
-        //          boolean fast path keeps covering exactly the rules `matches` reports instead
-        //          of dropping the group.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const seedlessEngines = [];
-        // for (const id of seedlessIds) { seedlessEngines.push(rules[id]); }
-        // ```
-        let mut seedless_engines: Vec<&Engine> = Vec::with_capacity(self.seedless_ids.len());
-        for &id in &self.seedless_ids {
-            seedless_engines.push(&self.rules[id]);
-        }
-        let seedless_groups = group_seedless(&self.seedless_nodes, &seedless_engines);
-        let mut set = RegexSet {
-            rules: self.rules,
-            anchored: self.anchored,
-            line_start: self.line_start,
-            line_start_ids: self.line_start_ids,
-            seedless_ids: self.seedless_ids,
-            seedless_groups,
-            seedless_union,
-            gate: SetGate::default(),
-            line_start_first: ByteSet::empty(),
-        };
-        set.prepare();
-        return set;
-    }
-}
-
-/// What:
-///     Building,
-///  matching,
-///  and (de)serialization for a ruleset.
-/// Why:
-///      The program attaches these functions to the named Rust type so callers can use
-///          method syntax.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // Methods are written inside a class or as functions that take the value.
-/// ```
-impl RegexSet {
-    /// Compiles a slice of patterns into a `RegexSet`.
-    ///
-    /// What:
-    ///  builds a rule per pattern,
-    ///  spread across the available cores,
-    ///  and one union
-    /// automaton over the literal-free ones;
-    ///  on failure,
-    ///  returns the lowest-index rule's
-    /// error.
-    ///  Why:
-    ///  seeded rules are gated and literal-free rules share a single pass,
-    ///  and
-    /// per-rule construction is independent,
-    ///  so threads shorten large ruleset compiles.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function new(patterns: S[]): RegexSet {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn new<S: AsRef<str>>(patterns: &[S]) -> Result<RegexSet, CompileError> {
-        // What:    `patterns.iter().map(|pattern| return pattern.as_ref())` borrows each input
-        //          as a `&str` (a read-only string view); `.collect()` gathers the views into a
-        //          `Vec<&str>` (a growable array; siblings `&[&str]` and `[&str; N]` are a
-        //          borrowed or fixed-size array).
-        // Why:     Worker threads share plain `&str` views safely, whatever caller type `S`
-        //          is, so `S` needs no thread-safety bound. A `Vec` because the pattern count
-        //          is only known at run time.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const texts: string[] = patterns.map((pattern) => String(pattern));
-        // ```
-        let mut texts: Vec<&str> = Vec::with_capacity(patterns.len());
-        for pattern in patterns {
-            texts.push(pattern.as_ref());
-        }
-        let mut sink = RuleSink::default();
-        // What:    `build_rules(&texts, true)` builds every rule and returns `(index, result)`
-        //          pairs sorted by index; `true` lets workers skip rules past the first failure.
-        //          `outcome?` unwraps a built rule or returns its error from `new`.
-        // Why:     Index order keeps rule ids dense, and the first `Err` met in that order is
-        //          the lowest-index failure, the error the one-at-a-time loop returned.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // for (const [, outcome] of build_rules(texts, true)) {
-        //   if (outcome instanceof CompileError) throw outcome;
-        //   sink.push(outcome);
-        // }
-        // ```
-        for (_index, outcome) in build_rules(&texts, true) {
-            sink.push(outcome?);
-        }
-        return Ok(sink.assemble());
-    }
-
-    /// Rebuilds the combined gate and the line-start first-byte set.
-    ///
-    /// What:
-    ///  builds the set-level literal matcher from each rule's seeds,
-    ///  then unions
-    /// every line-start rule's possible first bytes.
-    ///  Why:
-    ///  neither is serialized,
-    ///  so both
-    /// are rebuilt after compilation and after decode.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function prepare(): void {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    fn prepare(&mut self) {
-        let per_rule: Vec<Option<Vec<Vec<u8>>>> = self.rules.iter().map(Engine::seeds).collect();
-        self.gate = SetGate::build(&per_rule);
-        let mut first = ByteSet::empty();
-        for engine in &self.line_start {
-            engine.mark_first_bytes(&mut first);
-        }
-        self.line_start_first = first;
-    }
-
-    /// Compiles patterns,
-    ///  skipping any that fail,
-    ///  with the kept input indices.
-    ///
-    /// What:
-    ///  builds a rule per pattern across the available cores,
-    ///  dropping ones that do
-    /// not compile,
-    ///  plus the union automaton;
-    ///  returns the set and the kept original
-    /// indices.
-    ///  Why:
-    ///  a real ruleset has rules this dialect cannot express,
-    ///  so the rest are
-    /// kept in one pass.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function compile_lenient(patterns: S[]): (RegexSet, Vec<usize>) {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn compile_lenient<S: AsRef<str>>(patterns: &[S]) -> (RegexSet, Vec<usize>) {
-        // What: borrow each input as a `&str` view. Why: the same thread-shareable form `new` uses.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const texts: string[] = patterns.map((pattern) => String(pattern));
-        // ```
-        let mut texts: Vec<&str> = Vec::with_capacity(patterns.len());
-        for pattern in patterns {
-            texts.push(pattern.as_ref());
-        }
-        let mut sink = RuleSink::default();
-        let mut kept: Vec<usize> = Vec::new();
-        // What: `false` builds every rule, no early stop. Why: a lenient compile keeps each
-        // rule that builds, in input order.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // for (const [index, outcome] of build_rules(texts, false)) { ... }
-        // ```
-        for (index, outcome) in build_rules(&texts, false) {
-            if let Ok(built) = outcome {
-                sink.push(built);
-                kept.push(index);
-            }
-        }
-        return (sink.assemble(), kept);
-    }
-
-    /// Compiles a ruleset from one text,
-    ///  split on a delimiter.
-    ///
-    /// What:
-    ///  splits `text` on `delimiter`,
-    ///  trims each rule,
-    ///  drops empties,
-    ///  and
-    /// delegates to `new`.
-    ///  Why:
-    ///  a convenience for a file format whose rule boundary
-    /// is a non-whitespace marker the caller chooses.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function from_ruleset(text: string, delimiter: string): RegexSet {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn from_ruleset(
-        text: &str,
-        delimiter: &str,
-    ) -> Result<RegexSet, CompileError> {
-        let parts: Vec<&str> = text
-            .split(delimiter)
-            .map(str::trim)
-            .filter(is_nonempty_text)
-            .collect();
-        return RegexSet::new(&parts);
-    }
-
-    /// Reports whether any rule matches a substring of `line`.
-    ///
-    /// What:
-    ///  the one gate pass (seeded rules whose literal occurs,
-    ///  checked anchored or
-    /// in full),
-    ///  the `^`-anchored rules checked at every line start,
-    ///  and any remaining
-    /// truly-literal-free rules in a union pass.
-    ///  Why:
-    ///  the fold puts every rule in the
-    /// gate or the cheap line-start check,
-    ///  so for the shipped ruleset there is one pass.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        let mut rule_check = RuleCheck {
-            set: self,
-            line,
-            checked: CheckedFull::new(),
-        };
-        if self.gate.any_candidate(line, &mut rule_check) {
-            return true;
-        }
-        if self.line_start_candidate(line) && any_line_start_match(&self.line_start, line) {
-            return true;
-        }
-        return any_group_matches(&self.seedless_groups, line);
-    }
-
-    /// Reports whether `line` could begin a line-start rule match.
-    ///
-    /// What:
-    ///  true when the first byte is one a line-start rule can begin with.
-    ///  Why:
-    ///  a
-    /// line-start rule matches only at position zero,
-    ///  so this one-byte test skips the
-    /// anchored checks on almost every line (the deny-code markers begin few lines).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function line_start_candidate(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    fn line_start_candidate(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        return match line.first() {
-            Some(&byte) => self.line_start_first.contains(byte),
-            None => false,
-        };
-    }
-
-    /// Checks one seeded rule against `line`,
-    ///  anchored at `pos` when possible.
-    ///
-    /// What:
-    ///  runs the rule's anchored DFA over `line[pos..]` when the seed is the rule's
-    /// leading literal;
-    ///  otherwise runs the whole-line engine once per line (the result
-    /// ignores `pos`),
-    ///  skipping its now-redundant prefilter.
-    ///  Why:
-    ///  anchoring at the hit
-    /// replaces the slow per-rule scan,
-    ///  deduping a non-anchored rule avoids re-scanning
-    /// the line for each repeat of its seed,
-    ///  and the gate already proved the seed present.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function matches_rule(line: Uint8Array, rule: number, pos: number, checked: CheckedFull): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    fn matches_rule(
-        &self,
-        line: &[u8],
-        rule: usize,
-        pos: usize,
-        checked: &mut CheckedFull,
-    ) -> bool {
-        match &self.anchored[rule] {
-            Some(engine) => return engine.is_match(&line[pos..]),
-            None => return checked.first_time(rule) && self.rules[rule].matches_only(line),
-        }
-    }
-
-    /// Returns the ids of the rules that match `line`.
-    ///
-    /// What:
-    ///  collects gate hits,
-    ///  then the `^`-anchored line-start hits,
-    ///  then any
-    /// truly-literal-free hits.
-    ///  Why:
-    ///  each routing path attributes its own rule ids.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function matches(line: Uint8Array): Iterable<number> {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn matches(
-        &self,
-        line: &[u8],
-    ) -> impl Iterator<Item = usize> {
-        let mut collector = RuleCollector {
-            set: self,
-            line,
-            checked: CheckedFull::new(),
-            hits: Vec::new(),
-        };
-        self.gate.for_each_candidate(line, &mut collector);
-        let mut hits: Vec<usize> = collector.hits;
-        if self.line_start_candidate(line) {
-            for (engine, &id) in self.line_start.iter().zip(&self.line_start_ids) {
-                if line_start_match(engine, line) {
-                    hits.push(id);
-                }
-            }
-        }
-        for &id in &self.seedless_ids {
-            if self.rules[id].is_match(line) {
-                hits.push(id);
-            }
-        }
-        hits.sort_unstable();
-        hits.dedup();
-        return hits.into_iter();
-    }
-
-    /// Profiling hook:
-    ///  runs only the seeded-rule gate path.
-    ///
-    /// What:
-    ///  the gate candidates,
-    ///  skipping the literal-free rules.
-    ///  Why:
-    ///  lets the
-    /// bench split per-line time between the gate and the literal-free scans.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function gate_only_is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn gate_only_is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        let mut rule_check = RuleCheck {
-            set: self,
-            line,
-            checked: CheckedFull::new(),
-        };
-        return self.gate.any_candidate(line, &mut rule_check);
-    }
-
-    /// Profiling hook:
-    ///  runs only the seeded-literal prefilter,
-    ///  no fallback.
-    ///
-    /// What:
-    ///  the gate's prefilter presence test alone.
-    ///  Why:
-    ///  separates the prefilter's
-    /// cost from the per-rule counting fallback it triggers on a hit.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function prefilter_only_is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn prefilter_only_is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        return self.gate.prefilter_present(line);
-    }
-
-    /// Profiling hook:
-    ///  prefilter plus aho-corasick enumeration,
-    ///  no per-rule check.
-    ///
-    /// What:
-    ///  the gate path with the per-rule predicate stubbed to never match.
-    ///  Why:
-    /// isolates the which-rule enumeration cost from the per-rule counting cost.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function candidates_only_is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn candidates_only_is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        return self.gate.any_candidate(line, &mut RejectEveryCandidate);
-    }
-
-    /// Profiling hook:
-    ///  the gate path but skipping rules without an anchored DFA.
-    ///
-    /// What:
-    ///  runs only anchored per-rule checks,
-    ///  treating counting-fallback rules as
-    /// non-matching.
-    ///  Why:
-    ///  isolates the anchored-check cost from the slow counting
-    /// fallback,
-    ///  to see which dominates the gate.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function gate_anchored_only_is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn gate_anchored_only_is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        return self.gate.any_candidate(
-            line,
-            &mut AnchoredRuleCheck {
-                set: self,
-                line,
-            },
-        );
-    }
-
-    /// Profiling hook:
-    ///  runs only the literal-free group DFAs.
-    ///
-    /// What:
-    ///  the seedless union engines,
-    ///  skipping the gate.
-    ///  Why:
-    ///  the other half of the
-    /// per-line time split.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function seedless_only_is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn seedless_only_is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        return any_group_matches(&self.seedless_groups, line);
-    }
-
-    /// Profiling hook:
-    ///  runs only the single counting-union automaton.
-    ///
-    /// What:
-    ///  the one counting NFA over every seedless rule,
-    ///  skipping the gate and the
-    /// unrolled DFA groups.
-    ///  Why:
-    ///  measures whether one counting pass over the
-    /// literal-free rules beats the unrolled DFA groups it would replace.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function csa_only_is_match(line: Uint8Array): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn csa_only_is_match(
-        &self,
-        line: &[u8],
-    ) -> bool {
-        return match &self.seedless_union {
-            Some(nfa) => nfa.is_match(line),
-            None => false,
-        };
-    }
-
-    /// Returns the position count of the seedless counting union,
-    ///  or zero when absent.
-    ///
-    /// What:
-    ///  how many NFA positions the single counting pass carries.
-    ///  Why:
-    ///  a
-    /// diagnostic for the per-byte cost of the counting union against the DFA groups.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function seedless_union_size(): number {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn seedless_union_size(&self) -> usize {
-        return match &self.seedless_union {
-            Some(nfa) => nfa.elements.len(),
-            None => 0,
-        };
-    }
-
-    /// Returns how many seeded rules have an anchored DFA fast-check.
-    ///
-    /// What:
-    ///  the count of rules whose seed is their leading literal.
-    ///  Why:
-    ///  a diagnostic
-    /// for how much of the gate fallback avoids the slow counting scan.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function anchored_count(): number {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn anchored_count(&self) -> usize {
-        let mut count: usize = 0;
-        for engine in &self.anchored {
-            if engine.is_some() {
-                count += 1;
-            }
-        }
-        return count;
-    }
-
-    /// Returns how many union DFAs the seedless rules collapsed into.
-    ///
-    /// What:
-    ///  the group count,
-    ///  counting a rule whose union exceeded the group state cap as its own
-    /// engine.
-    ///  Why:
-    ///  a diagnostic for how well the literal-free rules
-    /// combine;
-    ///  zero means every literal-free rule folded into the one gate pass,
-    ///  and
-    ///  a count that grew by the over-cap rules shows the cap costing passes.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function seedless_group_count(): number {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn seedless_group_count(&self) -> usize {
-        return self.seedless_groups.len();
-    }
-
-    /// Returns how many `^`-anchored rules are checked at line starts.
-    ///
-    /// What:
-    ///  the line-start rule count.
-    ///  Why:
-    ///  a diagnostic for the fold,
-    ///  since these
-    /// rules left the per-line scan for a cheap anchored check at line starts.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function line_start_count(): number {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn line_start_count(&self) -> usize {
-        return self.line_start.len();
-    }
-
-    /// Returns how many rules have no required-literal prefilter.
-    ///
-    /// What:
-    ///  counts engines whose seed set is empty.
-    ///  Why:
-    ///  a diagnostic for tuning
-    /// the prefilter,
-    ///  since seedless rules run against every line.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function seedless_count(): number {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn seedless_count(&self) -> usize {
-        let mut count: usize = 0;
-        for engine in &self.rules {
-            if engine.seeds().is_none() {
-                count += 1;
-            }
-        }
-        return count;
-    }
-
-    /// Returns the number of rules.
-    ///
-    /// What:
-    ///  the rule count.
-    ///  Why:
-    ///  callers index `matches` results against rules.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function len(): number {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn len(&self) -> usize {
-        return self.rules.len();
-    }
-
-    /// Reports whether the set has no rules.
-    ///
-    /// What:
-    ///  rule count is zero.
-    ///  Why:
-    ///  the conventional companion to `len`.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function is_empty(): boolean {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        return self.rules.is_empty();
-    }
-
-    /// Checks the decoded set's parallel-vector indices are mutually consistent.
-    ///
-    /// What:
-    ///  `anchored` must be one per rule,
-    ///  the line-start engines and ids must pair
-    /// up,
-    ///  and every attribution id (`seedless_ids`,
-    ///  `line_start_ids`) must index a real
-    /// rule.
-    ///  Why:
-    ///  matching indexes `anchored[rule]`/`rules[id]` from the gate and these
-    /// id lists,
-    ///  so a hostile or corrupt serialization with mismatched lengths would
-    /// read out of bounds;
-    ///  this rejects it before any match runs.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function validate_structure(): void {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    fn validate_structure(&self) -> Result<(), CompileError> {
-        let rules = self.rules.len();
-        if self.anchored.len() != rules {
-            return Err(CompileError::invalid(
-                "anchored length does not match rule count",
-            ));
-        }
-        if self.line_start.len() != self.line_start_ids.len() {
-            return Err(CompileError::invalid(
-                "line-start engines and ids length mismatch",
-            ));
-        }
-        if has_id_at_least(self.seedless_ids.iter().chain(&self.line_start_ids), rules) {
-            return Err(CompileError::invalid("attribution id out of range"));
-        }
-        return Ok(());
-    }
-
-    /// Serializes the compiled ruleset to bytes.
-    ///
-    /// What:
-    ///  bincode-encodes every rule engine.
-    ///  Why:
-    ///  the pre-serialized form the
-    /// throughput benchmark loads.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function to_bytes(): number[] {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn to_bytes(&self) -> Result<Vec<u8>, CompileError> {
-        return bincode::serialize(self).map_err(CompileError::serialize_failed);
-    }
-
-    /// Loads a compiled ruleset from bytes,
-    ///  validating every engine.
-    ///
-    /// What:
-    ///  decodes then validates each rule engine.
-    ///  Why:
-    ///  every engine is
-    /// executed,
-    ///  so all must be proven in-bounds before use.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function from_bytes(bytes: Uint8Array): RegexSet {
-    ///   // Rust body below is the implementation.
-    /// }
-    /// ```
-    pub fn from_bytes(bytes: &[u8]) -> Result<RegexSet, CompileError> {
-        let mut set: RegexSet = bincode::deserialize(bytes).map_err(CompileError::undecodable)?;
-        // What: prove the cross-vector indices are consistent before anything indexes
-        // them. Why: the per-engine validation below cannot catch a decoded set whose
-        // parallel vectors disagree (e.g. a `seedless_id` past `rules`, or `anchored`
-        // shorter than `rules`), which would panic at match time on hostile bytes.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Same step as the Rust statement below, written with ordinary TS objects/functions.
-        // ```
-        set.validate_structure()?;
-        // What: validate the decoded graph, then rebuild its runtime prefilter. Why:
-        // both must happen before any engine runs on untrusted input.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Same step as the Rust statement below, written with ordinary TS objects/functions.
-        // ```
-        for engine in set
-            .rules
-            .iter_mut()
-            .chain(set.seedless_groups.iter_mut())
-            .chain(set.line_start.iter_mut())
-            .chain(set.anchored.iter_mut().flatten())
-        {
-            engine.validate()?;
-            engine.prepare();
-        }
-        // What: validate the decoded counting union before it runs. Why: it is
-        // executed against untrusted input like every other back-end.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Same step as the Rust statement below, written with ordinary TS objects/functions.
-        // ```
-        if let Some(nfa) = &set.seedless_union {
-            nfa.validate()?;
-        }
-        // What: rebuild the combined gate from the prepared engines. Why: it is not
-        // serialized, and the fast path depends on it.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Same step as the Rust statement below, written with ordinary TS objects/functions.
-        // ```
-        set.prepare();
-        return Ok(set);
-    }
-}
-
 /// What:
 ///     Unit tests for the public matchers' internals,
 ///  in a sidecar (max-lines exempt).

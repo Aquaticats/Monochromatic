@@ -155,7 +155,7 @@ What a `check` run says about one manifest:
   `not-utf8` or `file-too-large` when the rule cannot read the manifest;
   the message says what the parser accepts and the other rules still run.
 
-`tests/binary.rs` runs the built binary over a manifest carrying the pre-transfer URL and over one whose
+`tests/binary/rule_kinds.rs` runs the built binary over a manifest carrying the pre-transfer URL and over one whose
 `repository` is a string.
 
 ## Output

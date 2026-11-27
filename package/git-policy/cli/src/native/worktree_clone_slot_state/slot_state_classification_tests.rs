@@ -8,6 +8,7 @@
 
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{
+    ProofStoppedBy,
     SlotRouteState,
     classify_slot,
 };
@@ -190,10 +191,18 @@ fn a_mount_the_record_never_verified_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(
-            reason.contains("phase=cloned") && reason.contains("mounted at the slot"),
-            "{reason}"
-        ),
+            stopped_by,
+        } => {
+            assert!(
+                reason.contains("phase=cloned") && reason.contains("mounted at the slot"),
+                "{reason}"
+            );
+            assert_eq!(
+                stopped_by,
+                ProofStoppedBy::AnotherReading,
+                "a phase that disagrees with its mount stays Git's"
+            );
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -213,10 +222,14 @@ fn a_clone_mounted_elsewhere_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(
-            reason.contains("elsewhere") || reason.contains("/repo/.claude/worktrees/other"),
-            "{reason}"
-        ),
+            stopped_by,
+        } => {
+            assert!(
+                reason.contains("elsewhere") || reason.contains("/repo/.claude/worktrees/other"),
+                "{reason}"
+            );
+            assert_eq!(stopped_by, ProofStoppedBy::AnotherReading);
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -233,7 +246,15 @@ fn an_unreadable_record_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(reason.contains("permission denied"), "{reason}"),
+            stopped_by,
+        } => {
+            assert!(reason.contains("permission denied"), "{reason}");
+            assert_eq!(
+                stopped_by,
+                ProofStoppedBy::AnotherReading,
+                "the removal refuses an unreadable record before the mount table, so the state is no other reading's"
+            );
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -251,7 +272,11 @@ fn a_mount_with_no_record_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(reason.contains("nothing proves"), "{reason}"),
+            stopped_by,
+        } => {
+            assert!(reason.contains("nothing proves"), "{reason}");
+            assert_eq!(stopped_by, ProofStoppedBy::AMountNoRecordNames);
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -269,7 +294,11 @@ fn a_record_naming_another_path_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(reason.contains("not this slot's record"), "{reason}"),
+            stopped_by,
+        } => {
+            assert!(reason.contains("not this slot's record"), "{reason}");
+            assert_eq!(stopped_by, ProofStoppedBy::ARecordOfAnotherPath);
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -287,7 +316,15 @@ fn an_unreadable_plan_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(reason.contains("not a plan"), "{reason}"),
+            stopped_by,
+        } => {
+            assert!(reason.contains("not a plan"), "{reason}");
+            assert_eq!(
+                stopped_by,
+                ProofStoppedBy::AnotherReading,
+                "a plan nobody could read stays Git's until the owner says otherwise"
+            );
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -304,7 +341,11 @@ fn an_unreadable_mount_table_cannot_be_proved() {
     match classify_slot(&readings) {
         SlotRouteState::CannotProve {
             reason,
-        } => assert!(reason.contains("the table is too large"), "{reason}"),
+            stopped_by,
+        } => {
+            assert!(reason.contains("the table is too large"), "{reason}");
+            assert_eq!(stopped_by, ProofStoppedBy::AMountThatCannotBeRead);
+        }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
