@@ -133,8 +133,9 @@ const SOCKET_NAME: &str = "s";
 ///  A folder one socket's path fits in,
 ///  made and removed by this test thread's fixtures.
 /// Why:
-///   One socket address carries `LONGEST_SOCKET_PATH` bytes of path
-///  (107: `sun_path`'s 108 bytes less the zero that ends the name),
+///   One socket address carries `LONGEST_SOCKET_PATH` bytes of path:
+///  107,
+///  which is `sun_path`'s 108 bytes less the zero that ends the name,
 ///  and the fixture folders this package makes under the build directory are far longer than that,
 ///  so the folder stands in a place this account offers for short names.
 ///  `runtime_directory_parent` picks that place,
@@ -151,17 +152,21 @@ const SOCKET_NAME: &str = "s";
 /// const folder = runtimeDirectoryParent(`hw-${name}`, LONGEST_SOCKET_PATH - (1 + SOCKET_NAME.length));
 /// ```
 fn socket_folder(name: &str) -> PathBuf {
-    // What: the most bytes the folder may take, while the socket's own name and the separator before it still fit in
-    //  the path one socket address carries.
-    // Why: a folder longer than this leaves the socket's name nowhere to end, and the kernel refuses that path when the
-    //  control binds it.
+    // What: the most bytes the folder may take,
+    //  while the socket's own name and the separator before it still fit in the path one socket address carries.
+    // Why: a folder longer than this leaves the socket's name nowhere to end,
+    //  and the kernel refuses that path when the control binds it.
     let longest: usize = crate::service_instance::LONGEST_SOCKET_PATH - (1 + SOCKET_NAME.len());
-    // What: the folder's own name carries the control's name, so a person who finds one knows which control made it;
-    //  `runtime_directory_parent` adds six random digits of its own, so two runs never meet in one folder.
+    // What: the folder's own name carries the control's name,
+    //  so a person who finds one knows which control made it;
+    //  `runtime_directory_parent` adds six random digits of its own,
+    //  so two runs never meet in one folder.
     // Why: the name a leftover folder carries is what a person reads to know where it came from.
     let prefix: String = format!("hw-{name}");
-    // What: `&prefix` is a borrowed view of the text, which the chooser reads and does not keep.
-    // Why: the chooser takes borrowed text, and the folder it answers with is already this thread's fixture.
+    // What: `&prefix` is a borrowed view of the text,
+    //  which the chooser reads and does not keep.
+    // Why: the chooser takes borrowed text,
+    //  and the folder it answers with is already this thread's fixture.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -174,7 +179,8 @@ fn socket_folder(name: &str) -> PathBuf {
 /// serving on a thread until the control ends.
 pub(super) struct Serving {
     /// Where the clients connect.
-    /// Its folder is one this thread's fixtures made, and they remove it when the thread ends.
+    /// Its folder is one this thread's fixtures made,
+    /// and they remove it when the thread ends.
     socket: PathBuf,
 }
 
