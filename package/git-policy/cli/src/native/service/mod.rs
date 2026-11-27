@@ -203,6 +203,9 @@
 //!   it tells the waiters,
 //!   waits a bounded time for the Gits and the landing in flight,
 //!   and ends the process by the signal.
+//! - `service_server_work_loop_awaiting_storage_steps.rs`:
+//!   the storage steps the after-commit loop makes as jobs of the blocking pool:
+//!   the notes a restart looks at and the plan of the pushes a service owes.
 //! - `service_server_work_loop_awaiting.rs`:
 //!   the same loop as a task of the runtime,
 //!   with the two storage steps only it makes.
@@ -459,6 +462,10 @@ pub mod service_server_own_worktree_question;
 
 /// The loop of the commit service's after-commit work asked by a thread outside the runtime.
 pub mod service_server_work_loop;
+
+/// The storage steps the after-commit loop makes as jobs of the blocking pool:
+/// the notes a restart looks at and the plan of the pushes a service owes.
+pub mod service_server_work_loop_awaiting_storage_steps;
 
 /// The same loop as a task of the runtime,
 /// with the two storage steps only it makes.
