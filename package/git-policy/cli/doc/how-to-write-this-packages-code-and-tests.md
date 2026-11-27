@@ -257,6 +257,18 @@ The binary test target's own helper names its folders the same way
 `binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
+A folder that has to be short,
+because a socket's path must fit one socket address,
+comes from `runtime_directory_folders.rs`'s `runtime_directory_parent`:
+it picks the longest place this account offers that leaves room for the folder's name,
+makes the folder exclusively under a random token,
+and hands it to the thread's fixtures,
+which remove it however the control ends.
+No control builds that folder under the home directory itself:
+the helper the hung-write controls used put `hw-<process id>-<name>` under the real `~/temp/agent`,
+and every control that panicked or failed left one there:
+34 of them by 2026-11-27 (issue 6561).
+
 ## Own every child, end it on every path
 
 A child a test starts is the test's to end, on success, on failure and on a panic:

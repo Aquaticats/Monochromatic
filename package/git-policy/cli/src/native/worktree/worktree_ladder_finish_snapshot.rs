@@ -31,6 +31,7 @@ use crate::diagnostic_log::{
     warn,
 };
 use crate::fs_beneath::ObjectId;
+use crate::the_names_and_the_manifest_of_the_trash::PendingTrash;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{
     Bound,
@@ -77,10 +78,7 @@ use crate::worktree_snapshot::{
     take_snapshot,
 };
 use crate::worktree_snapshot_source::SnapshotSource;
-use crate::worktree_trash::{
-    PendingTrash,
-    TrashManifest,
-};
+use crate::worktree_trash_manifest::TrashManifest;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
