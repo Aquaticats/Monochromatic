@@ -13,15 +13,24 @@
  open, and exits. The tail therefore reaches this process strictly after the
  direct child's `exit` event, whichever way the scheduler runs the two.
 
+ The deadline's own guards are here too: the runner destroys both pipes,
+ signals the tool's whole process group so a helper it left is stopped with it,
+ and reports what it could not stop. A stand-in child class below drives the
+ failure paths no real tool produces on demand, such as a failed pipe read.
+
  @module
  */
 
 import { Buffer, } from 'node:buffer';
+import { EventEmitter, } from 'node:events';
+import { existsSync, } from 'node:fs';
 import {
   chmod,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { PassThrough, } from 'node:stream';
+import { setTimeout as delay, } from 'node:timers/promises';
 
 import {
   describe,
@@ -29,8 +38,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import type { FixtureToolProcess, } from './fixture.ts';
 import {
   createTempRoot,
+  FIXTURE_COMMAND_TIMEOUT_MS,
   FixtureCommandError,
   MAX_FIXTURE_COMMAND_STDERR_BYTES,
   runCommand,
@@ -39,26 +50,49 @@ import {
 //region Constants
 
 /**
- First half of the document the stand-in tool prints: a store whose one value
- it has not finished. A join that stops here holds text no reader can parse.
+ Name of the stand-in key, the one key a stand-in store declares.
  */
-const STORE_HEAD = '{"STAND_IN_NAME":"stand-in-value-';
+const STAND_IN_KEY_NAME = 'STAND_IN_NAME';
 
 /**
- Second half of that value and the document's close, which the stand-in prints
- after its direct child has ended.
+ Start of the stand-in value, up to the point where the stand-in cuts the
+ document: the head ends inside this value, so a join that stops there holds
+ text no reader can parse.
  */
-const STORE_TAIL = '0123456789"}';
+const STAND_IN_VALUE_HEAD = 'stand-in-value-';
 
 /**
- Whole document the stand-in tool prints, and the only text a reader can parse.
+ End of that value, which the stand-in prints after its direct child has ended.
  */
-const WHOLE_STORE = `${STORE_HEAD}${STORE_TAIL}`;
+const STAND_IN_VALUE_TAIL = 'and-its-own-tail';
 
 /**
- Values {@link WHOLE_STORE} declares, which is what a cut store cannot parse to.
+ Values the stand-in store declares, which is what a cut store cannot parse to.
  */
-const STAND_IN_VALUES: Readonly<Record<string, string>> = { STAND_IN_NAME: 'stand-in-value-0123456789', };
+const STAND_IN_VALUES: Readonly<Record<string, string>> = {
+  [STAND_IN_KEY_NAME]: `${STAND_IN_VALUE_HEAD}${STAND_IN_VALUE_TAIL}`,
+};
+
+/**
+ Whole document the stand-in tool prints, written by the same JSON encoder a
+ store is written with so no part of it is written twice.
+ */
+const WHOLE_STORE = JSON.stringify(STAND_IN_VALUES,);
+
+/**
+ First half of that document: everything before the end of its one value. A
+ join that stops here holds text no reader can parse.
+ */
+const STORE_HEAD = WHOLE_STORE.slice(
+  0,
+  WHOLE_STORE.indexOf(STAND_IN_VALUE_TAIL,),
+);
+
+/**
+ Second half: the rest of that value and the document's close, which the stand-in
+ prints after its direct child has ended.
+ */
+const STORE_TAIL = WHOLE_STORE.slice(STORE_HEAD.length,);
 
 /**
  Seconds the stand-in's background subshell waits before printing the tail:
@@ -92,6 +126,35 @@ const TEST_DEADLINE_MS = 500;
 const MILLISECONDS_PER_SECOND = 1_000;
 /** Finite so a missing deadline gives a failed assertion instead of stranding a tool. */
 const HOLD_SECONDS = (4 * TEST_DEADLINE_MS) / MILLISECONDS_PER_SECOND;
+
+/**
+ Seconds the tool and its helper wait before each writes a survival marker,
+ well after {@link TEST_DEADLINE_MS} has passed.
+ */
+const SURVIVAL_DELAY_SECONDS = (2 * TEST_DEADLINE_MS) / MILLISECONDS_PER_SECOND;
+
+/**
+ Milliseconds the survival test waits past the markers' own delay before
+ reading them, so a process the runner failed to stop has written its marker.
+ */
+const SURVIVAL_CHECK_DELAY_MS = (3 * MILLISECONDS_PER_SECOND) / 2;
+
+/**
+ Group id the stand-in child reports, chosen so the group signal names a number
+ no process of this machine owns.
+ */
+const STAND_IN_GROUP_ID = 4_242;
+
+/**
+ Signal the deadline must send: a stop a tool can ignore would leave the wait it
+ already abandoned alive.
+ */
+const EXPECTED_KILL_SIGNAL = 'SIGKILL';
+
+/**
+ Failure a stand-in pipe read reports.
+ */
+const STAND_IN_PIPE_FAILURE = 'stand-in pipe failure';
 
 //endregion Constants
 
@@ -159,10 +222,119 @@ async function commandFailureMessage(options: Parameters<typeof runCommand>[0],)
   throw new Error(`Expected fixture command ${options.command} to reject, but it returned normally.`,);
 }
 
+/**
+ A child no real tool can produce on demand: its pipes never close by
+ themselves, so a failure the runner cleans up after can be raised here.
+ */
+class StandInChild extends EventEmitter implements FixtureToolProcess {
+  /**
+   Standard output pipe the test can fail.
+   */
+  readonly stdout = new PassThrough();
+
+  /**
+   Standard error pipe the test can fail.
+   */
+  readonly stderr = new PassThrough();
+
+  /**
+   Process id, which is also the child's group id when the runner stops the group.
+   */
+  readonly pid: number | undefined;
+
+  /**
+   Status of a normal end; a stand-in never reports one.
+   */
+  exitCode: number | null = null;
+
+  /**
+   Signal that ended the child; a stand-in never reports one.
+   */
+  signalCode: NodeJS.Signals | null = null;
+
+  /**
+   @param pid - group id the child reports, absent when the runner must not try to stop it
+   */
+  constructor({ pid }: { readonly pid?: number | undefined; } = {},) {
+    super();
+    this.pid = pid;
+  }
+
+  /**
+   Releases the stand-in, which holds nothing the runner's process waits on.
+   */
+  unref(): void {
+    // A stand-in has no operating-system handle to release.
+  }
+}
+
+/**
+ Runs the fixture runner against a stand-in child whose named pipe fails.
+
+ The runner attaches its pipe listeners before it awaits the child, so the
+ failure raised here reaches them instead of the stream's unhandled-error path.
+
+ @param pipe - pipe whose read fails
+ @param signalGroup - signaler the runner is given, `process.kill` when absent
+
+ @returns the rejection message and the child the runner used
+ */
+async function standInChildFailure({
+  pipe,
+  signalGroup,
+}: {
+  readonly pipe: 'standard output' | 'standard error';
+  readonly signalGroup?: (processGroupId: number, signal: NodeJS.Signals,) => void;
+},): Promise<{ readonly child: StandInChild; readonly message: string; }> {
+  /**
+   Child the runner is made to start instead of a tool.
+   */
+  const child = new StandInChild({ pid: STAND_IN_GROUP_ID, },);
+  /**
+   The runner's pending call, which the pipe failure below rejects.
+   */
+  const pending = runCommand({
+    args: [],
+    command: STAND_IN_TOOL_NAME,
+    spawnTool: function startStandInChild(): FixtureToolProcess {
+      return child;
+    },
+    ...(signalGroup === undefined ? {} : { signalGroup, }),
+  },);
+  /**
+   The pipe the test fails, named so the runner reports which read broke.
+   */
+  const stream = pipe === 'standard output' ? child.stdout : child.stderr;
+  stream.emit('error', new Error(STAND_IN_PIPE_FAILURE,),);
+  try {
+    await pending;
+  }
+  catch (error) {
+    if (!(error instanceof FixtureCommandError))
+      throw error;
+    return {
+      child,
+      message: error.message,
+    };
+  }
+  throw new Error('expected the fixture runner to reject a failed pipe read',);
+}
+
 //endregion Helpers
 
 await describe({
   children: [
+    it({
+      fn: async () => {
+        // The split below is what makes the first test able to fail: a head that
+        // were already a whole document would parse, and a join stopping there
+        // would look complete.
+        expect(JSON.parse(WHOLE_STORE,),).toEqual(STAND_IN_VALUES,);
+        expect(`${STORE_HEAD}${STORE_TAIL}`,).toBe(WHOLE_STORE,);
+        expect(() => JSON.parse(STORE_HEAD,),).toThrow();
+      },
+      name: 'splits its stand-in store inside the value, not between tokens',
+    },),
     it({
       fn: async () => {
         await using temp = await createTempRoot({ prefix: 'env-local-json-run-command-', },);
@@ -332,6 +504,109 @@ await describe({
         expect(message,).not.toContain(INSTALL_COMMAND,);
       },
       name: 'reports the deadline while the tool is still running',
+    },),
+    it({
+      fn: async () => {
+        await using temp = await createTempRoot({ prefix: 'env-local-json-run-command-stop-', },);
+        /**
+         Marker the direct child writes when it outlives the deadline.
+         */
+        const toolMarker = join(temp.root, 'tool-survived',);
+        /**
+         Marker the helper writes when it outlives the deadline.
+         */
+        const helperMarker = join(temp.root, 'helper-survived',);
+        const command = await writeStandInTool({
+          root: temp.root,
+          lines: [
+            `( sleep ${String(SURVIVAL_DELAY_SECONDS,)}; printf '%s' 'helper' > '${helperMarker}' ) &`,
+            `sleep ${String(SURVIVAL_DELAY_SECONDS,)}`,
+            `printf '%s' 'tool' > '${toolMarker}'`,
+            'exit 0',
+          ],
+        },);
+        const message = await commandFailureMessage({ args: [], command, timeoutMilliseconds: TEST_DEADLINE_MS, },);
+        expect(message,).toContain(`did not complete within ${String(TEST_DEADLINE_MS,)} ms`,);
+        // The deadline passes long before either writer's own delay ends, so a
+        // process the runner left alive writes its marker in the window below.
+        await delay(SURVIVAL_CHECK_DELAY_MS,);
+        expect(existsSync(toolMarker,),).toBe(false,);
+        expect(existsSync(helperMarker,),).toBe(false,);
+      },
+      name: 'stops the tool and the helper it left when the deadline passes',
+      timeout: 4 * TEST_DEADLINE_MS + SURVIVAL_CHECK_DELAY_MS,
+    },),
+    it({
+      fn: async () => {
+        const { child, message, } = await standInChildFailure({ pipe: 'standard output', },);
+        expect(message,).toContain('could not read standard output',);
+        // The wait is abandoned, so neither pipe may stay open to a tool whose
+        // output no caller will ever see.
+        expect(child.stdout.destroyed,).toBe(true,);
+        expect(child.stderr.destroyed,).toBe(true,);
+      },
+      name: 'destroys both output pipes when it abandons a tool',
+    },),
+    it({
+      fn: async () => {
+        /**
+         Signals the runner sent and the group each named.
+         */
+        const signals: { readonly groupId: number; readonly signal: NodeJS.Signals; }[] = [];
+        await standInChildFailure({
+          pipe: 'standard error',
+          signalGroup: function recordSignal(groupId, signal,) {
+            signals.push({
+              groupId,
+              signal,
+            },);
+          },
+        },);
+        expect(signals,).toEqual([{
+          groupId: -STAND_IN_GROUP_ID,
+          signal: EXPECTED_KILL_SIGNAL,
+        },],);
+      },
+      name: 'signals the tool\'s whole process group when it abandons a tool',
+    },),
+    it({
+      fn: async () => {
+        const { message, } = await standInChildFailure({
+          pipe: 'standard output',
+          signalGroup: function refuseSignal() {
+            throw new Error('EPERM from the stand-in signaler',);
+          },
+        },);
+        expect(message,).toContain(`Could not stop the tool's process group ${String(-STAND_IN_GROUP_ID,)}`,);
+        expect(message,).toContain('EPERM from the stand-in signaler',);
+      },
+      name: 'reports a process group it could not stop',
+    },),
+    ...(['standard output', 'standard error',] as const).map(function failedPipe(pipe,) {
+      return it({
+        fn: async () => {
+          const { message, } = await standInChildFailure({ pipe, },);
+          expect(message,).toContain(`could not read ${pipe}`,);
+          expect(message,).toContain(STAND_IN_PIPE_FAILURE,);
+          expect(message,).not.toContain(INSTALL_COMMAND,);
+        },
+        name: `reports a failed read of ${pipe}`,
+      },);
+    },),
+    it({
+      fn: async () => {
+        const message = await commandFailureMessage({
+          args: [],
+          command: STAND_IN_TOOL_NAME,
+          spawnTool: function startStandInChild(): FixtureToolProcess {
+            return new StandInChild();
+          },
+        },);
+        expect(message,).toContain(`did not complete within ${String(FIXTURE_COMMAND_TIMEOUT_MS,)} ms`,);
+        expect(message,).toContain('Check why the tool did not finish.',);
+      },
+      name: 'waits the default deadline when the caller names none',
+      timeout: 4 * FIXTURE_COMMAND_TIMEOUT_MS,
     },),
     it({
       fn: async () => {
