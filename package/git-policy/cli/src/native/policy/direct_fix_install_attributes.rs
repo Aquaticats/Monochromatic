@@ -44,25 +44,9 @@ use std::os::unix::io::AsRawFd;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
-/// How many times a list or a value is asked for before a changing file is refused.
-///  Exempt from a citation under `LQM` (class:
-/// poll):
-/// it sets how often a condition is looked at again,
-/// so it adds at
-///  most one retry to a read that already exists.
-/// Why:
-///   The kernel answers a list that grew between the size question and the answer with `ERANGE`,
-///  and a
-///       second answer is the usual end of it;
-///  a file whose attributes keep changing has no list this
-///       process can name,
-///  so the reading stops rather than loop.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ATTRIBUTE_ATTEMPTS = 4;
-/// ```
-const ATTRIBUTE_ATTEMPTS: u32 = 4;
+/// The calls that read the names and the values,
+///  and the retry that survives a file changing under them.
+use crate::direct_fix_install_attributes_reading as reading;
 
 /// What:
 ///  One extended attribute:
@@ -147,11 +131,6 @@ pub(crate) enum AttributeRefusal {
         reason: std::io::Error,
     },
 }
-
-/// The calls that read the names and the values,
-///  and the retry that survives a file changing under them.
-#[path = "direct_fix_install_attributes_reading.rs"]
-mod reading;
 
 /// What:
 ///  Whether `name` is a security label:

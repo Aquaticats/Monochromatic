@@ -41,10 +41,9 @@
 
 use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
-use crate::lazy_runtime::{
-    RuntimeError,
-    run_on_runtime,
-};
+/// The runtime a run's jobs go to,
+/// and the call that answers `Nested` from inside it.
+use crate::lazy_runtime::run_on_runtime;
 use crate::line_sink::LineSink;
 use crate::parallel_runner::{
     Cursor,
@@ -53,6 +52,9 @@ use crate::parallel_runner::{
     OrderedWork,
     refuse_lanes_that_do_not_cover_every_item,
 };
+/// Why a run did not finish every item,
+/// and the words a person reads for each reason.
+pub use crate::what_a_failed_run_says_to_a_person::OrderedRunError;
 use std::sync::Arc;
 use std::sync::atomic::{
     AtomicUsize,
@@ -102,91 +104,6 @@ pub struct OrderedRunOfOwned<'run, T, R> {
     /// The consumer,
     /// called on the calling task only.
     pub on_event: &'run mut dyn OrderedEvents<R>,
-}
-
-/// Why an ordered run on the runtime did not finish every item.
-#[derive(Debug)]
-pub enum OrderedRunError {
-    /// The system refused a thread for a job,
-    ///  so the items after it in its lane were not run,
-    /// and the item it held will not run either.
-    ///  This is what a job that takes the claim on the item's work before
-    /// it answers can say (`blocking_jobs_within_the_budget.rs`).
-    NoThreadToStart,
-    /// The system refused a thread for a job,
-    ///  and the pool then ran it on another thread,
-    /// so the items after it in its lane were not run,
-    ///  and whether the item it held finished is not known from here.
-    StartedAfterItsThreadWasRefused,
-    /// The system refused a thread for a job,
-    ///  and the pool had already queued it,
-    /// so it may still run later;
-    /// the items after it in its lane were not run,
-    ///  and whether it ran is not known from here.
-    MayStillRunAfterItsThreadWasRefused,
-    /// A job panicked,
-    /// so the items after it in its lane were not run.
-    Panicked,
-    /// The runtime ended before the run did.
-    Cancelled,
-    /// There was no runtime to run the jobs on,
-    /// or the call came from inside it.
-    NoRuntime(RuntimeError),
-}
-
-impl std::fmt::Display for OrderedRunError {
-    fn fmt(
-        &self,
-        formatter: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        return match self {
-            OrderedRunError::NoThreadToStart => write!(
-                formatter,
-                "the system refused a thread for a step of this run, so the items after it in its lane were not run and the \
-                 item it held will not run. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, \
-                 free some, and run the command again"
-            ),
-            OrderedRunError::StartedAfterItsThreadWasRefused => write!(
-                formatter,
-                "the system refused a thread for a step of this run, and the pool then ran that step on another thread: the \
-                 items after it in its lane were not run, and whether the item it held finished is not known from here. Hint: \
-                 check the process limit (`ulimit -u`) and the control group's `pids.max`, and check what that worktree looks \
-                 like before running the command again"
-            ),
-            OrderedRunError::MayStillRunAfterItsThreadWasRefused => write!(
-                formatter,
-                "the system refused a thread for a step of this run, and the pool had already queued that step before it asked for one, \
-                 so the step may still run later; the items after it in its lane were not run, and whether it ran is not known from \
-                 here. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, and check what that worktree \
-                 looks like before running the command again"
-            ),
-            OrderedRunError::Panicked => write!(
-                formatter,
-                "a step of this run panicked, so the items after it in its lane were not run"
-            ),
-            OrderedRunError::Cancelled => write!(
-                formatter,
-                "a step of this run was cancelled because the runtime was ending"
-            ),
-            OrderedRunError::NoRuntime(reason) => write!(formatter, "{reason}"),
-        };
-    }
-}
-
-impl From<BlockingJobError> for OrderedRunError {
-    fn from(error: BlockingJobError) -> Self {
-        return match error {
-            BlockingJobError::NoThreadToStart => OrderedRunError::NoThreadToStart,
-            BlockingJobError::MayStillRunAfterItsThreadWasRefused => {
-                OrderedRunError::MayStillRunAfterItsThreadWasRefused
-            }
-            BlockingJobError::StartedAfterItsThreadWasRefused => {
-                OrderedRunError::StartedAfterItsThreadWasRefused
-            }
-            BlockingJobError::Panicked => OrderedRunError::Panicked,
-            BlockingJobError::Cancelled => OrderedRunError::Cancelled,
-        };
-    }
 }
 
 /// One item,

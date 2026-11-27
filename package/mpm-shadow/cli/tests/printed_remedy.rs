@@ -57,6 +57,11 @@ mod every_sentence_names_a_program_the_install_puts_on_path;
 #[path = "printed_remedy/the_global_remedy_runs_as_printed_and_clears_the_warning.rs"]
 mod the_global_remedy_runs_as_printed_and_clears_the_warning;
 
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
+
 /// The tool the fixture locks:
 /// a crate of this repository,
 /// so the older-lock warning applies to it.
