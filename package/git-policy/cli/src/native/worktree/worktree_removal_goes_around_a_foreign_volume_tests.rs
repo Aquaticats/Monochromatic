@@ -593,3 +593,56 @@ fn a_left_in_place_record_that_is_a_named_pipe_is_answered_at_once() {
     assert_eq!(count, 0, "a pipe is no notice");
     remove(root.as_path());
 }
+
+/// What:
+///  A record of a removal that went around,
+///  whose line the thread that writes standard error could not put in the stream,
+///  stays for the next command.
+/// Why:
+///   The record is removed only once its line is known written,
+///  and the write itself answers before the line is written:
+///  the thread's answer is what tells the two apart
+///  (`foundation/standard_error_off_the_calling_thread.rs`).
+///  No later command in that worktree would ever show anything,
+///  so a line nobody could read is the only statement the path still taken has.
+#[test]
+fn a_record_whose_line_the_stream_could_not_take_stays_for_the_next_command() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_record_whose_line_the_stream_could_not_take_stays_for_the_next_command",
+        || {
+            let root: PathBuf = fixture("around-record-line-not-taken");
+            let common: PathBuf = root.join("common");
+            std::fs::create_dir_all(common.as_path()).expect("a common Git directory");
+            let worktree: PathBuf = root.join("wt");
+            let left: Vec<Boundary> = two_volumes(worktree.as_path());
+            record_left_in_place(
+                common.as_path(),
+                worktree.as_path(),
+                "refs/heads/feature",
+                left.as_slice(),
+            )
+            .expect("the record is written");
+            let notices: Vec<crate::push_failure_notice_shown_then_removed::Notice> =
+                left_in_place_notices(common.as_path());
+            assert_eq!(notices.len(), 1, "one record to show");
+            let mut notes = crate::test_support::standard_error_whose_writer_refuses_every_line();
+            let refused: std::io::Result<()> = notices[0].show(&mut notes);
+            assert!(
+                refused.is_err(),
+                "the thread that writes standard error says the line did not reach the person"
+            );
+            let again: Vec<String> = shown_notices(left_in_place_notices(common.as_path()));
+            assert_eq!(
+                again.len(),
+                1,
+                "the record is found by the next command: {again:?}"
+            );
+            assert!(
+                again[0].contains("of branch refs/heads/feature"),
+                "and it still says what it held: {again:?}"
+            );
+            remove(root.as_path());
+        },
+    );
+}

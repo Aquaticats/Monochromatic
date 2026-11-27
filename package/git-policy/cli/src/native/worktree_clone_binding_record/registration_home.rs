@@ -218,6 +218,40 @@ pub fn is_known_staging_name(name: &str) -> bool {
     return is_record_staging_name(name) || is_claim_staging_name(name);
 }
 
+/// What:
+///  Whether the record's home holds a record this family writes,
+///  or a record a writer is still putting there under its staging name.
+/// Why:
+///  The unknown-global refusal protects a slot that has a record,
+///  so a folder the route made on an earlier command and holds nothing
+///  endangers no slot,
+///  and `SPEC.md` says the refusal applies "while the repository holds slot
+///  records".
+///  A record being written counts:
+///  its staging name is the same home's record mid-write,
+/// and the refusal's
+///  readers look in that home.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function holdsARecord(commonDir: string): boolean;
+/// ```
+pub fn holds_a_record(common_dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(home_folder(common_dir)) else {
+        return false;
+    };
+    for listed in entries.flatten() {
+        let file_name: OsString = listed.file_name();
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+        if record_name_of(name).is_some() || is_known_staging_name(name) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Whether one name is `take_claim`\x27s private temporary file,
 /// `.cli-git-claim.tmp.<pid>.<nanos>.<counter>`,
 /// which a kill between its bytes and its link leaves.

@@ -38,6 +38,16 @@ and only the wait that owns the child prints the line about the wait,
 so it is said once.
 Its three findings were reproduced in the crate at `0076cb74ed`,
 and the controls that hold them are named under workaround 1.
+AMENDED 2026-11-27:
+the notice's ordinary lines do not stop any more once the ceiling stood aside,
+because the stop is sent by the wait that owns the child and the notice's thread never breaks on it,
+so they go on promising `it is stopped if it lasts N seconds in all` after that stop was sent.
+A gate run of 2026-11-27 measured the step in `D` for thirty seconds after the `SIGKILL`
+(issue 6589),
+and a control's own planted hold reproduced the same lines with no host load.
+The words are put to the owner in
+[`doc/planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md`](../planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md).
+The state below is still the state the wrapper waits through.
 
 ## Symptom
 

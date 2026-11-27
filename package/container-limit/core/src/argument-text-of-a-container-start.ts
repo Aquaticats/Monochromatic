@@ -3,8 +3,9 @@
 
  A start passes its arguments in one of the shapes the repository writes: an argument array after the program name
  (`execFileSync('podman', ['run', ...])`), a program name as the array's first element (`['podman', 'build', ...]`), a
- call that returns the arguments (`spawn('podman', [...containerRunArguments({})])`), or a shell command line
- (`podman run --rm ...`, with its `\` continuations joined).
+ call that returns the arguments (`spawn('podman', [...containerRunArguments({})])`), a shell command line
+ (`podman run --rm ...`, with its `\` continuations joined), or, in a Rust source, the calls chained after the call that
+ named the program (`Command::new("podman").args(["run", ...])`).
  */
 
 import {
@@ -33,6 +34,24 @@ const SEPARATORS = ' \t\r\n,';
  */
 
 const SPREAD_MARKER = '...';
+
+/**
+ Characters that can sit between a call and the method call chained after it.
+ */
+const CHAIN_SEPARATORS = ' \t\r\n';
+
+/**
+ The methods of `std::process::Command` that pass an argument to the program the command runs.
+ */
+const RUST_ARGUMENT_METHODS: ReadonlySet<string> = new Set([
+  'arg',
+  'args',
+],);
+
+/**
+ The characters that open the macro a Rust source builds an argument vector with.
+ */
+const RUST_VECTOR_MACRO = 'vec!';
 
 /**
  Newline character, which a command line ends at.
@@ -384,4 +403,284 @@ export function spreadAtStart(argvText: string,): {
     };
   }
   return { isCall: false, };
+}
+
+/**
+ Index of the first character of a range that is neither a space nor a line break.
+
+ @param characters - the file's characters
+ 
+ @param from - index to start reading at
+ 
+ @param to - end of the range to read
+
+ @returns the index of the first character no chain separator holds, or the end of the range
+
+ @example
+ ```ts
+ const start = chainStart({ characters, from: 12, to: characters.length });
+ ```
+ */
+function chainStart({
+  characters,
+  from,
+  to,
+}: {
+  readonly characters: readonly string[];
+  readonly from: number;
+  readonly to: number;
+},): number {
+  /**
+   Index past the separators, which is where the next call or the end of the statement starts.
+   */
+  let index = from;
+  while ((index < to) && CHAIN_SEPARATORS.includes(characters[index] ?? '',))
+    index += 1;
+  return index;
+}
+
+/**
+ The argument text one `arg` or `args` call passes, and whether an array literal held it.
+
+ A Rust source writes an argument array as a literal, behind a borrow (`&["run", ...]`) or through the vector macro
+ (`vec!["run", ...]`), and writes one argument as a plain string.
+
+ @param text - the text between the call's parentheses
+
+ @returns the argument text past the borrow, the macro or the brackets, and whether brackets held it
+
+ @example
+ ```ts
+ const { text, inArrayLiteral } = argumentTextOfOneCall('&["run", "--rm"]');
+ ```
+ */
+function argumentTextOfOneCall({ text, }: {
+  readonly text: string;
+},): {
+  readonly text: string;
+  readonly inArrayLiteral: boolean
+} {
+  /**
+   The call's argument, past the spaces around it.
+   */
+  const trimmed = text.trim();
+  /**
+   The argument past the borrow a Rust source may write before its array.
+   */
+  const borrowed = trimmed.startsWith('&',)
+    ? trimmed.slice(1,)
+      .trim()
+    : trimmed;
+  /**
+   The argument past the macro that builds the vector it names.
+   */
+  const unwrapped = borrowed.startsWith(RUST_VECTOR_MACRO,)
+    ? borrowed.slice(RUST_VECTOR_MACRO.length,)
+      .trim()
+    : borrowed;
+  if (unwrapped.startsWith('[',) && unwrapped.endsWith(']',))
+    return {
+      text: unwrapped.slice(
+        1,
+        -1,
+      ),
+      inArrayLiteral: true,
+    };
+  return {
+    text: unwrapped,
+    inArrayLiteral: false,
+  };
+}
+
+/**
+ The argument text a Rust program passes to the container program whose name a call holds.
+
+ A Rust source writes a start as a call that names the program, followed by the calls that hand the program its
+ arguments: `Command::new("podman").args(["run", ...])` or
+ `Command::new("podman").arg("run").arg("--rm")`. The arguments therefore sit in the chained calls, not beside the name.
+ Only `arg` and `args` pass an argument to the program, so the text of every other call the chain makes (`output`,
+ `expect`, `env`) is not part of what the program receives.
+
+ @param characters - the file's characters
+ 
+ @param from - index just past the quote that closes the program name
+ 
+ @param to - end of the range to read
+
+ @returns the argument text the chained calls pass, joined in call order, and whether an array literal held any of it
+
+ @example
+ ```ts
+ const argument = argumentTextOfTheChainedCalls({ characters, from: 26, to: characters.length });
+ ```
+ */
+/**
+ One call a Rust chain makes, with the argument text it handed the program.
+ */
+type ChainedCall = {
+  /**
+   The argument text the call passed, past its brackets and borrow.
+   */
+  readonly text: string;
+  /**
+   Whether an array literal held that text.
+   */
+  readonly inArrayLiteral: boolean;
+};
+
+/**
+ The argument text a Rust program passes to the container program whose name a call holds.
+
+ A Rust source writes a start as a call that names the program, followed by the calls that hand the program its
+ arguments: `Command::new("podman").args(["run", ...])` or
+ `Command::new("podman").arg("run").arg("--rm")`. The arguments therefore sit in the chained calls, not beside the name.
+ Only `arg` and `args` pass an argument to the program, so the text of every other call the chain makes (`output`,
+ `expect`, `env`) is not part of what the program receives.
+
+ @param characters - the file's characters
+ 
+ @param from - index just past the quote that closes the program name
+ 
+ @param to - end of the range to read
+
+ @returns the argument text the chained calls pass, joined in call order, and whether an array literal held any of it
+
+ @example
+ ```ts
+ const argument = argumentTextOfTheChainedCalls({ characters, from: 26, to: characters.length });
+ ```
+ */
+export function argumentTextOfTheChainedCalls({
+  characters,
+  from,
+  to,
+}: {
+  readonly characters: readonly string[];
+  readonly from: number;
+  readonly to: number;
+},): {
+  readonly text: string;
+  readonly inArrayLiteral: boolean
+} {
+  /**
+   Index past the parenthesis that closes the call naming the program, when the name was that call's only argument:
+   anything else is a name the caller passes on, as `spawn('podman', args)` does.
+   */
+  const opening = chainStart({
+    characters,
+    from,
+    to,
+  },);
+  if (characters[opening] !== ')')
+    return {
+      text: '',
+      inArrayLiteral: false,
+    };
+  /**
+   Each call the chain makes that handed the program an argument, in the order the source writes them.
+   */
+  const calls = chainedCalls({
+    characters,
+    from: opening + ')'.length,
+    to,
+  },);
+  return {
+    text: calls.map(function textOf(call,) {
+      return call.text;
+    },)
+      .join(', ',),
+    inArrayLiteral: calls.some(function heldByAnArrayLiteral(call,) {
+      return call.inArrayLiteral;
+    },),
+  };
+}
+
+/**
+ Each call a chain of method calls makes that handed the program an argument, in source order.
+
+ @param characters - the file's characters
+ 
+ @param from - index just past the parenthesis that closed the call naming the program
+ 
+ @param to - end of the range to read
+
+ @returns one entry per `arg` or `args` call, in the order the chain makes them
+
+ @example
+ ```ts
+ const calls = chainedCalls({ characters, from: 26, to: characters.length });
+ ```
+ */
+function chainedCalls({
+  characters,
+  from,
+  to,
+}: {
+  readonly characters: readonly string[];
+  readonly from: number;
+  readonly to: number;
+},): readonly ChainedCall[] {
+  /**
+   One entry per call that passed the program an argument.
+   */
+  const calls: ChainedCall[] = [];
+  for (let index = chainStart({
+    characters,
+    from,
+    to,
+  },); index < to;) {
+    if (characters[index] !== '.')
+      break;
+    /**
+     Index of the first character of the method's name.
+     */
+    const nameStart = index + '.'.length;
+    /**
+     Index past the method's name.
+     */
+    let nameEnd = nameStart;
+    while ((nameEnd < to) && isNameCharacter(characters[nameEnd],))
+      nameEnd += 1;
+    if (nameEnd === nameStart)
+      break;
+    /**
+     The method the chain calls here.
+     */
+    const method = characters.slice(
+      nameStart,
+      nameEnd,
+    )
+      .join('',);
+    /**
+     Index of the parenthesis that opens the call's arguments.
+     */
+    const parentheses = chainStart({
+      characters,
+      from: nameEnd,
+      to,
+    },);
+    if (characters[parentheses] !== '(')
+      break;
+    /**
+     Index past the call's closing parenthesis.
+     */
+    const end = bracketPairEnd({
+      characters,
+      opening: parentheses,
+      to,
+    },);
+    if (RUST_ARGUMENT_METHODS.has(method,)) {
+      calls.push(argumentTextOfOneCall({ text: characters.slice(
+        parentheses + '('.length,
+        end - ')'.length,
+      )
+        .join('',), },),);
+    }
+    index = chainStart({
+      characters,
+      from: end,
+      to,
+    },);
+  }
+  return calls;
 }
