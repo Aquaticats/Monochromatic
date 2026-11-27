@@ -44,6 +44,10 @@
 //!   with the bound and the notice grace of each.
 //! - `child_watch_step_bounds_and_errors.rs`:
 //!   how a watched step may be ended and the errors that say it was.
+//! - `child_watch_signalling_only_the_child_that_was_started.rs`:
+//!   how a stop reaches the child it started and never another command:
+//!   the pin of a step's root taken while that child is this process's own unreaped child,
+//!   the signals sent through it and the processes below the root read through it.
 //! - `child_watch.rs`:
 //!   a watcher for waits that block on a child process:
 //!   notices at the cadence and the child stopped at the bound.
@@ -183,6 +187,9 @@
 //! - `push_held_back_by_a_blocked_commit.rs`:
 //!   where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 //!   and the decision a verdict makes.
+//! - `push_held_back_by_a_blocked_commit_awaiting.rs`:
+//!   where the push of one branch stops when its questions go to a Git awaited on the runtime,
+//!   which is the decision of `push_held_back_by_a_blocked_commit.rs` with its waits as tasks of the runtime.
 //! - `auto_push.rs`:
 //!   post-commit auto-push of a landed commit:
 //!   the push argv,
@@ -424,6 +431,11 @@ pub mod push_deadline_and_patience_settings;
 /// The public update of one pushed reference and the limits on the probe's side-by-side queries.
 pub mod manual_push_update_and_query_limits;
 
+/// How a stop reaches the child it started and never another command:
+/// the pin of a step's root taken while that child is this process's own unreaped child,
+/// the signals sent through it and the processes below the root read through it.
+pub mod child_watch_signalling_only_the_child_that_was_started;
+
 /// What a child watch is made of below its public face:
 /// terms,
 /// marks,
@@ -464,6 +476,10 @@ pub mod matching_push_delivered_the_recorded_branch;
 /// Where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 /// and the decision a verdict makes.
 pub mod push_held_back_by_a_blocked_commit;
+
+/// Where the push of one branch stops when its questions go to a Git awaited on the runtime,
+/// which is the decision of the synchronous face with its waits as tasks of the runtime.
+pub mod push_held_back_by_a_blocked_commit_awaiting;
 
 /// The lines a command prints about a branch the automatic push stops short of.
 pub mod blocked_commit_lines;
