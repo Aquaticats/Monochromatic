@@ -5,6 +5,7 @@
 //! and the clean arguments.
 
 use super::*;
+use crate::package_repair_cargo_one_workspace::repair_workspace_awaiting;
 use crate::package_repair_cargo_workspaces::{
     MANIFEST,
     distinct_workspaces,

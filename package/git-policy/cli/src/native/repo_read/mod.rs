@@ -156,8 +156,9 @@
 //!   the record of the commit an abort restores,
 //!   read in bounded time from a regular file only,
 //!   read beside the reading that asks for it.
-//! - `repository_facts_abort_discard.rs`:
-//!   what one abort form would discard besides the state of the operation it undoes.
+//! - `the_facts_a_repository_reads.rs`:
+//!   the interface a repository-fact provider answers,
+//!   and the two shapes the question about an abort form answers in.
 //! - `repository_facts_abort_discard_worktree_entries.rs`:
 //!   whether the worktree still holds an entry at a path a listing named,
 //!   read beside the reading that asks for it.
@@ -173,6 +174,8 @@
 //! - `repository_facts_untracked_files.rs`:
 //!   the worktree's untracked files whose paths a revision's tree tracks,
 //!   read beside the provider so its interface file stays within its line bound.
+//! - `repository_facts_abort_discard.rs`:
+//!   what one abort form would discard besides the state of the operation it undoes.
 //! - `repo_read_adapter.rs`:
 //!   in-process repository reads:
 //!   the layout turned into the shapes the wrapper's existing queries answer with.
@@ -228,6 +231,10 @@ pub mod repository_facts_untracked_files;
 /// The listed paths whose staged content an abort would discard,
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_staged_entries;
+
+/// The interface a repository-fact provider answers,
+/// and the two shapes the question about an abort form answers in.
+pub mod the_facts_a_repository_reads;
 
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;

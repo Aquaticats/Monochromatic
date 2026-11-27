@@ -119,13 +119,10 @@ pub use crate::package_repair_cargo_clean_arguments::{
 /// Import the tag every line of this repair's diagnostic log carries.
 use crate::package_repair_cargo_one_workspace::TAG;
 /// Import the repair of one workspace and what it came to,
-/// so the paths the jobs,
-/// the controls and this file already name are unchanged.
+/// so the paths this file already names are unchanged.
 pub(super) use crate::package_repair_cargo_one_workspace::{
     CargoTool,
     Done,
-    repair_workspace_awaiting,
-    timed_read_workspace_awaiting,
 };
 /// Import the owned,
 /// platform-native string a search path is.
