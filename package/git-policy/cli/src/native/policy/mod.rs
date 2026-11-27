@@ -68,6 +68,16 @@
 //!   canonical final LF,
 //!   preserved paths,
 //!   findings.
+//! - `policy_forbidden_strings_scan_outcomes.rs`:
+//!   what one candidate's scan becomes:
+//!   the outcome of a scan that could not complete,
+//!   the finding of each match,
+//!   and the record of a candidate a parent commit's tree already holds.
+//! - `policy_forbidden_strings_scanner.rs`:
+//!   the scanner one invocation uses:
+//!   where its rules come from,
+//!   the one attempt to load them,
+//!   and who writes the compiled rules into the shared cache.
 //! - `policy_forbidden_strings.rs`:
 //!   the optional forbidden-strings policy over the linked scanner,
 //!   with redacted findings.
@@ -168,6 +178,18 @@ pub mod policy_branch_worktree;
 
 /// The two commands the wrapper records and never refuses.
 pub mod policy_audited;
+
+/// What one candidate's scan becomes:
+///  the outcome of a scan that could not complete,
+///  the finding of each match,
+///  and the record of a candidate a parent commit's tree already holds.
+pub mod policy_forbidden_strings_scan_outcomes;
+
+/// The scanner one invocation uses:
+///  where its rules come from,
+///  the one attempt to load them,
+///  and who writes the compiled rules into the shared cache.
+pub mod policy_forbidden_strings_scanner;
 
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.

@@ -22,26 +22,15 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const findings = await scanCandidates({ builtinRules, repositoryRoot, candidates });
-//! ```
 
 /// Import the candidates whose content a parent commit's tree already holds.
 use crate::candidate_known_content::KnownContent;
 /// Import the immutable version type.
 use crate::candidate_version::CandidateVersion;
-/// Import the validated options of this policy.
-use crate::config_schema::{
-    ForbiddenStringsOptions,
-    PolicyConfig,
-};
-/// Import the debug and warning diagnostics on standard error.
-use crate::diagnostic_log::{
-    debug,
-    warn,
-};
+/// Import the warning diagnostics on standard error.
+use crate::diagnostic_log::warn;
 /// Import the engine-failure codes.
 use crate::diagnostics::EngineFailureCode;
-/// Import the event form of a pathname.
-use crate::event_path::EventPath;
 /// Import the lifecycle's candidates.
 use crate::policy_content::{
     ContentState,
@@ -52,6 +41,16 @@ use crate::policy_engine::{
     PolicyFinding,
     PolicyOutcome,
 };
+/// Import what one candidate's scan becomes:
+///  the failure outcome,
+///  each match's finding,
+///  and the record of a candidate a parent commit already holds.
+use crate::policy_forbidden_strings_scan_outcomes::{
+    failed,
+    incomplete_scan,
+    log_known_content,
+    match_finding,
+};
 /// Import the facts interface for the repository's top level.
 use crate::repository_facts::RepositoryFacts;
 /// Import the repository location answer.
@@ -60,13 +59,10 @@ use crate::repository_location::RepositoryLocation;
 use crate::scanner_adapter::{
     CandidateScanner,
     RulesSource,
-    ScannerError,
     ScannerFailure,
-    compiled_rules_artifact_exists,
 };
-/// Import the code of each scanner and scan failure.
+/// Import the code of each scan failure.
 use crate::scanner_failure_code::{
-    finding_failure_code,
     scan_run_failure_code,
     scanner_failure_code,
 };
@@ -82,26 +78,15 @@ use crate::worktree_identity::{
     git_directory,
     worktree_root,
 };
-/// The scanner library's per-candidate result and per-match finding,
+/// The scanner library's per-candidate result,
+///  its rules-list failure,
 ///  and what a load may write into the shared compiled-rules cache.
 use forbidden_strings::{
     CacheAccess,
     CandidateScan,
     RulesListError,
-    ScanFinding,
 };
-/// What:
-///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
-///       must be UTF-8).
-/// Why:
-///   The variable's value is a path and need not be UTF-8.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // string, but byte-preserving.
-/// ```
-use std::ffi::OsString;
-/// `Path` is a borrowed filesystem path of raw OS bytes.
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::{
     Path,
     PathBuf,
@@ -110,338 +95,23 @@ use std::path::{
 ///  read-only handle.
 use std::rc::Rc;
 
-/// The policy-local code of a match.
-pub const FORBIDDEN_STRING_CODE: &str = "forbidden-string";
-
-/// The engine-failure message of a scan a matcher could not complete.
-pub const ENGINE_ERROR_MESSAGE: &str = "The forbidden-strings scanner reported a matcher failure while scanning a candidate, so the scan is incomplete.";
-
-/// The engine-failure message of a pathname the line-based scanner cannot inspect.
-pub const LINE_BREAK_MESSAGE: &str = "The forbidden-strings scanner cannot inspect a candidate pathname that contains a line break, so the scan is incomplete.";
-
-/// What:
-///  Where the rules come from:
-///  the policy's options and the value of
-///       `FORBIDDEN_STRINGS_RULES` in the invocation's environment.
-/// Why:
-///   The lifecycle reads both once;
-///  the check resolves them against the repository
-///       root only when it scans.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ScannerSettings = { options: ForbiddenStringsOptions; rulesVariable?: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ScannerSettings {
-    /// The policy's validated options;
-    ///  defaults until the configuration is loaded.
-    pub options: ForbiddenStringsOptions,
-    /// The value of `FORBIDDEN_STRINGS_RULES`,
-    ///  when the variable is set.
-    pub rules_variable: Option<OsString>,
-}
-
-/// What:
-///  Settings with the default options and no variable.
-/// Why:
-///   A lifecycle that loads no configuration and has no candidates never scans.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const defaultScannerSettings = (): ScannerSettings => ({ options: defaults.forbiddenStrings });
-/// ```
-pub fn default_scanner_settings() -> ScannerSettings {
-    return ScannerSettings {
-        options: PolicyConfig::defaults().forbidden_strings,
-        rules_variable: None,
-    };
-}
-
-/// What:
-///  The scanner of one invocation,
-///  loaded on first use,
-///  or the remembered failure.
-/// Why:
-///   Rules are loaded once per invocation and only when a candidate needs scanning.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class ScannerState { #loaded?: CandidateScanner | ScannerError }
-/// ```
-pub struct ScannerState {
-    /// The loaded scanner,
-    ///  or the failure of the one attempt to load it.
-    loaded: Option<Result<CandidateScanner, ScannerError>>,
-}
-
-/// What:
-///  Who adds the compiled rules to the shared cache when a scan needs rules no cache holds.
-/// Why:
-///   The compiled artifact is derived data a machine pays for once per rules text and release,
-///  and writing it costs the writer a device stall:
-///  6.7 s and 3.0 s of `fsync` in one measured commit.
-///  A resident service that already runs for this worktree compiles and publishes it on its own time,
-///  so the command that needs the rules takes no write at all;
-///  a machine with no service running publishes from this process,
-/// as every command did before.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CachePublisher = { kind: 'service'; gitDir: string; repository: string } | { kind: 'this-process' };
-/// ```
-pub enum CachePublisher<'a> {
-    /// The commit service of this worktree,
-    /// asked to compile the rules and never waited for.
-    Service {
-        /// The worktree's own Git directory,
-        ///  which names the service instance and its socket.
-        git_dir: &'a std::path::Path,
-        /// The worktree's top level,
-        ///  whose configuration names the rules files.
-        repository: &'a std::path::Path,
-    },
-    /// This process,
-    /// which writes the artifact as the scanner does by default.
-    ThisProcess,
-}
-
-/// What:
-///  The access a load takes,
-/// from whether the cache holds the text and whether someone else publishes.
-///  `bool` is the answer to each.
-/// Why:
-///   A cache that already holds the compiled text costs no write either way,
-///  and only a miss is the question here;
-///  the two answers are kept apart so a control can pin each one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// cacheAccess(cached, publishedElsewhere) // cached || !publishedElsewhere ? readWrite : readOnly
-/// ```
-pub fn cache_access(
-    cached: bool,
-    published_elsewhere: bool,
-) -> CacheAccess {
-    if cached || !published_elsewhere {
-        return CacheAccess::ReadWrite;
-    }
-    return CacheAccess::ReadOnly;
-}
-
-/// What:
-///  The access this load takes.
-/// Why:
-///   The service is asked only when the cache holds nothing,
-///  which is the only case a write question exists;
-///  a hit is read and repaired here without a process walk or a message.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// publisher.access(rules) // cached ? readWrite : askTheService(rules)
-/// ```
-impl CachePublisher<'_> {
-    /// The access a load of `rules` takes.
-    fn access(
-        &self,
-        rules: &RulesSource,
-    ) -> CacheAccess {
-        let Self::Service {
-            git_dir,
-            repository,
-        } = self
-        else {
-            return CacheAccess::ReadWrite;
-        };
-        if compiled_rules_artifact_exists(rules) {
-            return CacheAccess::ReadWrite;
-        }
-        return cache_access(
-            false,
-            crate::service_warm_request::ask_running_service_to_warm(git_dir, repository),
-        );
-    }
-}
-
-/// What:
-///  A state that has loaded nothing.
-/// Why:
-///   Loading waits until a candidate can be scanned.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unloadedScanner = (): ScannerState => new ScannerState();
-/// ```
-pub fn unloaded_scanner() -> ScannerState {
-    // `None` is the "absent" variant: nothing has been loaded.
-    return ScannerState {
-        loaded: None,
-    };
-}
-
-/// What:
-///  The outcome of a check that could not finish.
-///  `&str` is borrowed message text.
-/// Why:
-///   Every failure of this policy names its cause through its code.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const failed = (code, message): PolicyOutcome => ({ kind: 'failed', code, message });
-/// ```
-fn failed(
-    code: EngineFailureCode,
-    message: &str,
-) -> PolicyOutcome {
-    return PolicyOutcome::Failed {
-        code,
-        message: String::from(message),
-        // `None`: a scan failure never names a pathname, which may hold a secret.
-        path: None,
-    };
-}
-
-/// What:
-///  The failure a scan result carries,
-///  or nothing when its findings are all matches.
-///       `&CandidateScan` borrows one candidate's result.
-/// Why:
-///   The scanner reports a failed matcher and an uninspectable pathname inside an
-///       otherwise successful result;
-///  either makes the whole scan incomplete,
-///  so it is
-///       found before any match is reported.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function incompleteScan(scan: CandidateScan): PolicyOutcome | undefined;
-/// ```
-fn incomplete_scan(scan: &CandidateScan) -> Option<PolicyOutcome> {
-    for finding in &scan.findings {
-        // `if let Some(code) = ...` runs only for a finding that is a failure.
-        if let Some(code) = finding_failure_code(finding) {
-            let message: &str = if *finding == ScanFinding::PathnameLineBreak {
-                LINE_BREAK_MESSAGE
-            } else {
-                ENGINE_ERROR_MESSAGE
-            };
-            return Some(failed(code, message));
-        }
-    }
-    return None;
-}
-
-/// What:
-///  The finding for one match in one scan,
-///  or nothing for a finding that is not a match.
-/// Why:
-///   The words,
-///  the code and the masked path are the installed wrapper's,
-///  so a match
-///       is reported the same way by both wrappers and never shows the matched text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const toFinding = (hit, displayPath): PolicyFinding => ({ code: 'forbidden-string', message, path: displayPath });
-/// ```
-fn match_finding(
-    finding: &ScanFinding,
-    display_path: &str,
-) -> Option<PolicyFinding> {
-    let message: String = match finding {
-        ScanFinding::Content {
-            line,
-            rule,
-        } => {
-            format!("Forbidden string matched at line {line} (rule {rule}).")
-        }
-        ScanFinding::Name {
-            component,
-            rule,
-        } => {
-            format!("Forbidden string matched in pathname segment {component} (rule {rule}).")
-        }
-        ScanFinding::EngineError | ScanFinding::PathnameLineBreak => return None,
-    };
-    return Some(PolicyFinding {
-        code: FORBIDDEN_STRING_CODE,
-        message,
-        // The scanner's masked display is text only: its bytes would undo the masking.
-        path: Some(EventPath::display(display_path)),
-        location: None,
-        fix_available: false,
-    });
-}
-
-/// What:
-///  `impl ScannerState { ... }` attaches the one way to get the loaded scanner.
-/// Why:
-///   Loading and its remembered failure stay behind one owner.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class ScannerState { load(rules, builtinRules): CandidateScanner }
-/// ```
-impl ScannerState {
-    /// What:
-    ///  The scanner,
-    ///  loaded from `rules` on first use.
-    ///  `Result<&CandidateScanner, ..>`
-    ///       lends the loaded scanner,
-    ///  or returns the outcome the policy reports.
-    /// Why:
-    ///   A second call in the same invocation reuses the loaded rules,
-    ///  and a failure
-    ///       is not retried.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// load(rules: RulesSource, builtinRules: boolean): CandidateScanner; // throws PolicyOutcome
-    /// ```
-    fn load(
-        &mut self,
-        rules: &RulesSource,
-        builtin_rules: bool,
-        access: CacheAccess,
-    ) -> Result<&CandidateScanner, PolicyOutcome> {
-        if self.loaded.is_none() {
-            self.loaded = Some(CandidateScanner::load_writing_cache(
-                rules,
-                builtin_rules,
-                access,
-            ));
-            // An absent optional file is routine on a fresh clone, so it is logged for diagnosis, not warned.
-            if let Some(Ok(scanner)) = &self.loaded {
-                for skipped in scanner.skipped_optional_rules() {
-                    debug(
-                        "checkForbiddenStrings",
-                        format!(
-                            "optional rules file is absent; skipped: {}",
-                            skipped.display()
-                        )
-                        .as_str(),
-                    );
-                }
-            }
-        }
-        // `match` on the remembered attempt, lending the scanner when it loaded.
-        match &self.loaded {
-            Some(Ok(scanner)) => return Ok(scanner),
-            Some(Err(error)) => {
-                return Err(failed(
-                    scanner_failure_code(error.failure),
-                    error.message.as_str(),
-                ));
-            }
-            None => {
-                return Err(failed(
-                    EngineFailureCode::PolicyIncomplete,
-                    "monochromatic-git-policy-cli did not load the forbidden-strings rules; this is a defect in monochromatic-git-policy-cli.",
-                ));
-            }
-        }
-    }
-}
+/// The codes and messages of a match and of an incomplete scan,
+///  which the sibling file defines and every reader of this policy names.
+pub use crate::policy_forbidden_strings_scan_outcomes::{
+    ENGINE_ERROR_MESSAGE,
+    FORBIDDEN_STRING_CODE,
+    LINE_BREAK_MESSAGE,
+};
+/// The scanner's settings and state,
+///  which the sibling file defines and the check hands on.
+pub use crate::policy_forbidden_strings_scanner::{
+    CachePublisher,
+    ScannerSettings,
+    ScannerState,
+    cache_access,
+    default_scanner_settings,
+    unloaded_scanner,
+};
 
 /// What:
 ///  The repository's top level,
@@ -568,37 +238,6 @@ fn known_content_or_none(
                 .as_str(),
             );
             return KnownContent::default();
-        }
-    }
-}
-
-/// What:
-///  Record each skipped candidate as a decision:
-///  its masked pathname,
-///  its blob and the parent commit that holds it.
-///       `&[CandidateScan]` borrows the scan results,
-///  whose identity is the candidate's position.
-/// Why:
-///   A skip changes what the policy reads,
-///  so the inputs that justify it are kept for whoever checks a verdict later.
-///       The pathname is the scanner's masked display,
-///  never the raw pathname,
-///  which may hold a secret.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function logKnownContent(scans: CandidateScan[], known: KnownContent): void;
-/// ```
-fn log_known_content(
-    scans: &[CandidateScan],
-    known: &KnownContent,
-) {
-    for scan in scans {
-        if let Some(entry) = known.entry(scan.identity) {
-            debug(
-                "checkForbiddenStrings",
-                entry.describe(scan.display_path.as_str()).as_str(),
-            );
         }
     }
 }
