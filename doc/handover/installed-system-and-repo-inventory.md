@@ -162,6 +162,9 @@ not a denied operation.
 The complete reports are private under
 `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/keep/installed-system-and-repo-inventory/`.
 The paths in this document are relative to that directory.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The full audit initially showed zero new denials after 2026-11-23T20:49:00Z.
 A later root-run

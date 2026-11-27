@@ -4,10 +4,11 @@
 //! and the word-level second pass over
 //!  the conflicts it leaves.
 //! Why:
-//!  `merge_isolation_apply.rs` writes the objects and moves the checkout;
-//! the merge that is computed before any of that,
+//!  `merge_isolation_round.rs` computes this merge tree before anything is written,
+//! and `merge_isolation_apply.rs` moves the checkout afterwards;
+//! the merge that is computed from objects,
 //! and the pass over its conflicts,
-//!  are a file of their own that it imports and that imports nothing from it.
+//!  are a file of their own that they import and that imports nothing from them.
 //!  The pass awaits every Git start it makes
 //! (`merge_second_pass_git_runner.rs`),
 //! so the merge from objects is one entry of the runtime for a synchronous caller
