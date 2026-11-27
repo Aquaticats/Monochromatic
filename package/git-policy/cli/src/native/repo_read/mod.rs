@@ -123,6 +123,10 @@
 //!   the values it holds,
 //!   the one query every fact goes through,
 //!   and the small messages its questions report.
+//! - `repository_facts_abort_discard_query_arguments_and_readings.rs`:
+//!   the questions one abort form asks Git,
+//!   the argument list of each,
+//!   and the reading of its answer.
 //! - `repository_facts_abort_discard_record.rs`:
 //!   the record of the commit an abort restores,
 //!   read in bounded time from a regular file only,
@@ -202,6 +206,11 @@ pub mod repository_facts_staged_entries;
 
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
+
+/// The questions one abort form asks Git,
+/// the argument list of each,
+/// and the reading of its answer.
+pub mod repository_facts_abort_discard_query_arguments_and_readings;
 
 /// The record of the commit an abort restores,
 /// read in bounded time from a regular file only,
