@@ -246,8 +246,7 @@ export async function poolPlacementOfAWorktreeLaunch({
     model,
   },);
   /**
-   The virtual selection the pair names, when it names one: a run on it keeps its pair and is counted once against the room its
-   members have together.
+   The virtual selection the pair names, when it names one: a run on it keeps its pair and holds no slot in any pool.
    */
   const virtual = virtualPoolNamed({
     provider,
