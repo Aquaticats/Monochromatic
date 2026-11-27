@@ -304,6 +304,9 @@
 //!   by a rename and a second look.
 //! - `service_index_staging.rs`:
 //!   the staging files of the index lock.
+//! - `service_index_holder_look.rs`:
+//!   what one look at the held index lock proves,
+//!   and the words the person is told about its holder.
 //! - `service_index_attempts.rs`:
 //!   the attempts and the wait of an acquisition of the index lock.
 //! - `service_index_claim.rs`:
@@ -831,11 +834,15 @@ pub mod owed_index_entries;
 
 pub mod service_land_start;
 
-/// The commit service's hold on Git's index lock across a landing.
-pub mod service_index_lock;
+/// What one look at the held index lock proves,
+/// and the words the person is told about its holder.
+pub mod service_index_holder_look;
 
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;
+
+/// The commit service's hold on Git's index lock across a landing.
+pub mod service_index_lock;
 
 /// The service's warm of the compiled forbidden-strings rules,
 /// off the commit's path.
