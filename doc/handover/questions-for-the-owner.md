@@ -942,7 +942,7 @@ and no check has yet run away.
 ### Whether the package guide's rule on a test's children binds its TypeScript tests (issues 6596 and 6608)
 
 `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md` states this for the Rust crate
-(its section "Own every child, end it on every path"),
+(its section `Own every child, end it on every path`),
 and in another section that every wait has a deadline:
 
 ```text
