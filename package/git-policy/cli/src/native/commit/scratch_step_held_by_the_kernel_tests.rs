@@ -103,3 +103,64 @@ fn the_line_names_the_program_the_kernel_holds_when_it_is_not_the_step() {
     assert_eq!(said.lines().count(), 1, "{said}");
     assert!(said.ends_with('\n'), "{said}");
 }
+
+/// What:
+///  The program the kernel holds is shown between backticks,
+///  and its name is a name another program chose (`/proc/<pid>/stat`).
+/// Why:
+///  A name holding a backtick would end the backticks that show it and speak the rest of the
+///  line as its own,
+///  and one holding an escape or a line break would move the cursor or start a line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(heldByTheKernelLine({ step: 1, held: { number: 2, name: 'x` FORGED\u001b[2K' } })).toContain('`x\\` FORGED\\u{1b}[2K` (process 2)');
+/// ```
+#[test]
+fn a_name_that_would_end_the_backticks_cannot_rewrite_the_kernel_held_line() {
+    let said: String = held_by_the_kernel_line(HeldByTheKernel {
+        step: 4242,
+        waited: Duration::from_secs(17),
+        held: HeldProgram {
+            number: 5001,
+            name: String::from("x` FORGED\u{1b}[2K\nsecond line"),
+        },
+    });
+    assert!(
+        said.contains("the program it started, `x\\` FORGED\\u{1b}[2K\\nsecond line` (process 5001),"),
+        "{said:?}"
+    );
+    assert_eq!(said.lines().count(), 1, "{said:?}");
+}
+
+/// What:
+///  The line that says why a ceiling stood aside names the program the same way.
+/// Why:
+///  The two lines of this file name one process,
+///  so one of them handing its name through raw would let a program rewrite the other's words too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(aStallIsWaitedFor({ why: theKernelHeldIt({ number: 2, name: 'x` FORGED' }) })).toContain('`x\\` FORGED` (process 2)');
+/// ```
+#[test]
+fn a_name_that_would_end_the_backticks_cannot_rewrite_the_stall_line() {
+    let said: String = a_stall_is_waited_for(AStall {
+        step: 4242,
+        waited: Duration::from_secs(17),
+        until: Duration::from_secs(120),
+        why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram {
+            number: 5001,
+            name: String::from("x` FORGED\u{202e}[2K"),
+        }),
+    });
+    assert!(
+        said.contains("the program it started, `x\\` FORGED\\u{202e}[2K` (process 5001),"),
+        "{said:?}"
+    );
+    assert_eq!(
+        said.matches('\n').count(),
+        1,
+        "the only line break is the one the line ends with: {said:?}"
+    );
+}

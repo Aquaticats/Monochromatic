@@ -54,6 +54,13 @@ use crate::earlier_service_process_look::{
     Holding,
 };
 use crate::earlier_service_unsure_program::UnsureProgram;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the backticks that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::management_service_repository_selection::{
     Selection,
     status_git_dir,
@@ -277,7 +284,10 @@ fn unsure_program_sentences(holding: &Holding) -> String {
         return String::new();
     };
     let pid: u32 = program.pid;
-    let folder: &str = program.journal_word.as_str();
+    let folder: String = shown_so_it_cannot_rewrite_the_line(
+        program.journal_word.as_str(),
+        TheWrappingAroundTheName::Backticks,
+    );
     let relative: String = if program.journal_word_is_relative {
         format!(" (a relative path, looked up in the working directory of process {pid})")
     } else {
@@ -285,7 +295,11 @@ fn unsure_program_sentences(holding: &Holding) -> String {
     };
     return format!(
         " That program is process {pid}, running `{}` (its other arguments are not shown, because any of them can be a secret). This check looked up the folder its `--journal` option names, `{folder}`{relative}, and the system answered: {}. A folder that cannot be looked up cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
-        program.program, program.reason
+        shown_so_it_cannot_rewrite_the_line(
+            program.program.as_str(),
+            TheWrappingAroundTheName::Backticks
+        ),
+        program.reason
     );
 }
 
@@ -316,7 +330,11 @@ fn unreadable_process_sentences(holding: &Holding) -> String {
     let pid: u32 = unreadable.pid;
     return format!(
         " This check could not read the command line of process {pid}, which the kernel calls `{}`, and the system answered: {}. A process whose arguments cannot be read cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree. To go on, wait for process {pid} to end, or stop it yourself if it is yours to stop, and run `{COMMAND}` again. It is the first such process this check found; another may be named once it is gone.",
-        unreadable.program, unreadable.reason
+        shown_so_it_cannot_rewrite_the_line(
+            unreadable.program.as_str(),
+            TheWrappingAroundTheName::Backticks
+        ),
+        unreadable.reason
     );
 }
 

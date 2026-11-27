@@ -229,6 +229,13 @@ mod no_release_read_of_a_test_only_switch_tests;
 #[path = "no_release_read_of_the_session_places_tests.rs"]
 mod no_release_read_of_the_session_places_tests;
 
+/// The ban on a sentence that shows a name another program chose without the one escape:
+/// the list of the sentences this program has,
+/// and the accessors no `format!` may interpolate raw.
+#[cfg(test)]
+#[path = "every_sentence_that_names_a_process_shows_it_tests.rs"]
+mod every_sentence_that_names_a_process_shows_it_tests;
+
 /// Every record folder this program fills is read through `plain_file`:
 /// a named pipe at a record's name answers at once instead of holding every wrapped command.
 #[cfg(test)]

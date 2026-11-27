@@ -15,6 +15,7 @@ use crate::index_lock_evidence_words::{
     WaitEnd,
     blocker_words,
     dead_owner_diagnostic,
+    holder_name,
     proven_holder_line,
     unproven_wait_line,
 };
@@ -818,4 +819,103 @@ fn a_named_pipe_at_the_pid_file_is_not_waited_for() {
         "a pipe is unreadable evidence, and never a death: {answer:?}"
     );
     remove(root.as_path());
+}
+
+/// What:
+///  A name that would end the parentheses the holder is shown in,
+///  and one that would move the cursor or start a line.
+/// Why:
+///  Every sentence of this program that names a lock holder shows the same kernel-chosen name
+///  (`/proc/<pid>/comm`),
+///  so one control states the shapes and each sentence's control holds them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NAME_A_PROGRAM_CHOSE = 'x) FORGED\u001b[2K\nsecond line';
+/// ```
+const NAME_A_PROGRAM_CHOSE: &str = "x) FORGED\u{1b}[2K\nsecond line";
+
+/// What:
+///  A pid-file owner whose name is `NAME_A_PROGRAM_CHOSE`,
+///  started at `started_at_ms`.
+/// Why:
+///  The two sentences of the evidence are chosen by the clock and by the name,
+///  and both must show the name the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const evidence = (startedAtMs) => evidence_with(PidFile.Owner(55, processOf(startedAtMs, 10, NAME_A_PROGRAM_CHOSE)), Some(noHolders));
+/// ```
+fn evidence_naming_a_process(started_at_ms: f64) -> Evidence {
+    return evidence_with(
+        PidFile::Owner(55, process_of(started_at_ms, 10, Some(NAME_A_PROGRAM_CHOSE))),
+        Some(HolderEvidence {
+            method: "proc-fd",
+            holders: Vec::new(),
+            partial: Vec::new(),
+            unresolvable: Vec::new(),
+        }),
+    );
+}
+
+/// The holder a waiting line names in parentheses shows the name so no byte of it can act on the line,
+/// and the name it got back reads as the program wrote it.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_holders_name() {
+    let name: String = holder_name(55, Some(NAME_A_PROGRAM_CHOSE));
+    assert_eq!(name, "PID 55 (x\\) FORGED\\u{1b}[2K\\nsecond line)");
+    assert_eq!(
+        name.matches('\n').count(),
+        0,
+        "the name a holder is shown by stays one line: {name:?}"
+    );
+    assert_eq!(holder_name(55, None), "PID 55");
+    assert_eq!(holder_name(55, Some("git")), "PID 55 (git)");
+}
+
+/// The evidence sentence for a pid file whose owner this host's clock puts after the lock
+/// shows the name so no byte of it can act on the line.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_pid_file_sentence() {
+    let end: WaitEnd<'_> = WaitEnd {
+        within: MERGE_LOCK_CEILING,
+        ending: "git merge meets Git's own refusal",
+    };
+    let line: String = unproven_wait_line(
+        Path::new("/repo/index.lock"),
+        Some(&evidence_naming_a_process(5000.0)),
+        end,
+    );
+    assert!(
+        line.contains("a Git lock PID file naming PID 55 (x\\) FORGED\\u{1b}[2K\\nsecond line), which runs, and which this host's clock puts after the lock was made"),
+        "{line:?}"
+    );
+    assert_eq!(
+        line.matches('\n').count(),
+        1,
+        "the only line break of the waiting line is the one it ends with: {line:?}"
+    );
+}
+
+/// The evidence sentence for a pid file whose owner runs shows the name the same way.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_running_owner_sentence() {
+    let end: WaitEnd<'_> = WaitEnd {
+        within: MERGE_LOCK_CEILING,
+        ending: "git merge meets Git's own refusal",
+    };
+    let line: String = unproven_wait_line(
+        Path::new("/repo/index.lock"),
+        Some(&evidence_naming_a_process(500.0)),
+        end,
+    );
+    assert!(
+        line.contains("a Git lock PID file naming PID 55 (x\\) FORGED\\u{1b}[2K\\nsecond line), which runs,"),
+        "{line:?}"
+    );
+    assert_eq!(
+        line.matches('\n').count(),
+        1,
+        "the only line break of the waiting line is the one it ends with: {line:?}"
+    );
 }

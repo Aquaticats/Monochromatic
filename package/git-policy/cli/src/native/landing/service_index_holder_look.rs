@@ -34,6 +34,13 @@ use crate::index_lock_evidence_words::{
     unproven_wait_line,
 };
 use crate::service_index_found::open_by_text;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use std::path::Path;
 use std::time::Duration;
 
@@ -44,7 +51,10 @@ pub(crate) fn holder_words(
     command: Option<&str>,
 ) -> String {
     return match command {
-        Some(name) => format!("Process {pid} ({name})"),
+        Some(name) => format!(
+            "Process {pid} ({})",
+            shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Parentheses)
+        ),
         None => format!("Process {pid}"),
     };
 }
@@ -207,3 +217,8 @@ pub(crate) fn look_at_holder(
         },
     };
 }
+
+/// Controls of the holder field stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_holder_look_tests.rs"]
+mod tests;

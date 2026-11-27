@@ -20,6 +20,13 @@
 
 /// The process table's report of one file's users.
 use crate::process_use::UseScan;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 /// What the pid file beside the lock says,
 /// which a staging file never has.
 use crate::stale_ref_lock_found::PidFile;
@@ -96,7 +103,10 @@ impl Judge {
                 Verdict::Held(format!(
                     "process {} ({}) has the file open",
                     user.pid,
-                    user.command.clone().unwrap_or_default()
+                    shown_so_it_cannot_rewrite_the_line(
+                        user.command.as_deref().unwrap_or(""),
+                        TheWrappingAroundTheName::Parentheses
+                    )
                 )),
                 PidFile::Absent,
                 identity,

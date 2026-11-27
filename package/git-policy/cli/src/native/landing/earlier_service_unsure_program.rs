@@ -21,14 +21,16 @@
 //! shown or logged.
 //! The words that are kept are masked with the
 //!  shared masker (`lfs_output_mask.rs`) for URL userinfo before the text exists as a `String`,
-//! and control characters are
-//!  written as escapes,
-//! so one program's words can neither start a second line of the message nor move the terminal's cursor.
+//! and the sentence that shows them escapes them for its own wrapping
+//! (`foundation/shown_so_it_cannot_rewrite_the_line.rs`),
+//! so one program's words can neither start a second line of the message,
+//! move the terminal's cursor,
+//! nor end the backticks the sentence puts around the name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const printable = (bytes: Uint8Array): string => escapeControls(decodeLossily(maskUserinfo(bytes)))
-//! const programOf = (words: Uint8Array[]): string => printable(cutAtFirstSpace(words[0] ?? ''))
+//! const maskedWords = (bytes: Uint8Array): string => decodeLossily(maskUserinfo(bytes))
+//! const programOf = (words: Uint8Array[]): string => maskedWords(cutAtFirstSpace(words[0] ?? ''))
 //! ```
 
 use crate::lfs_output_mask::mask_url_secrets;
@@ -46,13 +48,15 @@ pub struct UnsureProgram {
     /// which is the executable path or the bare name it was started
     ///  by,
     /// cut at its first space (a program that rewrites its own title puts more words there),
-    /// printable (see
-    ///  [`printable`]).
+    /// masked (see
+    ///  [`masked_words`]),
+    ///  and escaped by the sentence that shows it.
     /// Empty when the first word is empty.
     pub program: String,
     /// The word after its `--journal` option,
     /// as the command line spells it,
-    /// printable.
+    /// masked,
+    ///  and escaped by the sentence that shows it.
     pub journal_word: String,
     /// Whether that word is a relative path,
     /// which is looked up in the working directory of the program itself.
@@ -62,41 +66,37 @@ pub struct UnsureProgram {
 }
 
 /// What:
-///  The bytes as text that is safe to print:
+///  The words a command line may be shown by:
 /// the userinfo of every URL masked,
-/// bytes that are not UTF-8 replaced by
-///  U+FFFD,
-/// and every control character (a newline,
-/// an escape that starts a terminal sequence) written as an escape such as `\n`.
+/// and bytes that are not UTF-8 replaced by
+///  U+FFFD.
 /// Why:
 ///   The program is named in a one-line message that goes to a terminal.
-/// Another program's command line is not trusted text.
+/// Another program's command line is not trusted text,
+/// and any word of it can be a secret.
 ///  Masking works on the bytes,
 /// before any decoding,
 /// as the masker does everywhere else.
+///  This is the masking alone:
+/// the sentence that shows the words escapes them for its own wrapping,
+///  so the escape is written once, where the destination grammar is known
+///  (`AGENTS.md`,
+///  rule `SYB`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function printable(bytes: Uint8Array): string;
+/// function maskedWords(bytes: Uint8Array): string;
 /// ```
-pub fn printable(bytes: &[u8]) -> String {
+pub fn masked_words(bytes: &[u8]) -> String {
     let masked: Vec<u8> = mask_url_secrets(bytes);
-    let mut shown: String = String::with_capacity(masked.len());
-    for character in String::from_utf8_lossy(masked.as_slice()).chars() {
-        if character.is_control() {
-            shown.extend(character.escape_default());
-        } else {
-            shown.push(character);
-        }
-    }
-    return shown;
+    return String::from_utf8_lossy(masked.as_slice()).into_owned();
 }
 
 /// What:
 ///  The program a command line runs:
 /// its first word,
 /// cut at the first space,
-/// printable.
+/// masked.
 /// Why:
 ///   The first word is the executable path (or the bare name) the program was started by.
 /// A program that rewrites its title
@@ -115,7 +115,7 @@ pub fn program_of(first_word: Option<&[u8]>) -> String {
         .iter()
         .position(u8::is_ascii_whitespace)
         .unwrap_or(word.len());
-    return printable(&word[..end]);
+    return masked_words(&word[..end]);
 }
 
 /// Controls stay out of the release executable.

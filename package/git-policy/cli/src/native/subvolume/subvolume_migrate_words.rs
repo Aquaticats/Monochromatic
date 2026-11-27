@@ -22,7 +22,42 @@ use crate::process_use::{
 use crate::subvolume_index_files::linked_worktrees_inside;
 use crate::subvolume_preflight::Layout;
 use crate::subvolume_run::Run;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use std::path::PathBuf;
+
+/// What:
+///  One process that keeps its working directory in the tree the exchange replaces,
+///  as the line naming it:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///  A program sets its own name to any bytes it likes (`/proc/<pid>/comm`),
+///  and this line is the person's pointer to what must be restarted:
+///  an escape in the name would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (pid, command) => `  pid ${pid} (${shownSoItCannotRewriteTheLine(command ?? 'name unreadable', TheWrappingAroundTheName.Parentheses)})`;
+/// ```
+pub(crate) fn a_process_left_in_the_old_tree_line(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
+    return format!(
+        "  pid {pid} ({})",
+        shown_so_it_cannot_rewrite_the_line(
+            command.unwrap_or("name unreadable"),
+            TheWrappingAroundTheName::Parentheses
+        )
+    );
+}
 
 /// What:
 ///  Print the facts the preview and the run begin with:
@@ -60,12 +95,7 @@ pub(crate) fn announce(
         run.line(format!("WARNING: {} process(es) have a working directory inside the checkout and will stay in the OLD tree after the exchange; restart them (or `cd \"$PWD\"` in a shell) afterwards:", scan.users.len()).as_str());
         for user in &scan.users {
             run.line(
-                format!(
-                    "  pid {} ({})",
-                    user.pid,
-                    user.command.as_deref().unwrap_or("name unreadable")
-                )
-                .as_str(),
+                a_process_left_in_the_old_tree_line(user.pid, user.command.as_deref()).as_str(),
             );
         }
     }
@@ -107,3 +137,8 @@ pub(crate) fn closing(run: &mut Run<'_>) {
         run.line(format!("{count} file(s) this user may not read were not copied and exist only in the old tree; they are listed in {list}. Copy them with the needed privilege before deleting the old tree.").as_str());
     }
 }
+
+/// Controls of the lines a migration says stay out of the release executable.
+#[cfg(test)]
+#[path = "subvolume_migrate_words_tests.rs"]
+mod tests;

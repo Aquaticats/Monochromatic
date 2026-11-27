@@ -22,6 +22,13 @@ use crate::index_lock_holders::{
     Holder,
     HolderEvidence,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::service_index_identity::{
     HolderState,
     holder_state,
@@ -110,7 +117,14 @@ pub fn open_by_text(seen: Option<&HolderEvidence>) -> Option<String> {
     let mut names: Vec<String> = Vec::new();
     for holder in holders.iter() {
         names.push(match holder.command.as_ref() {
-            Some(command) => format!("{} ({command})", holder.pid),
+            Some(command) => format!(
+                "{} ({})",
+                holder.pid,
+                shown_so_it_cannot_rewrite_the_line(
+                    command.as_str(),
+                    TheWrappingAroundTheName::Parentheses
+                )
+            ),
             None => holder.pid.to_string(),
         });
     }
@@ -174,3 +188,8 @@ pub fn describe_lock(lock: &Path) -> String {
         None => format!("foreign no-marker size={} age_ms={age_ms}", metadata.len()),
     };
 }
+
+/// Controls of the open-by field stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_found_tests.rs"]
+mod tests;
