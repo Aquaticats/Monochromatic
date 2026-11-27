@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:12:38-05:00
+## The state at 2026-11-27T17:19:01-05:00
 
-`main` was `f10132d60f`.
+`main` was `eaef6b630c`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 271 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 272 more by this time.
 
 ### Rounds running
 
@@ -294,10 +294,16 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   After their merges come the tip checks,
   one whole gate,
   and `0.6.1-alpha.51`.
-  The round on the list guards has ended and its report is read whole;
-  its branch merges after a check of the merged tree,
-  whose results are in
-  `~/temp/agent/merged-tree-check-of-the-wrapper-list-guards-round-2026-11-27/keep/result.txt`.
+  The round on the list guards is merged (`eaef6b630c`),
+  after two checks of the merged tree in a worktree:
+  the linter's release commit landed between the first check and the merge and changed four of the package's files,
+  so the tree was checked again with it,
+  and format,
+  check,
+  Clippy,
+  the whole `source_guard` module (225 of 225) and the five other modules whose guards changed passed both times.
+  Four of the five rounds for the reads are merged,
+  and the round on a bare shell alias still runs.
   Nine planted spellings passed their guard on `main`:
   a renamed import,
   a function taken as a value,
@@ -2404,6 +2410,9 @@ and the two `truepeak` files wait on their branch.
   Clippy and whole test task run there:
   on 2026-11-27 three `mpm-shadow` rounds merged with no textual conflict,
   and the merged tree did not compile.
+  A release commit of the linter counts as such a change for the wrapper:
+  it writes the new version into `Cargo.toml` and `Cargo.lock` of `package/git-policy/cli` and of its fuzz sidecar,
+  so a wrapper branch that took `main` in before it is checked again with it.
   That last check is not ceremony:
   on 2026-11-25T17:24:39-05:00 `git merge` returned 0 and no merge commit landed,
   while another session committed to `main` in the same second,
