@@ -36,10 +36,11 @@ use crate::{
     layout_file_order::check_file_order,
     layout_finding::{
         LayoutFinding,
-        key_path,
+        key_names,
     },
     layout_folder_index_files::{
         UnlistableName,
+        unlistable_folder_name_part,
         unlistable_name_part,
     },
     layout_folder_links::check_folder_links,
@@ -285,38 +286,47 @@ fn note_keys(
 ///  Every key about such a path holds the name,
 ///  and a line that ends in a trimmed character reads as if the character were not there,
 ///  while a line ends at a newline,
+///  a folder name that holds a backslash is written by every key as another folder,
+///  and a folder name that holds the words a `uses` line sets its arrow off with
+///  leaves that line unable to say where the used folder starts,
 ///  so no finding about it could be written down;
 ///  a run over such a tree would report findings no list can hold.
 ///  The caller passes the paths the keys are built from,
-///  so the parts checked are exactly those parts.
+///  so the parts checked are exactly those parts,
+///  and says whether the last part is a file name,
+///  because a file name is no path and a `file-uses` line keeps its backslash as written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistablePath(paths: Path[], base: Path): [Path, string, UnlistableName] | undefined;
+/// function unlistablePath(paths: Path[], lastIsFileName: boolean, base: Path): [Path, string, UnlistableName] | undefined;
 /// ```
 fn unlistable_path(
     paths: &[PathBuf],
+    last_is_a_file_name: bool,
     base: &Path,
 ) -> Option<(PathBuf, String, UnlistableName)> {
     for path in paths {
-        let written: String = key_path(path, base);
         let mut parts: Vec<String> = Vec::<String>::new();
         let mut unlistable: Option<UnlistableName> = None;
-        for part in written.split('/') {
-            // What: the parts that name no folder, kept as written.
-            // Why: the package folder and the walk to a file outside it carry no name to check.
-            if part.is_empty() || part == "." || part == ".." {
-                parts.push(String::from(part));
-                continue;
-            }
-            match unlistable_name_part(part) {
+        // What: each name a key writes, as the file system spells it.
+        // Why: a written key writes `/` for a backslash inside a name, so its own parts cannot show one.
+        let names: Vec<String> = key_names(path, base);
+        let last: usize = names.len().saturating_sub(1);
+        for (index, part) in names.iter().enumerate() {
+            let folder_or_file: bool = !(last_is_a_file_name && index == last);
+            let checked: Option<(String, UnlistableName)> = if folder_or_file {
+                unlistable_folder_name_part(part.as_str())
+            } else {
+                unlistable_name_part(part.as_str())
+            };
+            match checked {
                 Some((escaped, reason)) => {
                     if unlistable.is_none() {
                         unlistable = Some(reason);
                     }
                     parts.push(escaped);
                 }
-                None => parts.push(String::from(part)),
+                None => parts.push(part.clone()),
             }
         }
         if let Some(reason) = unlistable {
@@ -343,7 +353,7 @@ fn unlistable_name(
     for module in &tree.modules {
         paths.push(module.file.clone());
     }
-    return unlistable_path(paths.as_slice(), base);
+    return unlistable_path(paths.as_slice(), true, base);
 }
 
 /// What:
@@ -376,7 +386,9 @@ fn unlistable_link_name(
         }
     }
     paths.sort();
-    return unlistable_path(paths.as_slice(), base);
+    // What: an entry of a `uses` folder names a folder, so it is checked as a folder name.
+    // Why: its key writes the entry as a path, backslash and arrow words included.
+    return unlistable_path(paths.as_slice(), false, base);
 }
 
 /// What:
@@ -438,7 +450,7 @@ fn check_package(
         unlistable_name(&tree, package).or_else(|| return unlistable_link_name(&tree, package));
     if let Some((file, written, reason)) = unlistable {
         // What: the reason, and what renaming the file must give, in the words of the refusal.
-        // Why: a name fails for one of two causes, and the reader must know which one to fix.
+        // Why: a name fails for one of four causes, and the reader must know which one to fix.
         let (why, fix): (&str, &str) = match reason {
             UnlistableName::EndsInTrimmedWhitespace => (
                 "its name ends in whitespace that an allow-list reader trims away",
@@ -447,6 +459,14 @@ fn check_package(
             UnlistableName::HoldsLineBreak => (
                 "its name holds a line break, which ends a list line",
                 "its name holds no line break",
+            ),
+            UnlistableName::HoldsBackslash => (
+                "its name holds a backslash, which every key writes as the separator `/`, so a line about it would name another folder",
+                "its name holds no backslash",
+            ),
+            UnlistableName::HoldsArrowWords => (
+                "its name holds the words ` -> ` that a `uses` line sets its arrow off with, so the line could not say where the used folder starts",
+                "its name holds no ` -> `",
             ),
         };
         outcome.findings.push(processing_failure(
