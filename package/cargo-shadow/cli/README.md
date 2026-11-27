@@ -885,8 +885,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   So a scope whose catch-up read saw it populated,
   and that empties before its watch is added again,
   changes its `populated` line with no event queued for it,
-  and this path never ends that unit:
-  what this step buys is the ordinary case,
+  and this path never ends that unit.
+  None of those three paths has been reproduced here:
+  they were read in the manager's own source,
+  at the lines cited,
+  and what this step buys is the ordinary case,
   never a promise that the manager always ends an empty scope.
   Only a group that never held a process is the leftover this step exists for,
   and only that run asks the manager,
@@ -920,10 +923,15 @@ and an HTTP 429 is retried after its `Retry-After`.
   after it,
   none,
   and the call cannot be told from alpha.11's release binary:
-  its ratio (0.874,
-  0.518 to 2.115) is inside the control's own spread (0.993,
+  its ratio to alpha.11 (0.874,
+  0.518 to 2.115) and the control's (0.993,
   0.916 to 1.271)
-  in the table of the troubleshooting file.
+  in the table of the troubleshooting file overlap,
+  with neither range inside the other and the arm's own range wider than the byte-identical control's,
+  so the gap between those two medians is smaller than the spread a byte-identical copy of one arm shows against it.
+  That is the resolution of those four arms and six rounds,
+  and what leaves alpha.14 indistinguishable from alpha.11 there;
+  a null result at that resolution is no promise that the two cost the same.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
