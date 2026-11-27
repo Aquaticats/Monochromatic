@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:49:13-05:00
+## The state at 2026-11-27T13:50:42-05:00
 
-`main` was `e8d3ba3736`.
+`main` was `739bccb167`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 244 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 245 more by this time.
 
 ### Rounds running
 
@@ -154,12 +154,29 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (346 folders named `*-scratch` under `~/temp/agent`,
   counted 2026-11-27T13:26);
 - for the wrapper's `0.6.1-alpha.49` behaviour pass,
-  four rounds started 2026-11-27T13:02:42-05:00 from one list,
+  three rounds started 2026-11-27T13:02:42-05:00 from one list still run,
   each named `wrapper-alpha-49-release-pass-` and then:
   `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`;
   `every-sentence-that-names-a-process-shows-its-name-safely`;
-  `two-deletions-of-repeated-lines-never-write-back-a-line-a-side-removed`;
-  and `four-small-points-of-the-behaviour-read`;
+  and `four-small-points-of-the-behaviour-read`.
+  The fourth is merged (`739bccb167`):
+  the merge pass no longer writes back a line a side removed when both sides only deleted lines.
+  It refuses an answer that holds more copies of a line than both sides hold,
+  or whose lines are in an order one side does not hold,
+  and keeps both sides between markers.
+  The read's three searches reproduced on `main` to the case
+  (6 of 75,
+  32 of 199 and 47 of 521 resolved answers out of bounds);
+  with the fix 82 of them became conflicts,
+  none moved the other way,
+  and no answer within bounds became a conflict.
+  The three left over are Git's own answers,
+  where no conflict reaches the pass.
+  The cause was the rule's shape:
+  it fired only where one side held the line as often as the base did,
+  and it counted inside the region Git left.
+  No timing was taken;
+  `native:check` passed on the pinned tree after the merge;
 - for the wrapper's `0.6.1-alpha.49` structure pass,
   `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`,
   started 2026-11-27T13:05:58-05:00.
