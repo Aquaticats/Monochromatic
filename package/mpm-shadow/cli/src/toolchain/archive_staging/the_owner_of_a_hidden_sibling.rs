@@ -336,9 +336,9 @@ fn existence_of(pid: u32) -> Existence {
         // What: the kernel's `ESRCH` is "no process has this number".
         // Why: that is the one answer that lets a directory be removed.
         Err(rustix::io::Errno::SRCH) => Existence::Free,
-        // What: an old kernel without the call is the same answer as `/proc` alone can give.
-        // Why: no better question can be asked there, and the boot and namespace still bound the reading.
-        Err(rustix::io::Errno::NOSYS) => Existence::Free,
+        // What: an old kernel without the call cannot answer whether a hidden number is held.
+        // Why: without that answer a hidden live process and a free number look alike, so nothing may be concluded.
+        Err(rustix::io::Errno::NOSYS) => Existence::Unknown,
         // What: any other failure is the kernel not saying.
         // Why: nothing may be concluded, so nothing is removed.
         Err(_) => Existence::Unknown,
