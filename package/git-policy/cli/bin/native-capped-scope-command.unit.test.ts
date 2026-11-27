@@ -5,7 +5,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { realpath } from 'node:fs/promises';
+import { join } from 'node:path';
 
+import {
+  SCOPE_NOT_READ,
+  checkScopeCgroupPath,
+} from './native-check-scope-accounting.ts';
 import {
   checkScopeName,
   checkedScopeCaps,
@@ -16,6 +21,7 @@ import {
   scopeArguments,
   scopeCapsProblems,
 } from './native-capped-scope-command.ts';
+import { createGateScratchDirectory } from './stand-in-gate-programs-for-tests.ts';
 import { NativeGateError } from './native-gate-error.ts';
 import {
   type ScopeStandIn,
@@ -43,6 +49,16 @@ const outlastMilliseconds = 4_000;
  Milliseconds a test's own run may take, which is far more than any fixture here needs.
  */
 const testDeadlineMilliseconds = 60_000;
+
+/**
+ Milliseconds a fixture's scope runs for, which is long enough for the accounting watch to read it several times.
+ */
+const fixtureScopeMilliseconds = 400;
+
+/**
+ Milliseconds between two reads of a fixture's scope, which is short so the fixture needs no long hold.
+ */
+const fixturePollMilliseconds = 20;
 
 /**
  Reads every call one stand-in recorded, so the assertions name what a scope was started and ended with.
@@ -125,6 +141,7 @@ await describe({
           '--user',
           '--scope',
           '--quiet',
+          '--slice=app.slice',
           `--unit=${testScopeName}`,
           '--property=CPUQuota=250%',
           '--property=MemoryMax=2G',
@@ -287,6 +304,62 @@ await describe({
           ended: true,
           detail: '',
         },);
+      },
+    }),
+    it({
+      name: 'keeps what a scope counted while it ran, so a bound is known after the scope is gone',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
+        /**
+         The control group this fixture's scope takes.
+         */
+        const cgroupPath = checkScopeCgroupPath({
+          name: testScopeName,
+          root: scratch.path,
+        });
+        /**
+         What the runner answered.
+         */
+        const outcome = await runInCappedScope({
+          name: testScopeName,
+          caps: defaultCheckScopeCaps,
+          program: process.execPath,
+          args: [
+            '-e',
+            `const fs = require('node:fs');
+const path = require('node:path');
+const directory = process.env.CHECK_TEST_CGROUP_PATH;
+fs.mkdirSync(directory, { recursive: true });
+fs.writeFileSync(path.join(directory, 'pids.peak'), '434\\n');
+fs.writeFileSync(path.join(directory, 'pids.max'), '400\\n');
+fs.writeFileSync(path.join(directory, 'pids.events'), 'max 6\\n');
+fs.writeFileSync(path.join(directory, 'memory.peak'), '1953531904\\n');
+fs.writeFileSync(path.join(directory, 'memory.events'), 'oom_kill 2\\n');
+fs.writeFileSync(path.join(directory, 'cpu.max'), '200000 100000\\n');
+fs.writeFileSync(path.join(directory, 'cpu.stat'), 'nr_periods 557\\nnr_throttled 314\\nusage_usec 74283909\\n');
+setTimeout(function end() {
+  fs.rmSync(directory, { recursive: true, force: true });
+  process.exit(0);
+}, ${String(fixtureScopeMilliseconds)});`,
+          ],
+          deadlineMilliseconds: testDeadlineMilliseconds,
+          environment: {
+            ...standIn.environment,
+            CHECK_TEST_CGROUP_PATH: cgroupPath,
+          },
+          scopeRoot: scratch.path,
+          pollMilliseconds: fixturePollMilliseconds,
+        });
+        expect(outcome.status,).toBe(0,);
+        // The scope's work deleted its own control group before it ended, so only a reading taken while it ran is here.
+        if (outcome.accounting === SCOPE_NOT_READ)
+          throw new Error('the runner read no control group while the fixture scope ran');
+        expect(outcome.accounting.pidsPeak,).toBe(434,);
+        expect(outcome.accounting.pidsEvents.max,).toBe(6,);
+        expect(outcome.accounting.memoryEvents.oom_kill,).toBe(2,);
+        expect(outcome.accounting.cpuStat.nr_throttled,).toBe(314,);
+        expect(outcome.elapsedMilliseconds,).toBeGreaterThanOrEqual(fixtureScopeMilliseconds,);
       },
     }),
     it({

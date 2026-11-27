@@ -16,6 +16,15 @@ import { randomUUID } from 'node:crypto';
 import { systemdRunProgram } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
 
 import {
+  SCOPE_NOT_READ,
+  type ScopeAccountingRead,
+  checkScopeCgroupPath,
+  checkScopePollMilliseconds,
+  checkScopeSlice,
+  readScopeAccounting,
+  watchScopeAccounting,
+} from './native-check-scope-accounting.ts';
+import {
   maximumUnitIoWeight,
   textCapProblem,
   wholeCapProblem,
@@ -195,7 +204,9 @@ export function checkScopeName({
  The arguments after the `systemd-run` program name that start one capped scope.
 
  `--quiet` keeps systemd's own "Running scope as unit" line out of the check's output, which a person reads as the check's
- own answer.
+ own answer. The slice is named rather than left to systemd's default, so the path this runner reads the scope's
+ counters from (`bin/native-check-scope-accounting.ts`) is the path the scope is put in; measured on this host on
+ 2026-11-27, a scope that named no slice landed in `app.slice`, which is what {@link checkScopeSlice} states.
 
  @param name - the scope's name
 
@@ -227,6 +238,7 @@ export function scopeArguments({
     '--user',
     '--scope',
     '--quiet',
+    `--slice=${checkScopeSlice}`,
     `--unit=${name}`,
     `--property=CPUQuota=${caps.unitCpuQuota}`,
     `--property=MemoryMax=${caps.unitMemoryMax}`,
@@ -239,7 +251,7 @@ export function scopeArguments({
 }
 
 /**
- How one command in its own scope ended.
+ How one command in its own scope ended, and what that scope counted while it ran.
  */
 export type ScopeOutcome = {
   /**
@@ -258,6 +270,15 @@ export type ScopeOutcome = {
    Whether its deadline ended it instead of it ending by itself.
    */
   readonly timedOut: boolean;
+  /**
+   How long the scope ran the command, from the moment `systemd-run` was started to the moment it answered.
+   */
+  readonly elapsedMilliseconds: number;
+  /**
+   The last figures read from the scope while it ran, or {@link SCOPE_NOT_READ} when its control group was never there to
+   read.
+   */
+  readonly accounting: ScopeAccountingRead;
 };
 
 /**
@@ -335,7 +356,13 @@ export async function endCappedScope({
 }
 
 /**
- Runs one command in its own capped scope and reports how it ended, ending the scope when its deadline passes.
+ Runs one command in its own capped scope and reports how it ended and what that scope counted, ending the scope when its
+ deadline passes.
+
+ The scope's counters are read while it runs (`bin/native-check-scope-accounting.ts`), because a scope takes its control
+ group with it: what a caller reads after the command ended is the last sample taken before that. A check refused a fork
+ or killed for memory therefore answers with the reading that names it, and `bin/native-ts-checks.ts` says so beside the
+ check's own result.
 
  @param name - the scope's name
 
@@ -355,7 +382,11 @@ export async function endCappedScope({
 
  @param stopProgram - the `systemctl` that ends the scope, which a test replaces with a stand-in
 
- @returns its status, its output and whether the deadline ended it
+ @param scopeRoot - the cgroup hierarchy's root, which a test points at a fixture tree
+
+ @param pollMilliseconds - how long between two reads of the scope, which a test shortens
+
+ @returns its status, its output, whether the deadline ended it, how long it ran and what its scope counted
 
  @example
  ```ts
@@ -372,6 +403,8 @@ export async function runInCappedScope({
   environment = process.env,
   scopeProgram = systemdRunProgram,
   stopProgram = systemctlProgram,
+  scopeRoot,
+  pollMilliseconds = checkScopePollMilliseconds,
 }: {
   readonly name: string;
   readonly caps: ScopeCaps;
@@ -382,7 +415,24 @@ export async function runInCappedScope({
   readonly environment?: NodeJS.ProcessEnv;
   readonly scopeProgram?: string;
   readonly stopProgram?: string;
+  readonly scopeRoot?: string;
+  readonly pollMilliseconds?: number;
 }): Promise<ScopeOutcome> {
+  /**
+   The control group this check's scope takes, which its counters are read from while it runs.
+   */
+  const cgroupPath = checkScopeCgroupPath({
+    name,
+    ...(scopeRoot === undefined ? {} : { root: scopeRoot, }),
+  });
+  await using watch = watchScopeAccounting({
+    cgroupPath,
+    intervalMilliseconds: pollMilliseconds,
+  });
+  /**
+   When the scope was asked for, which is what the check's wall time is counted from.
+   */
+  const startedAt = performance.now();
   /**
    What the scope's command printed and how it ended.
    */
@@ -398,29 +448,43 @@ export async function runInCappedScope({
     environment,
     workingDirectory,
   });
-  if (!outcome.timedOut)
-    return {
-      status: outcome.status,
-      stdout: outcome.stdout,
-      stderr: outcome.stderr,
-      timedOut: false,
-    };
-  // The client is gone but the command it started is still in the scope, so the scope is ended by the name it carries.
   /**
-   What ending the scope found.
+   How long the scope held the command, which a check held at its CPU quota is reported by.
    */
-  const stop = await endCappedScope({
-    name,
-    program: stopProgram,
-    environment,
-  });
-  if (!stop.ended)
-    throw new NativeGateError(`the check ${name} ran past its deadline and its scope could not be ended, so what it started may still run: ${stop.detail === '' ? 'the manager printed nothing' : stop.detail}`);
+  const elapsedMilliseconds = performance.now() - startedAt;
+  if (outcome.timedOut) {
+    // The client is gone but the command it started is still in the scope, so the scope is ended by the name it carries,
+    // before anything else waits, which is what keeps a check that ignores its deadline from outliving it.
+    /**
+     What ending the scope found.
+     */
+    const stop = await endCappedScope({
+      name,
+      program: stopProgram,
+      environment,
+    });
+    if (!stop.ended)
+      throw new NativeGateError(`the check ${name} ran past its deadline and its scope could not be ended, so what it started may still run: ${stop.detail === '' ? 'the manager printed nothing' : stop.detail}`);
+  }
+  await watch.stop();
+  // A scope still exists for a moment after its command ends, so this last look keeps the final counters when it is
+  // there and leaves the last sample taken while it ran when it is not.
+  /**
+   What the scope's control group answered once its command had ended.
+   */
+  const lastLook = await readScopeAccounting({ cgroupPath, });
+  /**
+   The reading this outcome carries: the last look when the scope was still there, and the last sample taken while it
+   ran otherwise.
+   */
+  const accounting = lastLook === SCOPE_NOT_READ ? watch.lastRead() : lastLook;
   return {
     status: outcome.status,
     stdout: outcome.stdout,
     stderr: outcome.stderr,
-    timedOut: true,
+    timedOut: outcome.timedOut,
+    elapsedMilliseconds,
+    accounting,
   };
 }
 
