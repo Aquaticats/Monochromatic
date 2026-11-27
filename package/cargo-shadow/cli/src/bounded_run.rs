@@ -493,10 +493,11 @@ fn run_bounded(
         );
     };
     // A normal exit still stops what the child left behind, and the call returns only with the proof that nothing is left.
-    if !stop_everything(&containment, &mut child) {
-        lose(&scope);
+    if let Err(shortfall) = stop_everything(&containment, &mut child) {
+        lose(&scope, shortfall.clone());
         return Err(RunError::NotQuiescent {
             what: bound.what.clone(),
+            shortfall,
         });
     }
     settle(&containment, &scope);

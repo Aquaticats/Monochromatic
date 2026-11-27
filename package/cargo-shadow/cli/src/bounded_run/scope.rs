@@ -99,6 +99,9 @@ pub(crate) struct ScopeState {
     pub(crate) log: PathBuf,
     /// Whether a run under this scope could not show that everything it started was stopped.
     pub(crate) lost: Cell<bool>,
+    /// Why it could not, in the words the refusal of the command carries:
+    /// how long the stop waited and what it was waiting for.
+    pub(crate) lost_reason: RefCell<Option<String>>,
     /// Whether a run under this scope was contained by a process group only.
     pub(crate) process_group_only: Cell<bool>,
 }
@@ -139,6 +142,7 @@ impl RunScope {
         let state: Rc<ScopeState> = Rc::new(ScopeState {
             log: group_log,
             lost: Cell::new(false),
+            lost_reason: RefCell::new(None),
             process_group_only: Cell::new(false),
         });
         // The stack is taken out of its cell and put back, so no closure holds the borrow; nothing else runs in between.
@@ -165,6 +169,23 @@ impl RunScope {
     /// ```
     pub fn writers_may_remain(&self) -> bool {
         return self.state.lost.get();
+    }
+
+    /// What:
+    /// `pub fn writers_may_remain_reason(&self) -> Option<String>` is why the run could not show that everything it started
+    /// was stopped,
+    /// in the words the refusal carries.
+    /// Why:
+    /// Issue 6528: a reader of the refusal has to be able to tell a member that has exited from one that is alive,
+    /// and a bound that passed on a loaded host from a member that cannot be killed,
+    /// so the message says how long the stop waited and what it was waiting for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// writersMayRemainReason(): string | undefined
+    /// ```
+    pub fn writers_may_remain_reason(&self) -> Option<String> {
+        return self.state.lost_reason.borrow().clone();
     }
 
     /// What:
@@ -248,7 +269,18 @@ pub(crate) fn current_scope() -> Option<Rc<ScopeState>> {
 /// ```
 #[cfg(test)]
 pub fn mark_scope_lost_for_test() {
-    lose(&current_scope());
+    // What:     `Some("...")` is the present variant of `Option`, wrapping the reason a stand-in stop gives; a real stop's reason
+    //           names the time it waited and the members it was left with, and this one says it stands in for such a stop.
+    // Why:      A caller of this test entry point reads a reason like every caller of a real stop, so it cannot pass on an empty one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // lose(currentScope(), 'a test marked the scope as one whose writers may remain')
+    // ```
+    lose(
+        &current_scope(),
+        "a test marked the scope as one whose writers may remain".to_string(),
+    );
 }
 
 /// What:

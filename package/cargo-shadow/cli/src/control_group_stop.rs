@@ -162,6 +162,22 @@ use crate::control_group_route_discovery::{
     namespace_id,
     view_of,
 };
+/// What:
+/// `use crate::control_group_stop_report::{MemberListing, StopReport, standing_of};` imports what a stop reports,
+/// and the read of one member's threads.
+/// Why:
+/// The stop answers a report,
+/// and the report must be able to say whether a member it waited for had exited or was alive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { MemberListing, StopReport, standingOf } from 'crate/control_group_stop_report';
+/// ```
+use crate::control_group_stop_report::{
+    MemberListing,
+    StopReport,
+    standing_of,
+};
 
 /// The methods that stop the scope,
 /// and the reads they wait on.
@@ -229,35 +245,39 @@ impl ControlGroup {
     }
 
     /// What:
-    /// `pub(crate) fn stop(&self, bound: Duration) -> io::Result<bool>` kills every member and returns `true` once the kernel
-    /// reports the scope unpopulated or its absence is verified,
-    /// or `false` when `bound` passes first.
+    /// `pub(crate) fn stop(&self, bound: Duration) -> io::Result<StopReport>` kills every member and answers a report whose
+    /// `empty` is true once the kernel reports the scope unpopulated or its absence is verified,
+    /// and whose `empty` is false when `bound` passes first.
     /// Why:
     /// `cgroup.kill` is recursive and asynchronous,
     /// so the answer is the wait for `populated 0`,
     /// which can only be earned.
-    /// A member in an uninterruptible wait cannot be killed and that is `false`.
+    /// A member in an uninterruptible wait cannot be killed and that is a report that is not empty;
+    /// the report carries how long the wait was and which members were left,
+    /// because a bound that passed on a loaded host and one that passed on a member that cannot be killed look the same
+    /// without it (issue 6528).
     /// Every other failure is an error,
     /// and the caller reads both as "not quiescent".
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// stop(boundMs: number): boolean
+    /// stop(boundMs: number): StopReport
     /// ```
     pub(crate) fn stop(
         &self,
         bound: Duration,
-    ) -> io::Result<bool> {
+    ) -> io::Result<StopReport> {
+        let started: Instant = Instant::now();
         #[cfg(test)]
         {
             if crate::failpoints::fires(crate::failpoints::Point::ContainmentStopError) {
                 return Err(io::Error::other("injected failure to stop the scope"));
             }
             if crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck) {
-                return Ok(false);
+                return Ok(self.report_now(started));
             }
         }
-        let deadline: Instant = Instant::now() + bound;
+        let deadline: Instant = started + bound;
         // A test makes a member survive every signal, so the loop below runs to its deadline as it would for a member in an
         // uninterruptible wait (round 16, V6: an unsuccessful shutdown has a deadline).
         #[cfg(test)]
@@ -265,19 +285,28 @@ impl ControlGroup {
             crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor);
         #[cfg(not(test))]
         let survivor: bool = false;
-        match write_text(&self.directory.join("cgroup.kill"), "1") {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                self.absence_is_verified()?;
-                #[cfg(test)]
-                crate::bounded_run::trace(format_args!("scope proved absent"));
-                return Ok(true);
+        // A test makes the kill and every signal miss the members, so a real member is alive when the bound passes: this is what a
+        // member in an uninterruptible wait does on a loaded host (issue 6528).
+        #[cfg(test)]
+        let unkillable: bool =
+            crate::failpoints::fires(crate::failpoints::Point::ContainmentUnkillableMember);
+        #[cfg(not(test))]
+        let unkillable: bool = false;
+        if !unkillable {
+            match write_text(&self.directory.join("cgroup.kill"), "1") {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    self.absence_is_verified()?;
+                    #[cfg(test)]
+                    crate::bounded_run::trace(format_args!("scope proved absent"));
+                    return Ok(self.report_absent(started));
+                }
+                // The signal pass below does the stopping when the kill file cannot be written.
+                Err(error) => eprintln!(
+                    "cargo-shadow: warning: cgroup.kill of {} could not be written ({error}); signalling the members one by one",
+                    self.directory.display()
+                ),
             }
-            // The signal pass below does the stopping when the kill file cannot be written.
-            Err(error) => eprintln!(
-                "cargo-shadow: warning: cgroup.kill of {} could not be written ({error}); signalling the members one by one",
-                self.directory.display()
-            ),
         }
         let events = match fs::File::open(self.directory.join("cgroup.events")) {
             Ok(found) => found,
@@ -285,22 +314,38 @@ impl ControlGroup {
                 self.absence_is_verified()?;
                 #[cfg(test)]
                 crate::bounded_run::trace(format_args!("scope proved absent"));
-                return Ok(true);
+                return Ok(self.report_absent(started));
             }
             Err(error) => return Err(error),
         };
         loop {
-            if !populated_through(&events)? && !survivor {
+            let populated: bool = populated_through(&events)?;
+            if !populated && !survivor && !unkillable {
                 // The authoritative proof: the kernel reports the scope unpopulated after the kill (a test build traces it, so a
                 // test sees that a successful stop went through this check and not through a snapshot of the members).
                 #[cfg(test)]
                 crate::bounded_run::trace(format_args!("scope proved empty"));
-                return Ok(true);
+                return Ok(StopReport::new(
+                    started.elapsed(),
+                    true,
+                    Some(false),
+                    Vec::new(),
+                    None,
+                ));
             }
-            self.signal_members()?;
+            if !unkillable {
+                self.signal_members()?;
+            }
             let now: Instant = Instant::now();
             if now >= deadline {
-                return Ok(false);
+                let (members, listing_failure) = self.listings();
+                return Ok(StopReport::new(
+                    started.elapsed(),
+                    false,
+                    Some(populated),
+                    members,
+                    listing_failure,
+                ));
             }
             let wait: Duration = STRAGGLER_INTERVAL.min(deadline - now);
             let timeout: Timespec = Timespec {
@@ -313,6 +358,93 @@ impl ControlGroup {
                 Err(error) => return Err(io::Error::from(error)),
             }
         }
+    }
+
+    /// What:
+    /// `fn report_now(&self, started: Instant) -> StopReport` is the report of a stop that answered without waiting.
+    /// Why:
+    /// A test makes the stop report that a member could not be stopped (round 16),
+    /// and the answer must describe the scope as it really is,
+    /// so the refusal that follows carries true facts about what was left.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reportNow(started: number): StopReport
+    /// ```
+    #[cfg(test)]
+    fn report_now(
+        &self,
+        started: Instant,
+    ) -> StopReport {
+        let (members, listing_failure) = self.listings();
+        return StopReport::new(
+            started.elapsed(),
+            false,
+            self.population(),
+            members,
+            listing_failure,
+        );
+    }
+
+    /// What:
+    /// `fn report_absent(&self, started: Instant) -> StopReport` is the report of a scope whose absence was verified.
+    /// Why:
+    /// The same report type carries both answers,
+    /// so no caller has to read two shapes for one question.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reportAbsent(started: number): StopReport
+    /// ```
+    fn report_absent(
+        &self,
+        started: Instant,
+    ) -> StopReport {
+        return StopReport::new(started.elapsed(), true, None, Vec::new(), None);
+    }
+
+    /// What:
+    /// `fn population(&self) -> Option<bool>` is the kernel's `populated` word,
+    /// or `None` when the group is gone.
+    /// Why:
+    /// The sentence must not claim the kernel reported a group that no longer exists.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// population(): boolean | undefined
+    /// ```
+    #[cfg(test)]
+    fn population(&self) -> Option<bool> {
+        return match populated_at(&self.directory) {
+            Ok(found) => Some(found),
+            Err(_) => None,
+        };
+    }
+
+    /// What:
+    /// `fn listings(&self) -> (Vec<MemberListing>, Option<String>)` is every member the scope lists and its threads' state,
+    /// or the reason the list could not be read.
+    /// Why:
+    /// A refusal that could not list the members must say so instead of naming none,
+    /// because "no member is listed" and "the listing failed" mean different things.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// listings(): [MemberListing[], string | undefined]
+    /// ```
+    fn listings(&self) -> (Vec<MemberListing>, Option<String>) {
+        let listed: Vec<i32> = match self.members() {
+            Ok(found) => found,
+            Err(error) => return (Vec::new(), Some(error.to_string())),
+        };
+        let mut members: Vec<MemberListing> = Vec::new();
+        for pid in listed {
+            members.push(MemberListing {
+                pid,
+                standing: standing_of(pid),
+            });
+        }
+        return (members, None);
     }
 }
 

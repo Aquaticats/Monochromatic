@@ -179,6 +179,11 @@ pub mod control_group_machine_identity;
 /// and the reads of `cgroup.events` (split out of the control group module).
 pub mod control_group_stop;
 
+/// What the stop of a scope reports:
+/// how long it waited,
+/// and which members were left, with the state of their threads (issue 6528).
+pub mod control_group_stop_report;
+
 /// The resource limits of the caller's control group,
 /// read so the scope of a run keeps them.
 pub mod inherited_limits;
@@ -591,6 +596,10 @@ mod cargo_run_tests;
 /// The tests of the bounded child runs.
 #[cfg(test)]
 mod bounded_run_tests;
+
+/// What the stop of a scope reports for a member that has exited and for one that is still alive (issue 6528).
+#[cfg(test)]
+mod control_group_stop_report_tests;
 
 /// The guard that a production build never computes a trace event.
 #[cfg(test)]
