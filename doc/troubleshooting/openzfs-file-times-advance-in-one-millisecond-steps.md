@@ -205,7 +205,8 @@ kept: Os { code: 2, kind: NotFound, message: "No such file or directory" }
 A run passes when a tick boundary falls between the listing and the control's write,
 which is what the runs that passed show and what the failing runs do not contradict;
 I did not instrument the span between the two,
-so how often a run lands on one side is a measurement of the runs above, not of the span.
+so how often a run lands on one side is a measurement of the runs above,
+not of the span.
 
 ### What the pass assumed
 
@@ -236,19 +237,23 @@ the prune module, 3 runs      32 passed; 0 failed each
 
 A second control pins the decision without racing a clock:
 `a_directory_whose_change_time_did_not_move_is_judged_by_what_it_holds`
-hands the removal the identity the directory has now, change time included,
+hands the removal the identity the directory has now,
+change time included,
 and a listing that never named the file.
-Taken with the change out, it failed `0 passed; 1 failed` on the read of the added file,
+Taken with the change out,
+it failed `0 passed; 1 failed` on the read of the added file,
 and with the change in it passed.
 
 ### What it costs
 
-The added look is one further read of a removed directory's names, and of every directory below it:
+The added look is one further read of a removed directory's names,
+and of every directory below it:
 two more `getdents64` calls for each directory level,
 and one more `newfstatat` for each name it holds.
 Measured with `strace -c` on one control that removes two one-file directories in a single pass
 (`discarded_prune::tests::a_pass_removes_the_chosen_directories_and_audits_each`),
-before the fix and after it, one run each twice,
+before the fix and after it,
+one run each twice,
 the same counts in both runs of each arm:
 
 ```text
@@ -260,11 +265,22 @@ after the fix          39          16        12     29     96
 So these system calls rise by a ratio of 1.09 (96 to 88),
 for two removed directories that hold one file each,
 and a removed directory costs one further names read.
-Wall time is not where that shows:
-five pairs of the prune module, before and after, interleaved in one round,
-gave ratios of 2.06, 0.78, 0.84, 0.65 and 1.25,
+Wall time is not where that shows.
+Five pairs of the prune module,
+before and after,
+interleaved in one round,
+gave the ratios below,
 with the runs themselves spread from 0.13 s to 1.05 s,
-so the added look is inside this host's spread of the same controls.
+so the added look is inside this host's spread of the same controls:
+
+```text
+pair   before   after   ratio
+1      0.51 s   1.05 s  2.06
+2      0.41 s   0.32 s  0.78
+3      0.25 s   0.21 s  0.84
+4      0.20 s   0.13 s  0.65
+5      0.24 s   0.30 s  1.25
+```
 
 ## What is not claimed
 
