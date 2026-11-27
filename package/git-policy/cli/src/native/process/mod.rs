@@ -29,6 +29,9 @@
 //!   process start times for lock owners,
 //!   read from `/proc`,
 //!   `ps` or the Windows process table.
+//! - `process_tree_thread_child_lists.rs`:
+//!   the process numbers below one process,
+//!   read from the kernel's per-thread child lists.
 //! - `process_tree.rs`:
 //!   the processes below one process,
 //!   read before it is stopped and signalled only while they are still the ones found.
@@ -234,6 +237,10 @@ pub mod open_file_of_a_descriptor;
 /// read in a child that the caller stops waiting for at a ceiling,
 /// for a mount whose file system this process cannot ask in its own name.
 pub mod open_file_of_a_descriptor_in_a_child;
+
+/// The process numbers below one process,
+/// read from the kernel's per-thread child lists.
+pub mod process_tree_thread_child_lists;
 
 /// The processes below one process,
 /// read before it is stopped and signalled only while they are still the ones found.
