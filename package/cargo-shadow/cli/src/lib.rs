@@ -285,10 +285,6 @@ pub mod notice_marker;
 /// The crates.io lookups.
 pub mod registry;
 
-/// crates.io through a fetcher,
-/// with the API limits it keeps (split out of the registry module).
-pub mod registry_crates_io;
-
 /// Reading crates.io's answers and the history cache into records (split out of the registry module).
 pub mod registry_record_reading;
 
