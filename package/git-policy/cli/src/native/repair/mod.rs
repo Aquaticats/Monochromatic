@@ -30,6 +30,19 @@
 //!   the bounded start of one package-manager program for a worktree repair,
 //!   run off the runtime's workers,
 //!   and the stop of a child that appears after the bound.
+//! - `package_repair_command_answers.rs`:
+//!   the command one tool run is asked for,
+//!   the two bounds it runs under,
+//!   how it ended,
+//!   and what it left.
+//! - `package_repair_command_finding_the_program.rs`:
+//!   the first executable file the person's search path holds under a tool's name.
+//! - `package_repair_command_words.rs`:
+//!   the words a tool's run is reported in,
+//!   and the quiet gap's name.
+//! - `package_repair_command_the_childs_end.rs`:
+//!   the wait that reads a child's end,
+//!   and the reaping of a leader a stop left behind.
 //! - `package_repair_command.rs`:
 //!   starting one package-manager program for a worktree repair:
 //!   finding it,
@@ -120,6 +133,27 @@
 /// and the stop of a child that appears after the bound.
 #[cfg(target_os = "linux")]
 pub mod package_repair_start;
+
+/// The command one tool run is asked for,
+/// the two bounds it runs under,
+/// how it ended,
+/// and what it left.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_answers;
+
+/// The first executable file the person's search path holds under a tool's name.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_finding_the_program;
+
+/// The words a tool's run is reported in,
+/// and the quiet gap's name.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_words;
+
+/// The wait that reads a child's end,
+/// and the reaping of a leader a stop left behind.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_the_childs_end;
 
 /// Starting one package-manager program for a worktree repair:
 /// finding it,
