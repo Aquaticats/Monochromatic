@@ -38,6 +38,11 @@
 //! - `child_number_told_at_start.rs`:
 //!   the number of the child a caller waits for,
 //!   published the moment the child starts.
+//! - `process_use_targets_and_answers.rs`:
+//!   what a scan of this host's processes is asked for,
+//!   and what it answers with.
+//! - `descriptor_of_a_process_that_may_hold_the_file.rs`:
+//!   whether one descriptor of one process is the file a scan looks for.
 //! - `process_use.rs`:
 //!   the processes of this host that use a directory or a file.
 //! - `quiet_ledger.rs`:
@@ -199,6 +204,13 @@ pub mod descriptor_record;
 
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
+
+/// What a scan of this host's processes is asked for,
+/// and what it answers with.
+pub mod process_use_targets_and_answers;
+
+/// Whether one descriptor of one process is the file a scan looks for.
+pub mod descriptor_of_a_process_that_may_hold_the_file;
 
 /// The device and the inode of the file an open descriptor refers to,
 /// read from the kernel's own copy of the descriptor.
