@@ -1561,6 +1561,176 @@ await describe({
       },
     },),
     it({
+      name: 'makes the worktree and starts the run without an install of its own, because the wrapper\'s add copies node_modules and relinks it (issue 6339)',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run would work in, which the launcher was told about and where its worktree goes.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         Where the launcher's mise stand-in records every question and the folder it was asked in, which is how this test sees
+         whether an install ran in the worktree.
+         */
+        const miseLog = join(
+          folder.path,
+          'mise.log',
+        );
+        /**
+         The folder the process table is read from, which holds only what this test put there.
+         */
+        const processes = join(
+          folder.path,
+          'processes',
+        );
+        /**
+         The marker a unit would leave, which says the launch got past the checks, the worktree and the decision about its
+         dependencies.
+         */
+        const unitMarker = join(
+          folder.path,
+          'unit-started',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await mkdir(
+          processes,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses, which resolves the checkout's root and the base, makes the folder the worktree add
+         names, and answers the questions a finished run is asked about its worktree. It is a stand-in: no worktree of this
+         repository is made here.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\n  *'worktree add'*)\n    for word in "$@"; do\n      case "$word" in\n        '${checkout}'/*)\n          mkdir --parents "$word"\n          ;;\n      esac\n    done\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf '%s\\n' 'refs/heads/fix/the-work'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 0\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which records every question beside the folder it was asked in and answers the
+         session's `PATH`, the node the unit runs, and an install of dependencies with a success it never earned.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `printf '%s\\t%s\\n' "$PWD" "$*" >> '${miseLog}'\ncase "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node'*)\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 0\n`,
+        },);
+        /**
+         The manager this test reads a unit's name from, which is free because no unit holds it. It answers slowly enough that
+         the unit's waiter has ended by the time the launcher looks again, so the wait reads the waiter gone rather than
+         spending its one-minute look interval.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `sleep 0.2\nprintf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The unit manager, which leaves the marker, writes what a driver writes for a run that finished its work, and ends with
+         a success.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `for word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' 'the unit started' > '${unitMarker}'\nprintf '%s\\n' '{"endReason":"idle"}' > "$runFolder/summary.json"\nprintf '%s\\n' 'the run finished its work' > "$runFolder/stderr.log"\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which loads its extensions and prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          branch: 'fix/the-work',
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+          environment: { PI_RUNS_PROCESS_FOLDER: processes, },
+        },);
+        /**
+         Every question the launcher asked mise, each as the folder it was asked in and its words.
+         */
+        const asked = (await logIn(miseLog,)).split('\n',)
+          .filter(function isAQuestion(line,) {
+            return line !== '';
+          },);
+        expect(existsSync(unitMarker,),).toBe(true,);
+        // The worktree add reached the stand-in, so the launch got past the worktree and the check below is not silence from a
+        // start that never made one.
+        expect(ended.stdout,).toContain('worktree add: status 0',);
+        expect(asked.some(function installsDependencies(question,) {
+          return question.includes('pnpm install',);
+        },),).toBe(false,);
+        // The two questions the launcher still asks mise are there, so the check above is not an empty log passing for no install.
+        expect(asked.some(function asksTheSessionPath(question,) {
+          return question.endsWith('exec -- printenv PATH',);
+        },),).toBe(true,);
+        expect(asked.some(function asksForTheNode(question,) {
+          return question.includes('command -v node',);
+        },),).toBe(true,);
+        // Where the worktree's node_modules comes from is said once, so a reader of a launch log keeps the answer the old status
+        // line gave.
+        expect(ended.stdout,).toContain('dependencies:',);
+        expect(ended.stdout,).toContain('node_modules',);
+      },
+    },),
+    it({
       name: 'takes a run that names Pi\'s virtual writer with the pair it named, and says its router may take the members while the run holds no slot in any pool',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
