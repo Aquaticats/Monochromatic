@@ -247,15 +247,23 @@ fn listed_path(text: &str) -> PathBuf {
 ///  so the refusal names the folder and the space in its name instead.
 ///  A file name never holds a space in a tree the rules accept (that is `space-in-file-name`),
 ///  so the words between the word and the arrow are the folder's own.
+///  Those words are the folder's own only while they name one:
+///  a third file name and a doubled arrow make six words whose middle ones are no folder,
+///  and telling that reader to rename a folder that is fine sends them to the wrong place.
+///  Only a folder of the tree can hold the space, so the caller gives the package folder the words are read from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spacedFolder = (words: string[]) =>
-///   words.length >= 6 && words[words.length - 2] === '->'
-///     ? words.slice(1, words.length - 3).join(' ')
-///     : undefined
+/// const spacedFolder = (words: string[], base: Path) => {
+///   if (words.length < 6 || words[words.length - 2] !== '->') return undefined
+///   const folder = words.slice(1, words.length - 3).join(' ')
+///   return folder.includes(' ') && isDirectory(base.join(folder)) ? folder : undefined
+/// }
 /// ```
-fn spaced_file_use_folder(words: &[&str]) -> Option<String> {
+fn spaced_file_use_folder(
+    words: &[&str],
+    base: &Path,
+) -> Option<String> {
     // What: whether the arrow stands where the shape puts it, with one file name after it.
     // Why: a line whose arrow stands anywhere else is a misspelling of the shape and not a spaced folder.
     if words.len() < 6 || words[words.len() - 2] != ARROW {
@@ -265,6 +273,11 @@ fn spaced_file_use_folder(words: &[&str]) -> Option<String> {
     // Why: the shape puts the folder there, and a folder name holding a space is the one reason those words are more than one.
     let folder: String = words[1..words.len() - 3].join(" ");
     if !folder.contains(' ') {
+        return None;
+    }
+    // What: whether those words name a folder of the package.
+    // Why: a line whose middle words name no folder is a misspelling of the shape, so the sentence about the folder would be false.
+    if !base.join(&folder).is_dir() {
         return None;
     }
     // What: the folder name the line cannot carry.
@@ -305,7 +318,7 @@ fn entry_of(
             to: spelled_path(base, &listed_path(to)),
         }
     } else if words.first() == Some(&FILE_USE_WORD) {
-        if let Some(folder) = spaced_file_use_folder(words.as_slice()) {
+        if let Some(folder) = spaced_file_use_folder(words.as_slice(), base) {
             return Err(format!(
                 "Line {line} names the folder `{folder}`, which holds a space: a `file-uses` line sets its five words off with one whitespace character each, so it cannot carry a name that holds one. Rename the folder so its name holds no space, or untangle the loop of files inside it."
             ));

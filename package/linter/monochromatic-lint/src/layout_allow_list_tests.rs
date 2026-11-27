@@ -466,9 +466,21 @@ fn a_dead_use_line_spells_the_whitespace_that_is_part_of_the_name() {
 ///  because its shape is five words set off with one whitespace character each,
 ///  so the refusal names that folder and says what to do about it
 ///  rather than sending its reader back to a line that already reads as the shape it names.
+///  It does so only while those words name a folder the package holds:
+///  the six-word lines below name no folder, so they are told about the shape they misspell.
 #[test]
 fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
-    let error: String = error_of("file-uses src/a b one.rs -> two.rs\n");
+    // What: a package folder holding the folder whose name has the space, and the same fixture without it.
+    // Why: the sentence about a spaced folder is true only of a folder the tree really holds.
+    let spaced: Fixture = Fixture::new();
+    std::fs::create_dir_all(spaced.path.join("src/a b"))
+        .expect("create the folder whose name holds a space");
+    let error: String = parse_allow_list(
+        "file-uses src/a b one.rs -> two.rs\n",
+        Path::new("allow-list.txt"),
+        spaced.path.as_path(),
+    )
+    .expect_err("no line can name that folder");
     assert!(error.contains("Line 1"), "{error}");
     assert!(error.contains("the folder `src/a b`"), "{error}");
     assert!(error.contains("holds a space"), "{error}");
@@ -477,6 +489,26 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
         !error.contains("A use between two files is written"),
         "{error}"
     );
+    // What: two lines of six words whose words between the folder's place and the arrow name no folder.
+    // Why: a third file name and a doubled arrow are misspellings of the shape, and the folder they seem to name neither exists nor holds a space.
+    let plain: Fixture = Fixture::new();
+    std::fs::create_dir_all(plain.path.join("src/ab")).expect("create the folder the line names");
+    for line in [
+        "file-uses src/ab one.rs two.rs -> three.rs\n",
+        "file-uses src/ab one.rs -> -> two.rs\n",
+    ] {
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), plain.path.as_path())
+                .expect_err("the line misspells the shape");
+        assert!(
+            error.contains("A use between two files is written"),
+            "`{line}` must be told about the shape it misspells: {error}"
+        );
+        assert!(
+            !error.contains("holds a space"),
+            "`{line}` names no folder that holds a space: {error}"
+        );
+    }
 }
 
 /// A listed path is read back against the package folder,

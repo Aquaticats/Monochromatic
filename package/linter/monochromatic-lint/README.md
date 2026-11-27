@@ -2099,6 +2099,10 @@ and what the messages say.
   with a sentence naming the whitespace characters and where they stand,
   and a line that sets two of them off says so,
   where alpha.19 sent its reader back to the shape of a line alone.
+- A `file-uses` line of six words whose words between the folder's place and the arrow name no folder
+  is refused as the shape it misspells,
+  where alpha.19 told its reader to rename a folder that holds no space and is fine;
+  a six-word line whose words do name such a folder is refused as before.
 
 ### Known limits
 
@@ -2143,6 +2147,10 @@ and what the messages say.
   so the whole list is refused,
   and the refusal names that folder and says that the space in its name is why:
   a loop of files in such a folder is untangled or the folder is renamed.
+  That sentence is for the words that name such a folder,
+  so a six-word line whose words between the folder's place and the arrow name no folder
+  is a third file name or a doubled arrow,
+  and it is refused as the misspelling of the shape it is.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
   a tab or a no-break space inside a module file name is keyed as written,
