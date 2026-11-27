@@ -227,6 +227,11 @@ pub mod git_system_config_lookup;
 /// without Git.
 pub mod git_config;
 
+/// The character lexer of Git configuration text:
+/// the section header,
+/// the value and the key readers (split out of the Git configuration module).
+pub mod git_config_lexer;
+
 /// The plain-file reader of `HEAD` and of where a repository's files are that chooses the trust base without Git.
 pub mod git_refs;
 
@@ -244,6 +249,10 @@ pub mod git_objects;
 
 /// The check that a commit stored in a pack file is a commit (split out of the git objects module).
 pub mod git_objects_packed_commit;
+
+/// The reader of a version 2 pack index:
+/// its fan-out table and the offset of one object's entry (split out of the git objects module).
+pub mod git_objects_pack_index;
 
 /// The reading of the Git configuration files in Git's order,
 /// split out of `git_refs.rs`.
@@ -284,6 +293,10 @@ pub mod install_error;
 
 /// Replaces refused new versions with the newest older release that passes.
 pub mod set_aside;
+
+/// The choice of an older release for a refused version:
+/// the release-age and trust checks it must pass (split out of the set-aside module).
+pub mod set_aside_older_release_choice;
 
 /// The shadow's install step:
 /// fingerprint fast path,

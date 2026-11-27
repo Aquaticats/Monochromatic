@@ -3,8 +3,8 @@
  unit name is free, and that Pi starts in this session and loads its extensions.
 
  A start that fails one of these made nothing, so nothing has to be undone, and no provider slot is spent on a run that could not
- have worked. Before this, a launcher took a slot, made a worktree and linked its dependencies, and only then did the driver find
- that its prompt file was not there.
+ have worked. Before this, a launcher took a slot, made a worktree and ran the dependency install, and only then did the driver
+ find that its prompt file was not there.
 
  @module
  */

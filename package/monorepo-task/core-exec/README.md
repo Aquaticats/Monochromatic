@@ -353,14 +353,17 @@ the update tells the owner what the update broke:
 
 Tests never reach a real desktop or a real GitHub:
 `src/daily-update-package-checks.unit.test.ts` scripts every effect,
-and `src/daily-update-whole-path.unit.test.ts` runs the real entry point over a disposable repository with a recording
-stand-in for `gh` and the real `notify-send` on a private session bus,
-behind a guard (`assertPrivateBus`) that refuses any other bus.
+and `src/daily-update-whole-path.expensive.unit.test.ts` runs the real entry point over a disposable repository with a
+recording stand-in for `gh` and the real `notify-send` on a private session bus,
+behind a guard (`assertHostedOnPrivateBus`) that refuses any other bus.
+The whole-path suite is opt-in, so a plain `test:unit` skips it;
+it needs the recorder binary of `package/nested-wayland-session/cli`
+(`mise run //package/nested-wayland-session/cli:build:debug`).
 
 ```sh
 # Repository root
 mise run toolchain:update:daily
-mise run //package/monorepo-task/core-exec:test:unit -- package/monorepo-task/core-exec/src/daily-update-whole-path.unit.test.ts
+mise run //package/monorepo-task/core-exec:test:unit -- package/monorepo-task/core-exec/src/daily-update-whole-path.expensive.unit.test.ts
 ```
 
 ### task-oxlint
