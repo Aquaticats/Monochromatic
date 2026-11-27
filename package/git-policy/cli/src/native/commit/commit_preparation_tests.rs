@@ -1210,17 +1210,34 @@ const A_CEILING_A_STEP_OUTLASTS: std::time::Duration = std::time::Duration::from
 /// Longer than the bound and far under the five minutes the shipped bound allows.
 const A_STALL_BOUND: std::time::Duration = std::time::Duration::from_millis(1_200);
 
+/// How many times the bound the step is ended at the control holds its end past that bound.
+///  More than once,
+///  so the wait that owns the step is still waiting when the control lets the kernel's release go,
+///  and a command that stopped waiting earlier answers before the control did.
+const A_HOLD_OUTLASTS_THE_BOUND_BY: u32 = 2;
+
+/// How many of one look's pauses the command may take to answer once the control let the step's end go.
+///  A pause of the wait after a stop is one `AFTER_THE_STOP`,
+///  and the notice's own end waits two half-second bounds,
+///  so the answer is owed in a few of these;
+///  thirty of them is a window a host that wakes this test's own thread late spends,
+///  and the release's promise of an answer stays untouched.
+const A_LOOKS_THE_ANSWER_MAY_TAKE: u32 = 30;
+
 /// How long a control waits for a stand-in signer to name itself in the file it writes.
 const A_SIGNER_STARTS: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// What:
-///  A stand-in signing program that writes its own process number and then takes its time.
+///  A stand-in signing program that writes its own process number and the number of the step that started it,
+///  and then takes its time.
 /// Why:
 ///   No run on this host can put a process into uninterruptible sleep (`BOX`),
 ///  and a control of a scratch step that outlasts its ceiling needs a program below the step that is slow:
 ///  the signer is the one program the step starts that the commit's own configuration can replace.
-///  What a control states is the kernel's answer about this program,
-///  and nothing else.
+///  What a control states is the kernel's answer about this program or about the step that started it,
+///  and the step's number is the one fact a control of a hold on the step itself has no other way to read.
+///  Both numbers are written once and end with a line break,
+///  so a reader takes a number that was really written rather than the first half of one still being written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1235,7 +1252,7 @@ fn a_signer_that_reports_itself(
     let signer: PathBuf = root.join("slow-signer");
     let number_file: PathBuf = root.join("signer-number");
     let script: String = format!(
-        "#!/bin/sh\necho $$ > '{}'\ncat > /dev/null\nsleep {seconds}\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nstand-in\\n-----END PGP SIGNATURE-----\\n'\n",
+        "#!/bin/sh\nprintf '%s %s\\n' \"$$\" \"$PPID\" > '{}'\ncat > /dev/null\nsleep {seconds}\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nstand-in\\n-----END PGP SIGNATURE-----\\n'\n",
         number_file.display()
     );
     crate::test_support::executable(signer.as_path(), script.as_bytes());
@@ -1249,7 +1266,87 @@ fn a_signer_that_reports_itself(
     return (fixture, global_args, commit_args, number_file);
 }
 
-/// The process number a stand-in signer wrote,
+/// What:
+///  The two process numbers a stand-in signer writes:
+///  its own,
+///  and the step that started it.
+/// Why:
+///  A control of a program below the step states the kernel's answer about that program,
+///  and a control of the step's own hold states it about the step,
+///  which is the process the kernel calls the signer's parent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheSignerAndTheStep = { signer: number; step: number };
+/// ```
+#[cfg(unix)]
+struct TheSignerAndTheStep {
+    /// The signing program's own number.
+    signer: i32,
+    /// The number of the `git commit` that started it.
+    step: i32,
+}
+
+/// What:
+///  The two numbers a stand-in signer wrote,
+///  waited for no longer than `bound`,
+///  so a signer that never started fails the control instead of hanging it.
+/// Why:
+///  A number read from a line the signer is still writing is the first half of another process's number,
+///  and a control that stated the kernel's answer about it would name a process this control never started.
+///  Only a line that ended is read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { signer, step } = theSignerAndTheStepIn(file, 20_000);
+/// ```
+#[cfg(unix)]
+fn the_signer_and_the_step_in(
+    file: &Path,
+    bound: std::time::Duration,
+) -> TheSignerAndTheStep {
+    let deadline: std::time::Instant = std::time::Instant::now() + bound;
+    loop {
+        if let Ok(text) = std::fs::read_to_string(file)
+            && let Some(numbers) = the_two_numbers_in(text.as_str())
+        {
+            return numbers;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the stand-in signer never wrote its number to {}",
+            file.display()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// What:
+///  The signer's number and the step's number,
+///  read from the line the signer wrote,
+///  and nothing at all until that line ended.
+/// Why:
+///  The two numbers are one line,
+///  so the end of the text is the end of the line:
+///  a file that does not end there is one the signer is still writing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const numbers = theTwoNumbersIn('1234 1230\n'); // { signer: 1234, step: 1230 }
+/// ```
+#[cfg(unix)]
+fn the_two_numbers_in(text: &str) -> Option<TheSignerAndTheStep> {
+    let written: &str = text.strip_suffix('\n')?;
+    let mut numbers = written.split_whitespace();
+    let signer: i32 = numbers.next()?.parse().ok()?;
+    let step: i32 = numbers.next()?.parse().ok()?;
+    return Some(TheSignerAndTheStep {
+        signer,
+        step,
+    });
+}
+
+/// The process number a stand-in signer wrote for itself,
 /// waited for no longer than `bound`,
 /// so a signer that never started fails the control instead of hanging it.
 ///
@@ -1262,20 +1359,7 @@ fn the_number_in(
     file: &Path,
     bound: std::time::Duration,
 ) -> i32 {
-    let deadline: std::time::Instant = std::time::Instant::now() + bound;
-    loop {
-        if let Ok(text) = std::fs::read_to_string(file)
-            && let Ok(number) = text.trim().parse::<i32>()
-        {
-            return number;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the stand-in signer never wrote its number to {}",
-            file.display()
-        );
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    return the_signer_and_the_step_in(file, bound).signer;
 }
 
 /// What:
@@ -1361,16 +1445,30 @@ fn a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit()
 
 /// What:
 ///  A commit whose scratch step the kernel never releases is ended at the bound it is waited for,
-///  and the words say the step was already waited for before it was stopped.
+///  answers only once the kernel lets it go,
+///  and says the step was already waited for before it was stopped.
 /// Why:
 ///   A step nothing will release still ends the command,
 ///  never the other way round;
 ///  the bound a control plants is a second,
 ///  so a step ended at its ceiling instead of the bound fails this control by time alone.
+///  The control states both of the facts a call a signal cannot end gives the wait:
+///  the kernel's answer about the step's state,
+///  which no run on this host can produce (`BOX`),
+///  and the step's end not collected until the control lets it go.
+///  Without the second the step acts on the stop at once,
+///  the wait after that stop returns before its first look,
+///  and the control passes on a wait it never made.
+///  The control lets that end go at twice the bound,
+///  and what it times after that is the command's answer and never the kernel's release:
+///  the release waits for the kernel with no bound (`SPEC.md`,
+///  the owner's 2026-11-10 answer,
+///  "Keep waiting and say so"),
+///  so no window of a control's can bound the wait the kernel's own call makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // const began = now(); const outcome = runNativeCommitWithin({ ceiling: 300 }); expect(began.elapsed() >= 1_200).toBe(true); expect(outcome.message).toContain('held it in a disk wait')
+/// // const began = now(); holdTheReap(); const outcome = runNativeCommitWithin({ ceiling: 300 }); expect(began.elapsed() >= 2_400).toBe(true); expect(outcome.message).toContain('held it in a disk wait')
 /// ```
 #[cfg(unix)]
 #[test]
@@ -1379,6 +1477,9 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
         crate::scratch_step_look_below::the_controls_window::take_the_window();
     let _notice_window: std::sync::MutexGuard<'_, ()> =
         crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    let _reap_window: std::sync::MutexGuard<'_, ()> =
+        crate::wait_after_the_stop_saying_the_kernel_holds_it::the_controls_window::take_the_window(
+        );
     crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(
         A_STALL_BOUND,
     );
@@ -1399,11 +1500,22 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
         commit_args: commit_args.as_slice(),
         object_directory: None,
     };
+    // What: The step's end is not collected until the control lets it go.
+    // Why:  A step inside a call a signal cannot end acts on `SIGKILL` only when that call returns,
+    //       so this is the other half of what such a hold gives the wait,
+    //       and it is held before the step starts so no wait of the command can meet it unheld.
+    crate::wait_after_the_stop_saying_the_kernel_holds_it::the_controls_window::hold_the_reap();
+    let let_go_at: std::time::Duration = A_STALL_BOUND * A_HOLD_OUTLASTS_THE_BOUND_BY;
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(let_go_at);
+        crate::wait_after_the_stop_saying_the_kernel_holds_it::the_controls_window::let_the_reap_go(
+        );
+    });
     let planting = {
         let watched: PathBuf = number_file.clone();
         std::thread::spawn(move || {
-            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
-            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+            let step: i32 = the_signer_and_the_step_in(watched.as_path(), A_SIGNER_STARTS).step;
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(step, "git");
         })
     };
     let began: std::time::Instant = std::time::Instant::now();
@@ -1415,16 +1527,20 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
     );
     let lasted: std::time::Duration = began.elapsed();
     planting.join().expect("the control's thread");
+    letting_go.join().expect("the control's thread");
     let Err(PreparationError::Git(GitFailure(said))) = outcome else {
         panic!("a step the kernel never released was not turned into a stop: {outcome:?}");
     };
     assert!(
-        lasted >= A_STALL_BOUND,
-        "the step was ended at its ceiling instead of the bound it is waited for: {lasted:?}"
+        lasted >= let_go_at,
+        "the command answered at {lasted:?}, and the control let the kernel's release of the step go only at {let_go_at:?}: the command never waited for the kernel"
     );
     assert!(
-        lasted < std::time::Duration::from_secs(20),
-        "the bound did not end the step: {lasted:?}"
+        lasted
+            < let_go_at
+                + crate::wait_after_the_stop_saying_the_kernel_holds_it::AFTER_THE_STOP
+                    * A_LOOKS_THE_ANSWER_MAY_TAKE,
+        "the kernel's release of the step was let go at {let_go_at:?} and the command answered only at {lasted:?}: nothing the kernel holds keeps it"
     );
     assert!(
         said.contains("was stopped after") && said.contains("nothing was committed"),

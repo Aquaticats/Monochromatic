@@ -319,6 +319,44 @@ fn wrapper_held_between_launcher_spawn_and_record_fixture() {
     let _ = crate::bounded_run::output_within(&mut Command::new("true"), None, &bound);
 }
 
+/// What:
+/// `fn loaded_scope_units() -> Vec<String>` is every `cargo-shadow-*.scope` the user manager loads right now,
+/// as the unit names it answers with.
+/// Why:
+/// Issue 6578:
+/// a run's scope is retired by the process that ran it,
+/// so a test that kills that process leaves whatever the manager kept of the unit,
+/// and the only way to see it is to ask the manager.
+/// The listing is not compared as a whole:
+/// other tests of the suite start and retire their own scopes while this one looks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function loadedScopeUnits(): string[]
+/// ```
+fn loaded_scope_units() -> Vec<String> {
+    let output = Command::new("systemctl")
+        .args([
+            "--user",
+            "--no-ask-password",
+            "--no-pager",
+            "--no-legend",
+            "--plain",
+            "list-units",
+            "--all",
+            "cargo-shadow-*.scope",
+        ])
+        .output()
+        .expect("the real systemctl runs");
+    let listed: String = String::from_utf8_lossy(&output.stdout).to_string();
+    return listed
+        .lines()
+        .filter_map(|line| {
+            return line.split_whitespace().next().map(str::to_string);
+        })
+        .collect();
+}
+
 /// Acceptance rows V3 and V4 (sixth pass,
 /// group 12):
 /// a real wrapper killed after its launcher was spawned and before the launcher record was appended
@@ -331,6 +369,7 @@ fn wrapper_held_between_launcher_spawn_and_record_fixture() {
 #[test]
 fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conservatively() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let loaded_before: Vec<String> = loaded_scope_units();
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
     fs::write(
@@ -358,18 +397,18 @@ fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conse
         .kill()
         .expect("kill the wrapper inside the pending-launcher window");
     let _ = wrapper.wait();
-    // The launcher is not left running: it is killed here, and the recovery is asked only after it is gone, so the refusal cannot
-    // be about a live member.
-    let _ = Command::new("kill")
-        .arg("-9")
-        .arg(launcher.to_string())
-        .status();
-    let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    while std::path::Path::new(&format!("/proc/{launcher}")).exists()
-        && std::time::Instant::now() < deadline
-    {
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // The recovery is asked only after the launcher is gone, so the refusal cannot be about a live member. The launcher is not
+    // killed here: it finishes on its own, which is what a wrapper killed in this window leaves behind. Killing it made the manager
+    // attach a process that was already exiting, the scope's control group never became populated, and the unit stayed `active
+    // (running)` with no member, because the process that would have retired it is the one this test kills (issue 6578).
+    let gone: bool = crate::cgroup_test_support::wait_up_to(Duration::from_secs(10), &|| {
+        return crate::control_group::process_is_running(launcher) == Ok(false);
+    });
+    assert!(
+        gone,
+        "launcher {launcher} was still running, or could not be read ({:?}), ten seconds after the wrapper was killed",
+        crate::control_group::process_is_running(launcher)
+    );
 
     let journals: Vec<PathBuf> = journal_dirs(root.path());
     assert_eq!(
@@ -379,6 +418,15 @@ fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conse
     );
     let journal: &PathBuf = &journals[0];
     let records: String = fs::read_to_string(journal.join("groups")).expect("the records");
+    // The unit this run made is the one fact this test controls: the name its own journal recorded, not a name a listing guessed.
+    let scope: PathBuf = crate::cgroup_test_support::scope_directory_of(
+        &journal.join("groups").display().to_string(),
+    );
+    let unit: String = scope
+        .file_name()
+        .expect("the scope's directory is named for its unit")
+        .to_string_lossy()
+        .to_string();
     assert!(
         records.lines().any(|line| {
             return line.starts_with("scope ");
@@ -417,6 +465,15 @@ fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conse
     assert!(
         journal_dirs(root.path()).is_empty(),
         "the control: the journal was not removed: {settled:?}"
+    );
+    // Issue 6578: the process that ran this scope is the one this test killed, so nothing of the run is left to retire its unit.
+    // The listing before the fixture and the one after it say whether a unit stayed.
+    assert!(
+        crate::cgroup_test_support::wait_up_to(Duration::from_secs(10), &|| {
+            return !loaded_scope_units().contains(&unit);
+        }),
+        "the fixture left {unit} loaded; the units loaded before the fixture were {loaded_before:?} and the ones loaded now are {:?}",
+        loaded_scope_units()
     );
 }
 

@@ -363,6 +363,7 @@ fn the_callers_limits_come_from_its_cgroup_file_and_the_slice() {
 fn route_with(limits: InheritedLimits) -> Route {
     return Route {
         systemd_run: "systemd-run".to_string(),
+        systemctl: "systemctl".to_string(),
         slice: "app.slice".to_string(),
         slice_dir: "/sys/fs/cgroup/app.slice".into(),
         namespace: 1,

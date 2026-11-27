@@ -9,6 +9,29 @@
 //! (`#[cfg(test)]` and `trace_text`),
 //! and every other event may name only plain values.
 //! These tests read the production sources of the bounded run and fail when either rule is broken.
+//! A source that writes an event and is not in `SOURCES` is outside the guard,
+//! so one test compares the list with the tree itself:
+//! every production source below `src` that writes an event must be one of `SOURCES`,
+//! and none of them is reached through a link (`src/test_scratch/source_tree_files.rs`).
+
+/// What:
+/// `fs` is the file system's own functions.
+/// Why:
+/// The coverage test reads the sources the list does not name and asks whether they write an event.
+use std::fs;
+/// What:
+/// `PathBuf` is an owned file-system path.
+/// Why:
+/// The coverage test keeps the sources its walk answered.
+use std::path::PathBuf;
+
+/// What:
+/// `source_tree_files` is the crate's one walk of its own sources,
+/// which visits each file once and never enters a link.
+/// Why:
+/// A split can move an event into a new file,
+/// and a list kept by hand would stop covering it without anything failing.
+use crate::test_scratch::source_tree_files::source_tree_files;
 
 /// The production sources of the bounded run that write trace events.
 const SOURCES: [(&str, &str); 13] = [
@@ -131,5 +154,48 @@ fn a_computed_trace_text_exists_in_a_test_build_only() {
     assert!(
         checked > 0,
         "no computed trace text was found, so this guard checked nothing"
+    );
+}
+
+/// Every production source that writes a trace event is one of `SOURCES`:
+/// the list covers the tree and not only the files a person named when it was written.
+#[test]
+fn every_production_source_that_writes_a_trace_event_is_read() {
+    // What: the `src` folder of the crate this test binary was built from.
+    let root: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    // What: the sources below it that write an event, held so the failure below can name them all.
+    let mut writers: Vec<PathBuf> = Vec::new();
+    for relative in source_tree_files(&root).expect("read the source tree") {
+        // What: `to_string_lossy` reads the source's own kind from its name, because a path has no extension method.
+        let name: String = relative.to_string_lossy().into_owned();
+        // A test file may write events: the rule below is about a production build.
+        if name.ends_with("_tests.rs") || name.ends_with("_test_support.rs") {
+            continue;
+        }
+        let text: String = fs::read_to_string(root.join(&relative)).expect("read a source");
+        if text.contains("trace(format_args!(") || text.contains("trace_text(format!(") {
+            writers.push(relative);
+        }
+    }
+    assert!(
+        !writers.is_empty(),
+        "no source writes a trace event, so this guard checked nothing"
+    );
+    // What: the names `SOURCES` holds, which the guard's two rules read.
+    let mut listed: Vec<&str> = Vec::new();
+    for (name, _text) in SOURCES {
+        listed.push(name);
+    }
+    // What: the writers the list does not name, which the guard would therefore not check.
+    let mut unread: Vec<PathBuf> = Vec::new();
+    for path in &writers {
+        let name: String = path.to_string_lossy().into_owned();
+        if !listed.contains(&name.as_str()) {
+            unread.push(path.clone());
+        }
+    }
+    assert!(
+        unread.is_empty(),
+        "these production sources write trace events and this guard does not read them: {unread:?}; it reads {listed:?}"
     );
 }

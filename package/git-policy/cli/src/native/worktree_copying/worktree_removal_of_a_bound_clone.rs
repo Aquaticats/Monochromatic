@@ -142,7 +142,7 @@ fn unreadable_record_sentence(
     reason: &str,
 ) -> String {
     return format!(
-        "`git worktree remove` is refused: a record is filed under the slot name `{slot}` and cannot be read ({reason}), so nothing proves this removal would not delete a managed clone's slot. Nothing was removed and Git did not run. Read the record, restore it from a copy or settle it, then run the removal again."
+        "`git worktree remove` is refused: a record is filed under the slot name `{slot}` and cannot be read ({reason}), so nothing proves this removal would not delete a managed clone's slot. Nothing was removed and Git did not run. No command of this release settles such a record. Deleting it makes the removal Git's own for a slot nothing then proves: with no record filed under the slot name and no mount at the slot, Git deletes the registration and the slot folder, and a clone bound to that slot is then reachable by nobody. Restore it from a copy if that is not what you mean, then run the removal again."
     );
 }
 

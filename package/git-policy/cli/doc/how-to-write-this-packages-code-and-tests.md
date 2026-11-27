@@ -102,6 +102,35 @@ so two controls of a threaded run cannot both have theirs,
 and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
 The setters refuse in any other process and name the starter,
 as the descriptor limit's setter does.
+The environment is one of those facts,
+and a control that changes what it names runs its body through
+`run_the_body_with_an_environment_of_its_own`
+in the same file,
+which adds the variables the control states and removes the ones it names.
+The route a hand-over finds the commit service by reads two facts of the session,
+and a test build reads them from one place only,
+`foundation/session_runtime_directory_and_bus_address.rs`:
+an inherited `XDG_RUNTIME_DIR` or `DBUS_SESSION_BUS_ADDRESS` is not read at all,
+and the control hands its own in through
+`CLI_GIT_TEST_ONLY_SESSION_RUNTIME_DIRECTORY` and `CLI_GIT_TEST_ONLY_SESSION_BUS_ADDRESS`,
+which that file reads in place of the inherited pair.
+So a body whose control hands in nothing has no route,
+and `source_guard/no_release_read_of_the_session_places_tests.rs` refuses any other read of either name.
+A build made for tests also offers the manager no program of its own:
+the executable a process remembers is not compiled there,
+because in a test process it is the test binary
+(issue 6586:
+before that,
+a control that handed a trash over wrote its fixture's units into `/run/user/<n>/systemd/user/`,
+pointed the account-wide program link at the test binary,
+and had the manager run libtest for the fixture five times until the start limit hit,
+which is what issue 6582's two controls first met).
+So a control whose body routes a hand-over hands in a fixture runtime directory and no bus,
+as `worktree_copying`'s two hand-over controls do,
+and the hand-over fails with "no commit service can be started from this session",
+which is the world those controls are about.
+A control whose subject is a route with a program in it passes one to `choose_route` itself,
+and `landing/service_route_tests.rs` holds both kinds.
 A child also inherits the records its parent holds,
 so a control whose body reads the chain record closes the record it inherited before it makes its own
 (`invocation/started_as_git_tests.rs`,
@@ -442,6 +471,39 @@ sixty seconds,
 which only stops a hang.
 A control's own bound then rests on a promise the test's own threads do not have to keep.
 
+A control of a step the kernel holds states both of the facts such a hold gives the wait.
+One is the kernel's answer about the process's state,
+which `the_kernel_holds` states
+(`commit/scratch_step_look_below_control_window.rs`).
+The other is the step's end not collected until the control lets it go,
+which `hold_the_reap` states
+(`process/wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs`).
+One without the other tests a wait that never lasts:
+the step acts on the `SIGKILL` at once,
+the wait after the stop returns before its first look,
+and the control passes on a wait it never made.
+On 2026-11-27 the never-released control of `commit/commit_preparation_tests.rs` stated only the state,
+passed alone in 1.41 s,
+and then failed a gate run in 31.9 s,
+because a loaded host's own disk wait held the real step and the control allowed the command twenty seconds
+(issue 6589).
+The gate's log is what measured it:
+the line naming process `12876` is the step,
+which that control never stated,
+so `/proc` itself reported the step in state `D` until the kernel let it go,
+about thirty seconds after the `SIGKILL` at 1.3 s.
+
+No control bounds the kernel's release of a step.
+The release waits for it with no bound after the stop
+(`SPEC.md`,
+the owner's answer of 2026-11-10,
+"Keep waiting and say so"),
+so a control asserts what the release does promise:
+the step was ended at the bound the control planted,
+its words say the step was waited for,
+and the command answers once the control let the reap go,
+within a multiple of the wait's own `AFTER_THE_STOP` pause.
+
 A control whose subject is a notice said to a waiting client reads what the client has said while it still waits,
 and reads it before the client ends
 (`Told` in `landing/service_land_hung_write_tests.rs`):
@@ -502,6 +564,63 @@ and that clock advances once per 1 ms tick,
 so the write left the stamp exactly as it was and the final check rightly passed in 6 runs of 6).
 `stamped_pair` gives its source a modification time `RECENT_CHANGE_NANOS` before now for that reason,
 and the measurement is in `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`.
+The controls of this crate whose assertion needs two file times to differ,
+and what each rests on
+(2026-11-27,
+issue 6593):
+
+- `worktree_copying::worktree_copy_compare::tests::a_source_written_after_the_stamp_fails_the_final_check`
+  rests on `settle_the_modification_time`,
+  which gives the fixture's source the modification time `RECENT_CHANGE_NANOS` before now.
+- Every control that pins the clock with `clock_reads`
+  (the `settled_clock` fixture of `index::index_reset_worktree_stat::tests`,
+  `index::index_reset_file::tests`'s attributes control,
+  the three at `worktree_copying::worktree_copy_stage::tests`,
+  and the ones in `worktree::worktree_clean_content_attributes::tests`)
+  rests on the instant it hands the code,
+  never on the clock moving.
+- `worktree::worktree_snapshot_index_step::tests::the_index_a_source_with_changes_installs_keeps_the_fields_that_prove_an_edit`
+  and the controls of `worktree::worktree_dirty_restore::tests` that hide an edit
+  rest on `hide_an_edit`'s two stated nanosecond parts of the modification time
+  (`HIDDEN_EDIT_RECORDED_NANOS`
+  and `HIDDEN_EDIT_EDITED_NANOS`),
+  which is what issue 6593 changed.
+- `lock::index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds`
+  is the one left that rests on the file system's own clock:
+  it changes a file's permissions up to fifty times and asserts that one change time has a nonzero
+  millisecond part,
+  which the clock's offset decides and nothing of the control does.
+  It is unchanged,
+  and issue 6593 names it.
+
+A control whose subject is the time the record credits to the programs below the step
+waits for the looks that credit it
+and derives its bound from the record's own counts,
+never from a clock:
+the credit is the span between the looks that found the program,
+one interval for each look after the first,
+and a window of wall clock holds fewer of them on a host whose threads wake late.
+`until_looks_find_the_step` (`commit/native_commit_waiting_notice_control_window.rs`)
+waits for a count of looks that found the step,
+and `a_look_of_this_step_waits` in the same file plants the stretch a loaded host put between two of them.
+Measured on 2026-11-27:
+the control asserted 750 ms of credit inside a 1,200 ms sleep,
+which is three intervals of `LOOK_INTERVAL` and is what only a punctual host proves,
+and the gate run whose each proved interval was 319.73 ms held four looks in that window instead of five,
+three of them finding the step,
+so the record proved 639.47 ms and the control failed (issue 6592;
+`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`).
+
+A control that shortens a deadline the release code keeps itself holds the work that deadline governs before that work starts.
+The fence's size read is joined with a deadline measured from the wait and not from the read's start
+(`SizeReadBesideTheCheck::answer_within_the_deadline` hands it to `recv_timeout`),
+and the join runs after the source check and after `git check-attr`,
+so a read started first answers inside a window that began after it did.
+The join's control arms `a_control_holds_the_read` before `start_beside_the_check` for that reason
+(issue 6603:
+a wide threaded `worktree` run answered `3311 passed; 1 failed`,
+with the rung held where the control says a held read cannot answer,
+and 100 ms of delay planted between the start and the arm reproduced it in a run whose child finished in 0.15 s).
 
 ## Write less code
 
@@ -582,6 +701,69 @@ and the rest are in `source_guard` whose whole module runs.
 Each of those 26 modules ran once and threaded
 and only the control above was stale.
 
+## Walk the sources through the one walk, never a recursive read
+
+Every source folder holds a `uses/` folder of links to the folders its code uses,
+so a read that follows a link reaches the same module once per chain of links above it.
+Measured 2026-11-27:
+a recursive read of `src/native` returned 165,978 entries and 163,498 `.rs` names
+where the tree holds 4,234 entries and 3,905 Rust sources,
+and joining that much text ended the planted-controls unit test with `RangeError: Invalid string length`
+(issue 6580).
+A TypeScript script or test of this package that reads the sources walks them through
+`bin/source-tree-files.ts` (`sourceTreeFiles`),
+which enters each folder once,
+never descends a link,
+and gives the files in code unit order.
+A fixture folder a script makes itself is not the source tree,
+so a reader of one may list it directly:
+two readers of this package list a folder recursively and each follows a link it meets,
+`e2e/observation-fixture.ts` (a fixture repository's common directory) and
+`perf/fence-size-read-beside-the-check-2026-11-21-control-identical-fence.ts` (the fixture trees it compares),
+and neither fixture holds a link as of 2026-11-27,
+because no script of the package makes one there.
+
+A Rust test that reads this crate's sources walks them through the shared scan of `source_guard`:
+`source_scan_tests::discover` lists every `.rs` file under a root once,
+`source_scan_tests::classified_sources` adds the module tree's answer about which of them are test-only,
+and `source_scan_tests::source_text` reads one listed file.
+`discover` enters each folder once,
+reads nothing through a symbolic link,
+skips a `uses` link that names a folder below the root and refuses every other link,
+and its control `the_walk_reaches_a_linked_back_source_once_where_a_recursive_read_reaches_it_again`
+(`source_guard/source_scan_walk_tests.rs`) holds a fixture of one source file and one link back into the tree:
+the walk lists that file once and the `read_dir` recursion the walk replaces reaches it once per link above it.
+No test of this crate lists a source folder with a `read_dir` recursion of its own,
+and every walk of one asks an entry's own type with `entry.file_type()`,
+never `path.is_dir()`,
+which follows a link.
+A check that looks for a needle reads one file at a time and holds that file's text alone.
+Measured 2026-11-27 (issue 6598):
+the sources were 3,905 Rust files of 46,090,082 bytes when these readings were taken,
+and the control that held them all read through the `uses` links read 165,978 entries,
+104,219 files and
+888,676,493 bytes,
+holding 890.5 MiB of resident memory for 22.1 s of a suite that runs for about sixteen minutes;
+the same control reads one file at a time now,
+in 0.8 to 7.7 s and 27.2 to 28.0 MiB.
+A control that builds a tree from the sources reads them the same way,
+because a walk that descends one link builds that tree forty times over:
+`binary/binary_worktree_clone_zfs_measurement_tests.rs` read 163,706 files and 1,658,426,907 bytes of `src`
+where the tree held 4,110 files and 49,829,839 bytes.
+
+A planted control names one file and one needle in it,
+and a needle goes stale without anything renaming it:
+a split moves the guard into a sibling file,
+or `cargo fmt` reflows the expression onto other lines.
+`bin/native-planted-controls.unit.test.ts` is what reports that,
+so it names the control and the file whose text no longer occurs exactly once;
+seven controls were stale on 2026-11-27 and the source walk's crash hid every one of them.
+A control whose guard moved names the file that holds the guard now,
+and one whose text was reflowed carries the text as the file holds it,
+with a comment saying which commit moved what.
+A needle that compiles is not the same as a needle a campaign notices:
+`mise run //package/git-policy/cli:native:mutation:planted` is what proves that.
+
 ## A filtered run counts only when it ran the tests you meant
 
 A `cargo test` filter that matches no test prints `ok. 0 passed`,
@@ -648,6 +830,13 @@ its guest arms where its brief asks for them,
 and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
+A round that adds or renames a file naming `podman` or `docker` as a program also runs
+`mise run //package/container-limit/core:test:unit`,
+whose `src/container-start-sites.unit.test.ts` lists every such tracked file:
+it fails until the new path is listed with the role it plays,
+and the `advisory-core` workflow that runs it does so only when its admission gate lets a push to `main`
+through,
+so a merge can land without it (issue 6588).
 
 A round that writes or moves a line behind a feature name runs that feature's
 `mise run //package/git-policy/cli:native:clippy:<feature>`

@@ -12,6 +12,17 @@ use std::path::{
     PathBuf,
 };
 
+// What:
+//  `write_tree` is the shared fixture writer of the parent module: it makes each `(name, text)` pair a file.
+// Why:
+//  The controls below build their trees the same way every other control of these scans does.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { writeTree } from './shared'
+// ```
+use super::write_tree;
+
 /// What:
 ///  `fn relative_name(root: &Path, path: &Path) -> Result<String, String>` turns an absolute `path` under `root` into
 ///  the `/`-separated text every scan uses as the identity of a source file.
@@ -242,4 +253,177 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
     // return found
     // ```
     return Ok(found);
+}
+
+/// What:
+///  The one line the fixture's source file holds,
+///  so a control counts how many times a walk reaches that file.
+/// Why:
+///  The subject of this file's controls is how many times a walk reaches a file,
+///  and the file's own text is the evidence,
+///  never its name.
+const THE_LINE_ONE_FILE_HOLDS: &str = "// the needle: a walk reaches this file once\n";
+
+/// What:
+///  `fn a_tree_a_link_points_back_into(name: &str) -> PathBuf` makes a fixture tree of one source file in `folder`
+///  and one link in `folder/uses`,
+///  naming the tree's own root,
+///  which is the shape this repository's source folders have
+///  (`AGENTS.md`,
+///  rules `LYD` and `LYL`).
+///  `&str` is borrowed text,
+///  whose owned sibling is `String`,
+///  and `PathBuf` is an owned file-system path,
+///  whose borrowed sibling is `&Path`.
+/// Why:
+///  A read that descends a link reaches that source file once per chain of links above it,
+///  and this tree shows it once and through the link,
+///  which is the read the shared walk replaces (issue 6598).
+///  The owned path comes back because the caller removes the folder at its end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aTreeALinkPointsBackInto(name: string): string  // throws Error
+/// ```
+#[cfg(unix)]
+fn a_tree_a_link_points_back_into(name: &str) -> PathBuf {
+    // What:
+    //  `fixture(name)` makes a folder of this call's own under the fixture root and hands back its path.
+    // Why:
+    //  The tree this control walks is written by the control alone,
+    //  so no other test thread writes or removes it.
+    let tree: PathBuf = crate::test_support::fixture(name);
+    write_tree(
+        tree.as_path(),
+        &[("folder/mod.rs", THE_LINE_ONE_FILE_HOLDS)],
+    );
+    // What:
+    //  `create_dir_all` makes the `uses` folder, and `join` builds a path from its parts.
+    // Why:
+    //  The link below needs the folder the layout rules put it in;
+    //  `write_tree` wrote the file's folder only.
+    std::fs::create_dir_all(tree.join("folder").join("uses")).expect("the uses folder");
+    // What:
+    //  `std::os::unix::fs::symlink(target, link)` makes `link` a symbolic link naming `target`.
+    //  `target` here is `../..`, the tree's own root, written relative as the repository's links are.
+    // Why:
+    //  A read that descends it walks the tree again from that root,
+    //  so the one source file is reachable twice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // symlinkSync('../..', join(tree, 'folder', 'uses', 'again')); // throws Error
+    // ```
+    std::os::unix::fs::symlink("../..", tree.join("folder").join("uses").join("again"))
+        .expect("a link back to the tree's own root");
+    return tree;
+}
+
+/// What:
+///  `fn every_name_the_read_this_walk_replaces_finds(root: &Path) -> Vec<String>` lists every `.rs` file under `root`
+///  as `/`-separated names relative to it,
+///  the way this crate's guards listed their sources before the shared walk:
+///  `read_dir` at every folder,
+///  and `path.is_dir()` to decide whether an entry is a folder,
+///  which follows a symbolic link.
+/// Why:
+///  The control beside this function has to show that its tree is one the earlier read read twice,
+///  or it would also pass for a walk that had not changed.
+///  Nothing else calls this:
+///  the read it stands for is the defect the shared walk replaced (issue 6598).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function everyNameTheReadThisWalkReplacesFinds(root: string): string[]  // throws Error
+/// ```
+fn every_name_the_read_this_walk_replaces_finds(root: &Path) -> Vec<String> {
+    // What:
+    //  `Vec<String>` is a growable list of owned text (siblings: `&[String]`, a borrowed view, and
+    //  `[String; N]`, a fixed length) and `Vec::new()` an empty one.
+    // Why:
+    //  The list is the evidence the control asserts on, so it keeps every name the read reaches.
+    let mut found: Vec<String> = Vec::new();
+    // What:
+    //  `vec![root.to_path_buf()]` is a work list holding one owned copy of the root (`to_path_buf()` copies a borrowed
+    //  `&Path` into the owned `PathBuf`), and `while let Some(x) = ...pop()` repeats while the list holds one.
+    // Why:
+    //  A list of folders still to read replaces recursion here, so a deep tree cannot exhaust the stack.
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .expect("a readable folder")
+            .flatten()
+        {
+            let path: PathBuf = entry.path();
+            // What: `path.is_dir()` asks the operating system whether the path names a folder, and it follows a link.
+            // Why:  This is exactly the decision the shared walk makes on the entry's own type, so the two reads differ
+            //       only in whether a link is descended.
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if path
+                .extension()
+                .is_some_and(|extension| return extension == "rs")
+            {
+                let relative: &Path = path.strip_prefix(root).expect("a path below the root");
+                found.push(relative.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    return found;
+}
+
+/// What:
+///  A control of the shared walk on a tree whose `uses` link names the tree's own root:
+///  the walk lists the one source file once,
+///  reading every listed file reads it once,
+///  and the recursive read the walk replaces reaches it again for each link above it.
+/// Why:
+///  A walk that descends a link returns the same file once per chain of links (issue 6598),
+///  so a guard that counts a needle or a file reads a tree this size as one many times larger,
+///  and this control fails the moment the shared walk starts reading through a link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('the walk reaches a linked-back source once', () => {
+///   const tree = aTreeALinkPointsBackInto('scan-walk-linked-back')
+///   expect(discover(tree)).toEqual(['folder/mod.rs'])
+///   expect(needleReadings(discover(tree))).toBe(1)
+///   expect(everyNameTheReadThisWalkReplacesFinds(tree).length).toBeGreaterThan(1)
+///   remove(tree)
+/// })
+/// ```
+#[cfg(unix)]
+#[test]
+fn the_walk_reaches_a_linked_back_source_once_where_a_recursive_read_reaches_it_again() {
+    let tree: PathBuf = a_tree_a_link_points_back_into("scan-walk-linked-back");
+    let listed: Vec<String> = discover(&tree).expect("a listing of the fixture tree");
+    assert_eq!(
+        listed,
+        vec![String::from("folder/mod.rs")],
+        "the walk lists the one source file once, and the link names no second file"
+    );
+    // What:
+    //  The number of times the one line the file holds is read: `read_to_string` gives one file's text as an owned
+    //  `String`, and `matches(needle).count()` counts non-overlapping occurrences of the needle in it.
+    // Why:
+    //  Reading every listed file once is what a guard of the crate's sources does,
+    //  and the count is 1 only while the listing holds the file once.
+    let mut readings: usize = 0;
+    for name in &listed {
+        let text: String =
+            std::fs::read_to_string(tree.join(name.as_str())).expect("a listed source file");
+        readings += text.matches(THE_LINE_ONE_FILE_HOLDS).count();
+    }
+    assert_eq!(
+        readings, 1,
+        "the walk reaches the file once, so its text is read once"
+    );
+    let recursive: Vec<String> = every_name_the_read_this_walk_replaces_finds(&tree);
+    assert!(
+        recursive.len() > 1,
+        "the tree is one the read this walk replaces reads again, and it read: {recursive:?}"
+    );
+    crate::test_support::remove(tree.as_path());
 }

@@ -93,6 +93,9 @@ fn a_kept_worktree_is_named_once_with_its_path_its_branch_and_its_reason() {
 /// Why:
 ///  A record removed before its words reach the person is gone with nothing shown,
 ///  and a closed terminal is not a reason to lose the statement.
+///  This is the writer the notice is handed directly;
+///  the stream every command uses answers the same way from the thread that writes it,
+///  which the control below shows.
 #[test]
 fn a_record_whose_words_could_not_be_written_stays_for_the_next_command() {
     let root: PathBuf = fixture("kept-notice-unsaid");
@@ -106,7 +109,8 @@ fn a_record_whose_words_could_not_be_written_stays_for_the_next_command() {
     .expect("the record of a worktree a removal kept");
     let notices: Vec<Notice> = kept_worktree_notices(root.as_path());
     assert_eq!(notices.len(), 1, "one record to show");
-    let refused: std::io::Result<()> = notices[0].show(&mut Failing);
+    let refused: std::io::Result<()> =
+        notices[0].show(&mut crate::test_support::AStreamThatRefusesEveryByte);
     assert!(
         refused.is_err(),
         "a standard error that refuses the words says so"
@@ -121,23 +125,6 @@ fn a_record_whose_words_could_not_be_written_stays_for_the_next_command() {
         again[0].contains("it is locked"),
         "and it still says why: {again:?}"
     );
-}
-
-/// A writer that refuses every byte,
-/// as a closed terminal does.
-struct Failing;
-
-impl std::io::Write for Failing {
-    fn write(
-        &mut self,
-        _bytes: &[u8],
-    ) -> std::io::Result<usize> {
-        return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
-    }
 }
 
 /// What:
@@ -186,4 +173,52 @@ fn a_kept_notice_that_is_a_named_pipe_is_answered_at_once() {
     };
     assert!(texts.is_empty(), "a pipe is no notice");
     remove(root.as_path());
+}
+
+/// What:
+///  A kept worktree's record whose line the thread that writes standard error could not put in the
+///  stream stays for the next command.
+/// Why:
+///   The record is removed only once its line is known written,
+///  and the write itself answers before the line is written:
+///  the thread's answer is what tells the two apart
+///  (`foundation/standard_error_off_the_calling_thread.rs`).
+///  The kept worktree stands until a person decides about it,
+///  so a line nobody could read is the whole of what that decision has.
+#[test]
+fn a_record_whose_line_the_stream_could_not_take_stays_for_the_next_command() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_record_whose_line_the_stream_could_not_take_stays_for_the_next_command",
+        || {
+            let root: PathBuf = fixture("kept-notice-line-not-taken");
+            let worktree: PathBuf = root.join("topic");
+            record_kept_worktree(
+                root.as_path(),
+                worktree.as_path(),
+                "refs/heads/topic",
+                "it is locked, and a lock is a promise to keep it",
+            )
+            .expect("the record of a worktree a removal kept");
+            let notices: Vec<Notice> = kept_worktree_notices(root.as_path());
+            assert_eq!(notices.len(), 1, "one record to show");
+            let mut notes = crate::test_support::standard_error_whose_writer_refuses_every_line();
+            let refused: std::io::Result<()> = notices[0].show(&mut notes);
+            assert!(
+                refused.is_err(),
+                "the thread that writes standard error says the line did not reach the person"
+            );
+            let again: Vec<String> = shown(root.as_path());
+            assert_eq!(
+                again.len(),
+                1,
+                "the record is found by the next command: {again:?}"
+            );
+            assert!(
+                again[0].contains("it is locked"),
+                "and it still says why: {again:?}"
+            );
+            remove(root.as_path());
+        },
+    );
 }

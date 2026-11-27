@@ -1,21 +1,30 @@
 //! What:
 //!  Where a run of lines sits in one stage of a file:
+//!  the byte range of the side of a region,
 //!  the byte offset of a line's text at or after a place,
 //!  and the lines counted between two places.
 //! Why:
-//!   A region's place in its stage feeds the report's line numbers only,
-//!  never the merged bytes,
-//!  and a report over many parts costs the stage's lines once;
-//!  one file owns the line ending both readings turn on,
+//!   A region's own text is the stage's own bytes,
+//!  so a region that ends a file keeps the line end that file has there,
+//!  and a region's place feeds the report's line numbers;
+//!  a report over many parts costs the stage's lines once;
+//!  one file owns the line ending every one of those readings turns on,
 //!  so the cut of an answer and the places of its regions cannot disagree about a line.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
+//! const span = placeInStage(text, side, from);
 //! const at = offsetFromLine(text, needle, from);
 //! ```
 
+/// A byte range of a text.
+use std::ops::Range;
+
 /// The byte that ends a line.
 pub(super) const LINE_END: u8 = b'\n';
+
+/// The byte that comes before the line end of a file whose lines end with both.
+pub(super) const CARRIAGE_RETURN: u8 = b'\r';
 
 /// Whether one byte ends a line.
 pub(super) fn is_line_end(byte: &u8) -> bool {
@@ -53,6 +62,58 @@ pub fn offset_from_line(
         }
         let offset: usize = text[at..].iter().position(is_line_end)?;
         at += offset + 1;
+    }
+    return None;
+}
+
+/// What:
+///  Where the run of lines `side` sits in `text` at or after `from`:
+///  the byte range of `text` it holds.
+/// Why:
+///   A region's side is a run of whole lines of its own stage,
+/// and the line merge writes a line end after the last line of every side,
+/// so a side whose last line is the stage's last line with no line end of its own
+///  holds one byte fewer in the stage than in the answer.
+/// Answering with the stage's own bytes there is what keeps a file's ending:
+/// a region that ends a file writes no line end the file did not have,
+///  and drops none it had.
+/// A match that is not at a line start is no place a region can stand,
+/// so it is not taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function placeInStage(text: Uint8Array, side: Uint8Array, from: number): { start: number; end: number } | undefined;
+/// ```
+pub fn place_in_stage(
+    text: &[u8],
+    side: &[u8],
+    from: usize,
+) -> Option<Range<usize>> {
+    if let Some(at) = offset_from_line(text, side, from) {
+        return Some(at..at + side.len());
+    }
+    let without_newline: &[u8] = side.strip_suffix(&[LINE_END])?;
+    // Git writes the file's own line ending after the last line of a side,
+    // so a stage whose lines end with both bytes has that ending in the answer alone.
+    let candidates: [&[u8]; 2] = [
+        without_newline,
+        without_newline
+            .strip_suffix(&[CARRIAGE_RETURN])
+            .unwrap_or(without_newline),
+    ];
+    for candidate in candidates {
+        let Some(at): Option<usize> = text.len().checked_sub(candidate.len()) else {
+            continue;
+        };
+        if at < from {
+            continue;
+        }
+        if at != 0 && text[at - 1] != LINE_END {
+            continue;
+        }
+        if text[at..] == *candidate {
+            return Some(at..text.len());
+        }
     }
     return None;
 }

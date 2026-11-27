@@ -37,7 +37,7 @@ use crate::worktree_add_plan::{
     copy_start_directory,
     start_directory,
 };
-use crate::worktree_clone_binding_record::registration_home::home_folder;
+use crate::worktree_clone_binding_record::registration_home::holds_a_record;
 use crate::worktree_clone_link_repair::link_report_lines;
 use crate::worktree_clone_link_repair::live_link_report::{
     repair_paths,
@@ -294,8 +294,9 @@ fn unread_global_sentence(
     word: SlotCommandWord,
 ) -> String {
     let typed: std::borrow::Cow<'_, str> = option.to_string_lossy();
+    let what: String = crate::global_arguments::unread_global_words(option);
     return format!(
-        "`git worktree {word}` is refused: `{typed}` is a global option this wrapper does not read, so nothing proves which worktree the command names, and this repository holds the records of managed-clone slots. Nothing was {done} and Git did not run. Run the command again without `{typed}`, or write it as `git -C <repository> worktree {word} ...`: the options the wrapper reads leave the operand in view, so a slot a binding record proves is a whole clone is protected either way.",
+        "`git worktree {word}` is refused: {what}, so nothing proves which worktree the command names, and this repository holds the records of managed-clone slots. Nothing was {done} and Git did not run. Run the command again without `{typed}`, or write it as `git -C <repository> worktree {word} ...`: the options the wrapper reads leave the operand in view, so a slot a binding record proves is a whole clone is protected either way.",
         word = word.word(),
         done = word.done()
     );
@@ -319,8 +320,9 @@ fn unknown_repository_sentence(
 ) -> String {
     let typed: std::borrow::Cow<'_, str> = option.to_string_lossy();
     let naming_typed: std::borrow::Cow<'_, str> = naming.to_string_lossy();
+    let what: String = crate::global_arguments::unread_global_words(option);
     return format!(
-        "`git worktree {word}` is refused: `{typed}` is a global option this wrapper does not read, and `{naming_typed}` after it names the repository, so nothing proves which repository the command names, and nothing proves whether that repository holds the records of managed-clone slots. Nothing was {done} and Git did not run. Run the command again without `{typed}`, or write it as `git -C <repository> worktree {word} ...` with no global option this wrapper does not read: the wrapper then reads that repository's records, and a slot a binding record proves is a whole clone is protected.",
+        "`git worktree {word}` is refused: {what}, and `{naming_typed}` after it names the repository, so nothing proves which repository the command names, and nothing proves whether that repository holds the records of managed-clone slots. Nothing was {done} and Git did not run. Run the command again without `{typed}`, or write it as `git -C <repository> worktree {word} ...` with no global option this wrapper does not read: the wrapper then reads that repository's records, and a slot a binding record proves is a whole clone is protected.",
         word = word.word(),
         done = word.done()
     );
@@ -382,8 +384,9 @@ pub fn unread_global_refusal_of(
         )));
     }
     let common: &Path = common_dir?;
-    // A repository with no record folder holds no bound slot, so the command costs no refusal and reaches Git as before.
-    if !home_folder(common).is_dir() {
+    // A repository whose record folder holds no record holds no bound slot, so the command costs no refusal and
+    //  reaches Git as before (`SPEC.md`, "Removal of a ZFS worktree clone").
+    if !holds_a_record(common) {
         return None;
     }
     return Some(refusal_action(unread_global_sentence(

@@ -270,3 +270,62 @@ but it was `ok. 11 passed` alone before the change.
 The step ledger's own module did fail in a threaded run of itself,
 `transaction::transaction_step_durations::tests` `5 passed; 1 failed` on 2026-11-26;
 the two parts tests above are the sites that failed in the whole `commit::` filter.
+
+## The waiting-notice control's credit lost a look to a slow host (issue 6592)
+
+`commit::native_commit_waiting_notice::tests::the_notice_reports_the_programs_that_ran_below_the_step` failed
+once, in the second gate of 2026-11-27 (`gpc-gate-issue-6562-clippy-bound-2-20261127T055625-0500`, tree
+`2a3bf031f8`, `12096 tests, 1 failed`):
+
+```text
+the sleep ran while the notice looked: ScratchStepFacts { ceiling: Some(120s), armed: true, stopped_after: None,
+held_after_ceiling: None, stall_ceiling: None, notice: 125.909µs, wrote: 0ns, lines_dropped: 0, looks: 4,
+looks_found: 3, below: [SeenProgram { name: "sleep", seen: 639.46873ms }], below_cpu: 0ns,
+below_unlisted: false, below_unended: 0, blind_looks: 0, blocked_looks: 0 }
+```
+
+This is not the cause above.
+The control takes both windows, as issue 6509's fix makes it, `blind_looks` was zero and `below_unlisted` was
+false, so no other control's plant and no other test's spans are in these figures:
+the credited time is computed by `credit_between_looks` from this notice's own look times.
+
+639.46873 ms is two intervals of 319.734365 ms.
+The notice waits `LOOK_INTERVAL`, 250 ms, between two looks, so every interval that run proved was 69.7 ms longer
+than the least one: its thread woke late on a host whose load average stood between 48 and 96.
+The control slept a fixed 1,200 ms and asserted 750 ms, which is three intervals of `LOOK_INTERVAL`, and that is
+what a 1,200 ms window proves only while five looks fall in it with the first one missing.
+A notice starts before the step's number is published, so its first look usually finds nothing, and a program is
+credited only with the interval between two looks that both found it:
+the loaded run's window held four looks, three of them finding the step, so the record proved two intervals and
+the first finding look credited nothing.
+
+Measured on 2026-11-27 by planting the stretch load added (`a_look_of_this_step_waits`, which names the step),
+three runs of that body answered `0 passed; 1 failed` at 640.675664 ms and 640.578796 ms credited
+(`looks: 4, looks_found: 3`) and `1 passed` once, because whether the first look comes before the publish is a
+race the stretch does not decide.
+
+The control rests on the looks now (`until_looks_find_the_step`), derives its bound from the record's own `looks`
+and `looks_found`, watches a `sleep` only the control ends, and plants a stretch inside the 350 to 500 ms band
+where both orders of that race lose the look
+(`commit/native_commit_waiting_notice_control_window.rs`, `commit/native_commit_waiting_notice_tests.rs`).
+Measured with that stretch planted: `ok. 1 passed; 0 failed`, `looks: 6, looks_found: 5`, 2.800999468 s credited
+of 3.506208296 s watched.
+
+### The module's other controls that rest on the same thing
+
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made`: on `until_a_look_finds_the_step`, which is
+  `until_looks_find_the_step(1, ..)` now, and on the look window it takes.
+- `a_notice_whose_sink_stopped_reading_does_not_hold_the_commit`: on one look interval passing between two looks
+  before `finish`, and it asserts `looks_found: 0` because no step is published.
+- `the_ceiling_stands_aside_for_a_step_the_kernel_holds` and `the_ceiling_that_stood_aside_prints_no_line_of_its_own`:
+  on a look arriving within five times `A_CEILING_A_STEP_OUTLASTS`, so on the look cadence, beside the stall bound
+  they plant.
+- `a_step_that_ends_at_once_prints_nothing_and_a_long_one_prints_again`: on the loop turning each cadence into a
+  line, so on its pause being no longer than that cadence.
+- `the_same_program_must_be_seen_at_both_looks_to_be_credited`,
+  `a_program_that_takes_another_place_between_looks_is_credited_only_from_its_own` and
+  `a_program_seen_once_is_kept_with_a_zero_lower_bound`: on `credit_between_looks` given a stated interval, and on
+  no schedule at all.
+- `commit/commit_preparation_tests.rs`'s five controls that take this window: on the ceiling and stall plants, which
+  `take_the_window` resets, and on a look finding the step. The stretch a control plants is reset the same way, and
+  none of them states one.
