@@ -24,10 +24,8 @@
 
 use crate::auto_push_branch_key::encode_branch_key;
 use crate::auto_push_branch_key::fnv_hex;
-use crate::private_storage::{
-    create_private_directory_all,
-    replace_private_file_unsynced,
-};
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 use crate::push_failure_notice_record_text::{
     BRANCH_FIELD,
     COMMIT_FIELD,

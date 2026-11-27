@@ -496,3 +496,242 @@ fn nothing_either_side_wrote_is_dropped() {
         "the generated pairs must exercise both verdicts: {resolved} resolved, {conflicted} conflicted"
     );
 }
+
+/// The records of a file that holds one record per line,
+/// as the two sides of issue 6529's merge delete them:
+/// this side deletes the `beta` records,
+/// the other side the `gamma` records that stand right after them.
+const DELETED_RECORDS_BASE: &str =
+    "alpha one\nalpha two\nbeta one\nbeta two\ngamma one\ngamma two\ndelta one\ndelta two\n";
+
+/// The first side's file:
+/// the `beta` records are gone.
+const DELETED_RECORDS_OURS: &str =
+    "alpha one\nalpha two\ngamma one\ngamma two\ndelta one\ndelta two\n";
+
+/// The second side's file:
+/// the `gamma` records are gone.
+const DELETED_RECORDS_THEIRS: &str =
+    "alpha one\nalpha two\nbeta one\nbeta two\ndelta one\ndelta two\n";
+
+/// Two sides that each delete different adjacent records of a file that holds one record per line
+/// resolve to the union of the deletions,
+/// and the region is reported as one part.
+/// The shape is the one merge `b928c5fa6999` of this repository's history left wrong:
+/// its word pass kept the `direct_fix_install` records `main` had deleted
+/// (issue 6529,
+/// corrected by hand in `24f8c1947b`).
+#[test]
+fn two_sides_deleting_adjacent_records_resolve_to_the_union() {
+    let outcome: WordMerge = merge_by_word(
+        DELETED_RECORDS_BASE.as_bytes(),
+        DELETED_RECORDS_OURS.as_bytes(),
+        DELETED_RECORDS_THEIRS.as_bytes(),
+    );
+    let WordMerge::Resolved {
+        merged: bytes,
+        parts,
+    } = outcome
+    else {
+        panic!("two sides that only delete records resolve")
+    };
+    assert_eq!(
+        String::from_utf8(bytes).expect("UTF-8"),
+        "alpha one\nalpha two\ndelta one\ndelta two\n"
+    );
+    assert_eq!(
+        parts.len(),
+        1,
+        "the region of deletions is reported as one part"
+    );
+    assert!(
+        parts[0].merged.is_empty(),
+        "the part's own text is what the union of the deletions left: nothing"
+    );
+}
+
+/// The smallest region of the shape:
+/// each side deletes the one record the other side keeps,
+/// so the union of the deletions is the whole region.
+#[test]
+fn one_record_deleted_by_each_side_leaves_nothing() {
+    let outcome: WordMerge =
+        merge_by_word(b"alpha\nbeta\ngamma\n", b"alpha\ngamma\n", b"alpha\nbeta\n");
+    let WordMerge::Resolved {
+        merged: bytes,
+        ..
+    } = outcome
+    else {
+        panic!("one deletion from each side resolves")
+    };
+    assert_eq!(String::from_utf8(bytes).expect("UTF-8"), "alpha\n");
+}
+
+/// The smaller region of the same shape:
+/// both sides insert the same record at the top,
+/// and each deletes the record the other side keeps,
+/// so the word pass would pair the inserted record with a kept one and write the kept one back.
+/// It is refused instead,
+/// so the person resolves the region.
+#[test]
+fn a_region_with_the_same_insertion_on_both_sides_keeps_a_deleted_record_out() {
+    let outcome: WordMerge = merge_by_word(
+        b"alpha one\nbeta two\n",
+        b"zed wild\nalpha one\n",
+        b"zed wild\nbeta two\n",
+    );
+    assert!(
+        matches!(outcome, WordMerge::Conflict { .. }),
+        "the region keeps both sides: {outcome:?}"
+    );
+}
+
+/// A resolved file never writes back a whole line the base held that one side deleted and the other
+/// side kept,
+/// which is the failure issue 6529 reports.
+#[test]
+fn no_record_one_side_deleted_is_written_back() {
+    let WordMerge::Resolved {
+        merged: bytes,
+        ..
+    } = merge_by_word(
+        DELETED_RECORDS_BASE.as_bytes(),
+        DELETED_RECORDS_OURS.as_bytes(),
+        DELETED_RECORDS_THEIRS.as_bytes(),
+    )
+    else {
+        panic!("two sides that only delete records resolve")
+    };
+    let text: String = String::from_utf8(bytes).expect("UTF-8");
+    for line in DELETED_RECORDS_BASE.lines() {
+        if DELETED_RECORDS_OURS.lines().any(|kept| return kept == line)
+            && DELETED_RECORDS_THEIRS
+                .lines()
+                .any(|kept| return kept == line)
+        {
+            continue;
+        }
+        assert!(!text.contains(line), "{line} came back: {text}");
+    }
+}
+
+/// The records a generated region is built from:
+/// one record per line,
+/// every record different from the others.
+const GENERATED_RECORDS: &[&str] = &["alpha one\n", "beta two\n", "gamma three\n", "delta four\n"];
+
+/// The records a generated side may insert,
+/// which no record of the base holds.
+const GENERATED_INSERTIONS: &[&str] = &["zed wild\n", "zed tame\n"];
+
+/// What:
+///  Every text a generated side of one base run can hold:
+/// any run of the base's records,
+/// any of those with one inserted record at any place,
+/// and any of those with one record's last word replaced.
+/// Why:
+///   A region of one-record-per-line files is the whole of the space this rule governs:
+/// sides that delete records,
+/// sides that also write a record,
+/// and sides that edit one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const variants = (base: string[]): string[] => /* every run, each with one insertion and each with one edit */ [];
+/// ```
+fn record_variants(base: &[&str]) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for mask in 0usize..(1usize << base.len()) {
+        let mut kept: Vec<&str> = Vec::new();
+        for (index, record) in base.iter().enumerate() {
+            if mask & (1usize << index) == 0 {
+                continue;
+            }
+            kept.push(*record);
+        }
+        found.push(kept.concat());
+        for at in 0..=kept.len() {
+            for inserted in GENERATED_INSERTIONS {
+                let mut grown: Vec<&str> = kept.clone();
+                grown.insert(at, *inserted);
+                found.push(grown.concat());
+            }
+        }
+        for at in 0..kept.len() {
+            let mut edited: Vec<String> = kept
+                .iter()
+                .map(|record| return (*record).to_owned())
+                .collect();
+            let record: &String = &edited[at];
+            let head: &str = record.rsplit_once(' ').expect("a record of two words").0;
+            edited[at] = format!("{head} zed\n");
+            found.push(edited.concat());
+        }
+    }
+    return found;
+}
+
+/// What:
+///  A region that resolves never writes back a record the base held that one side deleted,
+/// over every generated region of one record per line.
+/// Why:
+///   That is the failure issue 6529 reports:
+/// a merge finished by itself with a record neither side kept,
+/// here the records a side deleted while the other side left them.
+/// A record of the output that one side's file does not hold at all came back from the base,
+///  so it is text the merge had to invent.
+/// The generator's sides delete records,
+/// insert records and edit one record,
+/// so a rule that only covers deletions meets the rest here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const base of runs) for (const ours of variants(base)) for (const theirs of variants(base)) {
+///   const merged = mergeByWord(base, ours, theirs);
+///   if (merged.kind !== 'resolved') continue;
+///   for (const record of lines(base)) expect(merged.bytes).not.toContainDeletedOnly(record, ours, theirs);
+/// }
+/// ```
+#[test]
+fn no_generated_region_writes_back_a_deleted_record() {
+    let mut resolved: usize = 0;
+    let mut conflicted: usize = 0;
+    for size in [2_usize, 3, 4] {
+        for start in 0..=(GENERATED_RECORDS.len() - size) {
+            let base: &[&str] = &GENERATED_RECORDS[start..start + size];
+            let base_text: String = base.concat();
+            let variants: Vec<String> = record_variants(base);
+            for ours in &variants {
+                for theirs in &variants {
+                    let WordMerge::Resolved {
+                        merged: bytes,
+                        ..
+                    } = merge_by_word(base_text.as_bytes(), ours.as_bytes(), theirs.as_bytes())
+                    else {
+                        conflicted += 1;
+                        continue;
+                    };
+                    resolved += 1;
+                    let text: String = String::from_utf8_lossy(bytes.as_slice()).into_owned();
+                    for record in &base_text.lines().collect::<Vec<&str>>() {
+                        if !text.lines().any(|written| return written == *record) {
+                            continue;
+                        }
+                        if ours.lines().any(|held| return held == *record)
+                            && theirs.lines().any(|held| return held == *record)
+                        {
+                            continue;
+                        }
+                        panic!(
+                            "the record {record:?} came back from base {base_text:?}, ours {ours:?}, theirs {theirs:?} as {text:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        resolved > 0 && conflicted > 0,
+        "the generated regions exercise both verdicts: {resolved} resolved, {conflicted} conflicted"
+    );
+}

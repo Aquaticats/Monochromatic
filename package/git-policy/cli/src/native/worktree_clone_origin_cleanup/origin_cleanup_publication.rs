@@ -23,10 +23,8 @@
 //! folder.publish(record); folder.remove(name);
 //! ```
 
-use crate::private_storage::{
-    create_private_directory_all,
-    replace_private_file_unsynced,
-};
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_parse::parse_the_record;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
     check_the_private_file,

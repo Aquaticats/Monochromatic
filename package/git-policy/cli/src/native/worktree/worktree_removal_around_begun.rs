@@ -154,7 +154,7 @@ pub fn record_around_begun(
     // a kill at any instruction leaves either the record that was there or this complete one;
     // and a record a reused registration name left behind is replaced by the identities of the worktree
     // this pass emptied, which is the record every later reader of it needs.
-    return match crate::private_storage::replace_private_file_unsynced(
+    return match crate::private_storage_replacing_a_record::replace_private_file_unsynced(
         path.as_path(),
         text.as_bytes(),
     ) {

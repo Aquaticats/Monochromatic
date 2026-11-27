@@ -93,6 +93,9 @@ use crate::rule_worktree_dirty::{
     dirty_query_arguments,
 };
 use crate::sequencer_marker::head_file_exists;
+/// The interface every repository-fact provider answers,
+///  which lives in a file of its own so that the readings it names can use it in turn.
+pub use crate::the_facts_a_repository_reads::RepositoryFacts;
 /// The transaction Git context.
 use crate::transaction_git::GitContext;
 /// The common directory of a location's identity.
@@ -128,148 +131,6 @@ use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The facts a rule may ask for.
-///  A `trait` is a named set of methods a type promises
-///       to provide,
-///  like a TS `interface`;
-///  `&mut self` lends the provider for writing,
-///       because it remembers answers.
-///  `Result<T, String>` is "a value,
-///  or a message
-///       saying why Git could not be asked or understood".
-/// Why:
-///   Two providers exist:
-///  real Git for the executable,
-///  a script for tests.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface RepositoryFacts { location(): Promise<RepositoryLocation>; indexVsHead(): Promise<IndexVsHead>; /* ... */ }
-/// ```
-pub trait RepositoryFacts {
-    /// Repository identity,
-    ///  worktree top level and the path below it;
-    ///  asked once.
-    fn location(&mut self) -> Result<RepositoryLocation, String>;
-    /// Whether the index differs from `HEAD`.
-    fn index_vs_head(&mut self) -> Result<IndexVsHead, String>;
-    /// How many paths the given positional pathspecs select,
-    ///  and how many the whole worktree and the directory the command runs in give,
-    ///  for the `git add` these pathspecs belong to.
-    /// Asked only when a pathspec is no ordinary named path.
-    fn staged_selection(
-        &mut self,
-        pathspecs: Vec<OsString>,
-    ) -> Result<StagedSelection, String>;
-    /// Whether the worktree holds uncommitted state of the given scope.
-    fn worktree_dirty(
-        &mut self,
-        scope: DirtyScope,
-    ) -> Result<bool, String>;
-    /// The worktree's ignored files whose paths the given revision's tree also tracks,
-    /// asked for a
-    ///  forced checkout,
-    ///  a forced switch and a hard reset.
-    /// A revision Git cannot resolve falls back to `HEAD`,
-    /// because every form that
-    ///  names no tree writes `HEAD`'s content into the worktree;
-    /// an unreadable `HEAD` is a failure,
-    ///  never an empty answer.
-    fn ignored_files_the_tree_tracks(
-        &mut self,
-        revision: Option<&OsStr>,
-    ) -> Result<Vec<String>, String>;
-    /// The worktree's untracked files whose paths the given revision's tree also tracks,
-    /// asked before an abort restores that tree.
-    /// A reset refuses an untracked file at one of those paths and loses nothing,
-    ///  so the command does not run and no copy is owed.
-    fn untracked_files_the_tree_tracks(
-        &mut self,
-        revision: &OsStr,
-    ) -> Result<Vec<String>, String>;
-    /// Whether the repository holds a stash entry.
-    /// Asked for `git stash drop` and `git stash clear`,
-    /// which delete entries of the one stash every worktree shares.
-    fn repository_holds_a_stash(&mut self) -> Result<bool, String>;
-    /// The paths the given `git clean --dry-run` argument list would delete,
-    /// each as Git printed it,
-    /// asked for a clean
-    ///  that carries its own `-e`/`--exclude` patterns.
-    fn clean_deleted_paths(
-        &mut self,
-        arguments: Vec<OsString>,
-    ) -> Result<Vec<Vec<u8>>, String>;
-    /// Whether a merge,
-    ///  cherry-pick or revert awaits its concluding commit.
-    fn sequencer_state(&mut self) -> Result<SequencerState, String>;
-    /// The directory of the main checkout,
-    ///  the worktree that owns the configuration file every worktree of the
-    /// repository shares.
-    /// Asked by a refusal in a linked worktree,
-    ///  which must name where the setting belongs.
-    fn main_worktree_root(&mut self) -> Result<PathBuf, String>;
-
-    /// What the abort form `command` would discard besides the state of the operation it undoes,
-    /// and whether that operation waits at all.
-    /// Asked before an abort form runs,
-    /// so the person's own work is saved first and the operation's own state is let go.
-    fn abort_discard(
-        &mut self,
-        command: GuardedCommand,
-    ) -> Result<AbortDiscard, String>;
-    /// Whether `git switch <target>` or `git checkout <target>` would create a local
-    /// branch from the one remote branch of that name.
-    fn remote_guess_creates_branch(
-        &mut self,
-        target: &OsStr,
-    ) -> Result<bool, String>;
-    /// The candidates a content policy reads for this request,
-    ///  prepared on a private
-    /// index;
-    ///  a failure carries the candidate layer's cause.
-    fn candidates(
-        &mut self,
-        request: &CandidateRequest,
-    ) -> Result<PreparedCandidates, CandidateError>;
-    /// The location when it was already asked for,
-    ///  without asking.
-    fn asked_location(&self) -> Option<Result<RepositoryLocation, String>>;
-    /// The repository's common Git directory when it is known without starting Git:
-    /// from the location already asked,
-    ///  or from the file system.
-    /// A provider that has neither answers nothing.
-    fn known_common_dir(&mut self) -> Option<PathBuf> {
-        let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
-        if let Some(Ok(found)) = asked
-            && let Some(directory) = common_directory(&found.identity)
-        {
-            return Some(directory.to_path_buf());
-        }
-        return None;
-    }
-    /// The invocation's own Git directory (the worktree's,
-    /// which holds its work records and notices) when it is known without
-    ///  starting Git:
-    /// from the location already asked,
-    /// or from the file system.
-    /// A provider that has neither answers nothing.
-    fn known_git_dir(&mut self) -> Option<PathBuf> {
-        let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
-        if let Some(Ok(found)) = asked
-            && let Some(directory) = git_directory(&found.identity)
-        {
-            return Some(directory.to_path_buf());
-        }
-        return None;
-    }
-    /// Real Git,
-    ///  the child environment and the invocation's global options,
-    ///  for transaction
-    /// and recovery work.
-    fn transaction_context(&self) -> GitContext;
-}
 
 /// What:
 ///  `impl RepositoryFacts for GitFacts` provides the interface's methods for the

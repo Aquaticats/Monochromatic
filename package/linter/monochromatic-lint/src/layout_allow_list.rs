@@ -21,8 +21,9 @@
 //!  and one line never tolerates a finding a later edit added;
 //!  paths in an entry are relative to the package folder,
 //!  the way findings show them,
-//!  and never absolute and never climb out with `..`,
-//!  because the list is read on every machine that lints the repository.
+//!  and never absolute,
+//!  because the list is read on every machine that lints the repository,
+//!  while a `..` in one is the walk from the package folder to a module a `#[path]` names elsewhere.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,10 +41,17 @@ pub use crate::layout_allow_entries::{
     AllowKind,
     parse_entries,
 };
-/// Import the finding shape and the display helper.
-use crate::layout_finding::{
-    LayoutFinding,
-    shown,
+/// Import the finding shape,
+///  the path a key writes,
+///  the display helper,
+///  and the reader that writes every listed path back the way a key writes it.
+use crate::{
+    layout_finding::{
+        LayoutFinding,
+        key_path,
+        shown,
+    },
+    markdown_lfs_target::lexical_normal,
 };
 /// Import ordered collections and native paths.
 use std::{
@@ -57,6 +65,46 @@ use std::{
         PathBuf,
     },
 };
+
+/// What:
+///  How much work one run of a rule did on its allow list,
+///  for the controls that pin the cost of a lookup.
+/// Why:
+///  A cost has no test of its own,
+///  and a control that timed one would read this machine's load rather than the code,
+///  so a control counts the entries a question walked instead and fails when the index is gone.
+///  Test builds only, so a release artifact carries no counter and no branch on one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let entriesWalked = 0; // one per entry a question read, and none when an index answers it
+/// ```
+#[cfg(test)]
+pub(crate) mod counted_work {
+    /// Import the cell the counter lives in.
+    use std::cell::Cell;
+    // What: one counter per thread, because the test runner runs several tests at once in one process.
+    // Why: a counter shared between tests would add two tests' entries together and make both controls meaningless.
+    thread_local! {
+        /// The entries of a list that a question read one by one.
+        static ENTRIES_WALKED: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// Count one entry a question read.
+    pub(crate) fn note_entry() {
+        ENTRIES_WALKED.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// How many entries this thread walked.
+    pub(crate) fn entries_walked() -> usize {
+        return ENTRIES_WALKED.with(|count| return count.get());
+    }
+
+    /// Start one control from nothing counted.
+    pub(crate) fn reset() {
+        ENTRIES_WALKED.with(|count| return count.set(0));
+    }
+}
 
 /// What:
 ///  The largest list file this reader accepts:
@@ -146,7 +194,11 @@ pub fn parse_allow_list(
             AllowKind::Key(key) => {
                 keys.insert(key.clone(), index);
             }
-            // A file use is asked about once per file pair of one folder, and a folder holds few files.
+            // What: a file use is matched by walking the entries instead.
+            // Why: a folder's file uses are few (the wrapper's largest list holds 544 lines for 2,255 keys),
+            // and the index for the last file use of that list measured no cost beyond the run-to-run spread
+            // (0.86 to 1.04 against a spread of 0.87 to 0.98 on 2026-11-27, three interleaved rounds).
+            // The siblings a reader might expect are a set beside `uses` and a set beside `keys`.
             AllowKind::FileUse {
                 ..
             } => {}
@@ -282,6 +334,10 @@ impl AllowList {
         to: &str,
     ) -> bool {
         for entry in &self.entries {
+            // What: one entry this question reads, which a control counts.
+            // Why: the walk is what the README says a file-use lookup does, so a control holds the sentence true.
+            #[cfg(test)]
+            counted_work::note_entry();
             let AllowKind::FileUse {
                 folder: listed_folder,
                 from: listed_from,
@@ -313,6 +369,83 @@ impl AllowList {
     ) -> Option<usize> {
         return self.keys.get(key).copied();
     }
+
+    /// What:
+    ///  The list as one package's rule asks it, with every `uses` path written the way a key writes it.
+    /// Why:
+    ///  A line may climb out of the package with `..` and come back into it:
+    ///  with the package folder named `p`, `uses ../p/src/a -> src/b` names the use `src/a -> src/b`,
+    ///  which is the spelling every key prints.
+    ///  The tolerance lookups compared the listed spelling with the key's and found neither,
+    ///  while the dead-entry check read the line as alive,
+    ///  so one use had two answers and a mistyped line stayed unreported.
+    ///  Reading each path back against the package folder and writing it from there gives one spelling,
+    ///  and it is the key's, which is the one a reader copies out of `--debug`.
+    ///  A line's own text stays as written, because a dead entry quotes it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// list.inKeySpelling(base): AllowList // 'uses ../p/src/a -> src/b' holds the use 'src/a -> src/b'
+    /// ```
+    pub fn in_key_spelling(
+        &self,
+        base: &Path,
+    ) -> AllowList {
+        // What: the entries with every `uses` path in the key's spelling, in file order.
+        // Why: a rule reports a dead entry on its line, so the order and the text of each line must survive.
+        let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::with_capacity(self.entries.len());
+        let mut uses: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
+        for entry in &self.entries {
+            let kind: AllowKind = match &entry.kind {
+                AllowKind::FolderUse {
+                    from,
+                    to,
+                } => {
+                    let spelled_from: PathBuf = PathBuf::from(spelled_path(base, from).as_str());
+                    let spelled_to: PathBuf = PathBuf::from(spelled_path(base, to).as_str());
+                    uses.insert((spelled_from.clone(), spelled_to.clone()));
+                    AllowKind::FolderUse {
+                        from: spelled_from,
+                        to: spelled_to,
+                    }
+                }
+                // A file use names a folder and two file names, and a key holds all three as written.
+                AllowKind::FileUse {
+                    ..
+                }
+                | AllowKind::Key(_) => entry.kind.clone(),
+            };
+            entries.push(AllowEntry {
+                line: entry.line,
+                text: entry.text.clone(),
+                kind,
+            });
+        }
+        return AllowList {
+            source: self.source.clone(),
+            entries,
+            uses,
+            keys: self.keys.clone(),
+        };
+    }
+}
+
+/// What:
+///  One listed path written the way a key writes that folder:
+///  the path read back against the package folder, then shown from it.
+/// Why:
+///  That is the one spelling both a tolerance lookup and a dead-entry check must compare,
+///  and `key_path` is what every finding's key already writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const spelledPath = (base, listed) => keyPath(lexicalNormal(base.join(listed)), base);
+/// ```
+fn spelled_path(
+    base: &Path,
+    listed: &Path,
+) -> String {
+    return key_path(&lexical_normal(&base.join(listed)), base);
 }
 
 /// What:
@@ -358,32 +491,94 @@ pub fn tolerated(
 /// Why:
 ///  A dead line is the sign the list has not shrunk after the work that made it dead,
 ///  and the run must say so on the line itself.
+///  A `uses` or `file-uses` line that names a folder no folder of the package is called
+///  says which folder it read and that the package holds none of that name:
+///  that is what a hand-aligned or mistyped line looks like,
+///  and it is the only thing that tells its reader to re-space the line rather than delete it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function deadEntryFindings(list: AllowList, used: Set<number>, base: Path): LayoutFinding[];
+/// function deadEntryFindings(list: AllowList, used: Set<number>, folders: Set<Path>, base: Path): LayoutFinding[];
 /// ```
 pub fn dead_entry_findings(
     list: &AllowList,
     used: &BTreeSet<usize>,
+    folders: &BTreeSet<PathBuf>,
     base: &Path,
 ) -> Vec<LayoutFinding> {
+    // What: the folders of the package in the spelling a list line writes them.
+    // Why: an entry names its folder that way, so the two spellings must meet before a name can be called absent.
+    let mut known: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+    for folder in folders {
+        known.insert(PathBuf::from(key_path(folder, base)));
+    }
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (index, entry) in list.entries().iter().enumerate() {
         if used.contains(&index) {
             continue;
         }
+        // What: the folders this entry names that no folder of the package is called.
+        // Why: a name that is not there is a misspelling or a hand-aligned line, and naming it is what tells its reader apart from a use that is simply gone.
+        let mut absent: Vec<String> = Vec::<String>::new();
+        match &entry.kind {
+            AllowKind::FolderUse {
+                from,
+                to,
+            } => {
+                for path in [from, to] {
+                    if known.contains(path) {
+                        continue;
+                    }
+                    absent.push(format!("`{}`", path.display()));
+                }
+            }
+            AllowKind::FileUse {
+                folder,
+                ..
+            } => {
+                if !known.contains(folder) {
+                    absent.push(format!("`{}`", folder.display()));
+                }
+            }
+            AllowKind::Key(_) => {}
+        }
+        let (message, help): (String, String) = if absent.is_empty() {
+            (
+                format!(
+                    "The allow-list entry `{}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.",
+                    entry.text,
+                    shown(list.source(), base)
+                ),
+                String::from(
+                    "Delete this line. The list holds today's findings only, and a line that matches none of them must not wait for a later round.",
+                ),
+            )
+        } else {
+            // What: the word that makes the sentence agree with how many folders are absent.
+            // Why: most dead lines name one absent folder, and only a line never read names two.
+            let names: &str = if absent.len() == 1 {
+                "the folder"
+            } else {
+                "the folders"
+            };
+            (
+                format!(
+                    "The allow-list entry `{}` in {} names {} {}, which no folder of this package is called, so the entry tolerates nothing any more. Check the line's spelling and the spacing between its words.",
+                    entry.text,
+                    shown(list.source(), base),
+                    names,
+                    absent.join(" and ")
+                ),
+                String::from(
+                    "Write the folder name the rule prints, or delete the line if the use is gone: a doubled or padded space is read as part of a name.",
+                ),
+            )
+        };
         findings.push(LayoutFinding {
             file: list.source().to_path_buf(),
             line: entry.line,
-            message: format!(
-                "The allow-list entry `{}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.",
-                entry.text,
-                shown(list.source(), base)
-            ),
-            help: Some(String::from(
-                "Delete this line. The list holds today's findings only, and a line that matches none of them must not wait for a later round.",
-            )),
+            message,
+            help: Some(help),
             key: String::new(),
         });
     }

@@ -4190,6 +4190,20 @@ that wording is kept.
   `private_storage_replacing_a_record` is declared in `mod.rs` instead of by `#[path]`,
   and
   `AFTER_THE_STAGING_FILE_IS_WRITTEN` moves into it.
+  Note of 2026-11-27T05:10-05:00,
+  from round 3's `foundation/` branch
+  (`refactor/git-policy-cli-break-wrapper-file-loops-in-foundation`):
+  the loop is closed,
+  and its second half was not needed.
+  The hook stays in `private_storage.rs`,
+  because `write_then_publish` there reads it too:
+  a hook moved into the child would be a use from the parent to the child,
+  and the loop would stand where it was.
+  What closed it is the declaration in `mod.rs` together with the deletion of the
+  re-export,
+  which was the parent's own use of the child,
+  and the eleven callers outside the folder now name
+  `crate::private_storage_replacing_a_record` themselves.
 
 - Loop of 2,
   `invocation/typed_network_command_relay`:
@@ -4664,6 +4678,44 @@ that wording is kept.
   the one
   `debug` line `lines_written_by_a_thread` prints moves into `diagnostic_lines_off_the_calling_thread`,
   which already holds that file's other queue operations.
+  Note of 2026-11-27T05:12-05:00,
+  from round 3's `foundation/` branch
+  (`refactor/git-policy-cli-break-wrapper-file-loops-in-foundation`):
+  this break does not close the loop,
+  and the loop of three stands with its three lines.
+  Measured with the move applied and the locked linter run:
+  the moved line calls `diagnostic_log::debug`,
+  so `diagnostic_lines_off_the_calling_thread` comes to use `diagnostic_log`,
+  which already uses its `write`,
+  and the linter answers that both files sit inside one tolerated loop with no
+  line recording the use,
+  that `lines_written_by_a_thread` now uses
+  `diagnostic_lines_off_the_calling_thread` the same way,
+  and that the line
+  `file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs`
+  tolerates nothing any more.
+  A loop of two replaces the loop of three,
+  and a round must choose one of three moves to close it:
+  the door says the line,
+  with `wait_until_written`,
+  `write` and `write_bytes` answering whether that call stopped waiting and
+  `diagnostic_log::write_line` saying the notice after the hand-over,
+  which changes a signature of the door and leaves the notice unsaid for the two callers
+  that hand a line in without the door;
+  the queue records that a reader just stopped and the door takes the record after each
+  write,
+  which changes no signature and defers the notice the same way;
+  or the words move below the queue,
+  with `verbose_enabled`,
+  `warnings_suppressed`,
+  `diagnostic_line` and the per-thread memory of the lines written moving into a file of
+  their own,
+  `diagnostic_lines_off_the_calling_thread` saying the notice through its own `write`,
+  and `diagnostic_log` keeping only the door over those words,
+  which keeps the behaviour and cuts the door's file in two.
+  Saying the notice through `standard_error_descriptor` is not one of them:
+  it would ignore `MONOCHROMATIC_VERBOSE` and write where the caller stands,
+  which is what a reader that stopped draining must never cost.
 
 - Loop of 3,
   `landing`:

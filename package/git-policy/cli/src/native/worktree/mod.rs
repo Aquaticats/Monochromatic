@@ -307,15 +307,15 @@
 //! - `worktree_removal_clears_the_ahead_pool.rs`:
 //!   the snapshots this program made ahead of an add,
 //!   taken out of a worktree's administrative directory before that worktree is removed.
+//! - `worktree_removal_snapshot_promotion.rs`:
+//!   what a removal snapshot kept,
+//!   promoted to the notices every worktree shows.
 //! - `worktree_removal_rescue_removal_state.rs`:
 //!   whether the worktree a removal snapshot was taken for is gone,
 //!   refused,
 //!   or still on its way,
 //!   judged from the Git directory,
 //!   the processes that took the snapshot and the checkout.
-//! - `worktree_removal_snapshot_promotion.rs`:
-//!   what a removal snapshot kept,
-//!   promoted to the notices every worktree shows.
 //! - `worktree_removal_rescue.rs`:
 //!   what becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 //! - `worktree_removal_finishes_an_interrupted_destroy.rs`:
@@ -354,6 +354,19 @@
 //!   the plan of a `git worktree remove` that names one directory and no option.
 //! - `worktree_remove_reports.rs`:
 //!   the three reports a removal can end with.
+//! - `worktree_trash_manifest.rs`:
+//!   what a snapshot's leave-out made and moved,
+//!   with identities,
+//!   as the text a work item carries.
+//! - `the_names_and_the_manifest_of_the_trash.rs`:
+//!   the names and the two records every trash file shares:
+//!   the directory a worktree's trash stands in,
+//!   the reference a trash work item carries,
+//!   the file a trash writes about itself,
+//!   that manifest read back with the identity of its file,
+//!   and the trash waiting for the commit service.
+//! - `worktree_trash_ignore_rule.rs`:
+//!   whether Git ignores the place a snapshot's trash would be made at in one worktree.
 //! - `worktree_snapshot_source_changed_paths.rs`:
 //!   what Git's status lists as changed or untracked in a worktree,
 //!   for the snapshot source.
@@ -560,6 +573,15 @@
 //!   the look every command makes at those records:
 //!   the delete of a leaving no queue record owes is queued again,
 //!   and a place this program may not act on is named for the person.
+//! - `worktree_slow_route_words.rs`:
+//!   the words one slow-route sentence is made of:
+//!   the value a person reads,
+//!   the two leads,
+//!   how the source is called,
+//!   and where the line goes.
+//! - `worktree_slow_route_unclean.rs`:
+//!   the sentence for a source that cannot be shown unchanged,
+//!   chosen by the kind of the refusal and Git's own status.
 //! - `worktree_slow_route.rs`:
 //!   the plain sentence that says why an add was not made as a snapshot,
 //!   and where it goes.
@@ -596,15 +618,6 @@
 //!   made for the add after the one that asked for it.
 //! - `worktree_trash_hand_over.rs`:
 //!   handing a snapshot's trash to the commit service without waiting for it to be emptied.
-//! - `worktree_trash_ignore_rule.rs`:
-//!   whether Git ignores the place a snapshot's trash would be made at in one worktree.
-//! - `worktree_trash_manifest.rs`:
-//!   what a snapshot's leave-out made and moved,
-//!   with identities,
-//!   as the text a work item carries.
-//! - `worktree_trash_dispose_awaiting.rs`:
-//!   the service's handler for a trash work item,
-//!   awaited by a caller that is itself a task of the runtime.
 //! - `worktree_trash_own_manifest.rs`:
 //!   the manifest a trash carries inside itself,
 //!   written before the swap publishes it,
@@ -612,9 +625,6 @@
 //! - `worktree_trash_remove.rs`:
 //!   removal of a directory tree beneath a held parent handle,
 //!   never following a link.
-//! - `worktree_trash.rs`:
-//!   setting aside what a snapshot of the main checkout leaves out,
-//!   and having the commit service empty it.
 //! - `worktree_trash_entries.rs`:
 //!   the removal of the entries a snapshot's leave-out moved into its trash,
 //!   side by side.
@@ -623,14 +633,27 @@
 //!   what a trash is,
 //!   the service's handler,
 //!   and the trashes nothing will empty.
-//! - `worktree_ladder_finish_trash_record.rs`:
-//!   the record of the trash a snapshot's leave-out made,
-//!   written before the rung that published the worktree returns.
+//! - `worktree_trash_dispose_awaiting.rs`:
+//!   the service's handler for a trash work item,
+//!   awaited by a caller that is itself a task of the runtime.
 //! - `worktree_trash_set_aside.rs`:
 //!   the trash directory one snapshot's leave-out made and holds open,
 //!   the one the stand-in step puts a whole worktree folder into,
 //!   the two ways it is made or opened again,
 //!   and the moves in and out of it.
+//! - `worktree_trash_set_aside_entries.rs`:
+//!   the entries a snapshot's leave-out sets aside:
+//!   where they go,
+//!   how many of them were moved,
+//!   and the sweep of another command's stage containers before the rename.
+//! - `worktree_trash_unaccounted.rs`:
+//!   what every later command in a worktree says about the trash left there:
+//!   which directory nothing will empty,
+//!   which trash it records again,
+//!   and the wake that tells the service so.
+//! - `worktree_ladder_finish_trash_record.rs`:
+//!   the record of the trash a snapshot's leave-out made,
+//!   written before the rung that published the worktree returns.
 //! - `worktree_kept_folders.rs`:
 //!   the folder a taken worktree folder is kept in when the name it came from is taken,
 //!   and the cleanup that must leave it alone.
@@ -655,6 +678,9 @@
 //! - `worktree_snapshot_placeholders.rs`:
 //!   the empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 //!   found below the folders that hold worktrees and removed as empty directories.
+//! - `worktree_trash.rs`:
+//!   setting aside what a snapshot of the main checkout leaves out,
+//!   and having the commit service empty it.
 //! - `worktree_snapshot_stubs.rs`:
 //!   the stubs a snapshot holds for what must not be carried:
 //!   the empty directories nested worktrees leave,
@@ -674,13 +700,6 @@
 //! - `worktree_ladder_finish.rs`:
 //!   the ladder's steps after real Git returned:
 //!   the clone rung and the claim each rung takes or gives back.
-//! - `worktree_trash_set_aside_entries.rs`:
-//!   the entries a snapshot's leave-out sets aside,
-//! - `worktree_trash_unaccounted.rs`:
-//!   what every later command in a worktree says about the trash left there:
-//!   which directory nothing will empty,
-//!   which trash it records again,
-//!   and the wake that tells the service so.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -914,6 +933,13 @@ pub mod worktree_convert_leftover_stage_record;
 /// What a removal snapshot kept,
 /// promoted to the notices every worktree shows.
 pub mod worktree_removal_snapshot_promotion;
+
+/// Whether the worktree a removal snapshot was taken for is gone,
+/// refused,
+/// or still on its way,
+/// judged from the Git directory,
+/// the processes that took the snapshot and the checkout.
+pub mod worktree_removal_rescue_removal_state;
 
 /// The finish of a removal whose destroy happened and whose registration did not go.
 pub mod worktree_removal_interrupted_destroy;
@@ -1311,6 +1337,19 @@ pub mod worktree_ladder_target_tree_skip;
 /// now that none carries `--quiet`.
 pub mod inner_git_words;
 
+/// The words one slow-route sentence is made of:
+/// the value a person reads,
+/// the two leads,
+/// how the source is called,
+/// and where the line goes.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route_words;
+
+/// The sentence for a source that cannot be shown unchanged,
+/// chosen by the kind of the refusal and Git's own status.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route_unclean;
+
 /// The plain sentence that says why an add was not made as a snapshot,
 /// and where it goes.
 #[cfg(target_os = "linux")]
@@ -1495,6 +1534,12 @@ pub mod worktree_convert_command;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
 
+/// The trash a step sets directories aside into,
+/// its two ways of being made or opened again,
+/// and the moves in and out of it.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_set_aside;
+
 /// The repository's own exclude line that keeps a standing trash out of every `git add --all`.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_exclude_line;
@@ -1532,6 +1577,15 @@ pub mod worktree_trash_entries;
 /// as the text a work item carries.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_manifest;
+
+/// The names and the two records every trash file shares:
+/// the directory a worktree's trash stands in,
+/// the reference a trash work item carries,
+/// the file a trash writes about itself,
+/// that manifest read back,
+/// and the trash waiting for the commit service.
+#[cfg(target_os = "linux")]
+pub mod the_names_and_the_manifest_of_the_trash;
 
 /// The manifest a trash carries inside itself,
 /// written before the swap publishes it,
