@@ -10,6 +10,7 @@
 
 use super::{
     LIST_MARKER,
+    counted_work,
     read_top_doc,
 };
 
@@ -277,12 +278,17 @@ fn a_marker_in_a_different_case_is_a_near_miss() {
 }
 
 /// A text two words away from the marker is a different sentence,
-///  so no finding asks its author to change it.
+///  so no finding asks its author to change it,
+///  and that holds at the marker's own length too,
+///  where one word put in place of another would still be a near miss.
 #[test]
 fn a_marker_two_words_off_is_no_near_miss() {
     for text in [
         "//! Files in this module,\n//! each using only the files listed before it:\n",
         "//! Files in this folder,\n//! each using only files listed before it: and more\n",
+        // What: the marker's own length with two of its words put in place of two others, `after one` for `before it`.
+        // Why: an equal-length text one word away is a near miss, so the length alone must not decide this one.
+        "//! Files in this folder,\n//! each using only files listed after one:\n",
         "//! Words about the folder.\n",
     ] {
         let doc = read_top_doc(text);
@@ -319,4 +325,60 @@ fn every_near_miss_of_one_doc_is_reported_in_document_order() {
         .map(|near| return near.line)
         .collect::<Vec<usize>>();
     assert_eq!(lines, [1, 3], "{:?}", doc.near_misses);
+}
+
+/// The doc lines the near-miss search read for a doc of one head line,
+///  `lines` filler lines and a `mod` line, which holds no marker and no near miss.
+fn reads_of(
+    head: &str,
+    filler: &str,
+    lines: usize,
+) -> usize {
+    let text: String = format!("{head}{}mod one;\n", filler.repeat(lines));
+    counted_work::reset();
+    let doc = read_top_doc(text.as_str());
+    assert_eq!(doc.marker_line, None, "the fixture doc holds no marker");
+    assert_eq!(
+        doc.near_misses.len(),
+        0,
+        "the fixture doc is no near miss: {:?}",
+        doc.near_misses
+    );
+    return counted_work::lines_read();
+}
+
+/// The near-miss search reads each doc line a bounded number of times,
+///  so a run of blank, plain-comment or one-word doc lines costs its own length
+///  and never the square of it.
+/// Why this is a cost the rule must keep:
+///  a top doc that holds a long licence block, a generated table or a commented-out block
+///  after its first doc line made the read of one file cost the run a whole CI minute.
+#[test]
+fn the_near_miss_search_reads_each_doc_line_a_bounded_number_of_times() {
+    // What: the most doc lines the search may read for each line the doc holds, and the two run lengths each filler is tried at, the second twice the first.
+    // Why: the blank and plain-comment fillers are tried in the thousands because that is the shape the read measured,
+    // and the one-word doc filler in the hundreds because an edit that keeps reading it squares the read of every line;
+    // 64 sits above the 30 a line of one-word doc lines costs (measured 2026-11-27 in this control), a run of blank lines costing 3;
+    // a doc that doubles its length may at most triple what the search reads of it, and a square quadruples it.
+    const READS_PER_LINE: usize = 64;
+    const DOUBLING_MAY_MULTIPLY: usize = 3;
+    let arms: [(&str, &str, [usize; 2]); 3] = [
+        ("blank lines", "\n", [4000, 8000]),
+        ("plain comment lines", "//\n", [4000, 8000]),
+        ("one-word doc lines", "//! a\n", [400, 800]),
+    ];
+    for (what, filler, [small, large]) in arms {
+        // What: what the search read of a doc of each of the two runs.
+        // Why: one figure alone cannot tell a read that grows with the doc from one that grows with its square.
+        let small_read: usize = reads_of("//! Notes for this folder.\n", filler, small);
+        let large_read: usize = reads_of("//! Notes for this folder.\n", filler, large);
+        assert!(
+            large_read <= small_read * DOUBLING_MAY_MULTIPLY,
+            "{what}: {small} lines were read in {small_read} but {large} in {large_read}, which is not a linear read"
+        );
+        assert!(
+            large_read <= READS_PER_LINE * large,
+            "{what}: {large_read} lines read of {large} is more than {READS_PER_LINE} for each line"
+        );
+    }
 }

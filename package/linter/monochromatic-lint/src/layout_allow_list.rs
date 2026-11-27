@@ -193,6 +193,35 @@ pub fn parse_allow_list(
 }
 
 /// What:
+///  Whether one entry of the list is the line that holds one finding's key.
+/// Why:
+///  A scan over the entries asks this of every entry before the one it wants,
+///  and the index names the one entry to ask,
+///  so a control that counts the entries read tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function entryHoldsKey(entry: AllowEntry, key: string): boolean;
+/// ```
+fn entry_holds_key(
+    entry: &AllowEntry,
+    key: &str,
+) -> bool {
+    // What: one entry this question read, which a control counts.
+    // Why: the index answers with the one entry that holds the key, where a scan reads one entry for each before it.
+    #[cfg(test)]
+    counted_work::note_entry();
+    // What: the key this entry holds, or nothing when the entry is a `uses` or a `file-uses` line.
+    // Why: only a key line can tolerate a finding by its key.
+    let AllowKind::Key(held) = &entry.kind else {
+        // What: `false` is the answer for every entry that is no key line.
+        // Why: a use line tolerates a use, never a key.
+        return false;
+    };
+    return held == key;
+}
+
+/// What:
 ///  The list as a rule reads it.
 /// Why:
 ///  A rule asks for what it needs and never walks the entries itself,
@@ -263,7 +292,23 @@ impl AllowList {
         &self,
         key: &str,
     ) -> Option<usize> {
-        return self.keys.get(key).copied();
+        // What: the position the index holds for this key, which a scan would reach by reading one entry at a time.
+        // Why: the index is built from the entries once, so one question never walks a list that holds tens of thousands of lines.
+        let Some(index) = self.keys.get(key).copied() else {
+            // What: `None` is the absent variant of `Option`.
+            // Why: no line holds this key, so no line tolerates the finding.
+            return None;
+        };
+        // What: the one entry that position names, read to answer with its position.
+        // Why: reading it holds the index to the entries it was built from,
+        // and the control that counts the entries a question reads then sees this question at all,
+        // where an answer that reads no entry left that control reading zero whatever the lookup did.
+        if !entry_holds_key(&self.entries[index], key) {
+            // What: `None` is the absent variant of `Option`.
+            // Why: an index that disagrees with its entries answers no line, rather than one that holds another key.
+            return None;
+        }
+        return Some(index);
     }
 }
 
