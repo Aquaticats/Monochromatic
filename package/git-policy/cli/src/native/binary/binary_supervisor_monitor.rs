@@ -110,7 +110,6 @@ pub fn watch(
 ///  (issue 6547,
 ///  a self-exclusion start ended as a loop when a loaded host made the same reads cost ten
 ///  processor-seconds).
-///
 pub fn watch_while_running(
     pid: u32,
     limits: Limits,
