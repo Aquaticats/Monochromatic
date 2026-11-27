@@ -10,6 +10,9 @@ on the integration pass of issue 6344's fix
 "Decision 3:
 committed guards for the first-attempt-only plant and the cleared plant (L1,
 L2)").
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It is built on `fix/git-policy-cli-shadow-sibling-control-two-timing-windows` at `48346ef6c2`.
 
 ## What was asked

@@ -57,6 +57,10 @@ use crate::worktree_copy_selection::{
     by_js_order,
 };
 use crate::worktree_copy_stage::new_stage_container;
+use crate::worktree_copy_stage_claim_record::{
+    CONTAINER_HEX_PREFIX,
+    OWNER_LINE_PREFIX,
+};
 use crate::worktree_copy_stage_made_object::remove_made;
 use std::path::{
     Path,
@@ -438,24 +442,6 @@ pub fn claim_stage(
 ) -> Result<StageClaim, WorktreeCopyError> {
     return claim_stage_for(common_dir, destination_root, &current_copy_owner()?);
 }
-
-/// The line of a claim's text that names its owner,
-/// after the line that names the container.
-pub(crate) const OWNER_LINE_PREFIX: &str = "owner=";
-
-/// What:
-///  The line of a claim's text that holds the container path's bytes.
-/// Why:
-///   The first line stays the path itself when the path is text and fits one line,
-/// because the release installed before this line reads it there;
-/// a path that is text cannot spell another one on that line,
-/// so both readers name the same directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const CONTAINER_HEX_PREFIX = 'containerHex=';
-/// ```
-pub(crate) const CONTAINER_HEX_PREFIX: &str = "containerHex=";
 
 /// What:
 ///  The text of a claim:

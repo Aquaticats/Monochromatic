@@ -19,6 +19,20 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// A pipe whose ends are closed on `exec`,
+/// and the path of a pseudo-terminal's slave side,
+/// in the call each system needs.
+#[path = "binary_support_pipes_and_pseudo_terminals.rs"]
+mod support_pipes_and_pseudo_terminals;
+
+/// Running a command in a fixture and reading what its caller saw:
+/// real Git under the bound of one fixture command,
+/// a repository with one empty commit,
+/// the wrapper and a direct run,
+/// and the exit status and two streams a finished command left.
+#[path = "binary_support_running_a_command_and_reading_the_answer.rs"]
+mod support_running_a_command_and_reading_the_answer;
+
 /// The owner a helper process is started with,
 /// which the child-test runner beside it asks for;
 /// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
@@ -91,6 +105,13 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// The services that fixture holds,
+/// one for each worktree under it,
+/// and the acts that start one,
+/// stop them all and forget the ones that ended.
+#[path = "binary_support_fixture_services_of_the_worktrees.rs"]
+mod support_fixture_services_of_the_worktrees;
+
 /// The folder a binary control's sockets stand in,
 /// and the short runtime directory one of them holds.
 #[path = "binary_support_socket_folders.rs"]
@@ -110,6 +131,13 @@ mod support_fixture_service_log;
 #[path = "binary_support_fixture_directories.rs"]
 mod support_fixture_directories;
 
+/// The wait for the after-commit work a landed commit leaves to the commit service:
+/// the folders a record of its queue is in flight in,
+/// the step a control installs to move one between two reads,
+/// and the listing a failure names.
+#[path = "binary_support_observation_waiting_for_the_after_commit_work.rs"]
+mod support_observation_waiting_for_the_after_commit_work;
+
 /// Running a wrapped command with a time bound and reading what it did.
 #[path = "binary_support_observation.rs"]
 mod support_observation;
@@ -118,6 +146,13 @@ mod support_observation;
 /// root modes are reached through.
 #[path = "binary_support_installed_name.rs"]
 mod support_installed_name;
+
+/// What a wait under a bound answers with:
+/// the two bounds a command's own line gives it,
+/// who ended it,
+/// and the sentence a refused answer prints.
+#[path = "binary_support_observation_bound_what_the_wait_answers_with.rs"]
+mod support_observation_bound_what_the_wait_answers_with;
 
 /// The bound one observed command is given,
 /// who ended it,
@@ -245,6 +280,13 @@ mod supervisor_guard;
 /// The one copy of the built executable per build that fixtures on another filesystem link.
 #[path = "binary_wrapper_store.rs"]
 mod wrapper_store;
+
+/// The wait one caller makes for a copy another caller is writing:
+/// the stored name it looks for,
+/// the copies in progress it reads,
+/// and the three ways the wait can end.
+#[path = "binary_support_wrapper_store_waiting_for_a_publisher.rs"]
+mod support_wrapper_store_waiting_for_a_publisher;
 
 /// The stored copy's name,
 /// its lock-free publish,
@@ -750,6 +792,17 @@ mod fault;
 #[path = "binary_fault_run.rs"]
 mod fault_run;
 
+/// A stand-in for the user manager a fixture has none of,
+/// which starts again any service of the fixture that ends.
+#[path = "binary_fault_run_a_stand_in_for_the_manager.rs"]
+mod fault_run_a_stand_in_for_the_manager;
+
+/// A sweep of fault cases:
+/// the batches it runs in,
+/// and the message a failure carries with the fixture's service log.
+#[path = "binary_fault_run_a_sweep_of_fault_cases.rs"]
+mod fault_run_a_sweep_of_fault_cases;
+
 /// The hang guard of those runs:
 /// a command that keeps moving is left alone,
 /// and one that stops moving is ended with the words that name the silence.
@@ -946,6 +999,16 @@ mod service_selection;
 /// compared with native Git field by field including what is left behind.
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
+
+/// What a repository holds after a command,
+/// as labelled text:
+/// its head,
+/// its references,
+/// the fields of its newest commit,
+/// the index and the two diffs,
+/// and the state files an unfinished operation leaves.
+#[path = "binary_service_landing_support_what_a_repository_holds.rs"]
+mod service_landing_support_what_a_repository_holds;
 
 /// The twin harness of the landing controls:
 /// native Git in one byte copy,

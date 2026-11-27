@@ -11,6 +11,9 @@ the record that carries origin cleanup (`doc/planning/cli-git-zfs-origin-cleanup
 and the removal's destruction plan (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`).
 The questions are in the review's section "Check 7",
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-third-check.md`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The sixth is also the cancelled-removal design's open question,
 and the seventh the forced-removal design's.
 
@@ -139,6 +142,9 @@ on the one question the fourth check of the three record designs left for the pr
 (`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fourth-check.md`,
 "Question:
 may the settling command also remove a plan the clone's next removal would have ended?").
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 Asked:
 two answers of this record meet in a case neither covers.

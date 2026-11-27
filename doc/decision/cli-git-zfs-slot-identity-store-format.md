@@ -119,8 +119,17 @@ The design is [`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-desi
 merged into `main` as `8649808092`.
 Its gate review on Sonnet said ready after one fix round,
 with eight low findings left for the build
-(`~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`,
+(`~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 section "Recheck of 3e0fe761a6").
+Its eight open lows were numbered R1 to R8.
+R1 is the one this record answers.
+It said that under the chosen publication every record leaves a hidden staging file when its writer is killed,
+that the adoption was then the only remover,
+and that the adoption runs only after an administrator recreates the parent,
+while `doctor` reported only a staging name matching neither known form.
 
 What the answers settle:
 

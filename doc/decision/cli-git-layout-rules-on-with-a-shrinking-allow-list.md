@@ -68,8 +68,11 @@ The linter that carries the `allow` option this list needs is `monochromatic-lin
 locked as `ef648a619e`,
 with the option's own branch merged as `3cefd4f7c5`.
 The alpha.9 release pass
-(`~/temp/agent/monochromatic-lint-alpha-9-release-review-2026-11-25/keep/review.md`)
-found three defects,
+(`~/temp/agent/monochromatic-lint-alpha-9-release-review-2026-11-25/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+It found three defects,
 and the round that fixed them is on `main`,
 released as `alpha.10` (`6cfbcbb5f4`,
 whose note names them):

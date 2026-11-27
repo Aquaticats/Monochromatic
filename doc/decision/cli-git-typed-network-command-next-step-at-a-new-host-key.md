@@ -3,10 +3,30 @@
 Status: accepted by the owner on 2026-11-24T14:30:00-05:00, through the question tool.
 The question is L4 of the alpha.45 release pass
 (`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/commit-push-lfs-lock/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The proposal is `doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
 third revision merged as `077c006094`.
 The questions carried the corrections of a same-vendor read of that revision
 (`~/temp/agent/gate-review-typed-network-command-third-revision-2026-11-24/keep/read-of-the-third-host-key-revision.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+
+The pass read L4 and did not run it.
+Its finding:
+a typed `git fetch`,
+`pull`,
+`clone` or non-LFS `push` meets an unknown SSH host key with OpenSSH's one line only,
+because `host_key_not_known_sentence` (`lfs/lfs_pre_push.rs:644`) has callers only in the LFS upload and the push retry
+(`lfs/lfs_upload_explanations.rs:226` and `push/push_retry_failure.rs:304`),
+and `SPEC.md` around line 8010 says so.
+The control the pass looked at asserts only "Host key verification failed" and exit 128,
+so a typed command's first connection to a new host ends with that line and no way out,
+outside those two places.
+The pass notes this is the owner's decision of 2026-11-20 as recorded,
+whose cost shows at first contact with every new host.
 
 ## The owner's rule the questions turned on
 

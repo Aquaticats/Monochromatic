@@ -6,9 +6,17 @@ Accepted by the project in the question tool on 2026-11-23.
 The designs are `doc/planning/cli-git-zfs-add-binding-record-design.md` (at `aa6a5f18f0` or its next commit)
 and `doc/planning/cli-git-zfs-add-time-git-lock-design.md` (at `4625537ae5` or its next commit).
 The question's text is the lock reviewer's eleventh read,
-`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review-eleventh-read-and-step-10-question.md`,
+`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review-eleventh-read-and-step-10-question.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "The question,
 as it would be put to the project".
+That question had three parts,
+each answerable on its own:
+accepting the build,
+one plan sentence,
+and each of 21 choices kept or vetoed.
 
 ## What was accepted
 

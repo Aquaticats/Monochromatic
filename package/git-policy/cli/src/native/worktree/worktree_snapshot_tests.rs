@@ -28,6 +28,7 @@ use crate::worktree_ladder_test_support::{
     tracked,
 };
 use crate::worktree_snapshot_source::choose_snapshot_source;
+use crate::worktree_snapshot_stubs::remove_stub;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 

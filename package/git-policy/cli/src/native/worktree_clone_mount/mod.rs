@@ -26,8 +26,16 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `attach_the_clones_words.rs`:
+//!   the filesystem type,
+//!   the option that names a dataset,
+//!   the attributes and the call names,
+//!   the refusal one failed call answers,
+//!   and the mount an attach made.
+//! - `attach_the_clones_calls.rs`:
+//!   the four kernel calls one attach is made of.
 //! - `attach_the_clone.rs`:
-//!   the attach's own calls and its refusal,
+//!   the attach's steps,
 //!   and the descriptor-bound unmount a rollback makes.
 //! - `attached_mount_identity.rs`:
 //!   the attach's flags and the mount facts recorded for one folder.
@@ -72,14 +80,31 @@
 //!   the folder held open,
 //!   and the lookups and the listing a reader makes through it.
 //! - `clone_slot_walk.rs`:
-//!   the walk that holds the checkout,
-//!   the `.claude/worktrees` folder and one slot,
-//!   the walk that holds the parent folder for an adoption,
-//!   and the second walk that reads the canonical slot.
+//!   the shapes one walk to a slot takes and hands back,
+//!   and whether the walk compares the slot against its record.
+//! - `clone_slot_walk_names.rs`:
+//!   the names a walk's sentences use and the refusal each step answers.
+//! - `clone_slot_walk_to_the_parent.rs`:
+//!   the walk that holds the checkout and the `.claude/worktrees` folder,
+//!   and the adoption's own walk of that folder.
+//! - `clone_slot_walk_to_the_slot.rs`:
+//!   the walk that holds one slot and compares both identities,
+//!   and the first observation of a slot the store holds nothing for.
+//! - `clone_slot_walk_after_the_attach.rs`:
+//!   the mount the held target's name resolves to,
+//!   and the walk repeated at the canonical slot.
 //! - `attach_post_check.rs`:
 //!   whether the mount the attach made is the mount the canonical slot shows.
 //! - `misplaced_attach_rollback.rs`:
 //!   the plan that takes a misplaced mount down and the report it leaves.
+//! - `slot_identity_store_publication_staging_file.rs`:
+//!   the record's bytes and their bound,
+//!   the two staging names,
+//!   the staging file and the two ways it is taken away again.
+//! - `slot_identity_store_publication_one_winner.rs`:
+//!   the one call that gives a staging file its record's name,
+//!   the loser's answer when two recorders meet,
+//!   and the fallback for a folder that makes no hard links.
 //! - `slot_identity_store_publication.rs`:
 //!   the three writes:
 //!   a slot's first record,
@@ -131,6 +156,12 @@ pub mod slot_identity_store;
 #[cfg(test)]
 pub(crate) use slot_identity_store_reading::WHEN_THE_STORE_IS_LISTED;
 
+/// The file a publication fills before its record has a name.
+pub mod slot_identity_store_publication_staging_file;
+
+/// The one call that gives a staging file its record's name.
+pub mod slot_identity_store_publication_one_winner;
+
 /// The three writes the store takes:
 /// a slot's first record,
 /// the parent's first record,
@@ -140,16 +171,33 @@ pub mod slot_identity_store_publication;
 /// The attach's flags and the mount facts one folder's descriptor reports.
 pub mod attached_mount_identity;
 
-/// The attach's calls,
-/// its refusal and the descriptor-bound unmount.
+/// The words and numbers one attach speaks in.
+pub mod attach_the_clones_words;
+
+/// The four kernel calls one attach is made of.
+pub mod attach_the_clones_calls;
+
+/// The attach's steps,
+/// the mount it made and the descriptor-bound unmount.
 pub mod attach_the_clone;
 
 /// Why the walk or an identity compare refused.
 pub mod clone_slot_walk_refusals;
 
-/// The walk from the checkout to one slot,
-/// and the walk that reads the canonical slot again.
+/// The shapes one walk to a clone slot takes and hands back.
 pub mod clone_slot_walk;
+
+/// The names a walk's sentences use and the refusal each step answers.
+pub mod clone_slot_walk_names;
+
+/// The walk that holds the checkout and its worktrees folder.
+pub mod clone_slot_walk_to_the_parent;
+
+/// The walk that holds one slot and compares both identities.
+pub mod clone_slot_walk_to_the_slot;
+
+/// The reads at the slot after an attach.
+pub mod clone_slot_walk_after_the_attach;
 
 /// The slot's Git pointer,
 /// read as one bounded regular file and resolved nowhere.
@@ -186,15 +234,17 @@ pub use attach_post_check::{
     MisplacedReason,
     post_attach_check,
 };
-/// The attach's calls,
-/// the mount it made and the descriptor-bound unmount.
+/// The attach's steps and the descriptor-bound unmount.
 pub use attach_the_clone::{
+    attach_the_clone,
+    unmount_through_descriptor,
+};
+/// The words one attach speaks in, and the mount it made.
+pub use attach_the_clones_words::{
     AttachCall,
     AttachRefusal,
     AttachedMount,
     Placement,
-    attach_the_clone,
-    unmount_through_descriptor,
 };
 /// The mount facts and the enforced flags.
 pub use attached_mount_identity::{
@@ -217,7 +267,7 @@ pub use clone_slot_git_pointer::{
     read_the_slot_git_pointer,
     the_registration_of,
 };
-/// The walks and what they hold.
+/// The shapes one walk takes and hands back.
 pub use clone_slot_walk::{
     FreshSlotLookup,
     HeldCloneSlot,
@@ -225,20 +275,28 @@ pub use clone_slot_walk::{
     HoldCloneSlotRequest,
     LookAgainAtSlotRequest,
     SlotRecord,
-    WORKTREES_PARENT_NAMES,
-    hold_clone_slot,
-    hold_clone_slot_under_root_control,
-    hold_the_worktrees_parent,
+};
+/// The reads at the slot after an attach.
+pub use clone_slot_walk_after_the_attach::{
     look_again_at_the_slot,
     mount_id_at_the_held_target,
-    observe_the_clone_slot,
-    observe_the_clone_slot_under_root_control,
 };
+/// The names a walk's sentences use.
+pub use clone_slot_walk_names::WORKTREES_PARENT_NAMES;
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{
     CloneSlotRefusal,
     WalkRefusal,
     WalkRefusalReason,
+};
+/// The walk that holds the checkout and its worktrees folder.
+pub use clone_slot_walk_to_the_parent::hold_the_worktrees_parent;
+/// The walk that holds one slot.
+pub use clone_slot_walk_to_the_slot::{
+    hold_clone_slot,
+    hold_clone_slot_under_root_control,
+    observe_the_clone_slot,
+    observe_the_clone_slot_under_root_control,
 };
 /// The rollback plan and its report.
 pub use misplaced_attach_rollback::{

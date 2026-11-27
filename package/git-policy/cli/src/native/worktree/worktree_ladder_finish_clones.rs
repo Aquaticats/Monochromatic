@@ -135,8 +135,11 @@ pub(super) fn serve_clones(
             // fallback runs against that file and removes what the target tree lacks by itself.
             return Err(reason);
         };
-        let settled: GitStatus =
-            super::checkout_like_git_with((plan, bound, run_git), Some(waits.path_in()), true);
+        let settled: GitStatus = crate::worktree_ladder_finish_git_checkout::checkout_like_git_with(
+            (plan, bound, run_git),
+            Some(waits.path_in()),
+            true,
+        );
         if !settled.succeeded() {
             warn(
                 TAG,

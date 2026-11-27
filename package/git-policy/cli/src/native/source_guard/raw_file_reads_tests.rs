@@ -120,7 +120,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ),
     ("lock/index_lock_evidence.rs", 1, "system"),
     ("lock/index_lock_holder_words.rs", 1, "system"),
-    ("lock/index_lock_holders.rs", 1, "system"),
+    ("lock/proc_fd_holder_scan.rs", 1, "system"),
     ("lock/single_owner_claim.rs", 1, "system"),
     ("lock/stale_ref_lock_judge.rs", 1, "system"),
     ("merge/merge_isolation_editor.rs", 1, "own-record"),
@@ -164,7 +164,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "person-path",
     ),
     ("service/earlier_unix_sockets_that_listen.rs", 2, "system"),
-    ("service/service_journal.rs", 4, "own-record"),
+    (
+        "service/service_journal_records_read_from_the_journal.rs",
+        4,
+        "own-record",
+    ),
     ("service/service_journal_record_age.rs", 1, "own-record"),
     ("service/service_provision.rs", 1, "own-record"),
     (
@@ -194,7 +198,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("transaction/recovery_files.rs", 1, "own-record"),
     ("worktree/worktree_clone_block_cloning.rs", 1, "system"),
     (
-        "worktree/worktree_clone_conversion_fence.rs",
+        "worktree/worktree_clone_conversion_fence_write.rs",
         2,
         "git-directory",
     ),

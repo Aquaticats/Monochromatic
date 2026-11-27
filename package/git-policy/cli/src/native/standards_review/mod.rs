@@ -25,6 +25,10 @@
 //!   the standards-review shadow run:
 //!   which commits get an entry,
 //!   and the capped model input.
+//! - `standards_review_client_failure_words.rs`:
+//!   the standards-review shadow run:
+//!   the words a failed call is named with,
+//!   with every cause below it.
 //! - `standards_review_client.rs`:
 //!   the standards-review shadow run:
 //!   the in-process HTTPS call to the decisions gateway,
@@ -32,6 +36,15 @@
 //! - `standards_review_request.rs`:
 //!   the standards-review shadow run:
 //!   the Decisions API request body and the answer reading.
+//! - `standards_review_run_options.rs`:
+//!   the standards-review shadow run:
+//!   the variables a person sets,
+//!   the options they give,
+//!   and the two shapes a caller supplies (the variables and the commit reader).
+//! - `standards_review_run_gateway_step.rs`:
+//!   the standards-review shadow run:
+//!   the one gateway call of a review,
+//!   its verdict and its failure sentence.
 //! - `standards_review_entry.rs`:
 //!   the standards-review shadow run:
 //!   log entry rendering and appending.
@@ -40,6 +53,11 @@
 //!   appending an entry to the shared log without a lock,
 //!   once per commit,
 //!   with repair.
+//! - `standards_review_run_containment.rs`:
+//!   the standards-review shadow run:
+//!   the runner that contains one review,
+//!   what it answers,
+//!   and the two ways of waiting for it.
 //! - `standards_review_run.rs`:
 //!   the standards-review shadow run,
 //!   end to end,
@@ -77,6 +95,11 @@ pub mod standards_review_request;
 pub mod standards_review_entry;
 
 /// The standards-review shadow run:
+/// the words a failed call is named with,
+/// with every cause below it.
+pub mod standards_review_client_failure_words;
+
+/// The standards-review shadow run:
 /// the in-process HTTPS call to the decisions gateway,
 /// with a total deadline.
 pub mod standards_review_client;
@@ -95,6 +118,23 @@ pub mod standards_review_source;
 /// and its bounded runner.
 /// Nothing calls it yet.
 pub mod standards_review_run;
+
+/// The standards-review shadow run:
+/// the variables a person sets,
+/// the options they give,
+/// and the two shapes a caller supplies.
+pub mod standards_review_run_options;
+
+/// The standards-review shadow run:
+/// the one gateway call of a review,
+/// its verdict and its failure sentence.
+pub mod standards_review_run_gateway_step;
+
+/// The standards-review shadow run:
+/// the runner that contains one review,
+/// what it answers,
+/// and the two ways of waiting for it.
+pub mod standards_review_run_containment;
 
 /// A loopback HTTP server for the standards-review tests;
 /// never in the release build.
