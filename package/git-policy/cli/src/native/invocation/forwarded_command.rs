@@ -450,6 +450,42 @@ fn resolve_command(
 }
 
 /// What:
+///  The command Git will run for one invocation,
+///  as far as the wrapper can read it:
+///  the one plain `git` command a `!` alias runs,
+///  when that alias value could be read,
+///  and the resolved command itself otherwise.
+///  `None` is a shell alias whose value the wrapper could not read.
+/// Why:
+///   A `!` alias starts a shell,
+///  and the `git` inside it is real Git,
+///  so what Git runs is the command the value and the caller's words make,
+///  never the alias's own name.
+///  The destructive-command guard and the slot refusals decide about that
+///  command,
+///  so both read it here and cannot disagree about what an alias is.
+///  A shell alias the wrapper cannot read is left to Git,
+///  which is what the guard does with it
+///  (`SPEC.md`,
+///  "git by the word Git will run").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theCommandGitRuns(command: ResolvedGitCommand): ResolvedGitCommand | undefined;
+/// ```
+pub fn the_command_git_runs(command: &ResolvedCommand) -> Option<ResolvedCommand> {
+    if command.route != Route::ShellAlias {
+        return Some(command.clone());
+    }
+    let shell_command: &[OsString] = command.shell_command.as_deref()?;
+    let layout: GlobalLayout = global_layout(shell_command);
+    if layout.outcome != GlobalOutcome::Command {
+        return None;
+    }
+    return Some(resolved(shell_command, &layout, Route::Direct));
+}
+
+/// What:
 ///  Whether a resolved command creates a linked worktree.
 /// Why:
 ///   `createsWorktrees`:

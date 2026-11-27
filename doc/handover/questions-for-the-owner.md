@@ -634,9 +634,54 @@ and the record says how the measurement was made.
 
 Waiting on a round's proposal,
 to be added here when it lands:
-what proves the reload remedy once no release from before it exists (issue 6587's second round),
-and what the slot refusals do with a shell alias the wrapper cannot read
-(the round `wrapper-alpha-48-release-pass-slot-refusals-read-a-shell-alias-and-say-true-words`).
+what proves the reload remedy once no release from before it exists (issue 6587's second round).
+
+## Open: what a repository with slot records does with a shell alias the wrapper cannot read (recorded 2026-11-27T10:01:17-05:00)
+
+The release pass of `0.6.1-alpha.48` found that a shell alias took a slot removal,
+a move or a prune past the refusals.
+The round for it made the refusals read every alias the destructive-command guard can follow
+(`!git <words>`,
+the bare `!git`,
+a plain alias that chains to one;
+merged as `cd62517318`).
+What is left is an alias the wrapper cannot read,
+such as `-c "alias.x=!sh -c 'git worktree remove -f -f <slot>'" x`,
+which still reaches Git and deletes a bound slot's registration,
+in alpha.47 and alpha.48 alike.
+The proposal is `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`.
+
+- A:
+  refuse every shell alias the wrapper cannot read,
+  in a repository that holds slot records.
+  No alias can then reach a slot command unread.
+  It also refuses aliases that touch no worktree
+  (`!sh -c 'git status'`),
+  in every repository the ZFS route has served.
+- B:
+  refuse a shell alias whose value text names `worktree` with `remove`,
+  `move` or `prune`.
+  It catches the spelled-out case and leaves unrelated aliases alone.
+  `eval`,
+  a variable or a script file hides the command from it,
+  and an alias that only mentions the words is refused.
+- C:
+  leave such an alias to Git,
+  as now and as the guard's recorded rule does.
+  Nothing unrelated stops working;
+  the spelled-out case still deletes the registration.
+
+The round's ranking is C > B > A,
+with a note that A is the choice consistent with the four answers of 2026-11-26,
+which refused every slot command the wrapper cannot prove
+(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+The coordinating session's reading differs in one place:
+the proposal says A is "still defeated by the same `eval`",
+and under A an alias that hides its command behind `eval` is an alias the wrapper cannot read,
+so A refuses it.
+Read that way,
+A is the only option that closes the route,
+and its price is the unrelated aliases.
 
 ## Open: five choices and three proposals from the rounds that ended by 09:45 on 2026-11-27 (recorded 2026-11-27T09:53:22-05:00)
 
