@@ -1,5 +1,6 @@
 //! What:
-//! The tests of a launcher, the per-tree program that starts a repository-published tool:
+//! The tests of a launcher,
+//! the per-tree program that starts a repository-published tool:
 //! that a record naming the launcher itself is refused,
 //! that two records naming each other are refused,
 //! and that a record naming the launcher of a real program still reaches that program.

@@ -6,7 +6,8 @@
 //! the command that starts one of them,
 //! and the run that is killed once it passes `LOOP_BOUND`.
 //! Why:
-//! Every test here meets the same failure mode, a shadow that starts another shadow,
+//! Every test here meets the same failure mode,
+//! a shadow that starts another shadow,
 //! so every run is polled against one deadline instead of waiting without end,
 //! and one copy of that wait means a test cannot accidentally wait forever.
 //!
