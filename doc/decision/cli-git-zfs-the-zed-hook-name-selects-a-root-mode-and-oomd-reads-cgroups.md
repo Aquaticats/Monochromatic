@@ -24,8 +24,15 @@ and the `argv0-dispatch` scan rule
 and `doc/planning/cli-git-resident-service.md`,
 which rejected a name-based dispatch.
 The design's gate review
-(`~/temp/agent/gate-review-zfs-root-modes-in-the-one-wrapper-executable-2026-11-24/`)
-asked this first.
+(`~/temp/agent/gate-review-zfs-root-modes-in-the-one-wrapper-executable-2026-11-24/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here))
+asked this first,
+and ran the failure the wrapper's own name in root's folder allows:
+a start of the copy under a name outside the family reached Git,
+which answered `git: 'boot-reconcile' is not a git command. See 'git --help'.`
+and exited 1.
 The options were to lift the rule for the ZED hook only,
 to keep it and recognise ZED's start by ZED's own variables,
 or to keep it and ship a hook script.
