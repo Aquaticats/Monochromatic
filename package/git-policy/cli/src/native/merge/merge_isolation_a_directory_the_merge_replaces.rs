@@ -39,6 +39,8 @@
 
 use crate::auto_push_dirty_paths::listed;
 use crate::lazy_runtime::run_on_runtime;
+/// Whether the files below a directory standing where the merge puts a file are the branch's own.
+use crate::merge_isolation_a_directory_the_branch_explains::the_directory_holds_only_what_the_merge_deletes;
 use crate::merge_isolation_carry_reads::{
     changes_between,
     path_argument,
@@ -46,7 +48,6 @@ use crate::merge_isolation_carry_reads::{
 };
 use crate::merge_isolation_changes::{
     Change,
-    the_directory_holds_only_what_the_merge_deletes,
     worktree_path,
 };
 use crate::transaction_git::{
