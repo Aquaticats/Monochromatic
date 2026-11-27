@@ -205,6 +205,11 @@
 //! - `wrapper_names_old_and_new.rs`:
 //!   the names this program answers to and keeps on disk,
 //!   each as the current spelling and the one an earlier release used.
+//! - `the_lines_of_a_log_compared_and_appended.rs`:
+//!   the bytes of a log as a fold of it uses them:
+//!   a round's bytes and the older copies they may already be in,
+//!   the one write that adds them,
+//!   and how a fold of one log ended.
 //! - `earlier_log_lines_added_to_current_log.rs`:
 //!   the lines of a log an earlier release wrote added to the log under the current name,
 //!   restartable after a kill.
@@ -446,6 +451,12 @@ pub mod file_open_for_write_by_any_process;
 /// a round,
 /// a record's text and the journal file held with its lock.
 pub mod earlier_log_lines_journal_held_and_recorded;
+
+/// The bytes of a log as a fold of it uses them:
+/// a round's bytes and the older copies they may already be in,
+/// the one write that adds them,
+/// and how a fold of one log ended.
+pub mod the_lines_of_a_log_compared_and_appended;
 
 /// The lines of a log an earlier release wrote added to the log under the current name,
 /// restartable after a kill.
