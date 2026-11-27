@@ -160,6 +160,11 @@
 //! - `worktree_convert_unrecorded_stage.rs`:
 //!   the empty stage a conversion created and did not record,
 //!   and whether the object at the converting name is it.
+//! - `worktree_convert_verdict_and_options.rs`:
+//!   what one conversion answers,
+//!   and what the command asks of it.
+//! - `worktree_convert_abandon.rs`:
+//!   undoing a conversion that did not reach its swap.
 //! - `worktree_convert.rs`:
 //!   converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 //!   resumably.
@@ -1062,6 +1067,15 @@ pub mod shell_quote;
 /// The commands a message prints to finish or remove a worktree an interrupted `git worktree add` left.
 #[cfg(target_os = "linux")]
 pub mod worktree_finish_commands;
+
+/// What one conversion answers,
+/// and what the command asks of it.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_verdict_and_options;
+
+/// Undoing a conversion that did not reach its swap.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_abandon;
 
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 /// resumably.
