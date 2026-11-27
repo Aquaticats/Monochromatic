@@ -143,6 +143,8 @@ fn an_entry_list_right_after_the_wrapped_marker_is_read() {
 
 /// A blank `//!` line ends a paragraph,
 /// so a marker split by one is two unrelated halves and the doc has no list.
+/// The words of those two halves are the marker's words,
+/// so the doc also reports one near miss that names both lines.
 #[test]
 fn a_blank_doc_line_between_the_halves_is_no_list() {
     let text: String = String::from(
@@ -152,10 +154,18 @@ fn a_blank_doc_line_between_the_halves_is_no_list() {
     assert_eq!(doc.marker_line, None);
     assert!(doc.entries.is_empty());
     assert_eq!(doc.first_line, 1);
+    assert_eq!(doc.near_misses.len(), 1, "{:?}", doc.near_misses);
+    assert_eq!(doc.near_misses[0].line, 1);
+    assert_eq!(doc.near_misses[0].continues_at, Some(3));
+    assert_eq!(
+        doc.near_misses[0].text,
+        "Files in this folder, each using only files listed before it:"
+    );
 }
 
 /// A plain comment between the halves ends the paragraph like a blank line does,
-/// so it does not join them either.
+/// so it does not join them either,
+/// and the two halves are a near miss named by both of their lines.
 #[test]
 fn a_plain_comment_between_the_halves_is_no_list() {
     let text: String = String::from(
@@ -164,6 +174,9 @@ fn a_plain_comment_between_the_halves_is_no_list() {
     let doc = read_top_doc(text.as_str());
     assert_eq!(doc.marker_line, None);
     assert!(doc.entries.is_empty());
+    assert_eq!(doc.near_misses.len(), 1, "{:?}", doc.near_misses);
+    assert_eq!(doc.near_misses[0].line, 1);
+    assert_eq!(doc.near_misses[0].continues_at, Some(3));
 }
 
 /// Text before the marker may wrap too,
@@ -200,15 +213,110 @@ fn extra_spaces_at_a_join_count_as_one_space() {
 /// Words that differ from the marker,
 /// or follow it on the same line,
 /// are no marker.
+/// One word put in place of another is a near miss;
+/// two words changed, added or dropped are a different sentence and no near miss.
 #[test]
 fn a_changed_or_extended_marker_is_no_list() {
     let changed: String = String::from(
         "//! Files in this folder,\n//! each using only files listed after it:\n//! - `first.rs`: writes a file.\n",
     );
     assert_eq!(read_top_doc(changed.as_str()).marker_line, None);
+    assert_eq!(read_top_doc(changed.as_str()).near_misses.len(), 1);
     let extended: String =
         format!("//! {LIST_MARKER} and more\n//! - `first.rs`: writes a file.\n");
     assert_eq!(read_top_doc(extended.as_str()).marker_line, None);
+    assert_eq!(read_top_doc(extended.as_str()).near_misses.len(), 0);
     let cut: String = String::from("//! Files in this folder,\n//! - `first.rs`: writes a file.\n");
     assert_eq!(read_top_doc(cut.as_str()).marker_line, None);
+    assert_eq!(read_top_doc(cut.as_str()).near_misses.len(), 0);
+}
+
+/// A marker with one word added, dropped or put in place of another is a near miss,
+///  and each way of missing it names the words the doc holds and the line they start on.
+#[test]
+fn a_marker_one_word_off_is_a_near_miss() {
+    for (text, expected) in [
+        (
+            "//! Files in this folder,\n//! each using only the files listed before it:\n",
+            "Files in this folder, each using only the files listed before it:",
+        ),
+        (
+            "//! Files in this folder,\n//! each using only files before it:\n",
+            "Files in this folder, each using only files before it:",
+        ),
+        (
+            "//! Files in this folder,\n//! each using only files listed after it:\n",
+            "Files in this folder, each using only files listed after it:",
+        ),
+        (
+            format!("//! Words about the folder.\n//!\n//! {LIST_MARKER} files\n").as_str(),
+            "Files in this folder, each using only files listed before it: files",
+        ),
+    ] {
+        let doc = read_top_doc(text);
+        assert_eq!(doc.marker_line, None, "{text}");
+        assert_eq!(doc.near_misses.len(), 1, "{text}: {:?}", doc.near_misses);
+        let near = &doc.near_misses[0];
+        assert_eq!(near.text, expected, "{text}");
+        assert_eq!(near.line, if text.starts_with("//! Words") { 3 } else { 1 });
+        assert_eq!(near.continues_at, None, "{text}");
+    }
+}
+
+/// The same words in another case are a near miss,
+///  because a reader sees one sentence and the marker reader sees no marker.
+#[test]
+fn a_marker_in_a_different_case_is_a_near_miss() {
+    let doc = read_top_doc("//! files in this folder, Each using only files listed before it:\n");
+    assert_eq!(doc.marker_line, None);
+    assert_eq!(doc.near_misses.len(), 1, "{:?}", doc.near_misses);
+    assert_eq!(
+        doc.near_misses[0].text,
+        "files in this folder, Each using only files listed before it:"
+    );
+}
+
+/// A text two words away from the marker is a different sentence,
+///  so no finding asks its author to change it.
+#[test]
+fn a_marker_two_words_off_is_no_near_miss() {
+    for text in [
+        "//! Files in this module,\n//! each using only the files listed before it:\n",
+        "//! Files in this folder,\n//! each using only files listed before it: and more\n",
+        "//! Words about the folder.\n",
+    ] {
+        let doc = read_top_doc(text);
+        assert_eq!(doc.marker_line, None, "{text}");
+        assert_eq!(doc.near_misses.len(), 0, "{text}: {:?}", doc.near_misses);
+    }
+}
+
+/// A doc that holds the marker reads its list,
+///  so a paragraph beside it that is nearly the marker is no finding at all.
+#[test]
+fn a_doc_with_the_marker_reports_no_near_miss() {
+    let text: String = String::from(
+        "//! Files in this folder, each using only the files listed before it:\n//!\n//! Files in this folder,\n//! each using only files listed before it:\n//! - `first.rs`: writes a file.\n",
+    );
+    let doc = read_top_doc(text.as_str());
+    assert_eq!(doc.marker_line, Some(3));
+    assert_eq!(doc.entries.len(), 1);
+    assert_eq!(doc.near_misses.len(), 0, "{:?}", doc.near_misses);
+}
+
+/// One doc that nearly writes the marker twice reports both places,
+///  in the order the doc writes them,
+///  so each has its own line and its own key.
+#[test]
+fn every_near_miss_of_one_doc_is_reported_in_document_order() {
+    let text: String = String::from(
+        "//! Files in this folder, each using only the files listed before it:\n//!\n//! Files in this folder, each using only files listed after it:\n//! - `first.rs`: writes a file.\n",
+    );
+    let doc = read_top_doc(text.as_str());
+    let lines: Vec<usize> = doc
+        .near_misses
+        .iter()
+        .map(|near| return near.line)
+        .collect::<Vec<usize>>();
+    assert_eq!(lines, [1, 3], "{:?}", doc.near_misses);
 }

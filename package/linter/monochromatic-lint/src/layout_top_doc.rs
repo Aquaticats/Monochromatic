@@ -13,6 +13,10 @@
 //!  so the marker may wrap anywhere a sentence may,
 //!  and a blank line inside it ends the paragraph,
 //! so the marker is then not found.
+//!  A doc that spells the marker nearly is read as having no list at all,
+//! so the reader also records where it nearly wrote the marker,
+//!  and the rule reports one finding of its own for each of those places,
+//! naming the line, the words found and the marker expected.
 //!
 //! ```text
 //! //! Files in this folder,
@@ -32,6 +36,30 @@
 /// The sentence that starts the file list in a top doc,
 /// which the doc may wrap across lines.
 pub const LIST_MARKER: &str = "Files in this folder, each using only files listed before it:";
+
+/// What:
+///  One place where a top doc nearly spells the marker,
+///  which is why it has no file list at all.
+/// Why:
+///  The findings about a doc with no list say what it owes its reader
+///  and never why the list was not read,
+///  so this record is what a finding that names the cause is built from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NearMiss = { line: number; continuesAt?: number; text: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NearMiss {
+    /// One-based line where the near-miss words start.
+    pub line: usize,
+    /// One-based line where the words go on after a blank line,
+    ///  a plain comment or an inner attribute,
+    ///  or nothing when the words sit in one paragraph.
+    pub continues_at: Option<usize>,
+    /// The words found, with every run of whitespace written as one space.
+    pub text: String,
+}
 
 /// What:
 ///  One listed file.
@@ -66,6 +94,9 @@ pub struct TopDoc {
     /// One-based line of the marker,
     ///  or nothing when the doc has none.
     pub marker_line: Option<usize>,
+    /// Every place where the doc nearly wrote the marker, in the order the doc writes them.
+    ///  Empty when the doc holds the marker or nothing close to it.
+    pub near_misses: Vec<NearMiss>,
     /// The listed files in order.
     pub entries: Vec<DocEntry>,
     /// One-based line of the first `//!` line,
@@ -140,19 +171,311 @@ fn marker_line_count(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function findMarker(bodies: string[]): { start: number; covered: number } | undefined;
+/// function findMarker(markerWords: string[], bodies: string[]): { start: number; covered: number } | undefined;
 /// ```
-fn find_marker(bodies: &[(usize, &str)]) -> Option<(usize, usize)> {
-    // Split once here, not once per line tried.
-    let marker_words: Vec<&str> = LIST_MARKER.split_whitespace().collect::<Vec<&str>>();
+fn find_marker(
+    marker_words: &[&str],
+    bodies: &[(usize, &str)],
+) -> Option<(usize, usize)> {
     for start in 0..bodies.len() {
-        if let Some(covered) = marker_line_count(marker_words.as_slice(), &bodies[start..]) {
+        if let Some(covered) = marker_line_count(marker_words, &bodies[start..]) {
             // The marker starts at this line and covers `covered` lines.
             return Some((start, covered));
         }
     }
     // No line starts the marker.
     return None;
+}
+
+/// What:
+///  Whether two word lists hold the same words
+///  when the capital letters are ignored.
+/// Why:
+///  A doc that writes the marker in another case is a near miss,
+///  and the marker's own words are what such a doc has to match.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sameWords(left: string[], right: string[]): boolean;
+/// ```
+fn same_words(
+    left: &[&str],
+    right: &[&str],
+) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    for (one, other) in left.iter().zip(right.iter()) {
+        // What: `eq_ignore_ascii_case` compares two words without their capital letters.
+        // Why: a doc that writes `Files` as `files` is the same sentence to a reader.
+        if !one.eq_ignore_ascii_case(other) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Whether the longer word list is the shorter one
+///  with exactly one word taken out of it,
+///  with the capital letters ignored.
+/// Why:
+///  One word added and one word dropped are the two slips of the pen,
+///  and either one leaves the doc unread as a list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneWordRemoved = (longer, shorter) =>
+///   longer.length === shorter.length + 1 &&
+///   longer.some((_, skipped) => sameWords(longer.filter((_, at) => at !== skipped), shorter));
+/// ```
+fn one_word_removed(
+    longer: &[&str],
+    shorter: &[&str],
+) -> bool {
+    if longer.len() != shorter.len() + 1 {
+        return false;
+    }
+    for skipped in 0..longer.len() {
+        // What: the longer list with the word at this position left out.
+        // Why: the added or dropped word may sit anywhere, so each position is tried.
+        let mut rest: Vec<&str> = Vec::<&str>::new();
+        for (index, word) in longer.iter().enumerate() {
+            if index == skipped {
+                continue;
+            }
+            // What: `*word` is the borrowed word itself rather than a reference to it.
+            // Why: the list holds the words, not references into the longer list.
+            rest.push(*word);
+        }
+        if same_words(rest.as_slice(), shorter) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether a word list is the marker's words
+///  with at most one word added, dropped or written in another case.
+/// Why:
+///  These are the slips a person makes when copying the sentence,
+///  and each one leaves the doc with no list at all.
+///  A text two words away is a different sentence that its author wrote on purpose,
+///  so no finding asks for it to be changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function oneWordApart(found: string[], marker: string[]): boolean;
+/// ```
+fn one_word_apart(
+    found: &[&str],
+    marker: &[&str],
+) -> bool {
+    if found.len() == marker.len() {
+        // What: how many positions hold a word that differs once the capital letters are ignored.
+        // Why: no difference is the marker in another case, and one is a word put in place of another.
+        let mut different: usize = 0;
+        for (left, right) in found.iter().zip(marker.iter()) {
+            if !left.eq_ignore_ascii_case(right) {
+                different += 1;
+            }
+        }
+        return different <= 1;
+    }
+    if found.len() + 1 == marker.len() {
+        // What: a word of the marker is missing from the doc.
+        // Why: the marker is the longer list and the doc's words are the shorter.
+        return one_word_removed(marker, found);
+    }
+    // What: a word the marker does not hold stands in the doc.
+    // Why: the doc's words are the longer list here.
+    return one_word_removed(found, marker);
+}
+
+/// What:
+///  Some doc lines as one text:
+///  the words of each line in order, with one space between them.
+/// Why:
+///  The marker reader matches words and never spacing,
+///  so a wrap onto the next line and a run of spaces between words are one space,
+///  and this text is also what a finding shows its reader.
+///  The words are copied into a new text, so the answer borrows nothing from the doc.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesText = (lines) => lines.flatMap((line) => line.body.split(/\s+/).filter(Boolean)).join(' ');
+/// ```
+fn lines_text(lines: &[(usize, &str)]) -> String {
+    let mut words: Vec<&str> = Vec::<&str>::new();
+    for &(_, body) in lines {
+        let line_words: Vec<&str> = body.split_whitespace().collect::<Vec<&str>>();
+        // What: `extend` moves every word of this line into the list.
+        // Why: the lines are read in the order the doc writes them.
+        words.extend(line_words);
+    }
+    return words.join(" ");
+}
+
+/// What:
+///  The near miss that starts at one doc line and covers whole lines after it,
+///  with the number of lines it covers,
+///  or nothing when the words there are not within one word of the marker.
+/// Why:
+///  A near miss starts where a line starts, as the marker does,
+///  and it ends at the line where its words reach the marker's length,
+///  so the list lines and the prose below it are never read as part of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nearMissAt(bodies, start, markerWords): { near: NearMiss; covered: number } | undefined;
+/// ```
+fn near_miss_at(
+    bodies: &[(usize, &str)],
+    start: usize,
+    marker_words: &[&str],
+) -> Option<(NearMiss, usize)> {
+    for end in start..bodies.len() {
+        if bodies[end].1.trim().is_empty() {
+            // What: `None` is the absent variant of `Option`.
+            // Why: the words of an unsplit near miss sit in one paragraph, so a blank line, a plain comment or an inner attribute ends the attempt.
+            return None;
+        }
+        let text: String = lines_text(&bodies[start..=end]);
+        let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
+        if words.len() > marker_words.len() + 1 {
+            // What: more words than the marker holds plus the one word it may be off by.
+            // Why: a line further on only adds words, so no later end can match either.
+            return None;
+        }
+        if one_word_apart(words.as_slice(), marker_words) {
+            // What: `Some(...)` is the present variant of `Option`, wrapping the record and the line count.
+            // Why: the words here nearly hold the marker, so the finding names this line and these words.
+            return Some((
+                NearMiss {
+                    line: bodies[start].0,
+                    continues_at: None,
+                    text,
+                },
+                end - start + 1,
+            ));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The near miss whose words a paragraph break splits,
+///  with the number of lines it covers,
+///  or nothing when the two halves are not the marker's words.
+/// Why:
+///  A blank `//!` line, a plain comment or an inner attribute inside the marker
+///  ends the paragraph the marker reader joins,
+///  so the doc spells the marker with a break in it.
+///  Both halves are read exactly, because a break is not a word,
+///  and the words before the break may wrap over several lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function splitNearMissAt(bodies, start, markerWords): { near: NearMiss; covered: number } | undefined;
+/// ```
+fn split_near_miss_at(
+    bodies: &[(usize, &str)],
+    start: usize,
+    marker_words: &[&str],
+) -> Option<(NearMiss, usize)> {
+    let mut break_at: Option<usize> = None;
+    for end in start..bodies.len() {
+        if bodies[end].1.trim().is_empty() {
+            break_at = Some(end);
+            break;
+        }
+        // What: the words of the first half so far, which must be the marker's first words.
+        // Why: more words than the marker holds cannot be its first words, so the attempt ends.
+        let so_far: String = lines_text(&bodies[start..=end]);
+        if so_far.split_whitespace().count() > marker_words.len() {
+            return None;
+        }
+    }
+    // What: `break_at?` hands over the line the break sits on, or ends this function with `None`.
+    // Why: a run of lines with no break in it is no split near miss.
+    let end: usize = break_at?;
+    // What: the line the words go on at, the first line after the break.
+    // Why: one or more blank lines, plain comments or inner attributes may sit between the two halves.
+    let mut next: usize = end + 1;
+    while next < bodies.len() && bodies[next].1.trim().is_empty() {
+        next += 1;
+    }
+    if next >= bodies.len() {
+        return None;
+    }
+    let first_text: String = lines_text(&bodies[start..end]);
+    let first_words: Vec<&str> = first_text.split_whitespace().collect::<Vec<&str>>();
+    // What: how many of the marker's words stand before the break.
+    // Why: the doc may break the marker after any of its words, and the first half fixes which break this is.
+    let before_break: usize = first_words.len();
+    if before_break == 0
+        || before_break >= marker_words.len()
+        || !same_words(first_words.as_slice(), &marker_words[..before_break])
+    {
+        return None;
+    }
+    for second_end in next..bodies.len() {
+        if bodies[second_end].1.trim().is_empty() {
+            return None;
+        }
+        let second_text: String = lines_text(&bodies[next..=second_end]);
+        let second_words: Vec<&str> = second_text.split_whitespace().collect::<Vec<&str>>();
+        if second_words.len() > marker_words.len() - before_break {
+            return None;
+        }
+        if same_words(second_words.as_slice(), &marker_words[before_break..]) {
+            return Some((
+                NearMiss {
+                    line: bodies[start].0,
+                    continues_at: Some(bodies[next].0),
+                    text: format!("{first_text} {second_text}"),
+                },
+                second_end + 1 - start,
+            ));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Every place where a top doc nearly wrote the marker,
+///  in the order the doc writes them.
+/// Why:
+///  One doc can hold more than one attempt,
+///  and each attempt is a finding of its own with a key of its own.
+///  The lines one attempt covers are never searched again,
+///  so one text is one finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nearMisses(bodies, markerWords): NearMiss[];
+/// ```
+fn near_misses(
+    bodies: &[(usize, &str)],
+    marker_words: &[&str],
+) -> Vec<NearMiss> {
+    let mut near: Vec<NearMiss> = Vec::<NearMiss>::new();
+    let mut index: usize = 0;
+    while index < bodies.len() {
+        if let Some((found, covered)) = near_miss_at(bodies, index, marker_words) {
+            near.push(found);
+            index += covered;
+            continue;
+        }
+        if let Some((found, covered)) = split_near_miss_at(bodies, index, marker_words) {
+            near.push(found);
+            index += covered;
+            continue;
+        }
+        index += 1;
+    }
+    return near;
 }
 
 /// What:
@@ -176,6 +499,9 @@ pub fn read_top_doc(text: &str) -> TopDoc {
     };
     let mut seen_doc: bool = false;
     let mut bodies: Vec<(usize, &str)> = Vec::<(usize, &str)>::new();
+    // What: the marker's words, split once here rather than once per line tried and once per paragraph read.
+    // Why: the search for the marker and the search for a near miss compare the same words.
+    let marker_words: Vec<&str> = LIST_MARKER.split_whitespace().collect::<Vec<&str>>();
     for (index, line) in text.lines().enumerate() {
         let number: usize = index + 1;
         let trimmed: &str = line.trim();
@@ -194,7 +520,10 @@ pub fn read_top_doc(text: &str) -> TopDoc {
         }
         bodies.push((number, body));
     }
-    let Some((start, covered)) = find_marker(&bodies) else {
+    let Some((start, covered)) = find_marker(marker_words.as_slice(), &bodies) else {
+        // What: the doc has no list, so record every place where it nearly wrote the marker.
+        // Why: the finding about a near miss names the cause, where the missing list names only its effect.
+        doc.near_misses = near_misses(bodies.as_slice(), marker_words.as_slice());
         return doc;
     };
     doc.marker_line = Some(bodies[start].0);
