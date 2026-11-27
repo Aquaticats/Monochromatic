@@ -1866,10 +1866,13 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
   which glibc added in 2.39
   (measured on the 0.2.2 x86_64 archive with `objdump -T`),
   so they do not start on Debian 12 or Ubuntu 22.04.
-  The crate builds for no other target, and the platform gates do not add one:
+  The crate builds for no other target,
+  and the platform gates do not add one:
   `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
   (`#[cfg(target_os = "linux")]`),
-  and `worktree/worktree_remove_around.rs`, which carries no gate, imports `finish` from it,
+  and `worktree/worktree_remove_around.rs`,
+  which carries no gate,
+  imports `finish` from it,
   so a build for another target names an item the modules of that target do not provide.
   Nothing here has compiled the crate for another target:
   `rustup target list --installed` answers `x86_64-unknown-linux-gnu` on the machine this was written on.

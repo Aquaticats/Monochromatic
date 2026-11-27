@@ -206,7 +206,8 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
 ///  the bare call of an imported name,
 ///  and the `at` form a directory descriptor goes through.
 ///  A name is read here where a name begins,
-///  so `link(` is a finding and `hard_link(`, `read_link(` and `is_symlink(` are not,
+///  so `link(` is a finding and `hard_link(`,
+///  `read_link(` and `is_symlink(` are not,
 ///  and the control beside this list plants every spelling and every one of those readings.
 ///
 /// In TS you'd write (pseudocode):
@@ -426,8 +427,10 @@ fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
 }
 
 /// What:
-///  The lines that make a link, one per spelling the ban has to fail on,
-///  and the lines that read a name's type or its target, which make none.
+///  The lines that make a link,
+///  one per spelling the ban has to fail on,
+///  and the lines that read a name's type or its target,
+///  which make none.
 /// Why:
 ///  A ban that failed on one spelling and passed another would be a ban a rename walks around,
 ///  and a ban that read `link(` as text would fail every file that asks `is_symlink()`.
@@ -444,7 +447,8 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
 /// What:
 ///  `READINGS_OF_A_NAME` is the names that end in a banned call's name and make no link.
 /// Why:
-///  `is_symlink`, `symlink_metadata` and `read_link` are how this crate asks what a name is and where it leads,
+///  `is_symlink`,
+///  `symlink_metadata` and `read_link` are how this crate asks what a name is and where it leads,
 ///  and a ban that failed on them would fail every file that asks.
 const READINGS_OF_A_NAME: &[&str] = &[
     "let _ = kind.is_symlink();",

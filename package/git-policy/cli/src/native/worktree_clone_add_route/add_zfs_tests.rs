@@ -220,8 +220,8 @@ fn a_clone_whose_mountpoint_is_not_the_pair_is_reported() {
 }
 
 /// What:
-///  `THE_ADD_ZFS_MODULE` names the release sources of the pool route's calls: the folder of the add route the
-///  route lives in.
+///  `THE_ADD_ZFS_MODULE` names the release sources of the pool route's calls:
+///  the folder of the add route the route lives in.
 /// Why:
 ///  The ban below is about the pool route,
 ///  and the alpha.48 split moved nine items out of `add_zfs.rs` into `add_zfs_pool_answers.rs` and
@@ -230,7 +230,8 @@ fn a_clone_whose_mountpoint_is_not_the_pair_is_reported() {
 ///  (issue 6599).
 ///  A prefix of the file names covers the files the split made and nothing else:
 ///  a route file named without that prefix is one this ban would not read,
-///  so the scope is the folder the route is made in, which covers every name a later split gives a receiver.
+///  so the scope is the folder the route is made in,
+///  which covers every name a later split gives a receiver.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

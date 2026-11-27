@@ -725,9 +725,12 @@ An array keeps a fixed length only where the length is the meaning, such as a he
 
 ## A split keeps each item's reach and its platform gate
 
-A split moves code, and two facts of every item it moves belong to the split's own diff.
+A split moves code,
+and two facts of every item it moves belong to the split's own diff.
 
-Reach: an item a sibling calls inside the crate takes `pub(crate)`, `pub(super)` or `pub(in path)`,
+Reach:
+an item a sibling calls inside the crate takes `pub(crate)`,
+`pub(super)` or `pub(in path)`,
 never bare `pub`.
 The library target is a published surface,
 and release `0.6.1-alpha.48` widened it by 31 names a split wrote bare `pub` for,
@@ -735,36 +738,44 @@ seven of them private before the split,
 with no commit that said it published anything
 (`source_guard/nothing_becomes_nameable_from_outside_tests.rs`).
 
-Gate: a new `mod` line carries the `#[cfg(...)]` of the file it left,
+Gate:
+a new `mod` line carries the `#[cfg(...)]` of the file it left,
 and a struct or a trait a split made out of one gated function carries the gate itself where the file also holds an
 ungated neighbour (`AddPlan` and `RemovePlan` in `worktree/worktree_command_facts.rs` are gated while `CopyFacts` in
 the same file is not).
 A gate that goes moves items into the build of a target that never had them,
 and nothing here reports it:
 the gate's Clippy step and the test suite build the host's own target (`bin/test-native-container.ts`),
-and `native:clippy:windows` is the one task that type-checks another target, which no gate runs.
+and `native:clippy:windows` is the one task that type-checks another target,
+which no gate runs.
 
-The gates do not make a build for another target work either, so say only what the source shows:
-`worktree/worktree_remove_around.rs` names `finish`, declared in `worktree_remove_clears_the_registration`,
+The gates do not make a build for another target work either,
+so say only what the source shows:
+`worktree/worktree_remove_around.rs` names `finish`,
+declared in `worktree_remove_clears_the_registration`,
 and that module is `#[cfg(target_os = "linux")]` (`worktree/mod.rs`).
 
 ## A published name takes a line in the list beside the surface control
 
 `source_guard/nothing_becomes_nameable_from_outside_tests.rs` holds the library target's published surface to
 `source_guard/items_nameable_from_outside_release.txt`:
-a name another crate can reach without a line fails, a line whose name is no longer reachable fails,
+a name another crate can reach without a line fails,
+a line whose name is no longer reachable fails,
 and a `pub use` that carries a name out of a module the `pub mod` chain does not reach fails without its line.
 
 A line is added only where a release publishes a name on purpose:
 write it as `<kind> <name>` under a reason of its own that names the commit which added it.
-A name a split needs only inside the crate takes `pub(crate)`, `pub(super)` or `pub(in path)`, and no line.
+A name a split needs only inside the crate takes `pub(crate)`,
+`pub(super)` or `pub(in path)`,
+and no line.
 
-The list's header says how the reading is bounded, and a widening in a shape it does not read is one only the diff
-shows:
+The list's header says how the reading is bounded,
+and a widening in a shape it does not read is one only the diff shows:
 a `pub` item written at the first column of a line in a module the `pub mod` chain reaches,
 a `#[macro_export] macro_rules!`,
 and a `pub use` written on one line whose module that chain does not reach.
-`#[cfg(test)]` above a declaration keeps it out, and an item inside an inline `mod name { ... }` is not read.
+`#[cfg(test)]` above a declaration keeps it out,
+and an item inside an inline `mod name { ... }` is not read.
 
 ## Show that a guard works
 
@@ -804,8 +815,8 @@ so the whole container gate on `main` at `132843d9d1` failed in a module that fi
 The search a merge owes is wider than that grep:
 a control may also read a source file while it runs
 (`std::fs::read_to_string` of a path under `src/native`),
-and the guards that read a part of the tree do it through the shared scan of `source_guard`
-("A guard over part of the tree states its scope, its excuses and its anchor").
+and the guards that read a part of the tree do it through the shared scan of
+`source_guard/source_scan_banned_lines_tests.rs`.
 `rg 'read_to_string' src/native --glob '*_tests.rs'` lists the ones outside `source_guard`.
 
 A call a control requires belongs to the folder that asks it and not to one file of that folder
@@ -831,7 +842,8 @@ Reading the splits of 2026-11-26 and 2026-11-27 against every control that reads
 found one stale control.
 The files that `include_str!` one are what `rg 'include_str!' src/native` prints,
 the files outside `source_guard` that read one at run time are what the search above prints,
-and the rest are in `source_guard`, whose whole module runs.
+and the rest are in `source_guard`,
+whose whole module runs.
 Every one of those modules ran once and threaded,
 and only the control above was stale.
 
@@ -846,33 +858,45 @@ and whether the scope still reaches the code the ban is about.
 Every guard reads the tree through it,
 so a file a split makes inside a scope is covered the day it lands (issue 6599).
 
-Scope. `release_sources_under(prefixes)` covers a place and names it as a folder (`landing/`) or as the start of a
-file's name; `release_sources_holding(words)` covers a lane and names the words a file of that lane says.
+Scope.
+`release_sources_under(prefixes)` covers a place and names it as a folder (`landing/`) or as the start of a
+file's name;
+`release_sources_holding(words)` covers a lane and names the words a file of that lane says.
 Write in the guard what a file would have to look like to be missed:
 a folder scope misses the file that moves out of the folder,
 a prefix misses a file of the same module named without the prefix,
 and a lane misses a file that does the banned thing without naming its words.
-Where the folder above the files closes that hole, name the folder (`standards_review/`,
+Where the folder above the files closes that hole,
+name the folder
+(`standards_review/`,
 `worktree_clone_add_route/`);
-where it does not, because that folder holds other code that does the same thing for its own reasons,
+where it does not,
+because that folder holds other code that does the same thing for its own reasons,
 the guard's top doc says what a reader has to check.
 
-Excuses. `MayHold { file, text, uses, why }` names one file, one banned text, how many uses of that text the file
-holds, and the reason it may.
+Excuses.
+`MayHold { file, text, uses, why }` names one file,
+one banned text,
+how many uses of that text the file holds,
+and the reason it may.
 The count is what an entry names rather than the excused lines,
 so a use added to that file fails
 and a file whose excused line is reflowed or moved keeps its count and passes.
 `entries_that_match_nothing` fails an entry that no longer matches anything,
 so the list can only shrink.
 
-Anchor. `anchors_the_scope_no_longer_holds(sources, anchors)` fails when no file of the scope holds a text that proves
+Anchor.
+`anchors_the_scope_no_longer_holds(sources, anchors)` fails when no file of the scope holds a text that proves
 the scope is still the code the ban is about,
 and a scope that reached nothing would pass every tree.
 
 A banned text is a substring of one line of code,
 and a line whose first characters are `//` is not code.
-A ban on a call is `lines_calling_one_of`, which reads the name where a name begins:
-`link(` is a finding, and `hard_link(`, `read_link(` and `is_symlink(` are not.
+A ban on a call is `lines_calling_one_of`,
+which reads the name where a name begins:
+`link(` is a finding,
+and `hard_link(`,
+`read_link(` and `is_symlink(` are not.
 
 ## Walk the sources through the one walk, never a recursive read
 

@@ -307,8 +307,8 @@ fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
 }
 
 /// What:
-///  `THE_COMMIT_PATH` names the release sources the commit path submits from: the folder the submission moved
-///  inside.
+///  `THE_COMMIT_PATH` names the release sources the commit path submits from:
+///  the folder the submission moved inside.
 /// Why:
 ///  The ban below is about the commit path,
 ///  and the alpha.48 split moved `ServiceCommit` out of `landing/service_commit.rs` into

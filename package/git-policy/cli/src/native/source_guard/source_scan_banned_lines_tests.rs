@@ -115,7 +115,8 @@ pub(crate) struct HoldingLine {
 ///  so the exception is recorded where the ban is read,
 ///  and a ban whose exception matched nothing fails rather than outliving the code it excused.
 ///  The count is what an exception names rather than the excused lines:
-///  a file that gains the text fails, and a file whose excused line is reflowed or moved to another line
+///  a file that gains the text fails,
+///  and a file whose excused line is reflowed or moved to another line
 ///  keeps the count it had and passes,
 ///  which is the case a list of lines would fail for no reason.
 pub(crate) struct MayHold {
@@ -175,10 +176,13 @@ pub(crate) fn lines_holding_one_of(
 ///  A call is written as its name and its `(`,
 ///  and it is read where the byte before the name cannot continue a name.
 /// Why:
-///  A ban on a call has to fail on every spelling of it (`fs::symlink(`, `libc::symlink(`, and an import's bare
+///  A ban on a call has to fail on every spelling of it (`fs::symlink(`,
+///  `libc::symlink(`,
+///  and an import's bare
 ///  `symlink(`),
 ///  and the name alone is the tail of names a file may use freely:
-///  `link(` ends `hard_link(`, `read_link(` and `unlink(`,
+///  `link(` ends `hard_link(`,
+///  `read_link(` and `unlink(`,
 ///  and `symlink(` ends `is_symlink(`.
 ///  Reading the byte before the name is what tells the call from the longer name,
 ///  so one token bans the call without banning the names that end in it.
@@ -254,7 +258,8 @@ fn continues_a_name(byte: u8) -> bool {
 /// What:
 ///  `lines_no_entry_excuses(found, may_hold)` is every holding line no `may_hold` entry covers,
 ///  each as `file:line (banned text) the line`.
-///  An entry covers a line only where its file, its text and its count all hold:
+///  An entry covers a line only where its file,
+///  its text and its count all hold:
 ///  the file holds exactly as many uses of that text as the entry names.
 /// Why:
 ///  This is the finding list a ban's control asserts empty,
