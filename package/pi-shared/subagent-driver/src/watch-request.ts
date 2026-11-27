@@ -38,4 +38,10 @@ export type WatchRequest = {
    that cannot look passes none, and the run ends as it always did.
    */
   readonly workLeftRunning?: () => Promise<readonly string[]>;
+
+  /**
+   The bound each of the three answers a run waits for while Pi starts is given, in milliseconds. A caller that names none gets the
+   shipped bound, which is what every run started by a launcher has.
+   */
+  readonly startUpAnswerMilliseconds?: number;
 };

@@ -17,6 +17,10 @@ use crate::test_support::{
 };
 use crate::worktree_clean::head_commit;
 use crate::worktree_clone_partial_staged::a_staged_path_among_the_clones;
+use crate::worktree_clone_slices::{
+    A_HOST_THAT_BOUNDS_NO_WORKER,
+    clone_worker_count,
+};
 use crate::worktree_copy::{
     GitStatus,
     GitStep,
@@ -341,6 +345,7 @@ fn clone_through_the_fence(dirty: &Dirty) -> PartCloned {
         admin: &admin,
         admin_path: dirty.admin.as_path(),
         fence: held_fence,
+        host: A_HOST_THAT_BOUNDS_NO_WORKER,
     });
     let (part, decided, pending): (PartCloned, Fence, PendingIndex) =
         cloned.expect("the partial clone");
@@ -864,6 +869,7 @@ fn a_path_staged_after_the_source_check_is_refused() {
         admin: &admin_file,
         admin_path: admin.as_path(),
         fence: held_fence,
+        host: A_HOST_THAT_BOUNDS_NO_WORKER,
     });
     let refusal: String = match cloned {
         Err(reason) => reason,
@@ -968,6 +974,7 @@ fn a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy() 
         admin: &admin_file,
         admin_path: admin.as_path(),
         fence: held_fence,
+        host: A_HOST_THAT_BOUNDS_NO_WORKER,
     });
     let refusal: String = match cloned {
         Err(reason) => reason,
@@ -1043,6 +1050,7 @@ fn a_new_head_that_differs_is_brought_in_after_the_clones() {
         admin: &admin,
         admin_path: dirty.admin.as_path(),
         fence: held_fence,
+        host: A_HOST_THAT_BOUNDS_NO_WORKER,
     });
     let (part, decided, pending): (PartCloned, Fence, PendingIndex) =
         cloned.expect("the partial clone");
@@ -1108,6 +1116,9 @@ fn a_new_head_that_differs_is_brought_in_after_the_clones() {
 /// both arms assert the same absence, which is what makes the flag's arm the one under test.
 /// The fixture holds more unchanged paths than the clone's break-even, so the slices are what runs and the one-turn arm is
 /// their fallback rather than the shape a small repository takes.
+/// The host the copies' budget is asked about is this control's own,
+/// so the fixture and the flag decide which arm runs,
+/// and never the processors and the memory the run happens to have (issue 6537).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1133,8 +1144,8 @@ fn a_staged_addition_reaches_no_destination_in_the_one_turn_arm_the_runtime_refu
         let changed: usize = source.dirty.as_ref().expect("the changes").tracked;
         let clones: usize = entries.len() - changed;
         assert!(
-            crate::worktree_clone_slices::clone_worker_count(clones) > 1,
-            "the fixture has {clones} cloned paths of {} and this host's budget splits them into slices, so the one-turn arm is the fallback under test",
+            clone_worker_count(clones, &A_HOST_THAT_BOUNDS_NO_WORKER) > 1,
+            "the fixture has {clones} cloned paths of {} and the host this control names leaves them in slices, so the one-turn arm is the fallback under test",
             entries.len()
         );
         let held_fence: AttributeFence =
@@ -1154,6 +1165,7 @@ fn a_staged_addition_reaches_no_destination_in_the_one_turn_arm_the_runtime_refu
             admin: &admin,
             admin_path: dirty.admin.as_path(),
             fence: held_fence,
+            host: A_HOST_THAT_BOUNDS_NO_WORKER,
         });
         crate::worktree_clone_slices::FORCED_ONE_TURN_ARM
             .store(false, std::sync::atomic::Ordering::SeqCst);
