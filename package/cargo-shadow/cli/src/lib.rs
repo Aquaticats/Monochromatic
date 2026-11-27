@@ -55,6 +55,10 @@ pub mod http;
 /// Runs the repository-wide catalog commands for the CLI.
 pub mod commands;
 
+/// What a catalog command prints:
+/// its findings and its install and update reports (split out of `commands.rs`).
+pub mod command_report_printing;
+
 /// The restore of lockfiles after a run and the recording side of the journal that recovers a killed run.
 pub mod journal;
 
@@ -70,6 +74,10 @@ pub mod journal_replace_preserve;
 /// The recovery of a run that was killed,
 /// split out of `journal.rs`.
 pub mod journal_recover;
+
+/// The recovery of one journal:
+/// its roots and the temporaries a killed run left (split out of `journal_recover.rs`).
+pub mod journal_recover_one;
 
 /// Reads of a journal directory:
 /// index,
@@ -103,6 +111,9 @@ pub mod journal_unready_verdict;
 
 /// The assessment of one journal's containment records (split out of the journal unready module).
 pub mod journal_unready_assessment;
+
+/// The record of one journal and the context it was made in (split out of the journal unready assessment module).
+pub mod journal_unready_record_context;
 
 /// Runs a child process within a time bound.
 pub mod bounded_run;
@@ -139,6 +150,9 @@ pub mod control_group_route_discovery;
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
 pub mod control_group_process_identity;
 
+/// Opening and reading the mounted procfs (split out of the control group process identity module).
+pub mod control_group_procfs_reading;
+
 /// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
 pub mod control_group_machine_identity;
 
@@ -161,6 +175,9 @@ pub mod file_owner;
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
+/// Reads one table of the crates.io database dump (split out of `dump.rs`).
+pub mod dump_table_reading;
+
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
@@ -171,9 +188,11 @@ pub mod git_system_config_lookup;
 /// without Git.
 pub mod git_config;
 
-/// The plain-file reader of `HEAD`,
-/// branch configuration and references that chooses the trust base without Git.
+/// The plain-file reader of `HEAD` and of where a repository's files are that chooses the trust base without Git.
 pub mod git_refs;
+
+/// What a reference names and the reference a branch's upstream names (split out of `git_refs.rs`).
+pub mod git_reference_lookup;
 
 /// The environment and the Git program a native read runs with.
 /// (split out of the git refs module).
