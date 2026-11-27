@@ -8,35 +8,11 @@
 //! to keep that file under the code-line limit.
 //! The items are re-exported from `bounded_run`,
 //! so their paths there are unchanged.
-//! The start of the child inside the containment is `bounded_run_start.rs`.
+//! The start of the child inside the containment is `bounded_run_start.rs`,
+//! and the end of the run,
+//! with the stop of its scope unit after it,
+//! is `bounded_run_end.rs`.
 
-/// What:
-/// `use crate::bounded_run::{Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route};`
-/// imports the bounds of a run,
-/// its error and journal state,
-/// the flag that says the weaker notice was printed,
-/// the one record write and the route search.
-/// Why:
-/// Every wait here is bounded by one of those values,
-/// the stop writes the record that settles the run,
-/// and the containment is planned on the route the search finds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route } from 'crate/bounded_run';
-/// ```
-use crate::bounded_run::{
-    Bound,
-    POLL_INTERVAL,
-    QUIESCE_BOUND,
-    READER_GRACE,
-    REAP_BOUND,
-    RunError,
-    ScopeState,
-    WEAKER_NOTICE_GIVEN,
-    append_record,
-    find_route,
-};
 /// What:
 /// `use crate::bounded_run::{NOTICE_ENTERED, NOTICE_GATE, trace_text};` imports the flag and the gate that let a test hold the weaker notice,
 /// and the one way a test build turns a trace event into text.
@@ -53,6 +29,32 @@ use crate::bounded_run::{
     NOTICE_ENTERED,
     NOTICE_GATE,
     trace_text,
+};
+/// What:
+/// `use crate::bounded_run::{Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route};`
+/// imports the bounds of a run,
+/// its error and journal state,
+/// the flag that says the weaker notice was printed,
+/// the one record write and the route search.
+/// Why:
+/// Every wait here is bounded by one of those values,
+/// the stop writes the record that settles the run,
+/// and the containment is planned on the route the search finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route } from 'crate/bounded_run';
+/// ```
+use crate::bounded_run::{
+    POLL_INTERVAL,
+    QUIESCE_BOUND,
+    READER_GRACE,
+    REAP_BOUND,
+    RunError,
+    ScopeState,
+    WEAKER_NOTICE_GIVEN,
+    append_record,
+    find_route,
 };
 /// What:
 /// `use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route};` imports the scope itself,
@@ -314,7 +316,16 @@ pub(crate) enum Containment {
     /// quiescence is shown by the kernel.
     Scope {
         /// The scope of this run.
-        group: ControlGroup,
+        /// Shared behind an `Rc`.
+        /// Its siblings are `Box`,
+        /// which owns its value,
+        /// and `Arc`,
+        /// which shares across threads.
+        /// Why `Rc` and not `Box` or `Arc`:
+        /// this variant has to stay small enough for `clippy::large_enum_variant`
+        /// now that a route names two programs,
+        /// and the count is cheap because one thread uses it.
+        group: Rc<ControlGroup>,
         /// The route it was planned on.
         route: Route,
     },
@@ -354,7 +365,7 @@ pub(crate) fn contain() -> Containment {
     return match find_route() {
         Ok(route) => match ControlGroup::plan(&route) {
             Ok(group) => Containment::Scope {
-                group,
+                group: Rc::new(group),
                 route,
             },
             Err(error) => weaker(GroupUnavailable {
@@ -419,29 +430,20 @@ pub(crate) fn stop_process_group(
 }
 
 /// What:
-/// `fn stop_everything(containment, child) -> Result<(), String>` ends the run early or at its normal exit:
-/// it kills and reaps the direct child,
+/// `fn stop_containment(containment, child) -> Result<(), String>` kills and reaps the direct child,
 /// stops what the containment holds,
 /// and answers `Ok` only if all of it is shown gone,
 /// or the words a refusal carries saying what was not shown and why.
 /// Why:
-/// This is the one way a run is ended,
-/// on timeout,
-/// on a normal exit and on every error path.
-/// The direct child goes first:
-/// it is the process that becomes the program,
-/// so once it is reaped nothing of this program's can
-/// still start the program in a scope that is not there yet.
-/// A scope that cannot be stopped,
-/// and any failure to inspect or stop it,
-/// is "not shown gone",
-/// and the text says how long the stop waited and what it was waiting for (issue 6528).
+/// This is the proof of quiescence on its own,
+/// so `stop_everything` can add the end of the scope unit after it on every outcome,
+/// the refusal paths included.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stopEverything(containment: Containment, child: ChildProcess): string | undefined
+/// function stopContainment(containment: Containment, child: ChildProcess): string | undefined
 /// ```
-pub(crate) fn stop_everything(
+pub(crate) fn stop_containment(
     containment: &Containment,
     child: &mut Child,
 ) -> Result<(), String> {
@@ -535,38 +537,6 @@ pub(crate) fn settle(
             group.directory().display()
         );
     }
-}
-
-/// What:
-/// `fn fail_started(containment, child, scope, bound, error) -> RunError` ends a run that failed after its program started.
-/// Why:
-/// Any failure on the containment path after the start is "not quiescent" unless everything is shown gone (contract A2):
-/// it must not become an ordinary failure that lets the caller roll back or accept under a writer that may remain (7a F3).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function failStarted(containment: Containment, child: ChildProcess, scope: ScopeState | undefined, bound: Bound, error: RunError): RunError
-/// ```
-pub(crate) fn fail_started(
-    containment: &Containment,
-    child: &mut Child,
-    scope: &Option<Rc<ScopeState>>,
-    bound: &Bound,
-    error: RunError,
-) -> RunError {
-    return match stop_everything(containment, child) {
-        Ok(()) => {
-            settle(containment, scope);
-            error
-        }
-        Err(shortfall) => {
-            lose(scope, shortfall.clone());
-            RunError::NotQuiescent {
-                what: bound.what.clone(),
-                shortfall,
-            }
-        }
-    };
 }
 
 /// What:
