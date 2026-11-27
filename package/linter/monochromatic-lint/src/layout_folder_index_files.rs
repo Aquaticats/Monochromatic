@@ -17,9 +17,14 @@
 //! function indexFileFindings(index: Path | undefined, files: Set<Path>, roots: Set<Path>, base: Path): LayoutFinding[];
 //! ```
 
-/// Import the finding shape,
+/// Import the words a `uses` line writes beside its folders,
+///  the finding shape,
 ///  the code check of an index file and the tree.
 use crate::{
+    layout_allow_entries::{
+        FOLDER_USE_WORD,
+        SET_OFF_ARROW,
+    },
     layout_finding::{
         LayoutFinding,
         key_path,
@@ -75,9 +80,9 @@ pub(crate) enum UnlistableName {
     EndsInTrimmedWhitespace,
     /// The name holds a line break, which ends a list line.
     HoldsLineBreak,
-    /// The name holds a backslash, which every key writes as a separator.
+    /// The name holds a backslash, which a `uses` line writes as a folder separator.
     HoldsBackslash,
-    /// The name holds the two words a `uses` line sets its arrow off with.
+    /// The name would leave a `uses` line unable to say which folder is the one used.
     HoldsArrowWords,
 }
 
@@ -123,13 +128,14 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
 ///  Whether a folder name can never be written on a list line,
 ///  and that name with such a character written as an escape.
 /// Why:
-///  A key writes a folder as a path,
-///  so a backslash inside one is written as `/` and would name another folder;
+///  A `uses` line writes a folder as a path,
+///  and a path is written with `/` between its segments on every machine,
+///  so a backslash inside a folder name would name another folder on a machine that separates folders with it;
 ///  this check is for the folders alone,
-///  because a file name is no path and a `file-uses` line names it as written.
+///  because a file name and an entry of a `uses` folder are no paths and their keys write them as they are.
 ///  A `uses` line is read from the two sides of the arrow it holds,
-///  so a folder name that holds the arrow's own words would leave the line unable to say where the used folder starts.
-///  Everything a key cannot write of any name is refused here too.
+///  so a folder name that leaves the line unable to say where one folder ends is refused too.
+///  Everything a key cannot write of any name is refused here as well.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,10 +145,29 @@ pub(crate) fn unlistable_folder_name_part(name: &str) -> Option<(String, Unlista
     if name.contains('\\') {
         return Some((String::from(name), UnlistableName::HoldsBackslash));
     }
-    if name.contains(crate::layout_allow_entries::SET_OFF_ARROW) {
+    if cannot_be_set_off_from_the_arrow(name) {
         return Some((String::from(name), UnlistableName::HoldsArrowWords));
     }
     return unlistable_name_part(name);
+}
+
+/// What:
+///  Whether a folder name would leave a `uses` line unable to say which folder is the one used.
+/// Why:
+///  The rule prints `uses <folder> -> <folder>`,
+///  and the reader takes the first ` -> ` of that line as the arrow.
+///  A name that ends in ` ->`, begins with `-> `, or is `->` closes another ` -> ` with the space the line sets its words off with,
+///  so the reader would split inside the name and read another pair of folders.
+///  The check is the line's own shape,
+///  so it cannot drift from what the printer writes and the reader reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cannotBeSetOffFromTheArrow = (name: string) =>
+///   `${FOLDER_USE_WORD} ${name} `.includes(SET_OFF_ARROW);
+/// ```
+fn cannot_be_set_off_from_the_arrow(name: &str) -> bool {
+    return format!("{FOLDER_USE_WORD} {name} ").contains(SET_OFF_ARROW);
 }
 
 /// What:
