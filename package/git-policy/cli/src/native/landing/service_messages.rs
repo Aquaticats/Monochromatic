@@ -1,5 +1,5 @@
 //! What:
-//!  Everything the wrapper tells the user when it cannot get a commit landed by the resident service,
+//!  The text of every failure the wrapper tells the user when it cannot get a commit landed by the resident service,
 //! and the notices
 //!  it prints while it waits.
 //! Why:
@@ -13,21 +13,20 @@
 //! The notices it prints while it waits are declared in
 //! `service_messages_of_a_wait_for_the_service.rs`
 //! and read from here.
-//! The texts live here as constants so a test can check each against a list of terms
-//!  that must never reach a user,
+//! The failures themselves and the facts their text names are declared in
+//! `service_messages_the_failures_a_person_can_meet.rs`,
+//! and the commands and words a failure gives a person in
+//! `service_messages_what_a_failure_gives_a_person.rs`,
+//! so a test can check each rendering against a list of terms that must never reach a user,
 //! and so the text a client prints cannot drift from the text the tests read.
+//! Each of them is read from here,
+//! so no caller names the file a name moved to.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! stderr.write(render({ kind: 'not-installed' }));
+//! // landing/serviceMessages.ts
+//! export const render = (failure: ClientFailure): string => `The commit service ...`;
 //! ```
-
-use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{
-    ManagerLastWords,
-    RequestedStart,
-};
-use std::path::Path;
-use std::time::Duration;
 
 /// The notices a wait prints are declared beside this file
 /// (`service_messages_of_a_wait_for_the_service.rs`),
@@ -50,299 +49,41 @@ pub(crate) use crate::service_messages_of_a_wait_for_the_service::{
     waiting_for,
 };
 
-/// The command that shows why the service did not start (Linux with systemd).
-pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
-
 /// The name of the link the commit service's unit starts its program from,
 /// which the failure for another release names when that link is what could not be pointed
 /// (`service_instance.rs`,
 /// `PROGRAM_LINK`).
 pub use crate::service_instance::PROGRAM_LINK;
 
-/// The command that turns on user services for an account that is not logged in (Linux with systemd).
-pub const LINGER_COMMAND: &str = "loginctl enable-linger";
+/// Every failure the client can meet,
+/// and the facts its text names,
+/// are declared beside this file
+/// (`service_messages_the_failures_a_person_can_meet.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_the_failures_a_person_can_meet::{
+    ClientFailure,
+    ManagerLastWords,
+    Platform,
+    RequestedStart,
+    WhatTheBranchShows,
+};
 
-/// The command that restarts the commit service,
-/// so the manager starts the one the installed units name (Linux with systemd).
-pub const RESTART_COMMAND: &str =
-    "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
-
-/// The command that stops the commit service,
-/// so the manager starts the one the installed units name on the next connection (Linux with systemd).
-/// Why:
-///   A restart starts the program the manager's unit names,
-/// which after a rollback is still the newer release's,
-/// so stopping the
-///  service is the one command that lets the older wrapper's own service answer.
-pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-cli@*.service'";
-
-/// The commands that show whether the commit was made.
-pub const CHECK_COMMANDS: &[&str] = &["git log -1", "git status"];
-
-/// The command that shows what the commit service of a worktree is doing,
-/// and names the unit that serves it.
-///  Why:
-///   The unit of one worktree is the one a restart may name,
-/// and the wrapper's own command is the one that reads the state of that service without asking for anything:
-/// a restart of every service of the account is what a commit must never ask for,
-/// because it stops the
-///  commits of every other worktree.
-pub const STATUS_COMMAND: &str = "git monochromatic-git-policy-cli service status";
-
-/// The command that restarts one unit of the service manager,
-/// followed by the unit the status named.
-pub const RESTART_ONE_UNIT_COMMAND: &str = "systemctl --user restart";
-
-/// What a failure says about the staged work when nothing in the repository changed,
-/// in the words these failures use.
-///  Why:
-///   A commit that stopped before it asked anything of the service changed nothing,
-/// and the person is owed that sentence in the words of the failure they read.
-pub const NOTHING_CHANGED_AND_THE_STAGED_WORK: &str =
-    "Your staged changes and your working files are as they were.";
-
-/// What:
-///  Where the client cannot get a service from the operating system.
-/// Why:
-///   Each platform has its own remedy,
-/// and none has a second way to commit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Platform = 'windows' | 'bsd' | 'linux-without-user-services' | 'other';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Platform {
-    /// Windows,
-    /// where activation is designed but not built.
-    Windows,
-    /// A BSD system.
-    Bsd,
-    /// Linux with no user service manager (minimal containers,
-    /// WSL 1,
-    /// other init systems).
-    LinuxWithoutUserServices,
-    /// Any other system.
-    Other,
-}
-
-/// What:
-///  Every failure that reaches the user,
-/// with the facts its text names.
-/// Why:
-///   The set is closed,
-/// so a test renders all of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ClientFailure = { kind: 'not-installed' } | { kind: 'did-not-start' } | ...;
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClientFailure {
-    /// The wait for the commit service ended with nothing greeting it,
-    /// and what it learned about the service manager's own answer is what says why:
-    /// a start that was never asked for leaves the service's log empty.
-    DidNotStart {
-        /// The unit this command asked the service manager about,
-        /// or nothing where no manager can be asked to start a service at all.
-        unit: Option<String>,
-        /// What the service manager last said about that unit.
-        answer: ManagerLastWords,
-        /// What this command asked the manager to do about it.
-        asked: RequestedStart,
-    },
-    /// Something accepted the connection at the service's address and nothing answered;
-    /// no service manager could be asked to start or restart it.
-    NothingAnswered {
-        /// The address the service was asked at.
-        address: String,
-        /// How long the wait lasted.
-        waited: Duration,
-    },
-    /// The platform cannot start the service on demand.
-    NoActivation(Platform),
-    /// An exchange with the user service manager ran out of the time it was given,
-    /// which says nothing about whether the manager is there.
-    ManagerDidNotAnswer {
-        /// The time that exchange was given.
-        waited: Duration,
-    },
-    /// The service on the socket belongs to another account.
-    OtherAccount,
-    /// The service stopped before it confirmed the commit.
-    MayNotHaveLanded,
-    /// The installed service speaks no protocol this wrapper speaks,
-    /// after a replacement attempt.
-    NoCommonVersion,
-    /// A service started from another release of the wrapper is still running after it was asked to retire and its unit was
-    /// restarted,
-    /// so the units start a program that is not the release this command runs.
-    OtherRelease,
-    /// The repository has no room left.
-    RepositoryFull(String),
-    /// The repository's filesystem is read-only.
-    RepositoryReadOnly(String),
-    /// This account may not write the repository.
-    PermissionDenied(String),
-    /// A repository move has frozen the repository.
-    RepositoryFrozen(String),
-    /// The branch changed while the commit was prepared,
-    /// `times` times.
-    BranchKeepsChanging { branch: String, times: usize },
-    /// The branch was no longer where the amended commit was prepared,
-    /// so the amend was not made.
-    BranchMoved { branch: String },
-    /// The merge,
-    /// cherry-pick or revert this commit concludes changed while the commit was prepared,
-    /// so there was no longer an operation to conclude.
-    ConclusionStateChanged { branch: String },
-    /// The branch moved while the person wrote a message;
-    /// the message is saved in `file` for them to reuse.
-    BranchMovedMessageSaved {
-        branch: String,
-        file: String,
-        amend: bool,
-    },
-    /// The worktree switched from `branch` to `now` while the commit was prepared;
-    /// the message the person wrote,
-    /// if any,
-    /// is
-    ///  saved in `file`.
-    BranchSwitched {
-        branch: String,
-        now: String,
-        file: Option<String>,
-    },
-    /// The service,
-    /// once it greeted,
-    /// said nothing for longer than it ever stays silent while it works,
-    /// so the request is given up rather than asked again.
-    ServiceSilent,
-    /// The service took no part of the request,
-    /// or not the whole of it in time,
-    /// so the request never reached it as one line and the commit was not made.
-    ServiceNotReading {
-        /// Whether the service took no byte of the request at all.
-        took_nothing: bool,
-    },
-    /// The same silence after a commit was prepared,
-    /// with the branch read afterwards so the message can state what it shows.
-    ServiceSilentAfterPreparing {
-        /// What the branch showed.
-        shows: WhatTheBranchShows,
-    },
-    /// The service kept the request for `minutes` minutes without answering,
-    /// and the client withdrew it:
-    /// it will not land.
-    StillWithService {
-        minutes: u64,
-        blocker: Option<String>,
-    },
-    /// The client stopped waiting and could not confirm the service withdrew the request;
-    /// `blocker` is what the service last said it
-    ///  was stuck in,
-    /// such as a branch write that has not returned.
-    WithdrawalUnconfirmed { blocker: Option<String> },
-    /// The person interrupted the command with `signal` while it waited,
-    /// and the service confirmed that the request will never land.
-    Interrupted {
-        /// The signal the person sent.
-        signal: i32,
-        /// The process that sent it,
-        /// where the kernel named one;
-        /// nothing for the terminal's own interrupt.
-        sender: Option<i32>,
-        /// What the service last said it was waiting for.
-        blocker: Option<String>,
-    },
-    /// The person interrupted the command with `signal`,
-    /// and the service did not confirm that it gave the request up,
-    /// so whether the commit was made is not known.
-    InterruptedNotKnown {
-        /// The signal the person sent.
-        signal: i32,
-        /// The process that sent it,
-        /// where the kernel named one.
-        sender: Option<i32>,
-        /// What the service last said it was waiting for.
-        blocker: Option<String>,
-    },
-    /// A Git step of the landing ran longer than the wrapper allows and was ended;
-    /// the commit was withdrawn and kept.
-    StepTooSlow,
-    /// The request was refused as malformed or unsafe.
-    Refused,
-    /// Another program holds the repository's index.
-    IndexInUse(String),
-    /// A reference lock stands in the way of the branch write,
-    /// and nothing proves that a Git process still holds it;
-    /// `words` names the lock and the command that clears it.
-    ReferenceLocked { branch: String, words: String },
-    /// The service failed in a way it could not resolve.
-    Unavailable,
-    /// The service program is not next to the wrapper.
-    ProgramMissing(String),
-    /// Setting up the service failed for a reason the person can act on.
-    CouldNotStart(String),
-    /// The commit service's address is longer than this system's address of that kind can be,
-    /// so no service could listen there.
-    SocketPathTooLong {
-        /// The address the service would have listened at.
-        path: String,
-        /// How many bytes that address is.
-        length: usize,
-        /// The longest address this system can hold.
-        longest: usize,
-        /// The longest runtime directory,
-        /// which is the part of the address this command's setting decides,
-        /// that still leaves room for the rest.
-        longest_runtime: usize,
-    },
-    /// The commit service was started and listens at an address this command does not look at,
-    /// because the service manager and this command use different runtime directories.
-    ServiceElsewhere {
-        /// The address the manager made the service listen at.
-        made: String,
-        /// The address this command waited at.
-        looked_for: String,
-        /// The runtime directory the manager runs with.
-        manager_runtime: String,
-        /// The runtime directory this command was given.
-        client_runtime: String,
-    },
-    /// A unit file of the same name that something else wrote stands in the way.
-    UnitInTheWay(String),
-    /// The commit is saved but the backup push and upkeep could not be handed over.
-    WorkNotHandedOver(String),
-    /// The content prepared for the commit was removed from the repository before the commit landed,
-    /// twice.
-    ContentPruned,
-}
-
-/// What:
-///  What the branch shows once the service went silent after a commit was prepared.
-/// Why:
-///   "It is not known whether the commit was made" was printed while the service still
-/// held the commit and landed it 73 s later (2026-11-09T07:44:20Z).
-/// One bounded read of the branch turns that into a fact,
-/// and a branch that cannot be read stays the honest "not known".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WhatTheBranchShows = 'made' | 'not-made' | 'unread';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WhatTheBranchShows {
-    /// The branch is at the commit this command prepared.
-    Made,
-    /// The branch is not at that commit.
-    NotMade,
-    /// The branch could not be read.
-    Unread,
-}
-
-/// The sentence every failure ends with when nothing was changed.
-pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
+/// The commands and words a failure gives a person are declared beside this file
+/// (`service_messages_what_a_failure_gives_a_person.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_what_a_failure_gives_a_person::{
+    CHECK_COMMANDS,
+    DENYLIST,
+    LINGER_COMMAND,
+    LOG_COMMAND,
+    NOTHING_CHANGED,
+    NOTHING_CHANGED_AND_THE_STAGED_WORK,
+    RESTART_COMMAND,
+    RESTART_ONE_UNIT_COMMAND,
+    STATUS_COMMAND,
+    STOP_COMMAND,
+    path_text,
+};
 
 /// What:
 ///  The text for a failure.
@@ -592,40 +333,6 @@ pub fn render(failure: &ClientFailure) -> String {
 /// (`service_messages_of_a_platform.rs`),
 /// because the rendering of every failure is at its line bound.
 pub use crate::service_messages_of_a_platform::platform_remedy;
-
-/// The texts that must never reach a user:
-/// implementation terms the system should have resolved itself.
-///  Matched case-insensitively against whole words after the quoted commands are removed.
-pub const DENYLIST: &[&str] = &[
-    "protocol",
-    "journal",
-    "request id",
-    "daemon",
-    "socket",
-    "errno",
-    "epipe",
-    "econnrefused",
-    "eagain",
-    "flock",
-    "lock file",
-    "peer",
-    "frame",
-    "handshake",
-    "batch",
-    "oid",
-    "fast-import",
-    "unix domain",
-    "abstract",
-    "pid",
-    "uid",
-    "os error",
-];
-
-/// The repository path a failure names,
-/// as text.
-pub fn path_text(path: &Path) -> String {
-    return path.display().to_string();
-}
 
 /// The word a failure goes by in the timing record is declared beside this file
 /// (`service_messages_of_a_failure.rs`),

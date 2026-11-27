@@ -1,10 +1,20 @@
 //! Controls for the client's wait bounds and for how it reads the lines the service sends.
+//!
+//!  The two controls that note a stop write one flag of the whole process,
+//!  and a wait of any other control resets that flag when its watch starts and ends,
+//!  so both run their body in a child of its own
+//!  (`testing/process_wide_state_child_test_support.rs`,
+//!  issue 6522).
 
 use super::*;
 use crate::service_client_listen_and_ask_to_retire::read_message;
+use crate::service_messages::ClientFailure;
 use crate::service_protocol::{
+    ClientMessage,
+    CommitRequest,
     HEARTBEAT_EVERY,
     HEARTBEAT_SILENCE,
+    ServiceMessage,
     encode_service,
 };
 use crate::service_protocol::{
@@ -14,7 +24,18 @@ use crate::service_protocol::{
 };
 /// The socket a stand-in service listens on and the address it names.
 use crate::service_server::Bind;
-use std::os::unix::net::UnixListener;
+use std::io::{
+    BufReader,
+    Write,
+};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A commit queued behind a full batch of landings has no queue wait of its own,
 /// so the wait ends on the silence of the service,
@@ -444,49 +465,55 @@ fn a_service_that_withdraws(
 /// ```
 #[test]
 fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
-    let name: String = an_address("interrupted");
-    let (seen, serving) = a_service_that_withdraws(
-        name.as_str(),
-        "the commit waits for another program's index lock",
-        ServiceMessage::Withdrawn {
-            id: String::from("interrupted"),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_commit_the_person_interrupts_is_withdrawn_and_never_lands",
+        || {
+            let name: String = an_address("interrupted");
+            let (seen, serving) = a_service_that_withdraws(
+                name.as_str(),
+                "the commit waits for another program's index lock",
+                ServiceMessage::Withdrawn {
+                    id: String::from("interrupted"),
+                },
+            );
+            let interrupting = std::thread::spawn(move || {
+                seen.recv_timeout(Duration::from_secs(30))
+                    .expect("the request reaches the service");
+                crate::service_client_interrupted::stop_requested_for_test(
+                    libc::SIGINT,
+                    Some(std::process::id() as i32),
+                );
+            });
+            let failure: ClientFailure = submit(
+                &reach_settings(name.as_str()),
+                &a_request("interrupted"),
+                &mut std::io::sink(),
+            )
+            .expect_err("the service gave the request up");
+            interrupting.join().expect("the interrupt is sent");
+            drop(serving);
+            let expected: ClientFailure = ClientFailure::Interrupted {
+                signal: libc::SIGINT,
+                sender: Some(std::process::id() as i32),
+                blocker: Some(String::from(
+                    "the commit waits for another program's index lock",
+                )),
+            };
+            assert_eq!(
+                failure, expected,
+                "the person is told the commit was not made"
+            );
+            let words: String = crate::service_messages::render(&failure);
+            assert!(
+                words.contains("interrupted") && words.contains("was not made"),
+                "{words}"
+            );
+            assert!(
+                words.contains(crate::service_messages::NOTHING_CHANGED),
+                "{words}"
+            );
         },
-    );
-    let interrupting = std::thread::spawn(move || {
-        seen.recv_timeout(Duration::from_secs(30))
-            .expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(
-            libc::SIGINT,
-            Some(std::process::id() as i32),
-        );
-    });
-    let failure: ClientFailure = submit(
-        &reach_settings(name.as_str()),
-        &a_request("interrupted"),
-        &mut std::io::sink(),
-    )
-    .expect_err("the service gave the request up");
-    interrupting.join().expect("the interrupt is sent");
-    drop(serving);
-    let expected: ClientFailure = ClientFailure::Interrupted {
-        signal: libc::SIGINT,
-        sender: Some(std::process::id() as i32),
-        blocker: Some(String::from(
-            "the commit waits for another program's index lock",
-        )),
-    };
-    assert_eq!(
-        failure, expected,
-        "the person is told the commit was not made"
-    );
-    let words: String = crate::service_messages::render(&failure);
-    assert!(
-        words.contains("interrupted") && words.contains("was not made"),
-        "{words}"
-    );
-    assert!(
-        words.contains(crate::service_messages::NOTHING_CHANGED),
-        "{words}"
     );
 }
 
@@ -504,38 +531,44 @@ fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
 /// ```
 #[test]
 fn a_commit_that_landed_before_the_signal_came_stays_landed() {
-    let name: String = an_address("interrupted-after-landing");
-    let commit: String = String::from("b".repeat(40));
-    let (seen, serving) = a_service_that_withdraws(
-        name.as_str(),
-        "the commit waits for another program's index lock",
-        ServiceMessage::Landed {
-            id: String::from("interrupted-after-landing"),
-            commit: commit.clone(),
-            already: false,
-            landing: None,
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_commit_that_landed_before_the_signal_came_stays_landed",
+        || {
+            let name: String = an_address("interrupted-after-landing");
+            let commit: String = String::from("b".repeat(40));
+            let (seen, serving) = a_service_that_withdraws(
+                name.as_str(),
+                "the commit waits for another program's index lock",
+                ServiceMessage::Landed {
+                    id: String::from("interrupted-after-landing"),
+                    commit: commit.clone(),
+                    already: false,
+                    landing: None,
+                },
+            );
+            let interrupting = std::thread::spawn(move || {
+                seen.recv_timeout(Duration::from_secs(30))
+                    .expect("the request reaches the service");
+                crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, None);
+            });
+            let submitted: Submitted = submit(
+                &reach_settings(name.as_str()),
+                &a_request("interrupted-after-landing"),
+                &mut std::io::sink(),
+            )
+            .expect("the commit landed");
+            interrupting.join().expect("the interrupt is sent");
+            drop(serving);
+            assert_eq!(
+                submitted,
+                Submitted::Landed {
+                    commit,
+                    already: true
+                },
+                "a commit on the branch is reported as landed"
+            );
         },
-    );
-    let interrupting = std::thread::spawn(move || {
-        seen.recv_timeout(Duration::from_secs(30))
-            .expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, None);
-    });
-    let submitted: Submitted = submit(
-        &reach_settings(name.as_str()),
-        &a_request("interrupted-after-landing"),
-        &mut std::io::sink(),
-    )
-    .expect("the commit landed");
-    interrupting.join().expect("the interrupt is sent");
-    drop(serving);
-    assert_eq!(
-        submitted,
-        Submitted::Landed {
-            commit,
-            already: true
-        },
-        "a commit on the branch is reported as landed"
     );
 }
 

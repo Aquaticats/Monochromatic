@@ -44,14 +44,14 @@ exclude_re = [
   "src/scan\\.rs:185:31: replace \\+ with \\* in Scanner<'a>::comment",
 
   # `capture_trailing` consumes only same-line trivia: its whitespace arm accepts space, tab and CR
-  # but not LF, and it is called from exactly one place (parse.rs:375). Its comment arm requires
-  # `byte() == b'/'` plus a lookahead for `/` or `*`. Replacing that lookahead's `offset + 1` with
-  # `offset * 1` makes the second disjunct compare the current byte against `*`, which the outer
-  # condition already fixed to `/`, so the arm narrows to `//` only. That is unobservable, because
-  # when this arm declines a `/*` the caller's next `trivia()` call captures the identical comment
-  # and the same comma, and the parse result is unchanged. Measured across twelve inputs covering
-  # same-line and later-line trivia, comment-then-comma, tabs, a lone star and a lone slash: every
-  # outcome was identical to the unmutated build.
+  # but not LF, and it is called from exactly one place (`receive_child` in `parse.rs`). Its comment
+  # arm requires `byte() == b'/'` plus a lookahead for `/` or `*`. Replacing that lookahead's
+  # `offset + 1` with `offset * 1` makes the second disjunct compare the current byte against `*`,
+  # which the outer condition already fixed to `/`, so the arm narrows to `//` only. That is
+  # unobservable, because when this arm declines a `/*` the caller's next `trivia()` call captures the
+  # identical comment and the same comma, and the parse result is unchanged. Measured across twelve
+  # inputs covering same-line and later-line trivia, comment-then-comma, tabs, a lone star and a lone
+  # slash: every outcome was identical to the unmutated build.
   "src/scan\\.rs:254:63: replace \\+ with \\* in Scanner<'a>::capture_trailing",
 
   # Same arm, `offset + 1` replaced by `offset - 1`, so the second disjunct asks whether the byte

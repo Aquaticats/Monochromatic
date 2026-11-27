@@ -33,6 +33,13 @@
 //!   the plan's tuples settled by the clone's live inventory.
 //! - `the_plan_it_leaves.rs`:
 //!   the one plan action a cancellation takes.
+//! - `the_proof_inputs.rs`:
+//!   what the proof reads and everything one proof establishes.
+//! - `the_proof_reads.rs`:
+//!   the records,
+//!   the plan,
+//!   the request and the clone's identity,
+//!   each read and refused.
 //! - `the_proof.rs`:
 //!   which slot,
 //!   which clone,

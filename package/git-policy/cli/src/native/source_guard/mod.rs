@@ -108,6 +108,13 @@ mod no_control_takes_the_production_runner_tests;
 #[path = "heartbeat_controls_own_their_manager_switch_tests.rs"]
 mod heartbeat_controls_own_their_manager_switch_tests;
 
+/// The ban on a control writing the service client's manager stand-in or its stop flag in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose stand-in and flag hold nothing but what that control wrote (issue 6522).
+#[cfg(test)]
+#[path = "service_client_controls_own_their_process_wide_state_tests.rs"]
+mod service_client_controls_own_their_process_wide_state_tests;
+
 /// The ban on a control asking a question about the whole kill registry in the process the run holds:
 /// such a control starts a child of its own first,
 /// whose registry no other control planted in.
@@ -128,6 +135,13 @@ mod no_control_reads_the_preparation_steps_in_the_run_tests;
 #[cfg(test)]
 #[path = "no_control_reads_the_commit_ledgers_in_the_run_tests.rs"]
 mod no_control_reads_the_commit_ledgers_in_the_run_tests;
+
+/// The ban on a control taking the process's one queue of log lines in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose queue holds nothing but what that control handed it.
+#[cfg(test)]
+#[path = "no_control_takes_the_log_line_queue_in_the_run_tests.rs"]
+mod no_control_takes_the_log_line_queue_in_the_run_tests;
 
 /// The ban on a control stepping a notice without the control window that decides its ceiling and its looks:
 /// such a control takes the window first or starts a child of its own.
