@@ -22,6 +22,7 @@ use crate::test_support::{
     remove,
 };
 use crate::transaction_git::GitContext;
+use std::ffi::OsString;
 use std::path::{
     Path,
     PathBuf,
