@@ -161,6 +161,11 @@
 //! - `service_busy.rs`:
 //!   what the one landing thread is doing,
 //!   shared with the threads that talk to waiting clients.
+//! - `service_busy_words_of_a_stuck_write.rs`:
+//!   the words a waiting client reads about the write the landing thread is inside.
+//! - `service_busy_withdrawals_beside_a_stuck_write.rs`:
+//!   a withdrawal answered on the connection thread while the landing thread is stuck,
+//!   and the ceiling that bounds what the record remembers.
 //! - `service_busy_step_record_on_this_thread.rs`:
 //!   the step record a thread keeps while it is inside a write that is never ended.
 //! - `service_files_of_a_stopped_instance.rs`:
@@ -331,6 +336,13 @@ pub mod wait_ceilings;
 /// What the one landing thread is doing,
 /// shared with the threads that talk to waiting clients.
 pub mod service_busy;
+
+/// The words a waiting client reads about the write the landing thread is inside.
+pub mod service_busy_words_of_a_stuck_write;
+
+/// A withdrawal answered on the connection thread while the landing thread is stuck,
+/// and the ceiling that bounds what the record remembers.
+pub mod service_busy_withdrawals_beside_a_stuck_write;
 
 /// The answers the landing board gives and the checks on the names it keeps.
 pub mod service_busy_answers_and_name_checks;
