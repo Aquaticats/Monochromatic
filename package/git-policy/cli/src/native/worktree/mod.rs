@@ -560,6 +560,15 @@
 //!   the look every command makes at those records:
 //!   the delete of a leaving no queue record owes is queued again,
 //!   and a place this program may not act on is named for the person.
+//! - `worktree_slow_route_words.rs`:
+//!   the words one slow-route sentence is made of:
+//!   the value a person reads,
+//!   the two leads,
+//!   how the source is called,
+//!   and where the line goes.
+//! - `worktree_slow_route_unclean.rs`:
+//!   the sentence for a source that cannot be shown unchanged,
+//!   chosen by the kind of the refusal and Git's own status.
 //! - `worktree_slow_route.rs`:
 //!   the plain sentence that says why an add was not made as a snapshot,
 //!   and where it goes.
@@ -1310,6 +1319,19 @@ pub mod worktree_ladder_target_tree_skip;
 /// Where the words of a Git run the wrapper or the service started on its own go,
 /// now that none carries `--quiet`.
 pub mod inner_git_words;
+
+/// The words one slow-route sentence is made of:
+/// the value a person reads,
+/// the two leads,
+/// how the source is called,
+/// and where the line goes.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route_words;
+
+/// The sentence for a source that cannot be shown unchanged,
+/// chosen by the kind of the refusal and Git's own status.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route_unclean;
 
 /// The plain sentence that says why an add was not made as a snapshot,
 /// and where it goes.
