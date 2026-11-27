@@ -99,7 +99,7 @@ function gibText(bytes: number,): string {
  countedText({ count: 1, singular: 'refused fork', plural: 'refused forks' });
  ```
  */
-function countedText({
+export function countedText({
   count,
   singular,
   plural,

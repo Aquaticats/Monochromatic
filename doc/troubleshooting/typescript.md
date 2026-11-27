@@ -2222,6 +2222,46 @@ One scratch file per form,
 The same declaration is what `package/pnpm-override/shim-readable-stream/index.d.cts` ships;
  `doc/decision/readable-stream-shim.md` records why that declaration stays the module namespace.
 
+## A passing `tsc --build` says nothing about the files it checked
+
+### Problem
+
+`mise run //package/git-policy/cli:lint:types` prints one line when it passes:
+
+```text
+TSFILE: /path/to/package/git-policy/cli/.cache/typescript/tsconfig.tsbuildinfo
+```
+
+That record is what `listEmittedFiles` asks for (`package/config/typescript/tsconfig.options.json:132`),
+and it names the build-info file the build wrote rather than anything it read.
+A type check that read every file of its project and one that read none print the same record,
+so the check's exit status and its output cannot tell a reader what it covered.
+
+### What the compiler can report
+
+`--extendedDiagnostics` reports a file count in build mode as well.
+Measured 2026-11-27 in `package/git-policy/cli` with tsc 7.1.0-beta,
+each run in a capped scope on the same checkout:
+
+```sh
+# The check's own arguments, whose only output names the build-info file.
+mise exec -- tsc --build --force
+# The same build with the count asked for.
+mise exec -- tsc --build --force --extendedDiagnostics
+```
+
+The first printed its `TSFILE:` line alone.
+The second printed that line and then `Files: 755`,
+ `Projects built: 1` and `Aggregate Files: 755`,
+ so `Aggregate Files` is the number of files the build covered and the flag is the one that reports it.
+
+The repository's `lint:types` task passes `--build` and no diagnostic flag
+(`mise.toml`,
+ `[task_templates."lint:types"]` section),
+so the count is not in a check's own output.
+`bin/native-check-ran-what-it-says.ts` of the wrapper prints that statement beside a passing `lint:types` line
+rather than a count it cannot read (issue 6613).
+
 ## Related Documentation
 
 - [VSCode](vscode.md):
