@@ -11,7 +11,10 @@ The build that lands it is on
 `feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source`,
 with the limit rules pinned and the round of 2026-11-21 recorded in "The build that landed".
 The round of 2026-11-22 that followed the integration pass
-(`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`)
+(`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 replaced the whole-tree limit for a clean source with the mean-file edge of each measured filesystem,
 pinned both edges in throwaway guests,
 and is recorded in "The measured clean-source mean-file edge".
@@ -19,7 +22,10 @@ and is recorded in "The measured clean-source mean-file edge".
 The design was proposed and a prototype measured it on `main`'s fenced clone rung,
 and "The decision asked for" records what was asked.
 This is the answering round of the gate re-check
-(`~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`,
+(`~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
 not final,
 Claude Sonnet 5.5;
 the review file's modification time is 2026-11-21T20:38-05:00).
@@ -215,7 +221,10 @@ The shape's re-timing is in "The measured clean-source mean-file edge".
 ### The four answers of 2026-11-23, built
 
 The integration recheck
-(`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`)
+(`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 put four decisions to the project,
 and they are recorded in `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`
 under "Four further answers after the recheck,
@@ -698,6 +707,10 @@ measured above,
 is served by the clone rung on
 both filesystems and reads 1.10 (0.87 to 1.83) of `main` on btrfs and 1.09 (0.66 to 1.28) on ZFS,
 each inside its own control's spread.
+H2 was the pass's finding on this shape before the mean-file rule:
+952 ms through Git's own checkout against `main`'s 33 ms,
+about 30 times slower,
+which the decision of 2026-11-22 answers by judging a clean source's mean file size instead.
 
 ### The dirty shapes re-timed on the host
 
@@ -1022,7 +1035,10 @@ and they ran one at a time so a heavy control's fixture never competed for the l
 - The two failure sets are the same 18 names,
   no test fails on one arm only,
   and each pair prints the same message
-  (`~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/keep/suite-comparison.txt`).
+  (`~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/keep/suite-comparison.txt`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 So none of the 18 is this rung's,
 and the six controls this build owed pass in it:
@@ -1046,7 +1062,10 @@ two read `GitStatus { code: Some(0) }` where they need the fallback's failure;
 and two stop before the record they examine exists
 (`claims: Os { code: 2, kind: NotFound }` and `read-only records: Os { code: 2, kind: NotFound }`),
 because a ladder that chose Git's own checkout writes none
-(`~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/keep/red-suite.log`).
+(`~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/keep/red-suite.log`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The 18 that fail on both arms,
 by what their messages show:
@@ -2508,7 +2527,10 @@ which A and D do not do.
 
 The review is
 `~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`
-(Claude Sonnet 5.5,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+Claude Sonnet 5.5,
 unapproved and non-final),
 with its scripts,
 logs and round records beside it.
@@ -2712,7 +2734,10 @@ and "Limitations" says what it would add over a whole clone.
 
 ## The first gate review's findings, answered
 
-The review is `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/keep/review.md`,
+The review is `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 with its logs and scripts beside it.
 Each finding is fixed,
 recorded as a limit,
