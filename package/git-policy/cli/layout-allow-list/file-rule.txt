@@ -8,8 +8,6 @@
 file-uses src/native/commit scratch_step_held_by_the_kernel.rs -> scratch_step_stall_decided_once.rs
 file-uses src/native/commit scratch_step_stall_decided_once.rs -> scratch_step_held_by_the_kernel.rs
 file-uses src/native/conflict conflict_sides.rs -> discarded_prune.rs
-file-uses src/native/conflict discard_audit.rs -> discard_audit_record.rs
-file-uses src/native/conflict discard_audit_record.rs -> discard_audit.rs
 file-uses src/native/conflict discarded_prune.rs -> conflict_sides.rs
 file-uses src/native/conflict discarded_prune.rs -> discarded_report.rs
 file-uses src/native/conflict discarded_report.rs -> conflict_sides.rs

@@ -37,14 +37,14 @@
 //! - `discard_audit_pins.rs`:
 //!   whether one audit generation names a saved copy still on disk,
 //!   which keeps it past the bound every log shares.
+//! - `discard_audit_record.rs`:
+//!   everything one audit record states,
+//!   and its line as JSON.
 //! - `discard_audit.rs`:
 //!   the append-only record of every command form that can discard uncommitted state.
 //! - `abort_recheck.rs`:
 //!   the second measurement of an abort or a skip,
 //!   owed immediately before Git starts.
-//! - `discard_audit_record.rs`:
-//!   everything one audit record states,
-//!   and its line as JSON.
 //! - `discarded_prune_limits.rs`:
 //!   the two limits of the folder of saved copies,
 //!   their defaults and the reading of a size such as `256m`.
