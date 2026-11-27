@@ -19,10 +19,12 @@ description = "Apply clippy's machine-applicable suggestions in place"
 run = "cargo clippy --fix --allow-dirty --allow-staged"
 
 [tasks.test]
-description = "cargo nextest run --release where this host can give the tests a delegated control group; where it cannot (a container, a check with no user manager) a run whose totals are of the tests that ran, naming every test it left out with the reason and the command that runs it, and reporting none of them as passed or as a failure of cargo-shadow; it runs the suite twice there, once to find those tests and once to report; the task takes no arguments (run `cargo nextest run --release <filter>` for a subset)"
+description = "cargo nextest run --release where this host can give the tests a delegated control group; where it cannot (a container, a check with no user manager) a run whose totals are of the tests that ran, naming every test it left out with the reason and the command that runs it, and reporting none of them as passed or as a failure of cargo-shadow; it runs the suite twice there, once to find those tests and once to report; a failing run leaves its whole output in a file the task's last lines name; the task takes no arguments (run `cargo nextest run --release <filter>` for a subset)"
 shell = "node --input-type=module-typescript -e"
 run = '''
-const { spawnSync } = await import('node:child_process')
+const { spawn, spawnSync } = await import('node:child_process')
+const { mkdirSync, writeFileSync } = await import('node:fs')
+const { join } = await import('node:path')
 
 // The line a test that cannot run prints: its panic opens with this, names the test between the brackets, and says why it did not
 // run, so the answer comes from the tests themselves and no second copy of the route question can disagree with them.
@@ -47,14 +49,57 @@ const totals = (output) => {
   return found === null ? undefined : { ran: Number(found[1]), passed: Number(found[2]), failed: Number(found[3] ?? '0'), skipped: Number(found[4]) }
 }
 
-const main = () => {
+// Where a failing run's whole output is kept: `target/test-runs` in this package, which the repository's `.gitignore` excludes, so a
+// kept run outlives the terminal it was printed to and never lands in a commit. The messages of a red run are the evidence of what
+// failed, and one run of this suite failed ten tests whose messages were piped through `tail` and lost (issue 6619).
+const KEPT_DIRECTORY = 'target/test-runs'
+
+// Keeps one run's output and answers the path it wrote. Standard output comes first and standard error after it, which is how the
+// rest of this task reads a captured run, so a message that ties a failure to a stream stays with that stream's lines.
+const keep = (output) => {
+  mkdirSync(KEPT_DIRECTORY, { recursive: true })
+  const moment = new Date().toISOString().replaceAll(':', '').replace(/\..*$/, '')
+  const path = join(process.cwd(), KEPT_DIRECTORY, `cargo-shadow-tests-${moment}-${process.pid}.log`)
+  writeFileSync(path, output)
+  return path
+}
+
+// The one run whose output reaches the terminal as it is written and is kept in full: `stdio: 'inherit'` shows a run that takes
+// minutes but keeps nothing of it, and a capture printed at the end keeps it but hides the run while it happens.
+// The two streams are collected apart, because every answer this task checks is read the way the captured runs are read.
+const streamed = async (args) => {
+  const child = spawn('cargo', ['nextest', 'run', '--release', ...args], { stdio: ['inherit', 'pipe', 'pipe'] })
+  const gathered = { out: '', err: '' }
+  child.stdout.setEncoding('utf8')
+  child.stderr.setEncoding('utf8')
+  child.stdout.on('data', (chunk) => {
+    gathered.out += chunk
+    process.stdout.write(chunk)
+  })
+  child.stderr.on('data', (chunk) => {
+    gathered.err += chunk
+    process.stderr.write(chunk)
+  })
+  const status = await new Promise((resolve) => {
+    child.on('close', (code) => {
+      resolve(code)
+    })
+  })
+  return { status, stdout: gathered.out, stderr: gathered.err }
+}
+
+const main = async () => {
   // The question, asked alone: it is the guard every test that needs a delegated control group begins with.
   const asked = nextest(['-E', `test(=${QUESTION})`])
   const answer = text(asked)
   const refuse = (why, status) => {
-    // Nothing is left out when the question itself did not answer: its own output is all there is to show.
+    // Nothing is left out when the question itself did not answer: its own output is all there is to show, and a failing run keeps
+    // it, because this output is the whole evidence of what a red run met.
     process.stderr.write(answer)
     console.error(why)
+    if (status !== 0) {
+      console.error(`cargo-shadow tests: the whole output of this failing run is in ${keep(answer)}`)
+    }
     return status
   }
   if (asked.status !== 0 && asked.status !== NO_DELEGATED_CONTROL_GROUP) {
@@ -67,7 +112,11 @@ const main = () => {
 
   if (asked.status === 0) {
     // The gate as it always was: every test runs, and a test that cannot get the scope it needs fails the run.
-    return spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast'], { stdio: 'inherit' }).status ?? 1
+    const ran = await streamed(['--no-fail-fast'])
+    if (ran.status !== 0) {
+      console.error(`\ncargo-shadow tests: the whole output of this failing run is in ${keep(text(ran))}`)
+    }
+    return ran.status ?? 1
   }
 
   // This host has none. Which tests need one cannot be known without running them, and a run that lets them into its totals counts
@@ -129,6 +178,7 @@ const main = () => {
   }
   if (problems.length > 0) {
     console.error(['', 'cargo-shadow tests: this run does not report, because its accounting is wrong:', ...problems.map((problem) => { return `  ${problem}`; }), ''].join('\n'))
+    console.error(`cargo-shadow tests: the whole output of this failing run is in ${keep(reportedText)}`)
     return 1
   }
   console.error(
@@ -139,11 +189,14 @@ const main = () => {
       '',
     ].join('\n'),
   )
+  if (reported.status !== 0) {
+    console.error(`cargo-shadow tests: the whole output of this failing run is in ${keep(reportedText)}`)
+  }
   return reported.status === null ? 1 : reported.status
 }
 
 // The exit code is set and the script ends, never process.exit(): an exit taken while captured output is still queued loses it.
-process.exitCode = main()
+process.exitCode = await main()
 // mise appends extra task arguments to the end of this script, where they would be read as TypeScript, so this task takes no arguments.
 '''
 
