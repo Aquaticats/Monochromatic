@@ -94,6 +94,11 @@
 //!   and the store's write under the first free name.
 //! - `service_commit_args_editor_opening.rs`:
 //!   whether a `commit` command line opens an editor.
+//! - `service_commit_args_message.rs`:
+//!   the commit message Git makes of the `-m` texts when no editor opens.
+//! - `service_commit_args_fixed_message.rs`:
+//!   the arguments of a commit Git built,
+//!   rewritten so that the message the person already typed is used as it is and no editor opens.
 //! - `service_commit_args.rs`:
 //!   which commit command lines the commit service covers,
 //!   and the message they stand for.
@@ -145,6 +150,15 @@
 //!   index entries and conclusion state.
 //! - `service_land_finish_branch_questions.rs`:
 //!   the answers service land finish branch questions holds.
+//! - `service_land_follow_index_reset_git_questions.rs`:
+//!   how one step of the index reset asks Git,
+//!   on a thread and on the runtime,
+//!   and what answer it stands for.
+//! - `service_land_follow_index_reset_paths.rs`:
+//!   the paths a reset installs, as the bytes `git reset` reads them:
+//!   a pathspec that names one path from the top of the worktree,
+//!   a NUL-separated list of them,
+//!   and the names that differ between two commits.
 //! - `service_land_follow_index_reset.rs`:
 //!   the answers service land follow index reset holds.
 //! - `service_land_follow.rs`:
@@ -237,6 +251,10 @@
 //! - `service_prepare_own_git_steps.rs`:
 //!   the two Git steps a service preparation starts itself,
 //!   with the face a task of the runtime asks.
+//! - `service_pruned_tree_closures.rs`:
+//!   whether a tree, a tree below it or a blob in any of them is gone from the object store,
+//!   for every root of a batch,
+//!   and what that walk cost.
 //! - `service_pruned.rs`:
 //!   how a commit headed for the service notices that its prepared content was removed before it landed.
 //! - `service_replay_conclusion.rs`:
@@ -338,6 +356,9 @@
 //!   the staging files of the index lock.
 //! - `service_index_attempts.rs`:
 //!   the attempts and the wait of an acquisition of the index lock.
+//! - `service_index_claim_files.rs`:
+//!   what the file at one slot of the claim chain is,
+//!   read without following a link or waiting on a pipe.
 //! - `service_index_claim.rs`:
 //!   the claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 //! - `service_index_lock.rs`:
@@ -552,6 +573,11 @@
 //! - `service_claim_watch_watched_repositories.rs`:
 //!   what the notes of one claim watch say about the repositories they name,
 //!   read without keeping anything.
+//! - `service_claim_watch_reading_the_store.rs`:
+//!   the reading of the claim watch's store:
+//!   which notes are kept,
+//!   which are removed as certainly of no use,
+//!   and what could not be read at all.
 //! - `service_claim_watch.rs`:
 //!   the Git directories the service looks at by itself when it starts.
 //! - `service_claim_watch_note_within_a_ceiling.rs`:
@@ -597,6 +623,15 @@
 //!   with the line the person reads for it.
 //! - `service_work_drain_deletes_subvolumes.rs`:
 //!   the drain's step that deletes the subvolumes a removal handed over.
+//! - `service_work_drain_claims_by_kind.rs`:
+//!   the claimed items of one batch of the drain,
+//!   sorted into one list per kind of work.
+//! - `service_work_drain_housekeeping_and_upkeep.rs`:
+//!   the housekeeping one round of the drain may start,
+//!   the upkeep it runs on the items it holds,
+//!   and what it leaves for a later round.
+//! - `service_work_drain_look_again.rs`:
+//!   when the caller of one drain of a work directory must look at it again.
 //! - `service_work_drain_pending_claims.rs`:
 //!   drains the pending items of one work directory.
 //! - `service_work_items_side_by_side.rs`:
@@ -689,6 +724,12 @@ pub mod service_claim_watch_watched_repositories;
 /// the landing's own write,
 /// and the store's write under the first free name.
 pub mod service_claim_watch_writing_a_note;
+
+/// The reading of the claim watch's store:
+/// which notes are kept,
+/// which are removed as certainly of no use,
+/// and what could not be read at all.
+pub mod service_claim_watch_reading_the_store;
 
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
@@ -841,6 +882,17 @@ pub mod service_land_copy;
 
 pub mod service_land_follow;
 
+/// How one step of the index reset asks Git,
+/// on a thread and on the runtime,
+/// and what answer it stands for.
+pub mod service_land_follow_index_reset_git_questions;
+
+/// The paths a reset installs, as the bytes `git reset` reads them:
+/// a pathspec that names one path from the top of the worktree,
+/// a NUL-separated list of them,
+/// and the names that differ between two commits.
+pub mod service_land_follow_index_reset_paths;
+
 /// What a landing does when its branch write is refused while the branch is still where the batch found it:
 /// the reference locks that stand,
 /// the bounded wait for a live holder,
@@ -988,6 +1040,13 @@ pub mod service_prepare_own_git_steps;
 
 /// The smaller steps of a service preparation.
 pub mod service_prepare_changes_config_and_pathspec_steps;
+
+/// The commit message Git makes of the `-m` texts when no editor opens.
+pub mod service_commit_args_message;
+
+/// The arguments of a commit Git built,
+/// rewritten so that the message the person already typed is used as it is and no editor opens.
+pub mod service_commit_args_fixed_message;
 
 /// Which commit command lines the commit service covers,
 /// and the message they stand for.
@@ -1210,6 +1269,18 @@ pub mod service_work_drain_waves_of_one_kind;
 /// and each settled as its own answer comes.
 pub mod service_work_drain_pushes_of_each_branch;
 
+/// The claimed items of one batch of the drain,
+/// sorted into one list per kind of work.
+pub mod service_work_drain_claims_by_kind;
+
+/// The housekeeping one round of the drain may start,
+/// the upkeep it runs on the items it holds,
+/// and what it leaves for a later round.
+pub mod service_work_drain_housekeeping_and_upkeep;
+
+/// When the caller of one drain of a work directory must look at it again.
+pub mod service_work_drain_look_again;
+
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
@@ -1295,6 +1366,11 @@ pub mod service_head;
 /// answered from the object store without starting Git.
 pub mod service_built_checks;
 
+/// Whether a tree, a tree below it or a blob in any of them is gone from the object store,
+/// for every root of a batch,
+/// and what that walk cost.
+pub mod service_pruned_tree_closures;
+
 /// How a commit headed for the service notices that its prepared content was removed before it landed.
 pub mod service_pruned;
 
@@ -1332,6 +1408,10 @@ pub mod service_commit_waiting_notices;
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.
 pub mod service_index_unheld_removal;
+
+/// What the file at one slot of the claim chain is,
+/// read without following a link or waiting on a pipe.
+pub mod service_index_claim_files;
 
 /// The claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 pub mod service_index_claim;

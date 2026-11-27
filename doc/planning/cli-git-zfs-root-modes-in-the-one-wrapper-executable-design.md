@@ -32,7 +32,10 @@ the round of 2026-11-24T23:55:40-05:00.
 It writes the eleven answers in,
 and it folds the list a same-vendor second pass made of the sixth revision,
 `read-of-the-sixth-one-program-revision.md`
-in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`.
+in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That pass is not an independent review:
 it is a second reader of the same vendor.
 It found no High item,
@@ -5420,7 +5423,10 @@ The closest pairs, kept because a reader will ask:
 ## Appendix: where the probe transcripts are
 
 This round's folder,
-`/home/user/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/keep/`:
+`/home/user/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `state-so-far.md`:
   what the round did,
@@ -5529,7 +5535,10 @@ the fourth round's
 and the third round's variant logs.
 
 The sixth read's folder,
-`/home/user/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`,
+`/home/user/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 holds the document this round answers and its logs,
 each cited where it is used:
 `read-of-the-sixth-one-program-revision.md`,
@@ -5546,7 +5555,10 @@ each cited where it is used:
 with its `work/keep/variants/` beside them.
 
 The fourth read's folder,
-`/home/user/temp/agent/gate-review-zfs-root-modes-fourth-revision-2026-11-24/keep/`,
+`/home/user/temp/agent/gate-review-zfs-root-modes-fourth-revision-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 holds the two upstream libzfs sources this design reads:
 `upstream-libzfs_mount-zfs-2.4.4.c` (the read-only-pool rule at `:428`) and
 `upstream-libzfs_dataset-zfs-2.4.4.c`.

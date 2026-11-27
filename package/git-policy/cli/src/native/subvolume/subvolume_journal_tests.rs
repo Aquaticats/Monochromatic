@@ -7,6 +7,10 @@
 //! and the deletion.
 
 use super::*;
+use crate::subvolume_journal_writes::{
+    PRIVATE_FILE_MODE,
+    write_exclusively,
+};
 use crate::test_support::{
     fixture,
     remove,

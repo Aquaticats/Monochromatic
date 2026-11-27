@@ -41,7 +41,6 @@ use super::support::{
     ServiceLaunch,
     hermetic,
     read_from_start,
-    restart_ended_services,
     service_runtime,
     wrapper_first_path,
 };
@@ -418,106 +417,21 @@ pub(super) fn run_unsettled(
     };
 }
 
-/// Sets a flag when dropped,
-/// so a thread that polls it ends however its owner ends.
-struct EndsOnDrop<'flag>(&'flag AtomicBool);
-
-impl Drop for EndsOnDrop<'_> {
-    fn drop(&mut self) {
-        self.0.store(true, Ordering::SeqCst);
-    }
-}
-
-/// How often the stand-in for the user manager looks for an ended service.
-const MANAGER_POLL: Duration = Duration::from_millis(5);
-
-/// Runs `body` while a stand-in for the user manager starts again any service of the fixture that ends,
-/// as production does at the
-///  next connection to the manager's socket.
-pub(super) fn with_manager<T>(
-    fixture: &Fixture,
-    body: impl FnOnce() -> T,
-) -> T {
-    let finished: AtomicBool = AtomicBool::new(false);
-    return std::thread::scope(|scope| {
-        scope.spawn(|| {
-            while !finished.load(Ordering::SeqCst) {
-                restart_ended_services(fixture);
-                std::thread::sleep(MANAGER_POLL);
-            }
-        });
-        let _ends = EndsOnDrop(&finished);
-        return body();
-    });
-}
-
-/// How many cases of a sweep run at once:
-/// enough to finish a sweep in seconds,
-/// few enough to leave the host its other work.
-pub(super) const SWEEP_WIDTH: usize = 6;
-
-/// Runs `check` over every item,
-/// `SWEEP_WIDTH` at a time,
-/// and returns the messages of the items that failed.
-pub(super) fn in_batches<T: Sync>(
-    items: &[T],
-    check: &(dyn Fn(&T) -> Result<(), String> + Sync),
-) -> Vec<String> {
-    let failures: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-    for batch in items.chunks(SWEEP_WIDTH) {
-        std::thread::scope(|scope| {
-            for item in batch {
-                let collected: &std::sync::Mutex<Vec<String>> = &failures;
-                scope.spawn(move || {
-                    if let Err(message) = check(item) {
-                        collected.lock().expect("failure list").push(message);
-                    }
-                });
-            }
-        });
-    }
-    return failures.into_inner().expect("failure list");
-}
-
-/// What a failure of a fault control says:
-/// the message it was given and what the fixture's services logged.
+/// What:
+///  The stand-in for the user manager,
+///  and the batches a sweep of fault cases runs in with the message a failure carries,
+///  in files of their own because this one is over the per-file line budget.
 /// Why:
-///   A service that refuses a step or ends says so only on its own standard error,
-/// and a sweep runs several cases at once,
-/// so the line that settles one failure is mixed with the other cases';
-/// the log the fixture keeps says which service said what
-/// (the recorded failure of 2026-11-07 could be settled only by such a line).
+///  A control that named one of them through this module goes on working,
+///  and each file describes one job rather than the watched run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const said = `${message}\n${serviceLog(fixture)}`;
+/// export * from './binary_fault_run_a_stand_in_for_the_manager.rs';
+/// export * from './binary_fault_run_a_sweep_of_fault_cases.rs';
 /// ```
-pub(super) fn with_service_log(
-    fixture: &Fixture,
-    message: String,
-) -> String {
-    return format!(
-        "{message}\n{}",
-        super::support::service_log(fixture.root.as_path())
-    );
-}
-
-/// The verdict of a fault case,
-/// with the fixture's service log carried on a failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const verdict = raw.ok ? raw : { error: withServiceLog(fixture, raw.error) };
-/// ```
-pub(super) fn keeping_the_service_log(
-    fixture: &Fixture,
-    verdict: Result<(), String>,
-) -> Result<(), String> {
-    return match verdict {
-        Ok(()) => Ok(()),
-        Err(message) => Err(with_service_log(fixture, message)),
-    };
-}
+pub(super) use crate::fault_run_a_stand_in_for_the_manager::*;
+pub(super) use crate::fault_run_a_sweep_of_fault_cases::*;
 
 /// The pressure ends:
 /// the running services are stopped,

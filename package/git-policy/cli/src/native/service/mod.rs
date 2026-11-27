@@ -171,12 +171,22 @@
 //!   the D-Bus wire format of the user manager client:
 //!   calls written,
 //!   replies read.
+//! - `systemd_dbus_manager_calls_and_error_names.rs`:
+//!   the names the user manager is reached by on the session bus,
+//!   and the error names a bus or the manager answers with.
+//! - `systemd_dbus_failures.rs`:
+//!   the failures of a bus exchange as the call's own error.
+//! - `systemd_dbus_session_address.rs`:
+//!   where the session bus of this user listens.
 //! - `systemd_dbus.rs`:
 //!   a minimal D-Bus client for the user session bus,
 //!   for the provisioning's two calls.
 //! - `service_provision_host_and_manager.rs`:
 //!   what provisioning knows about the machine and the manager it asks,
 //!   the earlier release's unit names and what a refused call is to the person.
+//! - `service_files_of_a_stopped_instance_note_beside_socket.rs`:
+//!   the note an instance's units leave beside their socket,
+//!   and the two functions that write it.
 //! - `service_instance.rs`:
 //!   which commit service instance belongs to a worktree:
 //!   its name,
@@ -192,13 +202,26 @@
 //! - `service_journal_record_age.rs`:
 //!   how old a finished batch's record is,
 //!   read from the clocks the record itself carries.
+//! - `service_journal_file_names.rs`:
+//!   what the files of the commit service's journal are called.
+//! - `service_journal_records_read_from_the_journal.rs`:
+//!   what the records in the journal say,
+//!   and which of them a journal may forget.
 //! - `service_journal.rs`:
 //!   the commit service's journal and its restart decisions.
 //! - `service_busy.rs`:
 //!   what the one landing thread is doing,
 //!   shared with the threads that talk to waiting clients.
+//! - `service_busy_words_of_a_stuck_write.rs`:
+//!   the words a waiting client reads about the write the landing thread is inside.
+//! - `service_busy_withdrawals_beside_a_stuck_write.rs`:
+//!   a withdrawal answered on the connection thread while the landing thread is stuck,
+//!   and the ceiling that bounds what the record remembers.
 //! - `service_busy_step_record_on_this_thread.rs`:
 //!   the step record a thread keeps while it is inside a write that is never ended.
+//! - `service_files_of_a_stopped_instance_journal_entries.rs`:
+//!   the entries of a stopped instance's journal,
+//!   and what each name in it says about keeping the journal.
 //! - `service_files_of_a_stopped_instance.rs`:
 //!   the files an instance of the commit service keeps between runs:
 //!   the note beside its socket,
@@ -250,6 +273,9 @@
 //!   it tells the waiters,
 //!   waits a bounded time for the Gits and the landing in flight,
 //!   and ends the process by the signal.
+//! - `service_server_work_loop_awaiting_storage_steps.rs`:
+//!   the storage steps the after-commit loop makes as jobs of the blocking pool:
+//!   the notes a restart looks at and the plan of the pushes a service owes.
 //! - `service_server_work_loop_awaiting.rs`:
 //!   the same loop as a task of the runtime,
 //!   with the two storage steps only it makes.
@@ -262,6 +288,9 @@
 //! - `service_instances_with_units_and_their_survey.rs`:
 //!   which instances have a unit or a journal,
 //!   and the survey that sorts them by whether their worktree is gone.
+//! - `service_own_worktree_gone_and_the_stop_of_its_socket.rs`:
+//!   what a service knows about its own worktree,
+//!   and the stop of its own socket when that worktree is gone.
 //! - `service_units_of_removed_worktrees.rs`:
 //!   the commit service units of worktrees that no longer exist:
 //!   which worktree a unit belongs to,
@@ -333,6 +362,11 @@
 //!   the wrapper's own provisioning of the commit service's socket activation.
 //! - `service_client_settings_and_watches.rs`:
 //!   the settings of one client run and the watch on the service manager's answer.
+//! - `service_client_reach_service_the_waits_own_steps.rs`:
+//!   the wait for a service that speaks this release:
+//!   the start it asks the manager for,
+//!   what it says,
+//!   and how it ends.
 //! - `service_client_reach_service.rs`:
 //!   reaching the commit service,
 //!   starting it when nothing answers.
@@ -445,6 +479,13 @@ pub mod wait_ceilings;
 /// shared with the threads that talk to waiting clients.
 pub mod service_busy;
 
+/// The words a waiting client reads about the write the landing thread is inside.
+pub mod service_busy_words_of_a_stuck_write;
+
+/// A withdrawal answered on the connection thread while the landing thread is stuck,
+/// and the ceiling that bounds what the record remembers.
+pub mod service_busy_withdrawals_beside_a_stuck_write;
+
 /// The answers the landing board gives and the checks on the names it keeps.
 pub mod service_busy_answers_and_name_checks;
 
@@ -454,6 +495,13 @@ pub mod service_busy_step_record_on_this_thread;
 /// The connection of one waiting client,
 /// answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
+
+/// What the files of the commit service's journal are called.
+pub mod service_journal_file_names;
+
+/// What the records in the journal say,
+/// and which of them a journal may forget.
+pub mod service_journal_records_read_from_the_journal;
 
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
@@ -576,6 +624,10 @@ pub mod service_server_own_worktree_question;
 
 /// The loop of the commit service's after-commit work asked by a thread outside the runtime.
 pub mod service_server_work_loop;
+
+/// The storage steps the after-commit loop makes as jobs of the blocking pool:
+/// the notes a restart looks at and the plan of the pushes a service owes.
+pub mod service_server_work_loop_awaiting_storage_steps;
 
 /// The same loop as a task of the runtime,
 /// with the two storage steps only it makes.
@@ -722,6 +774,12 @@ pub mod service_client_connect_within_a_bound;
 /// The settings of one client run and the watch on the service manager's answer.
 pub mod service_client_settings_and_watches;
 
+/// The wait for a service that speaks this release:
+/// the start it asks the manager for,
+/// what it says,
+/// and how it ends.
+pub mod service_client_reach_service_the_waits_own_steps;
+
 /// Reaching the commit service,
 /// starting it when nothing answers.
 pub mod service_client_reach_service;
@@ -729,6 +787,10 @@ pub mod service_client_reach_service;
 /// What provisioning knows about the machine and the manager it asks,
 /// the earlier release's unit names and what a refused call is to the person.
 pub mod service_provision_host_and_manager;
+
+/// The note an instance's units leave beside their socket,
+/// and the two functions that write it.
+pub mod service_files_of_a_stopped_instance_note_beside_socket;
 
 /// The retirement of the single service of the earlier releases.
 pub mod service_provision_earlier_service_retirement;
@@ -774,6 +836,16 @@ pub mod service_provision_slow_manager_notice;
 /// Checks and writes on the unit files of the commit service.
 pub mod service_provision_unit_file_ownership_and_writes;
 
+/// The names the user manager is reached by on the session bus,
+/// and the error names a bus or the manager answers with.
+pub mod systemd_dbus_manager_calls_and_error_names;
+
+/// The failures of a bus exchange as the call's own error.
+pub mod systemd_dbus_failures;
+
+/// Where the session bus of this user listens.
+pub mod systemd_dbus_session_address;
+
 /// A minimal D-Bus client for the user session bus,
 /// for the provisioning's two calls.
 pub mod systemd_dbus;
@@ -799,6 +871,10 @@ pub mod service_address_of_a_worktree;
 /// and the journal that remembers its batches.
 pub mod service_files_of_a_stopped_instance;
 
+/// The entries of a stopped instance's journal,
+/// and what each name in it says about keeping the journal.
+pub mod service_files_of_a_stopped_instance_journal_entries;
+
 /// The two folders every question about an instance's units is asked of,
 /// which worktree a unit instance belongs to,
 /// and whether that worktree is certainly gone.
@@ -807,6 +883,10 @@ pub mod service_unit_folders_and_the_worktree_of_an_instance;
 /// Which instances have a unit or a journal,
 /// and the survey that sorts them by whether their worktree is gone.
 pub mod service_instances_with_units_and_their_survey;
+
+/// What a service knows about its own worktree,
+/// and the stop of its own socket when that worktree is gone.
+pub mod service_own_worktree_gone_and_the_stop_of_its_socket;
 
 /// The commit service units of worktrees that no longer exist:
 /// which worktree a unit belongs to,

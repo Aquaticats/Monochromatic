@@ -31,16 +31,39 @@
 //! const outcome = await reviewLanded({ names, sha, subject, read, options, clock });
 //! ```
 
+use super::standards_review_run_containment::{
+    ABANDONED,
+    IDLE,
+    RUNNING,
+};
+/// The runner that contains one review,
+/// what it answered,
+/// and the one runner the service uses.
+pub use super::standards_review_run_containment::{
+    Contained,
+    Containment,
+    RUNNER,
+};
+/// The one gateway step of a review.
+use super::standards_review_run_gateway_step::ask_gateway;
+/// What the run was told,
+/// and where it reads a landed commit.
+pub use super::standards_review_run_options::{
+    ALLOW_VARIABLE,
+    EnvironmentVariables,
+    KEY_VARIABLES,
+    LOG_VARIABLE,
+    LandedCommitReader,
+    NO_KEY_MESSAGE,
+    ReviewOptions,
+    SHA_VARIABLE,
+    full_review_requested,
+    options_from_environment,
+};
 use crate::iso_time::format_iso_milliseconds;
 use crate::standards_review_append::{
     deliver,
     names_commit,
-};
-use crate::standards_review_client::{
-    Gateway,
-    Reply,
-    SCRIPT_QUIET_WINDOW,
-    post_decision,
 };
 use crate::standards_review_entry::{
     ReviewEntry,
@@ -54,169 +77,15 @@ use crate::standards_review_input::{
     ReviewInput,
     build_input,
     plan_for,
-    shared_log_path,
 };
-use crate::standards_review_request::{
-    ENDPOINT,
-    Judged,
-    read_answer,
-    request_body,
-};
+use crate::standards_review_request::Judged;
 use crate::standards_review_text::seconds_with_tenth;
-use std::path::{
-    Path,
-    PathBuf,
-};
+/// The two channels the two faces of waiting use.
 use std::sync::mpsc;
+/// How long an extra wait after a job the caller gave up on may take.
 use std::time::Duration;
+/// The awaited face's one-shot value.
 use tokio::sync::oneshot;
-
-/// The environment variable that points the log at a disposable fixture.
-pub const LOG_VARIABLE: &str = "SHADOW_REVIEW_LOG";
-
-/// The variable that replays a commit other than `HEAD`.
-pub const SHA_VARIABLE: &str = "SHADOW_REVIEW_SHA";
-
-/// The variable that asks for the full review route,
-/// which this port does not run.
-pub const ALLOW_VARIABLE: &str = "SHADOW_REVIEW_ALLOW";
-
-/// The credential variable,
-/// and the stop-hook credential used when it is unset.
-pub const KEY_VARIABLES: &[&str] = crate::service_review_key::KEY_VARIABLES;
-
-/// The failure line written when no credential is set.
-pub const NO_KEY_MESSAGE: &str =
-    "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_REMINDER_LLMGATEWAY_API_KEY in the environment";
-
-/// What:
-///  What the run was told:
-/// the log,
-/// the credential,
-/// and where and how long to call.
-/// Why:
-///   Production passes `ENDPOINT` and `SCRIPT_QUIET_WINDOW`;
-/// tests pass a loopback URL and a short quiet window.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ReviewOptions = { logPath: string; apiKey?: string; endpoint: string; quietWindow: number };
-/// ```
-#[derive(Clone, Debug)]
-pub struct ReviewOptions {
-    /// Where entries are appended.
-    pub log_path: PathBuf,
-    /// The bearer credential;
-    /// `None` writes the no-credential failure entry.
-    pub api_key: Option<String>,
-    /// The decisions endpoint.
-    pub endpoint: String,
-    /// How long the gateway call may stay silent before it is ended.
-    pub quiet_window: Duration,
-    /// The longest the gateway call runs in all,
-    /// whatever it shows (`wait_ceilings.rs`,
-    /// `REVIEW_CALL_CEILING`).
-    pub call_ceiling: Duration,
-    /// A PEM authority replacing the embedded roots (tests only).
-    pub trusted_pem: Option<Vec<u8>>,
-}
-
-/// What:
-///  Where the review's options read the variables of the environment.
-///  A `trait` is a named set of methods that different types can each supply,
-/// like a TypeScript `interface`.
-/// Why:
-///   The service's environment carries no secret:
-/// the key comes in the wake message,
-/// so the lookup holds the key it was given and
-///  answers every other name from the environment.
-/// A struct that holds the key implements this.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface EnvironmentVariables { variable(name: string): string | undefined }
-/// ```
-pub trait EnvironmentVariables {
-    /// The value the name has,
-    /// or nothing.
-    fn variable(
-        &self,
-        name: &str,
-    ) -> Option<String>;
-}
-
-/// What:
-///  Where the review reads the patch and the files of a landed commit.
-/// Why:
-///   The read needs the Git context,
-/// the directory,
-/// the commit and the subject,
-/// and tests fix the answer;
-/// a struct that holds
-///  them implements this.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface LandedCommitReader { read(files: ChangedPath[]): LandedCommit } // throws a reason
-/// ```
-pub trait LandedCommitReader {
-    /// Read the commit as far as `files` (its code files) are concerned.
-    fn read(
-        &self,
-        files: &[ChangedPath],
-    ) -> Result<LandedCommit, String>;
-}
-
-/// What:
-///  The options the script's environment variables give for a repository:
-/// the live log under `common_dir` unless
-///  `SHADOW_REVIEW_LOG` names another,
-/// and the first credential variable that is set,
-/// even to an empty text.
-/// Why:
-///   `??` in the script falls back only for an unset variable,
-/// so an empty first key does not fall back.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/monochromatic-git-policy-cli/standards-review-shadow.md`;
-/// ```
-pub fn options_from_environment(
-    common_dir: &Path,
-    variable: &dyn EnvironmentVariables,
-) -> ReviewOptions {
-    let log_path: PathBuf = match variable.variable(LOG_VARIABLE) {
-        Some(configured) => PathBuf::from(configured),
-        None => shared_log_path(common_dir),
-    };
-    // The second variable is read only when the first is unset, as `.or_else(...)` did.
-    let api_key: Option<String> = match variable.variable(KEY_VARIABLES[0]) {
-        Some(key) => Some(key),
-        None => variable.variable(KEY_VARIABLES[1]),
-    };
-    return ReviewOptions {
-        log_path,
-        api_key,
-        endpoint: String::from(ENDPOINT),
-        quiet_window: SCRIPT_QUIET_WINDOW,
-        call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING,
-        trusted_pem: None,
-    };
-}
-
-/// What:
-///  Whether the environment asks for the full-review route,
-/// which this port leaves out.
-/// Why:
-///   The caller says so in a notice instead of silently running the cheap route.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.env.SHADOW_REVIEW_ALLOW === '1'
-/// ```
-pub fn full_review_requested(variable: &dyn Fn(&str) -> Option<String>) -> bool {
-    return variable(ALLOW_VARIABLE).as_deref() == Some("1");
-}
 
 /// What:
 ///  How a run ended.
@@ -249,68 +118,6 @@ pub enum ReviewOutcome {
     /// The log already names this commit (a repeated item):
     /// nothing was asked and nothing was added.
     AlreadyLogged,
-}
-
-/// What:
-///  The verdict of a gateway step that failed:
-/// no top choice,
-/// and the message in the outcome line.
-/// Why:
-///   `ask_gateway` reports every failure (no key,
-/// no reply,
-/// an unreadable reply) the same way,
-/// and a named function
-///  stands where a closure that built this verdict stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lunaFailed = (message: string) => ({ top: '', outcome: `Luna failed: ${message}` });
-/// ```
-fn luna_failed(message: String) -> Judged {
-    return Judged {
-        top: String::new(),
-        outcome: format!("Luna failed: {message}"),
-    };
-}
-
-/// What:
-///  The gateway step:
-/// the verdict,
-/// or the failure message,
-/// and the elapsed milliseconds.
-/// Why:
-///   A missing credential fails before any connection,
-/// as in the script.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { ...fetch... } catch (error) { lunaOutcome = 'Luna failed: ' + message }
-/// ```
-fn ask_gateway(
-    input: &ReviewInput,
-    options: &ReviewOptions,
-) -> Judged {
-    let key: &str = options.api_key.as_deref().unwrap_or("");
-    if key.is_empty() {
-        return luna_failed(String::from(NO_KEY_MESSAGE));
-    }
-    let gateway: Gateway = Gateway {
-        url: options.endpoint.as_str(),
-        api_key: key,
-        quiet_window: options.quiet_window,
-        ceiling: options.call_ceiling,
-        trusted_pem: options.trusted_pem.as_deref(),
-    };
-    let reply: Result<Reply, String> =
-        post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
-    let read: Result<Judged, String> = match reply {
-        Ok(answer) => read_answer(answer.status, answer.body.as_str()),
-        Err(message) => Err(message),
-    };
-    return match read {
-        Ok(judged) => judged,
-        Err(message) => luna_failed(message),
-    };
 }
 
 /// What:
@@ -380,175 +187,6 @@ pub fn review_landed(
         Ok(_) => ReviewOutcome::Reviewed(judged),
         Err(message) => ReviewOutcome::Unwritable(message),
     };
-}
-
-/// What:
-///  How a contained job ended.
-/// Why:
-///   The caller words a panic and a ceiling differently:
-/// one is a defect,
-/// the other is a review that ran as long as the service lets
-///  one run;
-/// and a thread the system refused is neither,
-/// so it carries its own sentence.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Contained<T> = { kind: 'finished'; value: T } | { kind: 'panicked' } | { kind: 'no-thread'; sentence: string } | { kind: 'ceiling'; afterMs: number };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Contained<T> {
-    /// The job returned its value.
-    Finished(T),
-    /// The job panicked.
-    Panicked,
-    /// The job's thread could not be started,
-    /// with the sentence that says what refused it:
-    /// nothing ran,
-    /// so this is no defect of the job.
-    NoThread(String),
-    /// The job was still running when the ceiling passed;
-    /// the caller stopped waiting and the job's thread is left to end with the
-    ///  process,
-    /// or when the step it is stuck in returns.
-    /// Until then the runner counts it as outstanding.
-    CeilingReached(Duration),
-    /// The job was not started:
-    /// an earlier one that the caller stopped waiting for is still running and may hold what this one
-    ///  needs (the review log),
-    /// so no second thread is added behind it.
-    Busy,
-}
-
-/// What:
-///  The one job a runner has at a time,
-/// as the runner knows it:
-/// nothing,
-/// one the caller waits for,
-/// or one the caller stopped waiting
-///  for and that still runs.
-/// Why:
-///   Admission,
-/// the caller's give-up and the worker's end are each one atomic change of this state,
-/// so two callers cannot both be
-///  admitted (sol-2 round 2,
-/// P2),
-/// and a worker that panics releases it by a guard that runs on unwinding (sol-2 round 2,
-/// P1).
-/// The
-///  production runner is `RUNNER`;
-/// a control makes its own,
-/// so the controls do not see one another's jobs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class Containment { state: 'idle' | 'running' | 'abandoned' }
-/// ```
-pub struct Containment {
-    /// The generation of the job in the high bits and `IDLE`,
-    /// `RUNNING` or `ABANDONED` in the low two.
-    /// A change names the generation
-    ///  it expects,
-    /// so a caller that gave up on job 7 can never change the state of job 8.
-    state: std::sync::atomic::AtomicU64,
-    /// How long the caller waits for the value of a job that ended as the caller gave up,
-    /// when the value does not come:
-    /// the short
-    ///  extra wait of the owner's "7 s (Recommended)" (`wait_ceilings.rs`,
-    /// `SHORT_EXTRA_WAIT`).
-    /// A job that released the runner has
-    ///  not necessarily sent its value,
-    /// so the wait is bounded (sol-1 round 3,
-    /// P1 D).
-    handoff_wait: Duration,
-    /// A control holds this to keep a worker between its release of the runner and its send of the value.
-    #[cfg(test)]
-    handoff_gate: std::sync::Mutex<()>,
-}
-
-/// No job.
-const IDLE: u64 = 0;
-/// A job the caller waits for.
-const RUNNING: u64 = 1;
-/// A job the caller stopped waiting for,
-/// still running.
-const ABANDONED: u64 = 2;
-/// The bits of the state that hold the status.
-const STATUS: u64 = 3;
-
-/// The runner of the service's reviews.
-pub static RUNNER: Containment = Containment::new();
-
-impl Containment {
-    /// A runner with no job.
-    pub const fn new() -> Self {
-        return Self::with_handoff_wait(crate::wait_ceilings::SHORT_EXTRA_WAIT);
-    }
-
-    /// A runner whose caller waits `handoff_wait` for the value of a job that ended as the caller gave up.
-    pub const fn with_handoff_wait(handoff_wait: Duration) -> Self {
-        return Self {
-            state: std::sync::atomic::AtomicU64::new(IDLE),
-            handoff_wait,
-            #[cfg(test)]
-            handoff_gate: std::sync::Mutex::new(()),
-        };
-    }
-
-    /// How many jobs the caller stopped waiting for are still running:
-    /// zero or one.
-    pub fn outstanding(&self) -> usize {
-        return usize::from(
-            self.state.load(std::sync::atomic::Ordering::SeqCst) & STATUS == ABANDONED,
-        );
-    }
-
-    /// Admit a job when there is none:
-    /// the new generation,
-    /// or nothing.
-    fn admit(&self) -> Option<u64> {
-        use std::sync::atomic::Ordering;
-        let seen: u64 = self.state.load(Ordering::SeqCst);
-        if seen & STATUS != IDLE {
-            return None;
-        }
-        let generation: u64 = (seen >> 2) + 1;
-        return match self.state.compare_exchange(
-            seen,
-            (generation << 2) | RUNNING,
-            Ordering::SeqCst,
-            Ordering::SeqCst,
-        ) {
-            Ok(_) => Some(generation),
-            Err(_) => None,
-        };
-    }
-
-    /// Move job `generation` from `from` to `to`;
-    /// false when the state is not that job's in that status any more.
-    fn change(
-        &self,
-        generation: u64,
-        from: u64,
-        to: u64,
-    ) -> bool {
-        use std::sync::atomic::Ordering;
-        return self
-            .state
-            .compare_exchange(
-                (generation << 2) | from,
-                (generation << 2) | to,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            )
-            .is_ok();
-    }
-}
-
-impl Default for Containment {
-    fn default() -> Self {
-        return Self::new();
-    }
 }
 
 /// Releases a runner's job when it goes out of scope,

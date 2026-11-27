@@ -22,7 +22,10 @@ and no other part of this design asks the owner for the home.
 This is the second round of this document.
 Its first commit `3428988897` wrote it,
 and a gate review from another vendor read it whole at tip `4daa6c66ce`
-(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`).
+(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That review called this document O and found sixteen findings,
 two findings about the set of three record designs (X1 and X2),
 fourteen points where the three record designs disagree,
@@ -43,7 +46,10 @@ The three should go to the owner together.
 
 This is the third round.
 The second gate pass read it at `987a3ba886`
-(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`)
+(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 with the two sibling documents beside it,
 and found every first finding fixed.
 Its verdict on this document is "fit after the listed fixes",
@@ -67,7 +73,10 @@ and the questions change because the review's set of four replaces this document
 
 This is the fourth round.
 The diff check read it at `0973f2fc2a`
-(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`)
+(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 with the two sibling documents and the three decision records of the evening,
 and found the merged list the one order it asked for and the tail sound.
 Its verdict on this document is "fit after the listed fixes",
@@ -425,27 +434,42 @@ each read at the commit named with `git show <branch>:<path>` and none read as d
 
 The review:
 
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `4daa6c66ce`.
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `987a3ba886`,
   the two sibling documents at `76849b8d9b` and `428040d45d`,
   and OpenZFS at `zfs-2.4.4`.
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `0973f2fc2a`,
   the two sibling documents at `b4dc758a76` and `c144499eb9`,
   and the three decision records of the evening.
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-third-check.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-third-check.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `8cc31f59a4`,
   the plan design at `1921adf393`,
   the binding design at `ec2b0b14f3`,
   the dirty-main design at `4dadc5fd27`,
   and the seven answers and the later decisions.
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fourth-check.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fourth-check.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `22be706b09`,
   the binding design at `07858070bb`,
@@ -453,7 +477,10 @@ The review:
   the dirty-main design at `04ce55a880`,
   `fb92dda66d` and `5237948862`,
   and the dirty-main record's "Three further answers".
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-sixth-read-before-acceptance.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-sixth-read-before-acceptance.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `f17455b786`,
   the binding design at `3b4b073f0e`,
@@ -1055,7 +1082,10 @@ where F16's leavings precedent pays one open of a folder that is not there.
 
 Three probes.
 Their logs are under
-`~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/`,
+`~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 and each states its own time.
 
 ### P1 The snapshot properties the identity proof reads
@@ -4822,12 +4852,27 @@ The other sibling designs this design depends on and does not read as decided:
 
 The review and the round's kept evidence:
 
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`.
-- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/host-zfs-snapshot-facts.log`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
+- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/host-zfs-snapshot-facts.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which F13 reads.
-- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/host-zfs-missing-dataset.log`,
+- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/host-zfs-missing-dataset.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which F14 reads.
-- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/defer-read.txt`,
+- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/defer-read.txt`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which F13 reads.
-- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/git-worktree-slot-reuse-exitcodes.log`,
+- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/git-worktree-slot-reuse-exitcodes.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which F15 reads.

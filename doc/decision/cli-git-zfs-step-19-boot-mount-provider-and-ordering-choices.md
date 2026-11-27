@@ -5,8 +5,16 @@ The design these answers settle is
 `doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`,
 fourth revision merged as `ba7ade182a`.
 The choices were put to the owner after a same-vendor read of that revision
-(`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/keep/read-of-the-fourth-step-19-revision.md`),
+(`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/keep/read-of-the-fourth-step-19-revision.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 whose corrections were written into the questions.
+Two of them shaped the answers below:
+it split V8 into two questions,
+whether logins wait and what the time bounds are,
+and it gave those bounds as the design's B option's numbers,
+5 min start and 1 min stop.
 Every behaviour cited below was measured in throwaway Fedora guests,
 whose logs the design names.
 
