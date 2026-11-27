@@ -70,44 +70,59 @@ fn published() -> Option<(Option<String>, Instant, Option<String>)> {
 /// This is the control that the line names what the add is doing:
 /// before the add's timing published its steps,
 /// a waiting add had nothing to name.
+/// The step a notice names is one record for the whole process,
+/// so this control runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// in the run's own process a control beside it that enters a step
+/// or finishes its add replaces what this one published,
+/// and the readings below then answer another control's step or nothing
+/// (measured 2026-11-27: a threaded run of this module failed two of its controls,
+/// `left: 0` and a line without the plain route,
+/// while `--test-threads=1` passed all eight).
 #[test]
 fn the_add_s_own_steps_are_what_the_notice_names() {
-    let root: PathBuf = crate::test_support::fixture("add-standing-published");
-    add_timing::begin(root.join("common"), false);
-    the_add_ended();
-    assert_eq!(
-        published(),
-        None,
-        "no step is published before one is entered"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_add_s_own_steps_are_what_the_notice_names",
+        || {
+            let root: PathBuf = crate::test_support::fixture("add-standing-published");
+            add_timing::begin(root.join("common"), false);
+            the_add_ended();
+            assert_eq!(
+                published(),
+                None,
+                "no step is published before one is entered"
+            );
+            let outer: bool = add_timing::begin_step("copyIgnored");
+            let inner: bool = add_timing::begin_step("git ls-files");
+            assert_eq!(
+                published().map(|(step, _began, _plain)| {
+                    return step;
+                }),
+                Some(Some(String::from("git ls-files"))),
+                "the innermost step is the one named"
+            );
+            add_timing::end_step(inner);
+            assert_eq!(
+                published().map(|(step, _began, _plain)| {
+                    return step;
+                }),
+                Some(Some(String::from("copyIgnored"))),
+                "leaving a step names the one that encloses it"
+            );
+            add_timing::end_step(outer);
+            assert_eq!(
+                published().map(|(step, _began, _plain)| {
+                    return step;
+                }),
+                Some(None),
+                "between two steps nothing is named"
+            );
+            add_timing::finish(0);
+            assert_eq!(published(), None, "an add that answered publishes no step");
+            crate::test_support::remove(root.as_path());
+        },
     );
-    let outer: bool = add_timing::begin_step("copyIgnored");
-    let inner: bool = add_timing::begin_step("git ls-files");
-    assert_eq!(
-        published().map(|(step, _began, _plain)| {
-            return step;
-        }),
-        Some(Some(String::from("git ls-files"))),
-        "the innermost step is the one named"
-    );
-    add_timing::end_step(inner);
-    assert_eq!(
-        published().map(|(step, _began, _plain)| {
-            return step;
-        }),
-        Some(Some(String::from("copyIgnored"))),
-        "leaving a step names the one that encloses it"
-    );
-    add_timing::end_step(outer);
-    assert_eq!(
-        published().map(|(step, _began, _plain)| {
-            return step;
-        }),
-        Some(None),
-        "between two steps nothing is named"
-    );
-    add_timing::finish(0);
-    assert_eq!(published(), None, "an add that answered publishes no step");
-    crate::test_support::remove(root.as_path());
 }
 
 /// A notice is printed once the add has been in a step longer than the wait,
@@ -116,36 +131,49 @@ fn the_add_s_own_steps_are_what_the_notice_names() {
 /// The wait here is a few milliseconds instead of the shipped seconds,
 /// so the control's bound is the machine's speed
 /// rather than a person's patience.
+/// The step the notice prints is one record for the whole process,
+/// so this control runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// in the run's own process a control beside it that finishes its add
+/// ends the step this one published,
+/// and the notice then prints nothing
+/// (measured 2026-11-27: a threaded run of this module failed this control `left: 0`, `right: 1`).
 #[test]
 fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {
-    let root: PathBuf = crate::test_support::fixture("add-standing-printed");
-    add_timing::begin(root.join("common"), false);
-    let standing: bool = add_timing::begin_step("gitAdd");
-    let (announced, heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
-    let notice: StandingNotice = begin_after(
-        Box::new(move |line: String| {
-            let _sent = announced.send(line);
-        }),
-        Duration::from_millis(1),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value",
+        || {
+            let root: PathBuf = crate::test_support::fixture("add-standing-printed");
+            add_timing::begin(root.join("common"), false);
+            let standing: bool = add_timing::begin_step("gitAdd");
+            let (announced, heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
+            let notice: StandingNotice = begin_after(
+                Box::new(move |line: String| {
+                    let _sent = announced.send(line);
+                }),
+                Duration::from_millis(1),
+            );
+            let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
+            assert_eq!(said.len(), 1, "one line arrives once the wait is over");
+            assert!(
+                said[0].starts_with(
+                    "monochromatic-git-policy-cli: `git worktree add` is still running after "
+                ),
+                "{}",
+                said[0]
+            );
+            assert!(
+                said[0].contains("it is in the `git worktree add` this command started"),
+                "the line names what the add is doing: {}",
+                said[0]
+            );
+            drop(notice);
+            add_timing::end_step(standing);
+            add_timing::finish(0);
+            crate::test_support::remove(root.as_path());
+        },
     );
-    let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
-    assert_eq!(said.len(), 1, "one line arrives once the wait is over");
-    assert!(
-        said[0].starts_with(
-            "monochromatic-git-policy-cli: `git worktree add` is still running after "
-        ),
-        "{}",
-        said[0]
-    );
-    assert!(
-        said[0].contains("it is in the `git worktree add` this command started"),
-        "the line names what the add is doing: {}",
-        said[0]
-    );
-    drop(notice);
-    add_timing::end_step(standing);
-    add_timing::finish(0);
-    crate::test_support::remove(root.as_path());
 }
 
 /// The line says how long the add has run and what it is doing,
@@ -219,43 +247,57 @@ fn the_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise() {
 ///
 /// Both notices run in one process with a wait of one tick,
 /// so the difference the control reads is the quietness and not the wait.
+/// The step both notices name is one record for the whole process,
+/// so this control runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// in the run's own process a control beside it that enters a step
+/// or finishes its add replaces what this one published,
+/// and the loud add then prints no line.
 #[test]
 fn a_quiet_add_prints_no_line_and_a_loud_one_does() {
-    let root: PathBuf = crate::test_support::fixture("add-standing-quiet");
-    add_timing::begin(root.join("common"), false);
-    let standing: bool = add_timing::begin_step("gitAdd");
-    let (quiet_lines, quiet_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
-    let quiet: StandingNotice = begin_quiet_after(
-        true,
-        Box::new(move |line: String| {
-            let _sent = quiet_lines.send(line);
-        }),
-        Duration::from_millis(1),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_quiet_add_prints_no_line_and_a_loud_one_does",
+        || {
+            let root: PathBuf = crate::test_support::fixture("add-standing-quiet");
+            add_timing::begin(root.join("common"), false);
+            let standing: bool = add_timing::begin_step("gitAdd");
+            let (quiet_lines, quiet_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) =
+                channel();
+            let quiet: StandingNotice = begin_quiet_after(
+                true,
+                Box::new(move |line: String| {
+                    let _sent = quiet_lines.send(line);
+                }),
+                Duration::from_millis(1),
+            );
+            assert_eq!(
+                read_lines(&quiet_heard, 1, Duration::from_millis(500)),
+                Vec::<String>::new(),
+                "a quiet add prints no line"
+            );
+            drop(quiet);
+            let (loud_lines, loud_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) =
+                channel();
+            let loud: StandingNotice = begin_quiet_after(
+                false,
+                Box::new(move |line: String| {
+                    let _sent = loud_lines.send(line);
+                }),
+                Duration::from_millis(1),
+            );
+            let said: Vec<String> = read_lines(&loud_heard, 1, Duration::from_secs(10));
+            assert_eq!(
+                said.len(),
+                1,
+                "the same add without `--quiet` prints the line: {said:?}"
+            );
+            drop(loud);
+            add_timing::end_step(standing);
+            add_timing::finish(0);
+            crate::test_support::remove(root.as_path());
+        },
     );
-    assert_eq!(
-        read_lines(&quiet_heard, 1, Duration::from_millis(500)),
-        Vec::<String>::new(),
-        "a quiet add prints no line"
-    );
-    drop(quiet);
-    let (loud_lines, loud_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
-    let loud: StandingNotice = begin_quiet_after(
-        false,
-        Box::new(move |line: String| {
-            let _sent = loud_lines.send(line);
-        }),
-        Duration::from_millis(1),
-    );
-    let said: Vec<String> = read_lines(&loud_heard, 1, Duration::from_secs(10));
-    assert_eq!(
-        said.len(),
-        1,
-        "the same add without `--quiet` prints the line: {said:?}"
-    );
-    drop(loud);
-    add_timing::end_step(standing);
-    add_timing::finish(0);
-    crate::test_support::remove(root.as_path());
 }
 /// What:
 ///  Standard error as a pipe whose reader takes nothing,
@@ -456,6 +498,13 @@ const TIME_FOR_ONE_REFUSED_WRITE: Duration = Duration::from_millis(200);
 /// The owner's rule is "nothing should ever wait forever or
 ///  indefinitely",
 /// and the notice's own comment says it must not hold the add's stream.
+/// The step a notice names is one record for the whole process,
+/// and so is descriptor 2,
+/// so this control runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// there the pipe it makes is the one every write of that process uses,
+/// and no control beside it can end the step this one published
+/// (issue 6533's threaded runs failed it 8 of 14 times at `the notice began its own write`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -464,52 +513,59 @@ const TIME_FOR_ONE_REFUSED_WRITE: Duration = Duration::from_millis(200);
 /// ```
 #[test]
 fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
-    use std::sync::mpsc::Sender;
-    use std::time::Instant;
-    let shipped: String = notice_line(Some("gitAdd"), ADD_STANDING_NOTICE_AFTER);
-    // One byte less than the notice's own line, so not one piece of its write fits and a shorter one does.
-    let room: usize = shipped.len() - 1;
-    let (pipe, restored): (StandardErrorWithRoom, RestoredStandardError) =
-        standard_error_with_room(room);
-    a_step_began(Some("gitAdd"), Instant::now());
-    let (began, beginning): (Sender<()>, Receiver<()>) = channel();
-    let sink = Box::new(move |notice: String| {
-        // The sink says its write is about to start, so the control knows the notice is in it rather
-        // than hoping a sleep was long enough.
-        let _sent = began.send(());
-        write_to_standard_error(notice);
-    });
-    let notice: StandingNotice = begin_quiet_after(false, sink, Duration::from_millis(1));
-    assert!(
-        beginning.recv_timeout(Duration::from_secs(10)).is_ok(),
-        "the notice began its own write"
-    );
-    // One write of a line longer than the room cannot return, so by this sleep the notice's thread is
-    // inside its write rather than about to make it.
-    std::thread::sleep(TIME_FOR_ONE_REFUSED_WRITE);
-    // The add's own report, written after the notice is inside a write the pipe refuses.
-    let (reported, wrote): (
-        Sender<std::io::Result<usize>>,
-        Receiver<std::io::Result<usize>>,
-    ) = channel();
-    let add: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        let _sent = reported.send(std::io::Write::write(&mut std::io::stderr(), b"x"));
-    });
-    let answer: Option<std::io::Result<usize>> = wrote.recv_timeout(Duration::from_secs(5)).ok();
-    // Closing the read end releases the notice's write, and with it any lock the add's write waits on.
-    drop(pipe);
-    add.join().expect("the add's thread");
-    drop(notice);
-    the_add_ended();
-    // Descriptor 2 is the test harness's again before the control answers, so its own words reach the
-    // reader that would otherwise be the pipe this control filled.
-    drop(restored);
-    assert_eq!(
-        answer.map(|written| {
-            return written.ok();
-        }),
-        Some(Some(b"x".len())),
-        "the add's own byte is written while the notice's line waits in the pipe"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_notice_stuck_in_its_write_holds_no_lock_the_add_needs",
+        || {
+            use std::sync::mpsc::Sender;
+            use std::time::Instant;
+            let shipped: String = notice_line(Some("gitAdd"), ADD_STANDING_NOTICE_AFTER);
+            // One byte less than the notice's own line, so not one piece of its write fits and a shorter one does.
+            let room: usize = shipped.len() - 1;
+            let (pipe, restored): (StandardErrorWithRoom, RestoredStandardError) =
+                standard_error_with_room(room);
+            a_step_began(Some("gitAdd"), Instant::now());
+            let (began, beginning): (Sender<()>, Receiver<()>) = channel();
+            let sink = Box::new(move |notice: String| {
+                // The sink says its write is about to start, so the control knows the notice is in it rather
+                // than hoping a sleep was long enough.
+                let _sent = began.send(());
+                write_to_standard_error(notice);
+            });
+            let notice: StandingNotice = begin_quiet_after(false, sink, Duration::from_millis(1));
+            assert!(
+                beginning.recv_timeout(Duration::from_secs(10)).is_ok(),
+                "the notice began its own write"
+            );
+            // One write of a line longer than the room cannot return, so by this sleep the notice's thread is
+            // inside its write rather than about to make it.
+            std::thread::sleep(TIME_FOR_ONE_REFUSED_WRITE);
+            // The add's own report, written after the notice is inside a write the pipe refuses.
+            let (reported, wrote): (
+                Sender<std::io::Result<usize>>,
+                Receiver<std::io::Result<usize>>,
+            ) = channel();
+            let add: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+                let _sent = reported.send(std::io::Write::write(&mut std::io::stderr(), b"x"));
+            });
+            let answer: Option<std::io::Result<usize>> =
+                wrote.recv_timeout(Duration::from_secs(5)).ok();
+            // Closing the read end releases the notice's write, and with it any lock the add's write waits on.
+            drop(pipe);
+            add.join().expect("the add's thread");
+            drop(notice);
+            the_add_ended();
+            // Descriptor 2 is the test harness's again before the control answers, so its own words reach the
+            // reader that would otherwise be the pipe this control filled.
+            drop(restored);
+            assert_eq!(
+                answer.map(|written| {
+                    return written.ok();
+                }),
+                Some(Some(b"x".len())),
+                "the add's own byte is written while the notice's line waits in the pipe"
+            );
+        },
     );
 }
 
@@ -615,6 +671,14 @@ fn every_step_an_add_enters_has_its_own_sentence() {
 /// and it names the
 ///  folder the destination needs,
 /// which is what the ladder's own reading refused.
+/// The route a notice names is one record for the whole process,
+/// so this control runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// in the run's own process a control beside it that finishes its add
+/// ends the route this one published,
+/// and the line then names a step without the fact that put the add on the plain route
+/// (measured 2026-11-27: a threaded run of this module failed this control at
+/// `the line names the route and the fact that caused it`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -622,58 +686,65 @@ fn every_step_an_add_enters_has_its_own_sentence() {
 /// ```
 #[test]
 fn a_plain_add_s_line_names_git_s_own_add_and_the_missing_folder() {
-    let root: PathBuf = crate::test_support::fixture("add-standing-plain-route");
-    // A destination inside a folder that was never made: the ladder's reading of the destination
-    // refuses it, and the wrapper runs Git plainly.
-    let destination: PathBuf = root.join("missing-parent").join("topic");
-    let clause: String = crate::worktree_add_plan::why_a_plain_add(Some(destination.as_path()));
-    let (announced, heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
-    the_plain_add_began(clause.as_str(), Instant::now());
-    let notice: StandingNotice = begin_quiet_after(
-        false,
-        Box::new(move |line: String| {
-            let _sent = announced.send(line);
-        }),
-        Duration::from_millis(1),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_plain_add_s_line_names_git_s_own_add_and_the_missing_folder",
+        || {
+            let root: PathBuf = crate::test_support::fixture("add-standing-plain-route");
+            // A destination inside a folder that was never made: the ladder's reading of the destination
+            // refuses it, and the wrapper runs Git plainly.
+            let destination: PathBuf = root.join("missing-parent").join("topic");
+            let clause: String =
+                crate::worktree_add_plan::why_a_plain_add(Some(destination.as_path()));
+            let (announced, heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
+            the_plain_add_began(clause.as_str(), Instant::now());
+            let notice: StandingNotice = begin_quiet_after(
+                false,
+                Box::new(move |line: String| {
+                    let _sent = announced.send(line);
+                }),
+                Duration::from_millis(1),
+            );
+            let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
+            assert_eq!(
+                said.len(),
+                1,
+                "the plainly run add says it is still running: {said:?}"
+            );
+            assert!(
+                said[0].contains("it is in the `git worktree add` this command started"),
+                "the line names the step: {}",
+                said[0]
+            );
+            assert!(
+                said[0].contains("and this add runs as plain Git because the folder it goes in"),
+                "the line names the route and the fact that caused it: {}",
+                said[0]
+            );
+            assert!(
+                said[0].contains("does not exist yet"),
+                "the missing folder is named: {}",
+                said[0]
+            );
+            drop(notice);
+            // The route outlives the step it was published with: the ladder's own steps are entered by the add
+            // that runs plainly too, and every line while it waits says it is plain.
+            a_step_began(Some("recordDestination"), Instant::now());
+            let later: String = notice_line_on_route(
+                Some("recordDestination"),
+                ADD_STANDING_NOTICE_AFTER,
+                Some(clause.as_str()),
+            );
+            assert!(
+                later.contains("it is recording where the new worktree goes"),
+                "the line names the step the add is in: {later}"
+            );
+            assert!(
+                later.contains("and this add runs as plain Git because the folder it goes in"),
+                "and still says why it is plain: {later}"
+            );
+            the_add_ended();
+            crate::test_support::remove(root.as_path());
+        },
     );
-    let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
-    assert_eq!(
-        said.len(),
-        1,
-        "the plainly run add says it is still running: {said:?}"
-    );
-    assert!(
-        said[0].contains("it is in the `git worktree add` this command started"),
-        "the line names the step: {}",
-        said[0]
-    );
-    assert!(
-        said[0].contains("and this add runs as plain Git because the folder it goes in"),
-        "the line names the route and the fact that caused it: {}",
-        said[0]
-    );
-    assert!(
-        said[0].contains("does not exist yet"),
-        "the missing folder is named: {}",
-        said[0]
-    );
-    drop(notice);
-    // The route outlives the step it was published with: the ladder's own steps are entered by the add
-    // that runs plainly too, and every line while it waits says it is plain.
-    a_step_began(Some("recordDestination"), Instant::now());
-    let later: String = notice_line_on_route(
-        Some("recordDestination"),
-        ADD_STANDING_NOTICE_AFTER,
-        Some(clause.as_str()),
-    );
-    assert!(
-        later.contains("it is recording where the new worktree goes"),
-        "the line names the step the add is in: {later}"
-    );
-    assert!(
-        later.contains("and this add runs as plain Git because the folder it goes in"),
-        "and still says why it is plain: {later}"
-    );
-    the_add_ended();
-    crate::test_support::remove(root.as_path());
 }
