@@ -854,6 +854,233 @@ does not exist.
   "where the wrapper package's TypeScript unit tests and lint run":
   whichever place is chosen should run `package/container-limit/core`'s `test:unit` too.
 
+## Open: choices the rounds that ended between 10:46 and 11:35 on 2026-11-27 left (recorded 2026-11-27T11:42:35-05:00)
+
+None of these holds a round or a release:
+each waits here while the release work moves,
+and each names what was done meanwhile.
+The reports they come from are in scratch and expire,
+so what a choice needs is stated here.
+
+### Which slice a TypeScript check's scope is counted in (issue 6605)
+
+`native:ts-checks` starts each check in a scope of its own,
+with bounds its round measured
+(merged as `71d9ce980d`).
+The scope sits in systemd's default slice,
+`app.slice`,
+which is where the recorded readings were taken.
+A round starts the check from inside `agent-work.slice`,
+the slice agent work is counted in,
+and the check's own scope then leaves that slice.
+
+- A:
+  every check's scope goes in `agent-work.slice`.
+  A round's checks are then counted with the rest of its work;
+  a person's own run from a terminal is counted as agent work too.
+- B:
+  the scope takes the slice its caller is in.
+  A round's checks are counted in `agent-work.slice` and a person's are not;
+  it is one more thing the runner reads at its start.
+- C:
+  as now,
+  `app.slice`.
+  The readings stand as measured;
+  a round's checks are outside the slice the machine's limits for agents are set on.
+
+Ranking:
+B > A > C.
+B beats A because a person's run stays out of the agents' count.
+A beats C because nearly every run of these checks is a round's,
+and C leaves those uncounted.
+
+### Whether a check that passed while held at its quota says so (issue 6605)
+
+The runner prints the scope's counters only for a check that did not pass,
+because its sentence is that a bound and not a test failed.
+
+- A:
+  one line for a passed check too,
+  with the share of periods it was held.
+  A slow pass explains itself;
+  on a busy host most runs print it.
+- B:
+  as now.
+  A pass prints nothing more;
+  a pass that took several times as long says nothing about why.
+
+Ranking:
+A > B,
+because the counters are read either way,
+and the line is what tells a slow host from a slow check.
+
+### One set of bounds for every check, or one per check (issue 6605)
+
+One set serves every check:
+1,024 tasks,
+4 GiB,
+800% of one CPU,
+sized for the unit suite.
+`lint:types` peaks at 39 tasks.
+
+- A:
+  as now,
+  one set.
+  One measurement to keep;
+  a runaway in a small check is caught only at the large check's bound.
+- B:
+  each check carries bounds from its own measurement.
+  A runaway is caught near the check's own need;
+  every bound is one more that a grown check can meet,
+  which is what issue 6605 was.
+
+Ranking:
+A > B,
+because the defect on record is a bound set too low,
+and no check has yet run away.
+
+### Whether the package guide's rule on a test's children binds its TypeScript tests (issues 6596 and 6608)
+
+`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md` states this for the Rust crate
+(its section `Own every child, end it on every path`),
+and in another section that every wait has a deadline:
+
+```text
+A helper whose state a control reads is one the control ends,
+never one that ends by itself:
+```
+
+Two defects of that class were found in the package's TypeScript tests on 2026-11-27
+(issue 6596,
+merged as `a7dff54ebc`;
+issue 6608,
+whose round runs and was told the question is open).
+
+- A:
+  the guide says its sections on children and waits bind the package's TypeScript tests too,
+  and one round reads those tests against them.
+- B:
+  the guide stays the Rust crate's,
+  and each TypeScript defect of the class is fixed as it is found.
+
+Ranking:
+A > B,
+because a brief can then cite the rule,
+and two finds in one day say more are there.
+
+### Whether the repository link's messages name this machine's drive (wrapper alpha.48 pass)
+
+The pass found one machine's wording in what the wrapper prints.
+Its round reworded the two messages the finding named
+("so the repository link is not checked for this command",
+merged as `14e54207de`)
+and left the rest:
+the walk's messages still say "the 860 drive is not mounted yet",
+"ready (on the 860)",
+"the link to the 860 is gone" and the like
+(`repository_link_check_walk.rs`),
+and a moved-aside copy is named with the suffix `.nvme-before-860-`.
+Those sentences are pinned by `repository_link_shared_table.json`,
+which `package/repository-link/check` reads too,
+and that package's own README says it checks
+"whether the repository link to the 860 drive is usable".
+
+- A:
+  both packages' messages and the shared table say
+  "the drive recorded for this repository" and "the repository link";
+  the suffix on disk stays.
+  No message names one machine;
+  the suffix still does,
+  on copies only this machine's move has made.
+- B:
+  A,
+  and new moves write a suffix that names no drive,
+  with both suffixes read.
+  Nothing new names the machine;
+  every reader of old copies handles two names.
+- C:
+  as now.
+  The check is this machine's and says so;
+  another user of the wrapper reads about a drive they do not have.
+
+Ranking:
+A > B > C.
+A beats B because the old suffix is on disk either way,
+and a second one doubles what a reader must know.
+B beats C because C keeps one machine's drive in messages every user of the wrapper can meet.
+
+### Whether `pnpm-shadow` and `search-shadow` are released as alphas now (issue 6609, recorded 2026-11-27T11:46:49-05:00)
+
+`mpm-shadow`'s copies of the rule the four shadow tools share had changed alone,
+so the comparison in `search-shadow`'s tests failed on `main`.
+The round for issue 6609 carried the change into the other three crates
+(merged as `7e215a38c2`):
+each package's own test task now runs the comparison,
+and `pnpm-shadow` and `search-shadow` print a refused start with the system's own answer and its kind
+(`could not start <path>: No such file or directory (os error 2)`,
+where the path stood twice before).
+The text that marks a program as a shadow did not change,
+so the installed shadows still know each other.
+The standing answer on alphas names the wrapper,
+`cargo-shadow`,
+`mpm-shadow` and the Pi driver packages
+(`doc/decision/cli-git-wrapper-owner-answers-2026-11-12.md`,
+item 4.9);
+these two are not in it,
+so neither was released.
+`cargo-shadow` and `mpm-shadow` take the change in their next alphas.
+
+- A:
+  release `pnpm-shadow` `0.1.3-alpha.2` and `search-shadow` `0.2.3-alpha.2` now,
+  lock and install them,
+  and count both under the standing answer from here on.
+  The installed tools then match `main`;
+  two more tools release without a question each time.
+- B:
+  release both this once,
+  and ask again next time.
+- C:
+  leave both at their installed alphas until a change of their own asks for a release.
+  The installed tools print the older line;
+  nothing else differs.
+
+Ranking:
+A > B > C.
+A beats B because the four tools change together whenever their shared rule does,
+and a question per release would hold two of the four behind the others.
+B beats C because an installed tool that differs from `main` is one more thing a reader of a report must know.
+
+### Picks the coordinating session made, veto open
+
+- `cargo-shadow`,
+  from the round that held the refusal's branches with controls (`9c4c5aac42`).
+  The listing does not read each group a second time after it opens its descriptors:
+  the refusal's decision does not rest on the names,
+  and a second read doubles the reads under the listing's own bound.
+  The README says what the descriptor proves in its place.
+- `cargo-shadow`,
+  same round.
+  Two things it asked are taken as work,
+  because the repository's rules already decide them:
+  the refusal for a scope the manager collected goes on to say what the next run does with the kept journal,
+  and the `Nothing` leftover gets a control that does not depend on a race.
+  Both go to the round that follows the `0.1.5-alpha.13` pass.
+- Issue 6605's readings stay where its round put them,
+  beside the values and in the package README;
+  no copy goes to `doc/planning/`.
+
+### Waiting on a pass before they are put
+
+`mpm-shadow`'s republish (issue 6600,
+merged as `08ae962d40`,
+released in `0.2.7-alpha.14`) left three things its round named:
+two installs in two process namespaces that share one toolchain root can each read the other's live directory as a dead installer's,
+because a process id and its start time are read in the reader's own namespace;
+hidden names written by builds before this one carry no start time and are left alone for ever;
+and `mpm-shadow prune --toolchain` does not remove hidden directories.
+The `0.2.7-alpha.14` pass was asked each of them,
+and the choice is written here once it has answered.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.

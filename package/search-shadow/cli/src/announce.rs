@@ -46,6 +46,8 @@ use std::process::{
     ExitStatus,
 };
 
+/// Imports the line a refused start prints.
+use crate::refused_start::describe_refused_start;
 /// Imports the check of the chosen program and the arrival marker of its start.
 use crate::shadow_identity::{
     StartMode,
@@ -385,11 +387,10 @@ pub fn run_announced(
     // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
     let vetted: Vetted = match vet(real) {
         Ok(checked) => checked,
-        Err(reason) => {
-            eprintln!(
-                "search-shadow: could not start {}: {reason}",
-                real.display()
-            );
+        // What:     `Err(refusal)` is the start check's refusal, printed as the one line this crate prints for it.
+        // Why:      The announcement needs a child, so this instance is still here to say what it found.
+        Err(refusal) => {
+            eprintln!("{}", describe_refused_start(real, &refusal.to_string()));
             return EXEC_FAILED_EXIT_CODE;
         }
     };
@@ -399,7 +400,7 @@ pub fn run_announced(
     let status: ExitStatus = match command.status() {
         Ok(status) => status,
         Err(error) => {
-            eprintln!("search-shadow: could not start {}: {error}", real.display());
+            eprintln!("{}", describe_refused_start(real, &error.to_string()));
             return EXEC_FAILED_EXIT_CODE;
         }
     };

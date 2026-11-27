@@ -170,7 +170,9 @@ the same check and the same marker are in the other three shadows
 `package/pnpm-shadow/cli`),
 as byte-identical copies of `src/shadow_identity.rs` and its parts under `src/shadow_identity/`:
 the four crates share no dependency,
-and `tests/shadow_identity_copies.rs` fails when the copies differ.
+and `tests/shadow_identity_copies.rs`, itself one of the copies,
+fails when they differ,
+in whichever of the four packages runs it.
 
 ## Version and help
 

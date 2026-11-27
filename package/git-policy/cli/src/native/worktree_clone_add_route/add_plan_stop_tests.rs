@@ -22,6 +22,12 @@
 //! ```
 
 use super::refuse_while_a_plan_stands;
+use crate::testing::a_planted_plans_snapshot_line::a_line_of;
+use crate::testing::the_destruction_plan_a_control_plants::{
+    ACloneAPlanNames,
+    APlanAControlPlants,
+    plant,
+};
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
@@ -30,6 +36,11 @@ use crate::worktree_clone_record_settling::settling_fixtures::{
     ScriptedProbe,
     a_guid,
     an_identity,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::PlanAttempt;
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
 };
 use std::path::PathBuf;
 
@@ -47,14 +58,17 @@ const CLONE: &str = "tank/worktree-clones/topic";
 const CLONE_GUID: u64 = 4_821_193_048_571_903_102;
 
 /// The plan's first attempt line,
-/// which is the line a plan's first write records for one snapshot.
-const A_PLANNED_ATTEMPT: &str =
-    "tuple=snapshot 0 planned 9021019283746501 41 - name=tank/worktree-clones/topic@origin";
+/// which is the line a plan's first write records for one snapshot,
+/// and the only line a plan that witnesses nothing destroyed holds.
+const A_PLANS_FIRST_WRITE: &[(u64, SnapshotOutcome)] = &[(0, SnapshotOutcome::Planned)];
 
-/// An attempt line whose outcome says the snapshot was destroyed,
+/// One snapshot's history where the removal planned it and then proved it
+/// gone,
 /// which is what a plan that witnesses a destroy holds.
-const A_DESTROYED_ATTEMPT: &str =
-    "tuple=snapshot 1 destroyed 9021019283746501 41 - name=tank/worktree-clones/topic@origin";
+const PLANNED_AND_THEN_DESTROYED: &[(u64, SnapshotOutcome)] = &[
+    (0, SnapshotOutcome::Planned),
+    (1, SnapshotOutcome::Destroyed),
+];
 
 /// The words the settling command's line always carries.
 const THE_SETTLING_WORDS: &str = "settle-worktree-clone-record";
@@ -69,12 +83,15 @@ const THE_WAIT_WORDS: &str = "wait: the pool cannot prove the clone's absence";
 const THE_CANCEL_WORDS: &str = "cancel-worktree-removal";
 
 /// One add's route,
-/// with its plan folder made under a fixture's common directory and no plan in it.
+/// with a fixture's common directory and no plan in it.
+///
+/// Why no plan folder:
+///  a repository that never saw a removal has none,
+///  and the removal's own writer makes it `0700` when it publishes the first plan.
 fn a_route(name: &str) -> RouteFacts {
     let root: PathBuf = crate::test_support::fixture(name);
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("the common directory");
-    std::fs::create_dir_all(plans_folder(common.as_path()).as_path()).expect("the plan folder");
     return RouteFacts {
         source_root: root.clone(),
         common_dir: common,
@@ -87,37 +104,44 @@ fn a_route(name: &str) -> RouteFacts {
     };
 }
 
-/// One plan written into a route's plan folder,
-/// under the name the plan's grammar gives it,
-/// which is the clone's canonical GUID.
+/// The clone a fixture add would make,
+/// in one route's own common directory.
+fn this_adds_clone(route: &RouteFacts) -> ACloneAPlanNames {
+    return ACloneAPlanNames::a_fixture_clone(
+        route.common_dir.as_path(),
+        CLONE,
+        a_guid(CLONE_GUID),
+    );
+}
+
+/// The plan one snapshot's history makes of this add's clone,
+/// with the head word the control names,
+/// published by the removal's own writer.
 fn write_plan(
     route: &RouteFacts,
-    clone: &str,
-    head: &str,
-    attempts: &[&str],
+    head: HeadWord,
+    history: &[(u64, SnapshotOutcome)],
 ) -> PathBuf {
-    let mut text: String = format!(
-        "{PLAN_HEADER}\ncloneDataset={clone}\ncloneGuid={CLONE_GUID}\nhead={head}\nattempts={}\n",
-        attempts.len()
-    );
-    for attempt in attempts {
-        text.push_str(attempt);
-        text.push('\n');
-    }
-    let path: PathBuf =
-        plans_folder(route.common_dir.as_path()).join(a_guid(CLONE_GUID).file_name());
-    std::fs::write(path.as_path(), text.as_bytes()).expect("the fixture plan");
-    return path;
+    let first_write: APlanAControlPlants =
+        APlanAControlPlants::a_removals_first_write(this_adds_clone(route));
+    let attempts: Vec<PlanAttempt> = history
+        .iter()
+        .map(|(attempt, outcome)| return a_line_of(&first_write, *attempt, *outcome))
+        .collect();
+    let mut plan: APlanAControlPlants = first_write;
+    plan.attempts = attempts;
+    plan.head = head;
+    return plant(&plan);
 }
 
 /// One add's route with a plan naming this add's clone already written.
 fn a_route_with_a_plan(
     name: &str,
-    head: &str,
-    attempts: &[&str],
+    head: HeadWord,
+    history: &[(u64, SnapshotOutcome)],
 ) -> RouteFacts {
     let route: RouteFacts = a_route(name);
-    write_plan(&route, CLONE, head, attempts);
+    write_plan(&route, head, history);
     return route;
 }
 
@@ -153,7 +177,13 @@ fn the_absence_is_unproved() -> ScriptedProbe {
 
 /// The five head words a plan's grammar allows,
 /// which every state control walks.
-const EVERY_HEAD_WORD: &[&str] = &["present", "requested", "gone", "refused", "unknown"];
+const EVERY_HEAD_WORD: &[HeadWord] = &[
+    HeadWord::Present,
+    HeadWord::Requested,
+    HeadWord::Gone,
+    HeadWord::Refused,
+    HeadWord::Unknown,
+];
 
 /// A clone that stands is the removal's state whatever the plan's head word says,
 /// because the plan's clone is the same clone however the demand was recorded.
@@ -161,14 +191,15 @@ const EVERY_HEAD_WORD: &[&str] = &["present", "requested", "gone", "refused", "u
 fn a_clone_that_stands_names_the_removal_for_every_head_word() {
     for &head in EVERY_HEAD_WORD {
         let route: RouteFacts = a_route_with_a_plan(
-            format!("stop-stands-{head}").as_str(),
+            format!("stop-stands-{}", head.word()).as_str(),
             head,
-            &[A_PLANNED_ATTEMPT],
+            A_PLANS_FIRST_WRITE,
         );
         let sentence: String = the_stop(&route, &the_clone_stands());
         assert!(
             sentence.contains(THE_REMOVAL_WORDS),
-            "a clone that stands names the removal beside head `{head}`: {sentence}"
+            "a clone that stands names the removal beside head `{}`: {sentence}",
+            head.word()
         );
         assert!(
             !sentence.contains(THE_SETTLING_WORDS),
@@ -184,16 +215,17 @@ fn a_clone_that_stands_names_the_removal_for_every_head_word() {
 fn a_proved_absence_names_the_command_the_head_word_gives() {
     for &head in EVERY_HEAD_WORD {
         let route: RouteFacts = a_route_with_a_plan(
-            format!("stop-gone-{head}").as_str(),
+            format!("stop-gone-{}", head.word()).as_str(),
             head,
-            &[A_PLANNED_ATTEMPT],
+            A_PLANS_FIRST_WRITE,
         );
         let sentence: String = the_stop(&route, &the_clone_is_proved_gone());
-        let settling: bool = matches!(head, "present" | "refused");
+        let settling: bool = matches!(head, HeadWord::Present | HeadWord::Refused);
         assert_eq!(
             sentence.contains(THE_SETTLING_WORDS),
             settling,
-            "head `{head}` names the settling command only where the head still stands: {sentence}"
+            "head `{}` names the settling command only where the head still stands: {sentence}",
+            head.word()
         );
         assert_eq!(
             sentence.contains(THE_REMOVAL_WORDS),
@@ -210,12 +242,12 @@ fn a_proved_absence_names_the_command_the_head_word_gives() {
 fn an_unproved_absence_names_the_settling_command_unless_the_head_is_gone() {
     for &head in EVERY_HEAD_WORD {
         let route: RouteFacts = a_route_with_a_plan(
-            format!("stop-unproved-{head}").as_str(),
+            format!("stop-unproved-{}", head.word()).as_str(),
             head,
-            &[A_PLANNED_ATTEMPT],
+            A_PLANS_FIRST_WRITE,
         );
         let sentence: String = the_stop(&route, &the_absence_is_unproved());
-        if head == "gone" {
+        if head == HeadWord::Gone {
             assert!(
                 sentence.contains(THE_WAIT_WORDS),
                 "a `gone` head the pool cannot prove is the finish pass's wait line: {sentence}"
@@ -228,7 +260,8 @@ fn an_unproved_absence_names_the_settling_command_unless_the_head_is_gone() {
         }
         assert!(
             sentence.contains(THE_SETTLING_WORDS),
-            "head `{head}` with an unproved absence names the settling command: {sentence}"
+            "head `{}` with an unproved absence names the settling command: {sentence}",
+            head.word()
         );
         assert!(
             sentence.contains("the pool answered EIO"),
@@ -241,7 +274,8 @@ fn an_unproved_absence_names_the_settling_command_unless_the_head_is_gone() {
 /// so the sentence names the records a person reads and no command.
 #[test]
 fn a_reused_name_names_the_records_and_no_command() {
-    let route: RouteFacts = a_route_with_a_plan("stop-reused", "present", &[A_PLANNED_ATTEMPT]);
+    let route: RouteFacts =
+        a_route_with_a_plan("stop-reused", HeadWord::Present, A_PLANS_FIRST_WRITE);
     let probe: ScriptedProbe =
         ScriptedProbe::answering(vec![(CLONE, an_identity(CLONE_GUID + 1, 7))]);
     let sentence: String = the_stop(&route, &probe);
@@ -273,16 +307,17 @@ fn a_reused_name_names_the_records_and_no_command() {
 /// clone standing is the one state that names the cancel command too.
 #[test]
 fn a_plan_witnessing_no_destroy_names_the_cancel_command() {
-    for head in ["present", "refused"] {
+    for head in [HeadWord::Present, HeadWord::Refused] {
         let route: RouteFacts = a_route_with_a_plan(
-            format!("stop-cancel-{head}").as_str(),
+            format!("stop-cancel-{}", head.word()).as_str(),
             head,
-            &[A_PLANNED_ATTEMPT, A_PLANNED_ATTEMPT],
+            A_PLANS_FIRST_WRITE,
         );
         let sentence: String = the_stop(&route, &the_clone_is_proved_gone());
         assert!(
             sentence.contains(THE_CANCEL_WORDS),
-            "head `{head}` over planned attempts names the cancel command: {sentence}"
+            "head `{}` over planned attempts names the cancel command: {sentence}",
+            head.word()
         );
         assert!(
             sentence.contains(SLOT),
@@ -307,24 +342,25 @@ fn a_plan_witnessing_no_destroy_names_the_cancel_command() {
 fn a_plan_witnessing_a_destroy_names_no_cancel_command() {
     let destroyed: RouteFacts = a_route_with_a_plan(
         "stop-cancel-destroyed",
-        "present",
-        &[A_PLANNED_ATTEMPT, A_DESTROYED_ATTEMPT],
+        HeadWord::Present,
+        PLANNED_AND_THEN_DESTROYED,
     );
     let sentence: String = the_stop(&destroyed, &the_clone_is_proved_gone());
     assert!(
         !sentence.contains(THE_CANCEL_WORDS),
         "an attempt past `planned` names no cancel command: {sentence}"
     );
-    for head in ["requested", "gone", "unknown"] {
+    for head in [HeadWord::Requested, HeadWord::Gone, HeadWord::Unknown] {
         let route: RouteFacts = a_route_with_a_plan(
-            format!("stop-cancel-head-{head}").as_str(),
+            format!("stop-cancel-head-{}", head.word()).as_str(),
             head,
-            &[A_PLANNED_ATTEMPT],
+            A_PLANS_FIRST_WRITE,
         );
         let words: String = the_stop(&route, &the_clone_stands());
         assert!(
             !words.contains(THE_CANCEL_WORDS),
-            "head `{head}` names no cancel command: {words}"
+            "head `{}` names no cancel command: {words}",
+            head.word()
         );
     }
 }
@@ -334,8 +370,10 @@ fn a_plan_witnessing_a_destroy_names_no_cancel_command() {
 /// because nothing about such a plan is proved.
 #[test]
 fn a_plan_the_add_cannot_read_names_no_command() {
-    let route: RouteFacts = a_route("stop-unreadable");
-    let plan: PathBuf = write_plan(&route, CLONE, "present", &[A_PLANNED_ATTEMPT]);
+    let route: RouteFacts =
+        a_route_with_a_plan("stop-unreadable", HeadWord::Present, A_PLANS_FIRST_WRITE);
+    let plan: PathBuf =
+        plans_folder(route.common_dir.as_path()).join(a_guid(CLONE_GUID).file_name());
     std::fs::write(
         plan.as_path(),
         format!("{PLAN_HEADER}\ncloneDataset={CLONE}\ncloneGuid={CLONE_GUID}\n").as_bytes(),
@@ -367,7 +405,19 @@ fn a_plan_the_add_cannot_read_names_no_command() {
 /// which is the same refusal rather than a guess at the command.
 #[test]
 fn a_head_word_outside_the_five_refuses_the_plan() {
-    let route: RouteFacts = a_route_with_a_plan("stop-head-word", "finished", &[A_PLANNED_ATTEMPT]);
+    let route: RouteFacts =
+        a_route_with_a_plan("stop-head-word", HeadWord::Present, A_PLANS_FIRST_WRITE);
+    let plan: PathBuf =
+        plans_folder(route.common_dir.as_path()).join(a_guid(CLONE_GUID).file_name());
+    let grammatical: String =
+        std::fs::read_to_string(plan.as_path()).expect("the planted plan reads");
+    std::fs::write(
+        plan.as_path(),
+        grammatical
+            .replacen("head=present", "head=finished", 1)
+            .as_bytes(),
+    )
+    .expect("the plan with a head word outside the five");
     let sentence: String = the_stop(&route, &the_clone_stands());
     assert!(sentence.contains("was not read as a plan"), "{sentence}");
     assert!(
@@ -386,12 +436,13 @@ fn a_folder_with_no_plan_for_this_clone_lets_the_add_go_on() {
         "no plan naming the clone stops nothing"
     );
     let other: RouteFacts = a_route("stop-other-plan");
-    write_plan(
-        &other,
-        "tank/worktree-clones/other",
-        "present",
-        &[A_PLANNED_ATTEMPT],
-    );
+    let another_clone: APlanAControlPlants =
+        APlanAControlPlants::a_removals_first_write(ACloneAPlanNames::a_fixture_clone(
+            other.common_dir.as_path(),
+            "tank/worktree-clones/other",
+            a_guid(CLONE_GUID + 1),
+        ));
+    plant(&another_clone);
     assert!(
         refuse_while_a_plan_stands(&other, &the_clone_stands()).is_ok(),
         "another clone's plan stops nothing"
@@ -404,7 +455,8 @@ fn a_folder_with_no_plan_for_this_clone_lets_the_add_go_on() {
 /// so a person can tell two standing plans apart.
 #[test]
 fn the_sentence_names_the_plan_the_head_and_the_pool_answer() {
-    let route: RouteFacts = a_route_with_a_plan("stop-sentence", "requested", &[A_PLANNED_ATTEMPT]);
+    let route: RouteFacts =
+        a_route_with_a_plan("stop-sentence", HeadWord::Requested, A_PLANS_FIRST_WRITE);
     let sentence: String = the_stop(&route, &the_clone_is_proved_gone());
     let plan: PathBuf =
         plans_folder(route.common_dir.as_path()).join(a_guid(CLONE_GUID).file_name());

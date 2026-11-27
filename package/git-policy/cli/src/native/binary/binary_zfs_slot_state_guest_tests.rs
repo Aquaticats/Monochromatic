@@ -26,9 +26,15 @@
 //! const refusal = refuseMoveOfABoundSlot(common, slot); // bound, mounted or not
 //! ```
 
+use super::the_destruction_plan_a_control_plants::{
+    ACloneAPlanNames,
+    APlanAControlPlants,
+    plant,
+};
 use super::zfs_slot_state_guest_fixture::{
     Place,
     class_of,
+    createtxg_of,
     git,
     guid_of,
     intent_word,
@@ -38,6 +44,7 @@ use super::zfs_slot_state_guest_fixture::{
 use super::zfs_sweep_guest::{
     CHECKOUT_VARIABLE,
     NONCE,
+    ORIGIN_PREFIX,
     POOL_VARIABLE,
     SBIN_VARIABLE,
     clone_the_checkouts_snapshot,
@@ -55,7 +62,6 @@ use super::zfs_sweep_guest::{
 };
 use git_policy_cli::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use git_policy_cli::worktree_clone_binding_record::binding_words::Phase;
-use git_policy_cli::worktree_clone_binding_record::registration_home::plans_folder;
 use git_policy_cli::worktree_clone_move_refusal::managed_move_refusal::{
     ManagedMoveRefusal,
     ManagedMoveRefusalCause,
@@ -522,18 +528,19 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
         "SLOT-STATE pending-add class={}",
         class_of(&classify_slot(&adding))
     );
-    let plans: PathBuf = plans_folder(common.as_path());
-    std::fs::create_dir_all(plans.as_path()).expect("the plan folder is made");
-    let clone_guid = guid_of(sbin.as_str(), clone.as_str());
-    std::fs::write(
-        plans.join(clone_guid.file_name()),
-        format!(
-            "{}\ncloneGuid={}\ncloneDataset={clone}\n",
-            git_policy_cli::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER,
-            clone_guid.file_name()
-        ),
-    )
-    .expect("the plan writes");
+    // The removal's own plan, published by the removal's own writer: the state its first write leaves, with the
+    // head present and every line planned. The arm made this clone and never snapshotted it, so its inventory is empty.
+    let plan: APlanAControlPlants = APlanAControlPlants::a_removals_first_write(ACloneAPlanNames {
+        clone_createtxg: createtxg_of(sbin.as_str(), clone.as_str()),
+        origin_dataset: checkout_dataset.clone(),
+        origin_snapshot: format!("{checkout_dataset}@{ORIGIN_PREFIX}{NONCE}"),
+        ..ACloneAPlanNames::a_fixture_clone(
+            common.as_path(),
+            clone.as_str(),
+            guid_of(sbin.as_str(), clone.as_str()),
+        )
+    });
+    let plan_path: PathBuf = plant(&plan);
     let removing: SlotReadings = readings_of(&place, SLOT, slot.as_path());
     assert_eq!(class_of(&classify_slot(&removing)), "pending removal");
     println!(
@@ -542,7 +549,7 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     );
 
     // The plan goes first, so the prune below reads a slot no removal is in flight for.
-    std::fs::remove_file(plans.join(clone_guid.file_name())).expect("the plan is removed");
+    std::fs::remove_file(plan_path.as_path()).expect("the plan is removed");
 
     // A registration Git already pruned: the report says what is lost, and a pointer restored from the record points at
     // nothing, because Git does not rebuild a registration.
