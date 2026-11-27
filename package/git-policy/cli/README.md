@@ -4706,7 +4706,8 @@ two edits of different arguments of one call become one call with both edits.
 Nothing either side added is dropped,
 and no line both sides kept is dropped,
 and the parts are listed so you can check them.
-A region both sides only deleted lines from resolves to the lines both sides kept:
+A region both sides only deleted lines from resolves to the lines both sides kept,
+when the base writes each of its lines there once:
 a file that holds one record per line is merged as the union of the two deletions,
 which the word level alone cannot give,
 because it pairs one side's deleted line with the other side's kept line and keeps it
@@ -4725,6 +4726,14 @@ while the other side left it as it was,
 keeps both sides instead,
 so you resolve it;
 a merge that writes only the copies that side still holds is right and resolves.
+A base line written twice is where the word level cannot tell which copy a side deleted,
+so a region both sides only deleted lines from keeps both sides as well
+when its answer would hold more copies of a line than both sides hold,
+or hold its lines in an order one side does not hold them in,
+which no union of the two deletions does.
+That is the shape a file of one record per line reaches when it writes one record more than once:
+the words are merged rather than the records,
+and an answer that writes a record back lands with no marker for you to read.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
