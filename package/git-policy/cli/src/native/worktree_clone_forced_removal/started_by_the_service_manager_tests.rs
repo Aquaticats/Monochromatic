@@ -167,7 +167,8 @@ fn the_unified_cgroup_path_is_the_zero_line() {
     assert_eq!(unified_cgroup_path(""), None);
 }
 
-/// A command name is the kernel's own bytes, cut to its bound,
+/// A command name is the kernel's own bytes,
+/// cut to its bound,
 /// and a record that could not be read gets the sentence's own word instead.
 /// Why:
 ///  The escape belongs to the sentence that shows the name,

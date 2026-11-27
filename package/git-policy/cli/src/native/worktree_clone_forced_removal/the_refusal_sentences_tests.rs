@@ -52,7 +52,8 @@ const A_SLOT: &str = "/home/user/work/.claude/worktrees/a slot";
 const A_NAME_THAT_WOULD_REWRITE_THE_LINE: &str = "x) \\ \u{1b}[2K\n\u{202e}\u{2028}";
 
 /// What:
-///  A name this program's own text is, with no shape a line would act on.
+///  A name this program's own text is,
+///  with no shape a line would act on.
 /// Why:
 ///  The control compares the hostile name's sentence with this one's,
 ///  so each thing it asserts on is the difference the name makes and not a figure
@@ -164,14 +165,16 @@ fn parentheses_the_text_writes(text: &str) -> usize {
 }
 
 /// What:
-///  Whether `hostile` shows `name` through the escape, and holds nothing else the name
-///  brought: no line of its own,
+///  Whether `hostile` shows `name` through the escape,
+///  and holds nothing else the name brought:
+///  no line of its own,
 ///  no control character,
 ///  no bidirectional control,
 ///  no raw line separator,
 ///  and no parenthesis that closes the wrapping early.
 /// Why:
-///  Every assertion is the difference from `plain`, the same sentence with a name of this
+///  Every assertion is the difference from `plain`,
+///  the same sentence with a name of this
 ///  program's own text,
 ///  so a control that passes says the hostile name changed nothing a person could act on.
 ///

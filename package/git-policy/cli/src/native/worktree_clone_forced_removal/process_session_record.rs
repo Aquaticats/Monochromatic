@@ -81,7 +81,8 @@ pub const COMMAND_MAXIMUM_BYTES: usize = 15;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommandWord {
-    /// The kernel's name for the process, cut to the kernel's own bound.
+    /// The kernel's name for the process,
+    /// cut to the kernel's own bound.
     text: String,
 }
 

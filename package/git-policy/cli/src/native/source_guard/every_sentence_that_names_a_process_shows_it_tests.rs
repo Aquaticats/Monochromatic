@@ -28,13 +28,16 @@
 //!  seen by the first list alone,
 //!  which is why the first list names every sentence and fails when one stops calling the escape.
 //!  A wider read of the locals was tried on 2026-11-27 and cannot be precise:
-//!  the name propagates from an accessor into locals called `name`, `operation` and `relative`,
+//!  the name propagates from an accessor into locals called `name`,
+//!  `operation` and `relative`,
 //!  and those words are also this program's own text in the same files,
 //!  so the wider read reported eleven sentences that show no process name at all.
-//!  What a reader of this file checks, because the scan cannot:
+//!  What a reader of this file checks,
+//!  because the scan cannot:
 //!  every new sentence that shows a name is written into `THE_SENTENCES`,
 //!  and no `format!` of such a sentence interpolates the name through a local,
-//!  or through any other name of its own, instead of the escape.
+//!  or through any other name of its own,
+//!  instead of the escape.
 //!  The control `a_sentence_that_binds_a_name_to_a_local_of_another_spelling_is_not_seen`
 //!  plants that sentence and asserts the scan reports nothing,
 //!  so the hole is recorded where a reader meets the rule.

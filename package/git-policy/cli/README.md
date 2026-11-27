@@ -1869,7 +1869,8 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
   The crate builds for no other target,
   and the sources show it before any build starts:
   331 of the 2,405 Rust sources under `src/native` that are not test files import `std::os::unix`
-  (`rg --files-with-matches 'std::os::unix' src/native --glob '*.rs' --glob '!*_tests.rs' --glob '!tests.rs'`, counted 2026-11-27),
+  (`rg --files-with-matches 'std::os::unix' src/native --glob '*.rs' --glob '!*_tests.rs' --glob '!tests.rs'`,
+  counted 2026-11-27),
   and `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
   (`#[cfg(target_os = "linux")]`),
   while `worktree/worktree_remove_around.rs`,
@@ -1880,7 +1881,8 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
   so no run here compiles the crate for another target:
   `native:clippy:windows` is the one task that type-checks another target,
   and its own comment says it needs `rustup target add x86_64-pc-windows-gnu` on the host,
-  which this machine does not have, so that task was not run.
+  which this machine does not have,
+  so that task was not run.
   The crate therefore does not compile for Windows,
   and the Windows-specific branches in the sources have never run;
   each is marked `UNTESTED ON WINDOWS` in the source.
@@ -1889,7 +1891,8 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
   (commit `bdb1ce4884`),
   and nothing says which machine ran it or whether that target was installed there;
   with the target absent here it cannot be run again,
-  so this bullet rests on the imports counted above and on that one record, and on no other run.
+  so this bullet rests on the imports counted above and on that one record,
+  and on no other run.
   A Windows port is deferred to a later version (owner decision,
   2026-10-15).
 - Real Git on `PATH` after the wrapper,
@@ -2356,10 +2359,11 @@ and said again only when a second reading gives a different reason,
 which is a second fault and reads as one.
 A process of the wrapper is one command,
 so once for a process is once for a command.
-The commit service is the one process here that serves more than one command,
-and it never says that sentence:
-`main.rs` chooses the service mode before the wrapper's entry runs,
-and nothing of the service reads the identity file.
+The processes here that answer more than one command,
+the commit service and the clone mount handler's modes,
+never say that sentence:
+`main.rs` chooses each of them before the wrapper's entry runs,
+and nothing of them reads the identity file.
 
 The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
  (so `-C`,
