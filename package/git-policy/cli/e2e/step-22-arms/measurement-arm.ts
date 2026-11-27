@@ -21,6 +21,7 @@ import {
   requireMarkers,
 } from '../guest-host/guest-host-rules-fixture.ts';
 import { detachedStep, } from './detached-step.ts';
+import { pullSharedLog, } from './host-shared-log.ts';
 import {
   armLog,
   armTimeoutMilliseconds,
@@ -131,15 +132,21 @@ export async function measureStep22({
     `tail --lines=120 /root/${armLog}`,
     'test "$status" = 0',
   ].join('\n',);
-  /**
-   The arm's log, pulled once it says it ended.
-   */
-  const pulled = await detachedStep({
+  await detachedStep({
     chosen,
     script,
     log: armStepLog,
     timeout: armTimeoutMilliseconds,
     finishTimeout: armTimeoutMilliseconds + longFinishMarginMilliseconds,
+  },);
+  /**
+   The arm's own log, which its script copied into the guest's shared folder and
+   which this driver reads from the host side, keeping it as the run's evidence.
+   */
+  const pulled = await pullSharedLog({
+    name: chosen.name,
+    file: armLog,
+    logDir: chosen.logDir,
   },);
   requireMarkers({
     pulled,

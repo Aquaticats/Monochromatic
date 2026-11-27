@@ -27,7 +27,10 @@ import {
   expectedMarkers,
   finishMarginMilliseconds,
 } from './adoption-fixture.ts';
-import { detachedStep, } from './detached-step.ts';
+import {
+  detachedStep,
+  pullGuestLog,
+} from './detached-step.ts';
 
 /**
  The log the adoption arm writes inside the guest's shared folder.
@@ -78,15 +81,21 @@ export async function runTheAdoption({
     },),
     `cp /root/${armLog} /mnt/shared/${armLog}`,
   ].join('\n',);
-  /**
-   The arm's log, pulled once the step says it ended.
-   */
-  const pulled = await detachedStep({
+  await detachedStep({
     chosen,
     script,
     log: armStepLog,
     timeout: armTimeoutMilliseconds,
     finishTimeout: armTimeoutMilliseconds + finishMarginMilliseconds,
+  },);
+  /**
+   The arm's own log, which the step copied into the guest's shared folder and
+   which this pull keeps as the run's evidence.
+   */
+  const pulled = await pullGuestLog({
+    chosen,
+    file: armLog,
+    log: 'host-pull-adoption.log',
   },);
   requireMarkers({
     pulled,

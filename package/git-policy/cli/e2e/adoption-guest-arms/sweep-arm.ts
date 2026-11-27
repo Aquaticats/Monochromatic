@@ -29,7 +29,10 @@ import {
   sweepGuestVariable,
   sweepStaleCheckout,
 } from './adoption-fixture.ts';
-import { detachedStep, } from './detached-step.ts';
+import {
+  detachedStep,
+  pullGuestLog,
+} from './detached-step.ts';
 
 /**
  The log the sweep arm writes inside the guest's shared folder.
@@ -129,15 +132,21 @@ export async function sweepArms({
     `umount ${sweepCheckout} 2>/dev/null || true`,
     `for layout in step8 step8-stale step8-encrypted step8-foreign step8-bound account-clones nosnap; do zfs destroy -r -f ${storePool}/$layout 2>/dev/null || true; done`,
   ].join('\n',);
-  /**
-   The arm's log, pulled once the step says it ended.
-   */
-  const pulled = await detachedStep({
+  await detachedStep({
     chosen,
     script,
     log: armStepLog,
     timeout: armTimeoutMilliseconds * 2,
     finishTimeout: (armTimeoutMilliseconds * 2) + sweepFinishMarginMilliseconds,
+  },);
+  /**
+   The arm's own log, which the step copied into the guest's shared folder and
+   which this pull keeps as the run's evidence.
+   */
+  const pulled = await pullGuestLog({
+    chosen,
+    file: armLog,
+    log: 'host-pull-sweep.log',
   },);
   requireMarkers({
     pulled,

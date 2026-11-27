@@ -206,3 +206,58 @@ async function lastLineInGuest({
     return '';
   }
 }
+
+/**
+ Pull one guest log into the run's own log folder, with `mvm`'s own copy, and read
+ it back.
+
+ The step's own log holds what the guest printed, which for an arm is the tail of
+ the arm's log; the arm's own log is the file the run keeps as its evidence, so it
+ is pulled by name and the markers are stated against it.
+
+ @param chosen - the run's guest and log folder
+
+ @param file - the log's name inside the guest's shared folder
+
+ @param log - the name of the pull's own host log
+
+ @returns the log's whole text, as `mvm` copied it out
+
+ @throws Error naming the command that refused
+
+ @example
+ ```ts
+ const pulled = await pullGuestLog({ chosen, file: 'adoption-arm.log', log: 'host-pull-adoption.log' });
+ ```
+ */
+export async function pullGuestLog({
+  chosen,
+  file,
+  log,
+}: {
+  readonly chosen: GuestRun;
+  readonly file: string;
+  readonly log: string;
+},): Promise<string> {
+  /**
+   The host's copy of the guest's log, which the pull writes.
+   */
+  const pulledPath = join(
+    chosen.logDir,
+    file,
+  );
+  await host({
+    chosen,
+    command: 'mvm',
+    args: [
+      '--backend',
+      'libvirt',
+      'pull',
+      chosen.name,
+      `/mnt/shared/${file}`,
+      pulledPath,
+    ],
+    log,
+  },);
+  return readLog({ path: pulledPath, },);
+}

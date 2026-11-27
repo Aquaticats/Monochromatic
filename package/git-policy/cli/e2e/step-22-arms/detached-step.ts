@@ -66,15 +66,15 @@ export async function detachedStep({
   readonly finishTimeout: number;
 },): Promise<string> {
   /**
-   The step and the launcher the guest runs, with the launcher doing the naming
-   check so a wrong guest refuses before the script starts.
+   The step and the launcher the guest runs, with the step carrying the naming
+   check, which is the shape this driver has always sent.
    */
   const files = detachedScriptFiles({
     chosen,
     script,
     log,
     timeout,
-    hostnameCheckInLaunch: true,
+    hostnameCheckInLaunch: false,
   },);
   await startDetachedScript({
     chosen,

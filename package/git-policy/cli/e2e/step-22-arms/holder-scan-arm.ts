@@ -13,6 +13,7 @@
 
 import type { GuestRun, } from '../guest-host/guest-run.ts';
 import { detachedStep, } from './detached-step.ts';
+import { pullSharedLog, } from './host-shared-log.ts';
 import {
   armTimeoutMilliseconds,
   crateDirectory,
@@ -74,15 +75,21 @@ export async function measureTheHolderScan({
     `tail --lines=40 /root/${holderScanLog}`,
     'test "$status" = 0',
   ].join('\n',);
-  /**
-   The arm's log, pulled once the step says it ended.
-   */
-  const pulled = await detachedStep({
+  await detachedStep({
     chosen,
     script,
     log: holderScanStepLog,
     timeout: armTimeoutMilliseconds,
     finishTimeout: armTimeoutMilliseconds + finishMarginMilliseconds,
+  },);
+  /**
+   The arm's own log, which its script copied into the guest's shared folder and
+   which this driver reads from the host side, keeping it as the run's evidence.
+   */
+  const pulled = await pullSharedLog({
+    name: chosen.name,
+    file: holderScanLog,
+    logDir: chosen.logDir,
   },);
   if (!pulled.includes(holderScanMeasurement))
     throw new Error('the pulled holder-scan log lacks its timing line; the arm ran without timing the scan');

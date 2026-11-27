@@ -164,8 +164,10 @@ export async function startDetachedScript({
     from: launchPath,
     log,
   },);
-  await runIgnoring({
-    subject: 'mvm exec',
+  /**
+   What the guest answered to the launcher's start.
+   */
+  const status = await runIgnoring({
     command: 'mvm',
     args: [
       '--backend',
@@ -178,6 +180,8 @@ export async function startDetachedScript({
     ],
     timeout: hostCommandTimeoutMilliseconds,
   },);
+  if (status !== 0)
+    throw new Error(`mvm exec exited ${String(status)} starting ${log}; the guest is not ${chosen.name}`);
 }
 
 /**

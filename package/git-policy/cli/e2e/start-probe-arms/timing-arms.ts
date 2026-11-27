@@ -20,9 +20,9 @@ import { guest, } from '../guest-host/guest-side-scripts.ts';
 import { statusOf, } from '../guest-host/logged-command.ts';
 import {
   armTimeoutMilliseconds,
+  longArmTimeoutMilliseconds,
   pool,
   probeScript,
-  timingTimeoutMilliseconds,
 } from './probe-fixture.ts';
 
 /**
@@ -120,7 +120,7 @@ export async function timings({
     chosen,
     script,
     log: timingsLog,
-    timeout: timingTimeoutMilliseconds,
+    timeout: longArmTimeoutMilliseconds,
   },);
 }
 

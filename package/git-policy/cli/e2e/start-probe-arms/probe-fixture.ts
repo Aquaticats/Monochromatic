@@ -117,27 +117,11 @@ export const crateBuildTimeoutMilliseconds = 2_400_000;
 export const armTimeoutMilliseconds = 900_000;
 
 /**
- How many arm bounds the kill matrix gets: sixteen hold points, each run as five
- kills and one control, each with its own run of the wrapper after it.
+ Milliseconds the kill matrix and the timing arm may take: twenty-five minutes,
+ the bound those two arms carried before this round, because their own work is
+ several times one arm's. The guest's own `timeout` gives them 1440 seconds.
  */
-const killMatrixArmBounds = 2;
-
-/**
- Milliseconds the kill matrix may take.
- */
-export const killMatrixTimeoutMilliseconds: number = armTimeoutMilliseconds
-  * killMatrixArmBounds;
-
-/**
- How many arm bounds the timing arms get: warm rounds, cold rounds with the page
- cache dropped, and a guest with three hundred extra mount namespaces.
- */
-const timingArmBounds = 2;
-
-/**
- Milliseconds one timing arm may take.
- */
-export const timingTimeoutMilliseconds: number = armTimeoutMilliseconds * timingArmBounds;
+export const longArmTimeoutMilliseconds = 1_500_000;
 
 /**
  The lines a green run must find, one per claim it makes.

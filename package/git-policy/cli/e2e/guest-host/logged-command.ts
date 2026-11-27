@@ -165,13 +165,12 @@ export async function runInheriting({
 }
 
 /**
- Run one command with no output kept, and wait for it to end.
+ Run one command with no output kept, and report the status it exited with.
 
- What a command prints is not wanted everywhere: an `mvm exec` that only starts
- a detached guest script answers with nothing a person or a log needs, and the
- script's own log is where its work goes.
-
- @param subject - the words the refusal names the command by
+ What a command prints is not wanted everywhere: an `mvm exec` that only starts a
+ detached guest script answers with nothing a person or a log needs, and the
+ script's own log is where its work goes. The status is the caller's to judge,
+ because the sentence a failed start deserves names the script it was starting.
 
  @param command - the program to run
 
@@ -179,24 +178,24 @@ export async function runInheriting({
 
  @param timeout - milliseconds the command may take
 
- @throws Error naming the command and its status, or what refused to start it
+ @returns the status it exited with, or minus one when a signal ended it
+
+ @throws Error when the command never started, or when the wait itself failed
 
  @example
  ```ts
- await runIgnoring({ subject: 'mvm exec', command: 'mvm', args: ['--backend', 'libvirt', 'exec', 'guest-one', '--', 'true'], timeout: 120_000 });
+ const status = await runIgnoring({ command: 'mvm', args: ['--backend', 'libvirt', 'exec', 'guest-one', '--', 'true'], timeout: 120_000 });
  ```
  */
 export async function runIgnoring({
-  subject,
   command,
   args,
   timeout,
 }: {
-  readonly subject: string;
   readonly command: string;
   readonly args: readonly string[];
   readonly timeout: number;
-},): Promise<void> {
+},): Promise<number> {
   /**
    The command, with no stream of its own kept and its own bound.
    */
@@ -208,11 +207,14 @@ export async function runIgnoring({
       timeout,
     },
   );
-  await waitForTheEnd({
+  /**
+   How the command ended.
+   */
+  const ending = await endingOf({
     child,
-    subject,
-    log: '',
+    subject: command,
   },);
+  return ending.status;
 }
 
 /**

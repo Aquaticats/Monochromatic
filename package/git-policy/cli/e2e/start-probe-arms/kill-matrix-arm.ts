@@ -16,7 +16,7 @@
 import type { GuestRun, } from '../guest-host/guest-run.ts';
 import { guest, } from '../guest-host/guest-side-scripts.ts';
 import {
-  killMatrixTimeoutMilliseconds,
+  longArmTimeoutMilliseconds,
   probeScript,
 } from './probe-fixture.ts';
 
@@ -86,6 +86,6 @@ export async function m3Kill({
     chosen,
     script,
     log: killLog,
-    timeout: killMatrixTimeoutMilliseconds,
+    timeout: longArmTimeoutMilliseconds,
   },);
 }
