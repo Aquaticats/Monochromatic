@@ -410,7 +410,10 @@ fn entry_of(
                 (String::from("which holds a space"), "space")
             } else {
                 (
-                    format!("which holds {}", whitespace_character_description(folder.as_str())),
+                    format!(
+                        "which holds {}",
+                        whitespace_character_description(folder.as_str())
+                    ),
                     "whitespace character",
                 )
             };

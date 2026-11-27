@@ -128,15 +128,16 @@ pub fn dead_entry_findings(
             let invisible: Option<(char, usize)> = first_format_character(entry.text.as_str());
             // What: whether the line would read as a use, a comment or a blank line once its format characters are gone.
             // Why: a key a rule really prints can hold a zero-width character, and telling its reader to take it out would be wrong.
-            let reads_as_a_line: bool = reads_as_a_line_without_format_characters(entry.text.as_str());
+            let reads_as_a_line: bool =
+                reads_as_a_line_without_format_characters(entry.text.as_str());
             if let AllowKind::Key(_) = &entry.kind
                 && let Some((letter, position)) = invisible
                 && reads_as_a_line
             {
                 // What: the plain name of that character, so its reader knows which one to take out.
                 // Why: two of them read the same to a person, and the edits differ.
-                let name: &str = format_character_name(letter)
-                    .unwrap_or("a character a reader cannot see");
+                let name: &str =
+                    format_character_name(letter).unwrap_or("a character a reader cannot see");
                 (
                     format!(
                         "The allow-list entry `{spelled_text}` in {} holds {name} at character {position} of the entry it read, and the reader does not treat that character as whitespace. The line's first word is therefore not `{FOLDER_USE_WORD}`, so the line was read as one finding's key, and no finding of the rule prints that key, so the entry tolerates nothing any more. Take that character out of the line, and write a whitespace character where it stood if it stood where one belongs.",
@@ -190,8 +191,8 @@ pub fn dead_entry_findings(
                 )
             };
             if let Some(letter) = invisible {
-                let name: &str = format_character_name(letter)
-                    .unwrap_or("a character a reader cannot see");
+                let name: &str =
+                    format_character_name(letter).unwrap_or("a character a reader cannot see");
                 help.push_str(
                     format!(
                         " The name above also holds {name} where a reader cannot see it: take that character out."

@@ -422,12 +422,18 @@ fn a_folder_name_that_touches_the_arrow_word_without_whitespace_holds_none() {
     // What: the names whose arrow touches a character on one side, which a `uses` line still reads.
     // Why: such a name is no shape the reader could mistake for its own arrow, so no line could misread it.
     for name in ["x->", "->x", "x->y"] {
-        assert!(!name_holds_an_arrow_word(name), "`{name}` holds no arrow word");
+        assert!(
+            !name_holds_an_arrow_word(name),
+            "`{name}` holds no arrow word"
+        );
     }
     // What: the control, names whose arrow whitespace sets off, which the reader really would misread.
     // Why: a check that answers no for every name would pass the loop above and protect nothing.
     for name in ["x -> y", "-> y", "x ->", "->"] {
-        assert!(name_holds_an_arrow_word(name), "`{name}` holds an arrow word");
+        assert!(
+            name_holds_an_arrow_word(name),
+            "`{name}` holds an arrow word"
+        );
     }
 }
 
@@ -664,8 +670,12 @@ fn a_dead_use_line_spells_a_character_it_holds_that_a_reader_cannot_see() {
         ),
     ] {
         let list: AllowList = parsed(line);
-        let findings: Vec<LayoutFinding> =
-            dead_entry_findings(&list, &BTreeSet::<usize>::new(), &BTreeSet::<PathBuf>::new(), base);
+        let findings: Vec<LayoutFinding> = dead_entry_findings(
+            &list,
+            &BTreeSet::<usize>::new(),
+            &BTreeSet::<PathBuf>::new(),
+            base,
+        );
         assert_eq!(findings.len(), 1, "{line}");
         assert!(
             findings[0].message.contains(spelled),
@@ -673,7 +683,11 @@ fn a_dead_use_line_spells_a_character_it_holds_that_a_reader_cannot_see() {
             findings[0].message
         );
         assert!(
-            findings[0].help.as_deref().unwrap_or("").contains("take that character out"),
+            findings[0]
+                .help
+                .as_deref()
+                .unwrap_or("")
+                .contains("take that character out"),
             "the help must say to take it out: {:?}",
             findings[0].help
         );
@@ -687,8 +701,12 @@ fn a_dead_use_line_spells_a_character_it_holds_that_a_reader_cannot_see() {
 fn a_byte_order_mark_before_a_line_is_named_where_it_stands_and_taken_out() {
     let base: &Path = Path::new("package");
     let list: AllowList = parsed("\u{feff}uses src/a -> src/b\n");
-    let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &BTreeSet::<PathBuf>::new(), base);
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
     assert_eq!(findings.len(), 1, "{findings:#?}");
     let message: &str = findings[0].message.as_str();
     for part in [
@@ -711,8 +729,12 @@ fn a_byte_order_mark_before_a_line_is_named_where_it_stands_and_taken_out() {
 fn a_zero_width_space_where_a_separator_belongs_is_named_and_taken_out() {
     let base: &Path = Path::new("package");
     let list: AllowList = parsed("uses\u{200b}src/a -> src/b\n");
-    let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &BTreeSet::<PathBuf>::new(), base);
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &BTreeSet::<PathBuf>::new(),
+        base,
+    );
     assert_eq!(findings.len(), 1, "{findings:#?}");
     let message: &str = findings[0].message.as_str();
     for part in [
