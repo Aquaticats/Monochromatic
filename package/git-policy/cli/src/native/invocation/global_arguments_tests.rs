@@ -14,6 +14,7 @@ use super::{
     GlobalOutcome,
     command_tokens,
     global_layout,
+    unread_global_words,
 };
 use crate::git_version::{
     MINIMUM_GIT_VERSION,
@@ -368,5 +369,38 @@ fn a_directory_change_and_its_directory_leave_the_prefix() {
         kept(&["-c", "-C"]),
         vec![String::from("-c"), String::from("-C")],
         "the value of -c is not a directory change"
+    );
+}
+
+/// What:
+///  The words for `--` say it is the separator its own options use,
+/// not a
+///  global option,
+///  and a global this build does not read keeps the words for that.
+/// Why:
+///  The refusal used to call `--` a global option this wrapper does not read,
+///  which named something else;
+///  Git 2.56.1 prints `unknown option: --` for it before its command word
+///  (`/usr/bin/git -- worktree list`,
+/// exit 129).
+#[test]
+fn the_unread_global_words_say_what_a_double_dash_is() {
+    let separator: String = unread_global_words(&OsString::from("--"));
+    assert!(
+        separator.contains("not a global option"),
+        "the words say `--` is no option: {separator}"
+    );
+    assert!(
+        separator.contains("unknown option: --"),
+        "and name Git's own answer: {separator}"
+    );
+    let unknown: String = unread_global_words(&OsString::from("--no-such-global-option-yet"));
+    assert!(
+        unknown.contains("is a global option this wrapper does not read"),
+        "an unknown global keeps its words: {unknown}"
+    );
+    assert!(
+        !unknown.contains("unknown option: --"),
+        "and is not called the separator: {unknown}"
     );
 }

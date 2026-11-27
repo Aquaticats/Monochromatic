@@ -12,6 +12,7 @@ use crate::merge_second_pass_stage_line_places::{
     lines_before,
     lines_between,
     offset_from_line,
+    place_in_stage,
 };
 
 /// The labels the second pass gives one merge:
@@ -343,4 +344,78 @@ fn the_lines_before_a_place_count_from_the_top_of_the_stage() {
     assert_eq!(lines_between(text, 4, 4), 0);
     assert_eq!(lines_between(text, 8, 99), 1);
     assert_eq!(lines_between(text, 99, 99), 0);
+}
+
+/// What:
+///  A region whose last line ends a file with no line end of its own is placed at the stage's own bytes,
+///  which hold one byte fewer than the answer does.
+/// Why:
+///   The line merge writes a line end after the last line of every side,
+///  so a region at the end of a file that has none there is the one place the answer and the stage differ;
+///  a place that demands the answer's bytes finds no region,
+///  and the file stays conflicted although the stages hold every side of it.
+#[test]
+fn a_region_that_ends_a_file_whose_last_line_has_no_line_end_is_placed() {
+    let answer: &[u8] = b"head\n<<<<<<< ours-0f8b1c\nlast line THERE\n||||||| base-0f8b1c\nlast line here\n=======\nLAST line here\n>>>>>>> theirs-0f8b1c\n";
+    let cut: Cut = cut(answer, &LABELS).expect("the answer cuts");
+    let regions: Vec<Region> = cut
+        .place([
+            b"head\nlast line here",
+            b"head\nlast line THERE",
+            b"head\nLAST line here",
+        ])
+        .expect("the region is explained by its stages");
+    assert_eq!(regions[0].base, b"last line here".to_vec());
+    assert_eq!(regions[0].ours, b"last line THERE".to_vec());
+    assert_eq!(regions[0].theirs, b"LAST line here".to_vec());
+    assert_eq!(regions[0].starts, [5, 5, 5]);
+}
+
+/// What:
+///  The same region in a file whose lines end with both bytes is placed too,
+///  and its sides hold neither ending where the file has none.
+/// Why:
+///   Git writes the file's own line ending after the last line of a side,
+///  so the carriage return is the answer's alone when the stage's last line has neither byte.
+#[test]
+fn a_region_that_ends_a_file_whose_lines_end_with_both_bytes_is_placed() {
+    let answer: &[u8] = b"head\r\n<<<<<<< ours-0f8b1c\r\nlast line THERE\r\n||||||| base-0f8b1c\r\nlast line here\r\n=======\r\nLAST line here\r\n>>>>>>> theirs-0f8b1c\r\n";
+    let cut: Cut = cut(answer, &LABELS).expect("the answer cuts");
+    let regions: Vec<Region> = cut
+        .place([
+            b"head\r\nlast line here",
+            b"head\r\nlast line THERE",
+            b"head\r\nLAST line here",
+        ])
+        .expect("the region is explained by its stages");
+    assert_eq!(regions[0].base, b"last line here".to_vec());
+    assert_eq!(regions[0].ours, b"last line THERE".to_vec());
+    assert_eq!(regions[0].theirs, b"LAST line here".to_vec());
+    assert_eq!(regions[0].starts, [6, 6, 6]);
+}
+
+/// What:
+///  Where a run of lines sits in a stage:
+///  the stage's own bytes for a run that ends the stage,
+///  nothing for a run that is only part of a line,
+///  and nothing for a run before the place the region before it ended at.
+/// Why:
+///   A place names a whole line's start and a region's side is a run of whole lines,
+///  so anything else would name bytes the region does not hold.
+#[test]
+fn a_run_of_lines_is_placed_at_the_stage_s_own_bytes() {
+    let text: &[u8] = b"one\ntwo\nthree";
+    // The stage holds the line with no line end, so the run's own last byte is the stage's.
+    assert_eq!(place_in_stage(text, b"three\n", 0), Some(8..13));
+    assert_eq!(place_in_stage(text, b"two\nthree\n", 0), Some(4..13));
+    // A stage that ends with the line end holds the run as the answer wrote it.
+    assert_eq!(place_in_stage(b"one\ntwo\n", b"two\n", 0), Some(4..8));
+    // A run that starts where the line before it ended is found, and one that goes back is not.
+    assert_eq!(place_in_stage(text, b"two\n", 4), Some(4..8));
+    assert_eq!(place_in_stage(text, b"one\n", 1), None);
+    // Only a whole line's start is a place: the last line's bytes inside a longer line are not one.
+    assert_eq!(place_in_stage(b"one two", b"two\n", 0), None);
+    // An empty run sits where the search starts, which is how a side that wrote nothing is found.
+    assert_eq!(place_in_stage(text, b"", 7), Some(7..7));
+    assert_eq!(place_in_stage(text, b"four\n", 0), None);
 }
