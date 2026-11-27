@@ -34,7 +34,7 @@ moved verbatim on 2026-11-23:
   (scratch,
   deleted on 2026-11-27;
   what this record uses from it is stated here).
-  The excerpt opens with the model's own words,
+  The excerpt's first line is the model's own reasoning,
   "That output was from the design doc,
   not the clip.",
   and names `aerospace-clip.html` and its `high-energy-reflink-safety` section.
