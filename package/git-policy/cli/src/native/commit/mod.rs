@@ -127,6 +127,20 @@
 //!   so its ceiling does not end a commit over a moved worktree.
 //! - `commit_staged_additions.rs`:
 //!   the finding for a staged deletion that an explicit-path commit cannot record.
+//! - `commit_selection_staging_failure.rs`:
+//!   why a start of the private staging ended:
+//!   Git's own failure,
+//!   or the caller's pathspec that matches nothing.
+//! - `commit_selection_staging_element_words.rs`:
+//!   the words one pathspec element is read as:
+//!   an exact file name,
+//!   a directory or a pattern,
+//!   or a subtraction that applies to every element of the list.
+//! - `commit_selection_staging_selection.rs`:
+//!   what one selection gives the staging step:
+//!   its elements,
+//!   the pathspec file itself,
+//!   or nothing when this reader cannot take that file.
 //! - `commit_selection_staging.rs`:
 //!   the worktree paths an explicit-path commit stages,
 //!   and the two `git add` starts that stage them.
@@ -470,6 +484,23 @@ pub mod commit_index_retry;
 /// The worktree paths an explicit-path commit stages,
 /// and the two `git add` starts that stage them.
 pub mod commit_selection_staging;
+
+/// Why a start of the private staging ended:
+/// Git's own failure,
+/// or the caller's pathspec that matches nothing.
+pub mod commit_selection_staging_failure;
+
+/// The words one pathspec element is read as:
+/// an exact file name,
+/// a directory or a pattern,
+/// or a subtraction that applies to every element of the list.
+pub mod commit_selection_staging_element_words;
+
+/// What one selection gives the staging step:
+/// its elements,
+/// the pathspec file itself,
+/// or nothing when this reader cannot take that file.
+pub mod commit_selection_staging_selection;
 
 /// The named files an ignore rule refuses,
 /// decided from the selection before any `git add` runs (issue 6278).
