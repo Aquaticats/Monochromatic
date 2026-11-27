@@ -72,8 +72,8 @@ use crate::owed_index_entries::{
     names_in,
     tree_entries,
 };
-use crate::owed_index_update::Owed;
 use crate::service_protocol::FailureCode;
+use crate::the_record_of_an_owed_index_update::Owed;
 use crate::transaction_git::{
     GitContext,
     GitRequest,
@@ -184,7 +184,7 @@ pub fn exclude_with_note(
 ) -> Result<Vec<String>, String> {
     let mut left: Vec<String> = Vec::new();
     let (owed_records, unreadable): (Vec<Owed>, usize) =
-        crate::owed_index_update::records_and_unreadable(git_dir);
+        crate::the_record_of_an_owed_index_update::records_and_unreadable(git_dir);
     // An obligation that cannot be read names no path, so nothing can be repaired for it: what is known is that a landed file could
     //  be recorded as deleted. The commit goes through with such a deletion left out, and says why.
     if unreadable > 0 {

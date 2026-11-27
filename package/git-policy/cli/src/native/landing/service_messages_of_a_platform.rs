@@ -14,10 +14,8 @@
 //! platformRemedy(platform) // the sentence a person reads
 //! ```
 
-use crate::service_messages::{
-    LINGER_COMMAND,
-    Platform,
-};
+use crate::service_messages_the_failures_a_person_can_meet::Platform;
+use crate::service_messages_what_a_failure_gives_a_person::LINGER_COMMAND;
 
 /// What:
 ///  The remedy sentence for a platform.

@@ -36,12 +36,12 @@ use crate::private_storage::{
     write_private_file,
     write_private_file_unsynced,
 };
-use crate::work_item::{
+use crate::work_item_kinds_and_their_names::WorkKind;
+use crate::work_item_record::WorkItem;
+use crate::work_item_state_directories_and_claim_names::{
     DONE,
     FAILED,
     HELD,
-    WorkItem,
-    WorkKind,
     state_directory,
 };
 use std::path::{
@@ -492,7 +492,7 @@ fn settled_or_taken(
         return true;
     }
     // A claim is named by its id and the generation and reading of its holder, so it is found by its id.
-    return crate::work_item::find_claim(work_dir, id).is_some();
+    return crate::work_item_claim_taking::find_claim(work_dir, id).is_some();
 }
 
 /// Controls stay out of the release executable.

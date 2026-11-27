@@ -166,7 +166,7 @@ fn held_batch(world: &World) -> Held {
         &[
             "update-ref",
             "--no-deref",
-            crate::held_commit_settle::kept_reference(SEQ).as_str(),
+            crate::held_commit_settle_move::kept_reference(SEQ).as_str(),
             held_commit.as_str(),
         ],
     );
