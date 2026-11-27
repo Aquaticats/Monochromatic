@@ -520,6 +520,9 @@
 //! - `service_work_drains_a_snapshot_ahead.rs`:
 //!   the drain of the snapshots the commit service makes ahead of the next add,
 //!   as one step of a round.
+//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
+//!   the pushes a round runs again because their retry is due,
+//!   and the programs a record's end gives up.
 //! - `service_work_drains_awaiting.rs`:
 //!   the drains of one directory and of a common directory,
 //!   awaited by a task of the runtime.
@@ -1110,6 +1113,10 @@ pub mod service_work_storage_awaited;
 
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
+/// The pushes a round runs again because their retry is due,
+/// and the programs a record's end gives up.
+pub mod service_work_drains_awaiting_the_due_push_retries;
+
 pub mod service_work_drains_awaiting;
 
 /// The service's work that can take minutes:
