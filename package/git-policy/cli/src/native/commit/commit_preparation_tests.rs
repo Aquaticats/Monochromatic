@@ -1533,7 +1533,7 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
     };
     assert!(
         lasted >= let_go_at,
-        "the command answered at {lasted:?}, before the kernel's release of the step was let go at {let_go_at:?}: the step was ended at its ceiling and no wait for the kernel was made"
+        "the command answered at {lasted:?}, and the control let the kernel's release of the step go only at {let_go_at:?}: the command never waited for the kernel"
     );
     assert!(
         lasted
