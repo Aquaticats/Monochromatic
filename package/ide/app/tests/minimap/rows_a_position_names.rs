@@ -10,10 +10,7 @@ use ide_app::minimap::{
     Target,
 };
 /// The vertical mapping the minimap shows.
-use ide_app::row_map::{
-    CODE_ROW,
-    RowMap,
-};
+use ide_app::row_map::RowMap;
 
 /// A position on the minimap shows the visual row of the vertical mapping it lies on,
 /// wrapped rows and blocks
