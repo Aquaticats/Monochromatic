@@ -269,6 +269,26 @@
 //!   the words a waiting command is told about its own wait.
 //! - `service_client_wake.rs`:
 //!   the client's one-way message that work items were written for a repository.
+//! - `service_client_what_a_request_came_to.rs`:
+//!   what a commit request came to:
+//!   landed,
+//!   kept,
+//!   prepared again,
+//!   or not made.
+//! - `service_client_the_failure_a_person_reads.rs`:
+//!   the plain failure a person reads for each code the service answers with.
+//! - `service_client_withdraw_a_request.rs`:
+//!   asks the service to drop a request this command sent,
+//!   and turns its answer into the command's end.
+//! - `service_client_scratch_renewal.rs`:
+//!   the renewal of the command's scratch directory while a commit waits.
+//! - `service_client_wait_for_the_answer.rs`:
+//!   the wait for the answer to a request that was written,
+//!   with what it remembers between two messages.
+//! - `service_client_send_and_wait.rs`:
+//!   the sends,
+//!   the one identity each carries,
+//!   and the tries a service that went silent or closed its connection is given.
 //! - `service_client.rs`:
 //!   the wrapper's side of a commit through the commit service.
 //! - `service_server_own_worktree_question.rs`:
@@ -485,6 +505,32 @@ pub mod service_server_socket_binding;
 /// The service as a mode of the one executable:
 /// the words that select it and the start of the service.
 pub mod service_main;
+
+/// What a commit request came to:
+/// landed,
+/// kept,
+/// prepared again,
+/// or not made.
+pub mod service_client_what_a_request_came_to;
+
+/// The plain failure a person reads for each code the service answers with.
+pub mod service_client_the_failure_a_person_reads;
+
+/// Asks the service to drop a request this command sent,
+/// and turns its answer into the command's end.
+pub mod service_client_withdraw_a_request;
+
+/// The renewal of the command's scratch directory while a commit waits.
+pub mod service_client_scratch_renewal;
+
+/// The wait for the answer to a request that was written,
+/// with what it remembers between two messages.
+pub mod service_client_wait_for_the_answer;
+
+/// The sends,
+/// the one identity each carries,
+/// and the tries a service that went silent or closed its connection is given.
+pub mod service_client_send_and_wait;
 
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
