@@ -68,11 +68,13 @@ const DELETED_RECORDS: &str = "records.txt";
 const DELETED_RECORDS_BASE: &str =
     "alpha one\nalpha two\nbeta one\nbeta two\ngamma one\ngamma two\ndelta one\ndelta two\n";
 
-/// This side's records: the `beta` records are gone.
+/// This side's records:
+/// the `beta` records are gone.
 const DELETED_RECORDS_OURS: &str =
     "alpha one\nalpha two\ngamma one\ngamma two\ndelta one\ndelta two\n";
 
-/// The other side's records: the `gamma` records are gone.
+/// The other side's records:
+/// the `gamma` records are gone.
 const DELETED_RECORDS_THEIRS: &str =
     "alpha one\nalpha two\nbeta one\nbeta two\ndelta one\ndelta two\n";
 

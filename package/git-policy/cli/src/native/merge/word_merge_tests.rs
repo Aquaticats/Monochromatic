@@ -504,11 +504,13 @@ fn nothing_either_side_wrote_is_dropped() {
 const DELETED_RECORDS_BASE: &str =
     "alpha one\nalpha two\nbeta one\nbeta two\ngamma one\ngamma two\ndelta one\ndelta two\n";
 
-/// The first side's file: the `beta` records are gone.
+/// The first side's file:
+/// the `beta` records are gone.
 const DELETED_RECORDS_OURS: &str =
     "alpha one\nalpha two\ngamma one\ngamma two\ndelta one\ndelta two\n";
 
-/// The second side's file: the `gamma` records are gone.
+/// The second side's file:
+/// the `gamma` records are gone.
 const DELETED_RECORDS_THEIRS: &str =
     "alpha one\nalpha two\nbeta one\nbeta two\ndelta one\ndelta two\n";
 
@@ -616,11 +618,11 @@ fn no_record_one_side_deleted_is_written_back() {
 /// The records a generated region is built from:
 /// one record per line,
 /// every record different from the others.
-const GENERATED_RECORDS: [&str; 4] = ["alpha one\n", "beta two\n", "gamma three\n", "delta four\n"];
+const GENERATED_RECORDS: &[&str] = &["alpha one\n", "beta two\n", "gamma three\n", "delta four\n"];
 
 /// The records a generated side may insert,
 /// which no record of the base holds.
-const GENERATED_INSERTIONS: [&str; 2] = ["zed wild\n", "zed tame\n"];
+const GENERATED_INSERTIONS: &[&str] = &["zed wild\n", "zed tame\n"];
 
 /// What:
 ///  Every text a generated side of one base run can hold:
@@ -651,7 +653,7 @@ fn record_variants(base: &[&str]) -> Vec<String> {
         for at in 0..=kept.len() {
             for inserted in GENERATED_INSERTIONS {
                 let mut grown: Vec<&str> = kept.clone();
-                grown.insert(at, inserted);
+                grown.insert(at, *inserted);
                 found.push(grown.concat());
             }
         }

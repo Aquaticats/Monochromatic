@@ -46,7 +46,8 @@ use std::collections::{
 /// Why:
 ///   A line region's answer is written from the base's own lines,
 /// so each line is kept with the bytes it had.
-/// `&[u8]` is the sibling of `Vec<u8>`: a borrowed slice that copies nothing,
+/// `&[u8]` is the sibling of `Vec<u8>`,
+/// a borrowed slice that copies nothing,
 /// and it is borrowed because the text outlives the walk.
 ///
 /// In TS you'd write (pseudocode):
