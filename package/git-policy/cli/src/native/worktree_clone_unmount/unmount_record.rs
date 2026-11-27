@@ -25,12 +25,12 @@ use super::staged_record_reading::{
     RecordReading,
     read_staged_record,
 };
-use super::unmount_turn::{
+use super::unmount_turn_answers::{
     UnmountOutcome,
-    UnmountRequest,
     call_refused,
     refused,
 };
+use super::unmount_turn_request::UnmountRequest;
 use std::os::unix::fs::MetadataExt;
 
 #[allow(

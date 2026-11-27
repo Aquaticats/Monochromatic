@@ -1,7 +1,9 @@
 //! What:
 //!  The queries and readings of "what would this abort discard",
 //!  the record it restores its tree from,
-//!  `src/native/repo_read/repository_facts_abort_discard.rs`,
+//!  the question that asks Git (`src/native/repo_read/repository_facts_abort_discard.rs`)
+//!  and the argument lists and readings it asks it with
+//!  (`src/native/repo_read/repository_facts_abort_discard_query_arguments_and_readings.rs`),
 //!  and the real repository answers they produce.
 //! Why:
 //!  The listing shapes are what the guard trusts,

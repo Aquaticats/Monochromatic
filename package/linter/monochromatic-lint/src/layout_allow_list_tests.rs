@@ -133,17 +133,58 @@ fn a_file_use_line_without_a_folder_and_two_files_is_an_error() {
 }
 
 /// A path is relative to the package folder,
-/// so an absolute one and one that climbs out are errors.
+///  so an absolute one is an error,
+///  while one that climbs out with `..` names a folder the walk of a `#[path]` module reaches.
 #[test]
-fn a_path_that_is_absolute_or_climbs_out_is_an_error() {
+fn an_absolute_path_is_an_error_and_a_climbing_one_names_the_folder() {
     for line in [
         "uses /home/someone/src/a -> src/b\n",
-        "uses src/a -> ../../elsewhere/b\n",
-        "file-uses ../other one.rs -> two.rs\n",
+        "uses src/a -> /home/someone/src/b\n",
     ] {
         let error: String = error_of(line);
         assert!(error.contains("relative to the package folder"), "{error}");
     }
+    // What: a folder outside the package is the walk from it, which is how every key writes that folder.
+    // Why: a module a `#[path]` names elsewhere is a folder of the same tree, so its lines must read back.
+    let list: AllowList =
+        parsed("uses ../outside -> src/g/c0\nfile-uses ../outside one.rs -> two.rs\n");
+    assert!(list.covers_use(Path::new("../outside"), Path::new("src/g/c0")));
+    assert!(list.covers_file_use(Path::new("../outside"), "one.rs", "two.rs"));
+}
+
+/// A folder name may hold a space,
+///  so a `uses` line is read from the two sides of the arrow it holds.
+///  The four words are read when the line sets them off with one whitespace character each,
+///  and every other line is read from its arrow with no space taken off either side.
+#[test]
+fn a_use_line_reads_the_two_sides_of_its_arrow() {
+    let list: AllowList = parsed(
+        "uses src/a b -> src/g/c0\n\
+         uses src/x -> src/a b\n\
+         uses src/c\u{a0}d -> src/x\n\
+         uses\tsrc/x\t->\tsrc/g/c1\n",
+    );
+    assert!(list.covers_use(Path::new("src/a b"), Path::new("src/g/c0")));
+    assert!(list.covers_use(Path::new("src/x"), Path::new("src/a b")));
+    assert!(list.covers_use(Path::new("src/c\u{a0}d"), Path::new("src/x")));
+    // The control: a line written with tabs is still the four words it spells.
+    assert!(list.covers_use(Path::new("src/x"), Path::new("src/g/c1")));
+    // What: two folders whose names start with a space, which the rule prints one space after `uses` and after the arrow.
+    // Why: reading that one space away as if it were part of the word would name the folder beside each of them.
+    let spelled: AllowList = parsed("uses  a -> src/b\nuses src/x ->  a\n");
+    assert!(spelled.covers_use(Path::new(" a"), Path::new("src/b")));
+    assert!(spelled.covers_use(Path::new("src/x"), Path::new(" a")));
+    assert!(!spelled.covers_use(Path::new("a"), Path::new("src/b")));
+    assert!(!spelled.covers_use(Path::new("src/x"), Path::new("a")));
+}
+
+/// A `uses` line whose arrow the reader cannot place is an error,
+///  because a folder name holds no arrow of its own.
+#[test]
+fn a_use_line_with_two_arrows_is_an_error() {
+    let error: String = error_of("uses src/a -> b -> src/c\n");
+    assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+    assert!(error.contains("no folder name holds"), "{error}");
 }
 
 /// A list that names one thing twice is not a list of distinct findings.
@@ -241,6 +282,26 @@ impl Read for Counted {
         self.served += count as u64;
         return Ok(count);
     }
+}
+
+/// A list as long as the one the densest loop measured here needs is read,
+///  so the bound the module documents is the size that loop asked a round to write.
+#[test]
+fn a_list_as_long_as_the_dense_loop_needs_is_read() {
+    // What: the bytes the densest loop a group's own file closes needed, measured on 2026-11-26
+    // (`layout_allow_list::MAX_BYTES` records the same measurement).
+    // Why: a bound of one mebibyte refused that very list, and every line of it is one use the rule asked to be recorded.
+    const RECORDED_DENSE_LOOP_BYTES: usize = 1_681_290;
+    let mut text: String = String::new();
+    let mut lines: usize = 0;
+    while text.len() < RECORDED_DENSE_LOOP_BYTES {
+        text.push_str(format!("uses src/f{lines} -> src/g{lines}/c{lines}\n").as_str());
+        lines += 1;
+    }
+    let fixture: Fixture = Fixture::new();
+    let written = write(&fixture.path, "allow-list.txt", text.as_str());
+    let list: AllowList = read_allow_list(&written).expect("the dense loop's list reads");
+    assert_eq!(list.entries().len(), lines);
 }
 
 /// A reader that yields more than the cap is refused whatever its file's measured length was,

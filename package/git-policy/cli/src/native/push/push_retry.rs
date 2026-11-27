@@ -40,14 +40,40 @@
 //! const pause = retries.schedule(item, attempt); /* later */ for (const due of retries.takeDue(gitDir)) await push(due);
 //! ```
 
-/// The positive-seconds reading shared by the wait limits.
-use crate::push_deadline_and_patience_settings::positive_seconds;
-/// The plan on disk:
+/// Publish the pause before each new try,
+/// the two bounds it is counted between,
+/// and the directory the plan is kept in.
+pub use super::push_retry_pauses::{
+    FIRST_PAUSE,
+    LONGEST_PAUSE,
+    PLAN_DIRECTORY,
+    RETRY_VARIABLE,
+    first_pause_from,
+    pause_before,
+};
+/// Import the branch waiting for a new try,
+/// which the list keeps,
+/// and the seam a control kills a service through.
+use super::push_retry_waiting_branches::Waiting;
+#[cfg(test)]
+pub(crate) use super::push_retry_waiting_branches::stop_after_in_a_control;
+/// Publish the branch waiting for a new try,
+/// the tries due again,
+/// the request a worker is given,
+/// and the change it asks of the plan.
+pub use super::push_retry_waiting_branches::{
+    Due,
+    RetryChange,
+    Retrying,
+};
+/// Import the plan on disk:
 /// what a start reads,
 /// and what the workers write.
 use crate::push_retry_store::LoadedPlans;
-/// What the retry pushes again.
+/// Import the push item a plan pushes again.
 use crate::work_item::WorkItem;
+/// Import the borrowed and owned path types,
+/// and the two clock readings the pauses are counted between.
 use std::path::{
     Path,
     PathBuf,
@@ -56,242 +82,6 @@ use std::time::{
     Duration,
     Instant,
 };
-
-/// Environment variable that sets,
-/// in whole seconds,
-/// the pause before the first new try of a stopped push.
-pub const RETRY_VARIABLE: &str = "CLI_GIT_PUSH_RETRY_SECONDS";
-
-/// Directory,
-/// under the service instance's journal,
-/// that holds the plan of the pushes waiting for a new try,
-/// so that a restarted
-/// service keeps trying them.
-pub const PLAN_DIRECTORY: &str = "push-retries";
-
-/// The pause before the first new try when nothing configures it.
-pub const FIRST_PAUSE: Duration = Duration::from_secs(10);
-
-/// The longest pause between two tries:
-/// a push that keeps failing is tried about this often for as long as it fails.
-pub const LONGEST_PAUSE: Duration = Duration::from_secs(10 * 60);
-
-/// What:
-///  The first pause for a value of the variable.
-/// Why:
-///   A missing,
-/// zero or malformed value falls back to the default,
-/// never to a tight loop.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// positiveSeconds(value) ?? FIRST_PAUSE_MS
-/// ```
-pub fn first_pause_from(value: Option<&std::ffi::OsStr>) -> Duration {
-    let Some(text) = value else {
-        return FIRST_PAUSE;
-    };
-    return positive_seconds(RETRY_VARIABLE, text)
-        .unwrap_or(FIRST_PAUSE)
-        .min(LONGEST_PAUSE);
-}
-
-/// What:
-///  The pause before try number `attempt` (the first new try is number one):
-/// the first pause,
-/// doubled each time,
-/// never past
-///  the longest.
-/// Why:
-///   Short pauses mend a stall quickly;
-/// longer ones keep a host that is offline for an hour from being asked every few seconds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Math.min(first * 2 ** (attempt - 1), LONGEST)
-/// ```
-pub fn pause_before(
-    attempt: u32,
-    first: Duration,
-) -> Duration {
-    let doublings: u32 = attempt.saturating_sub(1).min(30);
-    return first.saturating_mul(1_u32 << doublings).min(LONGEST_PAUSE);
-}
-
-/// One branch waiting for a new try.
-#[derive(Clone, Debug)]
-struct Waiting {
-    /// The Git directory of the worktree whose service pushes.
-    git_dir: PathBuf,
-    /// The newest push item of the branch;
-    /// its branch is what is pushed again.
-    item: WorkItem,
-    /// The number of the try that is due.
-    attempt: u32,
-    /// When it is due.
-    due: Instant,
-}
-
-/// The waiting plans without the one for `branch_ref` of `git_dir`,
-/// in their order.
-fn without_branch(
-    waiting: Vec<Waiting>,
-    git_dir: &Path,
-    branch_ref: &str,
-) -> Vec<Waiting> {
-    let mut kept: Vec<Waiting> = Vec::new();
-    for entry in waiting {
-        if !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref) {
-            kept.push(entry);
-        }
-    }
-    return kept;
-}
-
-/// A push that is due again.
-#[derive(Clone, Debug)]
-pub struct Due {
-    /// The Git directory whose service pushes;
-    /// the plan is keyed by it.
-    pub git_dir: PathBuf,
-    /// The item to push again.
-    pub item: WorkItem,
-    /// The number of this try.
-    pub attempt: u32,
-}
-
-/// What:
-///  What the worker of one directory is handed about retries:
-/// the first pause (nothing when its handlers do not retry) and the
-///  pushes of that directory that are due again.
-/// Why:
-///   The plan belongs to the service loop alone.
-/// A worker never reads it:
-/// it gets its own copy of what is due for its directory,
-///  as an owned value inside its request,
-/// so no worker shares the plan with another and nothing waits for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Retrying = { first?: number; due: Due[] };
-/// ```
-#[derive(Clone, Debug, Default)]
-pub struct Retrying {
-    /// The pause before the first new try;
-    /// nothing when a retryable failure is to be reported as a failed push.
-    pub first: Option<Duration>,
-    /// The pushes due again,
-    /// each naming the directory it belongs to.
-    pub due: Vec<Due>,
-    /// The directory a plan is kept in,
-    /// so that a drain can keep one on disk before it tells the person a retry is coming;
-    /// nothing for a plan kept in memory only.
-    pub plans: Option<PathBuf>,
-}
-
-/// Methods over a request.
-impl Retrying {
-    /// A request for a drain that keeps no plan:
-    /// a push that could pass is reported as failed,
-    /// as it is for handlers that do not retry.
-    pub fn none() -> Self {
-        return Self {
-            first: None,
-            due: Vec::new(),
-            plans: None,
-        };
-    }
-}
-
-/// What:
-///  One change a worker asks of the plan:
-/// plan a try,
-/// or drop the plan of a branch.
-/// Why:
-///   A worker cannot change the plan (it does not hold it),
-/// so it returns what it did and the service loop applies the changes
-///  on its own thread,
-/// in the order they were made,
-/// which is how the last plan of a branch wins.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable; taken } };
-/// ```
-#[derive(Clone, Debug)]
-pub enum RetryChange {
-    /// Try the branch of `item` again as try number `attempt`,
-    /// at `due`,
-    /// replacing any plan of the same branch.
-    Plan {
-        /// The Git directory whose service pushes.
-        git_dir: PathBuf,
-        /// The newest push item of the branch.
-        item: WorkItem,
-        /// The number of the try that is planned.
-        attempt: u32,
-        /// When it is due.
-        due: Instant,
-    },
-    /// The branch needs no new try:
-    /// its push landed,
-    /// or the person must act.
-    Forget {
-        /// The Git directory whose service pushes.
-        git_dir: PathBuf,
-        /// The branch reference.
-        branch_ref: String,
-        /// Whether this forget rests on a reading that can go stale:
-        /// the proof that the repository is gone,
-        /// whose plans are dropped only while it still is.
-        only_while_unreachable: bool,
-        /// The plan the reading ended,
-        /// which the round took out of the list before the reading,
-        /// so that a repository that is back when this change lands keeps it.
-        /// Nothing for a forget that is the final word.
-        taken: Option<Due>,
-    },
-}
-
-// The number of changes a control lets `apply` apply before it stops, as a killed service leaves the round half applied;
-// nothing outside a control.
-#[cfg(test)]
-thread_local! {
-    /// The bound of the control running on this thread.
-    static STOP_AFTER: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
-}
-
-/// Stops `apply` after `changes` changes on this thread until the guard drops.
-#[cfg(test)]
-pub(crate) fn stop_after_in_a_control(changes: usize) -> StopAfterGuard {
-    STOP_AFTER.with(|slot| {
-        slot.set(Some(changes));
-    });
-    return StopAfterGuard;
-}
-
-/// Ends the control's bound when dropped.
-#[cfg(test)]
-pub(crate) struct StopAfterGuard;
-
-#[cfg(test)]
-impl Drop for StopAfterGuard {
-    fn drop(&mut self) {
-        STOP_AFTER.with(|slot| {
-            slot.set(None);
-        });
-    }
-}
-
-/// Whether a control's bound is reached after `applied` changes.
-#[cfg(test)]
-fn stopped_after(applied: usize) -> bool {
-    return STOP_AFTER.with(|slot| {
-        return slot.get().is_some_and(|bound| {
-            return applied >= bound;
-        });
-    });
-}
 
 /// What:
 ///  The branches whose push is waiting for a new try,
@@ -323,8 +113,9 @@ pub struct PushRetries {
     /// The pause before the first new try.
     first: Duration,
     /// The waiting pushes,
-    /// one per branch of a Git directory.
-    waiting: Vec<Waiting>,
+    /// one per branch of a Git directory,
+    /// which `push_retry_changes_applied.rs` changes.
+    pub(super) waiting: Vec<Waiting>,
     /// The directory the plan's files are read from,
     /// so that a restarted service rebuilds the list;
     /// nothing for a list kept in memory only.
@@ -578,238 +369,6 @@ impl PushRetries {
         let pause: Duration = pause_before(attempt, self.first);
         self.plan(git_dir, item, attempt, now + pause);
         return pause;
-    }
-
-    /// What:
-    ///  Plan try number `attempt` of the branch of `item` for `due`,
-    ///  replacing any plan for the same branch,
-    ///  and give up the values of the record a replaced plan carried,
-    ///  which `item` does not name.
-    /// Why:
-    ///   A plan is the one thing that runs a retryable push's record again
-    ///  (`service_push_programs_held_in_memory`),
-    ///  so a plan this one replaces leaves a record that can never run,
-    ///  and a value that can hold a password may not outlive it here.
-    /// A plan replaced by one of the same record keeps the values:
-    ///  that is the next try of the same push,
-    ///  and the plan a stale proof of a gone repository puts back.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const replaced = waiting.filter((entry) => entry.item.branchRef === item.branchRef && entry.item.id !== item.id());
-    /// const kept = waiting.filter((entry) => entry.item.branchRef !== item.branchRef); kept.push({ item, attempt, due });
-    /// replaced.forEach((entry) => forgetPrograms(entry.item.gitDir, entry.item.id()));
-    /// ```
-    fn plan(
-        &mut self,
-        git_dir: &Path,
-        item: &WorkItem,
-        attempt: u32,
-        due: Instant,
-    ) {
-        let id: String = item.id();
-        let replaced: Vec<String> = self
-            .waiting
-            .iter()
-            .filter(|entry| {
-                return entry.git_dir == git_dir
-                    && entry.item.branch_ref == item.branch_ref
-                    && entry.item.id() != id;
-            })
-            .map(|entry| {
-                return entry.item.id();
-            })
-            .collect();
-        self.waiting = without_branch(
-            std::mem::take(&mut self.waiting),
-            git_dir,
-            item.branch_ref.as_str(),
-        );
-        self.waiting.push(Waiting {
-            git_dir: git_dir.to_path_buf(),
-            item: item.clone(),
-            attempt,
-            due,
-        });
-        for gone in replaced {
-            crate::service_push_programs_held_in_memory::forget(git_dir, gone.as_str());
-        }
-    }
-
-    /// What:
-    ///  Drop the plan of a branch:
-    ///  its push landed,
-    ///  or the person must act,
-    ///  and give up the values of every record that plan carried.
-    /// Why:
-    ///   A plan is the one thing that keeps a retryable push's values (`service_push_programs_held_in_memory`),
-    ///  and a later push of the branch that lands ends such a plan just as a try that fails for good does;
-    ///  the record a dropped plan carried can never run again,
-    ///  so a value that can hold a password may not outlive it in this service's memory.
-    /// Writes nothing:
-    /// the worker that decided it removes the file (`Replanning::forget`).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// for (const entry of waiting) { if (sameBranch(entry)) forgetPrograms(entry.item.gitDir, entry.item.id()); }
-    /// ```
-    pub fn forget(
-        &mut self,
-        git_dir: &Path,
-        branch_ref: &str,
-    ) {
-        let ended: Vec<String> = self
-            .waiting
-            .iter()
-            .filter(|entry| {
-                return entry.git_dir == git_dir && entry.item.branch_ref == branch_ref;
-            })
-            .map(|entry| {
-                return entry.item.id();
-            })
-            .collect();
-        self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
-        for item in ended {
-            crate::service_push_programs_held_in_memory::forget(git_dir, item.as_str());
-        }
-    }
-
-    /// What:
-    ///  Apply what the workers of a round asked to the list this process reads,
-    /// in the order they asked it.
-    /// Why:
-    ///   The workers told the journal what each change is when they made it:
-    /// the file of a plan is published before the notice that promises the try,
-    /// and the file of a branch that needs no try goes with the record that says so.
-    /// So this applies the same changes to the list and touches no file:
-    ///  a change replayed here late
-    /// cannot take away a plan a later round wrote,
-    /// and a change that never reached a thread here
-    ///  leaves the journal holding what the worker itself wrote.
-    ///  A forget that rests on a reading of the filesystem,
-    /// the proof that a repository is gone,
-    /// is applied only while that directory is still missing:
-    ///  a repository renamed back by now is reachable,
-    /// and its plan is the only scheduled backup of its commits.
-    /// A forget whose reading went stale puts the plan that reading ended back,
-    ///  because the round took it out of this list before it drained the directory:
-    /// without that,
-    ///  the running service keeps no plan and no wake for a repository that is there again,
-    /// and the promised
-    ///  push waits for a service restart.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// for (const change of changes) {
-    ///   if (change.forget && change.onlyWhileUnreachable && isDirectory(change.gitDir)) {
-    ///     plan(change.forget.taken);
-    ///     continue;
-    ///   }
-    ///   change.forget ? forget(change) : plan(change);
-    /// }
-    /// ```
-    pub fn apply(
-        &mut self,
-        changes: Vec<RetryChange>,
-    ) {
-        // How many of the changes this call has applied, for the control that kills a service inside it; nothing outside one.
-        #[cfg(test)]
-        let mut applied: usize = 0;
-        for change in changes {
-            // A service killed here has applied the changes before this one and nothing after it.
-            #[cfg(test)]
-            {
-                if stopped_after(applied) {
-                    return;
-                }
-                applied += 1;
-            }
-            match change {
-                RetryChange::Plan {
-                    git_dir,
-                    item,
-                    attempt,
-                    due,
-                } => self.plan(git_dir.as_path(), &item, attempt, due),
-                RetryChange::Forget {
-                    git_dir,
-                    branch_ref,
-                    only_while_unreachable,
-                    taken,
-                } => {
-                    // The plan a proof of a missing repository ends was read before this change was applied, and a repository
-                    //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
-                    if only_while_unreachable && git_dir.is_dir() {
-                        // The plan this reading ended is the one the round took out of the list before its drain
-                        //  (`service_work_run_round.rs`, `plan_the_round`), so putting it back is what leaves the running
-                        //  service with the push it promised; the try that plan was for never ran, so it is due now.
-                        //  Only a drain of an unreachable directory asks for this kind of forget, and such a drain runs no
-                        //  push and asks nothing else of that branch, so the plans of a branch here are this one's alone.
-                        if let Some(plan) = taken {
-                            self.plan(git_dir.as_path(), &plan.item, plan.attempt, Instant::now());
-                        }
-                        continue;
-                    }
-                    self.forget(git_dir.as_path(), branch_ref.as_str());
-                }
-            }
-        }
-    }
-
-    /// Remove and return the plans of this Git directory that are due at `now`.
-    pub fn take_due(
-        &mut self,
-        git_dir: &Path,
-        now: Instant,
-    ) -> Vec<Due> {
-        let mut kept: Vec<Waiting> = Vec::new();
-        let mut due: Vec<Due> = Vec::new();
-        for entry in std::mem::take(&mut self.waiting) {
-            if entry.git_dir == git_dir && entry.due <= now {
-                due.push(Due {
-                    git_dir: entry.git_dir,
-                    item: entry.item,
-                    attempt: entry.attempt,
-                });
-            } else {
-                kept.push(entry);
-            }
-        }
-        self.waiting = kept;
-        return due;
-    }
-
-    /// How long until the first plan of this Git directory is due (zero for one already due),
-    /// or nothing when none waits.
-    pub fn next_wait(
-        &self,
-        git_dir: &Path,
-        now: Instant,
-    ) -> Option<Duration> {
-        let mut soonest: Option<Duration> = None;
-        for entry in &self.waiting {
-            if entry.git_dir != git_dir {
-                continue;
-            }
-            let wait: Duration = entry.due.saturating_duration_since(now);
-            soonest = Some(match soonest {
-                Some(earlier) => earlier.min(wait),
-                None => wait,
-            });
-        }
-        return soonest;
-    }
-
-    /// The Git directories that have a plan,
-    /// each once.
-    pub fn directories(&self) -> Vec<PathBuf> {
-        let mut found: Vec<PathBuf> = Vec::new();
-        for entry in &self.waiting {
-            if !found.contains(&entry.git_dir) {
-                found.push(entry.git_dir.clone());
-            }
-        }
-        return found;
     }
 }
 

@@ -45,6 +45,10 @@
 //! - `origin_cleanup_record.rs`:
 //!   the record as a value,
 //!   its two state constructors and its bytes.
+//! - `origin_cleanup_attempt_identity.rs`:
+//!   the identity proof of the origin dataset and the recorded snapshot.
+//! - `origin_cleanup_attempt_counts.rs`:
+//!   the clone and hold counts and the mark that block before any request.
 //! - `origin_cleanup_attempt.rs`:
 //!   the seven steps of one attempt.
 //! - `origin_cleanup_lines.rs`:

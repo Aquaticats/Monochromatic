@@ -119,3 +119,34 @@ fn layout_a_file_of_exactly_the_span_bound_keeps_its_last_line() {
         longer_spans.span(&longer_file, 0)
     );
 }
+
+/// A line far past a mebibyte keeps its own span,
+///  because a layout finding is reported in a source file this repository can hold,
+///  and the bound is sized for files of that size rather than for the one that fits in a mebibyte.
+#[test]
+fn layout_a_line_far_past_a_mebibyte_keeps_its_own_span() {
+    // What: a source file of three mebibytes, the size of the largest source the release pass put a finding in
+    // (a use on line 49,153 of a three-mebibyte file, 2026-11-26).
+    // Why: a bound of two mebibytes answers the file start for every line past it, so a finding there points at the wrong bytes.
+    const THREE_MEBIBYTES: usize = 3 * 1024 * 1024;
+    // What: every line of the fixture, so a line's own offset can be read from its number.
+    // Why: the fixture is built from one repeated line, so the arithmetic of the file is exact.
+    const LINE: &str = "// one line of the source file\n";
+    let count: usize = THREE_MEBIBYTES.div_ceil(LINE.len());
+    let text: String = LINE.repeat(count);
+    let fixture = package_with(&[("deep.rs", text.as_str())]);
+    let file = fixture.path.join("deep.rs");
+    let mut spans: LineSpans = LineSpans::default();
+    // What: a line past the two-mebibyte point a shorter bound would stop at.
+    // Why: the span must name that line and its own offset, not the file start.
+    let line: usize = (THREE_MEBIBYTES * 3 / 4) / LINE.len() + 1;
+    assert_eq!(
+        spans.span(&file, line),
+        Span {
+            offset: (line - 1) * LINE.len(),
+            length: LINE.len() - 1,
+            line,
+            column: 1
+        }
+    );
+}

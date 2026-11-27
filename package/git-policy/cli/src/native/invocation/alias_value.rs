@@ -1,7 +1,9 @@
 //! What:
-//!  The value of a Git alias,
-//!  split the way Git splits it,
-//!  from the variables of `git config --null --list`.
+//!  The value of a Git alias:
+//!  the value Git keeps,
+//!  read from one `git config --null --list`;
+//!  that value split the way Git splits it;
+//!  and the words of a `!` shell alias's value.
 //! Why:
 //!  An alias value is split by `split_cmdline`,
 //!  which separates words on `GIT_SPACE` outside quotes,
@@ -9,11 +11,29 @@
 //!  and lets a backslash escape the next byte except inside single quotes;
 //!  Git decides what an alias is from its first byte and never trims the value,
 //!  so a leading space is Git's own empty first word and a trailing one its own empty last word.
+//!  A `!` alias's value is read by the shell instead,
+//!  so it is only read here when the shell passes every byte through unchanged.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const words = splitAliasCommand(value); const selected = aliasSelectionOf(gitConfigNullList);
+//! // const value = await lookupAlias(name); const words = splitAliasCommand(value);
+//! // const shellWords = shellGitWords(value); const selected = aliasSelectionOf(gitConfigNullList);
 //! ```
+
+/// Debug diagnostics for a read that answered nothing.
+use crate::diagnostic_log::debug;
+/// Running real Git,
+///  for the one read of the value Git keeps.
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
+/// `OsString` is owned operating-system text of raw bytes.
+use std::ffi::OsString;
+/// `Path` is a borrowed filesystem path;
+///  the read names the directory it runs in.
+use std::path::Path;
 
 /// What:
 ///  One variable of `git config --null --list`,
@@ -180,6 +200,80 @@ pub fn split_alias_command(value: &[u8]) -> Option<Vec<Vec<u8>>> {
 }
 
 /// What:
+///  The words after `!git` in an alias value,
+///  when the value is exactly one plain `git` command;
+///  no word at all when the value names `git` and nothing else,
+///  whose command the caller's own words then make.
+/// Why:
+///   The shell splits and expands its command line,
+///  so only a value whose bytes the shell passes through
+///       unchanged reads here as the words the shell runs;
+///  anything the shell would expand,
+///  quote or separate
+///  is left unread rather than guessed at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function shellGitWords(value: string): string[] | undefined;
+/// ```
+pub(crate) fn shell_git_words(value: &[u8]) -> Option<Vec<Vec<u8>>> {
+    let remainder: &[u8] = value.strip_prefix(b"!git")?;
+    // `!gitk` names another program, so only a space or the end of the value may follow.
+    if !remainder.is_empty() && remainder.first() != Some(&b' ') {
+        return None;
+    }
+    let mut words: Vec<Vec<u8>> = Vec::new();
+    let mut current: Vec<u8> = Vec::new();
+    for &byte in remainder {
+        if byte == b' ' {
+            if !current.is_empty() {
+                words.push(std::mem::take(&mut current));
+            }
+            continue;
+        }
+        if !is_plain_shell_byte(byte) {
+            return None;
+        }
+        current.push(byte);
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+    return Some(words);
+}
+
+/// What:
+///  Whether the shell passes a byte through in the same word,
+///  without quoting it,
+///  expanding it or separating
+///       on it.
+/// Why:
+///   These are the bytes of ordinary arguments;
+///  `$`,
+///  a backtick,
+///  a quote,
+///  a backslash,
+///  a glob,
+///  a
+///  redirection,
+///  a separator,
+///  a brace and a leading `~` all mean something to the shell,
+/// and `#` can start a
+///  comment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => /[A-Za-z0-9_./:=@+,-]/.test(String.fromCharCode(byte))
+/// ```
+fn is_plain_shell_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'-' | b'_' | b'.' | b'/' | b':' | b'=' | b'@' | b'+' | b','
+        );
+}
+
+/// What:
 ///  Whether a byte is the dot `parse_config_key` splits a variable name at.
 /// Why:
 ///  Git finds the last one,
@@ -257,6 +351,63 @@ pub fn alias_selection(
         //  (`error: missing value for '<variable>'`), and leaving the alias to Git reproduces that message.
         let value: &[u8] = variable.value?;
         selected = Some(value.to_vec());
+    }
+    return selected;
+}
+
+/// What:
+///  The value of the alias Git keeps,
+///  read from one `git config --null --list`,
+///  or nothing when Git keeps none or dies on one.
+///  `Option<&Path>` is the directory this command was started in,
+///       which this read runs in,
+///       and nothing when the caller named none.
+/// Why:
+///   `lookupAlias`:
+///  `config_alias_cb` overwrites the value it kept on every matching variable,
+///  so the last of `alias.<name>` and `[alias "<name>"] command` in config order wins,
+///  and a matching variable with no value is Git's own `missing value` refusal,
+///  which leaving the alias to Git reproduces.
+///  The read runs in the directory the command was started in,
+///  because that is where Git reads the configuration this question is about:
+///  a read that asked the process instead answered with whatever directory another
+///  test had moved the process to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function lookupAlias({ gitPath, globalArgs, name, start }): Promise<string | typeof ALIAS_UNSET>;
+/// ```
+pub fn lookup_alias(
+    context: &GitContext,
+    global: &[OsString],
+    name: &OsString,
+    start: Option<&Path>,
+) -> Option<Vec<u8>> {
+    // A caller that named no directory reads no alias: Git cannot start somewhere this command was not started.
+    let directory: &Path = start?;
+    let mut arguments: Vec<OsString> = global.to_vec();
+    arguments.push(OsString::from("config"));
+    arguments.push(OsString::from("--null"));
+    arguments.push(OsString::from("--list"));
+    let mut request: GitRequest = GitRequest::new(directory, arguments.as_slice());
+    request.without_prefix = true;
+    let output = match run_git(context, &request) {
+        Ok(output) if output.succeeded() => output,
+        Ok(_) | Err(_) => {
+            debug(
+                "readConfigVariables",
+                "git config --null --list answered nothing",
+            );
+            return None;
+        }
+    };
+    let variables: Vec<ConfigVariable<'_>> = config_variables(output.stdout.as_slice());
+    let selected: Option<Vec<u8>> = alias_selection(variables.as_slice(), name.as_encoded_bytes());
+    if selected.is_none() {
+        debug(
+            "lookupAlias",
+            format!("no {}", name.to_string_lossy()).as_str(),
+        );
     }
     return selected;
 }

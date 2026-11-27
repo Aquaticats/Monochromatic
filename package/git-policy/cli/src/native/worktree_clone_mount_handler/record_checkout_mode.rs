@@ -26,12 +26,15 @@
 //! const line = recordCheckout({ checkout: '/home/user/Monochromatic' }); // the recorded line, or a refusal
 //! ```
 
+use super::record_checkout_mode_paths_and_datasets::{
+    pool_of,
+    prove_the_container_beside,
+    the_checkout_is_the_mounts_root,
+};
+use super::record_checkout_mode_record_comparison::write_or_agree;
 use crate::worktree_clone_mount_handler::handler_install_paths::CHECKOUT_RECORD_PATH;
 use crate::worktree_clone_mount_handler::handler_mode_arguments::RecordCheckoutRequest;
-use crate::worktree_clone_mount_handler::sweep_checkout_mount::{
-    CheckoutMount,
-    CheckoutMounts,
-};
+use crate::worktree_clone_mount_handler::sweep_checkout_mount::CheckoutMount;
 use crate::worktree_clone_mount_handler::sweep_configuration::{
     SweepConfiguration,
     read_configuration,
@@ -42,19 +45,12 @@ use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
     value_of,
 };
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
-    DatasetReader,
     ReadFailure,
     ZfsDatasetReader,
 };
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{
-    LiveMountedDatasets,
-    MountedDatasets,
-};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use rustix::process::geteuid;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 
 /// The record's own facts,
 /// the field a later run finds different,
@@ -73,40 +69,6 @@ pub use super::record_checkout_mode_record::{
 /// The record's own read,
 /// which every proof that names a checkout asks.
 pub(super) use super::record_checkout_mode_record_file::read_record;
-
-use super::record_checkout_mode_record_file::{
-    already_recorded_line,
-    recorded_line,
-    replaced_line,
-    write_record,
-};
-
-/// What:
-///  Where one `record-checkout` run reads and writes,
-///  with the installed places by default.
-/// Why:
-///   The release path reads the installed configuration and writes the installed
-///  record,
-///  and a control hands in fixture paths and scripted reads,
-///  so no control reads this machine's table,
-///  pool or record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RecordCheckoutPlaces = { configuration, record, mounts, mounted, datasets };
-/// ```
-pub struct RecordCheckoutPlaces<'a> {
-    /// The configuration the container is named in.
-    pub configuration: PathBuf,
-    /// The record the mode writes and compares against.
-    pub record: PathBuf,
-    /// The mount table the checkout's own mount is read from.
-    pub mounts: &'a dyn CheckoutMounts,
-    /// The mount table rows the container is proved against.
-    pub mounted: &'a dyn MountedDatasets,
-    /// The pool reads the dataset's own reply comes from.
-    pub datasets: &'a dyn DatasetReader,
-}
 
 /// What:
 ///  Run the mode as the release runs it:
@@ -244,279 +206,9 @@ pub fn run_with(
     return write_or_agree(places, &proved, request);
 }
 
-/// What:
-///  Compare the proved facts with the record,
-///  admit the GUID a `--replace` names,
-///  and write only when the GUID is the whole of what changed.
-/// Why:
-///  A runbook that runs twice must be harmless,
-///  and a differing field is a refusal rather than a write,
-///  so the only admitted change is the GUID a restore moved and the caller
-///  typed from the kernel's own answer.
-///  The record the command writes is the dataset this command named:
-///  a container that also differs is refused,
-///  because no token names it and the line says the container was kept.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const line = writeOrAgree(places, proved, request);
-/// ```
-///
-/// # Errors
-/// Everything a differing field,
-/// a wrong token,
-/// a record that is not one root alone may write,
-/// and a write that fails.
-fn write_or_agree(
-    places: &RecordCheckoutPlaces<'_>,
-    proved: &RecordedCheckout,
-    request: &RecordCheckoutRequest,
-) -> Result<String, RecordCheckoutFailure> {
-    let existing: Option<RecordedCheckout> = read_record(places.record.as_path())?;
-    let Some(recorded) = existing else {
-        if request.replace.is_some() {
-            return Err(RecordCheckoutFailure::NothingToReplace {
-                record: places.record.clone(),
-            });
-        }
-        write_record(places.record.as_path(), proved)?;
-        return Ok(recorded_line(proved, places.record.as_path()));
-    };
-    let difference: Option<DifferingField> = differing_field(&recorded, proved);
-    let Some(field) = difference else {
-        return Ok(already_recorded_line(places.record.as_path()));
-    };
-    let Some(typed) = request.replace.as_deref() else {
-        return Err(RecordCheckoutFailure::RecordDiffers {
-            recorded: recorded_value(&field),
-            kernel: proved_value(proved, &field),
-            field,
-        });
-    };
-    if typed != proved.guid {
-        return Err(RecordCheckoutFailure::ReplaceTokenDiffers {
-            kernel: proved.guid.clone(),
-            typed: String::from(typed),
-        });
-    }
-    // The token admits the GUID, so the record with that GUID is what the write would leave: any field that still
-    // differs is a change no token names, and it refuses rather than being written under a line that says it was kept.
-    let was: String = recorded.guid.clone();
-    let admitted: RecordedCheckout = RecordedCheckout {
-        guid: proved.guid.clone(),
-        ..recorded
-    };
-    if let Some(also) = differing_field(&admitted, proved) {
-        return Err(RecordCheckoutFailure::RecordDiffers {
-            recorded: recorded_value(&also),
-            kernel: proved_value(proved, &also),
-            field: also,
-        });
-    }
-    write_record(places.record.as_path(), proved)?;
-    return Ok(replaced_line(proved, was.as_str(), places.record.as_path()));
-}
-
-/// What:
-///  The fields of the record that differ from the proved facts,
-///  one at a time.
-/// Why:
-///  Each field's repair is another command,
-///  so the first difference is the one a person is sent to fix.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const field = differingField(recorded, proved); // undefined when every field agrees
-/// ```
-fn differing_field(
-    recorded: &RecordedCheckout,
-    proved: &RecordedCheckout,
-) -> Option<DifferingField> {
-    if recorded.checkout != proved.checkout {
-        return Some(DifferingField::Path {
-            recorded: recorded.checkout.display().to_string(),
-        });
-    }
-    if recorded.dataset != proved.dataset {
-        return Some(DifferingField::Dataset {
-            recorded: recorded.dataset.clone(),
-        });
-    }
-    if recorded.guid != proved.guid {
-        return Some(DifferingField::Guid {
-            recorded: recorded.guid.clone(),
-        });
-    }
-    if recorded.container != proved.container {
-        return Some(DifferingField::Container {
-            recorded: recorded.container.clone(),
-        });
-    }
-    return None;
-}
-
-/// The record's value of one field,
-/// which a refusal prints beside the kernel's.
-fn recorded_value(field: &DifferingField) -> String {
-    return match field {
-        DifferingField::Path {
-            recorded,
-        }
-        | DifferingField::Dataset {
-            recorded,
-        }
-        | DifferingField::Guid {
-            recorded,
-        }
-        | DifferingField::Container {
-            recorded,
-        } => recorded.clone(),
-    };
-}
-
-/// The kernel's value of one field,
-/// which a refusal prints beside the record's.
-fn proved_value(
-    proved: &RecordedCheckout,
-    field: &DifferingField,
-) -> String {
-    return match field {
-        DifferingField::Path {
-            ..
-        } => proved.checkout.display().to_string(),
-        DifferingField::Dataset {
-            ..
-        } => proved.dataset.clone(),
-        DifferingField::Guid {
-            ..
-        } => proved.guid.clone(),
-        DifferingField::Container {
-            ..
-        } => proved.container.clone(),
-    };
-}
-
-/// What:
-///  Whether the checkout is the root of the mount it is on.
-/// Why:
-///  A folder inside a dataset's mount is not the dataset's own mountpoint,
-///  and a record written for it would make every later proof compare against a
-///  folder.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isRoot = (checkout, mount) => canonical(checkout) === canonical(mount.mountPoint);
-/// ```
-fn the_checkout_is_the_mounts_root(
-    checkout: &Path,
-    mount: &CheckoutMount,
-) -> bool {
-    return canonical(checkout) == canonical(mount.mount_point.as_path());
-}
-
-/// A path with its `.` and `..` components resolved and its repeated slashes
-/// folded,
-/// as text,
-/// and the path as written when it cannot be read.
-fn canonical(path: &Path) -> PathBuf {
-    return std::fs::canonicalize(path).unwrap_or_else(|_error| return lexical(path));
-}
-
-/// What:
-///  A path's text with its `.` and `..` components resolved and its repeated
-///  slashes folded,
-///  without asking the system.
-/// Why:
-///  A mountpoint whose own directory does not exist yet is compared as the text
-///  it is,
-///  so the proof never creates a directory to compare one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const folded = lexical('/home/user/./Monochromatic//package/../');
-/// ```
-fn lexical(path: &Path) -> PathBuf {
-    let mut folded: PathBuf = PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                let _dropped = folded.pop();
-            }
-            other => folded.push(other.as_os_str()),
-        }
-    }
-    return folded;
-}
-
-/// What:
-///  The pool a dataset's name stands in.
-/// Why:
-///  A pool is the name's first component,
-///  and the container and the checkout must be in one pool or a foreign pool's
-///  subtree would sit inside a served checkout.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pool = (dataset) => dataset.split('/')[0];
-/// ```
-fn pool_of(dataset: &str) -> String {
-    return dataset.split('/').next().unwrap_or_default().to_string();
-}
-
-/// What:
-///  Refuse a container that is not beside the checkout.
-/// Why:
-///  The route places the container beside the checkout,
-///  and a container inside the checkout would put managed clones inside a served
-///  tree,
-///  while a container holding the checkout would put a clone store above it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// proveTheContainerBeside('zpcachyos/nosnap/monochromatic-git-checkout', 'zpcachyos/nosnap/clone-datasets');
-/// ```
-///
-/// # Errors
-/// `ContainerNotBesideTheCheckout` naming the direction the proof found.
-fn prove_the_container_beside(
-    dataset: &str,
-    container: &str,
-) -> Result<(), RecordCheckoutFailure> {
-    if container == dataset {
-        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout {
-            dataset: String::from(dataset),
-            container: String::from(container),
-            because: String::from("they are the same dataset"),
-        });
-    }
-    if is_inside(container, dataset) {
-        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout {
-            dataset: String::from(dataset),
-            container: String::from(container),
-            because: String::from("the container is inside the checkout"),
-        });
-    }
-    if is_inside(dataset, container) {
-        return Err(RecordCheckoutFailure::ContainerNotBesideTheCheckout {
-            dataset: String::from(dataset),
-            container: String::from(container),
-            because: String::from("the container holds the checkout"),
-        });
-    }
-    return Ok(());
-}
-
-/// Whether one dataset's name stands under another's,
-/// compared on `/` boundaries so `a/bc` is not inside `a/b`.
-fn is_inside(
-    inner: &str,
-    outer: &str,
-) -> bool {
-    return inner.len() > outer.len()
-        && inner.starts_with(outer)
-        && inner.as_bytes().get(outer.len()) == Some(&b'/');
-}
+/// Where one run reads and writes,
+/// so a control reaches it through this module as it did before the split.
+pub use super::record_checkout_mode_places::RecordCheckoutPlaces;
 
 /// Controls stay out of the release executable.
 #[cfg(test)]
