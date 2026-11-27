@@ -163,6 +163,22 @@
 //! - `worktree_convert.rs`:
 //!   converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 //!   resumably.
+//! - `worktree_convert_budget.rs`:
+//!   how many conversions one run runs at once,
+//!   from the bytes one holds and the ceiling the filesystem's work sets.
+//! - `worktree_convert_targets.rs`:
+//!   what one run covers and how its worktrees are laid into lanes.
+//! - `worktree_convert_each_worktree.rs`:
+//!   one worktree's conversion as a job of the blocking pool inside the runner's task.
+//! - `worktree_convert_report.rs`:
+//!   the lines a run says as its conversions finish,
+//!   in input order,
+//!   and how many of each kind there were.
+//! - `worktree_convert_run_awaiting.rs`:
+//!   the run on the runtime:
+//!   every worktree a task,
+//!   each conversion a job of the blocking pool,
+//!   and the summary the run ends with.
 //! - `worktree_convert_command.rs`:
 //!   `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
 //!   the worktrees to cover and the report.
@@ -1059,6 +1075,29 @@ pub mod worktree_convert_remove;
 
 /// The grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
 pub mod worktree_convert_arguments;
+
+/// How many conversions one run of `convert-worktree-to-subvolume` runs at once.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_budget;
+
+/// What one run of `convert-worktree-to-subvolume` covers,
+/// and how its worktrees are laid into lanes.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_targets;
+
+/// One worktree's conversion as a job of the blocking pool inside the runner's task.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_each_worktree;
+
+/// The lines a run of `convert-worktree-to-subvolume` says as its conversions finish,
+/// in input order.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_report;
+
+/// The run of `convert-worktree-to-subvolume` on the runtime,
+/// with what it needs besides the line sink.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_run_awaiting;
 
 /// `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
 /// the worktrees to cover and the report.
