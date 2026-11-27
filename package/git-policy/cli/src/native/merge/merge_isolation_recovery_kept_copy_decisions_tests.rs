@@ -26,6 +26,7 @@ use super::readings::{
     judged_changes,
     the_bytes_of_a_commit,
 };
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// The put-back of the files a killed take left beside their paths.
 use crate::merge_isolation_recovery_steps::put_back_stranded_takes_awaiting;
 use crate::test_support::remove;
