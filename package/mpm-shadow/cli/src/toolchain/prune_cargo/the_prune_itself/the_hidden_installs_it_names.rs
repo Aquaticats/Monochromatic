@@ -88,12 +88,13 @@ fn the_line_for_a_name_it_cannot_judge(
 /// Removes (or,
 /// with `dry_run`,
 /// lists) every hidden install whose installer has provably ended,
-/// except a finished copy of a version some known lock names,
+/// except a finished copy whose marker records a digest,
+/// for a version some known lock names,
 /// and names the ones it cannot judge.
 /// Why:
 /// A finished copy of a version a lock names can still be published by that version's own install,
 /// while an unfinished copy,
-/// one no digest vouches for,
+/// one whose marker records no digest,
 /// or one of a version no lock names will never be used;
 /// leaving it would keep a whole tool's bytes for ever.
 /// A name whose installer cannot be judged is never removed,
