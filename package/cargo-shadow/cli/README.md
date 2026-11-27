@@ -1606,13 +1606,14 @@ a `.rs` file that is not a test and whose own name or a folder above it starts `
 at any depth,
 fails the lean guard when it was not read,
 and a production source that writes a trace event and is not one of the trace guard's files fails that guard.
-The comparison is what closed the blindness the release read of 0.1.5-alpha.11 found (Medium 4, 2026-11-27):
+The comparison is what closed the blindness the release read of 0.1.5-alpha.11 found (Medium 4,
+2026-11-27):
 the splits moved lean code into `lean_idle_trees`,
 `lean_podman_cleanup`,
 `lean_removal` and `lean_run`,
 and a guard that listed `src` itself kept reading 30 files while 18 more,
 2,174 lines,
-estood beside it unread.
+stood beside it unread.
 A control that lists a fixture folder it made itself is not a source walk and may list it directly,
 saying what it does about a link it meets there.
 
