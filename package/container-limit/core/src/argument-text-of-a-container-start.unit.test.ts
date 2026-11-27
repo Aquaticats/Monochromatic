@@ -6,6 +6,7 @@ import {
 
 import {
   argumentTextNear,
+  argumentTextOfTheChainedCalls,
   arrayContentsStart,
   spreadAtStart,
   startVerbOf,
@@ -90,6 +91,101 @@ await describe({
               to: characters.length,
             },),).toEqual({
               text: '',
+              inArrayLiteral: false,
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: argumentTextOfTheChainedCalls.name,
+      children: [
+        it({
+          name: 'reads the array a chained args call passes',
+          fn: async () => {
+            const characters = charactersOf('("podman").args(["run", "--rm"])',);
+            expect(argumentTextOfTheChainedCalls({
+              characters,
+              from: 9,
+              to: characters.length,
+            },),).toEqual({
+              text: '"run", "--rm"',
+              inArrayLiteral: true,
+            },);
+          },
+        },),
+        it({
+          name: 'reads the arguments of a chain of arg calls, in call order',
+          fn: async () => {
+            const characters = charactersOf('("podman").arg("run").arg("--rm")',);
+            expect(argumentTextOfTheChainedCalls({
+              characters,
+              from: 9,
+              to: characters.length,
+            },),).toEqual({
+              text: '"run", "--rm"',
+              inArrayLiteral: false,
+            },);
+          },
+        },),
+        it({
+          name: 'reads a borrowed array and a vector macro',
+          fn: async () => {
+            const borrowed = charactersOf('("podman").args(&["run"])',);
+            expect(argumentTextOfTheChainedCalls({
+              characters: borrowed,
+              from: 9,
+              to: borrowed.length,
+            },).inArrayLiteral,).toBe(true,);
+            const vector = charactersOf('("podman").args(vec!["run"])',);
+            expect(argumentTextOfTheChainedCalls({
+              characters: vector,
+              from: 9,
+              to: vector.length,
+            },),).toEqual({
+              text: '"run"',
+              inArrayLiteral: true,
+            },);
+          },
+        },),
+        it({
+          name: 'keeps the text of a call that is not arg or args out, and reads the calls after it',
+          fn: async () => {
+            const characters = charactersOf('("podman").env("A", "--memory=2g").arg("run")',);
+            expect(argumentTextOfTheChainedCalls({
+              characters,
+              from: 9,
+              to: characters.length,
+            },),).toEqual({
+              text: '"run"',
+              inArrayLiteral: false,
+            },);
+          },
+        },),
+        it({
+          name: 'reads nothing from a program name handed on with other arguments of its call',
+          fn: async () => {
+            const characters = charactersOf('("podman", arguments).args(["run"])',);
+            expect(argumentTextOfTheChainedCalls({
+              characters,
+              from: 9,
+              to: characters.length,
+            },),).toEqual({
+              text: '',
+              inArrayLiteral: false,
+            },);
+          },
+        },),
+        it({
+          name: 'reads the text of a call that holds a variable, which no verb starts',
+          fn: async () => {
+            const characters = charactersOf('("podman").args(arguments).output()',);
+            expect(argumentTextOfTheChainedCalls({
+              characters,
+              from: 9,
+              to: characters.length,
+            },),).toEqual({
+              text: 'arguments',
               inArrayLiteral: false,
             },);
           },

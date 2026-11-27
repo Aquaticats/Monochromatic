@@ -9,6 +9,10 @@
 
  A mention whose first argument is not one of the verbs is not a start: `podman image exists` inspects an image, and
  `spawn('podman', args)` starts whatever its caller's arguments say, which the paired ledger role covers.
+
+ A Rust source names the program in a call and passes the arguments in the calls chained after it
+ (`Command::new("podman").args(["run", ...])`), so a Rust mention is a start only where that call shape carries a verb:
+ `podman run` inside a Rust string is a message, or a sample line of another file.
  */
 
 import {
@@ -24,6 +28,7 @@ import {
 
 import {
   argumentTextNear,
+  argumentTextOfTheChainedCalls,
   arrayContentsStart,
   spreadAtStart,
   startVerbOf,
@@ -156,6 +161,54 @@ function isCommandPosition({
 }
 
 /**
+ Argument text that reaches a program whose name the file writes at a place the scan just read.
+
+ A Rust source passes the arguments through the calls chained after the call that names the program
+ (`Command::new("podman").args(["run", ...])`), and every other language the scan reads passes them beside the name.
+
+ @param characters - the file's characters
+ 
+ @param from - index just past the program name, past the quote that may close it
+ 
+ @param language - the language whose comment syntax the text holds
+ 
+ @param to - end of the range to read
+
+ @returns the argument text, and whether an array literal held it
+
+ @example
+ ```ts
+ const argument = argumentTextOfTheMention({ characters, from: 8, language: 'rust', to: characters.length });
+ ```
+ */
+function argumentTextOfTheMention({
+  characters,
+  from,
+  language,
+  to,
+}: {
+  readonly characters: readonly string[];
+  readonly from: number;
+  readonly language: SourceLanguage;
+  readonly to: number;
+},): {
+  readonly text: string;
+  readonly inArrayLiteral: boolean
+} {
+  if (language === 'rust')
+    return argumentTextOfTheChainedCalls({
+      characters,
+      from,
+      to,
+    },);
+  return argumentTextNear({
+    characters,
+    from,
+    to,
+  },);
+}
+
+/**
  The line an index sits on, counted from one.
 
  @param characters - the file's characters
@@ -271,9 +324,10 @@ export function containerStartInvocations({
        Argument text that reaches the program, and whether an array literal held it.
        */
       const argument = startsAt === undefined
-        ? argumentTextNear({
+        ? argumentTextOfTheMention({
           characters,
           from: programEnd,
+          language,
           to: characters.length,
         },)
         : {

@@ -1458,3 +1458,51 @@ fn a_notice_that_is_a_named_pipe_is_answered_at_once() {
     assert!(texts.is_empty(), "a pipe is no notice");
     remove(root.as_path());
 }
+
+/// What:
+///  A failed push's record whose line the thread that writes standard error could not put in the
+///  stream stays for the next command.
+/// Why:
+///   The record is removed only once its line is known written,
+///  and the write itself answers before the line is written:
+///  the thread's answer is what tells the two apart
+///  (`foundation/standard_error_off_the_calling_thread.rs`).
+///  A closed terminal is not a reason to lose the statement,
+///  which is what a reader that had gone cost before the answer was read.
+#[test]
+fn a_record_whose_line_the_stream_could_not_take_stays_for_the_next_command() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_record_whose_line_the_stream_could_not_take_stays_for_the_next_command",
+        || {
+            let root: PathBuf = fixture("push-failure-line-not-taken");
+            record_push_failure(
+                root.as_path(),
+                BRANCH,
+                COMMIT,
+                PushOutcome::Refused,
+                "the remote said no",
+            )
+            .expect("record");
+            let notices: Vec<Notice> = push_failures(root.as_path());
+            assert_eq!(notices.len(), 1, "one record to show");
+            let mut notes = crate::test_support::standard_error_whose_writer_refuses_every_line();
+            let refused: std::io::Result<()> = notices[0].show(&mut notes);
+            assert!(
+                refused.is_err(),
+                "the thread that writes standard error says the line did not reach the person"
+            );
+            let again: Vec<String> = take_push_failures(root.as_path());
+            assert_eq!(
+                again.len(),
+                1,
+                "the record is found by the next command: {again:?}"
+            );
+            assert!(
+                again[0].contains("the remote said no"),
+                "and it still says why: {again:?}"
+            );
+            remove(root.as_path());
+        },
+    );
+}

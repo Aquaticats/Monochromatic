@@ -16,6 +16,11 @@
 //! so the
 //!  claim goes only after the words are out,
 //! and goes back to the record's name when they could not be written.
+//! "Could not be written" is the stream's own answer:
+//! the line is handed to the thread that writes standard error
+//! (`foundation/standard_error_off_the_calling_thread.rs`),
+//! whose write answers before the line is written,
+//! and only that thread knows whether it reached the person.
 //! The reading
 //!  stays in `push_failure_notice.rs`;
 //! this file holds what the caller does with one record.
@@ -85,6 +90,10 @@ impl Notice {
     /// and one
     ///  whose words are out takes its claim with it,
     /// touching no record of the service's.
+    ///  An error from `out` is the whole of "could not be written":
+    ///  a stream that hands the line to a thread of its own answers one when the thread could not put it in the
+    ///  stream,
+    ///  which is the only place that knows.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

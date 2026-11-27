@@ -132,6 +132,51 @@ fn ceiling_of_this_look(ceiling: Duration) -> Duration {
 }
 
 /// What:
+///  The pause this look waits before the next one,
+///  with the stretch a control planted between this step's looks added to it.
+/// Why:
+///   A host under load woke this thread late and stretched each look interval,
+///   so a control's fixed window held one look fewer than its figures assumed (issue 6592);
+///   a control states that stretch so the record is asked for its promise under the schedule that lost it a look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waiting = pause + aDelayAControlPlanted(step.number());
+/// ```
+#[cfg(all(test, target_os = "linux"))]
+fn pause_before_the_next_look(
+    pause: Duration,
+    watched: &ChildNumber,
+) -> Duration {
+    let planted: Option<Duration> =
+        the_controls_window::the_delay_between_looks_of(watched.number());
+    return match planted {
+        Some(delay) => pause + delay,
+        // No control stated a stretch for this step, so the pause is this thread's own.
+        None => pause,
+    };
+}
+
+/// What:
+///  The pause this look waits before the next one,
+///  which no build that ships lengthens.
+/// Why:
+///  Only a control states a stretch between two looks,
+///  so this build reads no window and waits the pause it computed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waiting = pause;
+/// ```
+#[cfg(not(all(test, target_os = "linux")))]
+fn pause_before_the_next_look(
+    pause: Duration,
+    _unread_step: &ChildNumber,
+) -> Duration {
+    return pause;
+}
+
+/// What:
 ///  What one watching thread is given.
 /// Why:
 ///   The thread reads nothing of the stack of the command that started it,
@@ -255,10 +300,15 @@ pub(crate) fn watch_the_step(the_watch: TheWatch) {
         if !below.is_empty() {
             facts.looks_found = facts.looks_found.saturating_add(1);
         }
+        // What: Note every look that found the step, for a control that waits for such looks.
+        // Why:  A control's figure rests on how many looks found the step,
+        //       so every one of them is noted and not only the first (issue 6592).
+        #[cfg(all(test, target_os = "linux"))]
+        if !below.is_empty() {
+            the_controls_window::noted_a_look_that_found_the_step();
+        }
         if seen_at.is_none() && !below.is_empty() {
             seen_at = Some(waited);
-            #[cfg(all(test, target_os = "linux"))]
-            the_controls_window::noted_a_look_that_found_the_step();
         }
         credit_between_looks(
             &mut facts,
@@ -400,7 +450,7 @@ pub(crate) fn watch_the_step(the_watch: TheWatch) {
         } else {
             LOOK_PAUSE
         };
-        match ended.recv_timeout(pause.max(floor)) {
+        match ended.recv_timeout(pause_before_the_next_look(pause.max(floor), &watched)) {
             Err(RecvTimeoutError::Timeout) => {}
             Ok(()) | Err(RecvTimeoutError::Disconnected) => break 'notice,
         }

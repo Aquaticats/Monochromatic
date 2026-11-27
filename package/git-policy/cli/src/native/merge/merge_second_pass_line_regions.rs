@@ -18,9 +18,10 @@
 //! and the word pass has less room to join one side's clause to the other side's.
 //!  A region's place is found by searching its text forward from the end of the region before it,
 //! because a `--zdiff3` answer holds its regions in file order;
-//! the place feeds the report's line numbers only,
-//! never the merged bytes,
-//! so a repeated passage can at worst name the earlier of two identical places.
+//! a region's own text is the stage's own bytes there,
+//! so a region that ends a file keeps the line end that file has,
+//! and the places feed the report's line numbers only.
+//! A repeated passage can at worst name the earlier of two identical places.
 //!  The three markers that open a side carry labels made unguessable for every merge,
 //! but the split marker carries none:
 //! Git writes it as seven equals signs and a line end
@@ -44,10 +45,13 @@
 /// Where a run of lines sits in one stage,
 /// and the byte that ends a line of it.
 use crate::merge_second_pass_stage_line_places::{
+    CARRIAGE_RETURN,
     LINE_END,
     is_line_end,
-    offset_from_line,
+    place_in_stage,
 };
+/// A byte range of a text.
+use std::ops::Range;
 
 /// One conflict region of a `--zdiff3` merge,
 /// cut into the three sides Git kept for the person,
@@ -125,9 +129,6 @@ pub struct Cut {
 /// How many characters a conflict marker uses,
 /// which is Git's default (`merge.conflictStyle` writes `<<<<<<<`).
 const MARKER_WIDTH: usize = 7;
-
-/// The byte that comes before the line end of a file whose lines end with both.
-const CARRIAGE_RETURN: u8 = b'\r';
 
 /// How many split-shaped lines of one file are searched for against the three stages in all.
 /// Why:
@@ -303,26 +304,30 @@ impl RawRegion {
             &self.markers[theirs_start..closing],
         ];
     }
+}
 
-    /// The region cut at `split`,
-    /// with no place in its stages yet.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const regionAt = (raw, split) => { const [base, ours, theirs] = sidesAt(raw, split); return { base: Buffer.from(base), ours: Buffer.from(ours), theirs: Buffer.from(theirs), starts: [0, 0, 0] }; };
-    /// ```
-    fn region_at(
-        &self,
-        split: usize,
-    ) -> Region {
-        let [base, ours, theirs] = self.sides_at(split);
-        return Region {
-            base: base.to_vec(),
-            ours: ours.to_vec(),
-            theirs: theirs.to_vec(),
-            starts: [0, 0, 0],
-        };
-    }
+/// The region `sides` hold at `spans`:
+/// the bytes of the stages themselves at the places the answer explained.
+/// Why:
+///   The sides cut out of the answer end every line with the line end Git wrote after it,
+/// so a side whose last line ends the file holds one byte fewer in its stage;
+/// the stage's bytes are what the merge writes,
+/// so a file keeps the ending it had.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const regionOf = (sides, spans) => ({ base: sides[0].subarray(spans[0].start, spans[0].end), ours: sides[1].subarray(spans[1].start, spans[1].end), theirs: sides[2].subarray(spans[2].start, spans[2].end), starts: spans.map((span) => span.start) });
+/// ```
+fn region_of(
+    sides: [&[u8]; 3],
+    spans: &[Range<usize>; 3],
+) -> Region {
+    return Region {
+        base: sides[0][spans[0].clone()].to_vec(),
+        ours: sides[1][spans[1].clone()].to_vec(),
+        theirs: sides[2][spans[2].clone()].to_vec(),
+        starts: [spans[0].start, spans[1].start, spans[2].start],
+    };
 }
 
 /// What:
@@ -437,6 +442,8 @@ impl Cut {
     /// a wrong split would join one side's text to another side's and name it resolved.
     /// The tries are bounded by `SPLIT_TRIES`,
     /// so a file whose answer holds more split-shaped lines than that inside its regions is left as well.
+    /// A region's sides are the stages' own bytes at the places found,
+    /// so a region that ends a file whose last line has no line end merges without one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -462,7 +469,7 @@ impl Cut {
             }
             // One candidate is Git's by being the only one: Git always writes a split, and never two in one region.
             let ambiguous: bool = candidates.len() > 1;
-            let mut chosen: Option<(usize, [usize; 3])> = None;
+            let mut chosen: Option<(usize, [Range<usize>; 3])> = None;
             let mut fitting: usize = 0;
             for split in candidates {
                 if ambiguous {
@@ -472,11 +479,11 @@ impl Cut {
                     tried += 1;
                 }
                 let plain: [&[u8]; 3] = raw.sides_at(split);
-                let mut starts: [usize; 3] = [0, 0, 0];
+                let mut spans: [Range<usize>; 3] = [0..0, 0..0, 0..0];
                 let mut found: bool = true;
                 for side in 0..3 {
-                    match offset_from_line(sides[side], plain[side], cursors[side]) {
-                        Some(at) => starts[side] = at,
+                    match place_in_stage(sides[side], plain[side], cursors[side]) {
+                        Some(span) => spans[side] = span,
                         None => {
                             found = false;
                             break;
@@ -487,7 +494,7 @@ impl Cut {
                     continue;
                 }
                 fitting += 1;
-                chosen = Some((split, starts));
+                chosen = Some((split, spans));
                 if !ambiguous {
                     break;
                 }
@@ -495,16 +502,14 @@ impl Cut {
             if fitting != 1 {
                 return None;
             }
-            let (split, starts) = chosen.expect("one split fits");
-            let mut region: Region = raw.region_at(split);
+            let (_, spans) = chosen.expect("one split fits");
+            let region: Region = region_of(sides, &spans);
             // A region with no text on any side is not an answer Git writes, and cutting it would drop the text it holds.
             if region.base.is_empty() && region.ours.is_empty() && region.theirs.is_empty() {
                 return None;
             }
-            region.starts = starts;
             for side in 0..3 {
-                cursors[side] = starts[side]
-                    + [region.base.len(), region.ours.len(), region.theirs.len()][side];
+                cursors[side] = spans[side].end;
             }
             placed.push(region);
         }

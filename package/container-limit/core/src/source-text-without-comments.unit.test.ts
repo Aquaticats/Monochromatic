@@ -4,7 +4,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { stripSourceComments, } from './source-text-without-comments.ts';
+import {
+  stripSourceComments,
+  type SourceLanguage,
+} from './source-text-without-comments.ts';
 
 /**
  The blanked text of a fixture, with the language whose comment syntax it holds.
@@ -14,7 +17,7 @@ function blanked({
   language,
 }: {
   readonly text: string;
-  readonly language: 'toml' | 'typescript' | 'yaml';
+  readonly language: SourceLanguage;
 },): string {
   return stripSourceComments({
     text,
