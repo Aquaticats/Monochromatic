@@ -452,6 +452,8 @@ Each flag maps to the nearest pnpm behavior:
   run,
   report,
   restore every lockfile.
+  A kept journal is settled first,
+  so a dry run keeps or replaces the lockfile an interrupted or refused run left.
 - `-w`,
   `--workspace` is `pnpm install`:
   the install step.
@@ -495,9 +497,9 @@ Each flag maps to the nearest pnpm behavior:
 cargo-shadow install                       # every first-party Cargo.lock; frozen in CI
 cargo-shadow install --frozen-lockfile     # fail naming the stale roots, write nothing
 cargo-shadow install --no-frozen-lockfile  # update stale lockfiles even in CI
-cargo-shadow install --dry-run             # report which lockfiles are stale, then restore every Cargo.lock
+cargo-shadow install --dry-run             # report which lockfiles are stale, then restore every Cargo.lock; settles a kept journal first
 cargo-shadow update                        # pnpm update for every first-party Cargo.lock under the policy
-cargo-shadow update --dry-run              # report what would change, then restore every Cargo.lock
+cargo-shadow update --dry-run              # report what would change, then restore every Cargo.lock; settles a kept journal first
 ```
 
 The commands that were the mise tasks `rust:install`,
@@ -600,7 +602,8 @@ byte-identical copies in each crate,
 and `tests/shadow_identity_copies.rs` is one of the copies;
 every crate's copy of that test compares its own files with `cargo-shadow`'s,
 `mpm-shadow`'s and `pnpm-shadow`'s,
-so a copy that changed alone fails the suite of the crate it was changed in,
+so a change to the copy in `cargo-shadow`,
+`mpm-shadow` or `pnpm-shadow` fails all four suites,
 and a change to `search-shadow`'s copies alone fails `search-shadow`'s suite and no other).
 The lookup skips a candidate that carries it,
 or a launcher whose record leads to one,
@@ -865,8 +868,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   A group that held one changed its `populated` line,
   which is the change the manager watches and ends the unit on,
   so that run asks the manager nothing;
-  a group that is gone was collected,
-  and asks nothing either.
+  a group the manager removed was collected,
+  and asks nothing either;
+  but an absent directory is the same answer for a group that was never made,
+  which is left loaded with nothing printed
+  (the troubleshooting file's section on a directory that was never made).
   The notification the ordinary run relies on can be lost,
   and then a scope that has held a process stays loaded with no member and no warning.
   The three paths that lose it are in the manager this host runs (systemd 262.2,
@@ -971,8 +977,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   0.518 to 2.115) and the control's (0.993,
   0.916 to 1.271)
   in the table of the troubleshooting file overlap,
-  with neither range inside the other and the arm's own range wider than the byte-identical control's,
-  so the gap between those two medians is smaller than the spread a byte-identical copy of one arm shows against it.
+  with the control's whole range inside the arm's,
+  so the gap between those two medians (0.119) is smaller than the control's own range,
+  0.355 wide.
   That is the resolution of those four arms and six rounds,
   and what leaves alpha.14 indistinguishable from alpha.11 there;
   a null result at that resolution is no promise that the two cost the same.
@@ -1247,28 +1254,42 @@ and an HTTP 429 is retried after its `Retry-After`.
   `doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
   so a `git` left as a zombie does not fail an install.
   A later run settles the journal such a refusal kept,
-  and only some kinds of run are that later run:
-  a run that resolves dependencies,
-  or `cargo-shadow update`,
+  and which runs those are is a rule rather than a list of kinds:
+  a run that checks or updates a lockfile of the catalog repository
   reads the kept journal before it does anything else,
   keeps the leftover lockfile when its new versions pass the policy
   (otherwise it saves it as `Cargo.lock.refused` and puts the snapshot back),
   removes the journal,
-  and goes on to its own check
-  (`an_ordinary_run_after_a_refusal_settles_the_kept_journal_and_says_what_it_kept`,
-  `an_update_after_a_refusal_settles_the_kept_journal`,
-  measured 2026-11-27,
-  issue 6528).
+  and goes on to its own work.
+  Measured 2026-11-27 at a refusal staged on a test build:
+  `cargo check`,
+  `cargo metadata`,
+  `cargo update`,
+  `cargo-shadow install`,
+  `cargo-shadow update`,
+  `install --dry-run` and `update --dry-run` settle it
+  (`refusal_journal_next_runs_tests`).
+  The journal belongs to the catalog repository's root and not to the crate the refused run was made in,
+  so any of those runs anywhere in the repository settles it.
   A command that resolves nothing (`cargo fmt`,
-  `cargo --version`)
-  and a run that is frozen (`--locked`,
+  `cargo --version`),
+  a run that is frozen (`--locked`,
   `--frozen`,
-  or `CI`)
-  never enter that step,
-  so they leave the journal for one of those runs and print nothing about it
+  `CI`,
+  or `install --frozen-lockfile`),
+  a run whose lockfile and remembered policy pass are already fresh (the fast path),
+  and a run outside the catalog repository
+  never read that journal,
+  so they leave it for one of those runs and print nothing about it
   (`a_pass_through_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
   `a_frozen_run_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_frozen_install_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_run_on_the_fast_path_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_run_outside_every_catalog_repository_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
   measured 2026-11-27).
+  Both `--dry-run` forms settle it before they look:
+  each keeps or replaces the leftover lockfile,
+  then restores what it snapshotted.
   No run reminds the person of a kept journal it leaves:
   that would be a change of what those runs print,
   which nobody has decided.
