@@ -37,9 +37,14 @@
 // ```ts
 // import { Name } from './module.ts';
 // ```
+/// The character lexer of Git configuration text:
+/// the section header,
+/// the value and the key readers (split out of this module).
+mod lexer;
+
 /// Imports the character lexer of Git configuration text and the section and key readers built on it,
 /// which the file-reading loop below asks for (split out of this module).
-use crate::git_config_lexer::{
+use self::lexer::{
     Lexer,
     is_space,
     read_base,

@@ -12,16 +12,22 @@
 use super::{
     AllowKind,
     AllowList,
+    dead_entry_findings,
     parse_allow_list,
     read_allow_list,
 };
 use crate::{
+    layout_finding::LayoutFinding,
     run_test_support::write,
     test_fs::Fixture,
 };
 use std::{
+    collections::BTreeSet,
     io::Read,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Read a list from text,
@@ -178,6 +184,51 @@ fn a_use_line_reads_the_two_sides_of_its_arrow() {
     assert!(!spelled.covers_use(Path::new("src/x"), Path::new("a")));
 }
 
+/// A name before the arrow that ends in whitespace is an error that names its line,
+///  because no folder name of a tree the rules accept can end in whitespace:
+///  a name whose last character the reader trims is refused before any check,
+///  so such a line is always a misspelling rather than a use of a folder that no tree holds.
+#[test]
+fn a_name_before_the_arrow_that_ends_in_whitespace_is_an_error() {
+    for line in ["uses src/a  -> src/b\n", "uses src/a\t -> src/b\n"] {
+        let error: String = error_of(line);
+        assert!(error.contains("Line 1"), "{error}");
+        assert!(error.contains("ends in whitespace"), "{error}");
+        assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+    }
+    // The control: the same use set off with one space each is the use it spells.
+    let list: AllowList = parsed("uses src/a -> src/b\n");
+    assert!(list.covers_use(Path::new("src/a"), Path::new("src/b")));
+}
+
+/// A line holds no name before its arrow when the word and the arrow are set off by two spaces,
+///  so the line is a misspelling of the shape.
+#[test]
+fn a_use_line_with_no_name_before_its_arrow_is_an_error() {
+    let error: String = error_of("uses  -> src/b\n");
+    assert!(error.contains("Line 1"), "{error}");
+    assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+}
+
+/// A run of two spaces in front of a name reads as that name's own leading space,
+///  which the rule prints for a folder whose first name part begins with one,
+///  so the four words alone never decide where a name starts.
+#[test]
+fn a_run_of_two_spaces_in_front_of_a_name_reads_as_its_own_leading_space() {
+    let list: AllowList = parsed("uses  src/a -> src/b\n");
+    assert!(list.covers_use(Path::new(" src/a"), Path::new("src/b")));
+    assert!(!list.covers_use(Path::new("src/a"), Path::new("src/b")));
+}
+
+/// A `..` inside a path reads back over the folder before it,
+///  so a line that climbs and comes back names the folder the walk names.
+#[test]
+fn a_climb_inside_a_path_reads_back_over_the_folder_before_it() {
+    let list: AllowList = parsed("uses src/a/../b -> src/c\nuses ../a/../b -> src/d\n");
+    assert!(list.covers_use(Path::new("src/b"), Path::new("src/c")));
+    assert!(list.covers_use(Path::new("../b"), Path::new("src/d")));
+}
+
 /// A `uses` line whose arrow the reader cannot place is an error,
 ///  because a folder name holds no arrow of its own.
 #[test]
@@ -185,6 +236,49 @@ fn a_use_line_with_two_arrows_is_an_error() {
     let error: String = error_of("uses src/a -> b -> src/c\n");
     assert!(error.contains("uses <folder> -> <folder>"), "{error}");
     assert!(error.contains("no folder name holds"), "{error}");
+}
+
+/// A dead `uses` or `file-uses` line that names a folder no folder of the package is called names it,
+///  so a hand-aligned or mistyped line is told to be re-spaced,
+///  and a line whose folders the package does hold is told only to be deleted.
+#[test]
+fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed(
+        "uses src/a -> src/b extra\n\
+         file-uses src/c one.rs -> two.rs\n\
+         uses src/a -> src/b\n",
+    );
+    // What: the folders of the fixture package, as the walk names them.
+    // Why: an entry is never used here, so every line is dead and each message can be read.
+    let folders: BTreeSet<PathBuf> = ["src/a", "src/b"]
+        .iter()
+        .map(|name| return base.join(name))
+        .collect::<BTreeSet<PathBuf>>();
+    let findings: Vec<LayoutFinding> =
+        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+    assert_eq!(findings.len(), 3, "{findings:#?}");
+    assert!(
+        findings[0]
+            .message
+            .contains("names the folder `src/b extra`, which no folder of this package is called"),
+        "{}",
+        findings[0].message
+    );
+    assert!(
+        findings[1]
+            .message
+            .contains("names the folder `src/c`, which no folder of this package is called"),
+        "{}",
+        findings[1].message
+    );
+    assert!(
+        findings[2]
+            .message
+            .contains("tolerates nothing any more. Delete the line"),
+        "{}",
+        findings[2].message
+    );
 }
 
 /// A list that names one thing twice is not a list of distinct findings.

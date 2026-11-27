@@ -156,11 +156,15 @@ use crate::lockfile::{
 /// import { Registry } from 'crate/registry';
 /// ```
 use crate::registry::Registry;
+/// The choice of an older release for a refused version:
+/// the release-age and trust checks it must pass (split out of this module).
+mod older_release_choice;
+
 /// Imports the release-age refusals of one round (split out of this module).
-use crate::set_aside_older_release_choice::age_refusals;
+use self::older_release_choice::age_refusals;
 /// The candidate list for one refused version,
 /// re-exported so its path here is unchanged (split out of this module).
-pub use crate::set_aside_older_release_choice::set_aside_candidates;
+pub use self::older_release_choice::set_aside_candidates;
 
 /// How many rounds of moving refused crates are tried.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"

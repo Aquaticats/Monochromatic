@@ -64,8 +64,6 @@ use crate::lfs_upload_plan_arguments::{
     unique_refs,
     uploads_nothing,
 };
-/// The whole plan awaited by a caller that is itself a task of the runtime.
-pub use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
 pub use crate::lfs_upload_settings::{
     GitQuery,
     GitQueryAwaiting,
@@ -84,144 +82,27 @@ use crate::lfs_upload_settings::{
     git_says_true,
 };
 /// Owned OS text for arguments.
-use std::ffi::{
-    OsStr,
-    OsString,
-};
+use std::ffi::OsString;
 /// Locations.
 use std::path::Path;
 
-/// What an upload sends.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type UploadPlan = { remotes: string[]; refs: string[]; everything: boolean; submodules: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UploadPlan {
-    /// The destinations `git lfs push` is run for,
-    /// one run each:
-    /// the remote name,
-    /// or one URL per push URL when the
-    ///  remote has several (each may keep its objects in its own place).
-    pub remotes: Vec<OsString>,
-    /// The refs whose objects are uploaded;
-    /// empty with `everything`.
-    pub refs: Vec<OsString>,
-    /// Upload everything reachable from every local ref.
-    pub everything: bool,
-    /// The push also pushes submodules,
-    /// whose objects this upload does not cover.
-    pub submodules: bool,
-    /// Scan every object reachable from the refs (`--all`) instead of the ones the remote's tracking refs do not cover.
-    ///  Set for every destination that is no ordinary configured remote,
-    ///  for a mirror push,
-    /// and when the destination does not confirm every one of this clone's tracking refs
-    ///  (its own skip list matches a cached ref by branch name alone).
-    pub full_scan: bool,
-    /// The full names of this clone's tracking refs the destination reports at the commit held here.
-    ///  The commits an upload may stop at,
-    ///  and only those:
-    /// an empty list reads the whole pushed history.
-    /// Empty for a destination that was not asked,
-    /// for one that confirmed none of them,
-    /// and for a
-    ///  mirror push.
-    pub confirmed_tracking_refs: Vec<String>,
-    /// The exact objects to upload (`git-lfs push --object-id`),
-    /// when the wrapper found them itself;
-    /// `None` leaves the
-    ///  scan to `git-lfs` with the refs.
-    pub objects: Option<Vec<String>>,
-    /// The server the upload is connected to,
-    /// as its host and port with any userinfo left out,
-    /// when the configuration names one:
-    /// what a stop that held the connection names,
-    /// so its reader knows which server did not answer.
-    pub lfs_server: Option<String>,
-}
-
-/// How many object names one `git-lfs push --object-id` run takes,
-/// so the argument list stays far under the system limit.
-pub const OBJECTS_PER_RUN: usize = 500;
-
-impl UploadPlan {
-    /// The argument lists of the runs for one destination:
-    /// one run that scans the refs,
-    /// or,
-    /// with named objects,
-    /// one
-    ///  `push --object-id <destination> <oid>...` run per [`OBJECTS_PER_RUN`] objects.
-    pub fn runs(
-        &self,
-        remote: &OsStr,
-    ) -> Vec<Vec<OsString>> {
-        let Some(objects) = self.objects.as_ref() else {
-            return vec![self.arguments(remote)];
-        };
-        let mut runs: Vec<Vec<OsString>> = Vec::new();
-        for chunk in objects.chunks(OBJECTS_PER_RUN) {
-            let mut arguments: Vec<OsString> = vec![
-                OsString::from("push"),
-                OsString::from("--object-id"),
-                remote.to_owned(),
-            ];
-            arguments.extend(chunk.iter().map(OsString::from));
-            runs.push(arguments);
-        }
-        return runs;
-    }
-
-    /// The arguments of one `git-lfs` run:
-    /// `push`,
-    /// with `--all` for a full scan,
-    /// the destination,
-    /// then the refs.
-    ///  `--all` with refs uploads every object reachable from them,
-    /// so objects that remote-tracking refs of this clone
-    ///  mention are not skipped;
-    /// without it `git-lfs` skips them,
-    /// and a push that adds no object sends no batch request.
-    pub fn arguments(
-        &self,
-        remote: &OsStr,
-    ) -> Vec<OsString> {
-        let mut arguments: Vec<OsString> = vec![OsString::from("push")];
-        if self.full_scan {
-            arguments.push(OsString::from("--all"));
-        }
-        arguments.push(remote.to_owned());
-        if !self.everything {
-            arguments.extend(self.refs.iter().cloned());
-        }
-        return arguments;
-    }
-}
+/// What an upload sends,
+/// re-exported under the path this file had for it,
+/// so the callers that name the plan here keep compiling.
+pub use crate::lfs_upload_plan_itself::UploadPlan;
 
 /// The source of one refspec,
 /// and the refs a pattern of it names,
 /// which `lfs_upload_refspecs.rs` owns.
-pub(crate) use crate::lfs_upload_refspecs::{
+use crate::lfs_upload_refspecs::{
     Source,
-    directory_of,
     expand_pattern,
     list,
-    names_of,
     refspec_source,
-    star_split,
 };
 
-/// The server an upload is connected to,
-/// re-exported under the path this file had for it.
+/// The server an upload is connected to.
 pub use crate::lfs_upload_plan_destination::lfs_server_of;
-/// What the destination of an upload is,
-/// and which remotes the configuration defines,
-/// beside this file so that each file passes the package's length limit.
-pub(crate) use crate::lfs_upload_plan_destination::{
-    configured_remotes,
-    has_push_rewrite,
-    lfs_destination,
-};
 
 /// What:
 ///  What to upload for a push,
