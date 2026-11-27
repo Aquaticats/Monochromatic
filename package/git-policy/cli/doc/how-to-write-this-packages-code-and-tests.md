@@ -142,7 +142,8 @@ every other test's child is a descendant of the same process.
 A child makes its own fixtures;
 nothing here counts this process's descriptors.
 A threaded run moves those counters on other tests' threads,
-and the comparison then fails on a figure the control never named.
+and the comparison then fails on a figure the control never named
+(issues 6511 and 6545).
 The four share one comparison,
 `the_figures_did_not_move` in `testing/run_progress_tests.rs`,
 which refuses a look where a task that is not the control's own moved between two looks
