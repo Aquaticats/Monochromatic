@@ -13,6 +13,8 @@
 //! // parseStatusPreRegion(pre).hasStatusHintsOverride; parseStatusPostRegion(post).isMachineReadable
 //! ```
 
+use crate::command_options::parse_options;
+use crate::command_options_query::is_enabled;
 /// What:
 ///  Bring the tokenizer,
 ///  its table builder,
@@ -25,9 +27,10 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { parseOptions, row } from './command_options.ts';
+/// import { Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, WrapperOccurrence, row } from './command_options_types.ts';
+/// import { parseOptions } from './command_options.ts';
 /// ```
-use crate::command_options::{
+use crate::command_options_types::{
     Arity,
     DEFAULT_MODE,
     OptionError,
@@ -35,10 +38,8 @@ use crate::command_options::{
     ParsedOptions,
     UNREAD,
     WrapperOccurrence,
-    parse_options,
     row,
 };
-use crate::command_options_query::is_enabled;
 use crate::global_arguments::VALUE_OPTIONS;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;

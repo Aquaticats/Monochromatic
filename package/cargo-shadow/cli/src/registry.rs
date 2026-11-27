@@ -111,10 +111,14 @@ pub trait Registry {
     }
 }
 
+/// crates.io through a fetcher,
+/// with the API limits it keeps (split out of this module).
+mod crates_io;
+
 /// crates.io through a fetcher (split out of this module).
-pub use crate::registry_crates_io::CratesIo;
+pub use self::crates_io::CratesIo;
 /// The addresses and limits of the two crates.io services (split out of this module).
-pub use crate::registry_crates_io::{
+pub use self::crates_io::{
     API_MIN_INTERVAL,
     DATABASE_DUMP_URL,
     DUMP_BREAKEVEN_CRATES,

@@ -251,7 +251,7 @@ and a state carries no space.
 
 Runs `decode`,
 the reader of a single-owner claim file
-(`package/git-policy/cli/src/native/lock/single_owner_claim.rs`),
+(`package/git-policy/cli/src/native/lock/single_owner_claim_record.rs`),
 over raw text and over claim files built from the input.
 A built file chooses its first line
 (the current folder spelling,

@@ -65,6 +65,9 @@ moved verbatim on 2026-11-23:
   Installed into `~/.pi/agent/settings.json` on "Install now":
   the package path was appended to `packages` (the file
   before the change is kept in `~/temp/agent/zfs-route-open-choices-asked-2026-11-19/`),
+  (scratch,
+  deleted on 2026-11-27;
+  not kept),
   the package was built in the
   main checkout (`dist/` was missing,
   so Pi had loaded nothing),

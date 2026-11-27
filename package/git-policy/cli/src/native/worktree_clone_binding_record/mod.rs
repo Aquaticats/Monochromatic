@@ -74,10 +74,12 @@
 //! - `record_publication.rs`:
 //!   the flushed replacing write,
 //!   the write-once inventories and the reading that refuses a foreign file.
-//! - `registration_recipe.rs`:
-//!   the eight removals and the one lock completion.
 //! - `registration_removals.rs`:
-//!   the answers registration removals holds.
+//!   the removals below held descriptors,
+//!   the names one run works from,
+//!   and why a run stopped.
+//! - `registration_recipe.rs`:
+//!   the eight steps in their order and the one lock completion.
 //! - `registration_resume.rs`:
 //!   what the resume does with each row and with a listing that holds none.
 //!
@@ -199,12 +201,14 @@ pub use registration_home::{
 };
 pub use registration_recipe::{
     REMOVAL_STEPS,
-    RecipeRefusal,
     RecipeSeams,
     RemovalStep,
-    ToClear,
     clear_registration,
     complete_a_cut_short_lock,
+};
+pub use registration_removals::{
+    RecipeRefusal,
+    ToClear,
 };
 pub use registration_resume::{
     EntryDecision,

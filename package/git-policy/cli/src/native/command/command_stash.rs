@@ -14,18 +14,18 @@
 //! // parseStashRegion(['push', '-m', '--no-enforce-worktree']).hasEscapeHatch === false
 //! ```
 
-use crate::command_options::{
+use crate::command_options::parse_options;
+use crate::command_options_query::{
+    WrapperFlags,
+    split_wrapper_flags,
+};
+use crate::command_options_types::{
     OptionError,
     OptionErrorKind,
     OptionSpec,
     ParseMode,
     ParsedOptions,
     WrapperOccurrence,
-    parse_options,
-};
-use crate::command_options_query::{
-    WrapperFlags,
-    split_wrapper_flags,
 };
 use crate::command_stash_table::{
     STASH_APPLY_TABLE,
@@ -51,6 +51,7 @@ use crate::command_stash_table::{
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// import { OptionError, OptionErrorKind, OptionSpec, ParseMode, ParsedOptions, WrapperOccurrence } from './command_options_types.ts';
 /// import { parseOptions } from './command_options.ts';
 /// ```
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;

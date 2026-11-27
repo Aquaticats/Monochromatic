@@ -114,6 +114,21 @@ is one too
 `tasks_can_run` and `built_flavor` answer for the whole process,
 so a control that arms one runs its body in a child,
 and both setters refuse outside it (issue 6511).
+A descriptor a control holds open is one of those facts as well,
+because a fork copies the whole descriptor table,
+and an advisory kernel lock lasts until every copy of its open file description is closed:
+a child another test's thread starts between the control's `open` and its `close` keeps the control's `flock`
+after the control dropped its own descriptor,
+so the older-release conversion control runs its body in a child of its own
+(`worktree/worktree_convert_ownership_tests.rs`,
+issue 6536).
+Measured 2026-11-26 by planting that fork in the control:
+the forked child held a copy of the control's descriptor naming `cli-git-convert.lock`,
+`/proc/locks` still named the lock once the control closed its own descriptor,
+and the second call skipped with "a command of release 0.5.20 or older holds" it.
+The window is only the fork to the child's exec,
+where the standard library's close-on-exec flag closes the copy,
+and a host under load stretches it.
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
@@ -131,6 +146,21 @@ so a control that counts its own command's figures runs its body in a child of i
 and one that names any of them without one fails
 `source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
 (issue 6509).
+The add timing record is one list of the whole process as well
+(`worktree/add_timing_steps.rs`:
+`begin` replaces its empty list and `finish` takes it),
+and beginning a recording also publishes the step the add's standing notice names,
+so a control that begins one runs its body in a child of its own
+(`worktree/add_timing_tests.rs`),
+and a control that ran its body beside another's recording read a line holding none of its own work
+(issue 6532).
+No `source_guard` ban covers that record yet:
+the scan such a ban is built on reads every test-only source,
+and seven controls of four other files still begin a recording in the run's own process
+(`worktree/add_standing_notice_tests.rs` is issue 6533's,
+`worktree/worktree_clone_tests.rs`,
+`worktree/worktree_ladder_finish_tests.rs` and
+`worktree/worktree_ladder_target_tree_skip_tests.rs`).
 The two windows a notice reads are one window for the process as well,
 so a control that steps a notice takes them before it starts
 (`take_the_windows_a_notice_control_reads` in `commit/native_commit_waiting_notice_tests.rs`),
@@ -272,6 +302,28 @@ twice the notice's own maximum,
 and failed that way in three threaded `commit::` runs;
 it waits thirty times the notice's own bound now,
 sized from a measured answer of 500.1 to 501.6 ms).
+A control whose subject is a notice said to a waiting client reads what the client has said while it still waits,
+and reads it before the client ends
+(`Told` in `landing/service_land_hung_write_tests.rs`):
+the text a client ends with cannot tell a person told when the write started from one told as it gave up,
+and the control sizes that wait as a multiple of the notice's own bound,
+because issue 6524's control waited one ceiling away from a notice due at one second,
+and a journal read that waited on storage carried the words past the client's ceiling,
+so it counted none.
+A window a control times never holds work the release code grants no ceiling to,
+because no multiple of a ceiling can bound that work:
+a commit's landing costs what this host's disk costs,
+so a control that answers a commit times that landing unless its window starts after the commit landed.
+Measured 2026-11-26 in a threaded `landing::` run:
+the nine landings that run logged took 140 ms to 22576 ms,
+and a control that timed a commit's whole answer from its submission failed at three seconds
+beside a note ceiling of 500 ms (issue 6525).
+So a window starts where the note's write began,
+once the commit has landed,
+and holds only that ceiling and the answer after it,
+and a property that cannot be timed that way is asserted structurally instead:
+the store named no repository once both answers had come,
+so neither answer came from it.
 A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one
