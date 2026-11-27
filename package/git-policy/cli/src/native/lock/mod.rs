@@ -301,6 +301,11 @@ pub mod stale_ref_lock_message;
 #[cfg(test)]
 pub(crate) mod stale_ref_lock_killed_git;
 
+/// The disposable repository a control builds so a real Git takes a reference lock in it,
+/// for the controls.
+#[cfg(test)]
+pub(crate) mod stale_ref_lock_stage;
+
 /// The numbered claim files that let exactly one command work on one worktree or checkout,
 /// without a lock.
 #[cfg(target_os = "linux")]
