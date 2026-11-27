@@ -2,6 +2,10 @@
 //! a reader that takes every line,
 //! a reader that stopped draining,
 //! and the ceiling of the wait for the writer at the end.
+//! The ban on the commit path submitting its notices itself reads the submission by its name;
+//! it does not see a call a macro of another file expands to, nor a name a glob import (`use super::*;`)
+//! brings into scope,
+//! so a reader checks each of those in a file that adds one.
 
 use super::*;
 use crate::source_guard::{
@@ -9,7 +13,7 @@ use crate::source_guard::{
     MayHold,
     anchors_the_scope_no_longer_holds,
     entries_that_match_nothing,
-    lines_holding_one_of,
+    lines_calling_one_of,
     lines_no_entry_excuses,
     release_sources_under,
 };
@@ -291,7 +295,7 @@ fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
         abandoned.join("\n")
     );
     let held: Vec<HoldingLine> =
-        lines_holding_one_of(commit_path.as_slice(), &[THE_CALL_THAT_WRITES]);
+        lines_calling_one_of(commit_path.as_slice(), &[THE_CALL_THAT_WRITES]);
     let unexplained: Vec<String> = lines_no_entry_excuses(held.as_slice(), MAY_HOLD);
     assert!(
         unexplained.is_empty(),
@@ -328,32 +332,35 @@ const THE_COMMIT_PATH: &[&str] = &["landing/"];
 ///  `THE_CALL_THAT_WRITES` is the submission that writes its notices itself.
 /// Why:
 ///  A caller of it says its notices where it stands,
-///  which is what the stream exists to stop.
+///  which is what the stream exists to stop,
+///  and the call is read by its name wherever the line spells it:
+///  as a call, as a path's last segment, or with its types written out,
+///  so a name imported under a rename is a finding on the line that imports it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_CALL_THAT_WRITES = 'submit_traced(';
+/// const THE_CALL_THAT_WRITES = 'submit_traced';
 /// ```
-const THE_CALL_THAT_WRITES: &str = "submit_traced(";
+const THE_CALL_THAT_WRITES: &str = "submit_traced";
 
 /// What:
 ///  `MAY_HOLD` is the stream's own module,
-///  naming the one use of the call that file holds and the reason it may.
+///  naming the line of the one call that file holds and the reason it may.
 /// Why:
 ///  `submit_saying_where_it_stands` is the one call that hands the notices over,
 ///  and it is written on top of `submit_traced` inside the stream's own file;
 ///  an entry whose line went fails here instead of excusing the file for ever,
-///  and a second use in that file fails,
-///  because the entry names the count it holds.
+///  and a second call in that file fails,
+///  because the entry names one line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'landing/service_commit_waiting_notices.rs', text: 'submit_traced(', uses: 1, why: '...' }];
+/// const MAY_HOLD = [{ file: 'landing/service_commit_waiting_notices.rs', text: 'submit_traced', line: '...', why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[MayHold {
     file: "landing/service_commit_waiting_notices.rs",
-    text: "submit_traced(",
-    uses: 1,
+    text: "submit_traced",
+    line: "submit_traced(&waiting_config, request, &mut notices, trace);",
     why: "the one call that hands a commit's waiting notices over is written on top of this one, inside the \
           stream's own file; a caller never names it",
 }];
@@ -373,21 +380,36 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
     "no release file of the commit path submits through the notice stream any more, so this ban reaches nothing",
 )];
 
-/// A second submission in the file the entry excuses is a finding,
-/// because the entry names the one use that file holds.
+/// What:
+///  A second submission in the file the entry excuses is a finding,
+///  and so is a submission through a name the call was imported under.
+/// Why:
+///  The entry names the one line that file's submission stands on,
+///  and a rename's import is the line a renamed call leaves visible.
 #[test]
-fn the_entry_names_the_uses_the_stream_s_file_holds() {
+fn the_entry_names_the_use_the_stream_s_file_holds() {
     let twice: Vec<(String, String)> = vec![(
         String::from("landing/service_commit_waiting_notices.rs"),
         String::from(
             "fn say() { submit_traced(&waiting, request, &mut notices, trace); }\nfn say_again() { submit_traced(&waiting, request, &mut notices, trace); }\n",
         ),
     )];
-    let held: Vec<HoldingLine> = lines_holding_one_of(twice.as_slice(), &[THE_CALL_THAT_WRITES]);
+    let held: Vec<HoldingLine> = lines_calling_one_of(twice.as_slice(), &[THE_CALL_THAT_WRITES]);
     let excused: Vec<String> = lines_no_entry_excuses(held.as_slice(), MAY_HOLD);
     assert_eq!(
         excused.len(),
         2,
-        "a second submission in the stream's own file fails, because the entry names one: {excused:?}"
+        "a second submission in the stream's own file fails, because the entry names one line: {excused:?}"
+    );
+    let renamed: Vec<(String, String)> = vec![(
+        String::from("landing/a_note.rs"),
+        String::from("use crate::service::service_client_send_and_wait::submit_traced as send;\n"),
+    )];
+    let imported: Vec<HoldingLine> =
+        lines_calling_one_of(renamed.as_slice(), &[THE_CALL_THAT_WRITES]);
+    assert_eq!(
+        imported.len(),
+        1,
+        "a rename's import is the line the renamed call leaves visible"
     );
 }

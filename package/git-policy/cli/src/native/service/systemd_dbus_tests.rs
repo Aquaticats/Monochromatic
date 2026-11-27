@@ -3,13 +3,21 @@
 //! the reading
 //!  of replies built by hand,
 //! and whole exchanges against a peer that speaks the bus's side.
+//! The ban on the client's module reads each call of the wire format by its name and refuses a rename of a
+//! builder;
+//! it does not see a call a macro of another file expands to, nor a name a glob import (`use super::*;`)
+//! brings into scope,
+//! so a reader checks each of those in a file that adds one.
 
 use super::*;
 use crate::source_guard::{
+    HoldingLine,
     MayHold,
     anchors_the_scope_no_longer_holds,
     entries_that_match_nothing,
+    lines_calling_one_of,
     lines_holding_one_of,
+    lines_naming_one_of,
     lines_no_entry_excuses,
     release_sources_under,
 };
@@ -1178,46 +1186,83 @@ fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
 const THE_CLIENT_MODULE: &[&str] = &["service/systemd_dbus"];
 
 /// What:
-///  `THE_WIRE_ITSELF` is how a file writes the bus's wire format by hand.
+///  `THE_WIRE_ITSELF` is how a file writes the bus's wire format by hand:
+///  a call of one of the format's two builders,
+///  and a read of a socket's bytes.
 /// Why:
 ///  The client speaks through `zbus`,
 ///  so a socket,
-///  a call builder or a reply reader of its own is the finding.
+///  a call builder or a reply reader of its own is the finding,
+///  and a builder is read by its name where a line spells it as a call,
+///  as a path's last segment, or with its types written out.
+///  The client re-exports both builders under their own names,
+///  which a `use` list writes without a call and the ban allows;
+///  a rename of one would hide the call it makes, so `THE_RENAMED_BUILDERS` refuses that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_WIRE_ITSELF = ['UnixStream', 'encode_call(', 'decode_reply(', 'read_exact'];
+/// const THE_WIRE_ITSELF = { calls: ['encode_call', 'decode_reply', 'read_exact'], types: ['UnixStream'], renamed: ['encode_call as ', 'decode_reply as '] };
 /// ```
-const THE_WIRE_ITSELF: &[&str] = &["UnixStream", "encode_call(", "decode_reply(", "read_exact"];
+const THE_WIRE_CALLS: &[&str] = &["encode_call", "decode_reply", "read_exact"];
+
+/// What:
+///  `THE_WIRE_TYPES` is the socket type the client no longer names.
+/// Why:
+///  A socket is named in a `use` list and in a signature as well as at a call,
+///  so the type is read wherever a line writes it.
+const THE_WIRE_TYPES: &[&str] = &["UnixStream"];
+
+/// What:
+///  `THE_RENAMED_BUILDERS` is the rename that would hide a builder behind another name.
+/// Why:
+///  A call through a renamed builder spells nothing the ban reads,
+///  so the line that renames it is the finding.
+const THE_RENAMED_BUILDERS: &[&str] = &["encode_call as ", "decode_reply as "];
+
+/// What:
+///  `lines_the_client_may_not_hold(sources)` is every code line of those sources that names the wire itself.
+/// Why:
+///  The ban is one list of findings over one scope,
+///  so the three readings are joined here rather than in each control that asks what the ban found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linesTheClientMayNotHold = (sources) => [...linesCallingOneOf(sources, THE_WIRE_CALLS), ...linesNamingOneOf(sources, THE_WIRE_TYPES), ...linesHoldingOneOf(sources, THE_RENAMED_BUILDERS)];
+/// ```
+fn lines_the_client_may_not_hold(sources: &[(String, String)]) -> Vec<HoldingLine> {
+    let mut holding: Vec<HoldingLine> = lines_calling_one_of(sources, THE_WIRE_CALLS);
+    holding.extend(lines_naming_one_of(sources, THE_WIRE_TYPES));
+    holding.extend(lines_holding_one_of(sources, THE_RENAMED_BUILDERS));
+    return holding;
+}
 
 /// What:
 ///  `MAY_HOLD` is the wire-format file,
-///  each entry naming the one use of its text that file holds and the reason it writes what the client no longer
-///  does.
+///  each entry naming the line of the one builder it holds and the reason it writes what the client no longer does.
 /// Why:
 ///  The format needs no socket and stays testable by bytes alone,
 ///  and the controls' fake bus and the fuzz target are what reach it now;
 ///  it is no call of the client's.
 ///  An entry whose line went fails here instead of excusing the file for ever,
-///  and a second use of either builder in that file fails,
-///  because the entry names the count it holds.
+///  and a second call of either builder in that file fails,
+///  because the entry names one line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'service/systemd_dbus_wire_format.rs', text: 'encode_call(', uses: 1, why: '...' }];
+/// const MAY_HOLD = [{ file: 'service/systemd_dbus_wire_format.rs', text: 'encode_call', line: '...', why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[
     MayHold {
         file: "service/systemd_dbus_wire_format.rs",
-        text: "encode_call(",
-        uses: 1,
+        text: "encode_call",
+        line: "pub fn encode_call(",
         why: "the format a call is written in, which the controls' fake bus and the fuzz target build by hand; \
               the client itself sends none of it",
     },
     MayHold {
         file: "service/systemd_dbus_wire_format.rs",
-        text: "decode_reply(",
-        uses: 1,
+        text: "decode_reply",
+        line: "pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {",
         why: "the same format read back, which only the controls' fake bus and the fuzz target read",
     },
 ];
@@ -1260,7 +1305,7 @@ fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
         "the scope reached no file holding what this ban is about:\n{}",
         abandoned.join("\n")
     );
-    let holding = lines_holding_one_of(sources.as_slice(), THE_WIRE_ITSELF);
+    let holding: Vec<HoldingLine> = lines_the_client_may_not_hold(sources.as_slice());
     let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
     assert!(
         unexplained.is_empty(),
@@ -1280,43 +1325,81 @@ fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
     assert!(client.1.contains("zbus::"), "the client does not use zbus");
 }
 
+/// What:
+///  Every spelling of the wire the client may not write: a socket's type wherever it is named, a builder called by its
+///  path or with its types written out, a read of a socket, and a rename of a builder.
+/// Why:
+///  The review of release 0.6.1-alpha.50 found that other guards' substring bans missed a rename and a turbofish
+///  (issue 6613),
+///  and this one held the same shape.
+const SPELLINGS_OF_THE_WIRE: &[&str] = &[
+    "let _socket = std::os::unix::net::UnixStream::pair();",
+    "fn held(socket: UnixStream) -> UnixStream { socket }",
+    "let _bytes = encode_call(serial);",
+    "let _bytes = crate::systemd_dbus_wire_format::encode_call(serial);",
+    "let _bytes = encode_call::<u8>(serial);",
+    "let _ = stream.read_exact(&mut one);",
+    "use crate::systemd_dbus_wire_format::encode_call as make_call;",
+];
+
+/// What:
+///  The lines the client's module may still write: the `use` list that re-exports the format under its own names, and
+///  the format's own two builders.
+/// Why:
+///  The client re-exports `decode_reply` and `encode_call` so the format has one name,
+///  which writes no call,
+///  and the format's own definitions are the entries `MAY_HOLD` names.
+const THE_WIRE_ITSELF_TO_READ: &[(&str, &str)] = &[
+    (
+        "service/systemd_dbus.rs",
+        "pub use crate::systemd_dbus_wire_format::{CallError, Reply, Target, decode_reply, encode_call};",
+    ),
+    ("service/systemd_dbus_wire_format.rs", "pub fn encode_call("),
+    (
+        "service/systemd_dbus_wire_format.rs",
+        "pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {",
+    ),
+];
+
 /// The scan flags a socket a split carried into a receiver,
-/// and reads the wire format's own builders as no finding.
+/// in every spelling of the wire,
+/// and reads the format's re-export and its own two builders as no finding.
 #[test]
 fn the_scan_flags_a_socket_in_a_receiver_file() {
-    let planted: Vec<(String, String)> = vec![(
-        String::from("service/systemd_dbus_planted.rs"),
-        String::from("fn planted() { let _socket = std::os::unix::net::UnixStream::pair(); }\n"),
-    )];
-    let holding = lines_holding_one_of(planted.as_slice(), THE_WIRE_ITSELF);
-    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
-    assert!(
-        unexplained
-            .iter()
-            .any(|sentence| return sentence.contains("UnixStream")),
-        "a socket in a file the module's split made is a finding: {unexplained:?}"
-    );
-    let format: Vec<(String, String)> = vec![(
-        String::from("service/systemd_dbus_wire_format.rs"),
-        String::from("fn built(serial: u32) { let _bytes = encode_call(serial); }\n"),
-    )];
-    let written = lines_holding_one_of(format.as_slice(), THE_WIRE_ITSELF);
-    assert_eq!(
-        lines_no_entry_excuses(written.as_slice(), MAY_HOLD),
-        Vec::<String>::new(),
-        "the format's own builder is the one arm the ban lets stand"
-    );
+    for spelling in SPELLINGS_OF_THE_WIRE {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("service/systemd_dbus_planted.rs"),
+            format!("fn planted() {{\n    {spelling}\n}}\n"),
+        )];
+        let holding: Vec<HoldingLine> = lines_the_client_may_not_hold(planted.as_slice());
+        let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+        assert!(
+            !unexplained.is_empty(),
+            "{spelling} writes a wire and is a finding"
+        );
+    }
+    for (file, line) in THE_WIRE_ITSELF_TO_READ {
+        let planted: Vec<(String, String)> = vec![(String::from(*file), format!("{line}\n"))];
+        assert_eq!(
+            lines_no_entry_excuses(
+                lines_the_client_may_not_hold(planted.as_slice()).as_slice(),
+                MAY_HOLD
+            ),
+            Vec::<String>::new(),
+            "{line} in {file} is one the ban lets stand"
+        );
+    }
     let second_builder: Vec<(String, String)> = vec![(
         String::from("service/systemd_dbus_wire_format.rs"),
         String::from(
             "fn built(serial: u32) { let _ = encode_call(serial); }\nfn built_again(serial: u32) { let _ = encode_call(serial); }\n",
         ),
     )];
-    let twice = lines_holding_one_of(second_builder.as_slice(), THE_WIRE_ITSELF);
+    let twice: Vec<HoldingLine> = lines_the_client_may_not_hold(second_builder.as_slice());
     let excused: Vec<String> = lines_no_entry_excuses(twice.as_slice(), MAY_HOLD);
     assert_eq!(
         excused.len(),
         2,
-        "a second use of a builder in the file the entry excuses fails, because the entry names one: {excused:?}"
+        "a second call of a builder in the file the entry excuses fails, because the entry names one line: {excused:?}"
     );
 }
