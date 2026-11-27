@@ -189,6 +189,86 @@ async function processOf(pid: string,): Promise<
 }
 
 /**
+ The files a container's scope lists its processes in.
+
+ Podman puts the container's own processes in a `container` child of the scope and leaves the scope's own list empty, so
+ a reader that reads the scope's list alone names no process at all (measured 2026-11-27 in the gate's own suite
+ container: the scope's `cgroup.procs` held nothing while `container/cgroup.procs` held every test process).
+ */
+const processListNames: readonly string[] = [
+  'cgroup.procs',
+  join(
+    'container',
+    'cgroup.procs',
+  ),
+];
+
+/**
+ The process numbers one list of one container's scope holds.
+
+ @param cgroupPath - the container's own scope
+
+ @param name - the list's name, relative to the scope
+
+ @returns every number the list holds, empty when the scope keeps no such list
+ */
+async function listedNumbersOf({
+  cgroupPath,
+  name,
+}: {
+  readonly cgroupPath: string;
+  readonly name: string;
+},): Promise<readonly string[]> {
+  try {
+    return (await readFile(
+      join(
+        cgroupPath,
+        name,
+      ),
+      'utf8',
+    ))
+      .split('\n',)
+      .filter(function numbered(line,) {
+        return line.trim() !== '';
+      },);
+  }
+  catch (error) {
+    // A scope that keeps no such list is one this reader has nothing to add from.
+    if (isMissing(error,))
+      return [];
+    throw error;
+  }
+}
+
+/**
+ The process numbers one container's cgroup lists, from every list it keeps.
+
+ @param cgroupPath - the container's own scope
+
+ @returns each process number once, in the order the scope lists them, empty when the scope is gone
+ */
+async function processNumbersOf(cgroupPath: string,): Promise<readonly string[]> {
+  /**
+   Every list the scope keeps, read beside each other.
+   */
+  const lists = await Promise.all(processListNames.map(function readList(name,) {
+    return listedNumbersOf({
+      cgroupPath,
+      name,
+    },);
+  },),);
+  /**
+   The process numbers read so far, each once.
+   */
+  const numbers: string[] = [];
+  for (const list of lists)
+    for (const number of list)
+      if (!numbers.includes(number,))
+        numbers.push(number,);
+  return numbers;
+}
+
+/**
  The processes of one container, heaviest first.
 
  @param cgroupPath - the container's own scope
@@ -212,17 +292,7 @@ export async function containerProcesses({
   /**
    Every process number the container's cgroup lists.
    */
-  const pids = (await readFile(
-    join(
-      cgroupPath,
-      'cgroup.procs',
-    ),
-    'utf8',
-  ))
-    .split('\n',)
-    .filter(function listed(line,) {
-      return line.trim() !== '';
-    },);
+  const pids = await processNumbersOf(cgroupPath,);
   /**
    The processes read so far.
    */

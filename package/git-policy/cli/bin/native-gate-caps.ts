@@ -65,8 +65,9 @@ export const defaultGateCaps: GateCaps = {
   // for a host with more threads than that.
   unitCpuQuota: '1000%',
   // The unit holds the image build, the container client and nextest. No recorded gate measured the unit's own peak
-  // memory, so the value stays the one every recorded gate ran with; the tests themselves are capped at two gigabytes
-  // by the container.
+  // memory, so the value stays the one every recorded gate ran with; the containers themselves are capped at 4g for the
+  // suite and 8g each for the image build and Clippy (`bin/native-gate-container-limits.ts`), and those sit in scopes
+  // of their own rather than in this unit.
   unitMemoryMax: '20G',
   // A smaller control group refused `git-lfs` its filter process during two LFS controls, which is what this value is
   // sized from (`doc/handover/git-policy-cli-on-tokio.md`, "Step T11": both suites ran "with the run's own control

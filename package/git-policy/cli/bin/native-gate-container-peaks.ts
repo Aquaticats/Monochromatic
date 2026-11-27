@@ -149,31 +149,13 @@ export type GatePeakRecording = {
 };
 
 /**
- The part of a recording that names the processes of a container.
- */
-export type PeakProcessRecording = {
-  /**
-   The cgroup hierarchy's root, which a test points at a fixture tree.
-   */
-  readonly root: string;
-  /**
-   The account whose user manager runs the containers.
-   */
-  readonly userId: number;
-  /**
-   How long between two reads of a container's processes.
-   */
-  readonly processIntervalMilliseconds: number;
-};
-
-/**
  The heaviest processes of one running container, read at most once per process interval.
 
  @param state - what this run has read so far
 
  @param role - the container to read
 
- @param recording - the part of the recording that names processes
+ @param recording - what this run was told
 
  @returns its heaviest processes, or none when they were read within the interval already or its scope has gone
  */
@@ -184,11 +166,15 @@ async function processesOfRole({
 }: {
   readonly state: PeakState;
   readonly role: GateContainerRole;
-  readonly recording: PeakProcessRecording;
+  readonly recording: GatePeakRecording;
 },): Promise<readonly ContainerProcess[]> {
+  /**
+   How long between two reads of this role's processes, which the command line may have set.
+   */
+  const intervalMilliseconds = recording.processIntervalMilliseconds ?? gateProcessPollMilliseconds;
   if ((Date.now() - (state.processesReadAt
     .get(role,)
-    ?? 0)) < recording.processIntervalMilliseconds)
+    ?? 0)) < intervalMilliseconds)
     return [];
   state.processesReadAt
     .set(
@@ -202,8 +188,8 @@ async function processesOfRole({
     containerId: state.ids
       .get(role,)
       ?? '',
-    root: recording.root,
-    userId: recording.userId,
+    ...(recording.root === undefined ? {} : { root: recording.root, }),
+    ...(recording.userId === undefined ? {} : { userId: recording.userId, }),
   },);
   try {
     return await containerProcesses({
@@ -253,11 +239,7 @@ async function writeLine({
     : await processesOfRole({
       state,
       role,
-      recording: {
-        root: recording.root ?? '',
-        userId: recording.userId ?? 0,
-        processIntervalMilliseconds: recording.processIntervalMilliseconds ?? gateProcessPollMilliseconds,
-      },
+      recording,
     },);
   await appendFile(
     recording.outPath,

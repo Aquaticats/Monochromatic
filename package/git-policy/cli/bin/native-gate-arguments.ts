@@ -478,7 +478,8 @@ export function gateCapsFromOptions({ options }: { readonly options: GateOptions
    The container memory bound the command line named, absent when it named none, so an unlowered gate keeps its own
    measured bounds of 4g for the suite, 8g for Clippy and 8g for the image build.
    */
-  const containerMemory = options.values.get(containerMemoryOption,);
+  const containerMemory = options.values
+    .get(containerMemoryOption,);
   return checkedGateCaps({
     caps: {
       unitCpuQuota: textOption({
