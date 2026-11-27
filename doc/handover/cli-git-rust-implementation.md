@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T11:47:15-05:00
+## The state at 2026-11-27T12:12:46-05:00
 
-`main` was `7e215a38c2`.
+`main` was `dcb2bcd6a5`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -147,7 +147,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (no round yet;
   part 1 was told of both sets by an inbox note);
 - three rounds for what part 2's report left,
-  started 2026-11-27T11:40 from one list:
+  started 2026-11-27T11:40:23-05:00 from one list:
   `issue-6608-verification-process-tests-wait-for-the-child-by-a-fact-it-gives`;
   `issue-6610-a-check-scopes-last-counters-keep-every-part-they-read`
   (a unit test of what a check's scope counted failed once in one whole run,
@@ -178,52 +178,117 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   a merge record that cannot be read says which file to remove,
   each batch of the service's work reads the room it has when it starts,
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
-  A whole gate on `main` at `97d9afb21c` was started at 2026-11-27T11:33:15-05:00
-  (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
-  log under `~/temp/agent/gate/` by the same name),
-  with the three feature Clippy arms run beside it in the gate's worktree
-  (`~/temp/agent/feature-clippy-arms-in-the-gate-worktree-at-97d9afb21c-2026-11-27/keep/`);
-  `0.6.1-alpha.49` follows a passing verdict.
-  What merged after the gate's commit changes no release code of the wrapper
-  (part 2 of issue 6581 is TypeScript,
-  and issue 6595 is test code and the package guide);
-  the compile check,
-  the four Clippy tasks and the test modules issue 6595 touched run on `main`'s tip in a worktree no merge moves,
-  `.claude/worktrees/typescript-checks-on-main-tip-before-wrapper-alpha-49`,
-  with their output under
-  `~/temp/agent/typescript-checks-on-main-tip-before-wrapper-alpha-49-2026-11-27/keep/`.
-  `native:ts-checks` exited 0 there at `7976b3daff`,
-  for `test:unit` and `lint:types`;
-  it prints no suite or file names for a check that passed,
+  The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
+  two reads of it run.
+  `native:ts-checks` prints no suite or file names for a check that passed,
   which is issue 6613
   (no round yet:
   it waits for issue 6610's round,
-  which holds two of its files).
+  which holds two of its files);
+- for `cargo-shadow`'s `0.1.5-alpha.13` pass,
+  three rounds started 2026-11-27T12:00:02-05:00 from one list,
+  each named `cargo-shadow-alpha-13-release-pass-` and then:
+  `the-retire-gates-fallback-and-its-words-are-held-by-controls`;
+  `the-refusals-listing-and-its-records-say-what-the-code-does`;
+  and `a-scope-whose-empty-notification-the-manager-lost`,
+  which builds nothing:
+  it shows the state in a guest and adds it to
+  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
+- for `mpm-shadow`'s `0.2.7-alpha.14` pass,
+  four rounds started 2026-11-27T12:11:40-05:00 from one list,
+  each named `mpm-shadow-alpha-14-release-pass-` and then:
+  `a-failed-or-raced-publish-never-costs-the-finished-copy`;
+  `a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
+  `four-start-messages-name-the-file-and-the-remedy-that-fit`;
+  and `the-busy-start-record-says-what-the-code-and-the-trace-show`,
+  which changes the record alone.
+  The first two both change `leftovers_of_a_killed_install.rs`,
+  each told which part the other holds.
 
-Released again on 2026-11-27,
-each with a Claude Sonnet pass to follow or running:
+Released again on 2026-11-27:
 `cargo-shadow` `0.1.5-alpha.13`
 (release commit `c53db2c4d1`,
 locked `428fc984a9`,
-installed;
-its pass runs,
-`~/temp/agent/cargo-shadow-alpha-13-release-review-2026-11-27/`)
-and `mpm-shadow` `0.2.7-alpha.14`
+installed),
+`mpm-shadow` `0.2.7-alpha.14`
 (release commit `bf8adbb8e3`,
 locked `bf626a6017`,
-installed;
-its pass runs,
-`~/temp/agent/mpm-shadow-alpha-14-release-review-2026-11-27/`).
-`cargo-shadow` alpha.13 holds the retire that asks the manager nothing on an ordinary run
-(`d0b821414c`:
-a trivial shadow call at 0.874 times alpha.11's time at the median,
-against 0.993 for a same-binary control,
-where alpha.12 was 2.431)
+installed)
+and the wrapper's `0.6.1-alpha.49`
+(release commit `dcb2bcd6a5`,
+unpacked at `.cache/wrapper-release-0.6.1-alpha.49/`,
+never locked or installed).
+`cargo-shadow` alpha.13 holds the retire that asks the manager nothing on an ordinary run (`d0b821414c`)
 and the refusal's branches held by controls (`9c4c5aac42`).
 `mpm-shadow` alpha.14 holds the record that claims only what was traced (`45cac92526`),
 a refused or vanished start that says only what is known (`c388b2b725`),
 a refused shadow's own words (`cf1c46518d`)
 and a republish that replaces a version in one exchange and repairs what a killed install left (`08ae962d40`).
+The wrapper's alpha.49 holds every fix the two alpha.48 passes earned,
+issue 6586 and issue 6607.
+The install proof of alpha.49 over alpha.48 passed in a disposable container:
+no start failed at its `EXEC` step,
+no unit reached the start limit,
+and the pair of commits made at once each landed once.
+
+What the `cargo-shadow` alpha.13 pass found
+(a Claude Sonnet read,
+same vendor,
+so a second pass;
+`~/temp/agent/cargo-shadow-alpha-13-release-review-2026-11-27/keep/review.md`):
+no High finding,
+and nothing that changes a run's decision or stops a live scope.
+In six interleaved rounds a trivial shadow call took 1.085 times alpha.11's time at the median
+(0.667 to 2.205),
+against 1.097 (0.776 to 2.364) for a same-binary control and 1.982 for alpha.12;
+it asked the manager two questions a call where alpha.12 asked ten,
+and no stop in 24 scoped runs.
+Its three Medium findings:
+systemd 262.2 can lose the notification that a scope emptied
+(an inotify queue overflow,
+a watch that could not be added,
+a scope that empties between a reload's one read and the watch being added again),
+and then the unit stays loaded with no member and no warning,
+read in the source and not reproduced;
+on a kernel before 6.1 a scope has no `pids.peak`,
+so every scoped run still asks the manager once,
+which no control reads and the README does not say;
+and seven edits to the gate would stay green,
+because the path controls arm a switch that answers before the gate reads anything.
+Its Low findings are words and records,
+and one window:
+a same-user process that writes itself into the scope after the look is killed by the stop in silence.
+
+What the `mpm-shadow` alpha.14 pass found
+(the same kind of read;
+`~/temp/agent/mpm-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
+no High finding,
+five Medium and ten Low.
+Right as claimed:
+the exchange leaves no absence
+(none in 25 rounds on ZFS and on tmpfs,
+where alpha.13 showed one in 3 and in 1 of 25,
+and 4 of 4 with its first rename slowed);
+an unfinished copy and another version's finished copy were never published;
+whether a refused start is repeated did not change;
+53 command lines are identical between the two binaries.
+Its Medium findings are all in the repair a later install makes after a kill,
+and each needs a killed install first:
+a publish that fails after the claim deletes the finished copy and says both copies are as they were;
+two installs recovering one kill can destroy the finished copy with only a delay between them,
+no error injected;
+a live installer this reader cannot see
+(another process namespace,
+`hidepid`)
+is read as ended,
+against the README's own sentence,
+and its directory removed or published;
+the recovery publishes an older locked version beside a newer installed one;
+and no test would catch an edit that publishes the wrong copy.
+A plain `install` with the network up repairs each.
+This machine runs alpha.14 until `0.2.7-alpha.15`:
+`findmnt /proc` shows no `hidepid` here,
+and the race needs a killed install's leftovers and two installs at once.
 Two merges met in one file each and were resolved by keeping both sides,
 with the package's test task run on the merged tree
 (`package/mpm-shadow/cli/README.md`,
@@ -244,43 +309,40 @@ Two reads run as background agents of the coordinating session,
 each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
-that writes `keep/review.md` under its scratch folder:
-`cargo-shadow`'s `0.1.5-alpha.13` and `mpm-shadow`'s `0.2.7-alpha.14`,
-at the paths this section gives beside each release.
+of the wrapper's `0.6.1-alpha.49` against `0.6.1-alpha.48`,
+started 2026-11-27T12:08-05:00
+(their scratch folders were made at 12:08:26 and 12:08:58):
+one of the merges that change behaviour
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`),
+one of the two that claim to change none,
+the reach and platform gates and the list guards
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`).
 The coordinator rewrites what lasts from each into this file before scratch expires.
 
-The whole gate on `main` at `ff1ae3e5c7` passed
-(unit `gpc-gate-wrapper-next-alpha-on-ff1ae3e5c7-20261127T095035-0500`,
-started 2026-11-27T09:50:35-05:00,
+The whole gate on `main` at `97d9afb21c` passed
+(unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
+started 2026-11-27T11:33:15-05:00,
 `gate-exit-status=0`):
-`Summary [1143.818s] 12125 tests run: 12125 passed (8 slow), 51 skipped`
+`Summary [ 919.977s] 12191 tests run: 12191 passed (7 slow), 51 skipped`
 and "Clippy passed beside the test run.".
-It is the first since the suite's container got a bound of its own (4 GiB,
-issue 6583)
-and since issue 6586 changed release code.
-It does not hold the merges after that commit:
-the slot refusals behind a shell alias,
-the merge pass's last line,
-the notice record,
-the shared source walk,
-and what the rounds still running will bring.
-One more whole gate runs before `0.6.1-alpha.49` is released.
-Beside it,
-on the same tip:
-`lint:types` exited 0;
-`package/container-limit/core`'s `test:unit` exited 0;
-the package's `test:unit` exited 0 at `fdd9ce0e83` in a scope whose caps did not bind
-(17 s,
-`pids.peak` 420,
-`memory.peak` 2,040 MiB,
-at a load average of 36).
-`native:ts-checks` itself exited 2 with six unit tests failed,
-because its scope allows 400 tasks and the suite reaches 420:
-a refused `spawn` read as failing tests (issue 6605).
-The three feature Clippy arms exited 0,
-but Rust merges landed under them,
-so they are void and are run again in the gate's worktree,
-a tree no merge moves.
+Its worktree is `.claude/worktrees/gate-wrapper-next-alpha`,
+which `native:gate:main-tip` expects to exist and does not make.
+The three feature Clippy arms exited 0 in that worktree at the same commit.
+Between that commit and the release,
+only test code,
+the package guide and TypeScript changed in the wrapper package
+(issue 6595,
+part 2 of issue 6581),
+and on `main`'s tip `7e215a38c2`,
+in a second worktree no merge moves
+(`.claude/worktrees/typescript-checks-on-main-tip-before-wrapper-alpha-49`),
+`native:check` and the four Clippy tasks exited 0
+and the 232 tests of the modules issue 6595 touched passed;
+`native:ts-checks` exited 0 there at `7976b3daff`.
+The package's `lint:oxlint` stays red until part 1 of issue 6581 merges.
+Tip checks run in such a worktree:
+on 2026-11-27 three Clippy arms run in the main checkout exited 0 while Rust merges landed under them,
+and stood for no commit.
 
 Round 3 of the crate split's order is done but for three lines.
 Every folder's file loops are broken and merged,
@@ -310,17 +372,6 @@ and no record shows the owner accepting them
 Waiting on a named merge:
 the two `truepeak` crates' one file each,
 on the branch `refactor/flac-profiler-keeps-the-rust-one`.
-
-The whole gate on `main` at `1c8acd5bfb` passed
-(unit `gpc-gate-wrapper-next-alpha-on-1c8acd5bfb-20261127T075019-0500`,
-`gate-exit-status=0`):
-`Summary [ 973.345s] 12115 tests run: 12115 passed (6 slow), 51 skipped`
-and "Clippy passed beside the test run.",
-at the bounds it printed (image build 8g,
-suite 2g,
-Clippy 8g).
-Its worktree is `.claude/worktrees/gate-wrapper-next-alpha`,
-which `native:gate:main-tip` expects to exist and does not make.
 
 `main`'s tip is checked after a batch of merges and not by each merge:
 the merge routine runs `git merge-tree` and compiles nothing.

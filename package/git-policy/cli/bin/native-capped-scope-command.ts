@@ -19,11 +19,13 @@ import {
   SCOPE_NOT_READ,
   type ScopeAccountingRead,
   checkScopeCgroupPath,
-  checkScopePollMilliseconds,
   checkScopeSlice,
   readScopeAccounting,
-  watchScopeAccounting,
 } from './native-check-scope-accounting.ts';
+import {
+  checkScopePollMilliseconds,
+  watchScopeAccounting,
+} from './native-check-scope-watch-accounting.ts';
 import {
   maximumUnitIoWeight,
   textCapProblem,
@@ -492,11 +494,16 @@ export async function runInCappedScope({
   }
   await watch.stop();
   // A scope still exists for a moment after its command ends, so this last look keeps the final counters when it is
-  // there and leaves the last sample taken while it ran when it is not.
+  // there and leaves the last sample taken while it ran when it is not. The kernel removes the group a file at a time as
+  // it goes, so this look answers a part of the group as readily as the whole of it: what it answers replaces the last
+  // reading only when it answers every part of that one.
   /**
    What the scope's control group answered once its command had ended.
    */
-  const lastLook = await readScopeAccounting({ cgroupPath, });
+  const lastLook = await readScopeAccounting({
+    cgroupPath,
+    replaces: watch.lastRead(),
+  },);
   /**
    The reading this outcome carries: the last look when the scope was still there, and the last sample taken while it
    ran otherwise.
