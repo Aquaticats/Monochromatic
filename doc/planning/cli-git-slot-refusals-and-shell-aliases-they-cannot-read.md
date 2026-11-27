@@ -1,18 +1,21 @@
 # Slot refusals and the shell aliases they cannot read
 
-Status: unapproved and non-final,
+Status:
+unapproved and non-final,
 a proposal for the owner and not a decision.
 Written on 2026-11-27 for the alpha.48 release pass.
 What was done:
 the slot refusals now read the same command the destructive-command guard reads,
-so a `!git <words>` alias reaches the removal, move and prune refusals as the
+so a `!git <words>` alias reaches the removal,
+move and prune refusals as the
 direct spelling does
 (`package/git-policy/cli/src/native/invocation/forwarded_command.rs`,
 `the_command_git_runs`;
 the control is
 `a_bound_slots_removal_is_refused_behind_every_shell_alias` and its siblings in
 `entry_slot_refusals_read_every_spelling_tests.rs`).
-What was not changed, and is the choice this file asks for:
+What was not changed,
+and is the choice this file asks for:
 a shell alias the wrapper cannot read still reaches Git.
 Nothing here has been accepted,
 and only the owner declares it complete.
@@ -24,7 +27,8 @@ of a slot whose record proves a whole worktree
 "whatever options the command carries:
 every spelling Git accepts is read for the worktree it names".
 The guard's own passage (lines 24163 to 24198) reads one plain shell-alias form,
-`!git <words>`, whose bytes hold no quote,
+`!git <words>`,
+whose bytes hold no quote,
 backslash,
 `$`,
 backtick,
@@ -52,7 +56,8 @@ and it is outside every passage the project has recorded so far.
 
 ### A: refuse every shell alias in a repository that holds slot records
 
-A `git worktree remove`, `git worktree move` or `git worktree prune` is not
+A `git worktree remove`,
+`git worktree move` or `git worktree prune` is not
 needed to reach this arm:
 every command reached through a `!` alias whose value the wrapper cannot read
 stops in a repository whose record folder holds a record.
@@ -70,7 +75,8 @@ such as `alias.st=!git status` or `alias.l=!git log --oneline`,
 in every repository the ZFS route has served;
 the branch is a large change in what people may run,
 and it is still defeated by a person who runs the removal without an alias at
-all, which the wrapper reads.
+all,
+which the wrapper reads.
 
 ### B: refuse a shell alias whose value text names one of the three slot commands
 
