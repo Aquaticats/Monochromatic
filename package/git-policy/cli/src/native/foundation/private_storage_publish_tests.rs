@@ -4,6 +4,13 @@
 use super::*;
 #[cfg(unix)]
 use crate::a_record_made_durable_with_a_sync::settle_directory_sync;
+use crate::source_guard::{
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_under,
+};
 use crate::test_support::{
     fixture,
     remove,
@@ -190,33 +197,122 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
     settle_directory_sync(Path::new("/unused"), Ok(())).expect("a sync that worked");
 }
 
+/// What:
+///  `THE_MODULE` names the release sources of the private-record module:
+///  the publish itself,
+///  the three files `private_storage.rs` re-exports from,
+///  the publish over a taken name,
+///  and the folder whose entries a private read lists.
+/// Why:
+///  The ban below is about the module,
+///  and the alpha.48 split spread that module over files of its own,
+///  so the scope is stated as prefixes rather than as the one file it used to be:
+///  a file a later split makes beside them is covered without anyone remembering it
+///  (issue 6599).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_MODULE = ['foundation/private_storage', 'foundation/a_record_', 'foundation/entries_of_one_open_folder.rs'];
+/// ```
+const THE_MODULE: &[&str] = &[
+    "foundation/private_storage",
+    "foundation/a_record_",
+    "foundation/entries_of_one_open_folder.rs",
+];
+
+/// What:
+///  `THE_TEMPFILE_CRATES` is the work the module does not do itself: the staging file and the exclusive publish.
+/// Why:
+///  The owner's answer put them in the `tempfile` crate,
+///  so a file of this module that grows its own link or its own staging name is the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_TEMPFILE_CRATES = ['hard_link', 'random_uuid', 'fn staging_path'];
+/// ```
+const THE_TEMPFILE_CRATES: &[&str] = &["hard_link", "random_uuid", "fn staging_path"];
+
+/// What:
+///  `MAY_HOLD` is empty: no file of the private-record module makes a link of its own or builds a staging name.
+/// Why:
+///  The ban reaches the whole module,
+///  so a file added here fails until a reader decides whether the crate's own publish answers,
+///  and that decision is what an entry in this list would record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAY_HOLD: MayHold[] = [];
+/// ```
+const MAY_HOLD: &[MayHold] = &[];
+
+/// What:
+///  `SCOPE_ANCHORS` is the text that proves the scope still reaches the publish this ban was written for.
+/// Why:
+///  A prefix that reached nothing would pass every tree,
+///  and `persist_noclobber` is the one call that says the publish is still the crate's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SCOPE_ANCHORS = [['persist_noclobber', 'no file of the module publishes through the tempfile crate any more']];
+/// ```
+const SCOPE_ANCHORS: &[(&str, &str)] = &[(
+    "persist_noclobber",
+    "no release file of the private-record module publishes through the tempfile crate any more, so this ban reaches nothing",
+)];
+
 /// The owner's rulings of 2026-11-07 ("safe-file-saving shouldn't be something we own at all",
 /// and the answer "Keep the
 ///  fallback (Recommended)" on a filesystem that has neither `renameat2` with `RENAME_NOREPLACE` nor hard links) put the exclusive
 ///  publish in the `tempfile` crate (`persist_noclobber`);
 /// the module keeps only the checked rename for that one case,
 /// so it holds
-///  no hard link of its own and builds no staging name of its own.
+///  no hard link of its own and builds no staging name of its own,
+/// in every file the split made of it.
 #[test]
 fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
-    let source: &str = include_str!("private_storage.rs");
-    let code: String = source
-        .lines()
-        .filter(|line| {
-            return !line.trim_start().starts_with("//");
-        })
-        .collect::<Vec<&str>>()
-        .join("\n");
+    let sources: Vec<(String, String)> =
+        release_sources_under(THE_MODULE).expect("the crate's release sources");
+    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
-        code.contains("persist_noclobber"),
-        "private_storage.rs does not publish through `persist_noclobber`"
+        abandoned.is_empty(),
+        "the scope reached no file holding what this ban is about:\n{}",
+        abandoned.join("\n")
     );
-    for needle in ["hard_link", "random_uuid", "fn staging_path"] {
-        assert!(
-            !code.contains(needle),
-            "private_storage.rs still holds `{needle}`: the publish belongs to the tempfile crate"
-        );
-    }
+    let holding = lines_holding_one_of(sources.as_slice(), THE_TEMPFILE_CRATES);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained.is_empty(),
+        "the private-record module keeps no hard link and builds no staging name of its own, because the publish belongs to the tempfile crate:\n{}",
+        unexplained.join("\n")
+    );
+}
+
+/// The scan flags a link a split carried into a receiver,
+/// and reads the publish's own call as no finding.
+#[test]
+fn the_scan_flags_a_link_in_a_receiver_file() {
+    let planted: Vec<(String, String)> = vec![(
+        String::from("foundation/a_record_planted.rs"),
+        String::from(
+            "fn planted(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {\n    return std::fs::hard_link(from, to);\n}\n",
+        ),
+    )];
+    let holding = lines_holding_one_of(planted.as_slice(), THE_TEMPFILE_CRATES);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained
+            .iter()
+            .any(|sentence| return sentence.contains("hard_link")),
+        "a link in a file the module's split made is a finding: {unexplained:?}"
+    );
+    let publish: Vec<(String, String)> = vec![(
+        String::from("foundation/private_storage.rs"),
+        String::from("fn published(staged: tempfile::NamedTempFile) { staged.persist_noclobber(path); }\n"),
+    )];
+    assert!(
+        lines_holding_one_of(publish.as_slice(), THE_TEMPFILE_CRATES).is_empty(),
+        "the crate's own publish is no link and no staging name"
+    );
 }
 
 /// A staging file that cannot be made reports the system's own error,
