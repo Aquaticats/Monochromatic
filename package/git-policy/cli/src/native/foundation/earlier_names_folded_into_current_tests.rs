@@ -2,9 +2,18 @@
 //! each in its own disposable folders and with a
 //!  process table of its own,
 //! so no control looks at this machine's processes or touches its Git directories.
+//!
+//! A control that folds twice runs its body in a child of its own:
+//! the fold takes each log's journal lock and drops it as that fold answers,
+//! so a child another test forked while it was held keeps it and the second fold answers `LogFold::Busy`
+//! (issue 6602;
+//! `foundation/earlier_log_lines_added_to_current_log_tests.rs` holds the measurement).
 
 use super::*;
 use crate::earlier_log_lines_added_to_current_log::NeverStopped;
+/// Starting a control's body in a child of its own,
+/// for the controls whose subject is the one lock of a fold.
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::service_instance::instance_of;
 use crate::wrapper_names_old_and_new::{
     COMMIT_TIMING_LOG,
@@ -367,39 +376,53 @@ fn an_earlier_program_whose_journal_word_a_removed_link_no_longer_resolves_holds
 /// every name that exists twice is folded and nothing is held or reported.
 #[test]
 fn with_no_earlier_program_running_every_name_is_folded() {
-    let world: World = world("folds");
-    let report: FoldReport = fold_kept_names(
-        world.git_dir.as_path(),
-        NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
-    );
-    assert_eq!(report.held, None);
-    assert_eq!(report.outcomes.len(), NAMES.len());
-    assert!(
-        report
-            .outcomes
-            .iter()
-            .all(|(_, outcome)| return *outcome == Outcome::Folded),
-        "{report:?}"
-    );
-    assert_folded(&world);
-    let again: FoldReport = fold_kept_names(
-        world.git_dir.as_path(),
-        NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
-    );
-    assert_eq!(
-        again,
-        FoldReport {
-            held: None,
-            outcomes: Vec::new()
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      each log's journal `flock` is a fact of the whole process (this file's top doc says why), so beside
+    //  its neighbours the second fold answered `Busy` where this control asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "with_no_earlier_program_running_every_name_is_folded", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "with_no_earlier_program_running_every_name_is_folded",
+        || {
+            let world: World = world("folds");
+            let report: FoldReport = fold_kept_names(
+                world.git_dir.as_path(),
+                NAMES,
+                &world.surroundings,
+                &mut NeverStopped,
+            );
+            assert_eq!(report.held, None);
+            assert_eq!(report.outcomes.len(), NAMES.len());
+            assert!(
+                report
+                    .outcomes
+                    .iter()
+                    .all(|(_, outcome)| return *outcome == Outcome::Folded),
+                "{report:?}"
+            );
+            assert_folded(&world);
+            let again: FoldReport = fold_kept_names(
+                world.git_dir.as_path(),
+                NAMES,
+                &world.surroundings,
+                &mut NeverStopped,
+            );
+            assert_eq!(
+                again,
+                FoldReport {
+                    held: None,
+                    outcomes: Vec::new()
+                },
+                "a folded directory costs a look at names and nothing else"
+            );
+            std::fs::remove_dir_all(world.git_dir.parent().expect("root"))
+                .expect("remove only the fixture");
         },
-        "a folded directory costs a look at names and nothing else"
     );
-    std::fs::remove_dir_all(world.git_dir.parent().expect("root"))
-        .expect("remove only the fixture");
 }
 
 /// An earlier commit service of the worktree is running:
@@ -410,42 +433,59 @@ fn with_no_earlier_program_running_every_name_is_folded() {
 /// the next command folds.
 #[test]
 fn an_earlier_program_that_runs_holds_the_fold_until_it_stops() {
-    let world: World = world("held");
-    start_earlier_service(&world);
-    let report: FoldReport = fold_kept_names(
-        world.git_dir.as_path(),
-        NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      each log's journal `flock` is a fact of the whole process (this file's top doc says why), so beside
+    //  its neighbours the second fold answered `Busy` where this control asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "an_earlier_program_that_runs_holds_the_fold_until_it_stops", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "an_earlier_program_that_runs_holds_the_fold_until_it_stops",
+        || {
+            let world: World = world("held");
+            start_earlier_service(&world);
+            let report: FoldReport = fold_kept_names(
+                world.git_dir.as_path(),
+                NAMES,
+                &world.surroundings,
+                &mut NeverStopped,
+            );
+            assert_eq!(report.held, Some(Hold::InstanceHelperRuns));
+            assert!(report.outcomes.is_empty());
+            assert_eq!(
+                std::fs::read_to_string(world.git_dir.join(PUSH_TRIGGER_LOG.earlier))
+                    .expect("earlier"),
+                "earlier-push\n"
+            );
+            assert_eq!(
+                std::fs::read_to_string(world.git_dir.join(PUSH_TRIGGER_LOG.current))
+                    .expect("current"),
+                "current-push\n"
+            );
+            assert!(world.git_dir.join("cli-git/work/done/earlier").exists());
+            let line: String = waiting_line(world.git_dir.as_path(), Hold::InstanceHelperRuns);
+            assert!(
+                line.ends_with('\n') && line.matches('\n').count() == 1,
+                "one line: {line:?}"
+            );
+            assert!(line.contains("systemctl --user stop"), "{line}");
+            std::fs::remove_dir_all(world.surroundings.proc_root.join("4242"))
+                .expect("the program stops");
+            let later: FoldReport = fold_kept_names(
+                world.git_dir.as_path(),
+                NAMES,
+                &world.surroundings,
+                &mut NeverStopped,
+            );
+            assert_eq!(later.held, None);
+            assert_folded(&world);
+            std::fs::remove_dir_all(world.git_dir.parent().expect("root"))
+                .expect("remove only the fixture");
+        },
     );
-    assert_eq!(report.held, Some(Hold::InstanceHelperRuns));
-    assert!(report.outcomes.is_empty());
-    assert_eq!(
-        std::fs::read_to_string(world.git_dir.join(PUSH_TRIGGER_LOG.earlier)).expect("earlier"),
-        "earlier-push\n"
-    );
-    assert_eq!(
-        std::fs::read_to_string(world.git_dir.join(PUSH_TRIGGER_LOG.current)).expect("current"),
-        "current-push\n"
-    );
-    assert!(world.git_dir.join("cli-git/work/done/earlier").exists());
-    let line: String = waiting_line(world.git_dir.as_path(), Hold::InstanceHelperRuns);
-    assert!(
-        line.ends_with('\n') && line.matches('\n').count() == 1,
-        "one line: {line:?}"
-    );
-    assert!(line.contains("systemctl --user stop"), "{line}");
-    std::fs::remove_dir_all(world.surroundings.proc_root.join("4242")).expect("the program stops");
-    let later: FoldReport = fold_kept_names(
-        world.git_dir.as_path(),
-        NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
-    );
-    assert_eq!(later.held, None);
-    assert_folded(&world);
-    std::fs::remove_dir_all(world.git_dir.parent().expect("root"))
-        .expect("remove only the fixture");
 }
 
 /// A socket that listens for the earlier service,
@@ -481,7 +521,7 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
 /// everything ends up where a fold with no kill puts it.
 #[test]
 fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result() {
-    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result",
         || {
@@ -530,54 +570,70 @@ fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result
 /// folds the line too.
 #[test]
 fn a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_it_closes() {
-    use std::io::Write;
-    let world: World = world("writer-open");
-    let mut writer = std::fs::OpenOptions::new()
-        .append(true)
-        .open(world.git_dir.join(COMMIT_TIMING_LOG.earlier))
-        .expect("writer");
-    let report: FoldReport = fold_kept_names(
-        world.git_dir.as_path(),
-        NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal `flock` this control's first fold drops is a fact of the whole process, and so is the
+    //  writer's descriptor the fold's probe reads: a fork copies both, so beside its neighbours the later fold
+    //  answered `Busy`, or `LeftForALaterCommand` from a writer nobody holds (this file's top doc, issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_it_closes", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_it_closes",
+        || {
+            use std::io::Write;
+            let world: World = world("writer-open");
+            let mut writer = std::fs::OpenOptions::new()
+                .append(true)
+                .open(world.git_dir.join(COMMIT_TIMING_LOG.earlier))
+                .expect("writer");
+            let report: FoldReport = fold_kept_names(
+                world.git_dir.as_path(),
+                NAMES,
+                &world.surroundings,
+                &mut NeverStopped,
+            );
+            let timing: Option<&Outcome> = report
+                .outcomes
+                .iter()
+                .find(|(name, _)| return name.current == COMMIT_TIMING_LOG.current)
+                .map(|(_, outcome)| return outcome);
+            assert_eq!(timing, Some(&Outcome::LeftForALaterCommand), "{report:?}");
+            assert_eq!(
+                failure_line(
+                    world.git_dir.as_path(),
+                    COMMIT_TIMING_LOG,
+                    &Outcome::LeftForALaterCommand
+                ),
+                None,
+                "nothing is printed for it"
+            );
+            writer.write_all(b"late-timing\n").expect("late line");
+            drop(writer);
+            let later: FoldReport = fold_kept_names(
+                world.git_dir.as_path(),
+                NAMES,
+                &world.surroundings,
+                &mut NeverStopped,
+            );
+            assert!(
+                later
+                    .outcomes
+                    .iter()
+                    .all(|(_, outcome)| return *outcome == Outcome::Folded),
+                "{later:?}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(world.git_dir.join(COMMIT_TIMING_LOG.current))
+                    .expect("current"),
+                "current-timing\nearlier-timing\nlate-timing\n"
+            );
+            std::fs::remove_dir_all(world.git_dir.parent().expect("root"))
+                .expect("remove only the fixture");
+        },
     );
-    let timing: Option<&Outcome> = report
-        .outcomes
-        .iter()
-        .find(|(name, _)| return name.current == COMMIT_TIMING_LOG.current)
-        .map(|(_, outcome)| return outcome);
-    assert_eq!(timing, Some(&Outcome::LeftForALaterCommand), "{report:?}");
-    assert_eq!(
-        failure_line(
-            world.git_dir.as_path(),
-            COMMIT_TIMING_LOG,
-            &Outcome::LeftForALaterCommand
-        ),
-        None,
-        "nothing is printed for it"
-    );
-    writer.write_all(b"late-timing\n").expect("late line");
-    drop(writer);
-    let later: FoldReport = fold_kept_names(
-        world.git_dir.as_path(),
-        NAMES,
-        &world.surroundings,
-        &mut NeverStopped,
-    );
-    assert!(
-        later
-            .outcomes
-            .iter()
-            .all(|(_, outcome)| return *outcome == Outcome::Folded),
-        "{later:?}"
-    );
-    assert_eq!(
-        std::fs::read_to_string(world.git_dir.join(COMMIT_TIMING_LOG.current)).expect("current"),
-        "current-timing\nearlier-timing\nlate-timing\n"
-    );
-    std::fs::remove_dir_all(world.git_dir.parent().expect("root"))
-        .expect("remove only the fixture");
 }
 
 /// A read-only Git directory:

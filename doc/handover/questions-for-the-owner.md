@@ -817,6 +817,22 @@ for the scan,
 B1 > B3 > B2
 (B1 moves it off the answer's path).
 
+### What clears a scope unit a killed `cargo-shadow` leaves
+
+A shadow killed while its launcher has not become a member of the scope leaves the unit loaded and empty,
+and nothing in the package sweeps it (issue 6578,
+whose two rounds fixed every path a living shadow controls).
+`doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md` gives five options,
+ranked D > A > E > C > B:
+D has a recovery stop the unit its own journal recorded,
+A sweeps when a run starts,
+E sweeps in the lean service,
+which this host has disabled,
+C leaves it and documents it,
+and B,
+a unit property that makes the manager collect an empty scope,
+does not exist.
+
 ### Picks made, veto open
 
 - The gate's suite container is bounded at 4 GiB (`2da7ccd13a`,

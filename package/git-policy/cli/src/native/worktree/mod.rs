@@ -937,12 +937,14 @@ pub mod worktree_remove;
 
 /// What one removal is asked to do,
 /// and one question its caller answers while it runs.
+#[cfg(target_os = "linux")]
 pub mod worktree_remove_request_and_last_look;
 
 /// What a removal does after the subvolume is gone:
 /// the snapshots ahead of an add cleared out of the registration,
 /// the registration emptied through the descriptors the removal holds,
 /// and the words for what still stands when it cannot go.
+#[cfg(target_os = "linux")]
 pub mod worktree_remove_clears_the_registration;
 
 /// How one attempt to remove a worktree ended,

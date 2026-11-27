@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-cargo-shadow"
-version = "0.1.5-alpha.12"
+version = "0.1.5-alpha.13"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
@@ -78,10 +78,11 @@ sha2 = { workspace = true }
 tempfile = { workspace = true }
 
 # The tmpfs a control mounts where the file system refuses a name that is not UTF-8 (issue 6550), in
-# `src/test_scratch/fixture_root_taking_any_name.rs`. `mount` sits here and not in `[dependencies]` so the release binary
-# compiles no feature of `rustix` that only a `#[cfg(test)]` module calls; the other features above are the same `rustix`, and
-# cargo unites their features only when it builds the tests.
-rustix = { workspace = true, features = ["fs", "process", "event", "mount"] }
+# `src/test_scratch/fixture_root_taking_any_name.rs`, and the time namespace the recycled-number control makes for its reader, in
+# `src/round_fourteen_tests.rs` (issue 6599). Both sit here and not in `[dependencies]` so the release binary compiles no feature of
+# `rustix` that only a `#[cfg(test)]` module calls; the other features above are the same `rustix`, and cargo unites their features
+# only when it builds the tests.
+rustix = { workspace = true, features = ["fs", "process", "event", "mount", "thread"] }
 
 # Every cargo run starts through this binary, so startup latency matters.
 [profile.release]

@@ -17,13 +17,15 @@
 /// `None` when not;
 /// TS:
 ///  `string | undefined`),
-/// and `test_only: bool`.
+/// `test_only: bool` and `public: bool`.
 /// Why:
-///  The module tree resolver needs exactly these three facts per declaration.
+///  The module tree resolver needs the first three facts per declaration,
+/// and the surface scan asks whether the declaration is exactly `pub mod`,
+/// which is what lets another crate name the module.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Declaration = { name: string; pathAttribute: string | undefined; testOnly: boolean }
+/// type Declaration = { name: string; pathAttribute: string | undefined; testOnly: boolean; public: boolean }
 /// ```
 pub(crate) struct Declaration {
     /// The module name after `mod`.
@@ -32,6 +34,9 @@ pub(crate) struct Declaration {
     pub(crate) path_attribute: Option<String>,
     /// Whether a `cfg` attribute on the declaration compiles the module only when testing.
     pub(crate) test_only: bool,
+    /// Whether the line reads exactly `pub mod`,
+    /// which publishes the module and every name it exports.
+    pub(crate) public: bool,
 }
 
 /// What:
@@ -211,6 +216,7 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
             name: name.to_owned(),
             path_attribute,
             test_only,
+            public: line.starts_with("pub mod "),
         });
     }
     // `Ok(found)` is the success variant of `Result`; the tail expression is the return value.

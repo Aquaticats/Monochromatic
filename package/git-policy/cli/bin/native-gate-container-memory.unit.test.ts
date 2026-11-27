@@ -15,6 +15,7 @@ import {
   containerCgroupPathOf,
   readContainerMemory,
 } from './native-gate-container-cgroup-memory.ts';
+import { until } from './until-a-test-condition-holds.ts';
 import {
   type ContainerMemoryWatch,
   NO_MEMORY_KILL,
@@ -32,12 +33,6 @@ const scratchParent = join(
   'temp',
   'agent',
 );
-
-/**
- Milliseconds a test waits for a watcher to read a file it just wrote, which is many times the watcher's own interval
- on a host running other agents' builds.
- */
-const watcherWindowMilliseconds = 10_000;
 
 /**
  An ID in the shape podman writes to a container's ID file, which is also the name of the container's cgroup scope.
@@ -177,31 +172,6 @@ function lastSampleOf(watch: ContainerMemoryWatch,): ContainerMemorySample {
   if (read === CGROUP_NOT_THERE)
     throw new Error('the watch read no figures from its scope yet',);
   return read;
-}
-
-/**
- Wait, bounded, for a condition a watcher brings about, and fail naming what it waited for.
-
- @param condition - what must become true
-
- @param description - what the wait is for, which a failure names
-
- @returns nothing, once the condition holds
- */
-async function until({ condition, description }: {
-  readonly condition: () => boolean;
-  readonly description: string;
-}): Promise<void> {
-  /**
-   When this wait gives up.
-   */
-  const deadline = Date.now() + watcherWindowMilliseconds;
-  while (!condition()) {
-    if (Date.now() > deadline)
-      throw new Error(`waited ${String(watcherWindowMilliseconds)} ms for ${description}`,);
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one look per pause is the wait itself
-    await waitUntil(gateMemoryPollMilliseconds,);
-  }
 }
 
 /**

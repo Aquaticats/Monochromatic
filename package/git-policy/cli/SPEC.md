@@ -17320,6 +17320,20 @@ When real Git does not run:
   transaction,
   or engine failure.
 
+A start of the real Git that cannot run its program leaves the wrapper running,
+because a replacement that failed replaced nothing:
+the wrapper puts back the action this process had for `SIGPIPE` after every failed try,
+so the words it says and the status it ends with behave as everywhere else,
+and a write to a standard error nobody reads answers `EPIPE` and never ends the process by `SIGPIPE`.
+A Git that ran and was ended by a signal still ends the wrapper by that signal
+(`forwarding::end_as_git_ended`),
+and a start that failed ran no Git at all.
+Tests:
+`a_wrapper_that_could_not_start_git_ends_by_the_status_it_means`,
+`a_replacement_that_cannot_run_the_program_puts_sigpipe_back`,
+`a_failed_exec_returns_its_error_and_puts_the_signal_action_back`,
+and `source_guard/every_exec_puts_the_signal_action_back_tests.rs`.
+
 When real Git runs,
 preserve its exit code except for a landed commit followed by a post-commit policy or engine failure,
 which returns `2`.
@@ -17482,7 +17496,7 @@ That age is read from the clock reading the record carries,
 written with the record itself (`service/service_journal_record_age.rs`):
 the boot and machine IDs,
 the monotonic clock and the wall clock,
-the reading a claim's lease is judged by (`service/claim_time.rs`),
+the reading a claim's lease is judged by (`landing/claim_time.rs`),
 so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
 a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
 and only a record of an earlier release,
@@ -22019,7 +22033,7 @@ The age is read from the reading of the clocks the record carries,
 written with the record itself (`service/service_journal_record_age.rs`):
 the boot and machine IDs,
 the monotonic clock and the wall clock,
-the reading a claim's lease is judged by (`service/claim_time.rs`),
+the reading a claim's lease is judged by (`landing/claim_time.rs`),
 so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
 a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
 and only a record of an earlier release,
@@ -22619,6 +22633,9 @@ opening a pipe for reading waits for a writer that may never come,
 which held every wrapped command in such a repository for ever (issue 6415).
 The merge record folder's first read runs on the start of every wrapped command,
 so a pipe at a record's name stops the command with a line naming that record,
+what stands there,
+the file to remove,
+and that the command then runs,
 and a pipe at the identity file's name is an identity this command cannot use,
 which it says before the command goes on.
 An entry of the queue that is not a plain file is moved to `failed` with a line naming it,

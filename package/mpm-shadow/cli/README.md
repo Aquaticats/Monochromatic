@@ -1049,7 +1049,8 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   not only the ones this repository publishes,
   is unpacked into a hidden staging directory,
   marked complete,
-  and renamed to the version's name (see "Repository-published tools keep only the newest version");
+  and given the version's name in one exchange where the file system can do that,
+  or in two renames where it cannot (see "Repository-published tools keep only the newest version");
   only a release archive of this repository is also checked for its first program,
   and only for it does the marker decide whether a version counts as installed.
 - `bin-sourced` tools go through the `bin` CLI.
@@ -1192,10 +1193,10 @@ whichever route installed them.
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
 - An archive is unpacked into a hidden staging directory beside the version directory
-  (`.<version>.staging.<process id>`),
+  (`.<version>.staging.<process id>.<process start time>`),
   the first bin of a release archive is looked for in it,
   the marker is written last,
-  and only then is the staging directory renamed to the version's name.
+  and only then is the version's name given the finished copy.
   `tar` creates a file with its final mode before it writes the content,
   so without this a truncated archive would leave an executable of the right name and the wrong bytes
   at the version's name,
@@ -1206,8 +1207,19 @@ whichever route installed them.
   it is never the newest,
   so it never causes a deletion or moves `current`,
   and the next install of that version replaces it.
-  A run killed without cleanup leaves its staging directory behind;
-  nothing reads it and it can be deleted by hand.
+- Giving the version's name the finished copy is one step where the file system can exchange two names
+  (`renameat2` with `RENAME_EXCHANGE`):
+  the staged copy and the copy at the version's name change places in that call,
+  so no reader ever finds the name absent,
+  and the copy that was there is removed under the hidden name afterwards.
+  Where the file system cannot exchange them
+  (the kernel answers `EINVAL` or `EOPNOTSUPP` for a flag the file system does not support,
+  `EPERM` or `EACCES` for a rename of the type it does not allow,
+  and `ENOSYS` on a kernel without the call),
+  the copy that is there is moved aside first
+  (`.<version>.replaced.<process id>.<process start time>`)
+  and the finished one renamed in after it,
+  which leaves one instant in which the version's name holds nothing.
 - A release archive of this repository gets one link per declared program before the marker is written:
   `<version directory>/<program name>`,
   pointing at the program inside the folder the archive unpacked into
@@ -1259,6 +1271,80 @@ whichever route installed them.
   `outdated` and `bin` print the same line on standard error
   (`bin` writes JSON on standard output);
   the shim path (`mpm`) resolves no tool versions and prints none.
+
+### What a kill leaves and what the next install does about it
+
+A process killed at any instruction is normal on this host,
+so each step of an archive install either leaves nothing that a start reads
+or leaves what a later install finishes.
+The three hidden names carry the installer that made them,
+its process id and the moment that process started,
+which no reuse of a process id repeats within one boot.
+
+- During the download:
+  the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
+  which the next download of that version writes over,
+  and no hidden directory.
+- During the unpacking,
+  before the marker:
+  `.staging` holds an unfinished copy.
+  The next install of that tool removes it and unpacks the archive again.
+- After the marker and before the version's name is given the copy:
+  `.staging` holds a finished copy,
+  and the next install of that version publishes it,
+  downloading nothing.
+- Between the two renames a file system without the exchange needs:
+  the version's name holds nothing,
+  `.replaced` holds the copy that was there,
+  and `.staging` holds the finished copy.
+  The next install of that version publishes the finished copy,
+  downloading nothing;
+  when that copy is gone,
+  it puts the `.replaced` one back instead.
+- During a recovery,
+  after a dead install's finished copy was claimed:
+  `.recovered` holds it,
+  and the next install of that version publishes it,
+  downloading nothing.
+- After the rename and before the `.replaced` name is removed:
+  the version is finished,
+  and `.replaced` holds the unfinished copy it replaced,
+  which the next install of that tool removes.
+
+The finished copy is what a later install publishes rather than the copy that was there,
+because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
+while the copy at the version's name was unfinished,
+which is why it was being replaced at all.
+
+A dead install's copy is claimed before anything is published from it:
+one rename to a `.recovered` name of this process's own,
+so two installs recovering the same copy cannot both take it,
+and the one that loses finds the name gone and publishes nothing.
+Without the claim both would replace the copy at the version's name in turn,
+and the second would leave the unfinished copy there and delete the finished one.
+
+A hidden directory is removed only when the installer that made it is known to have ended,
+and that question is answered by the pair in its name:
+the system reports a process's start time,
+and a process id handed out again belongs to a process that started at another moment,
+so a reused number is never read as the installer.
+The answer has three values and only one of them allows a removal:
+running,
+ended,
+and the system did not say.
+A record that cannot be read is the third,
+because an unreadable record is not a dead process.
+A hidden directory whose name carries no start time was written by an earlier release,
+so it cannot be judged and is left where it is.
+Nothing is read of that other process except its own `/proc/<pid>/stat` record.
+The pair is read in this process's own process namespace and from this boot,
+so two installs in two namespaces that share one toolchain root are not told apart,
+and a directory whose installer it cannot judge is left alone.
+A finished copy under another version's name may be the only copy of that version,
+so it is left for that version's own install to publish.
+
+`install` prints one line for each version it finished this way,
+for example `toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed the 2 hidden directories killed installs left behind`.
 
 ### One set across both toolchain roots
 
@@ -1498,6 +1584,12 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   A launcher sets no arrival marker and checks none:
   a launcher in front of a shadow is the intended arrangement (`.cache/cargo-shadow-bin/cargo`),
   and the shadow behind it decides (it stops when a shadow that started the launcher's process is the one that reached it).
+  It makes no check for a shadow either:
+  `install` links `mpm` to a launcher whose record names that tree's `mpm-shadow` binary,
+  so a record naming a shadow is the arrangement,
+  not a loop,
+  and the words for a refused shadow belong to the check the shadow makes on its own start
+  (`tests/never_start_another_shadow/launchers_that_must_not_start_themselves.rs` runs the pair through).
   A tree that has not run `install` since these rules shipped still has the launcher binary it had,
   and such a binary exits 127 for a record that names a deleted folder until `mise run toolchain:install`
   or `mpm install` runs in that tree
@@ -1517,11 +1609,17 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   `mpm install` in the tree (`mpm-shadow install -g` for the machine-global launcher,
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
-  A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
-  A start the system refused because another program is writing that file gets the same explanation the shadow mode gives:
-  the file is open for writing by another program,
-  which is what an upgrade or an install does while it writes the new copy,
-  and the same command works once that write has finished.
+  A file that vanishes between the check and the start still gets a `could not start` line:
+  the program is gone,
+  or the interpreter named on its first line is,
+  and the command that writes the tool's links again is the remedy for both.
+  A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
+  some process holds open for writing the program's file,
+  or the interpreter named on its first line,
+  the shadow cannot tell which process holds it or why,
+  the same command works once that write has finished and left a whole program,
+  and a write cut short leaves a broken program,
+  which installing the tool again replaces.
   The launcher does not retry it either,
   for the reason the shadow mode does not.
 - The launcher never reads `PATH` or the working directory,
@@ -1945,6 +2043,21 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   or a launcher whose record leads to one,
   without starting it,
   and the start checks the open file again.
+  A start that check refuses says what was found,
+  never the words for a program fault:
+  the path the lookup chose,
+  the shadow the file is or leads to,
+  why starting it would run a shadow instead of `mpm`
+  (a shadow looks for the real `mpm` again,
+  and two shadows that each stood first for the other started each other without end
+  when this was measured on 2026-11-07:
+  about 105 starts a second),
+  the fact that the same path was not a shadow when the lookup read it a moment earlier,
+  so the file there or a launcher record beside it changed in between,
+  and what repairs it:
+  `command -v -a mpm` lists every `mpm` on PATH in the order the lookup reads them,
+  the shadow's own directory belongs first and the real `mpm`'s after it,
+  and `mpm install` in a launcher's tree writes a record that names a shadow again.
   A shadow that finds `MONOCHROMATIC_SHADOW_STARTED_BY` left for its own process or its direct parent
   was started by a shadow:
   it does nothing,
@@ -1969,13 +2082,17 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   After a start that needed retries it says so once on standard error.
 - Explains,
   and never retries,
-  a start the system refused because another program is writing the program's file
+  a start the system refused because another process holds open for writing a file it needs
   (`ETXTBSY`,
   "Text file busy"):
-  the message says the file is open for writing by another program,
-  that an upgrade or an install is the usual cause,
-  and that the same command works once the write has finished.
-  It never names running the program by hand,
+  the message says the file is the program or the interpreter named on its first line,
+  that the shadow cannot tell which process holds it or why,
+  that the same command works once that write has finished and left a whole program,
+  and that a write cut short leaves a broken program,
+  which installing it again replaces.
+  It never names a usual cause,
+  because no measurement shows one,
+  and it never names running the program by hand,
   which shows nothing once the write is over.
   No writer of the two paths a start through this tool resolves opens them for writing.
   Traced 2026-11-27 with a prober starting the published path while the writer ran under `strace`:
@@ -2008,8 +2125,15 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   which the record's threaded arm refused in 5 to 12 of 20 starts
   and in none of 20 with the forking thread off.
   A start that meets one of those renames instead of a write finds the program absent,
-  which the archive install and `uv` both show,
-  and that is reported as the missing-program cause.
+  which `uv` shows,
+  and which the archive install showed before it replaced a version in one exchange
+  (see "What a kill leaves and what the next install does about it"),
+  and that is reported as a program that is not there:
+  one cause and one remedy,
+  whichever step found nothing:
+  the lookup,
+  the check on the open file,
+  or the start itself.
   A writer that does hold the published file open is outside this tool
   and keeps it for as long as its own work takes.
   The released behaviour explains the refusal rather than hiding it behind a stall;
@@ -2028,11 +2152,26 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   missing permission,
   a missing program or interpreter,
   a program whose file another program is writing,
+  a file the kernel will not start as a program,
+  a program that is this tool's own shadow or leads to one,
   or the system's own words),
   what to do,
   the exit status (126) and why the command reports it,
   and what had completed (nothing of the command ran,
   and the post-run cleanup does not run).
+  Each cause is one arm chosen by what happened,
+  so a refused shadow is never read as a program fault,
+  and the arm that names the program says what it turned out to be rather than "the first `mpm` on PATH that is not this shadow".
+  An error no arm classifies keeps the system's own words and says what a hand run can and cannot show:
+  the same words when the program's own file is at fault,
+  and something else or nothing when a limit of the machine,
+  a limit of the shadow's own process,
+  or the shape of the command line is the cause,
+  because a shell may run a file the kernel refuses as a script rather than report the refusal.
+  The file the kernel will not start has an arm of its own for that reason.
+  Every error that can still reach the last arm,
+  with what a hand run shows for each,
+  is listed in `doc/troubleshooting/mpm-shadow-a-start-that-does-not-happen-says-what-is-known.md`.
 - Shows that it is a shadow in the two places a person looks,
   after mpm's own output and only after a successful run:
   a top-level `mpm --version` prints mpm's version text,
@@ -2098,6 +2237,7 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   or a plan or lock file that cannot be read.
 - `126`:
   (shadow mode) the real `mpm` was found but could not be started,
+  the shadow refused to start it because the program was or led to a shadow,
   or the shadow refused to start it because too many shadows were nested.
 - `127`:
   (shadow mode) no real `mpm` on `PATH`.

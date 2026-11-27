@@ -8,8 +8,10 @@
 //! never what,
 //! and the state of one process's threads is the whole difference between a member that can still write and one that
 //! only waits to be reaped (issue 6528).
-//! A process id read from a list can be reused,
-//! so the pidfd is opened first and the threads are read only while it is held.
+//! A process id is read from a list and its descriptor opened after that,
+//! and the threads are read only while the descriptor is held:
+//! from the open onwards the number cannot name another process,
+//! though it was read a moment before.
 //! Split out of `control_group_stop_report.rs`,
 //! which keeps what the stop found and the words a refusal carries.
 //!
@@ -260,9 +262,15 @@ impl MemberListing {
 /// or that the bound passed before they were all read.
 /// Why:
 /// A process id read from a list can be reused,
-/// so the descriptor is opened first:
-/// while it is held no other process can take that number,
+/// so the descriptor is opened before the threads are read:
+/// from that open onwards no other process can take the number,
 /// and a `/proc/<pid>` entry that is gone then belongs to the process that ended and not to another one.
+/// The window between the read of the list and the open is open still:
+/// a number freed and reused inside it would be named here with the threads of whichever process holds it now.
+/// `signal_members` lists again after it opens its descriptors,
+/// because a signal must name the process it acts on;
+/// a listing that said the same would have to hold one descriptor per member across a second read of the group,
+/// so this function says only what the descriptor it holds proves.
 /// A process this one cannot see (another pid namespace,
 /// or a mount that hides `/proc/<pid>`)
 /// is not gone,
@@ -293,7 +301,16 @@ pub(crate) fn standing_of_within(
             ));
         }
     };
+    // What:     `format!("/proc/{pid}/task", ...)` is the folder that lists this process's threads.
+    // Why:      Each entry in it is one thread whose `stat` file says whether that thread still runs.
     let folder: String = format!("/proc/{pid}/task");
+    // A test makes the member it listed read as one that has ended by now: the kernel takes a process out of `cgroup.procs`
+    // and out of `populated` at its last thread's end, so nothing outside a test build can hold a process in the window
+    // between the read of the list and this read of its threads.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::ContainmentMemberEndedAtRead) {
+        return MemberStanding::Exited;
+    }
     let entries = match fs::read_dir(&folder) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {

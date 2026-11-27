@@ -63,8 +63,8 @@ use crate::worktree_subvolume::settle_created_destination;
 use std::io::Write;
 use std::path::PathBuf;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// Import the tag every line of this folder's ladder work carries.
+use crate::worktree::worktree_ladder_finish_binding::TAG;
 
 /// What:
 ///  Serve the clone rung after real Git returned,

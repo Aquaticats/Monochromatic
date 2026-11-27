@@ -52,7 +52,40 @@ Threads share the process, so a test never changes the current directory, the en
 a signal's disposition or a resource limit of its own process.
 Give them to the child it starts instead (`Command::current_dir`, `env`, `env_clear`, a `pre_exec` that only calls
 async-signal-safe functions).
-Issue 6454 removed the current-directory changes; keep them out.
+Issue 6454 removed the current-directory changes;
+keep them out.
+
+A signal's disposition is one of those facts,
+and the standard library hands the test process its first one:
+it sets `SIGPIPE` to its ignore at the start of every Rust program
+(`library/std/src/sys/pal/unix/mod.rs:181`),
+so a write to a pipe nobody reads only answers `EPIPE`.
+A start that cannot run its program puts that default back in the process that tried it:
+`Command::exec` runs the standard library's `do_exec` in the caller,
+not in a child
+(`library/std/src/sys/process/unix/unix.rs:374`),
+so `forwarding::replace_process_with_real_git` and `push::start_retry::exec_retrying`
+leave `SIGPIPE` at its default when the program is missing or the start is refused,
+and every later write to a broken pipe ends every thread of the run
+(issue 6604:
+a threaded run of ten library modules ended with `signal: 13` after 2,985 of its 7,764 tests,
+and the two controls that ran such a start were
+`invocation/forwarding_tests.rs`'s `unstartable_program_is_an_error`
+and `push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`,
+which is `a_failed_exec_returns_its_error_and_puts_the_signal_action_back` since 2026-11-27;
+the measurement is in
+`doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`).
+So a control that runs one of those starts,
+or a body that ends the process by a signal
+(`forwarding::end_as_git_ended`,
+`landing/service_commit_input_notes_and_embedded_commit.rs`'s `print_summary`,
+`process/stop_of_the_service_noticed_by_its_children.rs`'s `end_by_the_signal`),
+runs its body in a child of its own (`testing/process_wide_state_child_test_support.rs`),
+reads the action in place before and after with `sigaction` and a null new action
+(`testing/signal_disposition_of_the_process.rs`),
+and `source_guard/no_control_leaves_sigpipe_at_its_default_tests.rs` refuses a control that does not.
+A control that only reads an action changes nothing,
+so it may run in the run's own process.
 
 The same holds for what a test reads:
 `crate::run_progress::look` and `look_now` add up every task of this process,
@@ -165,6 +198,19 @@ and the second call skipped with "a command of release 0.5.20 or older holds" it
 The window is only the fork to the child's exec,
 where the standard library's close-on-exec flag closes the copy,
 and a host under load stretches it.
+The journal's lock of the fold of an earlier log is one more of those,
+and its copy outlives the fork:
+`foundation/earlier_log_lines_added_to_current_log.rs` takes an `flock` on the journal for one fold and drops it as the
+fold answers,
+and a child forked while it was held keeps it without an `exec` to close anything,
+so a control that folds one log twice met `LogFold::Busy` where it asserts `LogFold::Folded`.
+Measured 2026-11-27 by planting that fork in the control of a log that keeps growing:
+`/proc/locks` still named `FLOCK ADVISORY WRITE` for the journal's inode once the control closed its own descriptor,
+the next fold answered `left: Busy` against `right: Folded`,
+and the same fold answered `Folded` once the planted process was ended.
+So every control of that file that folds one log twice runs its body in a child of its own,
+and `source_guard/no_control_folds_a_log_twice_in_the_run_tests.rs` refuses one that does not
+(issue 6602).
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
@@ -244,13 +290,19 @@ handler;
 the same run with a warm build read 23.5 GB free and passed,
 `doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
 So the batches are sized by a host the caller states:
-`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take it,
-the shipped round reads the machine once and hands that one reading to every batch it drains,
+`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take where the host comes from
+(`TheHostOfABatch`,
+`foundation/parallel_budget.rs`),
+the shipped round and the slow lane name the machine itself,
+so each batch reads it where the batch is sized and not before the round's earlier work ran,
 and a control that needs two items beside each other states a host of its own
-(`A_HOST_THAT_BOUNDS_NO_BATCH`),
+(`TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH)`),
 as a control whose subject is a batch that keeps its turn states one that puts a single item at a time
-(`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
-both in `landing/service_work_items_side_by_side.rs`.
+(`TheHostOfABatch::Stated(A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME)`),
+both hosts in `landing/service_work_items_side_by_side.rs`.
+A control counts those readings (`machine_reads_for_a_control`)
+to prove a batch reads where it is sized,
+and a count of the whole process is read in a child of the control's own.
 A width a control states for the whole process
 (`hold_the_width_to`,
 `landing/service_work_items_side_by_side.rs`)
@@ -610,6 +662,17 @@ and the gate run whose each proved interval was 319.73 ms held four looks in tha
 three of them finding the step,
 so the record proved 639.47 ms and the control failed (issue 6592;
 `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`).
+
+A control that shortens a deadline the release code keeps itself holds the work that deadline governs before that work starts.
+The fence's size read is joined with a deadline measured from the wait and not from the read's start
+(`SizeReadBesideTheCheck::answer_within_the_deadline` hands it to `recv_timeout`),
+and the join runs after the source check and after `git check-attr`,
+so a read started first answers inside a window that began after it did.
+The join's control arms `a_control_holds_the_read` before `start_beside_the_check` for that reason
+(issue 6603:
+a wide threaded `worktree` run answered `3311 passed; 1 failed`,
+with the rung held where the control says a held read cannot answer,
+and 100 ms of delay planted between the start and the arm reproduced it in a run whose child finished in 0.15 s).
 
 ## Write less code
 

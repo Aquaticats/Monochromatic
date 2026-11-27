@@ -107,7 +107,10 @@ fn a_repository_with_a_pipe_where_a_merge_record_goes(fixture: &Fixture) -> Path
 
 /// A `status` in a repository whose merge record folder holds a named pipe stops at once,
 /// naming the record it cannot read,
+/// saying which file a person removes,
 /// instead of holding the command (issue 6415's shape).
+/// Once that file is gone the same command runs,
+/// which is what the line promises.
 #[test]
 fn a_command_stops_at_once_with_a_named_pipe_in_the_merge_record_folder() {
     let fixture: Fixture = fixture("named-pipe-in-the-merge-records");
@@ -124,6 +127,27 @@ fn a_command_stops_at_once_with_a_named_pipe_in_the_merge_record_folder() {
     assert!(
         stderr.contains("x.json") && stderr.contains("not a plain file"),
         "the line names the record and what stands at its name: {stderr}"
+    );
+    // What: the way out the line gives, and the file it is about.
+    // Why:  a person met this stop in every command of the repository, and a line that named only the file left them
+    //       with nothing to do about it (`AGENTS.md`, rule `DGT`).
+    assert!(
+        stderr.contains("Nothing was changed")
+            && stderr.contains("remove it,")
+            && stderr.contains("run the command again"),
+        "the line says nothing was changed, which file to remove, and that the command then runs: {stderr}"
+    );
+    // What: the pipe taken away by the control, which is the file the line names.
+    // Why:  the promise the line makes is only true if the file it names is the one standing in the way.
+    std::fs::remove_file(repo.join(".git/monochromatic-git-policy-cli-merges/x.json"))
+        .expect("the pipe the line names");
+    let mut again: std::process::Command =
+        a_bounded_wrapped_command(&fixture, repo.as_path(), &["status"]);
+    let after: Observed = observe(&mut again, b"");
+    assert_eq!(
+        after.code,
+        Some(0),
+        "the command runs once the file the line names is gone: {after:?}"
     );
     remove(&fixture);
 }
@@ -154,6 +178,14 @@ fn a_command_answers_at_once_with_a_named_pipe_at_the_repository_link_identity()
         stderr.contains("the repository link identity cannot be used")
             && stderr.contains("not a plain file"),
         "the line says the identity cannot be used and what stands at its name: {stderr}"
+    );
+    // What: the sentence names the repository link and no drive of any one machine.
+    // Why:  the identity could not be read here, so this command learned nothing about any drive, and a reader of this
+    //       package need not have the drive the cut-over that wrote the file named.
+    assert!(
+        stderr.contains("so the repository link is not checked for this command")
+            && !stderr.contains("860"),
+        "the line names the repository link and no drive a reader cannot know: {stderr}"
     );
     remove(&fixture);
 }

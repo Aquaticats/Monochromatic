@@ -190,17 +190,8 @@ pub(crate) use crate::worktree_remove_hand_over_service_removal::{
     delete_subvolume_of_with,
 };
 
-/// The tag every log line of this subject carries.
-///
-/// What:
-///  `const TAG: &str = "worktreeRemoveHandOver"` is the name this program's own log lines are tagged with.
-///  The subject is one,
-/// so every file it was split into carries the same word,
-///  and a person's search of the log keeps finding all of it.
-/// Why:
-///  A diagnostic is read beside the others of its subject,
-///  and a tag that changed with the file would hide half of them.
-const TAG: &str = "worktreeRemoveHandOver";
+/// Import the tag every log line of this subject carries.
+use crate::worktree::worktree_remove_hand_over_begun_record::TAG;
 
 /// What:
 ///  Hand the subvolume of a proven,
