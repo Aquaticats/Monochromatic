@@ -69,8 +69,15 @@ Open:
   removed by a later run (the Git wrapper's design); in Legal that folder is inside `~/Plain` and syncs.
 - The Mac keeps the files it set aside before its resync in
   `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` until the owner says to remove them.
-- The files this PC ran before the change are in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`
+- The files this PC ran before the change,
+  the hourly `rclone-bisync-garage.timer`,
+  the one-pass `rclone-bisync-garage.service` with its `60-alert-on-failure.conf` drop-in,
+  the `rclone-bisync-garage-alert@.service` unit and its alert script,
+  are in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`
   (rollback steps: `doc/decision/garage-file-sync-change-watcher.md`).
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 ## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
 
