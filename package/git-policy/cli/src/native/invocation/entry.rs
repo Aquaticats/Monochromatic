@@ -48,6 +48,8 @@ use crate::entry_run_forwarded_actions::{
 };
 use crate::exit_report_written::write_exit;
 use crate::forwarding::replace_process_with_real_git;
+/// The command Git will run, and where that command acts.
+use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::global_arguments::{
     GlobalLayout,
     GlobalOutcome,
@@ -61,6 +63,7 @@ use crate::management::{
 /// The shipped checks and their constructor.
 use crate::policy_checks::{
     ShippedChecks,
+    guarded_forwarded,
     shipped_checks,
 };
 /// A forwarded command starts with no candidate content.
@@ -359,6 +362,18 @@ fn plan_with_real_git(
     );
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);
+    // What: Every repository fact this invocation asks is asked where the command Git will run acts.
+    // Why: A bare `!git` whose caller's words carry `-C <another worktree>`, `--git-dir` or `--work-tree` runs that
+    //  Git on that other worktree or repository (`git.c:401` to `git.c:402`), and the guard and the slot refusals
+    //  judged the worktree of the shell that started them instead: a reset of a dirty main checkout passed from a
+    //  clean linked worktree while the direct spelling was refused, and a slot removal read the records of the
+    //  wrong repository (the alpha.50 review's M1).
+    //  The guard is asked once here, so the policy pass reads the same answer from `checks.forwarded`.
+    checks.environment = environment.to_vec();
+    let guarded: GuardedForwarded = guarded_forwarded(&mut checks);
+    if let Some(globals) = guarded.globals_that_place_the_command.as_deref() {
+        checks.facts = git_facts(real_git.as_path(), globals, overlay.as_slice());
+    }
     // `match` picks by variant and binds the fields each ending carries.
     match run_wrapped_command(&stripped, environment, &mut checks) {
         // `arguments: forwarded` binds the field under a new name.
@@ -635,6 +650,11 @@ mod stop_tests;
 #[cfg(test)]
 #[path = "entry_slot_refusals_read_every_spelling_tests.rs"]
 mod slot_refusal_spellings;
+
+/// A bare `!git` is judged for the worktree and the repository its caller's own words name.
+#[cfg(test)]
+#[path = "entry_shell_alias_judged_where_its_words_point_tests.rs"]
+mod shell_alias_judged_where_its_words_point;
 
 /// Decision controls and the shared fixtures stay out of the release executable.
 #[cfg(test)]
