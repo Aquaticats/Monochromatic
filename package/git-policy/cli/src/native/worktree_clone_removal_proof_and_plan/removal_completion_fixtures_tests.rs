@@ -37,11 +37,9 @@ use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::FreshHolderScan;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
-    RemovalClock,
-    RemovalEntry,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
     CLONE_CREATETXG,

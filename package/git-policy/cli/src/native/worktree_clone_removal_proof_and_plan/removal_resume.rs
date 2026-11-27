@@ -37,10 +37,10 @@ use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
     PreparedRemoval,
-    RemovalClock,
     RemovalEntry,
     enter_the_removal,
     facts_of,

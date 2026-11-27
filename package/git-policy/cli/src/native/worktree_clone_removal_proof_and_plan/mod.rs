@@ -108,6 +108,8 @@
 //!   the lines a finished removal prints.
 //! - `unmount_request.rs`:
 //!   the removal intent and the verified answer.
+//! - `removal_clock.rs`:
+//!   the three process facts a removal's plan records.
 //! - `removal_entry.rs`:
 //!   the one order a removal's proof,
 //!   intent,
@@ -168,6 +170,7 @@ pub mod plan_record;
 pub mod plan_record_bytes;
 pub mod plan_refusal;
 pub mod plan_words;
+pub mod removal_clock;
 pub mod removal_completion;
 pub mod removal_completion_head_gone;
 pub mod removal_completion_head_present;
@@ -272,6 +275,10 @@ pub use plan_words::{
     SNAPSHOT_KIND,
     SnapshotOutcome,
 };
+pub use removal_clock::{
+    RemovalClock,
+    TheLiveClock,
+};
 pub use removal_completion::complete_the_removal;
 pub use removal_completion_inputs::RemovalCompletion;
 pub use removal_destruction::{
@@ -281,9 +288,7 @@ pub use removal_destruction::{
 };
 pub use removal_entry::{
     EnteredRemoval,
-    RemovalClock,
     RemovalEntry,
-    TheLiveClock,
     enter_the_removal,
 };
 pub use removal_head_destroy::{

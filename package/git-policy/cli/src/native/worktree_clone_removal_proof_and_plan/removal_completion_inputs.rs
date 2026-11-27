@@ -28,10 +28,8 @@
 
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::FreshHolderScan;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
-    RemovalClock,
-    RemovalEntry,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::DatasetDestroyDevice;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::RegistrationSettle;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
