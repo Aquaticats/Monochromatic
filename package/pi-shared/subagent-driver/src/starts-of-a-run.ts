@@ -13,11 +13,15 @@ import {
   startConnectionToPi,
 } from './connection-to-pi.ts';
 import {
+  type StartThatEndedWithoutARun,
+  type WaitThatEndedAStart,
+} from './a-start-that-ended-without-a-run.ts';
+import {
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
   START_ATTEMPTS,
-  START_SEQUENCE_MILLISECONDS,
+  startUpAnswerMillisecondsOf,
 } from './driver-constants.ts';
 import type {
   DriverOptions,
@@ -94,6 +98,12 @@ export type StartsOfARun = {
    The session file Pi named in its own state, when it named one, which is what the run masks once it is over.
    */
   readonly sessionFile?: string;
+
+  /**
+   What the start has to say when every start ended before a prompt was taken, in the words the summary, the run folder and the
+   launcher all carry.
+   */
+  readonly startThatEndedWithoutARun?: StartThatEndedWithoutARun;
 };
 
 /**
@@ -167,6 +177,111 @@ function stopReasonOf({
 }
 
 /**
+ Says which bound refused another start, in words that name what a reader can change.
+
+ @param stoppedBy - the bound the decision named
+
+ @param startMilliseconds - how long the starts had been going
+
+ @param startUpAnswerMilliseconds - the time the whole sequence of starts is given
+
+ @param wallSeconds - the run's own wall clock, in seconds
+
+ @returns the wait that ended the run without one
+ */
+function stoppingWaitOf({
+  stoppedBy,
+  startMilliseconds,
+  startUpAnswerMilliseconds,
+  wallSeconds,
+}: {
+  readonly stoppedBy: NoFurtherStart;
+  readonly startMilliseconds: number;
+  readonly startUpAnswerMilliseconds: number;
+  readonly wallSeconds: number;
+},): WaitThatEndedAStart {
+  if (stoppedBy === 'tries-spent') {
+    return {
+      wait: 'the number of starts a run is allowed, after which Pi is not started again',
+      bound: `${String(START_ATTEMPTS,)} starts`,
+      waitedMilliseconds: startMilliseconds,
+    };
+  }
+  if (stoppedBy === 'start-sequence-spent') {
+    return {
+      wait: 'the time the whole sequence of starts is given, after which Pi is not started again',
+      bound: `${String(startUpAnswerMilliseconds,)} ms`,
+      waitedMilliseconds: startMilliseconds,
+    };
+  }
+  return {
+    wait: 'the run\'s own wall clock, which left no time for another start',
+    bound: `${String(wallSeconds,)} s`,
+    waitedMilliseconds: startMilliseconds,
+  };
+}
+
+/**
+ Says what a start that ended without a run has to say once a bound refused another start: the start's own reason, and the bound
+ that stopped the starts, so a reader learns both without opening anything.
+
+ @param start - what the last start said of itself, when it said anything
+
+ @param stoppedBy - the bound that refused another start
+
+ @param startMilliseconds - how long the starts had been going
+
+ @param startUpAnswerMilliseconds - the time the whole sequence of starts is given
+
+ @param wallSeconds - the run's own wall clock, in seconds
+
+ @returns the note for the summary, the run folder's line and the launcher
+ */
+function startThatEndedWithoutARunOf({
+  start,
+  stoppedBy,
+  startMilliseconds,
+  startUpAnswerMilliseconds,
+  wallSeconds,
+}: {
+  readonly start?: StartThatEndedWithoutARun;
+  readonly stoppedBy: NoFurtherStart;
+  readonly startMilliseconds: number;
+  readonly startUpAnswerMilliseconds: number;
+  readonly wallSeconds: number;
+},): StartThatEndedWithoutARun {
+  /**
+   The wait the refusing bound is, as the line reports it.
+   */
+  const stopping = stoppingWaitOf({
+    stoppedBy,
+    startMilliseconds,
+    startUpAnswerMilliseconds,
+    wallSeconds,
+  },);
+  /**
+   Why no start followed, in words.
+   */
+  const whyNoStartFollowed = (stoppedBy === 'tries-spent')
+    ? `all ${String(START_ATTEMPTS,)} starts a run is allowed were made`
+    : ((stoppedBy === 'start-sequence-spent')
+      ? `the ${String(startUpAnswerMilliseconds,)} ms the whole sequence of starts is given was already spent`
+      : `the run\'s own wall clock of ${String(wallSeconds,)} s left no time for another start`);
+  if (start === undefined) {
+    return {
+      waits: [stopping,],
+      what: `No start of this run took the prompt, and ${whyNoStartFollowed}`,
+      next: 'Read what Pi printed to its standard error, which is where a load failure, a refused provider and a missing module all say why: the run\'s stderr.log holds those lines, and its feed.jsonl holds each start the driver made.',
+    };
+  }
+  return {
+    waits: [...start.waits, stopping,],
+    what: `${start.what}, and no start followed because ${whyNoStartFollowed}`,
+    next: start.next,
+  };
+}
+
+/**
  Starts Pi until one start's Pi takes the prompt, and ends on the starts a run allows, the time one start-up may take, and the
  run's own wall clock.
 
@@ -223,12 +338,17 @@ export async function startsOfARun({
   readonly mask: TextMasking;
 },): Promise<StartsOfARun> {
   /**
+   The bound each of the three answers a run waits for while Pi starts is given, which the driver's own environment may shorten for
+   a test.
+   */
+  const startUpAnswerMilliseconds = startUpAnswerMillisecondsOf({ environment: process.env, },);
+  /**
    When the driver's whole sequence of starts must be over: one start-up bound from now, and never past the run's own wall clock.
    A start that spent that bound ended on a condition that stands, so it is not made again.
    */
   const startSequenceDeadline = Math.min(
     deadline,
-    Date.now() + START_SEQUENCE_MILLISECONDS,
+    Date.now() + startUpAnswerMilliseconds,
   );
   /**
    Every start that ended before its Pi took the prompt.
@@ -271,6 +391,10 @@ export async function startsOfARun({
      and every later one adds to it, so the file keeps what each start printed while the summary reads the one it is asking about.
      */
     const linesBeginAt = (attempt === 1) ? 0 : await bytesInPiStandardError({ file: standardErrorFile, });
+    /**
+     When this start began, which is how long the whole of it takes when a bound refuses another.
+     */
+    const startedAt = Date.now();
     /**
      The running Pi of this start.
      */
@@ -322,17 +446,19 @@ export async function startsOfARun({
     },);
     running.connection = connection;
     /**
-     Why this start left the run.
+     Why this start left the run, and what it has to say when it ends without a run.
      */
     const {
       endReason,
       sessionFile: namedSession,
+      startThatEndedWithoutARun: startNote,
     } = await endReasonOfRun({
       connection,
       record,
       options,
       inbox,
       deadline,
+      startUpAnswerMilliseconds,
       secretValuesHandedOver: secretValues.length,
       workLeftRunning: async function workLeftRunning() {
         return await workOutlivingTheTurnIn({
@@ -362,6 +488,9 @@ export async function startsOfARun({
         startsTaken: attempt,
         startFailures,
         ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+        // A run that ended before it took a prompt says which wait ended it: the three answers of its start-up, the bound that
+        // replaced one of them, or Pi leaving.
+        ...(startNote === undefined ? {} : { startThatEndedWithoutARun: startNote }),
       };
     }
     /**
@@ -425,6 +554,14 @@ export async function startsOfARun({
       ...(tail.reason === undefined ? {} : { reason: tail.reason, }),
     },);
     if (!inTimeForAnother) {
+      /**
+       The bound that refused another start, in words a reader can act on.
+       */
+      const stoppedBy = stopReasonOf({
+        another,
+        now: Date.now(),
+        deadline,
+      },);
       return {
         connection,
         putAway,
@@ -432,10 +569,13 @@ export async function startsOfARun({
         startsTaken: attempt,
         startFailures,
         ...(namedSession === undefined ? {} : { sessionFile: namedSession }),
-        startStoppedBy: stopReasonOf({
-          another,
-          now: Date.now(),
-          deadline,
+        startStoppedBy: stoppedBy,
+        startThatEndedWithoutARun: startThatEndedWithoutARunOf({
+          ...(startNote === undefined ? {} : { start: startNote }),
+          stoppedBy,
+          startMilliseconds: Date.now() - startedAt,
+          startUpAnswerMilliseconds,
+          wallSeconds: options.wallSeconds,
         },),
       };
     }

@@ -33,6 +33,7 @@ import {
 import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
 import { createSopsFixture, } from '@monochromatic-dev/env-local-json-core/ts/fixture.ts';
+import { SOPS_TIMEOUT_MS, } from '@monochromatic-dev/env-local-json-core/ts/constants.ts';
 import {
   describe,
   expect,
@@ -52,6 +53,8 @@ import {
   PROCESSES_RECORD_KIND,
   QWEN_PLAN_DEEPSEEK,
   SUMMARY_FILE_NAME,
+  START_WITHOUT_A_RUN_FILE_NAME,
+  type StartThatEndedWithoutARun,
   recordsIn,
   type RunSummary,
   START_ATTEMPTS,
@@ -192,6 +195,18 @@ async function refuseNewFiles({ folder, }: { readonly folder: string },): Promis
  command list, and short enough that the test spends no minute on it.
  */
 const SILENT_RUN_WALL_SECONDS = 2;
+
+/**
+ The variable that shortens the bound of the three answers a run waits for while Pi starts, which a test of a Pi that never answers
+ needs: the shipped bound is two minutes, and a test cannot spend two minutes per ask.
+ */
+const START_UP_ANSWER_MILLISECONDS_VARIABLE = 'PI_RUNS_START_UP_ANSWER_MILLISECONDS';
+
+/**
+ Milliseconds a test gives each of the three start-up answers. The stand-in answers its state and its commands in a fraction of
+ this, and a Pi that answers nothing reaches the bound inside a test's patience.
+ */
+const SHORT_START_UP_ANSWER_MILLISECONDS = 3_000;
 
 /**
  The stand-in value the two masking controls put in a store, long enough to be masked.
@@ -605,10 +620,54 @@ function endingOf(lines: readonly string[],): string {
 }
 
 /**
+ Reads the note a start that ended without a run left, and checks that the three places a reader looks say the same thing: the
+ summary, the file in the run folder, and the words the driver printed.
+
+ @param run - the finished run
+
+ @param waitWords - text the wait that ended it must name, so a test says which wait its ending was about
+
+ @returns the note, for a test's assertions about its bound and its advice
+ */
+function startWithoutARunOf({
+  run,
+  waitWords,
+}: {
+  readonly run: Finished;
+  readonly waitWords: string;
+},): StartThatEndedWithoutARun {
+  /**
+   What the run's summary says of the start that ended without a run.
+   */
+  const note = run.summary.startThatEndedWithoutARun;
+  if (note === undefined) {
+    throw new Error(
+      `the run ended "${
+        run.summary.endReason
+      }" and its summary names no start that ended without a run. Its feed was:\n${
+        run.feed.map((entry,) => JSON.stringify(entry,),)
+          .join('\n',)
+      }\nIts run folder held: ${
+        Object.keys(run.runFiles,)
+          .join(', ',)
+      }\nThe driver printed:\n${run.standardError}`,
+    );
+  }
+  expect(note.waits.map((wait,) => wait.wait,).join('; ',),).toContain(waitWords,);
+  /**
+   The same fact as the file in the run folder keeps it, which a reader who opens the folder finds without the summary.
+   */
+  const kept = run.runFiles[START_WITHOUT_A_RUN_FILE_NAME];
+  expect(kept,).toContain(waitWords,);
+  // And the same fact in the words the driver printed, which is what the unit's journal and a batch carry.
+  expect(run.standardError,).toContain(waitWords,);
+  return note;
+}
+
+/**
  Waits for a file to hold a line, and gives up when the line can no longer come: the driver has ended, or the wait's own bound
  passed. The driver's own limits end its run well inside that bound, so a wait that reaches it means the driver is up and silent,
  and the failure says what the file ended with.
-
  @param file - file the run writes as it goes
 
  @param text - text to wait for
@@ -1392,6 +1451,14 @@ await describe({
         expect(run.standardError,).toContain('pi-exited-before-prompt',);
         expect(run.standardError,).toContain(`each of its ${String(START_ATTEMPTS,)} starts`,);
         expect(run.standardError,).toContain(START_FAILURE_TEXT,);
+        /**
+         What the summary and the run folder say of the start that ended without a run: both waits that ended it, the bound of
+         the one that refused another start, and what to do next.
+         */
+        const note = startWithoutARunOf({ run, waitWords: 'which ended when Pi went', },);
+        expect(note.waits.map((wait,) => wait.wait,).join(' ',),).toContain('not started again',);
+        expect(note.waits.at(-1,)?.bound,).toBe(`${String(START_ATTEMPTS,)} starts`,);
+        expect(note.next,).toContain('standard error',);
         // Nothing of the run happened: no turn, and no prompt Pi took.
         expect(run.summary.turns,).toBe(0,);
         expect(run.feed.some((entry,) => (entry.kind === 'prompt_sent') && (entry.success === true)),).toBe(false,);
@@ -1447,6 +1514,29 @@ await describe({
         expect(run.summary.endReason,).toBe('wall-clock',);
         // The statistics ask after the wall clock ends by the teardown's own bound, not by Pi answering it.
         expect(String(run.summary.sessionStats,),).toContain('no answer',);
+      },
+    },),
+    it({
+      name: 'a run whose Pi never answers its state says which wait ended it, at what bound, and for how long',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'silent',
+          environment: { [START_UP_ANSWER_MILLISECONDS_VARIABLE]: String(SHORT_START_UP_ANSWER_MILLISECONDS,), },
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('prompt-rejected',);
+        // One start: a Pi that answered nothing is not a Pi that left, so no start is made again after it.
+        expect(run.summary.piStartAttempts,).toBe(1,);
+        /**
+         The note the start left, checked against the file in the run folder and the words the driver printed.
+         */
+        const note = startWithoutARunOf({ run, waitWords: 'get_state', },);
+        // Both asks that went unanswered are named, which is the two the recorded runs of 2026-11-26 spent 120 s each on.
+        expect(note.waits.map((wait,) => wait.wait,).join('; ',),).toContain('get_commands',);
+        expect(note.waits[0]?.bound,).toBe(`${String(SHORT_START_UP_ANSWER_MILLISECONDS,)} ms`,);
+        expect(note.waits[0]?.waitedMilliseconds,).toBeGreaterThanOrEqual(SHORT_START_UP_ANSWER_MILLISECONDS,);
+        expect(note.what,).toContain('sent no prompt',);
+        expect(note.next.length,).toBeGreaterThan(0,);
       },
     },),
     it({
@@ -2497,6 +2587,16 @@ await describe({
         expect(run.standardError,).not.toContain(MASKED_STORE_VALUE,);
         // No Pi was started, so the stand-in wrote nothing: a run whose masking cannot be armed does not begin.
         expect(run.logWasWritten,).toBe(false,);
+        // No summary can be written, so the line in the run folder is what says how the start ended: the wait, the bound of the
+        // sops decrypt, how long it had waited, and what to do next.
+        const kept = run.runFiles[START_WITHOUT_A_RUN_FILE_NAME];
+        expect(kept,).toContain('sops decrypt',);
+        expect(kept,).toContain(`${String(SOPS_TIMEOUT_MS,)} ms`,);
+        expect(kept,).toMatch(/waited \d+ ms/u,);
+        expect(kept,).toContain('What to do next',);
+        // And the driver prints the same line, so the unit's journal carries it without a reader opening the folder.
+        expect(run.standardError,).toContain('sops decrypt',);
+        expect(run.standardError,).toContain(`${String(SOPS_TIMEOUT_MS,)} ms`,);
       },
     },),
     it({
@@ -2723,6 +2823,12 @@ await describe({
         const run = await runDriver({ scenario: WITHOUT_MASKING_SCENARIO, },);
         expect(run.summary.endReason,).toBe('masking-not-armed',);
         expect(run.commands,).not.toContain('prompt',);
+        /**
+         The start that ended without a run names the command list that answered without the masking, and says what to do.
+         */
+        const note = startWithoutARunOf({ run, waitWords: 'command list', },);
+        expect(note.waits[0]?.bound,).toBeUndefined();
+        expect(note.next,).toContain('stderr.log',);
         /**
          What the feed says about it, which names the values handed over and the commands Pi had.
          */

@@ -6,11 +6,16 @@
 
 import { join, } from 'node:path';
 import type { ConnectionToPi, } from './connection-to-pi.ts';
+import {
+  type StartThatEndedWithoutARun,
+  type WaitThatEndedAStart,
+} from './a-start-that-ended-without-a-run.ts';
 import { START_UP_ANSWER_MILLISECONDS, } from './driver-constants.ts';
 import type {
   CommandAnswer,
   DriverOptions,
   EndReason,
+  PiExit,
   PiRecord,
   RecordOfPiRun,
   RunProgress,
@@ -65,21 +70,97 @@ function answeredDataOf(answer: CommandAnswer,): PiRecord {
 }
 
 /**
+ The three asks a run makes while Pi starts, each named so a reader of a line that ended a start can follow it to the command that
+ ran it.
+
+ They are what issue 6556's TimeoutError named none of: a start that ended on one of these said `prompt-rejected` and stopped.
+ */
+const STATE_ASK = 'Pi\'s answer to `get_state`, the first of the three answers a run waits for while Pi starts';
+const COMMANDS_ASK = 'Pi\'s answer to `get_commands`, the second of the three answers a run waits for while Pi starts';
+const PROMPT_ASK = 'Pi\'s answer to the run\'s first prompt, the third of the three answers a run waits for while Pi starts';
+
+/**
+ Says how Pi ended, in the words a line about a start that ended without a run needs.
+
+ @param exit - how Pi ended
+
+ @returns the ending, in words a reader needs no log for
+ */
+function exitWordsOf(exit: PiExit,): string {
+  if (exit.code !== undefined) {
+    return `Pi exited with status ${String(exit.code,)}`;
+  }
+  if (exit.signal !== undefined) {
+    return `Pi left on ${exit.signal}`;
+  }
+  return 'Pi left';
+}
+
+/**
+ Says one wait of a start that ended without a run: the ask, what ended it, and how long it had waited.
+
+ @param ask - the ask, in words a reader can follow
+
+ @param answer - how waiting for that ask ended
+
+ @param boundMilliseconds - the silence the ask is given, which a wait Pi went or the run's deadline ended did not reach
+
+ @param waitedMilliseconds - how long the wait had been waiting when it ended
+
+ @returns the wait, as the line and the summary report it
+ */
+function waitThatEnded({
+  ask,
+  answer,
+  boundMilliseconds,
+  waitedMilliseconds,
+}: {
+  readonly ask: string;
+  readonly answer: CommandAnswer;
+  readonly boundMilliseconds: number;
+  readonly waitedMilliseconds: number;
+},): WaitThatEndedAStart {
+  if (answer.ending === 'pi-exited') {
+    return {
+      wait: `${ask}, which ended when Pi went`,
+      waitedMilliseconds,
+    };
+  }
+  if (answer.ending === 'deadline') {
+    return {
+      wait: ask,
+      bound: `the run\'s own wall clock, which ended it before the ${String(
+        boundMilliseconds,
+      )} ms this wait is given`,
+      waitedMilliseconds,
+    };
+  }
+  return {
+    wait: ask,
+    bound: `${String(boundMilliseconds,)} ms`,
+    waitedMilliseconds,
+  };
+}
+
+/**
  Notes the model and commands Pi starts with, which show at a glance what the run is using.
 
- @param connection - running Pi
+ @param watch - what the run needs
 
- @param record - run's record
-
- @returns the command list Pi answered with, of any shape, which is what says whether the masking extension is loaded
+ @returns the command list Pi answered with, of any shape, which is what says whether the masking extension is loaded, how long the
+ state ask and the command-list ask each had waited, and whether the state was answered at all
  */
 async function noteStartingState({
   connection,
   record,
   deadline,
+  startUpAnswerMilliseconds = START_UP_ANSWER_MILLISECONDS,
 }: WatchRequest,): Promise<{
   readonly commands: unknown;
   readonly answer: CommandAnswer;
+  readonly state: CommandAnswer;
+  readonly stateMilliseconds: number;
+  readonly commandsMilliseconds: number;
 
   /**
    The session file Pi named in its own state, when it named one, which is where Pi keeps what this run writes.
@@ -87,13 +168,25 @@ async function noteStartingState({
   readonly sessionFile?: string;
 }> {
   /**
+   When the state ask began, which is what the line about a start that never answered it reports.
+   */
+  const stateAskedAt = Date.now();
+  /**
    Pi's state, waited for only as long as the run has left.
    */
-  const state = answeredDataOf(await connection.send({
+  const stateAnswer: CommandAnswer = await connection.send({
     command: { type: 'get_state', },
-    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
+    answerMilliseconds: startUpAnswerMilliseconds,
     deadline,
-  },),);
+  },);
+  /**
+   How long that wait had been waiting when it ended.
+   */
+  const stateMilliseconds = Date.now() - stateAskedAt;
+  /**
+   Pi's state, when it answered.
+   */
+  const state = answeredDataOf(stateAnswer,);
   /**
    The session file Pi says it is keeping, which is what the run masks once it is over.
    */
@@ -106,14 +199,22 @@ async function noteStartingState({
     ...((sessionFile === '') ? {} : { sessionFile, }),
   },);
   /**
+   When the command-list ask began.
+   */
+  const commandsAskedAt = Date.now();
+  /**
    How waiting for Pi's commands ended: a command list that came back is what says whether the masking of secret values is in
    place, and a wait that gave nothing is a start whose ending the run's own bounds name.
    */
-  const answer = await connection.send({
+  const answer: CommandAnswer = await connection.send({
     command: { type: 'get_commands', },
-    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
+    answerMilliseconds: startUpAnswerMilliseconds,
     deadline,
   },);
+  /**
+   How long that wait had been waiting when it ended.
+   */
+  const commandsMilliseconds = Date.now() - commandsAskedAt;
   /**
    Pi's commands.
    */
@@ -128,6 +229,9 @@ async function noteStartingState({
   return {
     commands,
     answer,
+    state: stateAnswer,
+    stateMilliseconds,
+    commandsMilliseconds,
     ...((sessionFile === '') ? {} : { sessionFile, }),
   };
 }
@@ -171,6 +275,16 @@ function noteMaskingNotArmed({
  */
 type ProgressAfterPrompt = {
   readonly endReason: RunProgress;
+
+  /**
+   How long the prompt's wait had been waiting when it ended, which a line about a start that ended there reports.
+   */
+  readonly waitedMilliseconds: number;
+
+  /**
+   How waiting for the prompt ended, which says whether the bound, Pi's exit, or the run's deadline ended it.
+   */
+  readonly answer: CommandAnswer;
 };
 
 /**
@@ -189,11 +303,16 @@ async function sendFirstPrompt({
   record,
   options,
   deadline,
+  startUpAnswerMilliseconds = START_UP_ANSWER_MILLISECONDS,
 }: WatchRequest,): Promise<ProgressAfterPrompt> {
   /**
    The prompt, which must be an ordinary file: a named pipe would wait for a writer.
    */
   const prompt = await readOrdinaryFile(options.promptFile,);
+  /**
+   When the prompt was sent.
+   */
+  const askedAt = Date.now();
   /**
    Pi's answer, waited for within the run's own deadline and, until it comes, under the bound a starting Pi gets rather than
    the one an answer owed mid-run gets.
@@ -203,9 +322,13 @@ async function sendFirstPrompt({
       type: 'prompt',
       message: prompt,
     },
-    answerMilliseconds: START_UP_ANSWER_MILLISECONDS,
+    answerMilliseconds: startUpAnswerMilliseconds,
     deadline,
   },);
+  /**
+   How long that wait had been waiting when it ended.
+   */
+  const waitedMilliseconds = Date.now() - askedAt;
   /**
    What Pi did with the prompt, or what the driver's own bound named instead.
    */
@@ -220,13 +343,19 @@ async function sendFirstPrompt({
   if ((answer.ending === 'answered') && (!answeredRefusal(answer,))) {
     // Pi took the prompt, which is where work may begin: a Pi that leaves after this is never started again.
     record.countPromptTaken();
-    return { endReason: 'still-running', };
+    return {
+      endReason: 'still-running',
+      waitedMilliseconds,
+      answer,
+    };
   }
   return {
     endReason: endReasonOfPromptWait({
       answer,
       passedDeadline: millisecondsLeftUntil(deadline,) === 0,
     },),
+    waitedMilliseconds,
+    answer,
   };
 }
 
@@ -281,7 +410,7 @@ function notePromptAnswer({
 
 
 /**
- Why the run is over.
+ Why the run is over, and what a start that ended without a run has to say about it.
  */
 export type Ending = {
   readonly endReason: EndReason;
@@ -290,14 +419,158 @@ export type Ending = {
    The session file Pi named, when the run got as far as asking it, which is what the run masks once it is over.
    */
   readonly sessionFile?: string;
+
+  /**
+   What the start has to say when it ended without a run, which is absent for a run whose prompt Pi took.
+   */
+  readonly startThatEndedWithoutARun?: StartThatEndedWithoutARun;
 };
+
+/**
+ Says what a start that never got Pi's command list has to say, which is why no prompt was sent.
+
+ @param starting - what Pi answered while it started
+
+ @param startUpAnswerMilliseconds - the bound each of the three answers is given
+
+ @param handedOver - how many values of this machine's secret environment the driver handed Pi
+
+ @returns the note for the summary and the line the start leaves
+ */
+function commandsNoteOf({
+  starting,
+  startUpAnswerMilliseconds,
+  handedOver,
+  exit,
+}: {
+  readonly starting: Awaited<ReturnType<typeof noteStartingState>>;
+  readonly startUpAnswerMilliseconds: number;
+  readonly handedOver: number;
+  readonly exit: PiExit;
+},): StartThatEndedWithoutARun {
+  /**
+   Every ask that went unanswered before the start ended, in the order they were made.
+   */
+  const waits: WaitThatEndedAStart[] = [
+    ...((starting.state.ending === 'answered')
+      ? []
+      : [waitThatEnded({
+        ask: STATE_ASK,
+        answer: starting.state,
+        boundMilliseconds: startUpAnswerMilliseconds,
+        waitedMilliseconds: starting.stateMilliseconds,
+      },)]),
+    waitThatEnded({
+      ask: COMMANDS_ASK,
+      answer: starting.answer,
+      boundMilliseconds: startUpAnswerMilliseconds,
+      waitedMilliseconds: starting.commandsMilliseconds,
+    },),
+  ];
+  /**
+   What ended the last of them, which says what to do about it.
+   */
+  const last = starting.answer;
+  if (last.ending === 'pi-exited') {
+    return {
+      waits,
+      what: `${exitWordsOf(exit,)} before it answered its command list, so no prompt was sent`,
+      next: 'Read what Pi printed to its standard error, which is where an extension that fails to load, a credential store it cannot read, and a module it cannot find all say so, and start the run again: this is the failure a start is made again after. The run\'s stderr.log holds those lines, and its feed.jsonl holds each start the driver made.',
+    };
+  }
+  return {
+    waits,
+    what: `Pi never answered its command list, so the driver could not tell whether the extension that masks this machine\'s secret values was loaded, and it sent no prompt (${String(
+      handedOver,
+    )} values had been handed to Pi to mask)`,
+    next: `Start the run again when the host is quieter: Pi is loading its session and its extensions while these three answers wait, and a host under load can spend longer than the bound on them. If the same wait runs out on a quiet host, run \`pi --mode rpc\` by hand in the run\'s worktree with the provider and model the run names, and watch its standard error: an extension that fails to load, a credential store it cannot read, and a session larger than its model\'s window each show there. The run\'s feed.jsonl holds the lines this start wrote, and its stderr.log holds what Pi printed.`,
+  };
+}
+
+/**
+ Says what a start whose Pi answered a command list without the masking in place has to say.
+
+ @param starting - what Pi answered while it started
+
+ @returns the note for the summary and the line the start leaves
+ */
+function maskingNoteOf({
+  starting,
+  handedOver,
+}: {
+  readonly starting: Awaited<ReturnType<typeof noteStartingState>>;
+  readonly handedOver: number;
+},): StartThatEndedWithoutARun {
+  return {
+    waits: [{
+      wait: 'the command list Pi answers `get_commands` with, which says whether the extension that masks this machine\'s secret values is loaded',
+      waitedMilliseconds: starting.commandsMilliseconds,
+    },],
+    what: `Pi answered its command list and no command in it armed the masking with the ${String(
+      handedOver,
+    )} values the driver handed it, so the driver sent no prompt`,
+    next: 'Read the run\'s stderr.log: an extension that did not load, a run given `--no-extensions`, and the masking extension\'s entry missing beside the driver each show there. Start the run again once the extension loads, or pass `--pi-argument` for the extension folder that holds it.',
+  };
+}
+
+/**
+ Says what a start ended by its prompt ask has to say, which is the third of the three answers or the bound that replaced it.
+
+ @param answer - how waiting for the prompt ended
+
+ @param waitedMilliseconds - how long that wait had been waiting
+
+ @param startUpAnswerMilliseconds - the bound the prompt is given
+
+ @returns the note for the summary and the line the start leaves
+ */
+function promptNoteOf({
+  answer,
+  waitedMilliseconds,
+  startUpAnswerMilliseconds,
+  exit,
+}: {
+  readonly answer: CommandAnswer;
+  readonly waitedMilliseconds: number;
+  readonly startUpAnswerMilliseconds: number;
+  readonly exit: PiExit;
+},): StartThatEndedWithoutARun {
+  /**
+   The prompt's own wait, as the line reports it.
+   */
+  const waited = waitThatEnded({
+    ask: PROMPT_ASK,
+    answer,
+    boundMilliseconds: startUpAnswerMilliseconds,
+    waitedMilliseconds,
+  },);
+  if (answer.ending === 'pi-exited') {
+    return {
+      waits: [waited,],
+      what: `${exitWordsOf(exit,)} before it took the prompt, so the run never began`,
+      next: 'Read what Pi printed to its standard error, which is where a load failure, a refused provider and a missing module all say why: the run\'s stderr.log holds those lines, and its feed.jsonl holds each start the driver made.',
+    };
+  }
+  if (answer.ending === 'deadline') {
+    return {
+      waits: [waited,],
+      what: 'the run\'s own wall clock ended the wait for its first prompt, so the run never began',
+      next: 'Give the run a longer `--wall-seconds`, which bounds Pi\'s start-up as well as the run, or start it when the host is quieter: the feed\'s last lines say what Pi was doing when the clock ran out.',
+    };
+  }
+  return {
+    waits: [waited,],
+    what: 'Pi answered its state and its command list with the masking in place, and then took no prompt, so the run never began',
+    next: `Start the run again when the host is quieter: loading the session Pi was given is part of what this wait covers, and a session larger than its model\'s window makes Pi compact before it takes the prompt. If the same wait runs out on a quiet host, read the run\'s feed.jsonl for a compaction line and its stderr.log for what Pi printed.`,
+  };
+}
 
 /**
  Takes a run from a started Pi to its end. A failure in the driver itself still ends in a summary and a stopped Pi.
 
  @param watch - what the run needs
 
- @returns why the run ended
+ @returns why the run ended, and what a start that ended without a run has to say
 
  @example
  ```ts
@@ -309,6 +582,10 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return { endReason: 'wall-clock', };
     }
+    /**
+     The bound each of the three answers a run waits for while Pi starts is given.
+     */
+    const startUpAnswerMilliseconds = watch.startUpAnswerMilliseconds ?? START_UP_ANSWER_MILLISECONDS;
     /**
      Pi's own state and command list, and whether the masking of secret values is in place before any work begins.
      */
@@ -338,6 +615,12 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
           passedDeadline: millisecondsLeftUntil(watch.deadline,) === 0,
         },),
         ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+        startThatEndedWithoutARun: commandsNoteOf({
+          starting,
+          startUpAnswerMilliseconds,
+          handedOver,
+          exit: watch.connection.exitDetails(),
+        },),
       };
     }
     if ((handedOver !== undefined) && (!maskingIsArmedIn({
@@ -353,16 +636,26 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
       return {
         endReason: 'masking-not-armed',
         ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+        startThatEndedWithoutARun: maskingNoteOf({
+          starting,
+          handedOver,
+        },),
       };
     }
     /**
-     Where the run stands once the prompt is sent, which may already be its end.
+     Where the run stands once its first prompt is sent, which may already be its end.
      */
-    const { endReason, } = await sendFirstPrompt(watch,);
+    const { endReason, waitedMilliseconds, answer, } = await sendFirstPrompt(watch,);
     if (endReason !== 'still-running') {
       return {
         endReason,
         ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
+        startThatEndedWithoutARun: promptNoteOf({
+          answer,
+          waitedMilliseconds,
+          startUpAnswerMilliseconds,
+          exit: watch.connection.exitDetails(),
+        },),
       };
     }
     return {

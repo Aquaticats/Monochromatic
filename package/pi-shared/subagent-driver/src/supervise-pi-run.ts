@@ -9,10 +9,15 @@ import { mkdir, } from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import {
+  type StartThatEndedWithoutARun,
+  writeAStartThatEndedWithoutARun,
+} from './a-start-that-ended-without-a-run.ts';
+import {
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
   NO_RUN_FAILURE,
 } from './driver-constants.ts';
+import { SOPS_TIMEOUT_MS, } from '@monochromatic-dev/env-local-json-core/ts/constants.ts';
 import {
   CLEAN_END_REASONS,
   finalEndReason,
@@ -67,34 +72,76 @@ import {
 } from './write-summary.ts';
 import {
   makeTemporaryFolderOfARun,
+  TemporaryFolderNotMadeError,
   variablesNamingTemporaryFolder,
 } from './temporary-folder-of-a-run.ts';
 
 /**
+ Reads the values of this machine's secret environment, closing the run's feed and leaving the line that says how the start ended
+ before saying why there is no run when the store cannot be read.
 
- Reads the values of this machine's secret environment, closing the run's feed before saying why there is no run when the store
- cannot be read.
+ Nothing of this run reached Pi, so no summary is written: this line is what a reader of the run folder, and a launcher that prints
+ it, learn the wait and its bound from.
 
  @param record - the run's feed and counts, which is taken away by this call when the values cannot be read
 
+ @param runFolder - the run's own folder, where the line is left
+
  @param read - the read itself
 
- @returns the values
+ @returns the values, and how long the read had been waiting when it answered
 
  @throws SecretEnvironmentUnreadableError when the checkout's store is there and cannot be read
  */
 async function secretValuesOrNoRun({
   record,
+  runFolder,
   read,
 }: {
   readonly record: RecordOfPiRun;
+  readonly runFolder: string;
   readonly read: () => Promise<SecretValuesOfThisMachine>;
-},): Promise<SecretValuesOfThisMachine> {
+},): Promise<{
+  readonly values: SecretValuesOfThisMachine;
+  readonly waitedMilliseconds: number;
+}> {
+  /**
+   When the read began, which is how long the wait had been waiting when it ended.
+   */
+  const startedAt = Date.now();
   try {
-    return await read();
+    return {
+      values: await read(),
+      waitedMilliseconds: Date.now() - startedAt,
+    };
   }
   catch (error) {
+    /**
+     How long the read had waited, which the line this start leaves names.
+     */
+    const waitedMilliseconds = Date.now() - startedAt;
     await record.close();
+    if (error instanceof SecretEnvironmentUnreadableError) {
+      /**
+       The line the run folder keeps and the driver prints, which names the wait, the bound the reader of a store gives one sops
+       call, how long this read had waited, and what to do next.
+       */
+      const line = await writeAStartThatEndedWithoutARun({
+        runFolder,
+        start: {
+          waits: [{
+            wait: `the read of this machine\'s secret environment, whose ${error.source} is read through the sops reader this package asks for the store`,
+            bound: `${String(SOPS_TIMEOUT_MS,)} ms`,
+            waitedMilliseconds,
+          },],
+          what: `nothing could be read from it, so no value of this machine\'s secret environment could be masked before it reached a model, and Pi was never started: ${error.message}`,
+          next: `Start the run again when the host is quieter: the sops decrypt that reads the store is given ${String(
+            SOPS_TIMEOUT_MS,
+          )} ms by the reader in @monochromatic-dev/env-local-json-core, and a loaded host can spend longer. If it fails again on a quiet host, run \`sops --decrypt --output-type json <the store named above>\` by hand and fix what it says, and check that the age identity the reader resolves (SOPS_AGE_KEY_FILE, or ~/.config/mise/age.txt) is the one the store was encrypted to. doc/troubleshooting/pi-neuralwatt-encrypted-store-timeout.md walks the same read.`,
+        },
+      },);
+      console.error(line,);
+    }
     throw error;
   }
 }
@@ -195,7 +242,27 @@ export async function supervisePiRun(
    The folder this run's Pi writes its temporary files in, made after the check above: that check refuses a run folder holding any
    entry at all, so a folder made before it would refuse every run of its own.
    */
-  const { folder: temporaryFolder, } = await makeTemporaryFolderOfARun({ runFolder: options.runFolder, },);
+  const { folder: temporaryFolder, } = await makeTemporaryFolderOfARun({ runFolder: options.runFolder, },)
+    .catch(async function leaveTheLine(error: unknown,) {
+      if (error instanceof TemporaryFolderNotMadeError) {
+        /**
+         The line the run folder keeps, and the driver prints, for a start that ended before Pi was made.
+         */
+        const line = await writeAStartThatEndedWithoutARun({
+          runFolder: options.runFolder,
+          start: {
+            waits: [{
+              wait: 'the folder a run gives Pi for its temporary files, which the driver makes before it starts anything',
+              waitedMilliseconds: 0,
+            },],
+            what: `the folder could not be made, so Pi was never started: ${error.message}`,
+            next: 'Read the failure named above: it holds what the operating system answered. A folder that cannot be made is a path that is not there, a permission the account does not have, or a disk with no room, and the line names which. Make the folder reachable, or give the run a `--run-folder` its account may write, then start it again.',
+          },
+        },);
+        console.error(line,);
+      }
+      throw error;
+    },);
   /**
    The wall limit in milliseconds, which is what every deadline and timer is computed from.
    */
@@ -289,8 +356,11 @@ export async function supervisePiRun(
    A store that is there and cannot be read stops the run here, before Pi is started: a run whose values this code does not know
    is a run that would show them to a model, and a start that cannot mask is worse than no start.
    */
-  const secretValues: SecretValuesOfThisMachine = await secretValuesOrNoRun({
+  const {
+    values: secretValues,
+  } = await secretValuesOrNoRun({
     record,
+    runFolder: options.runFolder,
     read: function readThem() {
       return readSecretValuesOfThisMachine({
         environment,
@@ -342,6 +412,21 @@ export async function supervisePiRun(
       mask: writeMasking.masking,
     },);
     if ('problem' in resumed) {
+      /**
+       The line the run folder keeps, and the driver prints, for a session this run could not mask before Pi read it.
+       */
+      const line = await writeAStartThatEndedWithoutARun({
+        runFolder: options.runFolder,
+        start: {
+          waits: [{
+            wait: `the masking of the session ${options.session ?? ''} into this run's copy of it, which happens before Pi reads the session`,
+            waitedMilliseconds: 0,
+          },],
+          what: `a value of this machine's secret environment could not be taken out of that session, so no value of it would be masked when Pi read it, and Pi was never started: ${resumed.problem}`,
+          next: 'Read the failure named above, which names the entry that could not be masked, and fix the session file or start the run without `--session`: a session this code cannot mask is one whose values would reach a model.',
+        },
+      },);
+      console.error(line,);
       // A value an earlier session holds, which this code cannot take out before Pi reads it: the run does not start.
       throw new SecretEnvironmentUnreadableError({
         source: `the session ${options.session}`,
@@ -401,6 +486,7 @@ export async function supervisePiRun(
   const {
     startFailures,
     startStoppedBy,
+    startThatEndedWithoutARun,
   } = starts;
   /**
    The session file the run leaves behind, which Pi reports in its own statistics or its own state, and which is only ever this run's
@@ -462,6 +548,17 @@ export async function supervisePiRun(
       problem: sessionAtRest.problem,
     },);
   }
+  /**
+   The line a start that ended without a run leaves in its own folder, which a launcher prints and a reader of the folder finds
+   even when the summary is the record they did not ask for.
+   */
+  if (startThatEndedWithoutARun !== undefined) {
+    await writeAStartThatEndedWithoutARun({
+      runFolder: options.runFolder,
+      start: startThatEndedWithoutARun,
+      mask: writeMasking.masking,
+    },);
+  }
   await record.close();
   /**
    The error Pi settled on, when nothing after it recovered.
@@ -503,6 +600,7 @@ export async function supervisePiRun(
     ...((sessionAtRest.outcome === 'unmasked') ? { sessionAtRest: sessionAtRest.problem, } : {}),
     ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
     ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),
+    ...(startThatEndedWithoutARun === undefined ? {} : { startThatEndedWithoutARun, }),
   },);
   await writeSummary({
     runFolder: options.runFolder,
