@@ -84,7 +84,9 @@ which no machine here can do.
 The fourth revision checked nothing by running it.
 It read the gate final check whole,
 kept at
-`~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`,
+`~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md` (scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 with the source excerpts,
 the count script and the offline rerun kept beside it,
 and corrected the report's words where they ran past that evidence:
@@ -128,25 +130,35 @@ and no independent read has reviewed them.
   the second answered an independent gate review by a different vendor,
   Claude Sonnet 5.5,
   kept at
-  `~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`;
+  `~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here);
   the third answered that reviewer's gate re-check of the second revision,
   kept at
-  `~/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`;
+  `~/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here);
   the fourth answered that reviewer's final gate check of the third,
   kept at
-  `~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`;
+  `~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here);
   and the fifth,
   this round,
   answers that reviewer's diff-only check of the fourth,
   kept at
-  `~/temp/agent/gate-diff-check-of-the-btf-reader-vet-report-wording-on-sonnet-2026-11-20/keep/review.md`.
+  `~/temp/agent/gate-diff-check-of-the-btf-reader-vet-report-wording-on-sonnet-2026-11-20/keep/review.md` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   What the second changed is listed in section "Changes in the second revision";
   what the third changed is listed in section "Changes in the third revision";
   what the fourth changed is listed in section "Changes in the fourth revision";
   what the fifth changed is listed in section "Changes in the fifth revision".
   The sixth revision answers the integration pass on ZFS plan step 6 with the `btf-rs` reader,
   kept at
-  `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`,
+  `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which measured one sentence of this report false against the binding's own pre-scan;
   what it changed is listed in section "Changes in the sixth revision".
   The gate re-check found the matrix and the arithmetic reproducing and two high findings in what the
@@ -175,12 +187,16 @@ and no independent read has reviewed them.
   Input:
   section "Fingerprint input".
   Script:
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/compute-the-vet-report-fingerprint.ts`,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/compute-the-vet-report-fingerprint.ts` (scratch,
+  deleted on 2026-11-27;
+  not kept),
   run twice in the first revision,
   the second at 2026-11-20T18:16:26-05:00,
   both exit 0 and both printing that value;
   the rerun in the second revision is
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/compute-the-vet-report-fingerprint.ts`,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/compute-the-vet-report-fingerprint.ts` (scratch,
+  deleted on 2026-11-27;
+  not kept),
   a byte-for-byte copy of it,
   run against the second revision's printed input and printing the same value,
   and the third revision recomputed it from the same printed input with the same result.
@@ -201,6 +217,9 @@ and no independent read has reviewed them.
   which the fingerprint does not carry.
 - Lock:
   `~/temp/agent/technology-vet-locks/` + the SHA-256 of the absolute report path + `.lock`.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
   The first revision created the report with create-new semantics,
   so its first lock record holds `preEditSha256: null`.
   The second revision took the same lock in update mode:
@@ -211,17 +230,25 @@ and no independent read has reviewed them.
   Every record of the first two revisions,
   seven from the first and five from the second,
   is kept together in
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That file began as a copy of the first revision's file,
   which still sits at
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/lock-record.json`,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/lock-record.json` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   and the second revision's writer appended to it as the first one's did.
   The third revision appended its records,
   record 13 onwards,
   to a copy of that file at
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   The fourth appended records 23 to 27 to a copy at
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-final-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json`,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-final-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   and record 23's `preEditSha256` `dce1ebeb4e07...` is record 22's `postEditSha256`,
   so the chain crosses from the third revision into this one with no break.
   Record 13's `preEditSha256` `965b95ecb0...` is record 12's `postEditSha256`,
@@ -263,7 +290,9 @@ and no independent read has reviewed them.
   The chain runs unbroken from record 22 through record 31,
   and record 31's `postEditSha256` is the report the fifth revision committed,
   from a copy at
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   The sixth revision wrote it three times,
   from the worktree `.claude/worktrees/zfs-step-6-integration-findings`,
   where the file it edits lives,
@@ -278,7 +307,9 @@ and no independent read has reviewed them.
   and record 34 carries the paragraph that reports these writes.
   Record 34's `postEditSha256` is the report this round commits,
   from a copy at
-  `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/scratch/keep/lock-record.json` (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
   The chain does not hold inside the second revision,
   and the report says so rather than leaving it to a reader:
@@ -1437,6 +1468,9 @@ eight further crates.io queries the frozen schedule never used
 `bpf debug info types`)
 found no BTF reader with a split base that the ledger lacks
 (`~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/probe-crates-io-extra-queries-output.txt`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That supports the saturation;
 it does not prove it,
 and no claim here rests on it alone.
@@ -1452,7 +1486,10 @@ Response kept as `keep/crates-io-q-btf-page-1-2026-11-20.json` beside this repor
 No new parser appeared between the round and this report.
 
 The kept discovery artifacts,
-under `/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/`:
+under `/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 `query-1-literal-deepseek-page-1.txt`,
 `query-2-c-libraries-deepseek-page-1.txt`,
 `query-3-alternatives-deepseek-page-1.txt`,
@@ -2147,7 +2184,9 @@ elapsed milliseconds and exit status per step.
 ### Manifest: this report's own runs
 
 - Fingerprint script:
-  `node compute-the-vet-report-fingerprint.ts` in `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep`,
+  `node compute-the-vet-report-fingerprint.ts` in `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep` (scratch,
+  deleted on 2026-11-27;
+  not kept),
   exit 0,
   printed the canonical JSON and the hash;
   the second run at 2026-11-20T18:16:26-05:00 printed the same hash.
@@ -2223,7 +2262,9 @@ and ran no candidate:
   and the network reads are a few hundred API responses and three
   crate archives.
 - Everything under
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/`,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/` (scratch,
+  deleted on 2026-11-27;
+  not kept),
   with the kept reports,
   responses and measurements under its `keep/`.
 
@@ -2291,7 +2332,9 @@ and executed one candidate's suite in a container:
   and the container driver,
   each with its output kept.
 - Everything under
-  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/`,
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/` (scratch,
+  deleted on 2026-11-27;
+  not kept),
   with the kept reports,
   measurements,
   logs and responses under its `keep/`.
@@ -2885,6 +2928,9 @@ in capped containers with no home mount and the network off:
   4,166 ms,
   `Finished \`dev\` profile ... in 3.96s`
   (`~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/aarch64-build-check-btf-rs-lib-build-aarch64-offline.log:1-4`).
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `ebeepf` 0.1.0 archive:
   the same command,
   exit 0,
@@ -2927,7 +2973,9 @@ The requests are the same shape for each repository:
 `.../releases?per_page=100`,
 plus one detail read per sampled issue or pull request with its comments and its reviews.
 Every response is at
-`~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/gh/`,
+`~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/gh/` (scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 and the two scripts that collected them are kept in the same `keep/` folder,
 as `collect-maintenance-records.ts` and `collect-maintainer-actions.ts`.
 The sample rule is the skill's:
@@ -3611,10 +3659,14 @@ Every weight 1,
 maximum 32,
 normalized to one decimal place.
 Every figure below was recomputed by
-`~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/recompute-the-matrix-over-the-remaining-candidates.ts`,
+`~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/recompute-the-matrix-over-the-remaining-candidates.ts` (scratch,
+deleted on 2026-11-27;
+not kept),
 whose output is kept beside it,
 and the second revision's script is at
-`~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/recompute-refrozen-rubric-matrix.ts`,
+`~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/recompute-refrozen-rubric-matrix.ts` (scratch,
+deleted on 2026-11-27;
+not kept),
 not directly under `scratch/`,
 which is the path the second revision printed.
 Both run from the ratings in section "Evidence for the scores".
@@ -4246,6 +4298,9 @@ gathered here so nothing is buried:
   a member count past sixteen bits stops the reader at the module file,
   and the approved module passes either way
   (`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/experiments.log`).
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   No file on this host sets a widened field,
   and the adoption record names the lag as a revisit trigger
   (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
@@ -4434,6 +4489,9 @@ Kept evidence:
   its output,
   the lock record copy,
   and the staged text this revision wrote into place.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/`,
   the third revision's own records:
   the matrix over the remaining finalists,
@@ -4455,6 +4513,9 @@ Kept evidence:
   not kept,
   because they are reproducible from the kept records;
   the archives' hashes and line counts are the kept output.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/`,
   the second revision's own records:
   the recomputed matrix and its output,
@@ -4463,6 +4524,9 @@ Kept evidence:
   the per-sample maintainer records under `gh/detail/`,
   the fingerprint and lock scripts,
   and the lint mapping script.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/`,
   the gate re-check the third revision answered:
   its review,
@@ -4472,6 +4536,9 @@ Kept evidence:
   the `v7.3` kernel sources,
   the maintenance spot checks,
   and the lint mapping.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/`,
   the gate final check this revision answers:
   its review,
@@ -4482,27 +4549,42 @@ Kept evidence:
   its excerpt of the tag's scripts and workflows,
   the three patches' BLAKE2 sums,
   and the `git-submodule(1)` passage it quoted.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/`,
   the independent review the second revision answers,
   its recomputation of the first revision's matrix,
   the two `aarch64` build logs and their driver,
   its extra crates.io probe,
   and its consumer re-run.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/zfs-layout-checker-reader-finalist-validation-2026-11-20/keep/`,
   its `README.md`,
   `report-from-summary.md`,
   `evidence/btf-rs-2.0.1/`,
   `evidence/checksums.txt`,
   `evidence/tool-harness-checks.txt` and `evidence/tool-harness-invocations.txt`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/`,
   its `README.md`,
   `report-from-summary.md`,
   the three query listings,
   the organization response files and the board pages,
   and `evidence/ebeepf-0.1.0/`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `/home/user/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/`,
   the first revision's fingerprint script,
   registry response and lock record.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 External,
 all read 2026-11-20:

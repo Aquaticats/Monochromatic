@@ -27,15 +27,17 @@
 /// makes links and fixtures).
 use std::fs;
 
-/// Imports the trait that adds `from_mode` to permissions (marks the fake mpm executable).
-use std::os::unix::fs::PermissionsExt;
-
 /// Imports the borrowed path type.
 use std::path::Path;
 use std::process::{
     Command,
     Output,
 };
+
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
 
 /// What:
 /// `fn fixture_root() -> tempfile::TempDir` declares a helper returning a disposable directory that is
@@ -67,10 +69,11 @@ fn write_fake_mpm(
     directory: &Path,
     script: &str,
 ) {
-    fs::create_dir_all(directory).expect("make the fake mpm directory");
-    fs::write(directory.join("mpm"), script).expect("write the fake mpm");
-    fs::set_permissions(directory.join("mpm"), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
+    // What:     The shadow starts this script as the real mpm.
+    // Why:      A write descriptor this process held on it would be inherited by a child of
+    //           another test thread, and the start would be refused with `ETXTBSY`
+    //           (issue 6527), so a child process writes it.
+    through_a_child_process::write_program(&directory.join("mpm"), script.as_bytes());
 }
 
 /// What:
