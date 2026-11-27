@@ -432,7 +432,8 @@ mod test_scratch;
 
 /// What:
 /// `#[cfg(test)] mod fixture_root_taking_any_name;` declares the question whether a control's fixture root takes a name
-/// that is not UTF-8, and the re-execution that mounts a tmpfs there when it does not.
+/// that is not UTF-8,
+/// and the re-execution that mounts a tmpfs there when it does not.
 /// Why:
 /// A control that makes such a name cannot run where the file system refuses it,
 /// as this host's build dataset does under `utf8only=on` (issue 6550),

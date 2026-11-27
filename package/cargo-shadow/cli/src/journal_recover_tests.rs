@@ -188,7 +188,7 @@ fn an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable() {
 /// so a manifest whose name is not UTF-8 keeps its journal when that barrier fails.
 /// A recovery that carries the live paths as text asks for a barrier on a name no file has instead:
 /// the file there is skipped as absent,
-/// or, where a directory with the name that text spells exists, a different file is synced,
+/// or a different file is synced where a directory with the name that text spells exists,
 /// and the journal then goes while the live manifest was never made durable,
 /// which is what the extra directory below makes this case report.
 #[test]

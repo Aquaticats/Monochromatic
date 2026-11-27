@@ -21,90 +21,111 @@
 //! whose backing device and quota this suite does not choose.
 //! The Git wrapper (`package/git-policy/cli/src/native/testing/fixture_root_taking_any_name.rs`)
 //! and the forbidden-strings scanner (`package/forbidden-strings/cli/tests/support/fixture_root_taking_any_name.rs`)
-//! answered the same refusal this way, for issues 6448 and 6491;
-//! this is the shadow's own copy, because this crate depends on neither.
+//! answered the same refusal this way,
+//! for issues 6448 and 6491;
+//! this is the shadow's own copy,
+//! because this crate depends on neither.
 //! Gotcha:
 //! Where the root refuses the name and this host lets no unprivileged user namespace either,
 //! the control panics with this package's own line for a test that did not run
-//! (`cargo-shadow tests: not run [<name>]: ...`, which the `test` task reads),
+//! (`cargo-shadow tests: not run [<name>]: ...`,
+//! which the `test` task reads),
 //! so no run counts it as one that passed.
 
 /// What:
-///  `Bound` is how long one run may take and what to print when it does not finish, and `output_within` runs a program
-///  under one and hands back what it wrote.
-///  The sibling a reader might expect is `Command::output`, which waits forever.
+/// `Bound` is how long one run may take and what to print when it does not finish,
+/// and `output_within` runs a program
+/// under one and hands back what it wrote.
+/// The sibling a reader might expect is `Command::output`,
+/// which waits forever.
 /// Why:
-///  The re-executed test is a program of this suite,
-///  and a child that never ended would hold the whole run.
+/// The re-executed test is a program of this suite,
+/// and a child that never ended would hold the whole run.
 use crate::bounded_run::{
     Bound,
     output_within,
 };
 /// What:
-///  `NOT_RUN_PREFIX` is the text this package prints before a test that could not run,
-///  `cargo-shadow tests: not run [`, and the `test` task reads that line to leave such a test out of its totals.
-///  The sibling a reader might expect is `test_scratch::skip_or_fail`, which prints a skip the task does not read.
+/// `NOT_RUN_PREFIX` is the text this package prints before a test that could not run,
+/// `cargo-shadow tests: not run [`,
+/// and the `test` task reads that line to leave such a test out of its totals.
+/// The sibling a reader might expect is `test_scratch::skip_or_fail`,
+/// which prints a skip the task does not read.
 /// Why:
-///  A control that failed here without that line would be read as a defect of the tool it guards.
+/// A control that failed here without that line would be read as a defect of the tool it guards.
 use crate::cgroup_test_support::NOT_RUN_PREFIX;
 /// What:
-///  `CStr` is borrowed C text: bytes that end with one zero byte, which the kernel reads.
-///  The siblings a reader might expect are `CString` (the owned one) and `&str` (text with no trailing zero).
+/// `CStr` is borrowed C text:
+/// bytes that end with one zero byte,
+/// which the kernel reads.
+/// The siblings a reader might expect are `CString` (the owned one) and `&str` (text with no trailing zero).
 /// Why:
-///  The mount takes its options as this type, and this file gives it none.
+/// The mount takes its options as this type,
+/// and this file gives it none.
 use std::ffi::CStr;
 /// What:
-///  `OsStrExt` adds `OsStr::from_bytes`, which makes a name out of raw bytes.
-///  The sibling a reader might expect is `OsString::from`, which takes text and so could not name this probe.
+/// `OsStrExt` adds `OsStr::from_bytes`,
+/// which makes a name out of raw bytes.
+/// The sibling a reader might expect is `OsString::from`,
+/// which takes text and so could not name this probe.
 /// Why:
-///  The probe's last byte starts no character, so the name cannot come from a string literal alone.
+/// The probe's last byte starts no character,
+/// so the name cannot come from a string literal alone.
 use std::os::unix::ffi::OsStrExt as _;
 /// What:
-///  `Path` is a borrowed file-system path and `PathBuf` an owned one.
+/// `Path` is a borrowed file-system path and `PathBuf` an owned one.
 /// Why:
-///  The fixture root is lent to this file, and the probe path it makes is owned here and taken away again.
+/// The fixture root is lent to this file,
+/// and the probe path it makes is owned here and taken away again.
 use std::path::{
     Path,
     PathBuf,
 };
 /// What:
-///  `Command` is a recipe for starting a program, `Output` is what it wrote and how it ended, and `Stdio` names one of
-///  its three streams.
+/// `Command` is a recipe for starting a program,
+/// `Output` is what it wrote and how it ended,
+/// and `Stdio` names one of
+/// its three streams.
 /// Why:
-///  The same test is started again inside a namespace, and what it said is the evidence that it ran.
+/// The same test is started again inside a namespace,
+/// and what it said is the evidence that it ran.
 use std::process::{
     Command,
     Output,
     Stdio,
 };
 /// What:
-///  `Duration` is a span of time.
+/// `Duration` is a span of time.
 /// Why:
-///  Each bound below is a span measured from the moment the program starts.
+/// Each bound below is a span measured from the moment the program starts.
 use std::time::Duration;
 
 /// What:
-///  The variable the outer half sets for the child it starts,
-///  so the re-executed test knows which half of itself it is.
+/// The variable the outer half sets for the child it starts,
+/// so the re-executed test knows which half of itself it is.
 /// Why:
-///  One name serves every control,
-///  because the child is started with `--exact` for exactly one test,
-///  so no other test of the same binary ever reads it,
-///  and the kernel's own user-id mapping is asked too before anything is mounted.
+/// One name serves every control,
+/// because the child is started with `--exact` for exactly one test,
+/// so no other test of the same binary ever reads it,
+/// and the kernel's own user-id mapping is asked too before anything is mounted.
 const INSIDE_VARIABLE: &str = "CARGO_SHADOW_FIXTURE_ROOT_ANY_NAME";
 
 /// What:
-///  The program that makes the namespace, `unshare`, and the switches it takes before the program it runs in it.
+/// The program that makes the namespace,
+/// `unshare`,
+/// and the switches it takes before the program it runs in it.
 /// Why:
-///  `--map-root-user` makes this run root inside a user namespace of its own,
-///  `--mount` gives it a mount namespace whose mounts no other namespace sees,
-///  and `--propagation private` keeps every mount made there from reaching the host's mount table.
+/// `--map-root-user` makes this run root inside a user namespace of its own,
+/// `--mount` gives it a mount namespace whose mounts no other namespace sees,
+/// and `--propagation private` keeps every mount made there from reaching the host's mount table.
 const UNSHARE: &str = "unshare";
 
 /// What:
-///  Those switches, one word each.
+/// Those switches,
+/// one word each.
 /// Why:
-///  `Command::args` takes them as a list, so they are written as one.
+/// `Command::args` takes them as a list,
+/// so they are written as one.
 const NAMESPACE_SWITCHES: &[&str] = &[
     "--user",
     "--map-root-user",
@@ -114,36 +135,40 @@ const NAMESPACE_SWITCHES: &[&str] = &[
 ];
 
 /// What:
-///  The line libtest prints for a run of one test that passed: one passed, none failed.
+/// The line libtest prints for a run of one test that passed:
+/// one passed,
+/// none failed.
 /// Why:
-///  A name that matches no test ends successfully and runs nothing,
-///  so only this line proves the child ran the test this file asked it for.
+/// A name that matches no test ends successfully and runs nothing,
+/// so only this line proves the child ran the test this file asked it for.
 const ONE_TEST_PASSED: &str = "test result: ok. 1 passed; 0 failed";
 
 /// What:
-///  How long the re-executed test may run before this file counts it as one that did not end.
-///  The sibling a reader might expect is no bound at all, which is what `Command::output` gives.
+/// How long the re-executed test may run before this file counts it as one that did not end.
+/// The sibling a reader might expect is no bound at all,
+/// which is what `Command::output` gives.
 /// Why:
-///  The control makes one directory and one file in a tmpfs and reads one journal,
-///  which ended well under a second on this host on 2026-11-28,
-///  so this bound only ends a child that never ends.
+/// The control makes one directory and one file in a tmpfs and reads one journal,
+/// which the case finished in 0.07 s on this host on 2026-11-27,
+/// so this bound only ends a child that never ends.
 const CHILD_DEADLINE: Duration = Duration::from_secs(120);
 
 /// What:
-///  How long `unshare` is given to say whether this host lets a user namespace: it runs `/bin/true` and nothing else.
+/// How long `unshare` is given to say whether this host lets a user namespace:
+/// it runs `/bin/true` and nothing else.
 /// Why:
-///  A host that refuses the switch answers at once,
-///  and one that cannot start `unshare` at all must not hold the run.
+/// A host that refuses the switch answers at once,
+/// and one that cannot start `unshare` at all must not hold the run.
 const NAMESPACE_QUESTION_DEADLINE: Duration = Duration::from_secs(30);
 
 /// What:
-///  Whether the caller may go on to make a fixture under `root` whose name is not UTF-8,
-///  starting the same test inside a namespace of its own and mounting a tmpfs at `root` when it may not.
-///  `false` means this run is the outer half and the inner one has already run and passed.
+/// Whether the caller may go on to make a fixture under `root` whose name is not UTF-8,
+/// starting the same test inside a namespace of its own and mounting a tmpfs at `root` when it may not.
+/// `false` means this run is the outer half and the inner one has already run and passed.
 /// Why:
-///  `false` is returned only once the inner half passed,
-///  because a control that passed without running would claim coverage it does not have;
-///  a host with no unprivileged user namespace panics here with this package's line for a test that did not run.
+/// `false` is returned only once the inner half passed,
+/// because a control that passed without running would claim coverage it does not have;
+/// a host with no unprivileged user namespace panics here with this package's line for a test that did not run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -176,13 +201,13 @@ pub(crate) fn in_a_fixture_root_taking_any_name(root: &Path) -> bool {
 }
 
 /// What:
-///  The name written and removed again to learn whether a root takes a name that is not UTF-8:
-///  `odd-name-<this process>-` followed by a byte that starts no character.
+/// The name written and removed again to learn whether a root takes a name that is not UTF-8:
+/// `odd-name-<this process>-` followed by a byte that starts no character.
 /// Why:
-///  The scratch root is shared by every test of this binary,
-///  so a fixed name could be a file another run made;
-///  the process number makes the probe this run's,
-///  and its last byte is still the byte string this host's `utf8only` dataset refuses.
+/// The scratch root is shared by every test of this binary,
+/// so a fixed name could be a file another run made;
+/// the process number makes the probe this run's,
+/// and its last byte is still the byte string this host's `utf8only` dataset refuses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,12 +224,12 @@ fn probe_name() -> Vec<u8> {
 }
 
 /// What:
-///  Whether a file whose name is not valid UTF-8 can be made in `root`,
-///  which the probe removes again so the fixture root is left as it was found.
+/// Whether a file whose name is not valid UTF-8 can be made in `root`,
+/// which the probe removes again so the fixture root is left as it was found.
 /// Why:
-///  A refusal other than `EILSEQ` is not the file system declining this name:
-///  it is a fixture root this control cannot use,
-///  and it is stated rather than read as "this root takes the name".
+/// A refusal other than `EILSEQ` is not the file system declining this name:
+/// it is a fixture root this control cannot use,
+/// and it is stated rather than read as "this root takes the name".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -241,16 +266,16 @@ fn a_name_that_is_not_utf8_can_be_made(root: &Path) -> bool {
 }
 
 /// What:
-///  Whether this process is the half the outer one started inside a user namespace of its own:
-///  the variable the outer half sets is there,
-///  and the kernel's mapping of user ids puts this process's id 0 somewhere other than 0 outside.
+/// Whether this process is the half the outer one started inside a user namespace of its own:
+/// the variable the outer half sets is there,
+/// and the kernel's mapping of user ids puts this process's id 0 somewhere other than 0 outside.
 /// Why:
-///  A variable can be inherited from anything,
-///  and a process that read one as "I am inside" without being inside
-///  would mount a tmpfs in the namespace it shares with the rest of the machine,
-///  over a folder other tests use;
-///  the kernel's mapping is the answer to which namespace this is,
-///  and a user namespace of this account's own maps 0 to another id.
+/// A variable can be inherited from anything,
+/// and a process that read one as "I am inside" without being inside
+/// would mount a tmpfs in the namespace it shares with the rest of the machine,
+/// over a folder other tests use;
+/// the kernel's mapping is the answer to which namespace this is,
+/// and a user namespace of this account's own maps 0 to another id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -294,15 +319,21 @@ fn started_inside_a_user_namespace_of_its_own() -> bool {
 }
 
 /// What:
-///  Mount one tmpfs at `root`, with the options the kernel gives a tmpfs nobody sized:
-///  `rw`, the size the file system gives it, and the mode the kernel gives a tmpfs root.
+/// Mount one tmpfs at `root`,
+/// with the options the kernel gives a tmpfs nobody sized:
+/// `rw`,
+/// the size the file system gives it,
+/// and the mode the kernel gives a tmpfs root.
 /// Why:
-///  It is called only inside the namespace a control was re-executed in, where this process is root and may mount,
-///  and the mount lives in that namespace alone;
-///  a fixture that holds one directory, one manifest and one journal needs no size of its own.
+/// It is called only inside the namespace a control was re-executed in,
+/// where this process is root and may mount,
+/// and the mount lives in that namespace alone;
+/// a fixture that holds one directory,
+/// one manifest and one journal needs no size of its own.
 /// Gotcha:
-///  `None::<&CStr>` is the mount's options argument:
-///  the kernel reads that argument as C text, and this mount asks for the default options.
+/// `None::<&CStr>` is the mount's options argument:
+/// the kernel reads that argument as C text,
+/// and this mount asks for the default options.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -328,12 +359,13 @@ fn mount_a_tmpfs(root: &Path) {
 }
 
 /// What:
-///  The name this test runs under, as the runner gave it:
-///  `journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` and the like.
+/// The name this test runs under,
+/// as the runner gave it:
+/// `journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` and the like.
 /// Why:
-///  The child is started for exactly this test,
-///  so the name comes from the running thread instead of a second copy of it in the source,
-///  which could go stale when a test is renamed.
+/// The child is started for exactly this test,
+/// so the name comes from the running thread instead of a second copy of it in the source,
+/// which could go stale when a test is renamed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -357,13 +389,15 @@ fn the_running_test() -> String {
 }
 
 /// What:
-///  Ask this host whether it lets an unprivileged user namespace,
-///  and where it does not panic with this package's line for a test that did not run.
+/// Ask this host whether it lets an unprivileged user namespace,
+/// and where it does not panic with this package's line for a test that did not run.
 /// Why:
-///  The question is asked of the kernel, by running `/bin/true` inside the namespace,
-///  so the answer is the one the child would get;
-///  and the line names the test and says why, which the `test` task reads,
-///  so a run on such a host counts this control as one that did not run instead of as a defect.
+/// The question is asked of the kernel,
+/// by running `/bin/true` inside the namespace,
+/// so the answer is the one the child would get;
+/// and the line names the test and says why,
+/// which the `test` task reads,
+/// so a run on such a host counts this control as one that did not run instead of as a defect.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -408,13 +442,14 @@ fn ask_this_host_for_a_user_namespace(
 }
 
 /// What:
-///  Start this test binary again for this test inside a user and mount namespace of its own,
-///  and require it to end with that one test passed.
+/// Start this test binary again for this test inside a user and mount namespace of its own,
+/// and require it to end with that one test passed.
 /// Why:
-///  The test binary is the only program that can run the test,
-///  and the inner half mounts the tmpfs before the test's own body makes its fixture;
-///  a child that ran nothing, failed or did not end fails this call with everything the child said,
-///  which is the guard against the control quietly skipping.
+/// The test binary is the only program that can run the test,
+/// and the inner half mounts the tmpfs before the test's own body makes its fixture;
+/// a child that ran nothing,
+/// failed or did not end fails this call with everything the child said,
+/// which is the guard against the control quietly skipping.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
