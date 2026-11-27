@@ -1,21 +1,27 @@
 //! What:
-//! The step of a publish a build made for controls can arm:
-//! the instant between its two renames,
-//! where a process it ends leaves the version's name absent.
+//! The two steps of a publish that a build made for controls can arm:
+//! the exchange answered as a file system without `RENAME_EXCHANGE` answers it,
+//! and the process ended in the instant between the two renames of the fallback.
 //! Why:
-//! A control has to show what a kill at that instant leaves,
-//! and a shipped build must hold no way to arm it:
-//! the read below is compiled out of a build that is not a test,
+//! A control has to show both arms of the replace step
+//! and the instant only one of them has,
+//! and a shipped build must hold no way to arm either:
+//! every read below is compiled out of a build that is not a test,
 //! the shape `doc/decision/cli-git-test-only-switches-compiled-out-of-release.md` chose
 //! for the git wrapper's own switches.
+//! The reason is the one recorded there:
+//! a switch that can end the process or refuse a publish turns a working install into a failing one,
+//! and a build a release ships holds no such switch.
 //! Nothing here is read from the environment at all,
-//! so no `Environment=` line and no shell can arm the step:
-//! a control arms it for its own thread and for one publish.
+//! so no `Environment=` line and no shell can arm a step:
+//! a control arms one for its own thread and for one publish.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // a-control-plants-these-steps.ts
-//! function plantEndingTheProcess(): void;  // tests only
+//! type Plant = { refuseTheExchange: boolean; killBetweenTheTwoRenames: boolean };
+//! function plantTheseSteps(plant: Plant): void;  // tests only
+//! function exchangeIsRefused(): boolean;         // always false in a shipped build
 //! function reachedTheInstantBetweenTheTwoRenames(): void;
 //! ```
 
@@ -24,59 +30,106 @@
 use std::cell::Cell;
 
 /// What:
-/// Whether this thread's next publish ends in the instant between the two renames.
+/// The steps of one publish a control arms.
 /// Why:
-/// A control asks for it before the publish it means,
+/// The exchange refusal picks the arm a publish takes,
+/// and the kill names the instant only that arm has,
+/// so a control asks for both at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Plant = { refuseTheExchange: boolean; killBetweenTheTwoRenames: boolean };
+/// ```
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Plant {
+    /// Whether the exchange answers as a file system without `RENAME_EXCHANGE` answers it.
+    pub(crate) refuse_the_exchange: bool,
+    /// Whether the process ends in the instant between the two renames.
+    pub(crate) kill_between_the_two_renames: bool,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The steps this thread's next publish takes.
+    static PLANTED: Cell<Option<Plant>> = const { Cell::new(None) };
+}
+
+/// What:
+/// Arms `plant` for the next publish of this thread.
+/// Why:
+/// A test asks for the arm it means and nothing else,
 /// and the thread is where its own publish runs,
 /// so two controls in one test binary never arm each other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function plantEndingTheProcess(): void { PLANTED.set(true); }
+/// function plantTheseSteps(plant: Plant): void
 /// ```
 #[cfg(test)]
-pub(crate) fn plant_ending_the_process() {
-    ENDS_HERE.with(|cell| {
-        cell.set(true);
+pub(crate) fn plant_these_steps(plant: Plant) {
+    PLANTED.with(|cell| {
+        cell.set(Some(plant));
     });
 }
 
 /// What:
-/// Forgets a plant.
+/// Forgets a plant,
+/// so a publish made after a control's own takes the shipped steps.
 /// Why:
-/// A plant that outlived its control would end the next publish on the same thread.
+/// A plant that outlived its control would decide another control's publish on the same thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function clearThePlant(): void { PLANTED.set(undefined); }
+/// function clearThePlant(): void
 /// ```
 #[cfg(test)]
 pub(crate) fn clear_the_plant() {
-    ENDS_HERE.with(|cell| {
-        cell.set(false);
+    PLANTED.with(|cell| {
+        cell.set(None);
     });
 }
 
+/// What:
+/// Whether the exchange answers as a file system without `RENAME_EXCHANGE` answers it,
+/// which is what a control's plant says.
+/// Why:
+/// A control needs the two-rename arm on a machine whose file systems all exchange the two names,
+/// and this is the only way to ask for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exchangeIsRefused(): boolean { return plantedSteps()?.refuseTheExchange === true; }
+/// ```
 #[cfg(test)]
-thread_local! {
-    /// Whether this thread's next publish ends in the instant between the two renames.
-    static ENDS_HERE: Cell<bool> = const { Cell::new(false) };
+pub(super) fn exchange_is_refused() -> bool {
+    let planted: Option<Plant> = PLANTED.with(|cell| return cell.get());
+    return planted.is_some_and(|plant| return plant.refuse_the_exchange);
+}
+
+/// The answer a shipped build gives:
+/// the exchange is attempted,
+/// because nothing can ask it not to be.
+#[cfg(not(test))]
+pub(super) fn exchange_is_refused() -> bool {
+    return false;
 }
 
 /// What:
 /// Ends the process in the instant between the two renames,
 /// when a control armed that.
 /// Why:
-/// It is the one instant a publish has,
+/// It is the one instant a publish that cannot exchange the two names has,
 /// and a control shows what a kill in it leaves behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function reachedTheInstantBetweenTheTwoRenames(): void { if (PLANTED.get()) process.kill(process.pid, 'SIGKILL'); }
+/// function reachedTheInstantBetweenTheTwoRenames(): void { if (planted?.killBetweenTheTwoRenames) process.kill(process.pid, 'SIGKILL'); }
 /// ```
 #[cfg(test)]
 pub(super) fn reached_the_instant_between_the_two_renames() {
-    if ENDS_HERE.with(|cell| cell.get()) {
+    let planted: Option<Plant> = PLANTED.with(|cell| return cell.get());
+    if planted.is_some_and(|plant| return plant.kill_between_the_two_renames) {
         end_this_process_as_a_kill_does();
     }
 }
@@ -102,7 +155,7 @@ pub(super) fn reached_the_instant_between_the_two_renames() {}
 fn end_this_process_as_a_kill_does() -> ! {
     // The wrapper is safe, and nothing follows a `SIGKILL` delivered to this process.
     rustix::process::kill_process(rustix::process::getpid(), rustix::process::Signal::KILL).ok();
-    // A signal the system refused to deliver leaves this process alive, so it ends the other way.
+    // A signal that the system refused to deliver leaves this process alive, so it ends the other way.
     std::process::abort()
 }
 

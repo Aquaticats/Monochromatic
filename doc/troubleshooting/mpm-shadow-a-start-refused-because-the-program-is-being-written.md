@@ -218,6 +218,18 @@ and 13 and 34 for the two `uv` arms while the environment was rebuilt.
 `ErrorKind::NotFound` is a different branch of the message,
 and it is not this refusal.
 
+That window is gone where the file system can exchange two names,
+since the round for issue 6600 (2026-11-27):
+`publish_staged` now replaces the copy at the version's name with
+`renameat2` and `RENAME_EXCHANGE` in one call,
+so the program exists throughout,
+and the two renames above are the fallback for a file system that answers `EINVAL`,
+`EOPNOTSUPP`,
+`EPERM`,
+`EACCES` or `ENOSYS` to that call.
+`package/mpm-shadow/cli/src/toolchain/archive_staging.rs` and its parts say what a kill in the fallback's instant leaves,
+and how a later install finishes it.
+
 ## What does not work
 
 Retrying the start within a bound has no window to carry,

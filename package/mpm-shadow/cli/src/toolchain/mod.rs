@@ -452,7 +452,9 @@ mod across_roots_tests;
 mod archive_install_tests;
 
 /// The unit tests of the publish step:
-/// what a kill between its two renames leaves behind.
+/// the one exchange that replaces a copy,
+/// the two renames a file system without it needs,
+/// and what a kill at each of those steps leaves behind.
 #[cfg(test)]
 mod archive_staging_tests;
 
