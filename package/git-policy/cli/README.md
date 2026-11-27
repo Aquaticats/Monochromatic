@@ -7383,6 +7383,57 @@ The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
 
+### The two service-manager proofs
+
+Two tasks prove what a commit asks of a real user manager.
+Each starts a disposable container whose init is a system manager,
+and that carries a private session bus and a user manager of its own (`bin/service-manager-machine.ts`),
+so no manager of this host is reached,
+and both take the gate image and the releases they run as arguments:
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:test:service-manager -- --image <tag> --main-wrapper <path>
+mise run //package/git-policy/cli:test:service-manager:install -- --image <tag> --older-wrapper <path> [--candidate-wrapper <path>]
+```
+
+- `test:service-manager` (`bin/service-manager-proof.ts`)
+  proves that a Git command never makes the manager read every unit it holds,
+  and that an unrelated `Type=dbus` service and the target bound to it survive first provisioning,
+  an upgrade,
+  a downgrade,
+  two releases used in turn from two worktrees and several callers at once.
+  It runs two arms on two machines:
+  the release from `main` on a fresh one,
+  and this worktree's build on one that release provisioned first.
+  Its judgement is the desktop stand-in and the reloads the manager logged,
+  and the arm from `main` has to end the stand-in while the other keeps it,
+  so `--harm-seed-wrapper <path>` names an older release,
+  which is what makes the arm from `main` meet a template that release did not write.
+- `test:service-manager:install` (`bin/service-manager-install-proof.ts`)
+  proves that an install of one release over the one before it leaves no wrapper unit failing a start,
+  and that two commits of one worktree made at once across the upgrade each land once.
+  It runs one machine with two worktrees,
+  puts the release before this one at `/opt/release-old` and the release being installed at `/opt/release-a`,
+  seeds both worktrees through the older release,
+  removes that release as an install removes it,
+  and makes the installing commit in the first worktree only.
+  Its judgement is the container's own manager and its journal:
+  the starts,
+  the EXEC failures and the start-limit hits of every wrapper unit,
+  the units the manager left failed,
+  and the commit count the pair added.
+  `--candidate-wrapper` names the release being installed;
+  without it the task's build of this worktree is the release the proof installs.
+
+Both proofs run every command inside the container as the container's own root,
+and the folder Git writes inside it (`/work`) is given to that user before the first Git call
+(`bin/service-manager-worktrees.ts`):
+this host's `git` AppArmor profile grants that folder to its owner alone,
+and refuses the `dac_override` capability a process of another user needs to write there,
+so a Git call made as anybody but the folder's owner stops the proof before its first commit
+(`doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
+
 ### The release gate
 
 Three tasks start the full gate and read its verdict.
