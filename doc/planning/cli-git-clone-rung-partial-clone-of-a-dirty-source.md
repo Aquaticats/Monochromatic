@@ -707,7 +707,7 @@ measured above,
 is served by the clone rung on
 both filesystems and reads 1.10 (0.87 to 1.83) of `main` on btrfs and 1.09 (0.66 to 1.28) on ZFS,
 each inside its own control's spread.
-H2 was the pass's finding on this shape before the mean-file rule:
+H2 was the integration pass's finding on this shape before the mean-file rule:
 952 ms through Git's own checkout against `main`'s 33 ms,
 about 30 times slower,
 which the decision of 2026-11-22 answers by judging a clean source's mean file size instead.
