@@ -18,6 +18,7 @@ import {
   memoryBytes,
   runLimitArguments,
 } from './container-limits.ts';
+import { bytesPerMebibyte, } from './native-gate-container-cgroup-memory.ts';
 import { gateContainerLimits, } from './native-gate-container-limits.ts';
 import {
   gatePassedRecord,
@@ -389,21 +390,25 @@ await describe({
               },
             });
             /**
+             The gate's own memory bound as a count of mebibytes, which the first campaign below states in that unit.
+             */
+            const gateMebibytes = `${String(Math.round(memoryBytes(gateContainerLimits.memory) / bytesPerMebibyte))}m`;
+            /**
              Campaigns with the gate's memory in another unit, and with more of both.
              */
             const campaigns = [
               {
-                memory: '2048m',
+                memory: gateMebibytes,
                 pidsLimit: gateContainerLimits.pidsLimit,
               },
               {
-                memory: '4g',
+                memory: gateContainerLimits.memory,
                 pidsLimit: gateContainerLimits.pidsLimit
                   * 2,
               },
             ];
             // The first campaign's memory is the gate's in another unit, and that is the whole point of the case.
-            expect(memoryBytes('2048m')).toBe(memoryBytes(gateContainerLimits.memory));
+            expect(memoryBytes(gateMebibytes)).toBe(memoryBytes(gateContainerLimits.memory));
             /**
              What each campaign finds.
              */

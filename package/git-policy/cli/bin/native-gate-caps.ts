@@ -10,6 +10,9 @@
  neither its `TasksMax` nor its `CPUQuota`.
  */
 import { NativeGateError } from './native-gate-error.ts';
+import { CargoMutantsToolingError, } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/error.ts';
+
+import { memoryBytes, } from './container-limits.ts';
 
 /**
  Everything one gate caps.
@@ -35,6 +38,11 @@ export type GateCaps = {
    Processes the gate container may have, which is its `--pids-limit`.
    */
   readonly containerPidsLimit: number;
+  /**
+   Memory bound every container of the gate runs under, which is its `--memory`, absent when the gate runs its own
+   measured bounds.
+   */
+  readonly containerMemory?: string;
 };
 
 /**
@@ -57,8 +65,9 @@ export const defaultGateCaps: GateCaps = {
   // for a host with more threads than that.
   unitCpuQuota: '1000%',
   // The unit holds the image build, the container client and nextest. No recorded gate measured the unit's own peak
-  // memory, so the value stays the one every recorded gate ran with; the tests themselves are capped at two gigabytes
-  // by the container.
+  // memory, so the value stays the one every recorded gate ran with; the containers themselves are capped at 4g for the
+  // suite and 8g each for the image build and Clippy (`bin/native-gate-container-limits.ts`), and those sit in scopes
+  // of their own rather than in this unit.
   unitMemoryMax: '20G',
   // A smaller control group refused `git-lfs` its filter process during two LFS controls, which is what this value is
   // sized from (`doc/handover/git-policy-cli-on-tokio.md`, "Step T11": both suites ran "with the run's own control
@@ -138,6 +147,33 @@ export function wholeCapProblem({
 }
 
 /**
+ Why a container memory bound is unusable, or nothing when it can be read.
+
+ @param memory - the bound as the caller gave it, absent when the caller named none
+
+ @returns the refusal as the only entry, or no entry at all
+
+ @example
+ ```ts
+ containerMemoryProblems({ memory: '3g' });
+ ```
+ */
+function containerMemoryProblems({ memory }: { readonly memory?: string; },): readonly string[] {
+  if (memory === undefined)
+    return [];
+  try {
+    // The one grammar of a container memory size is the option parser's own, so the two cannot disagree.
+    memoryBytes(memory,);
+    return [];
+  }
+  catch (error) {
+    if (!(error instanceof CargoMutantsToolingError))
+      throw error;
+    return [`--container-memory "${memory}" is not a memory size: a whole number of bytes with an optional unit b, k, m or g, as in 3g or 2048m.`];
+  }
+}
+
+/**
  Why a gate's caps cannot be used, one line each, empty when they can.
 
  Checked before anything starts, because a cap systemd cannot read fails the start with a message about a property, and
@@ -176,6 +212,7 @@ export function gateCapsProblems({ caps }: { readonly caps: GateCaps; }): readon
         value: caps.unitIoWeight,
         name: '--unit-io-weight',
       })),
+    ...(caps.containerMemory === undefined ? [] : containerMemoryProblems({ memory: caps.containerMemory, })),
   ];
 }
 

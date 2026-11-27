@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  containerMemoryOption,
   containerPidsLimitOption,
   cpuQuotaOption,
   deadlineMillisecondsOption,
@@ -287,6 +288,20 @@ await describe({
           }),
         }),)
           .toThrow('--unit-io-weight',);
+      },
+    }),
+    it({
+      name: 'reads the container memory bound a person lowered, and keeps the gate\'s own bounds when they name none',
+      fn: async () => {
+        expect(gateCapsFromOptions({
+          options: gateOptions({
+            argv: [containerMemoryOption, '3g',],
+            knownOptions: knownOptions(),
+          }),
+        }),).toEqual({
+          ...defaultGateCaps,
+          containerMemory: '3g',
+        },);
       },
     }),
   ],
