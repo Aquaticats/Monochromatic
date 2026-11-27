@@ -95,6 +95,15 @@
 //!   the same attributes of the file of another process's descriptor,
 //!   read in a child that the caller stops waiting for at a ceiling,
 //!   for a mount whose file system this process cannot ask in its own name.
+//! - `step_output_pipes_attached_before_the_child_starts.rs`:
+//!   the read ends of a child's standard output and standard error,
+//!   made as pipes and registered with the runtime before the child starts.
+//! - `step_output_held_open_by_a_program_the_step_started.rs`:
+//!   what a person is told when a program the step started still holds one of its streams open after it ended,
+//!   and the error that carries those words.
+//! - `step_output_ceiling_carried_by_the_wait.rs`:
+//!   the ceiling a wait for a step's output carries,
+//!   and which of the two enforcers ends the step at it.
 //! - `step_output_read_whole_through_pipes.rs`:
 //!   the output of a child the caller started,
 //!   read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
@@ -236,6 +245,18 @@ pub mod captured_child_run_to_its_end;
 /// The output of a child the caller started,
 /// read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
 pub mod step_output_read_whole_through_pipes;
+
+/// The read ends of a child's standard output and standard error,
+/// made as pipes and registered with the runtime before the child starts.
+pub mod step_output_pipes_attached_before_the_child_starts;
+
+/// What a person is told when a program the step started still holds one of its streams open after it ended,
+/// and the error that carries those words.
+pub mod step_output_held_open_by_a_program_the_step_started;
+
+/// The ceiling a wait for a step's output carries,
+/// and which of the two enforcers ends the step at it.
+pub mod step_output_ceiling_carried_by_the_wait;
 
 /// When a stop that asked its tree to end may force the end:
 /// at the end of its grace,
