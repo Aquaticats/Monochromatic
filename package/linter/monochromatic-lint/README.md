@@ -1999,7 +1999,8 @@ and no line a run printed reads back differently,
 so a list written for alpha.18 needs no new line from this release.
 A list that holds one use under two spellings needs one line fewer,
 and a `file-uses` line that climbs out with `..` and comes back in stops being dead.
-What else changes is which runs stop, what they say and what a walk costs.
+What else changes is which runs stop,
+what they say and what a walk costs.
 
 - A `uses` line whose name before the arrow ends in whitespace is reported dead,
   naming the folder it read,
