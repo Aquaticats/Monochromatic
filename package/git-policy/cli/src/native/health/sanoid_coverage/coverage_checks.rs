@@ -46,9 +46,6 @@ pub use super::coverage_facts::{
     COVERAGE_CHECK_NAME,
     CoverageFacts,
 };
-/// One configuration text,
-/// read into the sections every check looks up.
-use super::sanoid_conf_reading::ReadConfig;
 /// The answer one comparison gives,
 /// and the finding each step of it builds.
 use super::coverage_finding::{
@@ -63,6 +60,9 @@ use super::coverage_words::pass_detail;
 use super::exclusion_findings::exclusion_findings;
 /// The recursive ancestor's findings.
 use super::root_section_findings::root_findings;
+/// One configuration text,
+/// read into the sections every check looks up.
+use super::sanoid_conf_reading::ReadConfig;
 /// The dataset that holds the store,
 /// and the finding when the coverage does not reach it.
 use super::store_coverage_finding::store_holder;
