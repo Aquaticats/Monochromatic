@@ -240,6 +240,31 @@ or a Java major line such as `21`).
   and `android-sdk`.
   The route is how a tool installs;
   the request is where its versions come from.
+- A `rustup-toolchain` row's `bins` are the programs the installed toolchain holds:
+  the toolchain's own `bin` directory under `~/.rustup/toolchains`,
+  and rustup's own proxies in the cargo bin directory where rustup itself was installed there.
+  `rustup` is never one of them:
+  it is the manager,
+  which the bootstrap installs before the first `mpm-shadow` run and `mpm-shadow` never does
+  (see "Bootstrap"),
+  so the farm links no `rustup`,
+  and a row that declared it would name an unresolved bin on every install.
+  A program a component provides is in the toolchain only while that component is installed,
+  so such a program resolves through the farm once `rustComponents` declares it or
+  `rustup component add` has put it there.
+- The example's `rust` row above shortens that list to one bin:
+  this repository's own row lists the programs the toolchain holds
+  (`cargo`,
+  `cargo-clippy`,
+  `cargo-fmt`,
+  `clippy-driver`,
+  `rust-gdb`,
+  `rust-gdbgui`,
+  `rust-lldb`,
+  `rustc`,
+  `rustdoc`
+  and `rustfmt`),
+  and none of them is `rustup`.
 - An unknown field or origin is an error naming its path.
   `version` and `artifacts` are not plan fields:
   only `update` writes them.

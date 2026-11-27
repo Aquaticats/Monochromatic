@@ -114,7 +114,7 @@ read at `@earendil-works/pi-coding-agent` 1.5.2 and `@earendil-works/pi-ai` 1.5.
   (`src/stand-in-pi-fixture.ts`): the installed provider catalogs,
   `@earendil-works/pi-ai` `dist/providers/data/*.json`, and the member extension sources under
   `package/pi-plugin/`.
-- The pool order and the reviewer order (`src/member-order-fixture.ts`): `.agents/skills/pi-as-subagent`
+- The members both pools ask, in their order (`src/member-order-fixture.ts`): `.agents/skills/pi-as-subagent`
   `SKILL.md`, section "Who writes and who reviews", as that file cites its owner decisions.
 - Qwen's `Requests rate limit exceeded` wording and its one-minute advice
   (`src/quota-reentry.unit.test.ts`): the Token Plan FAQ, section "Rate limiting and concurrency",
@@ -208,3 +208,15 @@ here so a reader never mistakes it for evidence.
   matches, Unicode text and split words are kept.
 - `Stand-in <member> answered a <N>-character request.` (`src/verify-stand-in-member-extension.ts`):
   boundary: a stand-in answer names the member that produced it and the request size it saw.
+- The repeated `x` padding of `src/member-limits-fixture.ts`
+  (`paddingOf`,
+  `paddingAboveWindow`,
+  `paddingBelowWindow`,
+  `paddingNearWindow`)
+  and `src/request-size.unit.test.ts` (`PADDING`):
+  boundary:
+  a request's estimated size,
+  which decides whether a member's own window can hold it
+  and whether the same member is asked again on the next request.
+  No provider writes this text,
+  and no claim about a provider's wording rests on it.

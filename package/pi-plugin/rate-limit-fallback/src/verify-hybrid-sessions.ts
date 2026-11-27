@@ -32,8 +32,7 @@ const PACKAGE_PROVIDER = 'rate-limit-fallback';
 
 /**
  The writer members the pool asks first and second, as the fixture names them: the head under its own
- provider, and the member after it under another, since the owner's order of 2026-11-26 spans three
- providers.
+ provider, and the member after it under another, since the writer's list spans several providers.
  */
 const [HEAD_TARGET, SECOND_TARGET,] = WRITER_TARGETS;
 

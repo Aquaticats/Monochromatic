@@ -95,35 +95,37 @@ with its raw lines in `doc/quota-read-latency-records/live-check-2026-11-26.json
 
 ## Order and refusal policy
 
-The owner set these writers on 2026-11-26,
-asked in what order writers take the pools and answering
-"Qwen, opencode-go, flex (Recommended)"
-(`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order").
-That record replaces the writer order of 2026-11-19 in [the subagent skill][writers]
-(section "Who writes and who reviews"),
-which asked standard NeuralWatt first and dropped GPT 6.2 Sol as a writer.
-The `writer` pool asks these members in order:
-
-- `qwen-token-plan-individual/deepseek-v4.1-flash-1017`
-- `opencode-go/deepseek-v4.1-flash`
-- `neuralwatt/deepseek-v4.1-flash-flex`
-
-Standard NeuralWatt's `neuralwatt/deepseek-v4.1-flash` left the list that day:
-the owner closed it to writers on 2026-11-11,
-and `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md` keeps it closed.
-`src/writer-order.unit.test.ts` fails if that member or the provider named `deepseek`
-comes back to either pool.
-
-The `reviewer` pool tries these members in order:
+Both pools ask one list of members, `BOTH_POOLS_MEMBERS` in `src/model-pools.ts`, in this order:
 
 - `qwen-token-plan-individual/deepseek-v4.1-flash-1017`
 - `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`
 - `opencode-go/deepseek-v4.1-flash`
 - `neuralwatt/deepseek-v4.1-flash-flex`
 
+The owner set the reviewer's order, and on 2026-11-27 typed
+"Change writer's list to match the reviewer's list."
+(`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+"The writer's members become the reviewer's").
+That section supersedes for the writer the order of 2026-11-26,
+"Qwen, opencode-go, flex (Recommended)", which asked three members and left Synthetic's out,
+and it replaces the writer order of 2026-11-19 in [the subagent skill][writers]
+(section "Who writes and who reviews"),
+which asked standard NeuralWatt first and dropped GPT 6.2 Sol as a writer.
+One list carries both pools' order, so a match with the reviewer's cannot drift apart from it,
+and `src/writer-order.unit.test.ts` fails if either pool stops asking it.
+
+Standard NeuralWatt's `neuralwatt/deepseek-v4.1-flash` is no member:
+the owner closed it to writers on 2026-11-11,
+and `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md` keeps it closed.
+`src/writer-order.unit.test.ts` fails if that member or the provider named `deepseek`
+comes back to either pool.
+
 No request is sent to the provider named `deepseek`.
 An unregistered member
 is skipped.
+A member whose own window cannot hold the request
+is passed over for that request alone,
+and the next member that can hold it is asked instead.
 A registered member's authentication error is not skipped.
 
 A terminal HTTP 429 **before any text,
@@ -381,13 +383,19 @@ and the pool still decides which member answers.
 
 The virtual models declare,
 and the pool models carry,
-the smallest window and
-output limit every registered member of that pool reports,
+the window and output limit of the head member
+a session registers,
 read from the session
 registry and re-registered when the session starts.
+The head is the first member of the pool's order that the registry resolves with a window
+and an output limit above zero,
+which is the first member a request is asked of,
+because an unregistered member is passed over the same way.
 Pi compacts on a threshold
-taken from those limits,
-so a compaction it decides fits every member.
+taken from that pair,
+so a writer or reviewer run may fill the head member's window,
+1,000,000 tokens over the four members this package asks,
+before Pi compacts.
 Before a
 session binds,
 both carry Pi's own fallback for a model that declares no window,
@@ -399,14 +407,70 @@ and compacts on the threshold,
 against the model the router returned:
 the pool model,
 which carries the
-smallest registered member's limits,
-so a compaction Pi decides still fits every
-member.
+head registered member's limits.
 Each request's output limit is sized from that routed model and then
-clamped to the member that receives it.
-The declared pair is therefore a floor
-for the selection,
+clamped to the member that receives it,
+so a request the router sends to a member with a smaller output limit carries that
+member's own,
+while the selection keeps advertising the head's.
+The declared pair is therefore a floor Pi
+sizes a request from,
 not a promise about the member that answers.
+
+### What the router knows of a request's size
+
+A member is asked only if its own window can hold the request,
+so the router needs a size before it sends anything.
+Pi hands a provider the normalized transcript and no count of it,
+so the pool counts with Pi's own estimator,
+`estimateContextTokens` from `@earendil-works/pi-ai` (`dist/utils/estimate.js`):
+the last answer's reported usage plus its estimate for every message after it,
+3.5 characters per token,
+and 3.5 characters per token for the whole transcript until an answer reports a usage.
+Pi decides compaction and each request's output cap from the same function,
+`clampMaxTokensToContext` (`dist/api/simple-options.js`),
+so the pool's count is the one Pi already acts on.
+
+Measured on 2026-11-27 over 200 of the driver's runs,
+each run's `summary.json` naming its Pi session file,
+read for numbers only:
+48,805 requests,
+each request's estimate against the prompt tokens its member reported for it
+(`input + cacheRead + cacheWrite`).
+In the 35,773 requests of sessions Pi never compacted or edited,
+98.0% of estimates stood within 1% of the reported count
+and 99.4% within 5%;
+the fifth percentile was 0.999 of the reported count and the ninety-fifth 1.002.
+The members that reported were qwen's member (13,158 requests),
+NeuralWatt's flex lane (12,182),
+NeuralWatt's standard lane (12,064),
+`opencode-go` (10,736),
+Synthetic's member (662)
+and `openai/gpt-6.2-sol` (3).
+
+No margin sits between that estimate and a member's window.
+A margin of the size the estimate errs by is about a thousandth of a window,
+so it would pass over members that can hold a request without buying protection,
+and a wrong estimate ends in the member's own rejection,
+which Pi recovers from under a virtual selection by compacting and retrying the turn once.
+
+A member's window holds the request's input and its answer together,
+and the router compares only the input:
+Pi fits the answer into what the window leaves.
+A request whose input fits is therefore asked of that member
+even when the output limit it carries would not fit beside it,
+and the member's own adapter reduces the answer to the room left.
+
+The decision is per request.
+Nothing about a passed-over member is remembered,
+so the next request asks it again;
+a member held after an undelivered request stays askable last,
+while a member whose window cannot hold the request is not asked at all,
+because asking it could only end in its own rejection.
+When no registered member can hold a request,
+the failure names each member,
+the window it reports
+and the request's estimated size.
 
 The route is what restores Pi's context-overflow recovery.
 An assistant message
@@ -757,11 +821,13 @@ The pool advertises text input and no price.
 Its context window and output
 limit,
 and the virtual models' declared pair,
-are the smallest its registered
-members report,
+are the head registered
+member's,
 read from the session registry each time Pi asks for the
 catalog,
-so Pi's compaction threshold fits every member.
+so Pi's compaction threshold is the window a request is asked against first;
+a member further along whose own window is smaller is passed over for a request
+it cannot hold instead of lowering that pair.
 Before a session binds,
 both advertise Pi's own fallback for a model that declares no window,
 128,000
@@ -789,6 +855,15 @@ error.
   which reaches Pi without a status prefix,
   and the six transport failures,
   which each adapter reports in its own text and which the pool moves on from before output.
+  The pool's own rules for a member too small for the request are held there too,
+  over stand-in members that report the four members' real windows:
+  `src/too-small-member.unit.test.ts` proves such a member is passed over,
+  with the owner's two examples,
+  a request no member can hold,
+  the same member asked again on the next request,
+  the edge where the input fits and the output limit does not,
+  and the output limit clamped at the small member;
+  `src/request-size.unit.test.ts` pins the size the router compares with a window.
 - `mise run //package/pi-plugin/rate-limit-fallback:verify:extension` runs two
   verifiers in one disposable,
   offline home.
@@ -796,7 +871,7 @@ error.
   in a real Pi session through the SDK and checks request-time registry auth,
   persisted physical identity,
   that each pool's advertised window is its
-  smallest registered member's,
+  head registered member's,
   that a long transcript leaves no compaction
   record,
   and that a pool model held from before the session bound takes that

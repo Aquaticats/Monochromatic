@@ -4,6 +4,11 @@
 //!  the clone request sends no property,
 //!  and the clone's `mountpoint` is judged from fixture facts for every state
 //!  the kernel's reply can hold.
+//! The ban on a property list reads the call by its name;
+//! it does not see a call a macro of another file expands to,
+//! nor a name a glob import (`use super::*;`)
+//! brings into scope,
+//! so a reader checks each of those in a file that adds one.
 
 use super::{
     ObjectIdentity,
@@ -15,6 +20,7 @@ use crate::source_guard::{
     HoldingLine,
     MayHold,
     anchors_the_scope_no_longer_holds,
+    lines_calling_one_of,
     lines_holding_one_of,
     lines_no_entry_excuses,
     release_sources_under,
@@ -232,6 +238,8 @@ fn a_clone_whose_mountpoint_is_not_the_pair_is_reported() {
 ///  a route file named without that prefix is one this ban would not read,
 ///  so the scope is the folder the route is made in,
 ///  which covers every name a later split gives a receiver.
+///  A file this ban does not read is one outside `worktree_clone_add_route/`,
+///  which is what a route moved to another folder would be.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -264,16 +272,20 @@ const THE_CLONE_REQUEST: &str = "self.device.clone(";
 const THE_LIST_IT_CARRIES: &str = "target, origin, None";
 
 /// What:
-///  `THE_PROPERTY_THAT_IS_NOT_SENT` is the one property the request must not build.
+///  `THE_PROPERTY_LIST_THAT_IS_NOT_BUILT` is the one call that builds a property list.
 /// Why:
 ///  A `mountpoint` property would make the pool choose where the clone goes,
-///  which is the delegation the account does not make.
+///  which is the delegation the account does not make,
+///  and any property of any name is a list this route builds none of.
+///  The call is read by its name wherever the line spells it,
+///  so a key held in a constant (`add_str(KEY, ..)`) is the same call as a key written out,
+///  and a name the call is imported under is a finding on the line that imports it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_PROPERTY_THAT_IS_NOT_SENT = ['add_str("mountpoint"'];
+/// const THE_PROPERTY_LIST_THAT_IS_NOT_BUILT = ['add_str'];
 /// ```
-const THE_PROPERTY_THAT_IS_NOT_SENT: &[&str] = &["add_str(\"mountpoint\""];
+const THE_PROPERTY_LIST_THAT_IS_NOT_BUILT: &[&str] = &["add_str"];
 
 /// What:
 ///  `MAY_HOLD` is empty:
@@ -318,7 +330,7 @@ fn the_clone_request_sends_no_property() {
         "the scope reached no file holding what this ban is about:\n{}",
         abandoned.join("\n")
     );
-    let holding = lines_holding_one_of(sources.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT);
+    let holding = lines_calling_one_of(sources.as_slice(), THE_PROPERTY_LIST_THAT_IS_NOT_BUILT);
     let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
     assert!(
         unexplained.is_empty(),
@@ -347,27 +359,72 @@ fn the_clone_request_sends_no_property() {
     );
 }
 
+/// What:
+///  Every spelling of a property list the route may not build:
+///  the key written out,
+///  the key held in a constant,
+///  a name
+///  the call is imported under,
+///  a turbofish,
+///  and another crate's `add_str`.
+/// Why:
+///  The review of release 0.6.1-alpha.50 found that a call through a constant held none of the text the ban read
+///  (issue 6613).
+const SPELLINGS_OF_A_PROPERTY_LIST: &[&str] = &[
+    "let _ = list.add_str(\"mountpoint\", \"/tank/clones\");",
+    "let _ = list.add_str(THE_KEY, \"/tank/clones\");",
+    "use monochromatic_zfs_request_to_openzfs_kernel_device::NvList::add_str as put;",
+    "let _ = list.add_str::<u8>(THE_KEY, value);",
+    "let _ = other.add_str(\"source\", \"tank\");",
+];
+
+/// What:
+///  The lines the route may still write:
+///  a read of a property,
+///  and a name that ends in the call's name.
+/// Why:
+///  The route reads a clone's `mountpoint` back out of the pool's answer,
+///  which builds no list,
+///  and `add_str` is the tail of no longer name a file here writes.
+const NO_PROPERTY_LIST: &[&str] = &[
+    "let _ = reply.get_str(\"mountpoint\");",
+    "let _ = facts.add_string(\"mountpoint\");",
+];
+
 /// The scan flags a property list a split carried into a receiver,
+/// in every spelling of the call,
 /// and reads the one request as no finding.
 #[test]
 fn the_scan_flags_a_property_in_a_receiver_file() {
-    let planted: Vec<(String, String)> = vec![(
-        String::from("worktree_clone_add_route/add_zfs_planted.rs"),
-        String::from(
-            "fn planted(list: &mut NvList) { list.add_str(\"mountpoint\", \"/tank/clones\"); }\n",
-        ),
-    )];
-    let holding = lines_holding_one_of(planted.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT);
-    assert!(
-        !lines_no_entry_excuses(holding.as_slice(), MAY_HOLD).is_empty(),
-        "a property list in a file the route's split made is a finding"
-    );
+    for spelling in SPELLINGS_OF_A_PROPERTY_LIST {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("worktree_clone_add_route/add_zfs_planted.rs"),
+            format!("fn planted(list: &mut NvList) {{\n    {spelling}\n}}\n"),
+        )];
+        let holding: Vec<HoldingLine> =
+            lines_calling_one_of(planted.as_slice(), THE_PROPERTY_LIST_THAT_IS_NOT_BUILT);
+        assert!(
+            !lines_no_entry_excuses(holding.as_slice(), MAY_HOLD).is_empty(),
+            "{spelling} builds a property list and is a finding"
+        );
+    }
+    for fine in NO_PROPERTY_LIST {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("worktree_clone_add_route/add_zfs.rs"),
+            format!("fn planted() {{\n    {fine}\n}}\n"),
+        )];
+        assert!(
+            lines_calling_one_of(planted.as_slice(), THE_PROPERTY_LIST_THAT_IS_NOT_BUILT)
+                .is_empty(),
+            "{fine} builds no property list"
+        );
+    }
     let request: Vec<(String, String)> = vec![(
         String::from("worktree_clone_add_route/add_zfs.rs"),
         String::from("fn made() { let _clone = self.device.clone(target, origin, None); }\n"),
     )];
     assert!(
-        lines_holding_one_of(request.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT).is_empty(),
+        lines_calling_one_of(request.as_slice(), THE_PROPERTY_LIST_THAT_IS_NOT_BUILT).is_empty(),
         "the request the route makes is no property list"
     );
 }

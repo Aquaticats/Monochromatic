@@ -101,14 +101,48 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
     "[Install]",
 ];
 
-/// The justified exceptions:
-/// a file,
-/// and the text it may carry.
-/// The removal of the link an earlier release made.
-const ALLOWED_CODE: &[(&str, &str)] = &[(
+/// What:
+///  The justified exceptions:
+///  a file,
+///  the text it may carry,
+///  and the line that use is written on.
+/// Why:
+///  The removal of the link an earlier release made is the one use this guard allows,
+///  and an entry that named only the file and the text excused a second `.wants` line added beside it.
+///  The line is what an entry names:
+///  a use swapped for another leaves the line this entry names holding nothing,
+///  so the list is reported stale rather than excusing the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ALLOWED_CODE = [['service/service_provision_earlier_service_retirement.rs', 'sockets.target.wants', '.join("sockets.target.wants")']];
+/// ```
+const ALLOWED_CODE: &[(&str, &str, &str)] = &[(
     "service/service_provision_earlier_service_retirement.rs",
     "sockets.target.wants",
+    ".join(\"sockets.target.wants\")",
 )];
+
+/// What:
+///  `the_entry_of_a_wants_line(relative, line, taken)` is the index of the entry that excuses that line,
+///  where no earlier line took it,
+///  or nothing where no entry names it.
+/// Why:
+///  The one rule an excuse is read by,
+///  so a control can plant a swapped use and ask the question the guard asks.
+fn the_entry_of_a_wants_line(
+    relative: &str,
+    line: &str,
+    taken: &[bool],
+) -> Option<usize> {
+    return ALLOWED_CODE.iter().enumerate().position(|(at, entry)| {
+        let (file, allowed_text, written) = entry;
+        return !taken[at]
+            && *file == relative
+            && line.contains(allowed_text)
+            && line.trim() == *written;
+    });
+}
 
 /// The unit texts the one-time ZFS setup installs under `multi-user.target`,
 /// and the only lines they may carry that start a unit at boot:
@@ -383,6 +417,7 @@ fn a_link_that_is_not_a_uses_folder_link_is_refused() {
 fn no_release_code_makes_a_unit_start_at_startup_or_login() {
     let root: PathBuf = native_root();
     let mut found: Vec<String> = Vec::new();
+    let mut excused: Vec<bool> = vec![false; ALLOWED_CODE.len()];
     for relative in files_below(root.as_path(), &["rs"]) {
         if is_test_file(relative.as_str()) {
             continue;
@@ -398,15 +433,30 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                 }
             }
             let wants: bool = line.contains(".wants") || line.contains(".requires");
-            let excused: bool = ALLOWED_CODE.iter().any(|(file, allowed_text)| {
-                return *file == relative && line.contains(allowed_text);
-            });
-            if wants && !excused {
-                found.push(format!("{relative}:{number}: a wants or requires folder"));
+            if !wants {
+                continue;
+            }
+            let entry: Option<usize> =
+                the_entry_of_a_wants_line(relative.as_str(), line, excused.as_slice());
+            match entry {
+                Some(at) => excused[at] = true,
+                None => found.push(format!("{relative}:{number}: a wants or requires folder")),
             }
         }
     }
     assert_eq!(found, Vec::<String>::new());
+    let mut stale: Vec<String> = Vec::new();
+    for (at, (file, allowed_text, written)) in ALLOWED_CODE.iter().enumerate() {
+        if excused[at] {
+            continue;
+        }
+        stale.push(format!("{file} ({allowed_text}) {written}"));
+    }
+    assert!(
+        stale.is_empty(),
+        "an entry excuses a line that no longer holds it, so the list can only shrink:\n{}",
+        stale.join("\n")
+    );
     let provision: String = std::fs::read_to_string(
         root.join("service")
             .join("service_provision_earlier_service_retirement.rs"),
@@ -415,6 +465,54 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
     assert!(
         provision.contains("sockets.target.wants"),
         "the exception is still needed; remove it from the list when the code goes"
+    );
+}
+
+/// What:
+///  The entry names the line it excuses,
+///  in the file it names,
+///  and one entry excuses one line.
+/// Why:
+///  The review of release 0.6.1-alpha.50 found this list excused a file and a text by existence alone
+///  (`source_guard/no_start_at_login_tests.rs:108`).
+#[test]
+fn the_excuse_names_the_line_it_covers() {
+    let taken: Vec<bool> = vec![false; ALLOWED_CODE.len()];
+    assert_eq!(
+        the_entry_of_a_wants_line(
+            "service/service_provision_earlier_service_retirement.rs",
+            "        .join(\"sockets.target.wants\")",
+            taken.as_slice(),
+        ),
+        Some(0),
+        "the line the entry names is the use it excuses"
+    );
+    assert_eq!(
+        the_entry_of_a_wants_line(
+            "service/service_provision_earlier_service_retirement.rs",
+            "        .join(\"graphical.target.wants\")",
+            taken.as_slice(),
+        ),
+        None,
+        "a use swapped for another is excused by no entry"
+    );
+    assert_eq!(
+        the_entry_of_a_wants_line(
+            "service/another_file.rs",
+            "        .join(\"sockets.target.wants\")",
+            taken.as_slice(),
+        ),
+        None,
+        "the same line in another file is excused by no entry"
+    );
+    assert_eq!(
+        the_entry_of_a_wants_line(
+            "service/service_provision_earlier_service_retirement.rs",
+            "        .join(\"sockets.target.wants\")",
+            &[true],
+        ),
+        None,
+        "one entry excuses one line"
     );
 }
 
