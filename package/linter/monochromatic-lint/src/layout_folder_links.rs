@@ -828,9 +828,10 @@ fn group_own_loop_uses(
     // What: the reverse index of the searched graph, built once for the package.
     // Why: it is one table for every group, and building it inside each walk cloned the whole graph per group;
     // a package whose own files close no loop at all still builds none.
-    let reverse: Option<BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>> = match closing.is_empty() {
-        true => None,
-        false => Some(uses_leading_in(search)),
+    let reverse: Option<BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>> = if closing.is_empty() {
+        None
+    } else {
+        Some(uses_leading_in(search))
     };
     let mut findings: Vec<OwnFileLoop> = Vec::<OwnFileLoop>::new();
     for (source, uses) in &closing {
@@ -1375,10 +1376,7 @@ pub fn check_folder_links(
     // What: the list as this package's rule asks it, with every listed path in the key's spelling.
     // Why: one spelling must decide both whether a line tolerates a use and whether it is dead,
     // and the key's spelling is the one a reader copies; the package folder is what reads a listed path back.
-    let spelled: Option<AllowList> = match allow {
-        Some(list) => Some(list.in_key_spelling(base)),
-        None => None,
-    };
+    let spelled: Option<AllowList> = allow.map(|list| return list.in_key_spelling(base));
     let listed: Option<&AllowList> = spelled.as_ref();
     let untolerated: FolderUses = match listed {
         Some(list) => without_tolerated(&grouped, list, base),
