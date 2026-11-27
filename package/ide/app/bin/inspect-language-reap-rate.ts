@@ -45,7 +45,7 @@ const bounded = ({ volumes, command }: { volumes: string[]; command: string[] })
   'localhost/monochromatic/ide', ...command,
 ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 // The tests whose last step is "no child process is left": two servers that end by themselves, and one that must be killed.
-const tests = ['lifecycle::dropping_the_worker_leaves_no_child_process', 'lifecycle::server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns'];
+const tests = ['lifecycle::shutdown::dropping_the_worker_leaves_no_child_process', 'lifecycle::shutdown::server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns'];
 interface ReapResult { label: string; test: string; runs: number; parallel: number; zombie: number; running: number; other: number; ioPressure: string }
 const results: ReapResult[] = [];
 const measure = (label: string): void => {
