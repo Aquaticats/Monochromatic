@@ -940,11 +940,20 @@ so a finding is never reported twice.
   and a use of an entry whose own code never reaches the group.
   The entry graph of every use is built once for the package,
   one pass over it groups the entries that reach each other in a loop,
-  and only a use whose two entries sit in one loop is walked at all,
-  so a package whose own files close no loop pays that one pass and no walk.
-  A walk starts at the entry the own file uses and stops at the group,
+  and a group whose own file closes no loop is walked not at all,
+  so a package of such groups pays that one pass and no walk.
+  One walk answers every own-file use of one group:
+  it reads the uses backwards from that group once,
   breadth first,
-  so the message spells the fewest uses that lead back.
+  so each message spells the fewest uses that lead back,
+  and each use takes its route from that one table.
+  A walk per use read the graph once for each of them instead,
+  which cost 14 to 16 times alpha.15's time on a package of 2,000 folders whose one group's own file uses all of them
+  (measured on 2026-11-26 in interleaved rounds, on the run's own CPU time,
+  because the host's wall time for one run swung from 27 to 547 seconds while its CPU time stayed near 27):
+  this release spends 0.07 to 0.16 of alpha.16's CPU time there (median 0.09, three rounds),
+  0.13 to 0.15 on the same shape with 1,000 folders and thirty uses each,
+  and 0.90 to 1.11 on the shape above with its loop open, where nothing is walked.
   Measured on 2026-11-26,
   one process per binary per round in its own capped scope,
   with only ratios a finding and every ratio taken between runs of one shape:
@@ -971,6 +980,12 @@ so a finding is never reported twice.
   and this release 6.5 to 7.8 seconds in four rounds,
   1.00 to 1.19 times alpha.13's time and 0.49 to 0.54 times alpha.15's,
   and every binary's output on both packages is byte-identical.
+  Both shapes were measured again between the alpha.16 and this release's binaries on 2026-11-26,
+  and no difference beyond the host's own noise appeared:
+  0.88 to 1.52 times alpha.16's CPU time on the 250-group package,
+  against 1.00 to 1.23 between two runs of one binary,
+  and 0.85 to 1.85 on the three-layer package,
+  against 0.65 to 1.25 between two runs of one binary.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
   which uses a child folder of every group,
@@ -1300,6 +1315,13 @@ because a macro call's key keeps the escapes of its arguments as the source writ
 such a line is read as the key it spells,
 matches the finding whose key it is,
 and is reported as tolerating nothing any more when no finding prints it.
+The uses and the keys of a list are indexed once when it is read,
+so a rule answers each finding from that index and never walks the entries again:
+on a package whose 62,750 keys a run prints back as the list,
+alpha.16 spent 2.7 to 3.0 times its own CPU time on that tree with an empty list,
+and this release 0.6 to 1.3 times over four rounds,
+ranges that do not overlap (measured on 2026-11-26; the list is read either way,
+and the empty arm's own spread is what fills the low end of the second range).
 
 A rule reports the key of each finding it makes in `--debug`,
 as a note that reads `allow-list key: <key>`,
