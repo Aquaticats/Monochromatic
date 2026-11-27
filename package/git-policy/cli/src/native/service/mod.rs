@@ -17,6 +17,23 @@
 //!   read from the table of unix sockets.
 //! - `journald_native_socket_target.rs`:
 //!   the address native journal entries are sent to.
+//! - `journald_native_the_bounds_of_one_entry.rs`:
+//!   the most characters of a message,
+//!   of a field value and of a field name.
+//! - `journald_native_the_words_of_one_entry.rs`:
+//!   how serious an entry is,
+//!   and the text of one entry cut and made one line.
+//! - `journald_native_the_fields_of_one_entry.rs`:
+//!   the fields of one entry,
+//!   written as the protocol carries them.
+//! - `journald_native_where_an_entry_goes.rs`:
+//!   whether standard error is the journal,
+//!   and the address a datagram is sent to.
+//! - `journald_native_the_sink.rs`:
+//!   where the entries of one process go,
+//!   decided once.
+//! - `journald_native_the_stream_writer.rs`:
+//!   a write to the stream that never waits for room.
 //! - `journald_native.rs`:
 //!   the native journal protocol and the standard error fallback the service's entries go through.
 //! - `client_journal.rs`:
@@ -438,6 +455,28 @@ pub mod service_journal_record_age;
 
 /// Test-only fault points of the commit service.
 pub mod service_fault;
+
+/// The bounds one native journal entry is held to.
+pub mod journald_native_the_bounds_of_one_entry;
+
+/// How serious an entry is,
+/// and the text of one entry cut and made one line.
+pub mod journald_native_the_words_of_one_entry;
+
+/// The fields of one entry,
+/// written as the protocol carries them.
+pub mod journald_native_the_fields_of_one_entry;
+
+/// Whether standard error is the journal,
+/// and the address a datagram is sent to.
+pub mod journald_native_where_an_entry_goes;
+
+/// Where the entries of one process go,
+/// decided once.
+pub mod journald_native_the_sink;
+
+/// A write to the journal's stream that never waits for room.
+pub mod journald_native_the_stream_writer;
 
 /// The native journal protocol and the standard error fallback the service's entries go through.
 pub mod journald_native;
