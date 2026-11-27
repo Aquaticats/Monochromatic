@@ -113,7 +113,8 @@ and `DBUS_SESSION_BUS_ADDRESS` names the session bus a service is provisioned th
 So a control whose body hands a trash over through the release path reaches this account's own manager as soon
 as another control of the same process has resolved the real Git,
 because resolving it remembers the running executable
-(`service_route.rs`, `OWN_EXECUTABLE`),
+(`service_route.rs`,
+`OWN_EXECUTABLE`),
 which in a test process is the test binary:
 the hand-over wrote that fixture worktree's units into `/run/user/<n>/systemd/user/`,
 pointed the account-wide program link at the test binary,

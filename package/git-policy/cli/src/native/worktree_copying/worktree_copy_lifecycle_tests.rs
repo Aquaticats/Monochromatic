@@ -15,7 +15,8 @@ use crate::test_support::{
     repository,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-/// The one way a control runs its body in a child of its own, with an environment of the fixture's naming.
+/// The one way a control runs its body in a child of its own,
+/// with an environment of the fixture's naming.
 #[cfg(target_os = "linux")]
 use crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
 /// What is left to do once a created worktree holds its ignored state.

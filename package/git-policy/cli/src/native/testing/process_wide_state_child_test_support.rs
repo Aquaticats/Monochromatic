@@ -218,20 +218,25 @@ pub(crate) fn run_the_body_in_a_child_of_its_own(
 ///  Run `body` in a child of this test binary that holds the one test `name` of `module`,
 ///  with `environment` added to the child's environment and `cleared` removed from it,
 ///  and fail this call with the child's own words when that child's one test did not pass.
-///  The siblings a reader might expect are `run_the_body_in_a_child_of_its_own`, which adds one marker and
-///  inherits everything else, and `run_the_body_under_umask`, which sets one fact in the child's `fork`.
+///  The siblings a reader might expect are `run_the_body_in_a_child_of_its_own`,
+/// which adds one marker and inherits everything else,
+/// and `run_the_body_under_umask`,
+/// which sets one fact in the child's `fork`.
 /// Why:
-///  The environment belongs to a process, and three things here read it and act outside the fixture when it
-///  names this account's places: the route a hand-over finds its service by reads `XDG_RUNTIME_DIR`, the
-///  session bus it may provision through is named by `DBUS_SESSION_BUS_ADDRESS`, and a program started for
-///  the fixture inherits both. A control whose subject needs another environment runs its body here, and the
-///  child's own environment names the fixture's places and nothing of this account's.
-///  A control cannot set this in its own process: a variable of the test process reaches every other test of
-///  a threaded run.
+///  The environment belongs to a process,
+/// and three things here read it and act outside the fixture when it names this account's places:
+/// the route a hand-over finds its service by reads `XDG_RUNTIME_DIR`,
+/// the session bus it may provision through is named by `DBUS_SESSION_BUS_ADDRESS`,
+/// and a program started for the fixture inherits both.
+/// A control whose subject needs another environment runs its body here,
+/// and the child's own environment names the fixture's places and nothing of this account's.
+///  A control cannot set this in its own process:
+/// a variable of the test process reaches every other test of a threaded run.
 /// Gotcha:
-///  `environment` is added to what the child inherits, so a name the parent set must also be listed in
-///  `cleared` when the child must see none of it; the child of this file is recognised by its own marker, so
-///  the body runs only in the process this call started.
+///  `environment` is added to what the child inherits,
+/// so a name the parent set must also be listed in `cleared` when the child must see none of it;
+/// the child of this file is recognised by its own marker,
+/// so the body runs only in the process this call started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

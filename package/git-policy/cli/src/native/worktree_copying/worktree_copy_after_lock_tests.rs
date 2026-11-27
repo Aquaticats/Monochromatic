@@ -19,7 +19,8 @@ use crate::test_support::{
     git_context,
     remove,
 };
-/// The one way a control runs its body in a child of its own, with an environment of the fixture's naming.
+/// The one way a control runs its body in a child of its own,
+/// with an environment of the fixture's naming.
 use crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
 use crate::work_item::{
     PENDING,
@@ -135,7 +136,8 @@ fn creating_invocation() -> Invocation {
 /// so this is the path every
 ///  add takes on a machine whose units are not installed.
 /// That child is what
-///  keeps the reach inside the fixture: the route a hand-over finds its service by reads this process's
+///  keeps the reach inside the fixture:
+/// the route a hand-over finds its service by reads this process's
 ///  `XDG_RUNTIME_DIR`,
 /// so a body run beside the other tests of a threaded run names `/run/user/<the account's number>/`
 ///  and hands the account's own service manager a unit for this fixture (issue 6582).
