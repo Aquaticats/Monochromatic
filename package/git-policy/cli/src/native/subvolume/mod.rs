@@ -84,6 +84,8 @@
 //!   refusing every nested subvolume and mount point before anything is deleted.
 //! - `subvolume_remove.rs`:
 //!   removal of a directory tree whose directories may lack owner write permission.
+//! - `subvolume_remove_around_look.rs`:
+//!   the look that finds every volume below a tree without changing it.
 //! - `subvolume_remove_around.rs`:
 //!   the look that finds every volume below a tree without changing it,
 //!   and the pass that empties a tree around each one it did not make.
@@ -340,6 +342,9 @@ pub mod subvolume_anchor;
 /// Removal of a directory tree whose directories may lack owner write permission.
 #[cfg(target_os = "linux")]
 pub mod subvolume_remove;
+
+/// The look that finds every volume below a tree without changing it.
+pub mod subvolume_remove_around_look;
 
 /// The look that finds every volume below a tree without changing it, and the pass that empties a tree around
 /// each one it did not make.
