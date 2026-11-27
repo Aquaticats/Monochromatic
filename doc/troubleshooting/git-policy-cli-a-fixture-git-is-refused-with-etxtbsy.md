@@ -315,10 +315,11 @@ test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 10769 filtered out; 
 
 A control of the line,
 `repo_read::git_system_config::tests`,
-reads it from a question whose program cannot be started:
+reads it from a question whose program cannot be started
+(the fixture path stands for a file that is not a program):
 
 ```text
-[monochromatic-git-policy-cli] [ask_git_var] starting <fixture>/git for `git var GIT_CONFIG_SYSTEM` gave no answer: Exec format error (os error 8)
+[warn] [2026-11-27T10:30:03.403Z] [monochromatic-git-policy-cli] [ask_git_var] starting <fixture>/git for `git var GIT_CONFIG_SYSTEM` gave no answer: Permission denied (os error 13)
 ```
 
 ### What the repair does not cover
