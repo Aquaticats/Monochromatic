@@ -35,24 +35,35 @@ use crate::worktree_ladder_test_support::{
 /// so an ask is what says the proof left
 ///  the calling thread;
 /// the holder gives its place back on that ask and never on a clock.
+///  The bound is made once for the whole process and is never resized,
+///  so a hold that comes after another test's blocking job decides nothing,
+///  and this body runs in a child of its own
+///  (`foundation/blocking_jobs_within_the_budget.rs`,
+///  issue 6477).
 #[test]
 fn btrfs_the_checks_of_the_source_take_a_place_of_the_processs_bound() {
-    let Some(root) = btrfs_fixture("source-a-place-of-the-bound") else {
-        return;
-    };
-    let repo: PathBuf = subvolume_repository(root.as_path());
-    let plan = plan_to(root.join("topic"));
-    let (_given_back, finished) = hold_the_only_place();
-    let source: Result<SnapshotSource, String> =
-        choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan);
-    assert!(source.is_ok(), "{:?}", source.err());
-    assert!(
-        finished
-            .recv_timeout(PATIENCE)
-            .expect("the job that holds the only place never returned"),
-        "the files of the source were proven clean without asking for a place of the process's bound on blocking jobs"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "btrfs_the_checks_of_the_source_take_a_place_of_the_processs_bound",
+        || {
+            let Some(root) = btrfs_fixture("source-a-place-of-the-bound") else {
+                return;
+            };
+            let repo: PathBuf = subvolume_repository(root.as_path());
+            let plan = plan_to(root.join("topic"));
+            let (_given_back, finished) = hold_the_only_place();
+            let source: Result<SnapshotSource, String> =
+                choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan);
+            assert!(source.is_ok(), "{:?}", source.err());
+            assert!(
+                finished
+                    .recv_timeout(PATIENCE)
+                    .expect("the job that holds the only place never returned"),
+                "the files of the source were proven clean without asking for a place of the process's bound on blocking jobs"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// A clean subvolume main checkout is a source,
