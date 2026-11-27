@@ -345,9 +345,11 @@ and names no TypeScript task either.
 ### What CI runs, on which events
 
 Merges on this project are made locally and pushed:
-`gh pr list --state all` reports no merged pull request,
-and every recent merge commit is a local `git merge`
-(`git log --merges --format='%h %cI %s' -12`).
+the newest merged pull request is `#1776` of 2026-10-19
+(`gh pr list --state merged --limit 5`),
+and since then the merges are local `git merge` commits,
+5,392 of them since that date and 423 since 2026-11-27T00:00
+(`git rev-list --merges --count --since=<date> HEAD`).
 The workflows that fire on a push to `main` are therefore the ones that can see this package.
 
 `advisory-core.yml` runs on `push` to `main`,
@@ -923,7 +925,7 @@ Cons:
 
 - It needs pull requests to be the way branches merge.
   This project merges locally and pushes,
-  so a `pull_request` job would never run,
+  so a `pull_request` job has not run since 2026-10-19,
   and adopting the shape means changing the merge bar the owner recorded
   (`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`).
 - It needs required checks and branch protection,
