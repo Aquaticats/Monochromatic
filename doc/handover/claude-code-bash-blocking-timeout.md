@@ -72,12 +72,18 @@ and successfully returned `startupWired` from its Bash command.
   the owner chose the hook clamp with a sleep prefix on 2026-11-27T12:29:58-05:00
   (`doc/decision/claude-code-bash-blocking-timeout.md`,
   "Amendment of 2026-11-27").
-  It is implemented and verified on branch `feat/claude-code-plugin-source-bash-caller-timeout-clamp-and-sleep-prefix`
-  in `.claude/worktrees/claude-code-bash-caller-timeout-clamp-and-sleep-prefix`,
-  not yet merged:
-  the merge makes it live for every running session.
-  Waiting on the owner's answers about REPL commands and the merge;
-  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the evidence and the open items.
+  The owner also chose to clamp REPL commands and to merge at once (2026-11-27T12:49:24-05:00).
+  Merged as `88632f16aa` at 2026-11-27T12:49:47-05:00 and live from then on in every session,
+  since `~/.claude/settings.json` runs the bundle from the main checkout.
+  Live check at 12:50 -05:00:
+  in this interactive code-mode session a REPL command with `.timeout(600000)` moved at 2058 ms.
+  Open:
+  a Claude Sonnet second pass (same vendor,
+  not independent) is still running,
+  and its findings are to be weighed and fixed;
+  re-probe the sleep rule after each Claude Code upgrade as
+  `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md` describes.
+  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the evidence.
 
 ## Next step
 

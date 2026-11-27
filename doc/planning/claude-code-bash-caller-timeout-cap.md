@@ -567,7 +567,12 @@ and it was not run in a live session.
 - A Claude Sonnet second pass on the branch (same vendor,
   not independent) started at 2026-11-27T12:48 -05:00;
   its findings are to be weighed and fixed after the merge.
-- A REPL command with `.timeout(600000)` is to be checked live once the merge is in place.
+- Merged as `88632f16aa` at 2026-11-27T12:49:47-05:00.
+  Live check at 12:50 -05:00,
+  in the interactive code-mode session that wrote this record:
+  a REPL command running an 8-second `node` script with `.timeout(600000)` moved at 2058 ms
+  and returned a task ID,
+  so REPL commands are clamped as the owner chose.
 - The Claude Sonnet gate review's findings.
 - The REPL surface under the cap stays unprobed until an interactive code-mode session runs with the variable set.
 - A background subagent under the cap was not probed;
