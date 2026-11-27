@@ -168,7 +168,7 @@ prepares to notice one or reads them runs its body in a child of its own
 (`testing/process_wide_state_child_test_support.rs`),
 and so does a control that starts a step a recorded stop would refuse
 (`process/signal_relay_tests.rs`).
-A threaded `push::` run failed 110 of its 599 tests and a threaded `process::` run failed eleven on this
+A threaded `push::` run failed 110 of its 600 tests and a threaded `process::` run failed eleven on 2026-11-26
 (issues 6530 and 6531),
 because the stop one control recorded was the stop every other control then read.
 Measured on 2026-11-27:
