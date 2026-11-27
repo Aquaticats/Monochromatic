@@ -4,6 +4,15 @@
 //! and the ceiling of the wait for the writer at the end.
 
 use super::*;
+use crate::source_guard::{
+    HoldingLine,
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    entries_that_match_nothing,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_under,
+};
 use std::sync::{
     Arc,
     Mutex,
@@ -272,13 +281,84 @@ fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
         submission.contains(&squeeze("notices.finish()")),
         "the last line is given its ceiling before the command goes on"
     );
-    let commit_path: String = squeeze(include_str!("../landing/service_commit.rs"));
+    let commit_path: Vec<(String, String)> =
+        release_sources_under(THE_COMMIT_PATH).expect("the crate's release sources");
+    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(commit_path.as_slice(), SCOPE_ANCHORS);
     assert!(
-        commit_path.contains(&squeeze("submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit)")),
-        "the commit path submits through it"
+        abandoned.is_empty(),
+        "the scope reached no file holding what this ban is about:\n{}",
+        abandoned.join("\n")
     );
+    let held: Vec<HoldingLine> = lines_holding_one_of(commit_path.as_slice(), &[THE_CALL_THAT_WRITES]);
+    let unexplained: Vec<String> = lines_no_entry_excuses(held.as_slice(), MAY_HOLD);
     assert!(
-        !commit_path.contains(&squeeze("submit_traced(")),
-        "no submission of the commit path writes its notices itself"
+        unexplained.is_empty(),
+        "no submission of the commit path writes its notices itself:\n{}",
+        unexplained.join("\n")
+    );
+    let stale: Vec<String> = entries_that_match_nothing(held.as_slice(), MAY_HOLD);
+    assert!(
+        stale.is_empty(),
+        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        stale.join("\n")
     );
 }
+
+/// What:
+///  `THE_COMMIT_PATH` names the release sources the commit path submits from.
+/// Why:
+///  The ban below is about the commit path,
+///  and the alpha.48 split moved `ServiceCommit` out of `landing/service_commit.rs` into
+///  `landing/service_landed_aftermath.rs`,
+///  so a ban over the one file stopped reading the submission there (issue 6599).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_COMMIT_PATH = ['landing/'];
+/// ```
+const THE_COMMIT_PATH: &[&str] = &["landing/"];
+
+/// What:
+///  `THE_CALL_THAT_WRITES` is the submission that writes its notices itself.
+/// Why:
+///  A caller of it says its notices where it stands,
+///  which is what the stream exists to stop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_CALL_THAT_WRITES = 'submit_traced(';
+/// ```
+const THE_CALL_THAT_WRITES: &str = "submit_traced(";
+
+/// What:
+///  `MAY_HOLD` is the stream's own module, and the reason it calls what the commit path may not.
+/// Why:
+///  `submit_saying_where_it_stands` is the one call that hands the notices over,
+///  and it is written on top of `submit_traced` inside the stream's own file;
+///  an entry whose line went fails here instead of excusing the file for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAY_HOLD = [{ file: 'landing/service_commit_waiting_notices.rs', text: 'submit_traced(', why: '...' }];
+/// ```
+const MAY_HOLD: &[MayHold] = &[MayHold {
+    file: "landing/service_commit_waiting_notices.rs",
+    text: "submit_traced(",
+    why: "the one call that hands a commit's waiting notices over is written on top of this one, inside the \
+          stream's own file; a caller never names it",
+}];
+
+/// What:
+///  `SCOPE_ANCHORS` is the text that proves the scope still reaches the commit path this ban was written for.
+/// Why:
+///  A folder that reached nothing would pass every tree,
+///  and the one call the commit path submits through is what the ban is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SCOPE_ANCHORS = [['submit_saying_where_it_stands(', 'no file of the commit path submits through the stream any more']];
+/// ```
+const SCOPE_ANCHORS: &[(&str, &str)] = &[(
+    "submit_saying_where_it_stands(",
+    "no release file of the commit path submits through the notice stream any more, so this ban reaches nothing",
+)];
