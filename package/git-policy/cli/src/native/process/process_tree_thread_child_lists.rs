@@ -2,19 +2,12 @@
 //!  The process numbers below one process,
 //!  read from the kernel's per-thread child lists.
 //! Why:
-//!  A notice that looks many times must not pay a pass over `/proc` for each look.
-//!  Measured on 2026-11-09 on this host
-//!  (1,210 entries in `/proc`;
-//!  the load average was 44 on 6 threads when the runs ended and 91 an hour before them):
-//!  one pass reading every `/proc/<pid>/stat` took 17.6 ms at the median and 19.7 ms at most over 30 looks,
-//!  and one walk of the child lists 19.6 microseconds at the median and 26.3 at most over 30 walks,
-//!  about 900 times cheaper.
-//!  These numbers prove no start time,
+//!  A notice that looks many times must not pay a pass over `/proc` for each look,
+//!  and one walk of the kernel's child lists is about nine hundred times cheaper
+//!  (the measurement is in the doc of `descendant_numbers_from_thread_lists`).
+//!  What this look answers is a set of numbers and never a start time,
 //!  so a caller that ends what it finds still reads the tree itself
-//!  (`process_tree.rs`,
-//!  `descendants_of`);
-//!  this file answers only which processes are below one,
-//!  which is what a notice needs on every look.
+//!  (`process_tree.rs` and `descendants_of`).
 //!
 //! Files beside this one,
 //!  and why the tree is not one file:

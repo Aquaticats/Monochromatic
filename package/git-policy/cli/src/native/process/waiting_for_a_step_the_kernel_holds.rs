@@ -5,12 +5,10 @@
 //!  the one line that says why the wait lasts,
 //!  and the three ways it ends.
 //! Why:
-//!  A step inside an uninterruptible call is slow and not stuck,
-//!  so ending it at the ceiling it reached fails a commit that would have landed.
-//!  The wait stays and says so once,
-//!  because a person who read the same sentence three times in one failed commit learned nothing the first two times;
-//!  and a step that ends by itself is noticed on the way to the next look,
-//!  so a commit whose step landed is never waited for to that bound.
+//!  A notice thread the system refused says nothing about a step it was to watch,
+//!  so a bound of its own is what keeps a commit that would have landed,
+//!  and this wait is the one that has to say why it lasts
+//!  (the rule and its reasoning are in the doc of `until_it_ends_or_the_hold_bound`).
 //!
 //! Files beside this one,
 //!  and why the wait is not one file:

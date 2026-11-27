@@ -9,12 +9,7 @@
 //!  the reconcile runs them in the object store of a repository that another program may have wedged,
 //!  so an answer is refused at a ceiling instead of held whole,
 //!  and the ceiling of each command is what says whether a merge the pass resolves is refused as a flood.
-//!  Measured on 2026-11-11 with Git 2.56.0:
-//!  three stages of 7,605,777 bytes each resolved 103,000 regions
-//!  into a 37,871,557-byte answer,
-//!  which a ceiling of four stages plus the push cap refused
-//!  (cross-vendor review of round 198,
-//!  finding 2).
+//!  The measurement that set the marker ceiling is in the doc of `MERGE_ANSWER_MARKER_BYTES`.
 //!
 //! Files beside this one,
 //!  and why the merge commit is not one file:

@@ -7,11 +7,8 @@
 //!  A claim decides whether a command may work on one item,
 //!  so the record these bytes give is the input of every liveness decision,
 //!  and one decoder is the whole of what this command reads about an owner.
-//!  The record and the decoder are public,
-//!  so the fuzz sidecar
-//!  (`package/git-policy/cli.fuzz/src/owner_claim_record.rs`) reads generated claim text through the same decoder a
-//!  command does,
-//!  instead of a copy of its rules.
+//!  `decode` and `ClaimRecord` are the pair a fuzzer reads generated claim text through,
+//!  which is why both are public.
 //!
 //! Files beside this one,
 //!  and why the claim is not one file:
