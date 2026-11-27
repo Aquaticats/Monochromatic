@@ -30,6 +30,43 @@ import {
 } from './verify-session-turns.ts';
 
 /**
+ Window and output limit the head registered writer member reports.
+
+ The pool advertises its head member's pair, and dispatch asks that member first, so this is the pair
+ a session's catalog must carry after the bind. A member the registry does not resolve is passed over
+ there too, so the head is the first member the registry resolves with a usable pair.
+
+ @param modelRuntime - real registry the extension reads
+
+ @returns the head member's window and output limit
+
+ @throws Error when no member is registered with a usable pair of limits
+ */
+function headRegisteredLimits(modelRuntime: ModelRuntime,): {
+  contextWindow: number;
+  maxTokens: number;
+} {
+  for (const target of WRITER_TARGETS) {
+    /**
+     Catalog record Pi resolves for that member, or undefined when it is not registered.
+     */
+    const member = modelRuntime.getModel(
+      target.provider,
+      target.id,
+    );
+    if (member === undefined)
+      continue;
+    if ((member.contextWindow > 0) && (member.maxTokens > 0)) {
+      return {
+        contextWindow: member.contextWindow,
+        maxTokens: member.maxTokens,
+      };
+    }
+  }
+  throw new Error('no writer member is registered with a usable pair of limits, so there is no window to advertise',);
+}
+
+/**
  Destinations every request in this process asked for, which must stay empty.
  */
 const fetchAttempts: string[] = [];
@@ -241,45 +278,23 @@ assert.equal(
     [],
     'Verification asked a provider endpoint instead of staying on the stand-in origin',
   );
-  // Pi compacts on a threshold taken from the selected model's window, so the pool must advertise
-  // the smallest registered member's limits rather than zero. The writer pool also asks a real
-  // built-in member, so the expectation is computed from the same registry the pool reads.
+  // Pi compacts on a threshold taken from the selected model's window, so the pool must advertise a
+  // usable window rather than zero. The writer pool also asks real built-in members, so the
+  // expectation is computed from the same registry the pool reads: the head member a request is asked
+  // of first is the first one that registry resolves with a usable pair of limits.
   /**
-   Windows every registered writer member reports, as the registry resolves them.
+   Limits the head registered writer member reports.
    */
-  const memberWindows: number[] = [];
-  /**
-   Output limits every registered writer member reports, as the registry resolves them.
-   */
-  const memberOutputLimits: number[] = [];
-  for (const target of WRITER_TARGETS) {
-    /**
-     Catalog record Pi resolves for that member, or undefined when it is not registered.
-     */
-    const member = modelRuntime.getModel(
-      target.provider,
-      target.id,
-    );
-    if (member === undefined)
-      continue;
-    if (member.contextWindow > 0)
-      memberWindows.push(member.contextWindow,);
-    if (member.maxTokens > 0)
-      memberOutputLimits.push(member.maxTokens,);
-  }
-  assert.ok(
-    memberWindows.length > 0,
-    'no writer member is registered, so there is no window to advertise',
-  );
+  const headLimits = headRegisteredLimits(modelRuntime,);
   assert.equal(
     writer.contextWindow,
-    Math.min(...memberWindows,),
-    'the pool must advertise the smallest registered member window',
+    headLimits.contextWindow,
+    'the pool must advertise the head registered member window',
   );
   assert.equal(
     writer.maxTokens,
-    Math.min(...memberOutputLimits,),
-    'the pool must advertise the smallest registered member output limit',
+    headLimits.maxTokens,
+    'the pool must advertise the head registered member output limit',
   );
   /**
    Reviewer pool entry Pi's registry carries after the bind.
@@ -290,8 +305,8 @@ assert.equal(
   );
   assert.equal(
     reviewerEntry?.contextWindow,
-    Math.min(...memberWindows,),
-    'the reviewer pool must advertise the smallest registered member window',
+    headLimits.contextWindow,
+    'the reviewer pool must advertise the head registered member window',
   );
   /**
    Member calls before the long transcript, so the loop can prove the pool kept answering.
