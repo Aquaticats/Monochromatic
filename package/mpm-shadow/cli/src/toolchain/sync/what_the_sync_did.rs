@@ -19,11 +19,15 @@
 //! ```
 
 /// Imports what a later install did with the leftovers of a killed one,
-/// and the hidden name that holds the wait.
+/// the hidden name that holds the wait,
+/// and what it read about the finished copy that went with a directory it removed.
 use super::super::archive_staging::{
     FinishedCopy,
     HoldingInstaller,
     Recovered,
+    RemovedFinishedCopy,
+    RemovedLeftover,
+    WhyNotPublished,
 };
 /// Imports the version comparison the warning uses.
 use super::super::parse_output::version_matches;
@@ -48,9 +52,10 @@ pub struct SyncReport {
     /// the publish this run finished,
     /// the copy it dropped because another install had published the version meanwhile,
     /// the finished copy it left hidden because an older repository tool is never kept,
-    /// the copy a killed install had moved aside that came back or was left for a live install,
+    /// the copy an earlier install had moved aside that came back or was left for a live install,
     /// and the hidden directories it removed,
-    /// each of which it found gone afterwards.
+    /// each of which it found gone afterwards,
+    /// with what went with one when a finished copy did and whether that copy was a second one.
     pub recovered: Vec<String>,
     /// Tool id and failure text.
     pub failed: Vec<(String, String)>,
@@ -98,78 +103,137 @@ fn hidden_directories(count: usize) -> String {
 }
 
 /// What:
-/// `a killed install`,
-/// or `killed installs`,
+/// `an install of mpm-shadow that has ended`,
+/// or `installs of mpm-shadow that have ended`,
 /// agreeing with the count of hidden directories.
 /// Why:
-/// The same sentence says one directory or several,
-/// and the subject that left them changes with the count.
+/// A hidden directory is removed only when the system answered that its installer ended,
+/// so the sentence names that answer and never a kill no run read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function whoLeftThem(count: number): string { return count === 1 ? 'a killed install' : 'killed installs'; }
+/// function whoLeftThem(id: string, count: number): string {
+///   return count === 1 ? `an install of ${id} that has ended` : `installs of ${id} that have ended`;
+/// }
 /// ```
-fn who_left_them(count: usize) -> &'static str {
+fn who_left_them(
+    id: &str,
+    count: usize,
+) -> String {
     if count == 1 {
-        return "a killed install";
+        return format!("an install of {id} that has ended");
     }
-    return "killed installs";
+    return format!("installs of {id} that have ended");
 }
 
 /// What:
-/// `, and removed 1 hidden directory that a killed install left behind`,
-/// together with what went with a removed directory when a finished copy did,
-/// for the end of a sentence that already said what became of the finished copy.
+/// `removed 1 hidden directory left behind by an install of mpm-shadow that has ended`,
+/// together with one clause for each removed directory that held a finished copy.
 /// Why:
 /// One wording,
-/// so the two sentences about a recovery read the same way,
-/// and a person learns that a removed directory took the only finished copy of its version with it.
+/// so the sentence that stands on its own and the clause a recovery appends to another sentence read the same way,
+/// and a person learns what each removed directory took with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function removedClause(count: number, finishedCopies: number): string {
-///   return `, and removed ${hiddenDirectories(count)} that ${whoLeftThem(count)} left behind${finishedCopiesClause(finishedCopies)}`;
+/// function removedPart(id: string, removed: RemovedLeftover[]): string {
+///   return `removed ${hiddenDirectories(removed.length)} left behind by ${whoLeftThem(id, removed.length)}`
+///     + removed.map(whatWentWithIt).join('');
 /// }
 /// ```
-fn removed_clause(
-    count: usize,
-    finished_copies: usize,
+fn removed_part(
+    id: &str,
+    removed: &[&RemovedLeftover],
 ) -> String {
-    let mut clause: String = format!(
-        ", and removed {} that {} left behind",
-        hidden_directories(count),
-        who_left_them(count)
+    let mut part: String = format!(
+        "removed {} left behind by {}",
+        hidden_directories(removed.len()),
+        who_left_them(id, removed.len())
     );
-    if finished_copies > 0 {
-        clause.push_str(&finished_copies_clause(finished_copies));
+    // What: `.iter()` walks the removed directories, and each one that held a finished copy adds its own clause.
+    // Why: the version and the reason differ per copy, so each clause is built from the directory it is about.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const leftover of removed) part += whatWentWithIt(leftover);
+    // ```
+    for leftover in removed {
+        part.push_str(&what_went_with_it(leftover));
     }
-    return clause;
+    return part;
 }
 
 /// What:
-/// `, 1 of which held a finished copy that this run could not publish, so that copy is gone`,
-/// or the same words for several copies.
+/// `, 1 of which held a second finished copy of 0.2.1; 0.2.1 is finished at its name, so nothing was lost with that copy`,
+/// `, 1 of which held a finished copy of 0.2.1 that this run did not publish, because ...; no finished copy of 0.2.1 is at its name, so that copy is gone`,
+/// or nothing when the directory held no finished copy.
 /// Why:
-/// A removed hidden directory may be the only finished copy of its version,
-/// and a person has to know that the removal took it,
-/// because the version then comes back only from a download or another copy.
+/// A removed finished copy is either a second one or the one the version had here,
+/// and only the second case is a loss:
+/// the wording that said every such copy was gone told a person of a loss that did not happen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function finishedCopiesClause(count: number): string {
-///   return count === 1
-///     ? ', 1 of which held a finished copy that this run could not publish, so that copy is gone'
-///     : `, ${count} of which held a finished copy that this run could not publish, so those copies are gone`;
+/// function whatWentWithIt(leftover: RemovedLeftover): string {
+///   if (leftover.finishedCopy === 'no-finished-copy') return '';
+///   if ('secondCopy' in leftover.finishedCopy) {
+///     const version = leftover.finishedCopy.secondCopy;
+///     return `, 1 of which held a second finished copy of ${version}; ${version} is finished at its name, so nothing was lost with that copy`;
+///   }
+///   const { version, whyNotPublished } = leftover.finishedCopy.notAtItsName;
+///   return `, 1 of which held a finished copy of ${version} that this run did not publish, because ${whyNotPublishedText(whyNotPublished)}; no finished copy of ${version} is at its name, so that copy is gone`;
 /// }
 /// ```
-fn finished_copies_clause(count: usize) -> String {
-    if count == 1 {
-        return ", 1 of which held a finished copy that this run could not publish, so that copy is gone"
-            .to_string();
-    }
-    return format!(
-        ", {count} of which held a finished copy that this run could not publish, so those copies are gone"
-    );
+fn what_went_with_it(leftover: &RemovedLeftover) -> String {
+    // What: `match` on the three answers, which is a discriminated union in TS, each of which reads differently.
+    // Why: the reason a copy was not published is a different fact in each arm, so no one wording covers them.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (leftover.finishedCopy === 'no-finished-copy') return '';
+    // if ('secondCopy' in leftover.finishedCopy) return secondCopyClause(leftover.finishedCopy.secondCopy);
+    // return notAtItsNameClause(leftover.finishedCopy.notAtItsName);
+    // ```
+    return match &leftover.finished_copy {
+        RemovedFinishedCopy::NoFinishedCopy => String::new(),
+        RemovedFinishedCopy::SecondCopy {
+            version,
+        } => format!(
+            ", 1 of which held a second finished copy of {version}; {version} is finished at its name, so nothing was lost with that copy"
+        ),
+        RemovedFinishedCopy::NotAtItsName {
+            version,
+            why_not_published,
+        } => format!(
+            ", 1 of which held a finished copy of {version} that this run did not publish, because {}; no finished copy of {version} is at its name, so that copy is gone",
+            why_not_published_text(why_not_published)
+        ),
+    };
+}
+
+/// What:
+/// The clause that says why this run did not publish a finished copy it removed.
+/// Why:
+/// Both reasons are facts the run read,
+/// and naming one it did not read is the fault this wording exists to avoid.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whyNotPublishedText(why: WhyNotPublished): string {
+///   return why === 'the-lock-does-not-record-its-archive'
+///     ? "that copy's completion marker does not record the archive this lock names"
+///     : `${why.anOlderRepositoryToolIsNeverKept} is installed and an older repository tool is never kept`;
+/// }
+/// ```
+fn why_not_published_text(why: &WhyNotPublished) -> String {
+    return match why {
+        WhyNotPublished::TheLockDoesNotRecordItsArchive => {
+            "that copy's completion marker does not record the archive this lock names".to_string()
+        }
+        WhyNotPublished::AnOlderRepositoryToolIsNeverKept {
+            newer,
+        } => format!("{newer} is installed and an older repository tool is never kept"),
+    };
 }
 
 /// What:
@@ -223,9 +287,12 @@ fn left_where_it_is(
 /// Why:
 /// An install that finished the publish of a version without downloading anything did something a person should see,
 /// and so did one that dropped its copy for a publish another install made,
-/// and one that only removed hidden directories of an installer known to have ended.
+/// and one that only removed hidden directories whose installer the system reports ended.
 /// "Finished the publish" is printed only for a publish this run made,
 /// and it names the hidden name the copy was read at rather than a kill no run can see.
+/// A removed directory that held a finished copy says whether that copy was a second one or the version's only one
+/// here,
+/// which is the one fact that decides whether the person lost something.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -237,18 +304,14 @@ pub(crate) fn recovery_sentence(
     recovered: &Recovered,
 ) -> Option<String> {
     let removed: usize = recovered.removed.len();
-    // What: how many of the removed directories held a finished copy, which the sentence has to say.
-    // Why: a finished copy that went cannot be published by any later run.
+    // What: the removed directories this run can name in a sentence, in the order it found them.
+    // Why: `removed_part` takes the directories themselves, because what went with each one decides its clause.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const finishedCopiesRemoved = recovered.removed.filter((leftover) => leftover.heldAFinishedCopy).length;
+    // const removedDirectories = recovered.removed;
     // ```
-    let finished_copies_removed: usize = recovered
-        .removed
-        .iter()
-        .filter(|leftover| return leftover.held_a_finished_copy)
-        .count();
+    let removed_directories: Vec<&RemovedLeftover> = recovered.removed.iter().collect();
     let head: Option<String> = match &recovered.finished_copy {
         FinishedCopy::PublishedHere {
             copy,
@@ -257,15 +320,15 @@ pub(crate) fn recovery_sentence(
             copy.display()
         )),
         FinishedCopy::PublishedByAnotherInstall => Some(format!(
-            "dropped the copy of {id} {version} that a killed install left, because another install published that version meanwhile"
+            "dropped the copy of {id} {version} that an earlier install left, because another install published that version meanwhile"
         )),
         FinishedCopy::AnOlderVersionIsNeverKept {
             newer,
         } => Some(format!(
-            "left the finished copy of {id} {version} that a killed install left under its hidden name, because {newer} is installed and an older repository tool is never kept"
+            "left the finished copy of {id} {version} under the hidden name an earlier install left it at, because {newer} is installed and an older repository tool is never kept"
         )),
         FinishedCopy::NothingToPublish if recovered.restored => Some(format!(
-            "put back the copy of {id} {version} that a killed install had moved aside"
+            "put back the copy of {id} {version} that an earlier install had moved aside"
         )),
         FinishedCopy::NothingToPublish => recovered
             .left_for_a_live_install
@@ -274,20 +337,20 @@ pub(crate) fn recovery_sentence(
     };
     if let Some(mut sentence) = head {
         if removed > 0 {
-            sentence.push_str(&removed_clause(removed, finished_copies_removed));
+            // What: `, and ` joins this sentence to the removal clause, which is the same one a run with no head prints.
+            // Why: a person reads one sentence per version, whatever else the recovery did.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // sentence += `, and ${removedPart(id, removedDirectories)}`;
+            // ```
+            sentence.push_str(", and ");
+            sentence.push_str(&removed_part(id, &removed_directories));
         }
         return Some(sentence);
     }
     if removed > 0 {
-        let mut sentence: String = format!(
-            "removed {} that {} of {id} left behind",
-            hidden_directories(removed),
-            who_left_them(removed)
-        );
-        if finished_copies_removed > 0 {
-            sentence.push_str(&finished_copies_clause(finished_copies_removed));
-        }
-        return Some(sentence);
+        return Some(removed_part(id, &removed_directories));
     }
     return None;
 }

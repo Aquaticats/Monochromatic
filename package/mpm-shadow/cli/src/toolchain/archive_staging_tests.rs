@@ -1459,7 +1459,7 @@ fn the_report_counts_one_hidden_directory_in_the_singular() {
     assert_eq!(
         report.recovered,
         vec![format!(
-            "removed 1 hidden directory that a killed install of {ID} left behind"
+            "removed 1 hidden directory left behind by an install of {ID} that has ended"
         )],
         "{report:?}"
     );
@@ -1487,7 +1487,7 @@ fn the_report_counts_several_hidden_directories_in_the_plural() {
     assert_eq!(
         report.recovered,
         vec![format!(
-            "removed 2 hidden directories that killed installs of {ID} left behind"
+            "removed 2 hidden directories left behind by installs of {ID} that have ended"
         )],
         "{report:?}"
     );
@@ -1525,7 +1525,7 @@ fn a_recovery_never_publishes_an_older_version_beside_a_newer_installed_one() {
     let root = rig.scope.toolchain_root.clone();
     let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
     let version_dir: PathBuf = tool_dir.join("0.2.1");
-    // A newer finished version is installed, and a killed install left a finished copy of the older locked one.
+    // A newer finished version is installed, and an install that ended left a finished copy of the older locked one.
     finish_archive(&root, "0.2.2");
     what_a_kill_between_the_two_renames_leaves(&version_dir);
 
@@ -1579,6 +1579,16 @@ fn a_finished_copy_of_an_older_version_that_no_lock_vouches_for_is_removed_besid
         !dead.exists(),
         "a finished copy no install can publish is not kept: {:?}",
         names_of(&tool_dir)
+    );
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a finished copy of 0.2.1 that this run did not publish, \
+             because 0.2.2 is installed and an older repository tool is never kept; \
+             no finished copy of 0.2.1 is at its name, so that copy is gone"
+        )],
+        "the sentence names the rule that kept the copy out of the version's name: {report:?}"
     );
     assert!(
         !report

@@ -900,9 +900,11 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
     assert_eq!(
         later.recovered,
         vec![format!(
-            "removed 1 hidden directory that a killed install of {ID} left behind, 1 of which held a finished copy that this run could not publish, so that copy is gone"
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a second finished copy of {THE_VERSION_A_KILL_LEFT_FINISHED}; \
+             {THE_VERSION_A_KILL_LEFT_FINISHED} is finished at its name, so nothing was lost with that copy"
         )],
-        "a later run publishes nothing from that copy and removes it: {later:?}"
+        "a later run publishes nothing from that copy and removes it, and the version is still installed: {later:?}"
     );
     assert!(
         rig.http.requests().len() == 1,
