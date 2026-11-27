@@ -231,7 +231,10 @@ They are two decisions, and the ranking takes the family first and the terminal 
 ### What each option shows a person at a new host key
 
 Each block is a measured transcript from this round's log,
-`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`,
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 or, for A, the state on `main`;
 `probe` stands where the arm's own clone directory stood,
 and the sentence is cut short here and printed whole under "The words".
@@ -413,7 +416,10 @@ Every option that keeps a child changes that:
 The figures are medians of per-round differences against a control measured in the same rounds,
 with the range and the count of positive rounds
 (`keep/derived-medians.txt`, from
-`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-3-steps.log`;
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-3-steps.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 the typed-path figures are from `keep/run-10-typed-path-with-every-twin.log`).
 The last term of each line is the read of the remote,
 `+0.85 ms` for a named remote
@@ -483,7 +489,10 @@ and the owner is free to pick any of the six.
   At a terminal, the place where a person watches a clone and meets a security key's touch notice,
   K behaves as plain Git does:
   measured, plain Git and K each draw the progress lines and C draws none
-  (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`,
+  (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   the `TERMINAL` lines; and this round's log, arms `o-terminal-ok-*`),
   and OpenSSH writes the touch notice to standard error only when that stream is a terminal
   (`readpass.c:252`, `:253` and `:279`, source only).
@@ -707,7 +716,10 @@ One pass, each Low and its change:
 - "the same log" in the owner's C2 and D blocks: each block names its arm, and the block intro names the log.
 - the change log's nonexistent folder: this change log replaces that text.
 - `KnownHostsCommand` cited to the after-its-review round: now
-  `typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:280-290`.
+  `typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:280-290`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `c-relay` at a host never seen cited to run-11: now `keep/run-7-unreachable-host-and-pull.log`,
   `u-never-seen-c-relay`.
 - `c2-status` and `c2-check-known` at strict checking and `BatchMode` cited to run-11: now the arms in
@@ -1521,7 +1533,10 @@ The sentence can also be wrong about why a command failed, and the rounds named 
 Of the three classes the revision at `79962f9ccc` listed, one holds, one does not and one is unrun:
 `KnownHostsCommand` holds, as `run-1.log:280-290` shows;
 `@cert-authority` supplies the key by certificate and `ssh-keygen -F` finds the line, so D stays silent, which is
-right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`);
+right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here));
 and `VerifyHostKeyDNS=yes` would be a third, and is unrun, because no DNSSEC setup was available.
 
 Two limits stand:
@@ -1613,6 +1628,9 @@ The sentence the round whose folder is
 (its `keep/run-1-behaviour.log:4`);
 the two figures are different texts, and the 369-byte value's failure line is in
 `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-3.log:61`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 (`File name too long`), which is the value the sixth round ran.
 
 Measured in the sixth round, per transport
@@ -2013,7 +2031,10 @@ each `--rm --init --network=none --cpus=2 --memory=2g --pids-limit=400 --blkio-w
 each started in a `systemd-run --user` scope with `--slice=agent-work.slice`, `RuntimeMaxSec`, `CPUQuota=300%`,
 `MemoryMax=5G`, `TasksMax=512` and `IOWeight=10`.
 Its report holds the eighteen starts, and its launch lines were not kept; this round keeps its own at
-`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-launch.txt`:
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-launch.txt`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `keep/run-5-remote-line-under-a-terminal.log`, 18 arms: the `remote: ` drop rule with `TERM=xterm-256color`,
   in a pipe and on a terminal, and the red control without the escape strip;
@@ -2211,7 +2232,10 @@ The control's own median is 195.07 ms and its twin's 200.30 ms.
   the only figure this harness resolves.
 
 The other typed-path run, whose log is
-`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-4-typed-path.log`,
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-4-typed-path.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 measured a floor of `+0.11 ms` and D at `+5.76 ms` with 23 of 24 positive, and resolved nothing else.
 Its warm-up reached one arm only, which the rotation spreads over the arm list rather than over the control alone,
 and both runs agree on the conclusion.
