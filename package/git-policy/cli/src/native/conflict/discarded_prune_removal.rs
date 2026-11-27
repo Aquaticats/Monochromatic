@@ -205,9 +205,12 @@ pub(crate) fn remove_entry(
         }
     };
     match directory.identity() {
-        Ok(found) if found == entry.identity => {}
-        // The same directory whose change time moved: another pass removing its files does that, and so does a file added after
-        //  the listing. Only a directory that gained nothing is the directory that was judged.
+        // The same directory the listing saw: device and inode alone say so, never the change time. Another pass
+        //  removing its files moves that time, and a file added inside the tick the listing's stamp came from leaves
+        //  it where it was, because this host's ZFS advances file times in one-millisecond steps
+        //  (`doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`). Only a directory that
+        //  gained nothing is the directory that was judged, so what it holds is compared with the listing every
+        //  time, and a directory that gained a file is kept and said (issue 6544).
         Ok(found)
             if found.device == entry.identity.device && found.inode == entry.identity.inode =>
         {
