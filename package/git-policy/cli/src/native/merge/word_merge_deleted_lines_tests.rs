@@ -461,7 +461,9 @@ fn the_smallest_pair_of_deletions_of_a_repeated_line_keeps_both_sides() {
 }
 
 /// What:
-///  The region the alpha.49 release review found the rule's own shape in, counted over the whole file, keeps both sides.
+///  The region the alpha.49 release review found the rule's own shape in,
+///  counted over the whole file,
+///  keeps both sides.
 /// Why:
 ///   The file is the review's case `case-00423` of its seed 1:
 ///  the whole file puts this side's `b` once against the base's and the other side's twice,
@@ -520,7 +522,8 @@ fn an_answer_in_an_order_one_side_does_not_hold_keeps_both_sides() {
 }
 
 /// What:
-///  A region whose lines end with a carriage return and a line feed, and whose other side lost its last line end,
+///  A region whose lines end with a carriage return and a line feed,
+///  and whose other side lost its last line end,
 ///  keeps both sides when the answer holds more copies of a line than both sides hold.
 /// Why:
 ///   This is the region Git's line merge left for the file of `case-00463` of the alpha.49 release review's seed 1:
