@@ -17,9 +17,7 @@ import {
   POOL_LIMITS_VARIABLE,
   type PoolMembership,
   type ProviderPool,
-  poolOfThatNameIn,
   poolTakesNoNewRun,
-  virtualTextOf,
 } from './pool-limits.ts';
 import { poolChoiceFor, } from './pool-gate.ts';
 import {
