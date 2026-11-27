@@ -183,6 +183,9 @@
 //! - `push_held_back_by_a_blocked_commit.rs`:
 //!   where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 //!   and the decision a verdict makes.
+//! - `push_held_back_by_a_blocked_commit_awaiting.rs`:
+//!   where the push of one branch stops when its questions go to a Git awaited on the runtime,
+//!   which is the decision of `push_held_back_by_a_blocked_commit.rs` with its waits as tasks of the runtime.
 //! - `auto_push.rs`:
 //!   post-commit auto-push of a landed commit:
 //!   the push argv,
@@ -464,6 +467,10 @@ pub mod matching_push_delivered_the_recorded_branch;
 /// Where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 /// and the decision a verdict makes.
 pub mod push_held_back_by_a_blocked_commit;
+
+/// Where the push of one branch stops when its questions go to a Git awaited on the runtime,
+/// which is the decision of the synchronous face with its waits as tasks of the runtime.
+pub mod push_held_back_by_a_blocked_commit_awaiting;
 
 /// The lines a command prints about a branch the automatic push stops short of.
 pub mod blocked_commit_lines;
