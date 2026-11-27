@@ -27,6 +27,10 @@ use std::process::Command;
 /// the start check the shim runs on the program it found,
 /// and the two reasons a start does not happen.
 use mpm_shadow::{
+    real_binary::{
+        Candidate,
+        Lookup,
+    },
     shim::{
         ProgramRun,
         start_and_wait,
@@ -318,12 +322,22 @@ fn a_start_refused_because_the_program_is_a_shadow_says_what_was_found_and_what_
         matches!(refusal, StartRefusal::Shadow { .. }),
         "the refusal must keep its own reason, not travel as an error nothing classified: {refusal:?}"
     );
+    // What:     The lookup that chose the path which turned out to be a shadow: the message carries it.
+    // Why:      The list it holds is what the message prints instead of sending the reader to `command -v -a mpm`.
+    let lookup: Lookup = Lookup {
+        candidates: vec![Candidate {
+            path: other.clone(),
+            skipped_because: None,
+        }],
+        chosen: Some(other.clone()),
+    };
     let text: String = describe_start_failure(&StartFailure {
         outer: &arguments,
         program: &other,
         refusal: &refusal,
         retry,
         depth: 0,
+        lookup: &lookup,
     });
 
     for expected in [
@@ -332,7 +346,7 @@ fn a_start_refused_because_the_program_is_a_shadow_says_what_was_found_and_what_
         "is or leads to",
         "a shadow",
         "a shadow looks for the real",
-        "command -v -a mpm",
+        "the `mpm` commands this run found on PATH",
         "126",
     ] {
         assert!(text.contains(expected), "{expected}: {text}");
