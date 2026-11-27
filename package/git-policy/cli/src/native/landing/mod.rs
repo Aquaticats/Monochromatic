@@ -224,6 +224,9 @@
 //! - `service_messages_of_a_wait_for_the_service.rs`:
 //!   what a commit says while it waits for the service,
 //!   and that the service is restarted or the commit built again.
+//! - `service_messages_of_an_interrupted_commit.rs`:
+//!   the words for a commit the person interrupted,
+//!   which the service either gave up or left unsettled.
 //! - `service_messages.rs`:
 //!   what the user is told when the commit service cannot land a commit.
 //! - `service_commit_tree_ownership.rs`:
@@ -233,9 +236,6 @@
 //! - `service_messages_of_a_work_that_was_not_handed_over.rs`:
 //!   the words for work a hand-off could not hand to the commit service,
 //!   in the words of what stopped it.
-//! - `service_messages_of_an_interrupted_commit.rs`:
-//!   the words for a commit the person interrupted,
-//!   which the service either gave up or left unsettled.
 //! - `service_native.rs`:
 //!   the commits real Git builds for the service:
 //!   an editor,

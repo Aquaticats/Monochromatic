@@ -131,9 +131,9 @@ fn what_this_command_asked(
 /// workNotHandedOver(failure) // { kind: 'work-not-handed-over', reason } | undefined
 /// ```
 pub(crate) fn work_not_handed_over(
-    failure: &crate::service_messages::ClientFailure
-) -> Option<crate::service_messages::ClientFailure> {
-    let crate::service_messages::ClientFailure::DidNotStart {
+    failure: &crate::service_messages_the_failures_a_person_can_meet::ClientFailure
+) -> Option<crate::service_messages_the_failures_a_person_can_meet::ClientFailure> {
+    let crate::service_messages_the_failures_a_person_can_meet::ClientFailure::DidNotStart {
         unit,
         answer,
         asked,
@@ -141,7 +141,7 @@ pub(crate) fn work_not_handed_over(
     else {
         return None;
     };
-    return Some(crate::service_messages::ClientFailure::WorkNotHandedOver(
+    return Some(crate::service_messages_the_failures_a_person_can_meet::ClientFailure::WorkNotHandedOver(
         format!(
             "the commit service did not start: {}",
             did_not_start(unit.as_deref(), answer, *asked)

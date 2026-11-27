@@ -17,11 +17,13 @@
 //! interruptedWords(failure) // string | undefined
 //! ```
 
-use crate::service_messages::{
+use crate::service_messages_what_a_failure_gives_a_person::{
     CHECK_COMMANDS,
     LOG_COMMAND,
     NOTHING_CHANGED,
     RESTART_COMMAND,
+};
+use crate::service_messages_of_a_wait_for_the_service::{
     it_had_said,
     waiting_for,
 };
