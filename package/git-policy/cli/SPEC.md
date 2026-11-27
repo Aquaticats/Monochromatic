@@ -5506,6 +5506,18 @@ not of where the wrapper allows a command to begin:
 `require-root` still refuses a command whose directory is below the top of its
 repository,
 before any slot refusal runs.
+A command the root rule does not refuse reaches that same reading from below the
+top:
+`policies.require-root` at `off`,
+`policies.require-root` at `warn`,
+and the wrapper's own `--no-enforce-require-root`
+each leave a removal or a move typed below the top behind a shell alias to the
+slot refusal,
+which then names the slot the spelling at the top names.
+When the rule is off or escaped it says nothing about the command;
+at `warn` its finding and the line saying the policy is warn-unsafe are printed
+before a removal's refusal,
+while a move's refusal carries its own sentence alone.
 The spellings that reach that reading are the guard's own,
 stated in the passage "git by the word Git will run":
 a value whose bytes hold no quote,
