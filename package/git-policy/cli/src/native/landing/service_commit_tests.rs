@@ -1,7 +1,7 @@
 //! Controls for the unit templates the wrapper provisions.
 
-use super::arguments_after_subcommand;
 use crate::service_address_of_a_worktree::listen_stream_of;
+use crate::service_commit_input_notes_and_embedded_commit::arguments_after_subcommand;
 use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 use crate::service_provision::{
     OWN_MARKERS,

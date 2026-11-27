@@ -37,8 +37,8 @@ use crate::source_guard::source_scan_tests::source_root;
 /// ```
 const NOTE_FILES: &[&str] = &[
     "commit/commit_command.rs",
-    "landing/service_commit.rs",
     "landing/service_commit_input_notes_and_embedded_commit.rs",
+    "landing/service_commit_the_answers_of_the_service.rs",
     "landing/service_commit_rebuild_ceiling.rs",
     "landing/service_commit_requests_and_landing_report.rs",
     "landing/service_landed_aftermath.rs",

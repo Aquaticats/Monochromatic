@@ -29,449 +29,51 @@
 //! ```ts
 //! for (const [held, settled] of await settleHeldCommits(gitDir, clearing)) console.error(lineOf(held, settled));
 //! ```
+//!
+//! The files beside this one hold what it reads and writes,
+//! in the order it uses them:
+//! `held_commit_settle_the_intent_of_a_batch.rs`,
+//! `held_commit_settle_what_stands_in_the_way.rs`,
+//! `held_commit_settle_carrying_the_change.rs`
+//! and `held_commit_settle_what_the_move_owes.rs`;
+//! this file holds the settlement that runs them in order.
 
 use crate::held_commit_record::{
     Held,
     forget,
     list,
 };
-use crate::held_commit_replay::{
-    Replay,
-    onto,
-    value_now,
+use crate::held_commit_replay::value_now;
+use crate::held_commit_settle_carrying_the_change::carry;
+use crate::held_commit_settle_the_intent_of_a_batch::{
+    finished_of,
+    intent_of,
+    landed_below,
 };
-use crate::service_journal::{
-    DONE_EXTENSION,
-    Intent,
-    OPEN_EXTENSION,
-    batch_path,
-    parse_intent,
-    write_intent,
+use crate::held_commit_settle_what_stands_in_the_way::readiness;
+use crate::held_commit_settle_what_the_move_owes::{
+    finish,
+    finish_a_moved_branch,
+    index_lock_of,
 };
-use crate::transaction_git::{
-    GitContext,
-    GitRequest,
-    run_git,
-};
+use crate::service_journal::Intent;
+use crate::transaction_git::GitContext;
 use std::path::{
     Path,
     PathBuf,
 };
-use std::time::Instant;
 
 /// What became of one held commit,
 /// and the words the service writes about it:
 /// both live beside the settlement (`held_commit_settle_outcomes.rs`).
 pub use crate::held_commit_settle_outcomes::Settled;
 
-/// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
-const NOT_AN_ANCESTOR: i32 = 1;
+/// Whether a settlement may remove a reference lock that the judgement proves stale,
+/// which every caller names through this file.
+pub use crate::held_commit_settle_what_stands_in_the_way::Clearing;
 
 /// How many times the settlement reads the branch again when another writer moved it.
 const ATTEMPTS: usize = 3;
-
-/// Whether a settlement may remove a reference lock that the judgement proves stale.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Clearing {
-    /// Never remove one:
-    /// the caller is a command resuming work,
-    /// not a landing.
-    Never,
-    /// Clear the ones a proof reaches,
-    /// as the landing that waits for them does.
-    Proved,
-}
-
-/// The Git directories whose reference locks can refuse a batch's branch write:
-/// the common one holds the references,
-/// and a linked worktree keeps its own `HEAD.lock` in its own Git directory.
-fn lock_roots(held: &Held) -> Vec<PathBuf> {
-    let mut roots: Vec<PathBuf> = vec![held.common_dir.clone()];
-    if held.git_dir != held.common_dir {
-        roots.push(held.git_dir.clone());
-    }
-    return roots;
-}
-
-/// The locks of `candidates` that stand now.
-fn standing_locks(candidates: &[crate::stale_ref_lock_walk::Candidate]) -> Vec<PathBuf> {
-    let mut locks: Vec<PathBuf> = Vec::new();
-    for candidate in candidates {
-        if candidate.lock.symlink_metadata().is_ok() {
-            locks.push(candidate.lock.clone());
-        }
-    }
-    return locks;
-}
-
-/// What:
-///  Whether the branch write may be tried now,
-///  and the locks in its way when it may not.
-/// Why:
-///   A live holder lets go within its step,
-///  so a landing waits for one and lands;
-///  a command that merely resumes a held commit does not wait at all,
-///  it looks once and says what stands.
-///  Under `Clearing::Proved` this is the landing's own wait with no time left in it,
-///  which judges every lock in its way once and clears the ones the proof reaches.
-///  Only the locks that can refuse this write are asked for (`locks_that_can_refuse`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const locks = standingLocks(candidates); if (locks.length === 0) return { ready: true }; ... { ready: false, locks }
-/// ```
-fn readiness(
-    held: &Held,
-    clearing: Clearing,
-) -> Result<(), Vec<PathBuf>> {
-    let candidates: Vec<crate::stale_ref_lock_walk::Candidate> =
-        crate::stale_ref_lock_walk::locks_that_can_refuse_a_write(
-            lock_roots(held).as_slice(),
-            held.reference.bytes(),
-            crate::held_commit_settle_move::kept_reference(held.seq).as_bytes(),
-        );
-    if matches!(clearing, Clearing::Proved) {
-        let waiting = crate::service_land_reference_lock::wait_out_the_reference_locks_of(
-            candidates.as_slice(),
-            &crate::stale_ref_locks::Judge::here(),
-            Instant::now(),
-        );
-        if matches!(waiting, crate::service_land_reference_lock::Waiting::Gone) {
-            return Ok(());
-        }
-    }
-    let locks: Vec<PathBuf> = standing_locks(candidates.as_slice());
-    return if locks.is_empty() { Ok(()) } else { Err(locks) };
-}
-
-/// What:
-///  The intent of a held batch,
-///  `Ok(None)` when it is gone,
-///  and the reason when it cannot be read.
-/// Why:
-///   The intent is the batch's own record of where the branch was and where it goes;
-///  without it nothing is decided about the commit,
-///  and a record that cannot be read is said rather than guessed at.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// readIntent(journal, seq) // { intent } | { absent: true } | { damaged: true }
-/// ```
-fn intent_of(held: &Held) -> Result<Option<Intent>, String> {
-    let path: PathBuf = batch_path(held.journal.as_path(), held.seq, OPEN_EXTENSION);
-    let Ok(text) = std::fs::read_to_string(path.as_path()) else {
-        return Ok(None);
-    };
-    return match parse_intent(text.as_str()) {
-        Some(intent) => Ok(Some(intent)),
-        None => Err(format!(
-            "the record of the batch at `{}` cannot be read",
-            path.display()
-        )),
-    };
-}
-
-/// Whether the commit the branch names is the batch's own or lies above it,
-/// so the batch landed and only its index update is owed.
-fn landed_below(
-    git: &GitContext,
-    held: &Held,
-    intent: &Intent,
-    current: &str,
-) -> bool {
-    let request: GitRequest = GitRequest::new(
-        held.repository.as_path(),
-        &["merge-base", "--is-ancestor", intent.new.as_str(), current],
-    );
-    let Ok(output) = run_git(git, &request) else {
-        return false;
-    };
-    if output.succeeded() {
-        return true;
-    }
-    return output.code != Some(NOT_AN_ANCESTOR) && current == intent.new;
-}
-
-/// What:
-///  Takes the index lock the batch's entries are installed under,
-///  and records the index file the settlement itself sees.
-/// Why:
-///   A landing holds Git's index lock from the witness of the index file to the installation of the entries
-///  (`service_land_batch_body.rs`),
-///  so nothing can stage in that window and a replay discards nothing.
-///  A held commit's landing gave that lock up before it waited for the reference lock,
-///  and the person may have run commands since,
-///  so the witness it left describes an older file:
-///  taking the lock again and recording the index the settlement sees restores the landing's own guarantee
-///  instead of leaving the entries to the owed record
-///  (`owed_index_update.rs`),
-///  which a commit after a pathless index would otherwise be refused over.
-///  A lock another program holds is not waited for:
-///  the entries are left to that record and settle at the next command.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lock = tryAcquire(index, seq); if (lock) await writeStart(witnessOf(index)); return lock
-/// ```
-fn index_lock_of(
-    held: &Held,
-    intent: &Intent,
-) -> Option<crate::service_index_lock::IndexLock> {
-    let lock: crate::service_index_lock::IndexLock =
-        crate::service_index_lock::try_acquire(intent.index.as_path(), intent.seq)?;
-    match crate::service_land_start::witness_of(intent.index.as_path()) {
-        Ok(witness) => {
-            if let Err(error) =
-                crate::service_journal::write_start(held.journal.as_path(), intent.seq, &witness)
-            {
-                crate::service_warn!(
-                    "batch {} {}: the index file the settlement saw could not be recorded ({error}); the entries are left to the owed record",
-                    intent.seq,
-                    crate::service_timing::in_the_repository_at(intent.repository.as_path())
-                );
-            }
-        }
-        Err(error) => crate::service_warn!(
-            "batch {} {}: the index file cannot be looked at ({error}); the entries are left to the owed record",
-            intent.seq,
-            crate::service_timing::in_the_repository_at(intent.repository.as_path())
-        ),
-    }
-    return Some(lock);
-}
-
-/// What:
-///  Installs the batch's index entries under a lock the settlement holds,
-///  and answers whether they still wait.
-/// Why:
-///  This is the landing's own step after the branch moved,
-///  with the one difference a held commit forces:
-///  the lock,
-/// and the witness written under it,
-/// are the settlement's,
-///  so the entries are installed whatever another command did to the index while the lock stood.
-///  Nothing is installed for a worktree that left the branch,
-///  whose index describes another branch,
-///  and the conclusion state is removed in every case
-///  (`service_land_finish.rs`,
-/// `finish_after_move`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (stillCheckedOut) await followUp(intent, lock) else { drop(lock); await cleanupDone(intent) }
-/// ```
-fn install_entries(
-    git: &GitContext,
-    held: &Held,
-    intent: &Intent,
-    lock: crate::service_index_lock::IndexLock,
-) -> bool {
-    let own_index: bool = intent.index == intent.git_dir.join("index");
-    let ours: Result<bool, crate::service_protocol::FailureCode> =
-        crate::service_head::still_checked_out(
-            git,
-            intent.repository.as_path(),
-            intent.git_dir.as_path(),
-            intent.common_dir.as_path(),
-            &intent.reference,
-        );
-    let installed: bool = match ours {
-        Ok(false) if own_index => {
-            drop(lock);
-            crate::service_land_follow::cleanup_done(
-                git,
-                intent.repository.as_path(),
-                intent,
-                held.journal.as_path(),
-            )
-        }
-        Err(code) => {
-            drop(lock);
-            crate::service_error!(
-                "batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is",
-                intent.seq,
-                crate::service_timing::in_the_repository_at(intent.repository.as_path())
-            );
-            false
-        }
-        Ok(_) => crate::service_land_finish_after_the_move::follow_up(
-            git,
-            intent.repository.as_path(),
-            intent,
-            lock,
-            held.journal.as_path(),
-        ),
-    };
-    if installed {
-        crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
-        crate::service_journal::remove_start(held.journal.as_path(), intent.seq);
-    }
-    return !installed;
-}
-
-/// What:
-///  Finishes what the batch owes after its branch moved,
-///  and answers whether its index entries still wait.
-/// Why:
-///   The index update,
-/// the conclusion state and the held push are the landing's own steps after a move
-///  (`service_land_finish.rs`),
-///  and they are settled here the way a restart settles them when the settlement could not take the index lock,
-///  so a kill between the move and the index update leaves nothing unsettled for good.
-///  Whether the entries wait is the owed record's own answer:
-///  it goes when they are installed and stays when they are not.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await holdThePushes(intent); if (lock) return installEntries(intent, lock); if (await settle(intent) === 'done') await markDone(seq)
-/// ```
-fn finish(
-    git: &GitContext,
-    held: &Held,
-    intent: &Intent,
-    lock: Option<crate::service_index_lock::IndexLock>,
-) -> bool {
-    crate::service_server_land_group::hold_the_pushes_of(intent);
-    crate::service_index_lock::remove_stale(intent.index.as_path(), intent.seq);
-    let waits: bool = match lock {
-        Some(held_lock) => install_entries(git, held, intent, held_lock),
-        None => {
-            if crate::service_land_finish_replay_gate::settle(git, intent, held.journal.as_path())
-                == crate::service_land_finish_replay_gate::Settled::Done
-            {
-                let _marked = crate::service_journal::mark_done(held.journal.as_path(), intent.seq);
-            }
-            crate::owed_index_update::path_of(held.git_dir.as_path(), held.seq).exists()
-        }
-    };
-    if !waits {
-        let _marked = crate::service_journal::mark_done(held.journal.as_path(), intent.seq);
-    }
-    return waits;
-}
-
-/// What:
-///  Takes a batch whose branch the settlement found already moved,
-///  and removes its record.
-/// Why:
-///   A kill between the branch move and the removal of the record leaves exactly this,
-///  and the index update is what is still owed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// finish(held, { ...intent, new: current }, lock); rm(record)
-/// ```
-fn finish_a_moved_branch(
-    git: &GitContext,
-    held: &Held,
-    intent: &Intent,
-    current: &str,
-    lock: Option<crate::service_index_lock::IndexLock>,
-) -> Settled {
-    let mut moved: Intent = intent.clone();
-    moved.new = current.to_string();
-    let waits: bool = finish(git, held, &moved, lock);
-    forget(held.git_dir.as_path(), held.seq);
-    return if waits {
-        Settled::LandedTheIndexWaits {
-            commit: current.to_string(),
-        }
-    } else {
-        Settled::Landed {
-            commit: current.to_string(),
-        }
-    };
-}
-
-/// What:
-///  Carries the batch onto the branch as it is now,
-///  and answers the intent that names the commit the branch will take with it.
-/// Why:
-///   The replay writes the commits and nothing else;
-///  the branch is moved by the caller,
-///  from the value it read,
-///  so two settlements cannot both move it.
-///  The rewritten intent is on disk before the move,
-///  so a kill between the two leaves an intent that names the commit this release puts on the branch.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const replayed = await carryOnto(held, current); if (replayed.kind !== 'replayed') return replayed; await writeIntent({ ...intent, new: last, commits })
-/// ```
-fn carry(
-    git: &GitContext,
-    held: &Held,
-    intent: &Intent,
-    current: &str,
-) -> Result<(Intent, String), Settled> {
-    if crate::service_protocol::is_zero_object(intent.old.as_str()) {
-        return Err(Settled::Cannot {
-            commit: held.new.clone(),
-            because: String::from(
-                "the branch was created while the lock stood, and the commit was made for a branch that did not exist",
-            ),
-        });
-    }
-    return match onto(git, held, current, held.common_dir.as_path()) {
-        Replay::Replayed {
-            commits,
-        } => {
-            let Some(last) = commits.last().cloned() else {
-                return Err(Settled::Cannot {
-                    commit: held.new.clone(),
-                    because: String::from("the batch names no commit"),
-                });
-            };
-            let mut written: Intent = intent.clone();
-            written.new = last.clone();
-            written.commits = commits;
-            match write_intent(held.journal.as_path(), &written) {
-                Ok(()) => Ok((written, last)),
-                // The commits exist and no reference holds them: the side reference still names the commit the batch made,
-                //  so the line that says what is kept names that one and says what became of the others.
-                Err(error) => Err(Settled::Cannot {
-                    commit: held.new.clone(),
-                    because: format!(
-                        "the record of the batch cannot be written ({error}), so the commit this command made from it onto the branch as it moved is kept by no reference and the next command makes it again"
-                    ),
-                }),
-            }
-        }
-        Replay::Conflict {
-            paths,
-        } => Err(Settled::Conflicts {
-            commit: held.new.clone(),
-            paths,
-        }),
-        Replay::Cannot {
-            because,
-        } => Err(Settled::Cannot {
-            commit: held.new.clone(),
-            because,
-        }),
-    };
-}
-
-/// What:
-///  The record of the batch this held record belongs to once that batch ended,
-///  nothing when no finished record is there.
-/// Why:
-///   A settlement that carries the batch onto a branch that moved writes the commit it made in the batch's own record
-///  before it moves the branch (`carry`),
-///  and the finished record is what names that commit after the branch moved.
-///  A kill between the finished record and the removal of this one leaves this one naming the commit the batch started
-///  with,
-///  so the finished record is the only place the commit that landed is named.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const done = readIntent(batchPath(journal, seq, 'done'))
-/// ```
-fn finished_of(held: &Held) -> Option<Intent> {
-    let path: PathBuf = batch_path(held.journal.as_path(), held.seq, DONE_EXTENSION);
-    let text: String = std::fs::read_to_string(path.as_path()).ok()?;
-    return parse_intent(text.as_str());
-}
 
 /// What:
 ///  What a record whose batch has no intent left stands for.

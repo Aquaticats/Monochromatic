@@ -33,8 +33,8 @@ use crate::{
     },
     layout_folder_links_loops::{
         FolderLoops,
+        distances_to,
         route_from,
-        routes_to,
         shared_loops,
         uses_leading_in,
     },
@@ -168,12 +168,19 @@ pub(crate) fn group_own_loop_uses(
         let Some(index) = reverse.as_ref() else {
             continue;
         };
-        // What: the first step of the shortest route from every entry that reaches this group, to the group.
+        // What: the entries this group's own uses are answered for.
+        // Why: the walk stops once every one of them has its route, so a use that reaches the group directly
+        // costs the uses that reach the group and not the graph behind the entry it uses.
+        let mut asked: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+        for (_, to, _) in uses {
+            asked.insert(entry_of(to, groups));
+        }
+        // What: how many uses lead from every entry the walk had to reach, to this group.
         // Why: one table answers every use below, and it is read only for a group that closes a loop at all.
-        let next_step: BTreeMap<PathBuf, (PathBuf, Proof)> = routes_to(search, index, source);
+        let distance: BTreeMap<PathBuf, usize> = distances_to(index, source, &asked);
         for (from, to, proof) in uses {
             let target_entry: PathBuf = entry_of(to, groups);
-            let Some(route) = route_from(&next_step, &target_entry, source) else {
+            let Some(route) = route_from(search, &distance, &target_entry, source) else {
                 continue;
             };
             // What: the steps the finding's message spells, from the used entry to the group.
