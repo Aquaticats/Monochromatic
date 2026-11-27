@@ -72,10 +72,19 @@
 //!   the folder held open,
 //!   and the lookups and the listing a reader makes through it.
 //! - `clone_slot_walk.rs`:
-//!   the walk that holds the checkout,
-//!   the `.claude/worktrees` folder and one slot,
-//!   the walk that holds the parent folder for an adoption,
-//!   and the second walk that reads the canonical slot.
+//!   the shapes one walk to a slot takes and hands back,
+//!   and whether the walk compares the slot against its record.
+//! - `clone_slot_walk_names.rs`:
+//!   the names a walk's sentences use and the refusal each step answers.
+//! - `clone_slot_walk_to_the_parent.rs`:
+//!   the walk that holds the checkout and the `.claude/worktrees` folder,
+//!   and the adoption's own walk of that folder.
+//! - `clone_slot_walk_to_the_slot.rs`:
+//!   the walk that holds one slot and compares both identities,
+//!   and the first observation of a slot the store holds nothing for.
+//! - `clone_slot_walk_after_the_attach.rs`:
+//!   the mount the held target's name resolves to,
+//!   and the walk repeated at the canonical slot.
 //! - `attach_post_check.rs`:
 //!   whether the mount the attach made is the mount the canonical slot shows.
 //! - `misplaced_attach_rollback.rs`:
@@ -161,9 +170,20 @@ pub mod attach_the_clone;
 /// Why the walk or an identity compare refused.
 pub mod clone_slot_walk_refusals;
 
-/// The walk from the checkout to one slot,
-/// and the walk that reads the canonical slot again.
+/// The shapes one walk to a clone slot takes and hands back.
 pub mod clone_slot_walk;
+
+/// The names a walk's sentences use and the refusal each step answers.
+pub mod clone_slot_walk_names;
+
+/// The walk that holds the checkout and its worktrees folder.
+pub mod clone_slot_walk_to_the_parent;
+
+/// The walk that holds one slot and compares both identities.
+pub mod clone_slot_walk_to_the_slot;
+
+/// The reads at the slot after an attach.
+pub mod clone_slot_walk_after_the_attach;
 
 /// The slot's Git pointer,
 /// read as one bounded regular file and resolved nowhere.
@@ -231,7 +251,7 @@ pub use clone_slot_git_pointer::{
     read_the_slot_git_pointer,
     the_registration_of,
 };
-/// The walks and what they hold.
+/// The shapes one walk takes and hands back.
 pub use clone_slot_walk::{
     FreshSlotLookup,
     HeldCloneSlot,
@@ -239,20 +259,28 @@ pub use clone_slot_walk::{
     HoldCloneSlotRequest,
     LookAgainAtSlotRequest,
     SlotRecord,
-    WORKTREES_PARENT_NAMES,
-    hold_clone_slot,
-    hold_clone_slot_under_root_control,
-    hold_the_worktrees_parent,
+};
+/// The reads at the slot after an attach.
+pub use clone_slot_walk_after_the_attach::{
     look_again_at_the_slot,
     mount_id_at_the_held_target,
-    observe_the_clone_slot,
-    observe_the_clone_slot_under_root_control,
 };
+/// The names a walk's sentences use.
+pub use clone_slot_walk_names::WORKTREES_PARENT_NAMES;
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{
     CloneSlotRefusal,
     WalkRefusal,
     WalkRefusalReason,
+};
+/// The walk that holds the checkout and its worktrees folder.
+pub use clone_slot_walk_to_the_parent::hold_the_worktrees_parent;
+/// The walk that holds one slot.
+pub use clone_slot_walk_to_the_slot::{
+    hold_clone_slot,
+    hold_clone_slot_under_root_control,
+    observe_the_clone_slot,
+    observe_the_clone_slot_under_root_control,
 };
 /// The rollback plan and its report.
 pub use misplaced_attach_rollback::{
