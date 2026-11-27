@@ -54,8 +54,8 @@ use crate::fs_beneath::{
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// Module tag for diagnostics.
-const TAG: &str = "cloneSlotWalk";
+/// Import the tag this module's diagnostics carry.
+use crate::worktree_clone_mount::clone_slot_walk_to_the_parent::TAG;
 
 // What:     the hook a control sets to catch the moment the slot's reading
 //           descriptor is open and the target is not, declared with the shapes

@@ -83,8 +83,8 @@ use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// Import the tag every line of this folder's ladder work carries.
+use crate::worktree::worktree_ladder_finish_binding::TAG;
 
 /// Why a rung ended before it finished,
 /// and whether the object at the stage name is still the snapshot this process made.
