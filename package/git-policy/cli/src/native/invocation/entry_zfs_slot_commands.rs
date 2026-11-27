@@ -198,22 +198,6 @@ struct UnreadGlobal<'a> {
 ///  and the set is the separated spellings `global_arguments::VALUE_OPTIONS`
 ///  holds plus their attached `=` forms.
 ///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesTheRepository = (token) => ['-C', '--git-dir', '--work-tree'].includes(token) || token.startsWith('--git-dir=') || token.startsWith('--work-tree=');
-/// ```
-fn names_the_repository(token: &OsString) -> bool {
-    /// The globals Git reads with their value in the next token.
-    const SEPARATED: &[&[u8]] = &[b"-C", b"--git-dir", b"--work-tree"];
-    /// The same globals spelled with their value in the same token.
-    const ATTACHED: &[&[u8]] = &[b"--git-dir=", b"--work-tree="];
-    let bytes: &[u8] = token.as_encoded_bytes();
-    return SEPARATED.contains(&bytes)
-        || ATTACHED
-            .iter()
-            .any(|prefix| return bytes.starts_with(prefix));
-}
-
 /// What:
 ///  The command one line would run behind a global option this build does not
 ///  read,
@@ -249,7 +233,9 @@ fn unread_global_of(command: &ResolvedCommand) -> Option<UnreadGlobal<'_>> {
     {
         if token.as_encoded_bytes() != b"worktree" {
             // A repository-naming global here names one the reading stopped before, so the wrapper cannot follow it.
-            if repository_named_by.is_none() && names_the_repository(token) {
+            if repository_named_by.is_none()
+                && crate::global_arguments::names_the_place_the_command_acts(token.as_encoded_bytes())
+            {
                 repository_named_by = Some(token);
             }
             continue;
@@ -329,22 +315,32 @@ fn unknown_repository_sentence(
 }
 
 /// What:
-///  The action one refusal of a slot command behind an unread global option ends
-///  in:
-///  its sentence on standard error and the wrapper's refusal status.
+///  The action one refusal of a slot command ends in:
+///  the words printed before it,
+///  then its sentence,
+///  on standard error,
+///  and the wrapper's refusal status.
 /// Why:
+///  A person who turned a policy down to `warn` in order to be told reads what that policy said before any
+///  refusal of this file,
+///  exactly as a removal's refusal prints the policy stage's lines ahead of its own (#6624);
+///  a refusal built from its sentence alone dropped them.
 ///  Both arms are the same shape,
 ///  and a second copy of it could report one arm's status as a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const action = refusalAction(sentence);
+/// const action = refusalAction(sentence, printedSoFar);
 /// ```
-fn refusal_action(sentence: String) -> Action {
+fn refusal_action(
+    sentence: String,
+    printed_so_far: &str,
+) -> Action {
     return Action::Exit {
         code: REFUSAL_STATUS,
         stdout: String::new(),
-        stderr: format!("{sentence}\n"),
+        // What the policy stage printed leads the refusal, in the order a removal prints it.
+        stderr: format!("{printed_so_far}{sentence}\n"),
     };
 }
 
@@ -367,21 +363,21 @@ fn refusal_action(sentence: String) -> Action {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = unreadGlobalRefusalOf(command, commonDir); // undefined leaves the command to Git
+/// const ending = unreadGlobalRefusalOf(command, commonDir, printedSoFar); // undefined leaves the command to Git
 /// ```
 pub fn unread_global_refusal_of(
     command: &ResolvedCommand,
     common_dir: Option<&Path>,
+    printed_so_far: &str,
 ) -> Option<Action> {
     let unread: UnreadGlobal<'_> = unread_global_of(command)?;
     // A repository named after the option the reading stopped at is one the wrapper never read, so no record of it can
     //  prove the command safe, whatever repository this process stands in.
     if let Some(naming) = unread.repository_named_by {
-        return Some(refusal_action(unknown_repository_sentence(
-            unread.option,
-            naming,
-            unread.word,
-        )));
+        return Some(refusal_action(
+            unknown_repository_sentence(unread.option, naming, unread.word),
+            printed_so_far,
+        ));
     }
     let common: &Path = common_dir?;
     // A repository whose record folder holds no record holds no bound slot, so the command costs no refusal and
@@ -389,10 +385,10 @@ pub fn unread_global_refusal_of(
     if !holds_a_record(common) {
         return None;
     }
-    return Some(refusal_action(unread_global_sentence(
-        unread.option,
-        unread.word,
-    )));
+    return Some(refusal_action(
+        unread_global_sentence(unread.option, unread.word),
+        printed_so_far,
+    ));
 }
 
 /// What:
@@ -413,12 +409,13 @@ pub fn unread_global_refusal_of(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = moveRefusalOf(command, commonDir); // undefined leaves the move to Git
+/// const ending = moveRefusalOf(command, commonDir, current, printedSoFar); // undefined leaves the move to Git
 /// ```
 pub fn move_refusal_of(
     command: &ResolvedCommand,
     common_dir: Option<&Path>,
     current: Option<&Path>,
+    printed_so_far: &str,
 ) -> Option<Action> {
     // Every forwarded command asks, so the move word is read before the working directory is.
     if worktree_subcommand(command) != Some(b"move") {
@@ -434,11 +431,7 @@ pub fn move_refusal_of(
         Some(common),
     )?;
     let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common, source.source.as_path())?;
-    return Some(Action::Exit {
-        code: REFUSAL_STATUS,
-        stdout: String::new(),
-        stderr: format!("{}\n", refusal.sentence),
-    });
+    return Some(refusal_action(refusal.sentence, printed_so_far));
 }
 
 /// What:
@@ -494,10 +487,13 @@ pub fn before_a_prune(
         "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, then run the prune again; {}.\n",
         crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     ));
+    // `stderr` holds what the policy stage printed and the lines the guard wrote, so the refusal is appended to them
+    //  rather than built beside them (#6624).
+    stderr.push_str(refusal.as_str());
     return Some(Action::Exit {
         code: REFUSAL_STATUS,
         stdout: String::new(),
-        stderr: refusal,
+        stderr: std::mem::take(stderr),
     });
 }
 
@@ -582,11 +578,148 @@ pub fn the_slot_endings(
     stderr: &mut String,
     current: Option<&Path>,
 ) -> Option<Action> {
-    if let Some(ending) = move_refusal_of(command, Some(common_dir), current) {
+    if let Some(ending) = move_refusal_of(command, Some(common_dir), current, stderr.as_str()) {
         return Some(ending);
     }
     before_a_repair(command, Some(common_dir), stderr, current);
     return before_a_prune(command, Some(common_dir), stderr);
+}
+
+/// What:
+///  The three `git worktree` commands whose pass reads a slot,
+///  each as the words a refusal of it prints.
+/// Why:
+///  A refusal says what did not happen,
+///  and each command has its own verb for that;
+///  one table keeps a sentence from naming the wrong one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ACommandThatReadsASlot = 'remove' | 'move' | 'prune';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ACommandThatReadsASlot {
+    /// `git worktree remove`
+    Remove,
+    /// `git worktree move`
+    Move,
+    /// `git worktree prune`
+    Prune,
+}
+
+impl ACommandThatReadsASlot {
+    /// The command one resolved slot command names,
+    ///  or nothing for every other command.
+    fn of(command: &ResolvedCommand) -> Option<Self> {
+        return match worktree_subcommand(command)? {
+            b"remove" => Some(Self::Remove),
+            b"move" => Some(Self::Move),
+            b"prune" => Some(Self::Prune),
+            _ => None,
+        };
+    }
+
+    /// The word as the command line spells it.
+    fn word(self) -> &'static str {
+        return match self {
+            Self::Remove => "remove",
+            Self::Move => "move",
+            Self::Prune => "prune",
+        };
+    }
+
+    /// What the command would have done,
+    ///  which the refusal says did not happen.
+    fn done(self) -> &'static str {
+        return match self {
+            Self::Remove => "removed",
+            Self::Move => "moved",
+            Self::Prune => "pruned",
+        };
+    }
+}
+
+/// What:
+///  Whether this slot command's own words name a place of their own,
+///  so the repository whose records its pass reads is not the one the caller's options reach.
+/// Why:
+///  A prune reads no operand and no directory,
+///  so only a command that names a place with its own `-C`,
+///  `--git-dir` or `--work-tree` can send its pass to records the wrapper did not read;
+///  the removal and the move read an operand from the directory Git runs them in and cannot be placed at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesItsOwnPlace = (command) => command.args.slice(0, command.subcommandIndex).some(namesThePlace);
+/// ```
+fn names_a_place_of_its_own(command: &ResolvedCommand) -> bool {
+    return command
+        .arguments
+        .get(..command.subcommand_index)
+        .unwrap_or(&[])
+        .iter()
+        .any(|token| {
+            return crate::global_arguments::names_the_place_the_command_acts(
+                token.as_encoded_bytes(),
+            );
+        });
+}
+
+/// What:
+///  The sentence a refusal prints for a slot command the wrapper read and could not place:
+///  the command stands behind a `!` alias, and Git could not be asked where that alias's shell runs.
+/// Why:
+///  The owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`),
+///  and a command whose directory could not be read is one nothing proves:
+///  its operand may name a bound slot in a repository nothing here read.
+///  The sentence names what could not be read and both spellings the wrapper reads,
+///  so a person has a command that runs instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sentence = whereNothingCouldBeRead(command);
+/// ```
+fn the_unread_place_sentence(word: ACommandThatReadsASlot) -> String {
+    return format!(
+        "`git worktree {word}` is refused: the command stands behind a `!` alias, and Git could not be asked where that alias's shell runs, so nothing proves which worktree or repository the command names and nothing proves whether a slot a binding record names is the one it acts on. Nothing was {done} and Git did not run. Run the command again without the alias, or write it as `git -C <repository> worktree {word} ...`, which the wrapper reads in full.",
+        word = word.word(),
+        done = word.done()
+    );
+}
+
+/// What:
+///  The refusal of a slot command the wrapper read and could not place:
+///  its words are the command Git runs, and the directory Git runs that command in could not be read.
+/// Why:
+///  A slot command behind a `!` alias is read from the top of the working tree Git changes to before it starts the
+///  shell
+///  (`git.c:388` to `git.c:407`),
+///  and a Git that cannot be asked for that directory leaves the operand and the records unread.
+///  Forwarding it in silence is what the alpha.50 review's L2 found:
+///  a bound slot's removal went through whenever the ask failed.
+///  The shell alias whose value the wrapper cannot read at all is not this case and stays as it is
+///  (`doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`,
+///  the choice still before the owner).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ending = unplacedRefusalOf(command, printedSoFar); // undefined leaves it to Git
+/// ```
+pub(crate) fn unplaced_refusal_of(
+    command: &ResolvedCommand,
+    printed_so_far: &str,
+) -> Option<Action> {
+    let word: ACommandThatReadsASlot = ACommandThatReadsASlot::of(command)?;
+    // A prune reads no operand, so the caller's own repository is the one its records belong to unless the command
+    //  names a place of its own.
+    if word == ACommandThatReadsASlot::Prune && !names_a_place_of_its_own(command) {
+        return None;
+    }
+    return Some(refusal_action(
+        the_unread_place_sentence(word),
+        printed_so_far,
+    ));
 }
 
 /// Controls stay out of the release executable.

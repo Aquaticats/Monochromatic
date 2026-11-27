@@ -18,7 +18,7 @@
 use crate::action::{
     Action,
     ENGINE_FAILURE_EXIT_CODE,
-    failure,
+    failure_after,
 };
 use crate::forwarded_command::{
     ResolvedCommand,
@@ -136,6 +136,21 @@ pub(crate) fn forward_action(
     let started_in: Option<&Path> = checks.start_directory.path();
     let slot_start: Option<PathBuf> =
         the_directory_a_commands_operands_are_read_from(&context, &command, started_in);
+    // What: A slot command behind a `!` alias whose shell's directory Git could not be asked for is refused.
+    // Why: The operand of a removal or a move is read from the top of the working tree Git changes to before it starts
+    //  the shell (`git.c:388` to `git.c:407`), and a command nothing placed may act on a bound slot in a repository
+    //  nothing here read; forwarding it in silence is the alpha.50 review's L2. The owner's answers of 2026-11-26
+    //  refuse every slot command the wrapper cannot prove safe
+    //  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+    #[cfg(target_os = "linux")]
+    if command.route == Route::ShellAlias
+        && slot_start.is_none()
+        && let Some(read) = slot_command.as_ref()
+        && let Some(ending) =
+            crate::entry_zfs_slot_commands::unplaced_refusal_of(read, stderr.as_str())
+    {
+        return ending;
+    }
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {
@@ -159,7 +174,8 @@ pub(crate) fn forward_action(
     }
     let location: RepositoryLocation = match checks.facts.location() {
         Ok(found) => found,
-        Err(message) => return failure(message.as_str()),
+        // The words the stage printed lead the failure, as they lead every refusal in this file.
+        Err(message) => return failure_after(stderr.as_str(), message.as_str()),
     };
     // The Git common directory this command's repository has: the one its identity names, or, for a command that stands
     // inside a Git directory and so in no worktree of it, the one Git itself named
@@ -170,8 +186,11 @@ pub(crate) fn forward_action(
     };
     #[cfg(target_os = "linux")]
     if let Some(read) = slot_command.as_ref()
-        && let Some(ending) =
-            crate::entry_zfs_slot_commands::unread_global_refusal_of(read, common_dir.as_deref())
+        && let Some(ending) = crate::entry_zfs_slot_commands::unread_global_refusal_of(
+            read,
+            common_dir.as_deref(),
+            stderr.as_str(),
+        )
     {
         return ending;
     }
@@ -244,10 +263,11 @@ pub(crate) fn forward_action(
     if configuration_needed(writes_index)
         && let Err(error) = load_identity_config(&location.identity)
     {
+        // The words the stage printed lead the report, as they lead every refusal in this file.
         return Action::Exit {
             code: ENGINE_FAILURE_EXIT_CODE,
             stdout: String::new(),
-            stderr: config_invalid_event(&error),
+            stderr: format!("{stderr}{}", config_invalid_event(&error)),
         };
     }
     let creates: bool = creates_worktrees(&command);

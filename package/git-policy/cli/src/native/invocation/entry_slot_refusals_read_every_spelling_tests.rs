@@ -1224,6 +1224,7 @@ fn the_move_refusal_reads_the_slot_behind_a_global_option() {
             &move_command(words),
             Some(bound.common.as_path()),
             Some(bound.repository.as_path()),
+            "",
         );
         assert!(
             ending.is_some(),
@@ -2480,6 +2481,10 @@ fn a_moves_refusal_is_reached_below_the_top(
         stderr.contains(CLONE_DATASET),
         "the refusal names the clone the slot's record binds for {rule:?}: {stderr}"
     );
+    assert!(
+        stderr.starts_with(the_root_rules_words(rule, &bound, sub.as_path()).as_str()),
+        "the refusal carries what the root rule printed before it for {rule:?}, as a removal's does: {stderr}"
+    );
     assert!(bound.slot.is_dir(), "{rule:?}: nothing was moved");
     remove(bound.root.as_path());
 }
@@ -2508,6 +2513,57 @@ fn below_the_top_behind_a_shell_alias_a_move_is_refused_behind_the_wrappers_flag
     a_moves_refusal_is_reached_below_the_top(
         "entry-slot-below-top-move-rule-flag",
         PastTheRootRule::Flag,
+    );
+}
+
+/// What:
+///  A bound slot's prune typed below the top behind a shell alias is refused,
+///  and the refusal carries what the root rule printed before it.
+/// Why:
+///  The prune's refusal was built beside the lines the pass had already written,
+///  so a person told by the rule at `warn` read the prune's own report alone;
+///  the pass writes those lines into the same standard error the refusal ends in now
+///  (#6624).
+///  A link stands where the pointer was, so the pass refuses instead of writing it back,
+///  which is the arm that has something to print.
+fn a_prunes_refusal_is_reached_below_the_top(
+    name: &str,
+    rule: PastTheRootRule,
+) {
+    let (bound, sub): (RegisteredSlot, PathBuf) = a_bound_slot_watched_from_below(name, rule);
+    std::fs::remove_file(bound.slot.join(".git")).expect("the pointer goes");
+    std::os::unix::fs::symlink(bound.root.join("elsewhere"), bound.slot.join(".git"))
+        .expect("a link stands where the pointer was");
+    let words: Vec<OsString> = typed_below_the_top(sub.as_path(), rule, &["-c", ALIAS_PRUNES, "prwt"]);
+    let (code, stderr): (i32, String) = stopped(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the prune below the top is refused with {rule:?} letting it past the root rule: {stderr}"
+    );
+    assert!(
+        stderr.starts_with(the_root_rules_words(rule, &bound, sub.as_path()).as_str()),
+        "the refusal carries what the root rule printed before it for {rule:?}: {stderr}"
+    );
+    assert!(
+        stderr.contains("nothing was pruned"),
+        "the refusal is the pass's own report for {rule:?}: {stderr}"
+    );
+    std::fs::remove_file(bound.slot.join(".git")).expect("the planted link goes");
+    remove(bound.root.as_path());
+}
+
+/// A bound slot's prune below the top is refused at warn,
+/// and the rule's finding and its warn-unsafe line print before the refusal.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_prune_is_refused_with_the_root_rule_at_warn() {
+    a_prunes_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-prune-rule-warn",
+        PastTheRootRule::Warn,
     );
 }
 ///  read from the top of the working tree where Git runs the alias's command.
@@ -2633,4 +2689,211 @@ fn a_removal_behind_a_chain_past_the_reading_is_left_to_git() {
     );
     assert!(bound.slot.is_dir(), "the planning removed nothing");
     remove(bound.root.as_path());
+}
+
+/// What:
+///  A bare `!git worktree remove`, `move` and `prune` whose caller's words name another
+///  repository read that repository's records,
+///  not the ones beside the caller.
+/// Why:
+///  The alpha.50 review's M1 argued by the same construction that the slot refusals take the
+///  records from `common_dir` of the caller's location while the operand is read with the nested
+///  `-C`:
+///  a caller in a repository that holds no record could let a bound slot in another repository be
+///  removed,
+///  and a caller beside a record could refuse a worktree no record binds.
+///  The caller's repository holds a plain registered worktree named `one` and no
+///  binding record;
+///  the repository its words name holds the bound slot of that same name.
+///  Before the change the planning read the caller's common directory for every arm,
+///  so the removal was forwarded and the prune restored nothing.
+#[test]
+fn a_slot_command_behind_a_shell_alias_reads_the_records_of_the_repository_its_words_name() {
+    let caller: RegisteredSlot =
+        a_registered_slot("entry-slot-alias-other-repository-caller");
+    let bound: RegisteredSlot =
+        a_bound_slot_for_a_shell_alias("entry-slot-alias-other-repository-bound");
+    let named: String = bound.repository.to_str().expect("utf-8").to_string();
+    let removal: Vec<OsString> = started_in(
+        caller.repository.as_path(),
+        &[
+            "-c",
+            "alias.rmwt=!git",
+            "rmwt",
+            "-C",
+            named.as_str(),
+            "worktree",
+            "remove",
+            "-f",
+            "-f",
+            "one",
+        ],
+    );
+    let facts: CopyFacts = settled_facts(plan_invocation(
+        removal.as_slice(),
+        &[],
+        &inputs(caller.root.as_path()),
+    ));
+    assert_eq!(
+        facts.common_dir.as_deref(),
+        Some(bound.common.as_path()),
+        "the removal reads the records of the repository its words name"
+    );
+    let slot_as_read: PathBuf =
+        std::fs::canonicalize(bound.slot.as_path()).expect("the slot's path reads");
+    assert_eq!(
+        facts.removal_target.as_deref(),
+        Some(slot_as_read.as_path()),
+        "the removal reads the slot of the repository its words name"
+    );
+    let stderr: String = the_refusals_report(run_the_removal(&facts, removal.as_slice()));
+    assert!(
+        stderr.contains("a whole managed clone is bound to this slot"),
+        "the removal of that slot is refused: {stderr}"
+    );
+    // The move reads the same repository's records.
+    let moved: Vec<OsString> = started_in(
+        caller.repository.as_path(),
+        &[
+            "-c",
+            "alias.mvwt=!git",
+            "mvwt",
+            "-C",
+            named.as_str(),
+            "worktree",
+            "move",
+            "one",
+            "../moved",
+        ],
+    );
+    let (code, move_stderr): (i32, String) = stopped(plan_invocation(
+        moved.as_slice(),
+        &[],
+        &inputs(caller.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the move of that slot is refused: {move_stderr}"
+    );
+    assert!(
+        move_stderr.contains("`git worktree move` is refused"),
+        "{move_stderr}"
+    );
+    // The prune's pass restores that repository's pointer, which nothing else would write back.
+    std::fs::remove_file(bound.slot.join(".git")).expect("the pointer goes");
+    let pruned: Vec<OsString> = started_in(
+        caller.repository.as_path(),
+        &[
+            "-c",
+            "alias.prwt=!git",
+            "prwt",
+            "-C",
+            named.as_str(),
+            "worktree",
+            "prune",
+        ],
+    );
+    let action: Action = plan_invocation(
+        pruned.as_slice(),
+        &[],
+        &inputs(caller.root.as_path()),
+    );
+    match action {
+        Action::Forward {
+            stderr: notices,
+            ..
+        } => assert!(
+            notices.contains("restored the pointer"),
+            "the prune's pass wrote that repository's pointer: {notices}"
+        ),
+        other => panic!("the prune is forwarded after its pass: {other:?}"),
+    }
+    assert_eq!(
+        std::fs::read(bound.slot.join(".git")).expect("the pointer the pass wrote back"),
+        bound.pointer,
+        "the pointer of the repository the words name stands again"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    remove(caller.root.as_path());
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A real Git stand-in whose answer to "where does this alias's shell run" never comes,
+///  and which runs the real Git for every other question.
+/// Why:
+///  `alias_run_directory` answers nothing when Git cannot be asked,
+///  and a step that outlasts its bound is one way to reach that state from a control:
+///  the stand-in hangs on that one question,
+///  and the bound the control hands its body makes the wrapper end it and answer nothing.
+///  Every other question, the alias's own configuration read included, reaches the real Git,
+///  so the alias is read and only the directory is missing.
+fn a_git_that_never_answers_where_an_alias_runs(root: &Path) {
+    let shim: PathBuf = root.join("git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \"$*\" in\n  *--is-bare-repository*) ;;\n  *--show-prefix*) exec /usr/bin/sleep 60 ;;\nesac\nexec {REAL_GIT} \"$@\"\n"
+    );
+    executable(shim.as_path(), script.as_bytes());
+}
+
+/// What:
+///  A bound slot's removal behind a `!` alias whose shell's directory Git never answered is
+///  refused,
+///  with words that say what could not be read.
+/// Why:
+///  The alpha.50 review's L2:
+///  `alias_run_directory` answers nothing,
+///  the slot's start is then nothing,
+///  and the removal is forwarded with no refusal read at all,
+///  so a bound slot's registration goes.
+///  The owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`),
+///  and this pick is the coordinating session's reading of them, open to the owner's veto.
+///  The child bound is a fact of the whole process, so this control runs its body in a child whose
+///  environment sets it, and the stand-in's own sleep ends by itself if the wrapper ever fails to.
+#[test]
+fn a_slot_command_the_wrapper_could_not_place_is_refused_at_the_command() {
+    let control: &str = "a_slot_command_the_wrapper_could_not_place_is_refused_at_the_command";
+    crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        control,
+        &[(
+            crate::child_class::CHILD_WAIT_VARIABLE,
+            std::ffi::OsStr::new("4"),
+        )],
+        &[],
+        || {
+            let bound: RegisteredSlot =
+                a_bound_slot_for_a_shell_alias("entry-slot-alias-unplaced-directory");
+            a_git_that_never_answers_where_an_alias_runs(bound.root.as_path());
+            let mut resolution: ResolutionInputs = inputs(bound.root.as_path());
+            // `PATH` holds directories, and the stand-in is the `git` in the fixture's own.
+            resolution.path = bound.root.as_os_str().to_os_string();
+            let words: Vec<OsString> = started_in(
+                bound.repository.as_path(),
+                &["-c", ALIAS_REMOVES, "rmwt", "-f", "-f", "one"],
+            );
+            let (code, stderr): (i32, String) = stopped(plan_invocation(
+                words.as_slice(),
+                &[],
+                &resolution,
+            ));
+            assert_eq!(
+                code,
+                crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+                "a removal nothing could place is refused: {stderr}"
+            );
+            assert!(
+                stderr.contains("could not be asked where that alias's shell runs"),
+                "the refusal says what could not be read: {stderr}"
+            );
+            assert!(
+                stderr.contains("git -C <repository> worktree remove"),
+                "the refusal names the spelling the wrapper reads: {stderr}"
+            );
+            assert!(bound.slot.is_dir(), "nothing was removed");
+            remove(bound.root.as_path());
+        },
+    );
 }

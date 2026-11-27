@@ -346,6 +346,38 @@ pub fn with_leading_notice(
 }
 
 /// What:
+///  Build the stop action for a wrapper failure described in prose,
+///  after the lines a stage printed before it.
+///       `printed_so_far` is the text already owed to standard error;
+///  `&str` borrows the message;
+///  the action owns its formatted copy.
+/// Why:
+///   These failures (no real Git,
+///  a forwarding loop,
+///  an unreadable repository)
+///       print one prefixed,
+///  line-terminated diagnostic on standard error and exit 2,
+///  and the policy stage may have printed a finding before the failure is known:
+///  a person who turned a rule down to `warn` in order to be told reads that line too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function failureAfter(printedSoFar: string, message: string): Action;
+/// ```
+pub fn failure_after(
+    printed_so_far: &str,
+    message: &str,
+) -> Action {
+    return Action::Exit {
+        code: ENGINE_FAILURE_EXIT_CODE,
+        // `String::new()` is empty owned text: nothing goes to standard output.
+        stdout: String::new(),
+        // `format!` builds the owned, line-terminated text.
+        stderr: format!("{printed_so_far}monochromatic-git-policy-cli: {message}\n"),
+    };
+}
+
+/// What:
 ///  Build the stop action for a wrapper failure described in prose.
 ///       `&str` borrows the message;
 ///  the action owns its formatted copy.
@@ -361,11 +393,5 @@ pub fn with_leading_notice(
 /// function failure(message: string): Action;
 /// ```
 pub fn failure(message: &str) -> Action {
-    return Action::Exit {
-        code: ENGINE_FAILURE_EXIT_CODE,
-        // `String::new()` is empty owned text: nothing goes to standard output.
-        stdout: String::new(),
-        // `format!` builds the owned, line-terminated text.
-        stderr: format!("monochromatic-git-policy-cli: {message}\n"),
-    };
+    return failure_after("", message);
 }
