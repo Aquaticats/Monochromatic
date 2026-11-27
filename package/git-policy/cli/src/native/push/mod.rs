@@ -113,6 +113,13 @@
 //!   the record of each decision of the push trigger:
 //!   handed over,
 //!   or declined with its reason.
+//! - `auto_push_trigger_watched_branch.rs`:
+//!   the branch a command started on,
+//!   watched before it runs:
+//!   where it pointed and the tip it held.
+//! - `auto_push_trigger_ahead_of_upstream.rs`:
+//!   the checks that say whether the moved branch grew ahead of its upstream,
+//!   with the walk over the commit parents and the decline a check answers with.
 //! - `auto_push_trigger.rs`:
 //!   the push a merge,
 //!   pull,
@@ -372,6 +379,17 @@ pub mod auto_push_single_flight;
 /// Where a plain `git push` of one named branch goes,
 /// from the configuration and the local refs.
 pub mod auto_push_destination;
+
+/// The branch a command started on,
+/// watched before it runs:
+/// where it pointed and the tip it held.
+#[cfg(unix)]
+pub mod auto_push_trigger_watched_branch;
+
+/// The checks that say whether the moved branch grew ahead of its upstream,
+/// with the walk over the commit parents and the decline a check answers with.
+#[cfg(unix)]
+pub mod auto_push_trigger_ahead_of_upstream;
 
 /// The push a merge,
 /// pull,
