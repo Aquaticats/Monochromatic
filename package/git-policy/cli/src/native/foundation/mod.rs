@@ -139,6 +139,14 @@
 //! - `test_only_switches.rs`:
 //!   the one read of every test-only switch,
 //!   which a build the release ships holds not at all.
+//! - `what_a_built_runtime_is.rs`:
+//!   the runtime a build made,
+//!   how its build came out,
+//!   the time that build took,
+//!   and why a future could not be run on it.
+//! - `the_build_of_the_process_runtime.rs`:
+//!   the process's multi-thread runtime built on a helper thread under a deadline,
+//!   and the runtime a build that missed that deadline keeps.
 //! - `lazy_runtime.rs`:
 //!   the process's one tokio runtime:
 //!   built on the first need,
@@ -158,6 +166,9 @@
 //!   the most blocking jobs this process runs at once,
 //!   one bound for the whole process,
 //!   taken by each job and given back when it ends.
+//! - `what_a_failed_run_says_to_a_person.rs`:
+//!   why a run of independent items on the runtime did not finish every item,
+//!   in the words a person reads for each reason.
 //! - `parallel_runner_on_the_runtime.rs`:
 //!   independent items as blocking jobs of the process's runtime,
 //!   under the process's bound on blocking jobs,
@@ -231,6 +242,10 @@
 //! - `kept_names_in_the_git_directories.rs`:
 //!   every kept name in a repository's Git directories settled to its current spelling,
 //!   and the finder for a reader that moves nothing.
+//! - `a_private_scratch_folder_and_the_stale_entries_a_sweep_removes.rs`:
+//!   what any scratch folder of this wrapper must be,
+//!   how old an entry must be before a preparation removes it,
+//!   and the sweep that removes the stale entries of one folder.
 //! - `scratch_location.rs`:
 //!   where short-lived private files live:
 //!   the per-user scratch directory and the repository scratch directory,
@@ -256,6 +271,12 @@ pub mod publishing_entries_in_one_open_folder;
 /// How one scratch entry is removed within its ceiling,
 /// and which commit scratch trees a later command takes for abandoned.
 pub mod scratch_entry_removal;
+
+/// What any scratch folder of this wrapper must be:
+/// the check that it is this account's private directory,
+/// how old an entry must be before a preparation removes it,
+/// and the sweep that removes the stale entries of one folder.
+pub mod a_private_scratch_folder_and_the_stale_entries_a_sweep_removes;
 
 /// Where short-lived private files live:
 ///  the per-user scratch directory and the repository scratch directory,
@@ -358,6 +379,10 @@ pub mod shared_notice_stream;
 /// Independent items on a bounded number of threads,
 /// reported in input order with no lock.
 pub mod parallel_runner;
+
+/// Why a run of independent items on the runtime did not finish every item,
+/// in the words a person reads for each reason.
+pub mod what_a_failed_run_says_to_a_person;
 
 /// Independent items as blocking jobs of the process's runtime,
 /// under the process's bound on blocking jobs,
@@ -475,6 +500,17 @@ pub mod runtime_limits;
 
 /// How many workers and blocking threads a runtime gets from the budget and the limits.
 pub mod runtime_plan;
+
+/// What a build made of a runtime:
+/// the runtime itself,
+/// how its build came out,
+/// the time that build took,
+/// and why a future could not be run on it.
+pub mod what_a_built_runtime_is;
+
+/// The process's multi-thread runtime built on a helper thread under a deadline,
+/// and the runtime a build that missed that deadline keeps.
+pub mod the_build_of_the_process_runtime;
 
 /// The process's one tokio runtime:
 /// built on the first need,
