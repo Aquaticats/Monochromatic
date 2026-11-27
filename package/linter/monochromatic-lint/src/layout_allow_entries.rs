@@ -280,6 +280,38 @@ fn entry_of(
 }
 
 /// What:
+///  Whether a line sets four words off with exactly one whitespace character each.
+/// Why:
+///  That spelling is the one the rule prints,
+///  and it is the only one that leaves the two names in doubt at neither end:
+///  a run of two whitespace characters is what a name that starts or ends with one leaves behind,
+///  and a name with a space inside makes a fourth run.
+///  Any other line is read from the two sides of its arrow instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function setsWordsOffWithOneWhitespace(text: string): boolean;
+/// ```
+fn sets_words_off_with_one_whitespace(text: &str) -> bool {
+    let mut runs: usize = 0;
+    let mut inside_a_run: bool = false;
+    for letter in text.chars() {
+        if !letter.is_whitespace() {
+            inside_a_run = false;
+            continue;
+        }
+        // What: a second whitespace character beside the one that began this run.
+        // Why: two of them together are a name's own space or a misspelling, and the words alone cannot say which.
+        if inside_a_run {
+            return false;
+        }
+        inside_a_run = true;
+        runs += 1;
+    }
+    return runs == 3;
+}
+
+/// What:
 ///  The two folders one `uses` line names.
 /// Why:
 ///  The shape is four words,
@@ -288,9 +320,9 @@ fn entry_of(
 ///  the arrow the line holds is the one word a name in front of it cannot be mistaken for,
 ///  and the rule prints a key in exactly this shape,
 ///  so what a run prints is what the next run reads.
-///  The four-word shape is read only when the line spells it with one space between each pair of words,
-///  and every other line is read from the two sides of its arrow with no space taken off either side:
-///  a folder name may start with a space,
+///  The four words are read when the line sets them off with one whitespace character each;
+///  every other line is read from the two sides of its arrow with no space taken off either side,
+///  because a folder name may start with a space,
 ///  and the space a line sets its words off with must never be read as part of a name or the other way round.
 ///  A name that holds the arrow itself is refused before any check,
 ///  because the line would not say which folder the one used is.
@@ -304,12 +336,7 @@ fn use_ends(
     text: &str,
 ) -> Result<(&str, &str), String> {
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
-    // What: whether the line spells the four-word shape with one space between each pair of words.
-    // Why: only that spelling leaves the two names in doubt neither at their start nor at their end.
-    let spelled_as_printed: bool = words.len() == 4
-        && words[2] == ARROW
-        && text == format!("{FOLDER_USE_WORD} {} {ARROW} {}", words[1], words[3]).as_str();
-    if spelled_as_printed {
+    if words.len() == 4 && words[2] == ARROW && sets_words_off_with_one_whitespace(text) {
         return Ok((words[1], words[3]));
     }
     // What: the two sides of the arrow, when the line holds exactly one of them.

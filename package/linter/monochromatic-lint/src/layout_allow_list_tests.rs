@@ -154,18 +154,21 @@ fn an_absolute_path_is_an_error_and_a_climbing_one_names_the_folder() {
 
 /// A folder name may hold a space,
 ///  so a `uses` line is read from the two sides of the arrow it holds.
-///  The four-word spelling is read only when the line sets its words off with one space each,
+///  The four words are read when the line sets them off with one whitespace character each,
 ///  and every other line is read from its arrow with no space taken off either side.
 #[test]
 fn a_use_line_reads_the_two_sides_of_its_arrow() {
     let list: AllowList = parsed(
         "uses src/a b -> src/g/c0\n\
          uses src/x -> src/a b\n\
-         uses src/c\u{a0}d -> src/x\n",
+         uses src/c\u{a0}d -> src/x\n\
+         uses\tsrc/x\t->\tsrc/g/c1\n",
     );
     assert!(list.covers_use(Path::new("src/a b"), Path::new("src/g/c0")));
     assert!(list.covers_use(Path::new("src/x"), Path::new("src/a b")));
     assert!(list.covers_use(Path::new("src/c\u{a0}d"), Path::new("src/x")));
+    // The control: a line written with tabs is still the four words it spells.
+    assert!(list.covers_use(Path::new("src/x"), Path::new("src/g/c1")));
     // What: two folders whose names start with a space, which the rule prints one space after `uses` and after the arrow.
     // Why: reading that one space away as if it were part of the word would name the folder beside each of them.
     let spelled: AllowList = parsed("uses  a -> src/b\nuses src/x ->  a\n");
