@@ -41,10 +41,11 @@ not the test,
 is the holder the refusal names.
 
 Measured on 2026-11-27,
-three probes (`keep/` holds each one and the lines it printed):
+three probes the folder beside this record holds
+(`doc/troubleshooting/measurements-of-etxtbsy-in-a-test-that-starts-a-program-it-wrote/`):
 
-- Arms of one program,
-  each writing a program and then starting it (`probe-etxtbsy-arms.c`):
+- Three arms over one program,
+  each writing a program and then starting it (`probe-three-arms.c`):
 
   ```text
   arm 1 (a forked child that starts nothing holds it): start answered: Text file busy (errno 26)
@@ -57,7 +58,7 @@ three probes (`keep/` holds each one and the lines it printed):
   Arm 1 is the shape the tests meet:
   the parent only forked,
   and the child held the descriptor.
-- A threaded program (`probe-etxtbsy-across-threads.c`) whose main thread opens a program for writing
+- A threaded program (`probe-two-threads.c`) whose main thread opens a program for writing
   while a second thread starts `/bin/true` through the same `posix_spawn` a Rust `Command` uses,
   and whose next child starts the program just after the close:
 
@@ -118,12 +119,16 @@ so no descriptor of the test process ever refers to that program:
   because the four shadow crates keep that file byte-identical.
 
 The measurement that shows each change is a preloaded library
-(`keep/a-planted-window-on-close-for-a-written-program.c`) that plants the holder the real failure needs:
+(`planted-holder-and-window-shim.c`,
+beside this record) that plants the holder the real failure needs:
 when a threaded process is about to close a descriptor open for writing on a file that starts with `#!` or
 the ELF magic,
 it forks a child that holds everything it inherits for 300 ms and then leaves.
 The test process holds no such descriptor after the change,
 so nothing is planted and the same runs pass.
+It is built with `gcc -shared -fPIC -O2 -o libetxtbsy_window.so planted-holder-and-window-shim.c -ldl`
+and read by the test binary through `LD_PRELOAD`,
+`ETXTBSY_SHIM_HOLD_US=300000` and `ETXTBSY_SHIM_PREFIX=<the build directory of the crate>`.
 Each binary was run once with default threads before and once after,
 on the same build profile and the same machine:
 
@@ -172,7 +177,8 @@ none of these fixtures depends on sharing a process with the test.
 
 - The mechanism:
   the three probes above,
-  run on this host.
+  each run on this host,
+  and their printed lines quoted here.
 - The exposure of each test:
   the planted-holder run of each test binary,
   before and after.
