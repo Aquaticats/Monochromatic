@@ -341,13 +341,22 @@ pub(crate) fn route_for_this_worktree(
     invocation: &CommitInvocation<'_>,
     timing: &mut CommitTiming,
 ) -> Result<(Bind, Option<ProvisionHost>), TransactionStop> {
-    // The environment read here is the invocation's own, on the same terms as `route_from_environment` reads it: `main`
-    //  hands the entry `std::env::vars_os()` and nothing changes the wrapper's own environment, so the home this commit was
-    //  started with is the home its service route is chosen from.
-    let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
+    // What:     the runtime directory and the bus address, read in the one place this crate reads them.
+    // Why:      a release reads this session's own two facts, and a build made for tests reads only what the
+    //           control that started its body handed in, so a test process reaches this account's manager only
+    //           when a control said it may (issue 6586). Nothing in the crate changes the wrapper's own
+    //           environment, so the home this commit was started with is the home its route is chosen from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); const bus = session.busAddress();
+    // ```
+    let runtime: Option<PathBuf> =
+        crate::session_runtime_directory_and_bus_address::runtime_directory();
     let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
-    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    let bus_address: Option<String> =
+        crate::session_runtime_directory_and_bus_address::bus_address();
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
     let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else {
         return Err(repository_not_found(invocation));
