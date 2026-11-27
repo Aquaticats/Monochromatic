@@ -14,8 +14,8 @@
 //! stderr.write(aDeferredSaveFinding(reference, lock, sideRef, heldFor));
 //! ```
 
-use crate::merge_isolation_carry_apply::CarryFailure;
 use crate::merge_isolation_carry_parts::Capture;
+use crate::merge_isolation_carry_write_failures::CarryFailure;
 use std::path::Path;
 use std::time::Duration;
 

@@ -2,8 +2,9 @@
 //!  The durable intent record of an isolated merge:
 //! the commit it created,
 //! the branch value it expects,
-//! and the
-//!  process that runs it.
+//! the
+//!  process that runs it,
+//! and whether that process still runs.
 //! Why:
 //!  Between the moment Git starts updating the worktree and the index for the merge commit and the moment the branch
 //!  moves,
@@ -52,6 +53,11 @@ use crate::recovery_error::{
     io_failure,
 };
 use crate::transaction_owner::TransactionOwner;
+use crate::transaction_owner::classify_transaction_owner_record;
+use crate::transaction_owner::{
+    OwnerLiveness,
+    OwnerLivenessError,
+};
 /// Record writers and readers.
 use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -469,3 +475,41 @@ pub fn list_merge_intents(git_dir: &Path) -> Result<Vec<PathBuf>, RecoveryError>
 #[cfg(test)]
 #[path = "merge_isolation_journal_tests.rs"]
 mod tests;
+
+/// What:
+///  Whether the record's owner still runs,
+/// treating a probe the account may not make as alive.
+/// Why:
+///   Recovery must never touch a merge that may be live.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return await classifyTransactionOwnerRecord(owner, path); } catch (e) { if (e.code === 'EPERM') return 'alive'; throw e; }
+/// ```
+pub(crate) fn owner_liveness(
+    intent: &MergeIntent,
+    record: &Path,
+) -> Result<OwnerLiveness, RecoveryError> {
+    match classify_transaction_owner_record(&intent.owner, record) {
+        Ok(found) => return Ok(found),
+        Err(OwnerLivenessError::Probe(error)) if error.raw_os_error() == Some(libc::EPERM) => {
+            return Ok(OwnerLiveness::Alive);
+        }
+        Err(OwnerLivenessError::Probe(error)) => {
+            return Err(RecoveryError(format!(
+                "probing the owner {} of the merge record {} failed: {error}",
+                intent.owner.owner_pid,
+                record.display()
+            )));
+        }
+        // Owner, 2026-11-04, "Refuse and name it (Recommended)": the command stops, and nothing has been changed.
+        Err(OwnerLivenessError::ForeignRecordRefused(text)) => return Err(RecoveryError(text)),
+        Err(OwnerLivenessError::Identity(error)) => {
+            return Err(RecoveryError(format!(
+                "reading the identity of the owner {} of the merge record {} failed: {error}",
+                intent.owner.owner_pid,
+                record.display()
+            )));
+        }
+    }
+}
