@@ -340,7 +340,8 @@ fn the_scope_still_reads_the_commit_path_it_is_about() {
          than it says:\n{}",
         unread.join("\n")
     );
-    let unanchored: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
+    let unanchored: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
         unanchored.is_empty(),
         "the scope reached no file holding what this ban is about:\n{}",
@@ -357,7 +358,8 @@ fn the_scope_still_reads_the_commit_path_it_is_about() {
 fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
     for token in FORBIDDEN_IN_COMMIT_PATH {
         let planted_code: String = format!("fn planted() {{\n    let _ = {token};\n}}\n");
-        let sources: Vec<(String, String)> = vec![(String::from("commit/planted.rs"), planted_code)];
+        let sources: Vec<(String, String)> =
+            vec![(String::from("commit/planted.rs"), planted_code)];
         let holding = lines_holding_one_of(sources.as_slice(), FORBIDDEN_IN_COMMIT_PATH);
         assert!(
             lines_no_entry_excuses(holding.as_slice(), MAY_HOLD)
@@ -366,7 +368,8 @@ fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
             "{token} in code"
         );
         let planted_comment: String = format!("// {token} is explained here\nfn fine() {{}}\n");
-        let commented: Vec<(String, String)> = vec![(String::from("commit/planted.rs"), planted_comment)];
+        let commented: Vec<(String, String)> =
+            vec![(String::from("commit/planted.rs"), planted_comment)];
         assert!(
             lines_holding_one_of(commented.as_slice(), FORBIDDEN_IN_COMMIT_PATH).is_empty(),
             "{token} in a comment"
@@ -374,7 +377,9 @@ fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
     }
     let planted_link: Vec<(String, String)> = vec![(
         String::from("commit/planted.rs"),
-        String::from("fn makes() -> bool {\n    return std::os::unix::fs::symlink(from, to).is_ok();\n}\n"),
+        String::from(
+            "fn makes() -> bool {\n    return std::os::unix::fs::symlink(from, to).is_ok();\n}\n",
+        ),
     )];
     let holding = lines_holding_one_of(planted_link.as_slice(), FORBIDDEN_IN_COMMIT_PATH);
     assert_eq!(
@@ -384,7 +389,9 @@ fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
     );
     let reads_a_type: Vec<(String, String)> = vec![(
         String::from("commit/planted.rs"),
-        String::from("fn asked(kind: std::fs::FileType) -> bool {\n    return kind.is_symlink();\n}\n"),
+        String::from(
+            "fn asked(kind: std::fs::FileType) -> bool {\n    return kind.is_symlink();\n}\n",
+        ),
     )];
     assert!(
         lines_holding_one_of(reads_a_type.as_slice(), FORBIDDEN_IN_COMMIT_PATH).is_empty(),
