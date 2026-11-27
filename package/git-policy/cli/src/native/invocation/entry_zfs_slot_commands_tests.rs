@@ -4,6 +4,7 @@
 //! and the repair report,
 //! each read from one command line.
 
+use super::the_unread_place::unplaced_refusal_of;
 use super::*;
 use crate::forwarded_command::Route;
 use crate::test_support::{

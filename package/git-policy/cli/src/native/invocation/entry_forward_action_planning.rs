@@ -146,8 +146,10 @@ pub(crate) fn forward_action(
     if command.route == Route::ShellAlias
         && slot_start.is_none()
         && let Some(read) = slot_command.as_ref()
-        && let Some(ending) =
-            crate::entry_zfs_slot_commands::unplaced_refusal_of(read, stderr.as_str())
+        && let Some(ending) = crate::entry_zfs_slot_commands::the_unread_place::unplaced_refusal_of(
+            read,
+            stderr.as_str(),
+        )
     {
         return ending;
     }
