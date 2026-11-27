@@ -201,8 +201,14 @@ fn only_the_shown_name_differs(
         "a line feed inside the name starts no line of the sentence: {hostile:?}"
     );
     assert_eq!(
-        hostile.chars().filter(|character| return character.is_control()).count(),
-        plain.chars().filter(|character| return character.is_control()).count(),
+        hostile
+            .chars()
+            .filter(|character| return character.is_control())
+            .count(),
+        plain
+            .chars()
+            .filter(|character| return character.is_control())
+            .count(),
         "the only control characters are the sentence's own line ends: {hostile:?}"
     );
     assert!(
@@ -222,7 +228,8 @@ fn only_the_shown_name_differs(
 /// or reorder or erase what a person reads.
 #[test]
 fn a_name_in_the_protected_set_sentence_cannot_rewrite_its_line() {
-    let plain: String = caller_holds_in_its_working_directory(A_SLOT, A_PID, A_PLAIN_NAME, A_SESSION);
+    let plain: String =
+        caller_holds_in_its_working_directory(A_SLOT, A_PID, A_PLAIN_NAME, A_SESSION);
     let hostile: String = caller_holds_in_its_working_directory(
         A_SLOT,
         A_PID,
