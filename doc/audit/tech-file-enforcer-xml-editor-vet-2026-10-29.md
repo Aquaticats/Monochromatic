@@ -63,6 +63,9 @@ and no candidate is a hard-gate-confirmed finalist.
    `/var/home/user/temp/agent/technology-vet-locks/var-home-user-Monochromatic-doc-audit-tech-file-enforcer-xml-editor-vet-2026-10-29.md.lock`
    (a directory holding `owner.json`) was created with create-new semantics at 23:44:51Z and is released at halt.
   The next agent re-acquires it before editing this file.
+   (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 ## Context (measured, not asked)
 
@@ -1029,6 +1032,9 @@ whether to add a strict-JSON emit mode to
   holds a sibling TOML vet lock owned by
   another session,
   which must be left alone).
+   (scratch,
+  deleted on 2026-11-27;
+  not kept).
 - No clones,
   no probe crates,
   no containers left running.
