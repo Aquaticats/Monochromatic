@@ -505,7 +505,8 @@ while the same file alone passes:
 Two causes,
 measured on 2026-11-26 while resolving issue 6504,
 a third while resolving issue 6506,
-and a fourth while resolving issue 6508.
+a fourth while resolving issue 6508,
+and a fifth while resolving issue 6631.
 
 ### Cause 1: a `/proc` read of a process that ended between the listing and the read
 
@@ -718,6 +719,73 @@ makes this control fail deterministically in 113 ms,
 at the assertion after `resumeSilence`:
 `AssertionError: expected true to equal false`.
 
+### Cause 5: a bound counted in polls, and the work a look does between two of them
+
+`watchUntilEnded` waits `POLL_MILLISECONDS` at the top of every look
+and then does the look's own work:
+reading the limits,
+the inbox,
+the feed,
+delivering a message,
+and waiting for Pi's answer to it.
+A control that sizes its deadline as `n * POLL_MILLISECONDS` counts the waits
+and leaves that work out,
+so the last look it needs must arrive before the clock with no room at all.
+
+The watch control
+"delivers an inbox message a turn Pi started after the read can take"
+did that with two looks and three polls,
+and a whole run of the package's unit suite on 2026-11-27
+ended it at the wall clock on both attempts (issue 6631).
+One whole run of that suite with the case's steps timed inside it on the same day
+measured where its 900 ms went:
+
+```text
+  2 ms  the deadline is taken, 900 ms ahead
+315 ms  look 1 starts: its own 300 ms wait, then the folder read
+415 ms  the message goes to Pi, after 100 ms of the look's own work
+416 ms  the turn Pi opened has replied and settled
+424 ms  the delivery is noted on the feed
+725 ms  look 2 starts, asks what work runs, and ends the run idle
+```
+
+The case needs 600 ms of waiting and 125 ms of its own steps,
+and leaves 177 ms of a 902 ms deadline for a host that is slower than this one.
+A delivery of the same case a whole poll slower
+(`connectionWhosePiAnswersAPollLate` in `watch-pi-run.unit.test.ts`)
+ended it `wall-clock` at 904 ms against that 902 ms deadline,
+on the control as it stood before the fix,
+which is the issue's failure without waiting for luck.
+
+What a control does instead:
+it gives its watch the looks it needs,
+each with its own wait and the longest work a look may take.
+That work is `COMMAND_ANSWER_MILLISECONDS`,
+because every send inside a look is given it,
+or what the run has left.
+So `patienceOf({ looks })` in `watch-pi-run.unit.test.ts` is
+`looks * (POLL_MILLISECONDS + COMMAND_ANSWER_MILLISECONDS)`,
+and it is the bound of every control in that file which asserts an event:
+an idle end,
+a failure the run ends on,
+or a prompt Pi refused.
+A watch that never reaches its event is still reported,
+by the case's own bound,
+rather than hung.
+
+The looks each control needs were counted in one run of the file,
+with a stand-in record counting its `turnCount` calls,
+which is one call per look that reaches the work.
+
+The controls that assert the wall clock keep their bounds,
+because the clock is their subject:
+their last look only has to arrive after it,
+and their first look has 300 ms or more of room.
+Measured in the same run of that file,
+`bounds a stalled delivery by what the run has left`
+takes its one look at 315 ms of a 600 ms bound,
+and `takes what Pi answered off the inbox and goes on watching` likewise.
+
 ### Verification
 
 Each control fails in a full run of the package's unit suite when its cause is present,
@@ -745,3 +813,13 @@ so the cause above rests on the measured read rather than on the run that report
 The clock control needs only its own file:
 `mise run //package/pi-shared/subagent-driver:test:unit -- src/wait-for-an-answer.unit.test.ts`,
 which passes all six controls in it.
+
+The fifth cause's control needs only its own file too:
+`mise run //package/pi-shared/subagent-driver:test:unit -- src/watch-pi-run.unit.test.ts`,
+whose whole file passes with it.
+Its failure is shown without the suite's load:
+the control beside the watch control,
+`ends idle when the delivery the watch makes takes a whole poll longer`,
+answers one poll late,
+and it ended `wall-clock` in the run quoted above while the file gave it
+the poll-count bound the file had before the change.
