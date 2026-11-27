@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T15:22:26-05:00
+## The state at 2026-11-27T15:29:33-05:00
 
-`main` was `bc24b2e688`.
+`main` was `cda9f0c7b3`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 256 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 257 more by this time.
 
 ### Rounds running
 
@@ -435,12 +435,26 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   Its Claude Sonnet read returned at 2026-11-27T14:35:51-05:00
   (`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`;
   "What `mpm-shadow`'s alpha.15 read found"),
-  and three rounds started from it at 2026-11-27T14:54:37-05:00,
-  each named `mpm-shadow-alpha-15-release-pass-` and then:
-  `a-recovery-moves-current-before-it-removes-the-older-version`,
+  and rounds started from it at 2026-11-27T14:54:37-05:00,
+  each named `mpm-shadow-alpha-15-release-pass-` and then its subject.
+  Two still run:
   `a-hidden-name-nobody-can-judge-is-named-with-what-it-holds`
   and `a-publish-raced-between-its-two-renames-and-four-unheld-edits`;
   `0.2.7-alpha.16` follows their merges.
+  Each has to take in the merged round's README sentences when it merges,
+  and the package's whole suite runs on each merged tree.
+  The round on the recovery's order is merged (`cda9f0c7b3`):
+  a recovery points `current` at the newest finished version before it removes an older one,
+  and removes nothing when the link cannot be moved;
+  one control starts the tool between the two steps and another kills the run there,
+  and both failed on the earlier order and again with the steps swapped back.
+  The sentence after a removal says of each version whether this run recovered it or it was installed before;
+  the warning of a recovery that failed ends with what the run then did;
+  and the README says when such a run ends 0.
+  The warning's wording for a lock that is satisfied already has no test:
+  the round could not build that state,
+  and worded it to promise nothing about the copy.
+  The suite passed 871 of 871 on the merged tree against 866 of 866 on `main`'s code.
   The two rounds that changed one module are joined (`d3f0628c0b`),
   with both rounds' rules kept,
   and the package's suite passed 866 of 866 on the joined tree against 857 of 857 on `main`.
