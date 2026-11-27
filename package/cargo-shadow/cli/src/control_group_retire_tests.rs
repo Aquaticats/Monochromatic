@@ -1139,4 +1139,27 @@ fn the_question_keeps_the_bound_it_promises() {
         reason.contains(&format!("did not answer within {RETIRE_BOUND:?}")),
         "the warning does not name the bound the question was given: {reason}"
     );
+    // What:     `retire_unit` on a program that is not there answers the runner's other kind of failure, and the program's
+    //           name stands once in it: in the command text alone.
+    // Why:      The timeout is one constructor's shape; a fix that handled only that one would leave the next naming the
+    //           program twice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const missingReason = retireUnit('/nonexistent/systemctl', unit, bound)
+    // assert(countOf(missingReason, '/nonexistent/systemctl') === 1)
+    // ```
+    let missing: String = directory
+        .path()
+        .join("no-such-systemctl")
+        .display()
+        .to_string();
+    let missing_reason: String =
+        retire_unit(&missing, "cargo-shadow-test-missing.scope", RETIRE_BOUND)
+            .expect_err("a question that cannot be started is a warning");
+    assert_eq!(
+        missing_reason.matches(&missing).count(),
+        1,
+        "the warning names the program in the command and again in the reason: {missing_reason}"
+    );
 }

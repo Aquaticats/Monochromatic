@@ -936,12 +936,18 @@ The look is answered from the kernel and it is what keeps the ordinary run free 
   and a re-execution or reload drops the watches,
   reads `cgroup.events` once when it catches up (`manager_catchup` at `src/core/manager.c:1905`,
   called at `src/core/manager.c:2128`,
+  which calls `unit_catchup` at `src/core/unit.c:3850` to `3857`,
   reading through `unit_cgroup_catchup` at `src/core/cgroup.c:4020` to `4033`),
-  and adds the watch back only when the unit is realized again
+  and adds the watch back only when the unit is realized again,
+  from a queue the event loop dispatches after that read (`src/core/manager.c:3667`),
+  through `unit_realize_cgroup_now` and `unit_update_cgroup` at `src/core/cgroup.c:2594`
+  and `(void) unit_watch_cgroup(u)` at `src/core/cgroup.c:2161`
   (`unit_invalidate_cgroup` at `src/core/cgroup.c:3981` to `3999`,
-  from `src/core/unit-serialize.c:367` to `380`,
-  through `unit_realize_cgroup_now` and `unit_update_cgroup` at `src/core/cgroup.c:2594`),
-  so a scope that empties in that gap is never queued.
+  queued from `src/core/unit-serialize.c:367` to `380`).
+  So a scope whose catch-up read saw it populated,
+  and that empties before its watch is added again,
+  changes its `populated` line with no event queued for it,
+  and this path never ends that unit.
   None of the three has been reproduced here,
   and what the step buys is the ordinary case,
   never a promise that the manager always ends an empty scope.

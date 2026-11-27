@@ -836,7 +836,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   the stop ends only when the kernel says `populated 0` or the absence of the scope is verified,
   and every failure on
   this path after the program started is "not quiescent".
-  Once the stop of the containment has shown the scope empty or gone,
+  After the stop of the containment,
+  whatever that stop answered,
+  a refusal included,
   the run makes one last look at the unit it started
   (`src/control_group_retire.rs`),
   on every path that ends a run,
@@ -872,13 +874,19 @@ and an HTTP 429 is retried after its `Retry-After`.
   and a re-execution or reload drops the watches,
   reads `cgroup.events` once when it catches up (`manager_catchup` at `src/core/manager.c:1905`,
   called at `src/core/manager.c:2128`,
+  which calls `unit_catchup` at `src/core/unit.c:3850` to `3857`,
   reading through `unit_cgroup_catchup` at `src/core/cgroup.c:4020` to `4033`),
-  and adds the watch back only when the unit is realized again
+  and adds the watch back only when the unit is realized again,
+  from a queue the event loop dispatches after that read (`src/core/manager.c:3667`),
+  through `unit_realize_cgroup_now` and `unit_update_cgroup` at `src/core/cgroup.c:2594`
+  and `(void) unit_watch_cgroup(u)` at `src/core/cgroup.c:2161`
   (`unit_invalidate_cgroup` at `src/core/cgroup.c:3981` to `3999`,
-  from `src/core/unit-serialize.c:367` to `380`,
-  through `unit_realize_cgroup_now` and `unit_update_cgroup` at `src/core/cgroup.c:2594`).
-  A scope that empties in that gap is never queued,
-  so what this step buys is the ordinary case,
+  queued from `src/core/unit-serialize.c:367` to `380`).
+  So a scope whose catch-up read saw it populated,
+  and that empties before its watch is added again,
+  changes its `populated` line with no event queued for it,
+  and this path never ends that unit:
+  what this step buys is the ordinary case,
   never a promise that the manager always ends an empty scope.
   Only a group that never held a process is the leftover this step exists for,
   and only that run asks the manager,

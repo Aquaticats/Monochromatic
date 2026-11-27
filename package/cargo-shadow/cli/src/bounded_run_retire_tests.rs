@@ -117,16 +117,21 @@ use crate::bounded_run::{
     use_route_settings_for_test,
 };
 /// What:
-/// `use crate::cgroup_test_support::wait_up_to;` imports the bounded wait of the scope controls.
+/// `use crate::cgroup_test_support::{this_test_needs_a_delegated_scope, wait_up_to};` imports the bounded wait of the scope
+/// controls and the line that says a control cannot run where this host has no manager.
 /// Why:
 /// The unit is collected by the manager's next pass,
-/// which this control waits for instead of sleeping.
+/// which these controls wait for instead of sleeping,
+/// and a host without a manager must report them as not run rather than as failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { waitUpTo } from 'crate/cgroup_test_support';
+/// import { thisTestNeedsADelegatedScope, waitUpTo } from 'crate/cgroup_test_support';
 /// ```
-use crate::cgroup_test_support::wait_up_to;
+use crate::cgroup_test_support::{
+    this_test_needs_a_delegated_scope,
+    wait_up_to,
+};
 /// What:
 /// `use crate::control_group::RouteSettings;` imports the settings that make the run ask the recording program instead of
 /// `systemctl`.
@@ -139,17 +144,22 @@ use crate::cgroup_test_support::wait_up_to;
 /// ```
 use crate::control_group::RouteSettings;
 /// What:
-/// `use crate::control_group::retire::retire_unit;` imports the one request that frees a unit,
+/// `use crate::control_group::retire::{RETIRE_BOUND, retire_unit};` imports the bound a question keeps and the one request
+/// that frees a unit,
 /// for the warning helper's own clean-up.
 /// Why:
 /// The helper's stand-in cannot free the unit it refused,
-/// and a failed assertion in the parent must not leave it loaded.
+/// a failed assertion in the parent must not leave it loaded,
+/// and the control reads the same bound the step does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { retireUnit } from 'crate/control_group/retire';
+/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group/retire';
 /// ```
-use crate::control_group::retire::retire_unit;
+use crate::control_group::retire::{
+    RETIRE_BOUND,
+    retire_unit,
+};
 /// What:
 /// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
 /// Why:
@@ -315,6 +325,16 @@ fn run_recording(
     limit: Duration,
     stuck_scope: bool,
 ) -> Observed {
+    // What:     `this_test_needs_a_delegated_scope()` fails with the suite's own "not run" line where this host cannot give a
+    //           run a scope.
+    // Why:      Every control that comes through here reads a unit, so none of them may fail for the host's lack of a
+    //           manager: the task's degraded run has to learn this control's name, not count a failure.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // thisTestNeedsADelegatedScope()
+    // ```
+    this_test_needs_a_delegated_scope();
     let (program, log) = recording_systemctl(directory);
     let settings: RouteSettings = RouteSettings {
         systemctl: program.display().to_string(),
@@ -603,11 +623,17 @@ fn retire_warning_fixture() {
     // const unit = launchedScope(takeTrace())
     // ```
     let unit: String = launched_scope(&take_trace_for_test());
-    let _ = retire_unit(
-        "systemctl",
-        &unit,
-        crate::control_group::retire::RETIRE_BOUND,
-    );
+    // What:     `println!("unit {unit}")` puts the unit's name on the helper's standard output, where the control that started it
+    //           reads it.
+    // Why:      The control then checks that the unit is gone and stops it itself when it is not, so a helper that failed after
+    //           making a scope cannot leave a unit behind unnoticed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // console.log(`unit ${unit}`)
+    // ```
+    println!("unit {unit}");
+    let _ = retire_unit("systemctl", &unit, RETIRE_BOUND);
     assert!(
         result.is_err() || scenario == "refused",
         "the member run was not refused, so its member would have been killed by the stop: {result:?}"
@@ -623,6 +649,7 @@ fn retire_warning_fixture() {
 /// so a change that removed the printing and kept the answer would fail here and pass there.
 #[test]
 fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() {
+    this_test_needs_a_delegated_scope();
     let directory = scratch();
     let scenarios: [(&str, &str, &str); 2] = [
         (
@@ -650,6 +677,32 @@ fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() 
             output.status.success(),
             "{scenario}: the helper failed: {stderr}"
         );
+        // What:     the helper's own line names the unit it made; the control reads it, stops it if the helper left it, and only
+        //           then judges the words.
+        // Why:      A helper that failed after making a scope would otherwise leave a unit and its member behind for the rest of
+        //           the machine's uptime.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const unit = stdout.split('\n').find((line) => line.startsWith('unit ')).slice(5)
+        // if (loadState(unit) !== 'not-found') { retireUnit('systemctl', unit); panic(...) }
+        // ```
+        let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
+        let unit: String = stdout
+            .lines()
+            .find_map(|line| {
+                return line.strip_prefix("unit ").map(str::to_string);
+            })
+            .unwrap_or_else(|| {
+                panic!("{scenario}: the helper printed no unit: {stdout}");
+            });
+        if load_state(&unit) != "not-found" {
+            let _ = retire_unit("systemctl", &unit, RETIRE_BOUND);
+            panic!(
+                "{scenario}: the helper left {unit} loaded as {}",
+                load_state(&unit)
+            );
+        }
         let printed: Vec<&str> = stderr
             .lines()
             .filter(|line| {

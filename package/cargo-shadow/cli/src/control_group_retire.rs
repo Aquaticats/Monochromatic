@@ -67,9 +67,22 @@ use crate::control_group::{
 /// ```
 use crate::control_group_route_child_runs::run_asking;
 /// What:
+/// `use std::fs;` imports the standard library's file-system module so this file can name it unqualified.
+/// Why:
+/// The peak read's failure needs one more look at the group's directory,
+/// and `fs::metadata` is the only read that tells a
+/// directory that is there from one that is gone or unreadable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { statSync } from 'node:fs';
+/// ```
+use std::fs;
+/// What:
 /// `use std::io;` imports the standard library's input/output module so this file can name it unqualified.
 /// Why:
-/// The two reads of the scope answer an `io::Error`,
+/// The two reads of the scope,
+/// the peak read and the directory check answer an `io::Error`,
 /// and the absence of the scope is one of those errors.
 ///
 /// In TS you'd write (pseudocode):
@@ -275,17 +288,22 @@ fn group_gone_at_the_peak(
     if !is_the_group_being_gone(error) {
         return None;
     }
-    // What:     `if group.directory().is_dir()` is the check that tells a file that is not there from a directory that is not:
-    //           the same `ENOENT` comes from both.
+    // What:     `fs::metadata(group.directory())` is the check that tells a file that is not there from a directory that is
+    //           not, and its error is read as an absence only when `is_the_group_being_gone` says the group is gone.
     // Why:      A directory that is there without `pids.peak` is a kernel that has no such file (before Linux 6.1), or a group
     //           whose parent does not enable the pids controller, and only the manager can be asked about that.
+    //           A directory that cannot be read for another reason is not a directory that went away either: `Path::is_dir`
+    //           answers `false` for every failure, so it would read `EACCES` and `EIO` as an absence.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // if (group.directory.isDirectory()) return undefined
+    // try { statSync(group.directory) } catch (error) { if (!isTheGroupBeingGone(error)) return undefined }
+    // if (existsSync(group.directory)) return undefined
     // ```
-    if group.directory().is_dir() {
-        return None;
+    // `gone_error` is the directory check's own failure, kept apart from the peak read's `error` it answers about.
+    match fs::metadata(group.directory()) {
+        Err(gone_error) if is_the_group_being_gone(&gone_error) => {}
+        _ => return None,
     }
     // What:     `Some(collected_or_unproven(group))` is the answer the absent `populated` read gets.
     // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen.
