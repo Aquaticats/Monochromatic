@@ -18,6 +18,59 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: three proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
+
+Three rounds each wrote a proposal on 2026-11-27 and changed no code.
+Each document gives what happens today with the source lines,
+what was measured,
+the options with what a person would see,
+a ranking,
+and the questions it leaves to you.
+They wait here and are not put in a dialog while rounds run,
+because a dialog holds the session and no round merges until it is answered
+(`doc/planning/pi-round-start-failures-and-what-would-stop-them.md`).
+
+### The 60 s bound on the Git calls `cargo-shadow` makes before a command (issue 6555)
+
+`doc/planning/cargo-shadow-bound-on-the-git-calls-before-a-command.md`.
+The round measured the same call at 80 ms to 130.6 s on this repository under load.
+Its ranking is D > A > C > B > E > F > G:
+D caches the base and its lockfiles per commit and so removes 39 of the 40 Git starts it counted;
+A judges the calls by the progress meter the wrapper already uses instead of a wall clock.
+Its questions:
+may a Git call before a command take minutes on a loaded host as long as it is working;
+if a wall clock stays,
+what number and from which measurement;
+and whether the wrapper's "no sign of work for its quiet window" rule is the project's answer here too.
+
+### An ignored-state copy owed to a worktree that is gone (issue 6557)
+
+`doc/planning/cli-git-owed-ignored-state-copy-of-a-removed-worktree.md`.
+Its ranking is 1 > 2 > 5 > 3 > 4,
+and option 1 is that the worktree's absence settles the claim and the source settles the stage,
+so the wrapper removes the stage folder itself.
+It counted 20 stage folders under `.claude/worktrees/`,
+42,628 MiB by `du` at 2026-11-27T03:56:10-05:00,
+most of them left by the starts of that morning whose `git worktree add` was killed at its bound (issue 6563).
+Its questions are under "What only the owner can answer" in the document.
+Until this is answered the folders stay:
+the wrapper says to remove them by hand once nothing needs them,
+and the coordinator has not removed any.
+
+### A push the server refuses with GH009 (issue 6559)
+
+`doc/planning/cli-git-push-refused-by-the-server-with-gh009.md`.
+Its ranking is B > E > C > A > D:
+B gives the refusal the bounded retry GH006 already gets (five tries over two and a half minutes),
+E is one more try after the first pause.
+Its questions:
+whether a `GH009` refusal gets a bound and which;
+whether one rule should cover both shapes of the refusal,
+the readable `GH009` and the unreadable `(failed)` decline;
+whether the record should name GitHub's documented remedy above the server's words;
+and whether a client-side upload check is wanted at all,
+since no refused push of this boot referenced an LFS object.
+
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 
 The session's `git` (`.cache/monochromatic-git-policy-cli-bin/git`) is the wrapper built from `ee0cf2268b` on 2026-11-22,
@@ -30,34 +83,50 @@ so every `git worktree remove` warns and keeps one.
 `0.6.1-alpha.47` was released from `68af165851` after a whole gate on `main` at `196b8d0c87` failed nothing
 (11991 of 11991 passed);
 its x86_64 archive is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`
-with sha256 `aac27ad2eebceda5d03ed0f080b4951cd7271555725700ab851b47f99ace24f7`, the digest GitHub lists for the release asset,
-and its sweep, run by absolute path, removed the 201 journals the old build had kept.
+with sha256 `aac27ad2eebceda5d03ed0f080b4951cd7271555725700ab851b47f99ace24f7`,
+the digest GitHub lists for the release asset,
+and its sweep,
+run by absolute path,
+removed the 201 journals the old build had kept.
 Its Sonnet release passes are running.
 
 ### Option B: point the link at alpha.47 by its exact path
 
-Add alpha.47's path to `local/git` (`rix`) and `local/gh` (`px -> git`) beside the old lines, reload,
-prove `gh` reaching `git` through a scratch link first, then repoint the link and keep the old build for a rollback.
-Pros: the session runs what the gate passed, and removals stop leaving journals.
-Cons: each later release needs the same rule change and review.
+Add alpha.47's path to `local/git` (`rix`) and `local/gh` (`px -> git`) beside the old lines,
+reload,
+prove `gh` reaching `git` through a scratch link first,
+then repoint the link and keep the old build for a rollback.
+Pros:
+the session runs what the gate passed,
+and removals stop leaving journals.
+Cons:
+each later release needs the same rule change and review.
 
 ### Option A: keep the reviewed build
 
-Pros: no rule change.
-Cons: the session runs code three days behind `main`, and alpha.47's sweep must be run by hand after each batch.
+Pros:
+no rule change.
+Cons:
+the session runs code three days behind `main`,
+and alpha.47's sweep must be run by hand after each batch.
 
 ### Option C: bump the wrapper's lock row and let `toolchain:install` own the link
 
-Pros: one mechanism for every tool.
-Cons: the link then points at `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
-which the `gh` rule does not name, the failure recorded in
+Pros:
+one mechanism for every tool.
+Cons:
+the link then points at `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
+which the `gh` rule does not name,
+the failure recorded in
 `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md` ("The wrapper link a toolchain install repoints"),
 and every later install moves it again.
 
-Ranking: B > A > C.
+Ranking:
+B > A > C.
 B over A because the session then runs the gated code and stops leaving a journal per removed worktree,
 for one reviewed rule change per release;
-A over C because C ties the grant to a launcher any toolchain install rewrites, which is the recorded `gh` failure.
+A over C because C ties the grant to a launcher any toolchain install rewrites,
+which is the recorded `gh` failure.
 
 ## Open: should local lists of names become slices too? Recorded 2026-11-26T06:41-05:00
 
@@ -86,7 +155,8 @@ the round each point holds is named beside it.
 - The test helpers,
   where the libraries live,
   and plural folder names:
-  the document records both the answer "Not yet." of 2026-11-07 and an answer of 2026-11-15
+  the document records both the answer "Not yet."
+  of 2026-11-07 and an answer of 2026-11-15
   (a separate test-folders library,
   `package/<job>/core-rust`,
   plural names kept with an exemption),
@@ -108,7 +178,8 @@ the round each point holds is named beside it.
 - Which file owns the clone-and-settle copy path once `copy_file_exclusive` leaves `worktree_copying/worktree_copy_stage_leaf_copying.rs`:
   the plan sends it to `saving_private_files` (`foundation/private_storage.rs` today),
   but its body reads `worktree_copying`'s file stamps and `subvolume`'s clone,
-  and `private_storage` may use neither without new allow-list lines, which the list may not gain.
+  and `private_storage` may use neither without new allow-list lines,
+  which the list may not gain.
   Split round 1 (2026-11-26T09:10-05:00) stopped that one move and recorded the point under step 2
   of `doc/planning/cli-git-source-layout-target-tree.md`.
   Holds the rest of step 2.
@@ -875,7 +946,8 @@ Plan step 18's managed-lock line in `doctor` is built and unwired
 `src/native/health/doctor_zfs_route/managed_lock_checks.rs`),
 and it prints the sentences step 13 already wrote (`worktree_clone_managed_lock/lock_state_words.rs`).
 The round that built it kept two of the design's mappings rather than deciding them in `doctor`,
-and they wait here until step 18 is wired, since no command prints the line before then.
+and they wait here until step 18 is wired,
+since no command prints the line before then.
 
 ### A lock whose own read was refused
 
@@ -1338,10 +1410,17 @@ and `def79174b0` left `package-paused/` and `package-deprecated/` out on purpose
 "a pause means no work",
 and the repository already excludes the deprecated folder from every repo-wide pass.
 Eight manifests there still carry the pre-transfer URL
-(`git grep --files-with-matches 'github.com/Aquaticat/Monochromatic' -- '*package.json'`, measured 2026-11-26):
+(`git grep --files-with-matches 'github.com/Aquaticat/Monochromatic' -- '*package.json'`,
+measured 2026-11-26):
 `package-deprecated/mcp/nvim`,
-and under `package-paused/`: `dev-script/inference-canary-viewer`, `dev-script/inference-canary`, `module/es`,
-`pi-plugin/morph-compact`, `stylesheet/monochromatic`, `web-demo/glass`, `webapp-edu/paper2vn`.
+and under `package-paused/`:
+`dev-script/inference-canary-viewer`,
+`dev-script/inference-canary`,
+`module/es`,
+`pi-plugin/morph-compact`,
+`stylesheet/monochromatic`,
+`web-demo/glass`,
+`webapp-edu/paper2vn`.
 So the issue's own acceptance search does not come back empty.
 The alpha.2 release pass raised it as a scope question (Low 7).
 
