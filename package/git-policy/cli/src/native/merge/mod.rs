@@ -226,6 +226,20 @@
 //!   finishing a merge from its record:
 //!   the install and the branch move,
 //!   with the checks it needs.
+//! - `merge_isolation_recovery_a_merge_the_branch_already_names.rs`:
+//!   the settle of a merge the branch already names:
+//!   the person's own work in its paths is merged with it,
+//!   and the record goes only once every byte of theirs is back.
+//! - `merge_isolation_recovery_the_evidence_of_an_install.rs`:
+//!   what this worktree already holds of a merge,
+//!   read once before anything can refuse,
+//!   and whether it says the merge began.
+//! - `merge_isolation_recovery_a_checkout_for_another_branch.rs`:
+//!   what a recovery does when this worktree has another branch checked out:
+//!   a merge nothing installed is discarded,
+//!   and one with something in this checkout is refused.
+//! - `merge_isolation_recovery_a_branch_that_moved.rs`:
+//!   what a recovery does when the branch is not at the commit the merge was computed on.
 //! - `merge_isolation_recovery.rs`:
 //!   recovery of an isolated merge whose process died.
 //! - `merge_isolation_report.rs`:
@@ -532,6 +546,24 @@ pub mod merge_isolation_recovery_install;
 /// the install and the branch move,
 /// with the checks it needs.
 pub mod merge_isolation_recovery_complete;
+
+/// The settle of a merge the branch already names:
+/// the person's own work in its paths is merged with it,
+/// and the record goes only once every byte of theirs is back.
+pub mod merge_isolation_recovery_a_merge_the_branch_already_names;
+
+/// What this worktree already holds of a merge,
+/// read once before anything can refuse,
+/// and whether it says the merge began.
+pub mod merge_isolation_recovery_the_evidence_of_an_install;
+
+/// What a recovery does when this worktree has another branch checked out:
+/// a merge nothing installed is discarded,
+/// and one with something in this checkout is refused.
+pub mod merge_isolation_recovery_a_checkout_for_another_branch;
+
+/// What a recovery does when the branch is not at the commit the merge was computed on.
+pub mod merge_isolation_recovery_a_branch_that_moved;
 
 /// What the recovery of a merge reads to decide whose checkout this is and whether it began.
 pub mod merge_isolation_recovery_reads;
