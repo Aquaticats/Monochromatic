@@ -1210,6 +1210,19 @@ const A_CEILING_A_STEP_OUTLASTS: std::time::Duration = std::time::Duration::from
 /// Longer than the bound and far under the five minutes the shipped bound allows.
 const A_STALL_BOUND: std::time::Duration = std::time::Duration::from_millis(1_200);
 
+/// How many times the bound the step is ended at the control holds its end past that bound.
+///  More than once, so the wait that owns the step is still waiting when the control lets the kernel's release go,
+///  and a command that stopped waiting earlier answers before the control did.
+const A_HOLD_OUTLASTS_THE_BOUND_BY: u32 = 2;
+
+/// How many of one look's pauses the command may take to answer once the control let the step's end go.
+///  A pause of the wait after a stop is one `AFTER_THE_STOP`,
+///  and the notice's own end waits two half-second bounds,
+///  so the answer is owed in a few of these;
+///  thirty of them is a window a host that wakes this test's own thread late spends,
+///  and the release's promise of an answer stays untouched.
+const A_LOOKS_THE_ANSWER_MAY_TAKE: u32 = 30;
+
 /// How long a control waits for a stand-in signer to name itself in the file it writes.
 const A_SIGNER_STARTS: std::time::Duration = std::time::Duration::from_secs(20);
 
@@ -1347,12 +1360,6 @@ fn the_number_in(
     return the_signer_and_the_step_in(file, bound).signer;
 }
 
-/// How long a control holds a step's end past the bound it is ended at,
-/// planted because a gate run met a disk wait that held a real step for thirty seconds on 2026-11-27.
-///  It is longer than the twenty seconds this control allows the command,
-///  so a hold the kernel gives and a hold a control plants fail it the same way.
-const A_HOLD_A_DISK_WAIT_GIVES: std::time::Duration = std::time::Duration::from_secs(22);
-
 /// What:
 ///  A commit whose scratch step outlasts its ceiling while the kernel holds the program below it lands,
 ///  and the branch it prepared holds exactly one commit.
@@ -1436,7 +1443,8 @@ fn a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit()
 
 /// What:
 ///  A commit whose scratch step the kernel never releases is ended at the bound it is waited for,
-///  and the words say the step was already waited for before it was stopped.
+///  answers only once the kernel lets it go,
+///  and says the step was already waited for before it was stopped.
 /// Why:
 ///   A step nothing will release still ends the command,
 ///  never the other way round;
@@ -1449,10 +1457,16 @@ fn a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit()
 ///  Without the second the step acts on the stop at once,
 ///  the wait after that stop returns before its first look,
 ///  and the control passes on a wait it never made.
+///  The control lets that end go at twice the bound,
+///  and what it times after that is the command's answer and never the kernel's release:
+///  the release waits for the kernel with no bound (`SPEC.md`,
+///  the owner's 2026-11-10 answer,
+///  "Keep waiting and say so"),
+///  so no window of a control's can bound the wait the kernel's own call makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // const began = now(); const outcome = runNativeCommitWithin({ ceiling: 300 }); expect(began.elapsed() >= 1_200).toBe(true); expect(outcome.message).toContain('held it in a disk wait')
+/// // const began = now(); holdTheReap(); const outcome = runNativeCommitWithin({ ceiling: 300 }); expect(began.elapsed() >= 2_400).toBe(true); expect(outcome.message).toContain('held it in a disk wait')
 /// ```
 #[cfg(unix)]
 #[test]
@@ -1489,8 +1503,9 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
     //       so this is the other half of what such a hold gives the wait,
     //       and it is held before the step starts so no wait of the command can meet it unheld.
     crate::wait_after_the_stop_saying_the_kernel_holds_it::the_controls_window::hold_the_reap();
-    let letting_go = std::thread::spawn(|| {
-        std::thread::sleep(A_HOLD_A_DISK_WAIT_GIVES);
+    let let_go_at: std::time::Duration = A_STALL_BOUND * A_HOLD_OUTLASTS_THE_BOUND_BY;
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(let_go_at);
         crate::wait_after_the_stop_saying_the_kernel_holds_it::the_controls_window::let_the_reap_go(
         );
     });
@@ -1515,12 +1530,15 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
         panic!("a step the kernel never released was not turned into a stop: {outcome:?}");
     };
     assert!(
-        lasted >= A_STALL_BOUND,
-        "the step was ended at its ceiling instead of the bound it is waited for: {lasted:?}"
+        lasted >= let_go_at,
+        "the command answered at {lasted:?}, before the kernel's release of the step was let go at {let_go_at:?}: the step was ended at its ceiling and no wait for the kernel was made"
     );
     assert!(
-        lasted < std::time::Duration::from_secs(20),
-        "the bound did not end the step: {lasted:?}"
+        lasted
+            < let_go_at
+                + crate::wait_after_the_stop_saying_the_kernel_holds_it::AFTER_THE_STOP
+                    * A_LOOKS_THE_ANSWER_MAY_TAKE,
+        "the kernel's release of the step was let go at {let_go_at:?} and the command answered only at {lasted:?}: nothing the kernel holds keeps it"
     );
     assert!(
         said.contains("was stopped after") && said.contains("nothing was committed"),
