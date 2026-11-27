@@ -16,6 +16,7 @@
 
 import { Buffer, } from 'node:buffer';
 import {
+  type ChildProcess,
   spawn,
   type SpawnOptions,
 } from 'node:child_process';
@@ -170,49 +171,29 @@ type CommandResult = {
 };
 
 /**
- Child surface {@link runCommand} reads and stops. A child node spawns with the
- runner's own stdio satisfies it.
- */
-export type FixtureToolProcess = NodeJS.EventEmitter & {
-  /**
-   Standard output pipe, null when the runner did not ask for one.
-   */
-  readonly stdout: Readable | null;
-
-  /**
-   Standard error pipe, null when the runner did not ask for one.
-   */
-  readonly stderr: Readable | null;
-
-  /**
-   Process id of the direct child, which is also the id of its process group.
-   */
-  readonly pid?: number | undefined;
-
-  /**
-   Status the child exited with, or null while it has not exited normally.
-   */
-  readonly exitCode: number | null;
-
-  /**
-   Signal that ended the child, or null when it did not end by a signal.
-   */
-  readonly signalCode: NodeJS.Signals | null;
-
-  /**
-   Releases the child so it no longer keeps the runner's process alive.
-   */
-  unref: () => void;
-};
-
-/**
- Starts one tool child. Node's `spawn` by default.
+ Starts one tool child with both output pipes. Node's `spawn` by default.
  */
 export type SpawnFixtureTool = (
   command: string,
   args: readonly string[],
   options: SpawnOptions,
-) => FixtureToolProcess;
+) => ChildProcess;
+
+/**
+ Signals one process group. Node's `process.kill` through
+ {@link signalProcessGroup} by default.
+
+ @param processGroupId - group id to signal, which is the negative of its leader's pid
+
+ @param signal - signal to send
+ */
+export type SignalProcessGroup = ({
+  processGroupId,
+  signal,
+}: {
+  readonly processGroupId: number;
+  readonly signal: NodeJS.Signals;
+},) => void;
 
 /**
  Options for {@link runCommand}.
@@ -246,10 +227,11 @@ export type RunCommandOptions = {
   readonly spawnTool?: SpawnFixtureTool;
 
   /**
-   Test seam: signals one process group. Defaults to `process.kill`. A test passes
-   its own signaler to assert the stop or to show the report when signalling fails.
+   Test seam: signals one process group. Defaults to `signalProcessGroup`, which
+   calls `process.kill`. A test passes its own signaler to assert the stop or to
+   show the report when signalling fails.
    */
-  readonly signalGroup?: (processGroupId: number, signal: NodeJS.Signals,) => void;
+  readonly signalGroup?: SignalProcessGroup;
 };
 
 /**
@@ -265,6 +247,26 @@ export class FixtureCommandError extends Error {
 //endregion Types
 
 //region Command execution
+
+/**
+ Signals one process group through the operating system's own kill.
+
+ @param processGroupId - group id to signal, which is the negative of its leader's pid
+
+ @param signal - signal to send
+ */
+function signalProcessGroup({
+  processGroupId,
+  signal,
+}: {
+  readonly processGroupId: number;
+  readonly signal: NodeJS.Signals;
+},): void {
+  process.kill(
+    processGroupId,
+    signal,
+  );
+}
 
 /**
  Runs one real tool and captures its whole standard output.
@@ -315,7 +317,7 @@ export async function runCommand({
   extraEnv,
   timeoutMilliseconds = FIXTURE_COMMAND_TIMEOUT_MS,
   spawnTool = spawn,
-  signalGroup = process.kill,
+  signalGroup = signalProcessGroup,
 }: RunCommandOptions,): Promise<CommandResult> {
   /**
    Tool and argument boundaries as passed to spawn, not a shell command.
@@ -429,7 +431,7 @@ export async function runCommand({
 
    @throws {@link FixtureCommandError} when Node rejects the launch before starting the tool
    */
-  function startTool(): FixtureToolProcess {
+  function startTool(): ChildProcess {
     try {
       return spawnTool(
         command,
@@ -504,17 +506,22 @@ export async function runCommand({
 
    @param processGroupId - process id of the direct child, which is its group id
 
-   @returns a sentence naming the problem when the group could not be signalled,
-   or undefined when it was signalled or had already ended
+   @param reported - failure already established, which a stop problem is reported after
+
+   @throws {@link FixtureCommandError} when the group could not be signalled, unless it had already ended
    */
   function stopToolGroup({
     processGroupId,
+    reported,
   }: {
     readonly processGroupId: number;
-  },): string | undefined {
+    readonly reported: FixtureCommandError;
+  },): void {
     try {
-      signalGroup(-processGroupId, KILL_SIGNAL,);
-      return undefined;
+      signalGroup({
+        processGroupId: -processGroupId,
+        signal: KILL_SIGNAL,
+      },);
     }
     catch (error) {
       /**
@@ -522,10 +529,13 @@ export async function runCommand({
        */
       if (Error.isError(error,) && ('code' in error)
         && (error.code === GROUP_ALREADY_GONE_CODE)) {
-        return undefined;
+        return;
       }
-      return `Could not stop the tool's process group ${String(-processGroupId,)}: ${caughtValueText(error,)}. `
-        + 'Check whether the tool or a helper it left is still running.';
+      throw new FixtureCommandError(
+        `${reported.message}\nCould not stop the tool's process group ${String(-processGroupId,)}: `
+          + `${caughtValueText(error,)}. Check whether the tool or a helper it left is still running.`,
+        { cause: reported, },
+      );
     }
   }
 
@@ -599,12 +609,10 @@ export async function runCommand({
     stderr?.destroy();
     if (child.pid !== undefined) {
       child.unref();
-      /**
-       Problem found while stopping the tool's process group, if any.
-       */
-      const stopProblem = stopToolGroup({ processGroupId: child.pid, },);
-      if (stopProblem !== undefined)
-        throw new FixtureCommandError(`${reported.message}\n${stopProblem}`, { cause: reported, },);
+      stopToolGroup({
+        processGroupId: child.pid,
+        reported,
+      },);
     }
     throw reported;
   }

@@ -15,14 +15,14 @@
 
  The deadline's own guards are here too: the runner destroys both pipes,
  signals the tool's whole process group so a helper it left is stopped with it,
- and reports what it could not stop. A stand-in child class below drives the
- failure paths no real tool produces on demand, such as a failed pipe read.
+ and reports what it could not stop. A stand-in child below drives the failure
+ paths no real tool produces on demand, such as a failed pipe read.
 
  @module
  */
 
 import { Buffer, } from 'node:buffer';
-import { EventEmitter, } from 'node:events';
+import type { ChildProcess, } from 'node:child_process';
 import { existsSync, } from 'node:fs';
 import {
   chmod,
@@ -38,13 +38,13 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { FixtureToolProcess, } from './fixture.ts';
 import {
   createTempRoot,
   FIXTURE_COMMAND_TIMEOUT_MS,
   FixtureCommandError,
   MAX_FIXTURE_COMMAND_STDERR_BYTES,
   runCommand,
+  type SignalProcessGroup,
 } from './fixture.ts';
 
 //region Constants
@@ -223,49 +223,71 @@ async function commandFailureMessage(options: Parameters<typeof runCommand>[0],)
 }
 
 /**
- A child no real tool can produce on demand: its pipes never close by
- themselves, so a failure the runner cleans up after can be raised here.
+ A stand-in child and the two pipes the test can fail.
  */
-class StandInChild extends EventEmitter implements FixtureToolProcess {
+type StandInTool = {
+  /**
+   Child the runner is made to start instead of a tool.
+   */
+  readonly child: ChildProcess;
+
   /**
    Standard output pipe the test can fail.
    */
-  readonly stdout = new PassThrough();
+  readonly stdout: PassThrough;
 
   /**
    Standard error pipe the test can fail.
    */
-  readonly stderr = new PassThrough();
+  readonly stderr: PassThrough;
+};
 
-  /**
-   Process id, which is also the child's group id when the runner stops the group.
-   */
-  readonly pid: number | undefined;
+/**
+ Builds a child no real tool produces on demand: its pipes never close by
+ themselves, so a failure the runner cleans up after can be raised here.
 
-  /**
-   Status of a normal end; a stand-in never reports one.
-   */
-  exitCode: number | null = null;
+ The events the runner waits for come from an `EventTarget`, which is why the
+ runner's child surface is only what `once` and the two pipes need.
 
-  /**
-   Signal that ended the child; a stand-in never reports one.
-   */
-  signalCode: NodeJS.Signals | null = null;
+ @param pid - group id the child reports, absent when the runner must not try to stop it
 
+ @returns the stand-in child and its pipes
+ */
+function standInChild({ pid }: { readonly pid?: number; } = {},): StandInTool {
   /**
-   @param pid - group id the child reports, absent when the runner must not try to stop it
+   Events the runner waits for on this child.
    */
-  constructor({ pid }: { readonly pid?: number | undefined; } = {},) {
-    super();
-    this.pid = pid;
-  }
-
+  const events = new EventTarget();
   /**
-   Releases the stand-in, which holds nothing the runner's process waits on.
+   Standard output pipe the test can fail.
    */
-  unref(): void {
-    // A stand-in has no operating-system handle to release.
-  }
+  const stdout = new PassThrough();
+  /**
+   Standard error pipe the test can fail.
+   */
+  const stderr = new PassThrough();
+  /**
+   Child surface: the pipes, the exit state a stand-in never reaches, and the
+   event methods a real child inherits from `EventEmitter` or `EventTarget`.
+   */
+  const child = Object.freeze({
+    addEventListener: events.addEventListener.bind(events,),
+    dispatchEvent: events.dispatchEvent.bind(events,),
+    exitCode: null,
+    pid,
+    removeEventListener: events.removeEventListener.bind(events,),
+    signalCode: null,
+    stderr,
+    stdout,
+    unref: function unref(): void {
+      // A stand-in has no operating-system handle to release.
+    },
+  },) as unknown as ChildProcess;
+  return {
+    child,
+    stderr,
+    stdout,
+  };
 }
 
 /**
@@ -275,7 +297,7 @@ class StandInChild extends EventEmitter implements FixtureToolProcess {
  failure raised here reaches them instead of the stream's unhandled-error path.
 
  @param pipe - pipe whose read fails
- @param signalGroup - signaler the runner is given, `process.kill` when absent
+ @param signalGroup - signaler the runner is given, the operating system's kill when absent
 
  @returns the rejection message and the child the runner used
  */
@@ -284,27 +306,27 @@ async function standInChildFailure({
   signalGroup,
 }: {
   readonly pipe: 'standard output' | 'standard error';
-  readonly signalGroup?: (processGroupId: number, signal: NodeJS.Signals,) => void;
-},): Promise<{ readonly child: StandInChild; readonly message: string; }> {
+  readonly signalGroup?: SignalProcessGroup;
+},): Promise<{ readonly message: string; readonly standIn: StandInTool; }> {
   /**
-   Child the runner is made to start instead of a tool.
+   The stand-in child and its pipes.
    */
-  const child = new StandInChild({ pid: STAND_IN_GROUP_ID, },);
+  const standIn = standInChild({ pid: STAND_IN_GROUP_ID, },);
   /**
    The runner's pending call, which the pipe failure below rejects.
    */
   const pending = runCommand({
     args: [],
     command: STAND_IN_TOOL_NAME,
-    spawnTool: function startStandInChild(): FixtureToolProcess {
-      return child;
+    spawnTool: function startStandInChild(): ChildProcess {
+      return standIn.child;
     },
     ...(signalGroup === undefined ? {} : { signalGroup, }),
   },);
   /**
    The pipe the test fails, named so the runner reports which read broke.
    */
-  const stream = pipe === 'standard output' ? child.stdout : child.stderr;
+  const stream = pipe === 'standard output' ? standIn.stdout : standIn.stderr;
   stream.emit('error', new Error(STAND_IN_PIPE_FAILURE,),);
   try {
     await pending;
@@ -313,8 +335,8 @@ async function standInChildFailure({
     if (!(error instanceof FixtureCommandError))
       throw error;
     return {
-      child,
       message: error.message,
+      standIn,
     };
   }
   throw new Error('expected the fixture runner to reject a failed pipe read',);
@@ -331,7 +353,9 @@ await describe({
         // would look complete.
         expect(JSON.parse(WHOLE_STORE,),).toEqual(STAND_IN_VALUES,);
         expect(`${STORE_HEAD}${STORE_TAIL}`,).toBe(WHOLE_STORE,);
-        expect(() => JSON.parse(STORE_HEAD,),).toThrow();
+        expect(function parseHead(): void {
+          JSON.parse(STORE_HEAD,);
+        },).toThrow();
       },
       name: 'splits its stand-in store inside the value, not between tokens',
     },),
@@ -534,16 +558,16 @@ await describe({
         expect(existsSync(helperMarker,),).toBe(false,);
       },
       name: 'stops the tool and the helper it left when the deadline passes',
-      timeout: 4 * TEST_DEADLINE_MS + SURVIVAL_CHECK_DELAY_MS,
+      timeout: (4 * TEST_DEADLINE_MS) + SURVIVAL_CHECK_DELAY_MS,
     },),
     it({
       fn: async () => {
-        const { child, message, } = await standInChildFailure({ pipe: 'standard output', },);
+        const { message, standIn, } = await standInChildFailure({ pipe: 'standard output', },);
         expect(message,).toContain('could not read standard output',);
         // The wait is abandoned, so neither pipe may stay open to a tool whose
         // output no caller will ever see.
-        expect(child.stdout.destroyed,).toBe(true,);
-        expect(child.stderr.destroyed,).toBe(true,);
+        expect(standIn.stdout.destroyed,).toBe(true,);
+        expect(standIn.stderr.destroyed,).toBe(true,);
       },
       name: 'destroys both output pipes when it abandons a tool',
     },),
@@ -555,9 +579,9 @@ await describe({
         const signals: { readonly groupId: number; readonly signal: NodeJS.Signals; }[] = [];
         await standInChildFailure({
           pipe: 'standard error',
-          signalGroup: function recordSignal(groupId, signal,) {
+          signalGroup: function recordSignal({ processGroupId, signal, },) {
             signals.push({
-              groupId,
+              groupId: processGroupId,
               signal,
             },);
           },
@@ -598,8 +622,8 @@ await describe({
         const message = await commandFailureMessage({
           args: [],
           command: STAND_IN_TOOL_NAME,
-          spawnTool: function startStandInChild(): FixtureToolProcess {
-            return new StandInChild();
+          spawnTool: function startStandInChild(): ChildProcess {
+            return standInChild().child;
           },
         },);
         expect(message,).toContain(`did not complete within ${String(FIXTURE_COMMAND_TIMEOUT_MS,)} ms`,);
