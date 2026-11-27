@@ -136,7 +136,8 @@ mod no_control_reads_the_preparation_steps_in_the_run_tests;
 #[path = "no_control_reads_the_commit_ledgers_in_the_run_tests.rs"]
 mod no_control_reads_the_commit_ledgers_in_the_run_tests;
 
-/// The ban on a control recording, preparing or reading the service's stop in the process the run holds:
+/// The ban on a control recording,
+/// preparing or reading the service's stop in the process the run holds:
 /// such a control starts a child of its own first,
 /// whose statics hold nothing but what that control recorded.
 #[cfg(test)]

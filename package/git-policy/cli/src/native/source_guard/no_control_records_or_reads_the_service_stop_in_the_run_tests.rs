@@ -1,5 +1,6 @@
 //! What:
-//!  The ban on a control recording, preparing or reading the service's stop in the run's own process:
+//!  The ban on a control recording,
+//!  preparing or reading the service's stop in the run's own process:
 //!  a control that touches it starts a child of its own first.
 //! Why:
 //!  `process/stop_of_the_service_noticed_by_its_children.rs` keeps the signal the handler recorded,
@@ -11,7 +12,7 @@
 //!  query and step another thread of the run starts,
 //!  and a control that asserts the state a process starts with reads whatever another control left:
 //!  measured on 2026-11-27,
-//!  a threaded run of `push::` failed 110 of its 599 tests
+//!  a threaded run of `push::` failed 110 of its 600 tests
 //!  and a threaded run of `process::` failed eleven,
 //!  and a threaded run of the stop's own module answered
 //!  `test result: FAILED. 2 passed; 8 failed`
@@ -19,7 +20,8 @@
 //!  The container gate starts each test in a process of its own,
 //!  so the gate cannot show it.
 //!  A control that hands its body to `run_the_body_in_a_child_of_its_own` first asks its question in a child of the
-//!  test binary, whose statics hold nothing but what that control recorded
+//!  test binary,
+//!  whose statics hold nothing but what that control recorded
 //!  (`testing/process_wide_state_child_test_support.rs`).
 //!  The scan that splits a source into its controls is
 //!  `source_guard/process_wide_fact_readers_tests.rs`,
@@ -44,7 +46,8 @@ use super::process_wide_fact_readers_tests::{
 ///  with why that name is the stop's.
 ///  Its siblings a reader might expect are the state's own statics,
 ///  which no control names because they are private to the module,
-///  and the constants beside them (`SETTLE_CEILING`, `LAST_RESORT`),
+///  and the constants beside them:
+///  `SETTLE_CEILING` and `LAST_RESORT`,
 ///  which a control may read anywhere because no process changes them.
 /// Why:
 ///  A control that names one of these asks a question about the whole process,
@@ -101,7 +104,8 @@ const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
 /// What:
 ///  The call that answers the verdict of a body moved into a helper process of the test binary.
 ///  The sibling a reader might expect is the starter above,
-///  which a moved body does not call: its control starts the helper and reads what the body answered.
+///  which a moved body does not call:
+///  its control starts the helper and reads what the body answered.
 /// Why:
 ///  `process/signal_relay_tests.rs` moves the body of its service-stop scenario into such a helper,
 ///  and that body records a stop,
@@ -109,7 +113,8 @@ const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
 const IN_A_HELPER_OF_THE_MOVED_BODY: &str = "verdict_in_a_helper(";
 
 /// What:
-///  `FILES_THAT_TOUCH_THE_STOP` is each file whose controls record, prepare or read the stop,
+///  `FILES_THAT_TOUCH_THE_STOP` is each file whose controls record,
+///  prepare or read the stop,
 ///  with what its controls ask.
 /// Why:
 ///  A scan that found no reader at all would pass every tree and guard nothing,
@@ -162,7 +167,7 @@ const THE_SERVICE_STOP: Requirement = Requirement {
     files: FILES_THAT_TOUCH_THE_STOP,
 };
 
-/// No control records, prepares or reads the service's stop in the run's own process.
+/// No control records or reads the service's stop in the run's own process.
 /// A control that touches it starts a child of its own first.
 #[test]
 fn no_control_records_or_reads_the_service_stop_in_the_run_s_own_process() {
