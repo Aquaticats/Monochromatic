@@ -17,8 +17,8 @@ use crate::child_class::ChildClass;
 use crate::child_watch::{
     StepBound,
     WatchTerms,
-    output_watched_within,
 };
+use crate::child_watch_one_shot_run::output_watched_within;
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 /// Who a real-Git start runs for:
