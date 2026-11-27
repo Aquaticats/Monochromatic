@@ -1,6 +1,7 @@
 //! What:
 //! The character lexer of Git configuration text:
-//! the section header, the value and the key readers.
+//! the section header,
+//! the value and the key readers.
 //! Why:
 //! Split out of `git_config.rs`,
 //! which reads the few keys the trust base needs,

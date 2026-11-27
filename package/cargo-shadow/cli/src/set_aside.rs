@@ -158,7 +158,8 @@ use crate::lockfile::{
 use crate::registry::Registry;
 /// Imports the release-age refusals of one round (split out of this module).
 use crate::set_aside_older_release_choice::age_refusals;
-/// The candidate list for one refused version, re-exported so its path here is unchanged (split out of this module).
+/// The candidate list for one refused version,
+/// re-exported so its path here is unchanged (split out of this module).
 pub use crate::set_aside_older_release_choice::set_aside_candidates;
 
 /// How many rounds of moving refused crates are tried.

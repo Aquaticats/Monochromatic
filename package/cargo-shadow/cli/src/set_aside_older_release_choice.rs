@@ -34,7 +34,9 @@ use crate::policy::{
     release_age_problems,
     trust_problems,
 };
-/// Imports the request of a set-aside round: the registry, the settings and the time it judges by.
+/// Imports the request of a set-aside round:
+/// the registry,
+/// the settings and the time it judges by.
 use crate::set_aside::SetAsideRequest;
 /// Imports the version comparison and the prerelease and caret-class readers the choice orders by.
 use crate::version_order::{
