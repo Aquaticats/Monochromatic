@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:54:50-05:00
+## The state at 2026-11-27T18:11:08-05:00
 
-`main` was `b7414d5939`.
+`main` was `50e4b07543`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 280 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 283 more by this time.
 
 ### Rounds running
 
@@ -163,9 +163,22 @@ and it keeps no margin.
 Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
 A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
 issue 6631,
-whose round,
-`issue-6631-the-watch-control-that-delivers-a-message-to-a-later-turn-holds-in-a-whole-run`,
-started 2026-11-27T17:31:49-05:00.
+whose round is merged (`ae937863bc`) and whose issue is closed.
+One timed whole run showed the case's bound,
+three polls,
+left 177 ms of room while its own process was held up for as long as 94 ms by its sibling cases.
+With one named step made a poll slower,
+the case ended on its wall clock,
+which is the failure the issue quotes.
+The cases of that file that end on an event now take their bound from the looks they need,
+each look counted with the longest wait a look can be handed,
+so no loaded host decides them;
+the cost is that a watch that never reaches its event is reported after as long as 181.8 s.
+The watch itself is unchanged.
+The cases that assert the wall clock keep their bounds,
+and one of them still fails if a timer fires about 285 ms late.
+The suite's 228 lines passed after the merge of `main`.
+Three things of that round wait for the owner in `doc/handover/questions-for-the-owner.md`.
 The rounds started at that minute are the first on the rebuilt copy.
 The first of them to end,
 the round of issue 6630,
@@ -666,8 +679,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   its release commit is `4338272860`,
   which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
   and `main` is fast-forwarded to it.
-  The lock,
-  the install and a Claude Sonnet second pass follow its publish.
+  It is published,
+  locked (`49ca48000e`) and installed here,
+  where `.cache/toolchain-bin/cargo-shadow --version` says `0.1.5-alpha.16`,
+  and the session's `git` link is back.
+  Its Claude Sonnet second pass started 2026-11-27T17:56:42-05:00,
+  with its review at `~/temp/agent/cargo-shadow-alpha-16-release-review-2026-11-27/keep/review.md`;
+  it runs both released binaries,
+  and what needs a manager disturbed or absent runs in containers.
   Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
   saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
   Issue 6619's round is merged (`1ef6287246`).
@@ -907,9 +926,27 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a recovery that puts an unfinished copy back points `current` at the newest finished version.
   Its whole test task passed 906 of 906 on its merged tree.
   Every round of the package has merged,
-  so `0.2.7-alpha.17` is released next,
-  after `cargo-shadow`'s publish has ended,
-  one release at a time.
+  and `0.2.7-alpha.17` is released
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079725275>,
+  release commit `04d5150e0b`),
+  locked (`50e4b07543`) and installed here:
+  the install named no unresolved bin,
+  and the session's `git` link is back.
+  What backs the claim that an install adds a declared component a toolchain lacks:
+  the round's controls,
+  whose manager is a stand-in.
+  This machine's toolchain already holds `rustfmt`,
+  so its install is the arm that asks for nothing.
+  No workflow that runs on a push installs the Rust row
+  (the release workflows install a toolchain with `rustup` themselves,
+  and `music-player-release.yml` alone runs the toolchain install);
+  the drift gate in `advisory-core.yml` passed on the merge and after it.
+  The real arm,
+  a toolchain at the `minimal` profile with no `rustfmt` in a container,
+  is point 3 of the release's Claude Sonnet second pass,
+  which started 2026-11-27T18:05:48-05:00,
+  with its review at `~/temp/agent/mpm-shadow-alpha-17-release-review-2026-11-27/keep/review.md`.
+  A failure of that arm comes before every other finding of the package.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -1121,9 +1158,10 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-One read runs as a background agent of the coordinating session,
+Three reads run as background agents of the coordinating session:
 of the linter's `0.5.2-alpha.22`,
-at the path this section gives beside that release.
+of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17`,
+each at the path this section gives beside its release.
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's
@@ -2565,13 +2603,29 @@ and the two `truepeak` files wait on their branch.
   `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
-- When a tool's fix rounds have merged and `main` equals `origin/main`:
-  lock and install `cargo-shadow` `0.1.5-alpha.16` once it is published,
-  then release `mpm-shadow` `0.2.7-alpha.17`,
-  lock each on a branch worktree,
-  install,
-  put the session's `git` link back,
-  and run a Claude Sonnet pass on each.
+- Read the second passes of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17` whole when they return,
+  and route their findings.
+- The `forbidden-strings` workflow has failed or been cancelled on every push to `main`
+  since run 44656950451 of 2026-11-20T01:54:13Z,
+  which is issue 6632.
+  The workflow hands the scanner every changed entry as a file,
+  and each of the 139 tracked links under `uses/` folders points at a folder,
+  so each prints `read error: Is a directory`;
+  run 46079689494 scanned 8149 entries and printed those 139 lines and no other finding.
+  The round
+  `issue-6632-the-forbidden-strings-workflow-ends-green-on-a-push-whose-changed-entries-hold-links-to-folders`
+  started 2026-11-27T18:09:51-05:00.
+  It cures the workflow's list,
+  under the rule that nothing the step inspects today stops being inspected,
+  and builds nothing in the scanner,
+  whose release is asked of the owner first.
+  After its merge,
+  read the first push run on `main`:
+  the issue closes when that run is green.
+- A merge of a branch whose worktree still stands makes the wrapper hand that worktree's removal to the commit service,
+  and says so in a notice;
+  check that the folder,
+  the local branch and origin's branch are gone afterwards.
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).

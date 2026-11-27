@@ -3739,3 +3739,73 @@ and the person still commits it.
 The issue asked that the sentence stay only where nothing corrects the bytes,
 which is what the round did;
 saying more there was not built.
+
+## Veto open: three things the round on the driver's watch cases chose (recorded 2026-11-27T18:11:08-05:00)
+
+The round of issue 6631 merged as `ae937863bc`.
+The coordinating session read its report whole and wrote this entry.
+None holds a release.
+
+### How long a case waits for its event
+
+A case of the driver's suite waited three polls,
+900 ms,
+for an event that takes two looks,
+and one whole run of the suite left it 177 ms of room.
+
+- A bound from the looks a case needs (taken):
+  each look is counted with the longest wait a look can be handed,
+  so no loaded host decides these cases.
+  The cost:
+  a watch that reaches its event only after seconds still passes,
+  and one that never reaches it is reported after as long as 181.8 s,
+  where it took about a second.
+- A clock each case owns,
+  as `wait-for-an-answer.unit.test.ts` has:
+  the case ends at its event with no figure in milliseconds at all,
+  and a slow watch is caught.
+  The cost is a stand-in clock and its driver in twenty-one cases,
+  and the record's silence window reads that clock too.
+
+Ranking,
+the coordinating session's:
+the owned clock > the bound from looks,
+because it catches a slow watch and the bound does not.
+The round built the bound because it is the smaller change to a file it only had to make hold.
+
+### Two cases that assert the wall clock keep their poll counts
+
+One of them needs its first look before its clock,
+so a timer that fires about 285 ms late still fails it.
+
+- Leave them (taken):
+  no failure of either is on record.
+- Give those two the owned clock:
+  the exposure goes.
+  The cost is a round on two cases.
+
+Ranking,
+the coordinating session's:
+the owned clock > leave them,
+for the same reason,
+and the two questions are one round if the first is taken.
+
+### Where the cause is written down
+
+The round wrote it into `doc/troubleshooting/testing.md`,
+as the next cause of a bug whose other causes are written there.
+`AGENTS.md` asks that a fact about one package go in that package's docs.
+
+- Leave it beside the bug's other causes (taken).
+- Move the whole bug,
+  with every cause,
+  into the driver's own docs:
+  the rule is kept and the causes stay together.
+- Move this cause alone:
+  the rule is kept for it and the bug is split over two files.
+
+Ranking,
+the coordinating session's:
+move the whole bug > leave it > move this cause alone,
+because the first keeps the rule and the record whole,
+and the last trades one for the other.
