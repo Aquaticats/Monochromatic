@@ -3876,6 +3876,51 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
 }
 
+/// A folder whose name sets its arrow off with a tab or a no-break space is refused before any check too,
+///  because a `uses` line naming it would read as another pair of folders,
+///  whatever whitespace character that line uses to set its own arrow off.
+#[cfg(unix)]
+#[test]
+fn layout_a_folder_name_that_sets_its_arrow_off_with_a_tab_is_refused() {
+    // What: the name on disk, and that name as the refusal spells it, with each invisible whitespace character written out.
+    // Why: a tab and a no-break space print as nothing a reader can see, so the message must spell them.
+    for (named, written) in [
+        ("a\t->\tb", "src/a\\u{9}->\\u{9}b"),
+        ("a\u{a0}->\u{a0}b", "src/a\\u{a0}->\\u{a0}b"),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        fixture.write(
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+        );
+        fixture.write(CONFIG, FOLDER_RULES);
+        fixture.write("folder.txt", "");
+        fixture.write(
+            "src/lib.rs",
+            format!("#[path = \"{named}/mod.rs\"]\nmod a;\n").as_str(),
+        );
+        fixture.write(format!("src/{named}/mod.rs").as_str(), "pub struct A;\n");
+        let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+        assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+        let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+        assert_eq!(reported.len(), 1, "{}", refused.stdout);
+        let message: &str = reported[0]["message"].as_str().expect("message");
+        for part in [
+            format!("The layout rules stop at the folder {written},"),
+            String::from(
+                "its name sets off an arrow word with a whitespace character other than a space,",
+            ),
+            String::from("would read as another pair of folders"),
+        ] {
+            assert!(
+                message.contains(part.as_str()),
+                "{part} missing in {message}"
+            );
+        }
+        assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+    }
+}
+
 /// A folder name that would be misread on a `uses` line is refused only while the folder rule is selected:
 ///  the file rule reads no `uses` line,
 ///  so it reads such a tree as alpha.17 did rather than stop the run.
@@ -4083,7 +4128,7 @@ fn layout_a_use_line_whose_name_before_the_arrow_ends_in_whitespace_is_reported_
     let message: &str = dead["message"].as_str().expect("message");
     for part in [
         "The allow-list entry `uses src/a  -> src/b`",
-        "names the folder `src/a `",
+        "names the folder `src/a\\u{20}`",
         "No source folder of this package has that name",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
@@ -4118,16 +4163,20 @@ fn layout_a_use_line_with_a_doubled_space_in_front_of_a_name_names_the_folder_it
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(listed.status, 1, "{} {}", listed.stdout, listed.stderr);
+    // What: the finding the dead line earned, read as its message rather than as the JSON that carries it.
+    // Why: a message spells a whitespace character with a backslash, and the JSON writes that backslash twice.
+    let reported: Vec<serde_json::Value> = records(listed.stdout.as_str());
+    let dead: &serde_json::Value = reported
+        .iter()
+        .find(|item| return item["filename"] == "folder.txt")
+        .expect("the dead line is reported on its own line");
+    let message: &str = dead["message"].as_str().expect("message");
     for part in [
         "The allow-list entry `uses  src/a -> src/b`",
-        "names the folder ` src/a`",
+        "names the folder `\\u{20}src/a`",
         "No source folder of this package has that name",
     ] {
-        assert!(
-            listed.stdout.contains(part),
-            "{part} missing in {}",
-            listed.stdout
-        );
+        assert!(message.contains(part), "{part} missing in {message}");
     }
 }
 

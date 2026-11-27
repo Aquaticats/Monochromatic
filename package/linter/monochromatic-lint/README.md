@@ -1392,18 +1392,20 @@ and a line that reads as none of them fails the run:
   so the line is read from the two sides of the arrow it holds:
   the folder before the arrow,
   and the folder after it.
-  The four words are read from the line when it sets them off with one whitespace character each,
-  and any other line is read from its arrow,
-  with exactly the one space taken off each side of the shape,
-  because a folder name may start with a space,
-  and the space a line sets its words off with must never be read as part of a name or the other way round.
-  One rule holds for the space after the word `uses`,
-  for the space before the arrow and for the space after it:
-  a second whitespace character beside a name belongs to that name,
-  on either side of the arrow,
-  so a run of two spaces in front of a name is read as that name's own leading space,
+  One rule reads every spelling of the line,
+  and it holds for the character after the word `uses`,
+  for the one before the arrow and for the one after it:
+  one whitespace character sets each word off,
+  whatever character it is,
+  a space, a tab or a no-break space,
+  and a second whitespace character beside a name belongs to that name,
+  on either side of the arrow.
+  So a list aligned with tabs reads as one aligned with spaces does,
+  a run of two spaces in front of a name is read as that name's own leading space,
   a hand-aligned line names a folder the package does not hold,
   and its finding says which folder the line read and that no source folder is called that.
+  A line that sets no arrow off with whitespace on both sides is refused,
+  and its sentence names those whitespace characters and where they stand.
   A space left at the end of a name is part of that name too,
   and no folder of a tree the rules accept ends in whitespace,
   because such a name is refused before any check:
@@ -1412,7 +1414,9 @@ and a line that reads as none of them fails the run:
   naming the folder it read,
   while every other line of the list is still read and every other finding of the rule is still reported.
   A line holds one arrow only,
-  because no folder name holds the words it is set off with.
+  because no folder name holds an arrow word,
+  and a line that sets two of them off with whitespace is refused,
+  with a sentence that says so.
   A line stays alive while its two folders still make that use and still sit in one loop together,
   in the folders' own graph or in the graph of the entries:
   a folder inside a group can be in a loop of its own folders and in the loop of its group at once,
@@ -1558,10 +1562,12 @@ Every key names exactly one finding:
   A folder name that holds a backslash,
   which a `uses` line writes as the separator `/` on the machines that separate folders with it,
   is refused for the same reason,
-  and so is a folder name that holds ` -> `,
-  begins with `-> `,
-  ends with ` ->`,
-  or is `->` alone,
+  and so is a folder name that holds an arrow word:
+  ` -> ` between two names,
+  `-> ` at its beginning,
+  ` ->` at its end,
+  or `->` alone,
+  and a tab or a no-break space where those shapes spell a space,
   because the `uses` line naming such a folder would be read as another pair of folders.
   That last refusal is wider than the shapes a run of alpha.17 read back wrongly,
   and it is deliberately a rule about the name:
@@ -2056,6 +2062,44 @@ what they say and what a walk costs.
   2026-11-27),
   and no key changes.
 
+#### How a list written before alpha.20 maps
+
+No key any rule prints changes shape,
+and no line a run printed reads back differently,
+so a list written for alpha.19 needs no new line from this release.
+What else changes is which lines are read,
+which runs stop,
+and what the messages say.
+
+- A `uses` line is read whatever whitespace character sets its words off,
+  after the word and on both sides of the arrow:
+  a list aligned with tabs or with no-break spaces is read as one aligned with spaces is,
+  where alpha.19 refused the whole list for such a line and so hid every other finding of the rule.
+  Of the 220 spellings of one line the alpha.19 release read built,
+  alpha.19 read 31 as the use,
+  reported 26 of them dead,
+  and refused the run for the other 163,
+  while this release reads the same 31 as the use,
+  reports the other 189 dead,
+  and refuses none
+  (measured on 2026-11-27 against the alpha.16 binary, which read all 220 as the use).
+  A spelling whose gap is not one whitespace character names the folder the second character made,
+  so its line is re-spaced rather than refused,
+  which is what alpha.19 already did for a gap of two spaces.
+- A gap of two whitespace characters is one separator and one character of the name beside it,
+  on either side of the arrow and after the word `uses`,
+  and a dead `uses` line spells that character as `\u{9}`, `\u{a0}` or `\u{20}`,
+  where alpha.19 refused the run for a tab or a no-break space there
+  and printed a space at either end of a name as itself.
+- A folder name whose arrow word is set off by a tab or a no-break space
+  is refused while the folder rule is selected,
+  and the refusal names that shape,
+  where alpha.19 read such a tree and could print a key the next run would read as another pair of folders.
+- A `uses` line that sets no arrow off with whitespace on both sides is refused
+  with a sentence naming the whitespace characters and where they stand,
+  and a line that sets two of them off says so,
+  where alpha.19 sent its reader back to the shape of a line alone.
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
@@ -2119,7 +2163,8 @@ what they say and what a walk costs.
   begins with `-> `,
   ends with ` ->`,
   is `->`,
-  or holds ` -> `,
+  holds ` -> `,
+  or holds one of those shapes with a tab or a no-break space where they spell a space,
   because no line could name the folder such a name belongs to.
   The arrow words of a folder name are refused only while the folder rule is selected,
   so the file rule alone reads a tree that holds one,

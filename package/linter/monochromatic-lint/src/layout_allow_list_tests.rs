@@ -219,6 +219,120 @@ fn a_run_of_whitespace_beside_a_name_is_part_of_that_name() {
     assert!(!plain.covers_use(Path::new("src/a "), Path::new("src/b")));
 }
 
+/// The six spellings of one gap the alpha.19 read built, and the two-character ones' spare character.
+/// Why:
+///  A tab and a no-break space align a list as a space does, and a doubled gap is one separator character
+///  and one character of the name it stands beside, so each spelling's reading follows from the gap alone.
+const GAPS: [&str; 6] = [" ", "  ", "\t", " \t", "\t ", "\u{a0}"];
+
+/// What:
+///  The whitespace one gap leaves beside the name after it,
+///  which is everything after the character that sets the word off.
+/// Why:
+///  A gap on the left of a name spends its first character as the separator, so what is left belongs to the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftOver = (gap) => gap.slice(1);
+/// ```
+fn left_of_a_name(gap: &str) -> String {
+    return gap.chars().skip(1).collect::<String>();
+}
+
+/// What:
+///  The whitespace one gap leaves beside the name before it,
+///  which is everything before the character that sets the arrow off.
+/// Why:
+///  A gap on the right of a name spends its last character as the separator, so what is left belongs to the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rightOfName = (gap) => gap.slice(0, -1);
+/// ```
+fn right_of_a_name(gap: &str) -> String {
+    let mut kept: String = gap.chars().collect::<String>();
+    kept.pop();
+    return kept;
+}
+
+/// A `uses` line is read whatever whitespace character sets its words off,
+///  and the two sides of the arrow are read alike:
+///  every gap of one whitespace character reads the names it spells,
+///  and any second character beside a name belongs to that name,
+///  on either side of the arrow and after the word `uses`.
+///  The spellings are the ones the alpha.19 read built:
+///  every combination of one space, two spaces, a tab, a space then a tab, a tab then a space
+///  and a no-break space in the line's three gaps, and four padded ends.
+#[test]
+fn every_spelling_of_a_use_line_reads_the_names_it_sets_off() {
+    let mut spellings: usize = 0;
+    for after_the_word in GAPS {
+        for before_the_arrow in GAPS {
+            for after_the_arrow in GAPS {
+                let line: String =
+                    format!("uses{after_the_word}src/a{before_the_arrow}->{after_the_arrow}src/b");
+                let list: AllowList = parsed(format!("{line}\n").as_str());
+                // What: the folder the line names before its arrow, and the one it names after it.
+                // Why: one whitespace character per gap is the separator, and every other character there is the name's own.
+                let from: String = format!(
+                    "{}src/a{}",
+                    left_of_a_name(after_the_word),
+                    right_of_a_name(before_the_arrow)
+                );
+                let to: String = format!("{}src/b", left_of_a_name(after_the_arrow));
+                assert!(
+                    list.covers_use(Path::new(from.as_str()), Path::new(to.as_str())),
+                    "`{line}` must read the use `{from}` -> `{to}`"
+                );
+                spellings += 1;
+            }
+        }
+    }
+    // What: the four padded ends, which the reader trims before it reads a line at all.
+    // Why: padding is the plainest way to line a list up, and it must keep reading as the use it spells.
+    for line in [
+        "  uses src/a -> src/b",
+        "uses src/a -> src/b  ",
+        "\tuses src/a -> src/b",
+        "uses src/a -> src/b\t",
+    ] {
+        let list: AllowList = parsed(format!("{line}\n").as_str());
+        assert!(
+            list.covers_use(Path::new("src/a"), Path::new("src/b")),
+            "`{line}` must read the use `src/a` -> `src/b`"
+        );
+        spellings += 1;
+    }
+    // What: the count the alpha.19 read built, named so a spelling lost from the table above is a failure.
+    // Why: every one of them is a line a person can type, and the read's own table is the whole of its evidence.
+    const SPELLINGS_THE_READ_BUILT: usize = 220;
+    assert_eq!(spellings, SPELLINGS_THE_READ_BUILT);
+}
+
+/// A line the reader cannot place says which whitespace characters set a use off and where they stand,
+///  because a person who typed a tab or left the arrow bare has to know which character to change.
+///  The character and its place are named, never only the shape of a line that already looks like the one typed.
+#[test]
+fn a_use_line_the_reader_cannot_place_names_the_whitespace_it_needs() {
+    for line in [
+        "uses src/a->src/b",
+        "uses src/a => src/b",
+        "uses src/a ->",
+        "uses src/a",
+    ] {
+        let error: String = error_of(format!("{line}\n").as_str());
+        assert!(error.contains("Line 1"), "{error} in {line}");
+        assert!(
+            error.contains("one whitespace character after the word `uses`"),
+            "{line} must be told which whitespace character sets its words off: {error}"
+        );
+        assert!(
+            error.contains("one before the arrow and one after it"),
+            "{line} must be told where the whitespace stands: {error}"
+        );
+    }
+}
+
 /// A line holds no name before its arrow when the word and the arrow are set off by two spaces,
 ///  so the line is a misspelling of the shape.
 #[test]
@@ -248,12 +362,17 @@ fn a_climb_inside_a_path_reads_back_over_the_folder_before_it() {
 }
 
 /// A `uses` line whose arrow the reader cannot place is an error,
-///  because a folder name holds no arrow of its own.
+///  because a folder name holds no arrow of its own:
+///  the line sets a second arrow off with whitespace, so it names no pair of folders.
 #[test]
 fn a_use_line_with_two_arrows_is_an_error() {
     let error: String = error_of("uses src/a -> b -> src/c\n");
     assert!(error.contains("uses <folder> -> <folder>"), "{error}");
     assert!(error.contains("no folder name holds"), "{error}");
+    assert!(
+        error.contains("two `->` are set off by whitespace"),
+        "the sentence must say what is wrong with the line that was typed: {error}"
+    );
 }
 
 /// A dead `uses` or `file-uses` line that names a folder no source folder of the package is called names it,
@@ -307,6 +426,39 @@ fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
             .contains("tolerates nothing any more. Delete the line"),
         "{}",
         findings[3].message
+    );
+}
+
+/// A dead line names the folder it read with the whitespace beside that name spelled,
+///  because a tab and a no-break space are invisible in a terminal:
+///  a reader shown `src/a` would look for a folder the package may well hold,
+///  where the line really read one whose name ends in a tab.
+#[test]
+fn a_dead_use_line_spells_the_whitespace_that_is_part_of_the_name() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("uses src/a\t\t-> src/b\nuses src/x ->\u{a0}\u{a0}src/y\n");
+    // What: the folders the fixture package holds, as the walk names them.
+    // Why: only the two names a doubled gap put whitespace into are absent, so each message names one of them.
+    let folders: BTreeSet<PathBuf> = ["src/b", "src/x", "src/y"]
+        .iter()
+        .map(|name| return base.join(name))
+        .collect::<BTreeSet<PathBuf>>();
+    let findings: Vec<LayoutFinding> =
+        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+    assert_eq!(findings.len(), 2, "{findings:#?}");
+    assert!(
+        findings[0]
+            .message
+            .contains("names the folder `src/a\\u{9}`"),
+        "{}",
+        findings[0].message
+    );
+    assert!(
+        findings[1]
+            .message
+            .contains("names the folder `\\u{a0}src/y`"),
+        "{}",
+        findings[1].message
     );
 }
 

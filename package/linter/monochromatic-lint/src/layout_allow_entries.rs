@@ -49,8 +49,12 @@ const FILE_USE_WORD: &str = "file-uses";
 /// The text that joins the two ends of a tolerated use.
 pub(crate) const ARROW: &str = "->";
 
-/// The arrow as a line writes it,
-///  with the spaces that set it off from the folders.
+/// The arrow as a printed line writes it,
+///  with the one space that sets it off on each side.
+/// Why:
+///  A line may set its arrow off with any whitespace character,
+///  and this spelling is the one every key and every message quotes,
+///  so it is what a shape of a name is named by.
 pub(crate) const SET_OFF_ARROW: &str = " -> ";
 
 /// What:
@@ -357,35 +361,85 @@ fn spelled_path(
 }
 
 /// What:
-///  Whether a line holds no two whitespace characters side by side.
+///  Where the first `->` a text sets off with one whitespace character on each side begins,
+///  or nothing when it sets none off that way.
 /// Why:
-///  That spelling is the one the rule prints,
-///  and it is the only one that leaves the two names in doubt at neither end:
-///  a run of two whitespace characters is what a name that starts or ends with one leaves behind,
-///  and a name with a space inside makes a fourth run.
-///  The caller reads four words from the line and no more,
-///  so the three runs between them are one per gap whenever no two characters stand together;
-///  any other line is read from the two sides of its arrow instead.
+///  A `uses` line sets its arrow off with whitespace,
+///  and that whitespace may be a tab or a no-break space as well as a space,
+///  so the arrow is found by the characters around it and never by a literal spelling.
+///  A folder name in front of the arrow holds no arrow word (no line could name such a folder),
+///  so the first `->` set off this way is the line's own arrow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function setsWordsOffWithOneWhitespace(text: string): boolean;
+/// const arrowBetweenWhitespace = (text) => {
+///   const at = text.indexOf('->')
+///   return at !== -1 && isWhitespace(text[at - 1]) && isWhitespace(text[at + 2]) ? at : undefined
+/// }
 /// ```
-fn sets_words_off_with_one_whitespace(text: &str) -> bool {
-    let mut inside_a_run: bool = false;
-    for letter in text.chars() {
-        if !letter.is_whitespace() {
-            inside_a_run = false;
+pub(crate) fn arrow_between_whitespace(text: &str) -> Option<usize> {
+    for (index, found) in text.match_indices(ARROW) {
+        // What: the character before this `->`, or nothing when the text begins with it.
+        // Why: a name's own `->` has no whitespace in front of it, so it is never taken for the arrow.
+        let before: Option<char> = text[..index].chars().next_back();
+        // What: the character after this `->`, or nothing when the text ends with it.
+        // Why: an arrow at the end of a line names nothing, so the line holds no such arrow.
+        let after: Option<char> = text[index + found.len()..].chars().next();
+        // What: whether whitespace stands on both sides, which is what sets an arrow off.
+        // Why: that is the shape a printed `uses` line writes and a reader takes as its own arrow.
+        let set_off: bool =
+            before.is_some_and(char::is_whitespace) && after.is_some_and(char::is_whitespace);
+        if !set_off {
             continue;
         }
-        // What: a second whitespace character beside the one that began this run.
-        // Why: two of them together are a name's own space or a misspelling, and the words alone cannot say which.
-        if inside_a_run {
-            return false;
-        }
-        inside_a_run = true;
+        return Some(index);
     }
-    return true;
+    return None;
+}
+
+/// What:
+///  The two names of a `uses` line,
+///  each with the one whitespace character that sets it off from the arrow taken away.
+/// Why:
+///  The line is read from the two sides of its arrow,
+///  and exactly one whitespace character on each side is the separator:
+///  a second one beside a name belongs to that name,
+///  because a folder name may start with one and a hand-aligned line is read rather than refused.
+///  Neither side can be missing, because the arrow was found with whitespace on both of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const arrowSides = (text) => {
+///   const at = arrowBetweenWhitespace(text)
+///   return at === undefined ? undefined : [text.slice(0, at - 1), text.slice(at + 3)]
+/// }
+/// ```
+fn arrow_sides(text: &str) -> Option<(&str, &str)> {
+    // What: where the line's own arrow begins, or nothing when it sets none off with whitespace.
+    // Why: the arrow is the one word a folder name in front of it cannot be mistaken for.
+    let arrow: usize = arrow_between_whitespace(text)?;
+    // What: the name before the arrow and the name after it.
+    // Why: the whitespace the arrow was found with is the separator, and what stands beside it is the name.
+    let before: &str = text[..arrow].strip_suffix(char::is_whitespace)?;
+    let after: &str = text[arrow + ARROW.len()..].strip_prefix(char::is_whitespace)?;
+    return Some((before, after));
+}
+
+/// What:
+///  Whether a folder name, written into a `uses` line, would hold an arrow word of its own.
+/// Why:
+///  Such a line would not say which of its arrows is the line's own,
+///  so its reader would take the name for another pair of folders.
+///  The test is the line itself rather than a pattern over the name,
+///  so the check cannot drift from what the reader reads:
+///  the name is written where a printed line writes it, between the word and its arrow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nameHoldsAnArrowWord = (name) => arrowBetweenWhitespace(`uses ${name} `) !== undefined
+/// ```
+pub(crate) fn name_holds_an_arrow_word(name: &str) -> bool {
+    return arrow_between_whitespace(format!("{FOLDER_USE_WORD} {name} ").as_str()).is_some();
 }
 
 /// What:
@@ -399,9 +453,9 @@ fn sets_words_off_with_one_whitespace(text: &str) -> bool {
 ///  so what a run prints is what the next run reads.
 ///  The four words are read when the line sets them off with one whitespace character each;
 ///  every other line is read from the two sides of its arrow,
-///  with exactly the one space taken off each side,
-///  because a folder name may start with a space,
-///  and the space a line sets its words off with must never be read as part of a name or the other way round.
+///  with exactly the one whitespace character on each side taken off,
+///  whatever that character is,
+///  because a folder name may start with one and the space a line sets its words off with must never be read as part of a name or the other way round.
 ///  One rule therefore holds for both sides of the arrow and for the space after the word:
 ///  a second whitespace character beside a name is part of that name and not a separator.
 ///  No folder name a tree the rules accept can hold ends in whitespace,
@@ -418,42 +472,40 @@ fn use_ends(
     line: usize,
     text: &str,
 ) -> Result<(&str, &str), String> {
-    let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
-    if words.len() == 4 && words[2] == ARROW && sets_words_off_with_one_whitespace(text) {
-        return Ok((words[1], words[3]));
-    }
-    // What: the two sides of the arrow, when the line holds exactly one of them.
-    // Why: a second arrow is no name the tree may hold, so the line is a misspelling rather than a folder name.
-    let Some((from_side, to)) = text.split_once(SET_OFF_ARROW) else {
+    // What: the two names the line sets off from its arrow, or nothing when it sets no arrow off with whitespace.
+    // Why: one rule reads every spelling, so a tab or a no-break space beside a name is read as a space is.
+    let Some((before_arrow, after_arrow)) = arrow_sides(text) else {
         return Err(format!(
-            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`, with one whitespace character after the word `uses`, one before the arrow and one after it, and a folder name on each side."
         ));
     };
-    if text.matches(SET_OFF_ARROW).count() != 1 {
+    // What: whether the name after the arrow holds an arrow word of its own.
+    // Why: the reader takes the first arrow as the line's own, so a second one names a folder no tree holds.
+    if arrow_between_whitespace(after_arrow).is_some() {
         return Err(format!(
-            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`, and no folder name holds `{SET_OFF_ARROW}`."
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`, and no folder name holds an arrow word: two `{ARROW}` are set off by whitespace."
         ));
     }
-    let Some(after_the_word) = from_side.strip_prefix(FOLDER_USE_WORD) else {
+    // What: the line before the arrow, which begins with the word every `uses` line starts with.
+    // Why: the caller dispatched on that word, so only the name and its separator can be missing here.
+    let Some(after_the_word) = before_arrow.strip_prefix(FOLDER_USE_WORD) else {
         return Err(format!(
             "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));
     };
-    // What: the one space the first word is set off with, and the name that follows it exactly.
-    // Why: a folder name may start with a space, so only the one separator may be read away.
-    let Some(from) = after_the_word.strip_prefix(' ') else {
-        return Err(format!(
-            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
-        ));
-    };
-    // What: a line that sets its word and its arrow off with two spaces, which leaves no name at all.
-    // Why: the reader takes exactly one space as the separator, so what stands between them is the name, and nothing is no folder.
+    // What: the name before the arrow, with the one whitespace character that sets it off the word taken away.
+    // Why: what stands between the word and the arrow is the name, so no whitespace there means no name.
+    let from: &str = after_the_word
+        .strip_prefix(char::is_whitespace)
+        .unwrap_or_default();
+    // What: a line that sets its word and its arrow off with two whitespace characters, which leaves no name at all.
+    // Why: the reader takes exactly one character as the separator, so what stands between them is the name, and nothing is no folder.
     if from.is_empty() {
         return Err(format!(
             "Line {line} reads `{text}`. No folder name stands before the arrow: a use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));
     }
-    return Ok((from, to));
+    return Ok((from, after_arrow));
 }
 
 /// What:
