@@ -490,6 +490,16 @@
 //!   the verdicts written into a held record,
 //!   the promotion that makes the record runnable,
 //!   and the two ways a record leaves the queue.
+//! - `work_item_enqueue.rs`:
+//!   writing one producer's record,
+//!   or a round of them,
+//!   to the queue,
+//!   and finding what is already there.
+//! - `work_item_holding.rs`:
+//!   the steps of a work item that waits for its producer's approval.
+//! - `work_item_queued_ids.rs`:
+//!   the ids the queue still owes work for,
+//!   asked by a producer that writes a record and by a consumer that takes a name away.
 //! - `work_item.rs`:
 //!   the one name a caller uses for the record,
 //!   the steps that take and settle it,
@@ -561,16 +571,6 @@
 //!   or the commit the service builds from captured changes.
 //! - `service_work_branch_is_gone.rs`:
 //!   the notice for a push whose branch the person deleted.
-//! - `work_item_enqueue.rs`:
-//!   writing one producer's record,
-//!   or a round of them,
-//!   to the queue,
-//!   and finding what is already there.
-//! - `work_item_holding.rs`:
-//!   the steps of a work item that waits for its producer's approval.
-//! - `work_item_queued_ids.rs`:
-//!   the ids the queue still owes work for,
-//!   asked by a producer that writes a record and by a consumer that takes a name away.
 //! - `work_item_recovery.rs`:
 //!   the answers work item recovery holds.
 //! - `service_work_kinds_and_a_wake.rs`:
