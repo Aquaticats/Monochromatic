@@ -70,7 +70,7 @@ use crate::merge_isolation_kept_copies_words::{
     say_the_copy_stays_because,
 };
 /// The place a command's recovery runs in.
-use crate::merge_isolation_recovery_steps::RecoveryPlace;
+use crate::merge_isolation_recovery_place::RecoveryPlace;
 use crate::merge_isolation_take_aside_names::{
     Aside,
     asides_of,
@@ -78,7 +78,7 @@ use crate::merge_isolation_take_aside_names::{
     merge_key_of_a_record,
     stale_carry_names_of,
 };
-use crate::merge_isolation_take_asides::{
+use crate::merge_isolation_take_asides_proof::{
     CopyRemoval,
     ProofNothingCanWrite,
     may_remove_the_copy_awaiting,
@@ -852,8 +852,7 @@ pub(crate) fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
         let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
             continue;
         };
-        let liveness =
-            crate::merge_isolation_recovery_records::owner_liveness(&intent, record.as_path());
+        let liveness = crate::merge_isolation_journal::owner_liveness(&intent, record.as_path());
         if matches!(liveness, Ok(OwnerLiveness::Alive)) {
             keys.push(merge_key_of_a_record(record.as_path()));
         }

@@ -9,12 +9,15 @@ use crate::merge_isolation_moved::settle_moved_branch_awaiting;
 /// The person's own work a merge carries,
 /// in the file that carries it.
 use crate::merge_isolation_recovery_carry::{
-    SideRef,
     carry_onto_awaiting,
     carry_the_capture_awaiting,
     drop_the_records_refs_then_the_record_or_say,
     restore_the_capture_awaiting,
 };
+use crate::merge_isolation_recovery_cleanup::SideRef;
+/// The steps shared with the settling of a moved branch;
+/// named here so the paths outside this file stay the same.
+pub use crate::merge_isolation_recovery_cleanup::drop_record_and_side_ref_awaiting;
 /// Settling a saved merge whose paths hold the person's own newer edits.
 use crate::merge_isolation_recovery_cleanup::settle_a_saved_merge_over_newer_edits;
 use crate::merge_isolation_recovery_cleanup::{
@@ -23,16 +26,11 @@ use crate::merge_isolation_recovery_cleanup::{
     no_commit_names_the_merges_parent,
     staged_work_on_the_merges_paths,
 };
-/// The steps shared with the settling of a moved branch;
-/// named here so the paths outside this file stay the same.
-pub use crate::merge_isolation_recovery_cleanup::{
-    drop_record_and_side_ref_awaiting,
-    partly_installed,
-};
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete_awaiting;
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
+pub use crate::merge_isolation_recovery_place::RecoveryPlace;
 /// The ancestry question the moved-branch settling asks,
 /// named here so its callers outside this file keep one import.
 pub(crate) use crate::merge_isolation_recovery_reads::is_ancestor_awaiting;
@@ -48,24 +46,16 @@ pub use crate::merge_isolation_recovery_reads::{
     the_paths_hold_only_the_persons_own_bytes_awaiting,
 };
 /// The intent record a settle is given,
-/// and the walk over the records a command finds,
-/// named here so a caller keeps one import.
-pub use crate::merge_isolation_recovery_records::{
-    MergeRecoveryOutcome,
-    merge_intents_to_recover,
-    recover_interrupted_merges,
-    recover_interrupted_merges_awaiting,
-};
-pub use crate::merge_isolation_recovery_steps::{
+/// named here so a caller of the recovery keeps one import.
+pub use crate::merge_isolation_recovery_record::MergeRecoveryOutcome;
+pub use crate::merge_isolation_recovery_record::partly_installed;
+pub use crate::merge_isolation_recovery_record::{
     IndexHeldAt,
     Installed,
-    Judged,
     MergeRecoveryAction,
     MergeRefusal,
-    RecoveryPlace,
-    Standing,
-    TakenOnDisk,
 };
+pub use crate::merge_isolation_recovery_steps::TakenOnDisk;
 /// The synchronous faces this file keeps,
 /// so the controls of the folder reach the names they had.
 #[cfg(test)]
@@ -78,6 +68,10 @@ use crate::merge_isolation_recovery_steps::{
     judge_changes_awaiting,
     merge_changes_awaiting,
     put_back_stranded_takes_awaiting,
+};
+pub use crate::merge_isolation_the_merges_paths_judged::{
+    Judged,
+    Standing,
 };
 /// The fail-closed recovery failure.
 use crate::recovery_error::RecoveryError;
