@@ -9,6 +9,10 @@
 //! one per crate.
 //! A copy that changed alone would make one shadow judge another by a different identity text,
 //! and a shadow that the others skip is a shadow that can be started as a real tool.
+//! This file is one of those copies,
+//! so it sits in the `tests/` folder of each crate and each package's own test task runs it:
+//! a copy that changes alone fails the suite of the crate it was changed in,
+//! not only another package's.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,6 +32,7 @@ const COPIED_FILES: &[&str] = &[
     "src/shadow_identity/same_file.rs",
     "src/shadow_identity/vetted_program.rs",
     "src/shadow_identity_tests.rs",
+    "tests/shadow_identity_copies.rs",
 ];
 
 /// The other shadow crates,
@@ -53,8 +58,9 @@ fn every_shadow_crate_carries_the_same_copy_of_the_identity_rule() {
             assert_eq!(
                 own,
                 copy,
-                "{} differs from the copy in search-shadow: change both, byte for byte",
-                path.display()
+                "{} differs from the copy in {}: change both, byte for byte",
+                path.display(),
+                own_crate.display()
             );
         }
     }

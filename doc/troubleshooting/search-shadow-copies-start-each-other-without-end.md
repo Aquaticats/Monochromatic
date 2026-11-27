@@ -175,7 +175,11 @@ in three parts,
 none of which looks at a path or a version
 (`src/shadow_identity.rs`,
 a byte-identical copy in each of the four crates;
-`package/search-shadow/cli/tests/shadow_identity_copies.rs` fails when they differ):
+`tests/shadow_identity_copies.rs` fails when they differ,
+and since 2026-11-27 that file is itself one of the copies and sits in the
+`tests/` folder of all four crates,
+so each package's own test task runs it and the crate whose copy changed fails
+first, issue 6609):
 
 1.  Identity.
     Every shadow program carries `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>` in the ELF section `.monochromatic_shadow_identity`.

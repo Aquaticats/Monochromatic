@@ -5,6 +5,14 @@
 //! and whole exchanges against a peer that speaks the bus's side.
 
 use super::*;
+use crate::source_guard::{
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    entries_that_match_nothing,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_under,
+};
 use crate::systemd_dbus_wire_format::*;
 use crate::test_support::remove;
 
@@ -1144,21 +1152,148 @@ fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
 /// and no longer writes the wire itself:
 /// no socket of its own,
 /// no hand-written call or reply.
+///
+/// What:
+///  `THE_CLIENT_MODULE` names the release sources of the D-Bus client:
+///  the client,
+///  the names the manager is reached by,
+///  its failures,
+///  where the session bus listens,
+///  and the wire format.
+/// Why:
+///  The ban below is about the client's module,
+///  and the alpha.48 split spread that module over four more files,
+///  so the scope is stated as a prefix rather than as the one file it used to be
+///  (issue 6599).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_CLIENT_MODULE = ['service/systemd_dbus'];
+/// ```
+const THE_CLIENT_MODULE: &[&str] = &["service/systemd_dbus"];
+
+/// What:
+///  `THE_WIRE_ITSELF` is how a file writes the bus's wire format by hand.
+/// Why:
+///  The client speaks through `zbus`,
+///  so a socket,
+///  a call builder or a reply reader of its own is the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_WIRE_ITSELF = ['UnixStream', 'encode_call(', 'decode_reply(', 'read_exact'];
+/// ```
+const THE_WIRE_ITSELF: &[&str] = &["UnixStream", "encode_call(", "decode_reply(", "read_exact"];
+
+/// What:
+///  `MAY_HOLD` is the wire-format file,
+///  and the reason it writes what the client no longer does.
+/// Why:
+///  The format needs no socket and stays testable by bytes alone,
+///  and the controls' fake bus and the fuzz target are what reach it now;
+///  it is no call of the client's.
+///  An entry whose line went fails here instead of excusing the file for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAY_HOLD = [{ file: 'service/systemd_dbus_wire_format.rs', text: 'encode_call(', why: '...' }];
+/// ```
+const MAY_HOLD: &[MayHold] = &[
+    MayHold {
+        file: "service/systemd_dbus_wire_format.rs",
+        text: "encode_call(",
+        why: "the format a call is written in, which the controls' fake bus and the fuzz target build by hand; \
+              the client itself sends none of it",
+    },
+    MayHold {
+        file: "service/systemd_dbus_wire_format.rs",
+        text: "decode_reply(",
+        why: "the same format read back, which only the controls' fake bus and the fuzz target read",
+    },
+];
+
+/// What:
+///  `SCOPE_ANCHORS` is the text that proves the scope still reaches the client this ban was written for.
+/// Why:
+///  A prefix that reached nothing would pass every tree,
+///  and `zbus::` is what the client speaks through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SCOPE_ANCHORS = [['zbus::', 'no file of the client's module speaks through zbus any more']];
+/// ```
+const SCOPE_ANCHORS: &[(&str, &str)] = &[(
+    "zbus::",
+    "no release file of the D-Bus client's module speaks through zbus any more, so this ban reaches nothing",
+)];
+
+/// What:
+///  `THE_CLIENT` is the one file the owner's ruling is about.
+/// Why:
+///  The module's other files may name `zbus::` and still leave the client hand-writing the wire,
+///  so the client itself is checked by name among the files the scope reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_CLIENT = 'service/systemd_dbus.rs';
+/// ```
+const THE_CLIENT: &str = "service/systemd_dbus.rs";
+
 #[test]
 fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
-    let source: &str = include_str!("systemd_dbus.rs");
-    let code: String = source
-        .lines()
-        .filter(|line| {
-            return !line.trim_start().starts_with("//");
-        })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    for hand_written in ["UnixStream", "encode_call(", "decode_reply(", "read_exact"] {
-        assert!(
-            !code.contains(hand_written),
-            "the client still writes the wire itself: `{hand_written}`"
-        );
-    }
-    assert!(code.contains("zbus::"), "the client does not use zbus");
+    let sources: Vec<(String, String)> =
+        release_sources_under(THE_CLIENT_MODULE).expect("the crate's release sources");
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
+    assert!(
+        abandoned.is_empty(),
+        "the scope reached no file holding what this ban is about:\n{}",
+        abandoned.join("\n")
+    );
+    let holding = lines_holding_one_of(sources.as_slice(), THE_WIRE_ITSELF);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained.is_empty(),
+        "the client speaks through zbus and writes no wire of its own:\n{}",
+        unexplained.join("\n")
+    );
+    let stale: Vec<String> = entries_that_match_nothing(holding.as_slice(), MAY_HOLD);
+    assert!(
+        stale.is_empty(),
+        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        stale.join("\n")
+    );
+    let client: &(String, String) = sources
+        .iter()
+        .find(|(file, _)| return file == THE_CLIENT)
+        .expect("the client file is a release source of its own module");
+    assert!(client.1.contains("zbus::"), "the client does not use zbus");
+}
+
+/// The scan flags a socket a split carried into a receiver,
+/// and reads the wire format's own builders as no finding.
+#[test]
+fn the_scan_flags_a_socket_in_a_receiver_file() {
+    let planted: Vec<(String, String)> = vec![(
+        String::from("service/systemd_dbus_planted.rs"),
+        String::from("fn planted() { let _socket = std::os::unix::net::UnixStream::pair(); }\n"),
+    )];
+    let holding = lines_holding_one_of(planted.as_slice(), THE_WIRE_ITSELF);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained
+            .iter()
+            .any(|sentence| return sentence.contains("UnixStream")),
+        "a socket in a file the module's split made is a finding: {unexplained:?}"
+    );
+    let format: Vec<(String, String)> = vec![(
+        String::from("service/systemd_dbus_wire_format.rs"),
+        String::from("fn built(serial: u32) { let _bytes = encode_call(serial); }\n"),
+    )];
+    let written = lines_holding_one_of(format.as_slice(), THE_WIRE_ITSELF);
+    assert_eq!(
+        lines_no_entry_excuses(written.as_slice(), MAY_HOLD),
+        Vec::<String>::new(),
+        "the format's own builder is the one arm the ban lets stand"
+    );
 }
