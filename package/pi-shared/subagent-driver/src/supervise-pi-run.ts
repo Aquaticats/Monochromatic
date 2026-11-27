@@ -8,6 +8,9 @@
 import { mkdir, } from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
+import { writeAStartThatEndedWithoutARun, } from './a-start-that-ended-without-a-run.ts';
+import { noteTheSessionThatCannotBeMasked, } from './a-start-that-ended-before-pi.ts';
+import { secretValuesOrNoRun, } from './secret-values-or-no-run.ts';
 import {
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
@@ -66,49 +69,9 @@ import {
   writeSummary,
 } from './write-summary.ts';
 import {
-  makeTemporaryFolderOfARun,
+  temporaryFolderOfTheRun,
   variablesNamingTemporaryFolder,
 } from './temporary-folder-of-a-run.ts';
-
-/**
-
- Reads the values of this machine's secret environment, closing the run's feed before saying why there is no run when the store
- cannot be read.
-
- @param record - the run's feed and counts, which is taken away by this call when the values cannot be read
-
- @param read - the read itself
-
- @returns the values
-
- @throws SecretEnvironmentUnreadableError when the checkout's store is there and cannot be read
- */
-async function secretValuesOrNoRun({
-  record,
-  read,
-}: {
-  readonly record: RecordOfPiRun;
-  readonly read: () => Promise<SecretValuesOfThisMachine>;
-},): Promise<SecretValuesOfThisMachine> {
-  try {
-    return await read();
-  }
-  catch (error) {
-    await record.close();
-    throw error;
-  }
-}
-
-/**
- Says why a session file cannot be rewritten now, naming the file a reader has to look at.
-
- @param path - the session file Pi may still be writing
-
- @returns the reason, for the summary and the feed
- */
-function mayStillBeWritten({ path, }: { readonly path: string },): string {
-  return `Pi's leaving could not be confirmed, so the session may still be written under ${path}`;
-}
 
 /**
  A driver started by a Pi that a driver runs.
@@ -195,7 +158,10 @@ export async function supervisePiRun(
    The folder this run's Pi writes its temporary files in, made after the check above: that check refuses a run folder holding any
    entry at all, so a folder made before it would refuse every run of its own.
    */
-  const { folder: temporaryFolder, } = await makeTemporaryFolderOfARun({ runFolder: options.runFolder, },);
+  /**
+   The folder this run's Pi writes its temporary files in.
+   */
+  const temporaryFolder = await temporaryFolderOfTheRun({ runFolder: options.runFolder, },);
   /**
    The wall limit in milliseconds, which is what every deadline and timer is computed from.
    */
@@ -289,8 +255,11 @@ export async function supervisePiRun(
    A store that is there and cannot be read stops the run here, before Pi is started: a run whose values this code does not know
    is a run that would show them to a model, and a start that cannot mask is worse than no start.
    */
-  const secretValues: SecretValuesOfThisMachine = await secretValuesOrNoRun({
+  const {
+    values: secretValues,
+  } = await secretValuesOrNoRun({
     record,
+    runFolder: options.runFolder,
     read: function readThem() {
       return readSecretValuesOfThisMachine({
         environment,
@@ -342,6 +311,11 @@ export async function supervisePiRun(
       mask: writeMasking.masking,
     },);
     if ('problem' in resumed) {
+      await noteTheSessionThatCannotBeMasked({
+        runFolder: options.runFolder,
+        session: options.session ?? '',
+        problem: resumed.problem,
+      },);
       // A value an earlier session holds, which this code cannot take out before Pi reads it: the run does not start.
       throw new SecretEnvironmentUnreadableError({
         source: `the session ${options.session}`,
@@ -401,6 +375,7 @@ export async function supervisePiRun(
   const {
     startFailures,
     startStoppedBy,
+    startThatEndedWithoutARun,
   } = starts;
   /**
    The session file the run leaves behind, which Pi reports in its own statistics or its own state, and which is only ever this run's
@@ -452,14 +427,25 @@ export async function supervisePiRun(
         writer: piIsGone
           ? { gone: true, }
           : {
-            mayExist: mayStillBeWritten({ path: sessionFile.file
-              .path, },),
+            mayExist: `Pi's leaving could not be confirmed, so the session may still be written under ${sessionFile.file
+              .path}`,
           },
       },);
   if (sessionAtRest.outcome === 'unmasked') {
     record.note({
       kind: 'session_at_rest',
       problem: sessionAtRest.problem,
+    },);
+  }
+  /**
+   The line a start that ended without a run leaves in its own folder, which a launcher prints and a reader of the folder finds
+   even when the summary is the record they did not ask for.
+   */
+  if (startThatEndedWithoutARun !== undefined) {
+    await writeAStartThatEndedWithoutARun({
+      runFolder: options.runFolder,
+      start: startThatEndedWithoutARun,
+      mask: writeMasking.masking,
     },);
   }
   await record.close();
@@ -503,6 +489,7 @@ export async function supervisePiRun(
     ...((sessionAtRest.outcome === 'unmasked') ? { sessionAtRest: sessionAtRest.problem, } : {}),
     ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
     ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),
+    ...(startThatEndedWithoutARun === undefined ? {} : { startThatEndedWithoutARun, }),
   },);
   await writeSummary({
     runFolder: options.runFolder,

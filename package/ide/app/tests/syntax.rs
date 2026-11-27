@@ -50,7 +50,11 @@ fn rust_highlights_use_unicode_source_positions() {
         .highlight(Path::new("source.rs"), &text)
         .expect("pinned Rust grammar and queries")
         .expect("recognized Rust");
-    assert!(styled(&spans, &text, 1).contains(&"fn".to_string()));
+    assert!(
+        styled(&spans, &text, 1)
+            .iter()
+            .any(|painted| return painted == "fn")
+    );
     assert!(some_contains(&styled(&spans, &text, 2), "🐈"));
     let mut classified: Vec<(usize, String)> = Vec::new();
     for span in spans.iter() {
@@ -77,9 +81,17 @@ fn typescript_highlights_inherited_queries() {
         .highlight(Path::new("source.ts"), &text)
         .expect("pinned TypeScript grammar and queries")
         .expect("recognized TypeScript");
-    assert!(styled(&spans, &text, 1).contains(&"const".to_string()));
+    assert!(
+        styled(&spans, &text, 1)
+            .iter()
+            .any(|painted| return painted == "const")
+    );
     assert!(some_contains(&styled(&spans, &text, 2), "cat"));
-    assert!(styled(&spans, &text, 5).contains(&"string".to_string()));
+    assert!(
+        styled(&spans, &text, 5)
+            .iter()
+            .any(|painted| return painted == "string")
+    );
 }
 
 /// Shebang recognition works without inventing an extension or loading project configuration.
@@ -91,7 +103,11 @@ fn javascript_shebang_is_recognized() {
         .highlight(Path::new("script"), &text)
         .expect("pinned JavaScript grammar and queries")
         .expect("recognized shebang");
-    assert!(styled(&spans, &text, 4).contains(&"42".to_string()));
+    assert!(
+        styled(&spans, &text, 4)
+            .iter()
+            .any(|painted| return painted == "42")
+    );
 }
 
 /// Unknown plain text and empty recognized source are successful distinct results.

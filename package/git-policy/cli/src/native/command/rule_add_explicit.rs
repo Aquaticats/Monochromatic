@@ -42,7 +42,7 @@ use crate::command_add::{
     names_no_literal_character,
     parse_add_region,
 };
-use crate::command_options::OptionError;
+use crate::command_options_types::OptionError;
 use crate::global_arguments::command_tokens;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
