@@ -397,9 +397,9 @@ fn split_near_miss_at(
             return None;
         }
     }
-    let Some(end) = break_at else {
-        return None;
-    };
+    // What: `break_at?` hands over the line the break sits on, or ends this function with `None`.
+    // Why: a run of lines with no break in it is no split near miss.
+    let end: usize = break_at?;
     // What: the line the words go on at, the first line after the break.
     // Why: one or more blank lines, plain comments or inner attributes may sit between the two halves.
     let mut next: usize = end + 1;
