@@ -40,7 +40,7 @@ use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_words::BlockReason;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_completion::RemovalCompletion;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_report::OriginCleanupDone;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::path::PathBuf;

@@ -50,10 +50,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
-use crate::worktree_clone_removal_proof_and_plan::removal_completion::{
-    RemovalCompletion,
-    complete_the_removal,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ADoneUnmount,
     ClearingDevice,
@@ -73,6 +70,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     the_budget,
     the_checks_pool,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     RemovalEntry,
     enter_the_removal,
