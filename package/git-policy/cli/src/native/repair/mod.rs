@@ -24,6 +24,13 @@
 //!   the names one filling of a workspace works in,
 //! - `package_repair_prewarm_job_staged_state.rs`:
 //!   the answers package repair prewarm job staged state holds.
+//! - `package_repair_relink_record.rs`:
+//!   the record one worktree's relink is queued as,
+//!   and the tools it may ask for.
+//! - `package_repair_relink_work_item.rs`:
+//!   the work item that record becomes,
+//!   its object name,
+//!   and the add's own directories a relative search path is read from.
 //! - `package_repair_relink.rs`:
 //!   the hand-over of a new worktree's copied package state to the commit service,
 //!   so the add does not wait for pnpm's relink or the toolchain install.
@@ -249,6 +256,17 @@ pub mod package_repair_prewarm;
 /// publish it unless a build got there first.
 #[cfg(target_os = "linux")]
 pub mod package_repair_prewarm_job;
+
+/// The record one worktree's relink is queued as,
+/// and the tools it may ask for.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_record;
+
+/// The work item that record becomes,
+/// its object name,
+/// and the add's own directories a relative search path is read from.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_work_item;
 
 /// The hand-over of a new worktree's copied package state to the commit service,
 /// so the add does not wait for pnpm's relink or the toolchain install.
