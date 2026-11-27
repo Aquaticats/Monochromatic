@@ -136,6 +136,11 @@
 //! - `worktree_clean_content_attributes.rs`:
 //!   the attribute files a content decision reads,
 //!   and what it charges the caller for them.
+//! - `worktree_clean_tree_walk_held_paths.rs`:
+//!   the directory chain a walk keeps,
+//!   and the read of one tracked file's stat fields below a held root.
+//! - `worktree_clean_tree_walk_by_content.rs`:
+//!   the walks that judge a tracked file by its content where the stat data cannot vouch for it.
 //! - `worktree_clean_tree_walk.rs`:
 //!   the walks of tracked files against the index's recorded stat data,
 //!   by metadata or by content.
@@ -626,6 +631,15 @@ pub mod worktree_clean_stat_verdicts;
 /// whether an untracked file is one Git ignores.
 #[cfg(target_os = "linux")]
 pub mod worktree_clean_untracked_scan;
+
+/// The directory chain a walk keeps,
+/// and the read of one tracked file's stat fields below a held root.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tree_walk_held_paths;
+
+/// The walks that judge a tracked file by its content where the stat data cannot vouch for it.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tree_walk_by_content;
 
 /// The walks of tracked files against the index's recorded stat data,
 /// by metadata or by content.
