@@ -1145,8 +1145,26 @@ When the memory reading fails there is no memory bound at all,
 so the width is the CPUs less their margin;
 the read of alpha.49 points out that one failure narrows and the other widens.
 Alpha.48 did the same per round of work.
-The round `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read` writes a control that holds what the code does now,
-and reports the width each caller gets with no reading.
+The round `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read` (merged `203bd65854`) holds what the code does now with a control,
+`a_host_whose_memory_could_not_be_read_bounds_no_batch`,
+which asserts a width of 28 on a stated host of 32 threads.
+With no memory figure each caller comes to:
+
+- a work directory's round of lanes (`service_round.rs`):
+  the items and the CPUs less their margin,
+  and nothing else;
+- the pushes of different branches (`pushes_side_by_side`):
+  the branches and the CPUs less their margin,
+  with no ceiling;
+- the slow kinds of one work directory (`slow_items_side_by_side`):
+  the same,
+  under `SLOW_ITEMS_CEILING` of four.
+
+The reading is `System::new()` of the `sysinfo` crate,
+and the round found no record of it failing.
+The round's own ranking was to leave the code as it stands over a width of one,
+which is B over C here;
+it did not weigh A.
 
 - A,
   keep the last good reading:
@@ -2785,50 +2803,3 @@ Ranking:
 leave them out > widen,
 because the folders exist to hold work that is not being done,
 and the rule already reaches a package the moment it comes back.
-
-## Open: which side should a failed memory reading fall on? (recorded 2026-11-27T13:16:54-05:00)
-
-A batch of the commit service's work is sized from a host reading
-(`TheHostOfABatch::now`, `package/git-policy/cli/src/native/foundation/parallel_budget.rs`),
-and the two halves of that reading fail on opposite sides today.
-`std::thread::available_parallelism()` answering nothing is read as one thread,
-while `memory_available_now()` answering nothing is read as no memory bound at all
-(`worker_budget` takes `by_memory = usize::MAX` for it).
-It is alpha.48's answer as much as alpha.49's:
-the alpha.49 merge only moved when the reading is taken, from once a round to once a batch
-(`14e54207de`).
-Measured 2026-11-27 by the alpha.49 behaviour read (Low 1),
-and stated as it stands by a control that hands the budget the value a failed reading leaves
-(`a_host_whose_memory_could_not_be_read_bounds_no_batch` in `parallel_budget_tests.rs`).
-
-What each caller comes to with no memory figure,
-the arithmetic of `worker_budget` with `SLOW_ITEM_MEMORY` of 128 MiB and this host's 10 CPUs
-(`nproc`, measured 2026-11-28;
-a 800-percent scope answers 8 threads to `available_parallelism`,
-so the margin is one and the CPUs bound at seven):
-
-- a work directory's round of lanes sized by `service_round.rs`:
-  the items, the CPUs less the margin, and nothing else, so up to seven repositories side by side;
-- the pushes of different branches (`pushes_side_by_side`):
-  the branches, the CPUs less the margin, and no ceiling, so up to seven branches at once;
-- the slow kinds of one work directory (relink, prewarm, review, trash,
-  `slow_items_side_by_side`):
-  the items, the CPUs less the margin, and `SLOW_ITEMS_CEILING` of four, so the four bound it.
-
-- Leave it as it stands (recommended by the round, not decided):
-  a reading that failed lifts the memory bound and the batch runs as wide as the CPUs allow,
-  which is what every release so far does;
-  the cost is that a host whose memory cannot be read is asked for room nothing promised,
-  and a batch of four slow items of 128 MiB each starts on a machine that may have none,
-  which asks the kernel to kill one.
-- Treat a failed reading as no room:
-  every batch runs one item at a time until a reading answers,
-  so a machine whose reader cannot start slows the service down and kills nothing;
-  the cost is that this is a new limit on how wide a batch runs,
-  which is the owner's to choose, and that a transient failure serialises the round.
-
-Ranking:
-leave it as it stands > treat it as no room,
-because the reading is the published `sysinfo` crate's `System::new()`,
-whose failure this round found no record of,
-so the tight side would hold every batch to one item at a time for an event no record shows happening.
