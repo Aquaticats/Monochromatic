@@ -340,8 +340,8 @@ fn kept_below<'kept>(
 ///  A look interval the host stretched to 319.7 ms is the one this control means.
 ///  Measured on 2026-11-27:
 ///  with the gate's own 69.7 ms planted,
-///  the body this control had before the fix failed two of three runs
-///  (`looks: 4, looks_found: 3`, 640.68 ms and 640.58 ms credited)
+///  the body this control had before the fix failed two of three runs,
+///  which credited 640.68 ms and 640.58 ms where the control asserted 750 ms,
 ///  and passed the third,
 ///  because whether the notice's first look comes before the step's number is published
 ///  is a race the stretch does not decide.

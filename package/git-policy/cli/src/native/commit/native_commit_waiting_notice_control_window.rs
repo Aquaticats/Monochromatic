@@ -165,8 +165,9 @@ pub(crate) fn noted_a_look_that_found_the_step() {
 ///  as a host under load put between two of them.
 /// Why:
 ///   A loaded host woke the notice's thread late and stretched each look interval,
-///   so looks that should have proved three intervals of a control's window proved two
-///   (issue 6592: `looks: 4, looks_found: 3` credited 639.46 ms where the control asserted 750 ms).
+///   so looks that should have proved three intervals of a control's window proved two,
+///   and the gate's record of `looks: 4, looks_found: 3` credited 639.46 ms where the control
+///   asserted 750 ms (issue 6592).
 ///   A control asserts under that stretch instead of hoping for a punctual host.
 ///
 /// In TS you'd write (pseudocode):
