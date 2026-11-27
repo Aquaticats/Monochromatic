@@ -125,19 +125,19 @@ impl TipWatch {
 
     /// Where the branch and its repository are,
     /// as the readers of refs and objects take them.
-    pub fn layout(&self) -> &RepoLayout {
+    pub(super) fn layout(&self) -> &RepoLayout {
         return &self.layout;
     }
 
     /// The environment Git would see,
     /// which the configuration reader reads the branch's upstream through.
-    pub fn variables(&self) -> &[(OsString, OsString)] {
+    pub(super) fn variables(&self) -> &[(OsString, OsString)] {
         return self.variables.as_slice();
     }
 
     /// The real Git the service pushes with,
     /// which the route to the service is read through.
-    pub fn real_git(&self) -> &Path {
+    pub(super) fn real_git(&self) -> &Path {
         return self.real_git.as_path();
     }
 }

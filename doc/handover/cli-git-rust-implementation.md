@@ -225,6 +225,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
   the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
   the items a split had made bare `pub` are narrowed,
+  seven platform gates are back over the 35 items they reached before the splits,
   the seven platform gates the splits dropped are back,
   and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
   a merge record that cannot be read says which file to remove,

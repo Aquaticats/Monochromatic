@@ -80,7 +80,7 @@ impl StageVerdicts {
     /// ```ts
     /// verdicts.recordDeadTemporary(name)
     /// ```
-    pub fn record_dead_temporary(
+    pub(super) fn record_dead_temporary(
         &mut self,
         name: &str,
     ) {

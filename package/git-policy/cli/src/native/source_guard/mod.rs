@@ -21,6 +21,13 @@ pub(crate) mod modules_a_library_root_reaches_tests;
 #[path = "nameable_items_of_a_source_tree_tests.rs"]
 pub(crate) mod nameable_items_of_a_source_tree_tests;
 
+/// The shapes a split writes that publish a name,
+/// and the shapes this reading still cannot see,
+/// each on a fixture tree.
+#[cfg(test)]
+#[path = "surface_shapes_a_split_writes_tests.rs"]
+mod surface_shapes_a_split_writes_tests;
+
 /// The names the library target publishes,
 /// read from the `pub mod` chains and the public re-exports the source text writes,
 /// and the ban on publishing one without a line in the list beside the check.
