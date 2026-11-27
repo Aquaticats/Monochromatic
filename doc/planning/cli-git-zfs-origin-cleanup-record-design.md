@@ -448,7 +448,10 @@ The review:
   which read this document at `987a3ba886`,
   the two sibling documents at `76849b8d9b` and `428040d45d`,
   and OpenZFS at `zfs-2.4.4`.
-- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`,
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   which read this document at `0973f2fc2a`,
   the two sibling documents at `b4dc758a76` and `c144499eb9`,
