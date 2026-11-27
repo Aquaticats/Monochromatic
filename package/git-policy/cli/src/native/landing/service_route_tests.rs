@@ -5,18 +5,40 @@
 //! and anything less has no route.
 
 use super::*;
-use crate::service_address_of_a_worktree::socket_address_of;
+use crate::real_git::process_resolution_inputs;
+use crate::service_address_of_a_worktree::{
+    socket_address_of,
+    the_address_is_there,
+};
 use crate::service_instance::{
     instance_of,
     socket_for,
 };
+use crate::session_runtime_directory_and_bus_address::RUNTIME_DIRECTORY_SWITCH;
+use crate::start_directory::StartDirectory;
 use crate::test_support::{
     fixture,
     remove,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
+use std::ffi::OsStr;
 
 const GIT: &str = "/usr/bin/git";
+
+/// What:
+///  The variable one control of this file states the worktree's Git directory in,
+///  whose siblings are the two switches `foundation/session_runtime_directory_and_bus_address.rs` reads.
+/// Why:
+///  A child makes fixtures of its own,
+///  so a control whose route must name the socket another process made hands that directory over
+///  rather than letting the body compute one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_GIT_DIRECTORY_HANDED_IN = 'SESSION_PLACES_CONTROL_GIT_DIRECTORY';
+/// ```
+const THE_GIT_DIRECTORY_HANDED_IN: &str = "SESSION_PLACES_CONTROL_GIT_DIRECTORY";
 
 struct Machine {
     root: PathBuf,
@@ -626,4 +648,189 @@ fn a_status_without_a_worktree_finds_a_service_at_an_abstract_name() {
         report.stdout, report.stderr
     );
     remove(runtime.as_path());
+}
+
+/// What:
+///  A test process offers the manager no program of its own,
+///  even after a control of the same process resolved the real Git and after its own environment named a
+///  runtime directory that holds a session bus.
+/// Why:
+///   The running executable of a test process is the test binary,
+///  so a route that offered it had this account's own service manager run libtest for a fixture's service
+///  (`error: Unrecognized option: 'journal'`) until that unit's start limit hit,
+///  while the shared program link every worktree's service is started through named that binary
+///  (issue 6586:
+///  the user journal holds 100 such refused starts between 07:31:27 and 08:01:43 on 2026-11-27,
+///  and issue 6582's round found the link pointed at the test binary).
+///  The child this body runs in names a runtime directory of the fixture's own and no session bus,
+///  and the fixture holds a stand-in bus,
+///  so the remembered executable is the only fact left for the route to provision from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(programOffered(routeFromEnvironment(git, gitDir))).toBeUndefined();
+/// ```
+#[test]
+fn a_test_process_offers_the_manager_no_program_of_its_own() {
+    // What:     the runtime directory the body inherits from its control, and the worktree whose Git directory
+    //           names the service instance.
+    // Why:      both are fixtures of this control, so no folder outside them is named by the route.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = fixture('route-test-process-runtime'); const gitDir = fixture('route-test-process-worktree') + '/repo/.git';
+    // ```
+    let runtime: PathBuf = fixture("route-test-process-runtime");
+    let root: PathBuf = fixture("route-test-process-worktree");
+    let git_dir: PathBuf = root.join("repo").join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the worktree's Git directory");
+    // What:     a stand-in bus inside the runtime directory, which the route takes as the bus it may provision
+    //           through, and which is a plain file so nothing is ever asked of it.
+    // Why:      without it the route stops at "no bus" and this control could not tell a refused program from a
+    //           missing bus.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(join(runtime, 'bus'), '');
+    // ```
+    std::fs::write(runtime.join("bus"), b"").expect("the stand-in bus");
+    let named: [(&str, &OsStr); 1] = [("XDG_RUNTIME_DIR", runtime.as_os_str())];
+    run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "a_test_process_offers_the_manager_no_program_of_its_own",
+        named.as_slice(),
+        &["DBUS_SESSION_BUS_ADDRESS"],
+        || {
+            // What:     the remembering that a control resolving the real Git does to the whole process it runs
+            //           in, which is how a wide run armed the route this issue is about.
+            // Why:      the route offers a program only from this once-remembered path, so a body that resolved
+            //           the real Git is the exact state the account's manager was asked from.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // processResolutionInputs([], startDirectoryAt(gitDir));
+            // ```
+            let start: StartDirectory = StartDirectory::at(git_dir.as_path());
+            let _resolution =
+                process_resolution_inputs(&[], &start).expect("the process's own facts");
+            let route: Option<Route> = route_from_environment(Path::new(GIT), git_dir.as_path());
+            let offered: Option<PathBuf> = route
+                .as_ref()
+                .and_then(|answered| return answered.provision.as_ref())
+                .map(|host| return host.service_binary.clone());
+            assert_eq!(
+                offered, None,
+                "a test build offers the manager no program of its own"
+            );
+        },
+    );
+    remove(root.as_path());
+    remove(runtime.as_path());
+}
+
+/// What:
+///  The route reads the runtime directory the control handed in,
+///  and not the one the body inherited,
+///  so a control whose subject is a route can still have one.
+/// Why:
+///   A build made for tests takes the route's two facts from what a control stated
+///  (issue 6586),
+///  and this is the control that proves a hand-in reaches the route:
+///  the folder it names holds a socket and a bus,
+///  the folder the body inherited holds neither,
+///  and the route answers with the socket of the first and no program offered to the manager.
+///  The two facts the body needs are handed to it, the runtime directory through the switch the
+///  release code reads and the worktree's Git directory through a name of this control's own,
+///  because a child makes its own fixtures and could not name the folder another process made
+///  (`testing/process_wide_state_child_test_support.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(theAddressIsThere(routeFromEnvironment(git, gitDir).address)).toBe(true);
+/// expect(programOffered(routeFromEnvironment(git, gitDir))).toBeUndefined();
+/// ```
+#[test]
+#[cfg(target_os = "linux")]
+fn the_route_reads_the_runtime_directory_a_control_hands_in() {
+    // What:     the runtime directory the control hands in, which is short enough for a socket path, and the one
+    //           its body inherits, which is an ordinary fixture holding nothing.
+    // Why:      the inherited one can answer neither a socket nor a bus, so a route answered at all is the
+    //           hand-in's, and the handed-in one can carry the socket.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const handedIn = sessionRuntimeDirectory(); const inherited = fixture('route-handed-in-inherited');
+    // ```
+    let handed_in: PathBuf = session_runtime_directory();
+    let inherited: PathBuf = fixture("route-handed-in-inherited");
+    let root: PathBuf = fixture("route-handed-in-worktree");
+    let git_dir: PathBuf = root.join("repo").join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the worktree's Git directory");
+    std::fs::write(handed_in.join("bus"), b"").expect("the stand-in bus");
+    let socket: PathBuf = socket_for(handed_in.as_path(), git_dir.as_path());
+    std::fs::create_dir_all(socket.parent().expect("the socket's folder"))
+        .expect("the socket's folder");
+    // What:     the socket file the route looks for, which is a stand-in and no program: nothing listens at it,
+    //           because the route only asks whether the address is there.
+    // Why:      `the_address_is_there` answers for a file at the address, as `an_existing_socket_is_used_as_it_is`
+    //           shows, and nothing of this control ever connects to it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(join(handedIn, 'monochromatic-git-policy-cli', `${instance}.sock`), '');
+    // ```
+    std::fs::write(socket.as_path(), b"").expect("the socket stand-in");
+    let named: [(&str, &OsStr); 3] = [
+        (RUNTIME_DIRECTORY_SWITCH, handed_in.as_os_str()),
+        ("XDG_RUNTIME_DIR", inherited.as_os_str()),
+        (THE_GIT_DIRECTORY_HANDED_IN, git_dir.as_os_str()),
+    ];
+    run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "the_route_reads_the_runtime_directory_a_control_hands_in",
+        named.as_slice(),
+        &["DBUS_SESSION_BUS_ADDRESS"],
+        || {
+            // What:     the worktree's Git directory, which the control stated and this body reads, because a
+            //           child makes fixtures of its own and the socket's name is that directory's hash.
+            // Why:      the route names the instance from it, so the body cannot use another directory and still
+            //           look at the socket the control made.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const gitDir = process.env[THE_GIT_DIRECTORY_HANDED_IN]!;
+            // ```
+            let stated: std::ffi::OsString = std::env::var_os(THE_GIT_DIRECTORY_HANDED_IN)
+                .expect("the Git directory the control stated");
+            let worktree_git_dir: PathBuf = PathBuf::from(stated);
+            let start: StartDirectory = StartDirectory::at(worktree_git_dir.as_path());
+            let _resolution =
+                process_resolution_inputs(&[], &start).expect("the process's own facts");
+            let route: Option<Route> =
+                route_from_environment(Path::new(GIT), worktree_git_dir.as_path());
+            let Some(answered) = route else {
+                panic!(
+                    "a route the control handed in is answered: the runtime directory it named holds a socket \
+                     and a bus, and this body answered none"
+                )
+            };
+            assert!(
+                the_address_is_there(&answered.address),
+                "the route is the socket the handed-in runtime directory holds, and this answer names {:?} \
+                 where nothing is",
+                answered.address
+            );
+            let offered: Option<PathBuf> = answered
+                .provision
+                .as_ref()
+                .map(|host| return host.service_binary.clone());
+            assert_eq!(
+                offered, None,
+                "and it offers the manager no program of its own"
+            );
+        },
+    );
+    remove(root.as_path());
+    remove(inherited.as_path());
+    remove(handed_in.as_path());
 }

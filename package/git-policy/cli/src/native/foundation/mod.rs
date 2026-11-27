@@ -135,6 +135,10 @@
 //! - `test_only_switches.rs`:
 //!   the one read of every test-only switch,
 //!   which a build the release ships holds not at all.
+//! - `session_runtime_directory_and_bus_address.rs`:
+//!   the one place this crate reads this session's runtime directory and its session-bus address,
+//!   which a build made for tests takes from what a control handed in and never from the environment
+//!   the test process inherited.
 //! - `what_a_built_runtime_is.rs`:
 //!   the runtime a build made,
 //!   how its build came out,
@@ -574,6 +578,11 @@ pub mod runtime_probe;
 /// The one read of every test-only switch,
 /// which a build the release ships holds not at all.
 pub mod test_only_switches;
+
+/// The one place this crate reads this session's runtime directory and its session-bus address,
+/// which a build made for tests takes from what a control handed in and never from the environment
+/// the test process inherited.
+pub mod session_runtime_directory_and_bus_address;
 
 /// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
 pub mod name_held_while_one_thread_publishes_it;
