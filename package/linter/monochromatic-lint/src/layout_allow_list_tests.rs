@@ -497,16 +497,18 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
         "file-uses src/ab one.rs two.rs -> three.rs\n",
         "file-uses src/ab one.rs -> -> two.rs\n",
     ] {
-        let error: String =
+        // What: the refusal one mistyped line earns, named apart from the spaced folder's own sentence above.
+        // Why: one name for each answer keeps the two failures apart in a run's output.
+        let mistyped: String =
             parse_allow_list(line, Path::new("allow-list.txt"), plain.path.as_path())
                 .expect_err("the line misspells the shape");
         assert!(
-            error.contains("A use between two files is written"),
-            "`{line}` must be told about the shape it misspells: {error}"
+            mistyped.contains("A use between two files is written"),
+            "`{line}` must be told about the shape it misspells: {mistyped}"
         );
         assert!(
-            !error.contains("holds a space"),
-            "`{line}` names no folder that holds a space: {error}"
+            !mistyped.contains("holds a space"),
+            "`{line}` names no folder that holds a space: {mistyped}"
         );
     }
 }
