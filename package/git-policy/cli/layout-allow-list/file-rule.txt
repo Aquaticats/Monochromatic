@@ -219,8 +219,6 @@ file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_git_lines.r
 file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_report.rs
 file-uses src/native/merge merge_second_pass_git_lines.rs -> merge_second_pass.rs
 file-uses src/native/merge merge_second_pass_report.rs -> merge_second_pass.rs
-file-uses src/native/merge merge_second_pass_worktree.rs -> merge_second_pass_worktree_unchanged.rs
-file-uses src/native/merge merge_second_pass_worktree_unchanged.rs -> merge_second_pass_worktree.rs
 file-uses src/native/merge word_merge.rs -> word_merge_invented_text.rs
 file-uses src/native/merge word_merge_invented_text.rs -> word_merge.rs
 file-uses src/native/policy direct_fix_install.rs -> direct_fix_install_judging.rs

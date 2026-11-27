@@ -410,7 +410,7 @@ pub(crate) const ITEMS_BYTES_LIMIT: u64 = 64 * 1024;
 /// The 1 GiB is the bound the in-process index reads already take (`INDEX_LIMIT_BYTES` in
 /// `commit_named_ignored_files.rs`,
 /// `conflict_side_guard.rs` and
-/// `merge_second_pass_worktree.rs`).
+/// `merge_second_pass_worktree_watch.rs`).
 pub(crate) const PATHSPEC_FILE_LIMIT: u64 = 1 << 30;
 
 /// What:

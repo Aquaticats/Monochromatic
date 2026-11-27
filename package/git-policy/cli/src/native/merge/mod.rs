@@ -203,6 +203,9 @@
 //!   the commit and the two-way update.
 //! - `merge_isolation.rs`:
 //!   a true merge completed in isolation while the index holds staged changes.
+//! - `merge_second_pass_worktree_watch.rs`:
+//!   the paths a stopped operation had already left unmerged before it ran,
+//!   and the conflicts the index holds for the paths it created.
 //! - `merge_second_pass_worktree_install.rs`:
 //!   the files a forwarded second pass merged,
 //!   staged as resolved and written to the worktree.
@@ -211,6 +214,9 @@
 //!   a path another command moved while it computed its merge.
 //! - `merge_second_pass_worktree_words.rs`:
 //!   the sentences the word-level second pass ends a stopped operation with.
+//! - `merge_second_pass_worktree_remerge.rs`:
+//!   the awaited re-merge of the conflicts a stopped operation created,
+//!   and the install of every file no other command moved.
 //! - `merge_second_pass_worktree.rs`:
 //!   the word-level second pass after a forwarded merge,
 //!   rebase,
@@ -262,6 +268,14 @@ pub mod merge_second_pass_tree;
 /// rebase,
 /// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
+
+/// The paths a stopped operation had already left unmerged before it ran,
+/// and the conflicts the index holds for the paths it created.
+pub mod merge_second_pass_worktree_watch;
+
+/// The awaited re-merge of the conflicts a stopped operation created,
+/// and the install of every file no other command moved.
+pub mod merge_second_pass_worktree_remerge;
 
 /// The files a forwarded second pass merged,
 /// staged as resolved and written to the worktree.

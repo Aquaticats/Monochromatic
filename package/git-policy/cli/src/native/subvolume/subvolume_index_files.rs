@@ -175,7 +175,7 @@ fn do_nothing() {}
 /// one of its linked worktrees' `.git/worktrees/<name>/index`),
 /// and a gigabyte is that with room for a repository several hundred times larger.
 ///  The merge pass reads an index up to the same bound (`INDEX_LIMIT_BYTES`,
-/// `merge_second_pass_worktree.rs`).
+/// `merge_second_pass_worktree_watch.rs`).
 const INDEX_FILE_LIMIT: u64 = 1 << 30;
 
 /// What:
