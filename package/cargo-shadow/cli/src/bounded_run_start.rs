@@ -31,7 +31,6 @@
 /// import { RunError, ScopeState, append_record, append_record_with, configure_stdio, trace } from 'crate/bounded_run';
 /// ```
 use crate::bounded_run::{
-    QUIESCE_BOUND,
     RunError,
     ScopeState,
     append_record,
@@ -55,8 +54,9 @@ use crate::bounded_run::{
     trace_text,
 };
 /// What:
-/// `use crate::bounded_run_containment::{Containment, lose, stop_process_group};` imports the choice of containment,
-/// the mark that writers may remain and the stop of a bare process group.
+/// `use crate::bounded_run_containment::{Containment, GroupStop, lose, stop_process_group};` imports the choice of containment,
+/// what the stop of a bare process group found,
+/// the mark that writers may remain and that stop.
 /// Why:
 /// The start reads the choice,
 /// marks the transaction lost when a child cannot be recorded,
@@ -64,10 +64,11 @@ use crate::bounded_run::{
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Containment, lose, stop_process_group } from 'crate/bounded_run_containment';
+/// import { Containment, GroupStop, lose, stop_process_group } from 'crate/bounded_run_containment';
 /// ```
 use crate::bounded_run_containment::{
     Containment,
+    GroupStop,
     lose,
     stop_process_group,
 };
@@ -376,25 +377,20 @@ pub(crate) fn start_contained(
             if let Some(state) = scope
                 && let Err(error) = append_record(&state.log, &Record::ProcessGroup(leader))
             {
-                let stopped: bool = match Pid::from_raw(leader) {
+                let stopped: GroupStop = match Pid::from_raw(leader) {
                     Some(group) => stop_process_group(&mut child, group),
-                    None => false,
+                    None => GroupStop::Unnamed,
                 };
-                if !stopped {
+                if !stopped.settled() {
                     // What:     `lose(...)` takes the reason the refusal carries, and this stop is the process-group path: it has no
-                    //           report of its own, so the reason names the bound it waited out.
+                    //           report of its own, so the reason says which wait it spent, or that no stop was tried.
                     // Why:      A refusal never travels with an empty reason, whatever path could not show the writers gone.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts
-                    // lose(state, `the members of the process group could not be shown stopped within ${QUIESCE_BOUND}`)
+                    // lose(state, stopped.refusal())
                     // ```
-                    lose(
-                        &Some(Rc::clone(state)),
-                        format!(
-                            "the members of the process group could not be shown stopped within {QUIESCE_BOUND:?}"
-                        ),
-                    );
+                    lose(&Some(Rc::clone(state)), stopped.refusal());
                 }
                 return Err(RunError::Io(io::Error::new(
                     error.kind(),

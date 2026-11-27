@@ -175,7 +175,11 @@ which is why the case asserts that and not only the message.
 - `src/lib.rs`:
   declares the new module.
 - `Cargo.toml`:
-  `rustix` gains the `mount` feature.
+  `rustix` gains the `mount` feature
+  (in `[dev-dependencies]` since the alpha.11 release pass,
+  2026-11-27:
+  the only caller is a `#[cfg(test)]` module,
+  so the release build compiles no such feature).
 - `src/journal_tests.rs`:
   the existing control begins with the question.
 - `src/journal_unready_verdict.rs` and `src/journal_unready.rs`:

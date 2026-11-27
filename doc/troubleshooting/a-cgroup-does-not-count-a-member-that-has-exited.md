@@ -65,5 +65,26 @@ a leader that exited behind a live thread,
 exited and waiting to be reaped,
 gone,
 or unreadable).
-The controls are `control_group_stop::report_tests` (in `src/control_group_stop_report_tests.rs`) and
-`install_step_tests::a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_names_it`.
+
+The listing reads the scope's own group and every group below it,
+because `populated` counts a descendant group's threads too:
+a scope whose own `cgroup.procs` is empty can still hold a live process below it,
+and the refusal names that process with the group it stands in (`1234 in nested`).
+Each member is read through a pidfd, so a number the kernel listed cannot name another process by the time its threads
+are read,
+and a `/proc/<pid>` entry that is missing is told from a hidden one by the pidfd:
+readable means the process ended,
+not readable means a mount option or another pid namespace hides it,
+and only the first is read as gone.
+The listing has a bound of its own (`LISTING_BOUND` in `src/control_group_stop.rs`, 500 ms from a measured scope of
+3000 threads), so a refusal names what it read and says when the bound cut the rest short,
+never that a member it did not reach can write nothing.
+
+A refusal whose listing could not be read says so and names no member;
+an empty listing is worded as an empty listing;
+a scope whose directory was gone is worded as gone, not as a kernel that reported it empty;
+and the process-group reasons state the bound that was waited, or that no stop was tried.
+
+The controls are `control_group_stop::report_tests` (in `src/control_group_stop_report_tests.rs`),
+`bounded_run_containment::refusal_tests` (in `src/bounded_run_containment_refusal_tests.rs`),
+and `install_step_tests::a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_names_it`.

@@ -48,6 +48,12 @@ export const ioWeightOption = '--unit-io-weight';
 export const containerPidsLimitOption = '--container-pids-limit';
 
 /**
+ Option that names the memory bound every container of the gate runs under, for a host that cannot spare the gate's own
+ measured bounds.
+ */
+export const containerMemoryOption = '--container-memory';
+
+/**
  Every option that overrides a gate's caps, in the order a refusal lists them.
  */
 export const gateCapsOptionNames: readonly string[] = [
@@ -56,6 +62,7 @@ export const gateCapsOptionNames: readonly string[] = [
   tasksMaxOption,
   ioWeightOption,
   containerPidsLimitOption,
+  containerMemoryOption,
 ];
 
 /**
@@ -467,6 +474,12 @@ export function deadlineMillisecondsOption({
  ```
  */
 export function gateCapsFromOptions({ options }: { readonly options: GateOptions; }): GateCaps {
+  /**
+   The container memory bound the command line named, absent when it named none, so an unlowered gate keeps its own
+   measured bounds of 4g for the suite, 8g for Clippy and 8g for the image build.
+   */
+  const containerMemory = options.values
+    .get(containerMemoryOption,);
   return checkedGateCaps({
     caps: {
       unitCpuQuota: textOption({
@@ -494,6 +507,7 @@ export function gateCapsFromOptions({ options }: { readonly options: GateOptions
         name: containerPidsLimitOption,
         fallback: defaultGateCaps.containerPidsLimit,
       }),
+      ...(containerMemory === undefined ? {} : { containerMemory, }),
     },
   });
 }
