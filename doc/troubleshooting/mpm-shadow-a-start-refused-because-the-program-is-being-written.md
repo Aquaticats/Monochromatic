@@ -461,8 +461,10 @@ published path for writing.
 What is true is narrower,
 and it is what the decision rests on:
 the writers of the two paths a start through this tool resolves
-stage the file and give it its name in one call,
-a rename or an exchange.
+stage the file and give it its name without opening that name for writing:
+a rename,
+an exchange where the file system can make one,
+and two renames where it cannot.
 
 ## The window a single-threaded probe cannot see
 
@@ -657,7 +659,7 @@ and a single-threaded prober cannot see it.
 
 For a writer this tool starts or stands in front of,
 no traced or read one opens the two paths a start resolves:
-they stage the new copy and give it the name in one call.
+they stage the new copy and give it the name without holding that name open for writing.
 The writers that do hold a published path open are:
 `go install` across file systems (3.531 ms,
 traced,
