@@ -235,6 +235,9 @@
 //!   the small text steps of the replay of captured changes.
 //! - `service_retry.rs`:
 //!   the repositories the service looks at again when a claim another instance holds may have run out.
+//! - `service_route_what_the_status_answers.rs`:
+//!   what the status of a worktree's service answers,
+//!   and the words it answers with.
 //! - `service_route.rs`:
 //!   which way a commit goes:
 //!   through the service,
@@ -979,6 +982,10 @@ pub mod service_replay_line_text;
 /// through the service,
 /// set up first,
 /// or the earlier path.
+/// What the status of a worktree's service answers,
+/// and the words it answers with.
+pub mod service_route_what_the_status_answers;
+
 pub mod service_route;
 
 /// The message and identities of a service commit,
