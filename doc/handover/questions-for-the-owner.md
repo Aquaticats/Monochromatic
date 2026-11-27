@@ -1368,16 +1368,6 @@ each a choice:
   because the conditions are already one function both can call,
   and a killed launcher is an ordinary event on this machine.
 
-### The wrapper: a slot removal behind a shell alias, typed below the top of a repository
-
-The round on shell aliases (merged `a137924570`) found that this spelling never reaches the slot rule:
-the wrapper's own rule that a command runs at the top of its repository refuses it first.
-So a slot is protected there by that rule and not by the slot refusal.
-Whether a repository can switch that rule off,
-which would leave the slot unprotected for this spelling,
-is not yet checked;
-this entry is to be finished from the wrapper's configuration before it is asked.
-
 ### The linter: a byte order mark is named, not taken off (pick, veto open)
 
 The round for the `0.5.2-alpha.20` read (merged `2261d05b14`) chose that the list reader does not strip a byte order mark:

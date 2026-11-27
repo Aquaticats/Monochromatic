@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T14:30:09-05:00
+## The state at 2026-11-27T14:47:45-05:00
 
-`main` was `d9f0c8ea32`.
+`main` was `bb47735936`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 253 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 255 more by this time.
 
 ### Rounds running
 
@@ -143,11 +143,13 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   so it starts when this round has merged;
 - nothing in the linter:
   the round for its `0.5.2-alpha.20` read is merged (`2261d05b14`),
-  and `0.5.2-alpha.21` is being released
-  (started 2026-11-27T14:22:20-05:00,
-  release commit `117514dfd7`),
-  to be locked,
-  installed and read by a Claude Sonnet pass once published.
+  and `0.5.2-alpha.21` is released
+  (release commit `117514dfd7`,
+  locked `6e3314812e`,
+  installed);
+  a Claude Sonnet read of it runs since 2026-11-27T14:44:06-05:00,
+  a same-vendor second pass,
+  writing `~/temp/agent/monochromatic-lint-alpha-21-release-review-2026-11-27/keep/review.md`.
   A `file-uses` line for a folder named with a tab,
   a no-break space or two spaces names the folder again;
   each of the five behaviours the read named has a test shown red by the edit it guards;
@@ -167,6 +169,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   started 2026-11-27T14:27:58-05:00,
   with its log under `~/temp/agent/gate/` by the same name;
   `0.6.1-alpha.50` follows its verdict.
+  A merge that lands after that commit and changes only the package's TypeScript,
+  its guide or test code leaves the gate standing,
+  as one did for alpha.49 ("Releases of 2026-11-27"),
+  with the tip checks run again on the pinned tree;
+  issue 6612's branch changes only `bin/` and `e2e/`.
   The round on the four small points is merged (`203bd65854`):
   the four reads of the session's runtime directory and bus address go through the one file,
   so a test build handed the process's whole environment cannot reach the account's manager;
@@ -191,7 +198,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The read's subdirectory case never reaches the slot rule:
   the wrapper's own rule that a command runs at the top of its repository refuses it first,
   and a control pins that.
-  The guest arm gained one alias case that no guest has run.
+  The guest arm gained one alias case,
+  and one guest run of that arm is going on the pinned tree at `203bd65854`,
+  in the unit `gpc-guest-slot-state-arm-at-203bd65854-20261127T1452.service`
+  (started 2026-11-27T14:45:24-05:00,
+  whatever the unit's name says;
+  logs in `~/temp/agent/guest-run-of-the-slot-state-arm-with-the-alias-case-2026-11-27/keep/`).
+  It passes only with the line `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` in `slot-state-arm.log`.
+  A repository can switch the root rule off
+  (`policies.require-root` takes `off`,
+  `warn` or `error`),
+  and no control shows the slot refusal holding below the top then (issue 6621).
   The round on process names is merged (`946cbeb0a2`):
   it found eighteen places that printed a name another program chose with no escape,
   where the read named five,
@@ -254,12 +271,25 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   a link written outside `commit/`,
   `landing/` and the three named files is no finding,
   and the commit path's notes guard is chosen by the words a file names.
+  On the pinned tree at `203bd65854`,
+  all six merged rounds together,
   `native:check`,
-  which compiles every target,
-  and the whole `source_guard` module,
-  210 of 210,
-  passed on the pinned tree at `a137924570`,
-  the five merged rounds together.
+  the four Clippy tasks and the whole `source_guard` module (212 of 212) passed,
+  and `native:ts-checks` passed with 90 unit test files and 189 suites.
+  That last run reached the account's service manager (issue 6620):
+  a unit test commits in fixture checkouts through whichever `git` the worktree's launcher names,
+  which there was the locked `0.6.1-alpha.44`,
+  so four commit services started for fixtures at 2026-11-27T14:31:32-05:00
+  and the shared program link named that release until 14:33:15.
+  Nothing was left:
+  the four instances read inactive and the fixtures were gone.
+  The pinned tree's launcher link names the reviewed build since then,
+  as the main checkout's does,
+  so the shared link stays where it is;
+  the services still start until issue 6620 is resolved.
+  The task cannot be kept off the manager from outside,
+  because it starts each check in a scope of its own:
+  with a fixture runtime directory both checks ended `exit 1` before running anything.
   The whole gate named under the behaviour pass covers these too;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
@@ -285,11 +315,15 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   both reads of it have returned.
 - nothing for `cargo-shadow`:
   both rounds of its `0.1.5-alpha.14` read are merged,
-  and `0.1.5-alpha.15` is being released
-  (started 2026-11-27T14:29:03-05:00,
-  release commit `d9f0c8ea32`),
-  to be locked,
-  installed and read by a Claude Sonnet pass once published.
+  and `0.1.5-alpha.15` is released
+  (release commit `d9f0c8ea32`,
+  locked `bb47735936`,
+  installed);
+  a Claude Sonnet read of it runs since 2026-11-27T14:43:14-05:00,
+  a same-vendor second pass,
+  writing `~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`.
+  It is asked to read the sentence both rounds edited and the merged README,
+  which nobody has read whole.
   The round on the refusal is merged (`87399f8462`).
   It staged a real refusal and ran each kind of next run:
   an ordinary resolving run and `cargo-shadow update` settle the kept journal,
@@ -300,7 +334,9 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the fix belongs to the retire gate and is not made
   (`doc/handover/questions-for-the-owner.md`).
   The two rounds met in one sentence of `control_group_stop_report.rs`;
-  the session's wrapper merged it by word when `main` was merged into the branch,
+  the session's wrapper merged it by word when `main` was merged into the branch
+  (its README,
+  "Word-level second merge pass"),
   the result holds both rounds' clauses word for word,
   and the package's suite passed 946 of 946 on it.
   The round on the retire gate is merged (`3bf99cd706`).
