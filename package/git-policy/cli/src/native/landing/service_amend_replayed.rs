@@ -45,6 +45,55 @@ use crate::transaction_git::{
     run_git_checked,
 };
 
+/// What:
+///  The request for a commit that Git built in the shadow,
+/// or that the wrapper wrote whole:
+/// the built commit is named whole and the service lands it.
+/// Why:
+///  The service moves the branch to a commit it did not make,
+/// so the request carries no changes and no message,
+/// and `amend` says whether the commit replaces the branch's last commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const requestForGitBuilt = (ready, inputs, id, builtCommit, amend, drawn) => ({ id, ...identity(ready, inputs), changes: [], commit: builtCommit, amend, cleanup: ready.cleanup, shadow: drawn });
+/// ```
+pub(crate) fn request_for_git_built(
+    ready: &Ready,
+    native_inputs: &NativeInputs,
+    id: &str,
+    built_commit: String,
+    amend: bool,
+    drawn: Option<std::path::PathBuf>,
+) -> CommitRequest {
+    return CommitRequest {
+        id: id.to_string(),
+        repository: ready.repository.clone(),
+        common_dir: ready.common_dir.clone(),
+        git_dir: native_inputs.capture.layout.git_dir.clone(),
+        reference: ready.reference.clone(),
+        base: ready.base.clone(),
+        // The service names the index entries from the commit itself, so no list of changes travels.
+        changes: Vec::new(),
+        // The commit is Git's whole: message, identities and tree are in it.
+        message: String::new(),
+        author: None,
+        committer: String::new(),
+        amend,
+        tree: None,
+        commit: Some(built_commit),
+        cleanup: ready.cleanup.clone(),
+        index: native_inputs.capture.layout.real_index_path.clone(),
+        scratch: ready.scratch.0.clone(),
+        shadow: drawn,
+        captured: ready.captured_at,
+        // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
+        //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).
+        holder: crate::held_push_holder_and_verdict::this_command(),
+        programs: None,
+    };
+}
+
 /// The commit an amend makes on the branch as it is now,
 /// its fields,
 /// and the request that lands it,
@@ -402,7 +451,7 @@ pub(crate) fn the_amendment_lands_as_new(
     let subject: String = fields.subject();
     let sent: CommitRequest = // The amendment is built from the replay of this command's own change, never in a shadow the service drew, so it names
     //  no drawn tree.
-    crate::service_commit_requests_and_landing_report::request_for_git_built(ready, native_inputs, id, made, false, None);
+    request_for_git_built(ready, native_inputs, id, made, false, None);
     return Ok((sent, ready.base.clone(), subject));
 }
 

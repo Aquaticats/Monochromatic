@@ -2,6 +2,8 @@
 //!  each in its own disposable directory.
 
 use super::*;
+#[cfg(unix)]
+use crate::a_record_made_durable_with_a_sync::settle_directory_sync;
 use crate::test_support::{
     fixture,
     remove,

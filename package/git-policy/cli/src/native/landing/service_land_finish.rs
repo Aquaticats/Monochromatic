@@ -27,6 +27,10 @@
 //! The record that finishes a batch and the gate a replay is judged by are declared beside this file:
 //! `service_land_finish_after_the_move.rs` and `service_land_finish_replay_gate.rs`.
 
+use crate::held_commit_record::{
+    Held,
+    list,
+};
 use crate::service_index_lock::remove_stale;
 use crate::service_instance::instance_of;
 use crate::service_journal::{
@@ -52,7 +56,10 @@ pub(crate) use crate::service_land_finish_replay_gate::{
 use crate::service_scratch_ref_marker_of_a_batch::clear_recorded_scratch_refs;
 use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
 use crate::transaction_git::GitContext;
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What a restart did with a batch it decided on.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Handled {
@@ -269,13 +276,8 @@ settled from the worktree's own record of it, and the file may be removed once t
         };
         // A batch a reference lock keeps off its branch is not one a restart decides from the branch: the settlement tries it first,
         //  and one still waiting is left where it is for the next command (`held_commit_settle.rs`).
-        let was_held: bool =
-            crate::held_commit_settle::record_of(&intent, context.journal.as_path()).is_some();
-        if let Some(report) = crate::held_commit_settle::settle_a_recorded_hold(
-            &git,
-            context.journal.as_path(),
-            &intent,
-        ) {
+        let was_held: bool = record_of(&intent, context.journal.as_path()).is_some();
+        if let Some(report) = settle_a_recorded_hold(&git, context.journal.as_path(), &intent) {
             reports.push(report);
             continue;
         }
@@ -304,10 +306,7 @@ settled from the worktree's own record of it, and the file may be removed once t
                 // A record this build cannot read is kept and named rather than dropped: removing it would forget a landed commit's
                 //  owed index update (`owed_index_update.rs`).
                 Some(None) => {
-                    crate::held_commit_settle::say_settled_batch_record_cannot_be_read(
-                        &intent,
-                        path.as_path(),
-                    );
+                    say_settled_batch_record_cannot_be_read(&intent, path.as_path());
                     continue;
                 }
             }
@@ -374,6 +373,103 @@ settled from the worktree's own record of it, and the file may be removed once t
         clear_recorded_scratch_refs(context, instance);
     }
     return reports;
+}
+
+/// What:
+///  Settles the batch a restart found open when a record says a reference lock kept it off its branch,
+///  and answers the report of a batch still waiting.
+/// Why:
+///   A restart decides an open batch from the branch,
+///  and while the lock stands the branch still names the commit before it,
+///  so that decision would drop a commit the person made and kept.
+///  The settlement runs first with the clearing a landing may do,
+///  and a record that is still there says the batch waits:
+///  nothing is decided about it until a command finds the lock gone.
+///  Nothing is answered when the record is gone:
+///  the batch is then either finished (nothing is owed and its intent is marked done) or still open,
+///  and the caller reads the batch's own record to say which and to report it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = recordOf(intent, journal); if (!held) return undefined; settleOne(held); return recordStillThere ? { handled: 'held' } : undefined
+/// ```
+pub fn settle_a_recorded_hold(
+    git: &GitContext,
+    journal: &Path,
+    intent: &Intent,
+) -> Option<RecoveryReport> {
+    let held: Held = record_of(intent, journal)?;
+    let settled: crate::held_commit_settle_outcomes::Settled =
+        crate::held_commit_settle::one(git, &held, crate::held_commit_settle::Clearing::Proved);
+    let seq: u64 = intent.seq;
+    crate::service_log!(
+        "{}",
+        crate::held_commit_settle_outcomes::settled_words(seq, &held, &settled)
+    );
+    let still_held: bool =
+        crate::held_commit_record::path_of(intent.git_dir.as_path(), seq).exists();
+    if !still_held {
+        return None;
+    }
+    return Some(RecoveryReport {
+        seq,
+        repository: held.repository.clone(),
+        decision: crate::service_journal::Recovery::Hold,
+        handled: Handled::Held,
+    });
+}
+
+/// What:
+///  Says that the record of a batch a settlement tried cannot be read,
+///  so the batch is kept and nothing of it is removed.
+/// Why:
+///   A settlement rewrites a batch's intent,
+///  and the record it leaves is the only thing that names what the batch still owes;
+///  one this build cannot read is kept and named rather than dropped,
+///  and its owed index update is settled from the worktree's own record of it
+///  (`owed_index_update.rs`).
+///  The settling module says it,
+///  beside the settlement whose outcome it describes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function saySettledRecordUnreadable(intent, path) { error(`batch ${intent.seq} in the repository at ${intent.repository}: its open record ${path} cannot be read ...`) }
+/// ```
+pub fn say_settled_batch_record_cannot_be_read(
+    intent: &Intent,
+    path: &Path,
+) {
+    crate::service_error!(
+        "batch {} {}: its open record {} cannot be read after the batch was settled, so it is kept and nothing of it is \
+settled; its owed index update is settled from the worktree's own record of it",
+        intent.seq,
+        crate::service_timing::in_the_repository_at(intent.repository.as_path()),
+        path.display()
+    );
+}
+
+/// What:
+///  The record of the hold of a batch a restart found open,
+///  nothing when the batch was not held.
+/// Why:
+///  A restart reads the journal and knows the batch,
+///  and the record is the only thing that says a lock kept it off its branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = await list(gitDir).find((record) => record.seq === intent.seq && record.journal === journal)
+/// ```
+pub fn record_of(
+    intent: &Intent,
+    journal: &Path,
+) -> Option<Held> {
+    let (records, _damaged) = list(intent.git_dir.as_path());
+    for held in records {
+        if held.seq == intent.seq && held.journal == journal {
+            return Some(held);
+        }
+    }
+    return None;
 }
 
 /// Controls for the awaited Git questions of the restart stay out of the release executable.

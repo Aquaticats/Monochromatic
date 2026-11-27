@@ -122,3 +122,11 @@ pub fn output_of_within_bound(
 #[cfg(test)]
 #[path = "captured_child_run_to_its_end_tests.rs"]
 mod tests;
+
+/// The pins over another module's source text that ask Git through the captured run:
+/// a split moves such a call into a sibling file,
+/// so these read a whole module's files
+/// rather than one named file of it (issue 6573).
+#[cfg(test)]
+#[path = "captured_child_run_to_its_end_callers_tests.rs"]
+mod callers_tests;
