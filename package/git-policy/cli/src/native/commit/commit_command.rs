@@ -82,7 +82,10 @@ use crate::service_handoff::{
 use crate::service_messages::render;
 /// Standard error as a stream whose whole lines a thread of their own writes,
 /// and the writer that counts the time they took.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::transaction_git::GitContext;
 /// `PathBuf` is an owned filesystem path.
@@ -253,7 +256,7 @@ fn post_commit(
     // What: The notes of the hand-off go to the thread that writes standard error.
     // Why:  The push record outlives the command, and a reader that stopped draining must cost the
     //       hand-off one bound rather than the command itself.
-    let mut stderr: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> =
+    let mut stderr: MeasuredStandardError<StandardErrorOffTheCallingThread<StandardErrorHand>> =
         MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
     //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.

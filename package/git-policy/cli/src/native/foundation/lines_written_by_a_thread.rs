@@ -117,6 +117,27 @@ pub(crate) struct QueuePolicy {
     pub(crate) tag: &'static str,
 }
 
+/// What:
+///  Whether the stream took the line a caller handed over.
+/// Why:
+///   The hand-over answers before the thread has written anything,
+///  so a caller that must know whether its words reached the person
+///  reads this answer instead of the write's own
+///  (`Notice::show`, `push/push_failure_notice_shown_then_removed.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// enum HandedOver { Written, Unwritten }
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HandedOver {
+    /// Every byte of the line is in the stream.
+    Written,
+    /// The line is not in the stream,
+    /// and no wait of this command puts it there.
+    Unwritten,
+}
+
 /// One line waiting for the stream,
 /// with the number the caller waits for.
 struct Pending {
@@ -151,6 +172,15 @@ pub(crate) struct Queue {
     /// a write that failed for any reason other than a momentary lack of room
     /// leaves a stream that no wait can bring back.
     stream_is_gone: bool,
+    /// The numbers of the lines a stream refused,
+    /// oldest first,
+    /// kept until the caller that waits for one reads its answer.
+    /// Why the numbers rather than a yes or a no:
+    ///  a write that failed for any reason other than a momentary lack of room
+    ///  leaves a stream that no wait can bring back,
+    ///  and a caller that must know whether its own line reached the person
+    ///  asks about that line alone.
+    lost: VecDeque<u64>,
     /// Whether the system refused the thread that writes these lines,
     /// so every line is written on the thread that says it.
     /// Why the refusal is kept and not retried:
@@ -234,6 +264,7 @@ pub(crate) fn start_the_queue(policy: &'static QueuePolicy) -> SharedQueue {
             writing: false,
             reader_stopped: false,
             stream_is_gone: false,
+            lost: VecDeque::new(),
             thread_refused: false,
             thread_refusal: None,
             writer: None,
@@ -508,15 +539,18 @@ fn take_the_stream(queue: &'static Mutex<Queue>) -> Box<dyn Write + Send> {
 /// What:
 ///  Puts the stream back where the next line takes it,
 ///  moves the number the stream has reached,
+///  keeps a line the stream refused,
 ///  and wakes every caller waiting for a line.
 /// Why:
 ///   A caller waits for the number of its own line,
 /// so exactly one movement of that number is what ends the wait,
 ///  and the wake comes after the stream took the line rather than before.
+///  A line the stream refused is kept by its number,
+/// because the number alone cannot say whether this line or an earlier one failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const giveBack = (writer, ticket, gone) => { lock(); queue.writer ??= writer; queue.written = ticket; queue.writing = false; if (gone) queue.stream_is_gone = true; unlock(); notifyAll() }
+/// const giveBack = (writer, ticket, gone) => { lock(); queue.writer ??= writer; queue.written = ticket; queue.writing = false; if (gone) { queue.streamIsGone = true; queue.lost.push(ticket) } unlock(); notifyAll() }
 /// ```
 fn give_back(
     queue: &'static Mutex<Queue>,
@@ -535,6 +569,7 @@ fn give_back(
     held.writing = false;
     if stream_is_gone {
         held.stream_is_gone = true;
+        held.lost.push_back(ticket);
     }
     drop(held);
     ready.notify_all();
@@ -933,23 +968,28 @@ pub(crate) fn hand(
 ///  Waits,
 ///  up to the wait it is given,
 ///  until the stream holds every byte of line `ticket`,
+///  answers whether it does,
 ///  and remembers a line the reader did not take so that no later caller waits.
 /// Why:
 ///   One reader that was not taking a line by the bound is a reader that is not taking lines,
 /// so the wait is paid once per process and never again,
 ///  which is what keeps a command that says twenty lines under a held lock to one bound rather than twenty.
-///  A queue whose callers do not wait never calls this,
+///  A queue whose callers do not wait reads the answer its line already has and waits for nothing,
 ///  and nothing here waits for a stream that is already gone.
+///  The answer is the whole point for a caller that must know whether its words reached the person:
+/// a line the stream refused is answered `Unwritten`,
+///  and a line still waiting when the bound passes is answered `Unwritten` too,
+///  because a command never waits for a reader past its bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const waitUntilWritten = (ticket, within) => { for (;;) { if (written >= ticket) return; if (deadlinePassed()) { readerStopped = true; return } waitUntil(deadline) } }
+/// const waitUntilWritten = (ticket, within) => { for (;;) { if (lost.includes(ticket)) return 'Unwritten'; if (written >= ticket) return 'Written'; if (streamIsGone || readerStopped) return 'Unwritten'; if (deadlinePassed()) { readerStopped = true; return 'Unwritten' } waitUntil(deadline) } }
 /// ```
 pub(crate) fn wait_until_written(
     queue: SharedQueue,
     ticket: u64,
     within: std::time::Duration,
-) {
+) -> HandedOver {
     let (held_queue, ready) = queue;
     // What:     `Instant::now() + within` is the moment the caller stops waiting for the reader.
     // Why:      A reader that was not taking the line by then is not taking lines at all.
@@ -963,26 +1003,38 @@ pub(crate) fn wait_until_written(
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     // What:     `if !held.policy.callers_wait_for_their_line` leaves at once for a queue whose callers hand a line and go on.
-    // Why:      The wait is a promise only the diagnostics' queue makes; the service's log never holds its callers.
+    // Why:      The wait is a promise only the diagnostics' queue makes; the service's log never holds its callers,
+    //           and it still reads the answer its line has now.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // if (!held.policy.callersWaitForTheirLine) return;
+    // if (!held.policy.callersWaitForTheirLine) return takenNow(held, ticket);
     // ```
     if !held.policy.callers_wait_for_their_line {
-        return;
+        return the_answer_the_queue_holds(&mut held, ticket).unwrap_or(HandedOver::Unwritten);
     }
     loop {
+        // What:     `the_answer_the_queue_holds(...)` is the answer this queue holds now, where one it holds is decided.
+        // Why:      A line the stream refused and a line it wrote are both decided;
+        //           a line still waiting is not, and it waits on.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const answered = theAnswerTheQueueHolds(held, ticket); if (answered !== undefined) return answered;
+        // ```
+        if let Some(answered) = the_answer_the_queue_holds(&mut held, ticket) {
+            return answered;
+        }
         // A stream that is gone takes nothing more, so no wait brings a reader back.
-        if held.stream_is_gone || held.reader_stopped || held.written >= ticket {
-            return;
+        if held.stream_is_gone || held.reader_stopped {
+            return HandedOver::Unwritten;
         }
         // What:     `left` is how long the caller may still wait, or nothing once the bound has passed.
         // Why:      A caller that waited its bound remembers the stopped reader instead of waiting again.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const left = deadline - now(); if (left <= 0) { readerStopped = true; log(...); return; }
+        // const left = deadline - now(); if (left <= 0) { readerStopped = true; log(...); return 'Unwritten'; }
         // ```
         let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
             // Said once per process, to the log this command keeps rather than to the stream it cannot reach.
@@ -990,13 +1042,41 @@ pub(crate) fn wait_until_written(
             let tag: &'static str = held.policy.tag;
             drop(held);
             crate::diagnostic_log::debug(tag, format!("the reader of this queue's stream took no line within {within:?}, so the command stops waiting for it").as_str());
-            return;
+            return HandedOver::Unwritten;
         };
         held = match ready.wait_timeout(held, left) {
             Ok((ready_now, _its_time_was_up)) => ready_now,
             Err(poisoned) => poisoned.into_inner().0,
         };
     }
+}
+
+/// What:
+///  The answer the queue holds for line `ticket` now,
+///  where a refusal of that line is read and taken out,
+///  and nothing while the stream has not answered for it yet.
+/// Why:
+///   A line the stream refused is kept by its number,
+///  and the caller that asks for it is the one that reads the refusal;
+///  a line the stream wrote is answered by the number the queue moved to,
+///  which is exact because each line moves it to its own number and one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theAnswerTheQueueHolds = (held, ticket) => { if (held.lost.includes(ticket)) { held.lost = held.lost.filter((each) => each !== ticket); return 'Unwritten' } if (held.written >= ticket) return 'Written'; return undefined }
+/// ```
+fn the_answer_the_queue_holds(
+    held: &mut Queue,
+    ticket: u64,
+) -> Option<HandedOver> {
+    if let Some(at) = held.lost.iter().position(|lost| return *lost == ticket) {
+        let _read: Option<u64> = held.lost.remove(at);
+        return Some(HandedOver::Unwritten);
+    }
+    if held.written >= ticket {
+        return Some(HandedOver::Written);
+    }
+    return None;
 }
 
 /// What:

@@ -528,3 +528,92 @@ fn a_line_longer_than_the_stream_s_room_is_settled_at_once() {
         },
     );
 }
+
+/// What:
+///  A line the queue put in a stream that takes it is answered written.
+/// Why:
+///  A caller that must not lose what its line says keeps its record on this answer,
+///  so a line the person did read must be told apart from one they did not.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_line_the_stream_took_is_answered_written() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_the_stream_took_is_answered_written",
+        || {
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            give_the_thread(Box::new(writer));
+            let answered: HandedOver = write_bytes(b"[warn] a line the reader takes\n");
+            assert_eq!(
+                answered,
+                HandedOver::Written,
+                "the line is in the stream, so the caller is told it is"
+            );
+            let text: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+            assert_eq!(
+                text, "[warn] a line the reader takes\n",
+                "the line the answer is about is the line the stream holds"
+            );
+        },
+    );
+}
+
+/// What:
+///  A line a closed stream refused is answered unwritten.
+/// Why:
+///   The write of the line answered nothing, because the thread had not written it yet;
+///  this answer is what a record that must outlive its line is kept by
+///  (`Notice::show`).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_line_a_closed_stream_refused_is_answered_unwritten() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_a_closed_stream_refused_is_answered_unwritten",
+        || {
+            give_the_thread(Box::new(crate::test_support::AStreamThatRefusesEveryByte));
+            let answered: HandedOver = write_bytes(b"[warn] a line nobody can read\n");
+            assert_eq!(
+                answered,
+                HandedOver::Unwritten,
+                "a stream that refused the line leaves it out of the stream"
+            );
+        },
+    );
+}
+
+/// What:
+///  A line a stream nobody drains could not take is answered unwritten,
+///  and the caller is not held for the reader.
+/// Why:
+///   Two promises meet at this line:
+///  the person must not be told the words reached them when they did not,
+///  and the command must never wait for a reader that stopped draining (issue 6421).
+///  One bound is what the first line of such a stream costs, so this control reads both.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_line_a_stream_nobody_drains_is_answered_unwritten_and_holds_no_caller() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_a_stream_nobody_drains_is_answered_unwritten_and_holds_no_caller",
+        || {
+            let (reader, writer) = a_pipe_that_is_full();
+            give_the_thread(Box::new(writer));
+            let began: Instant = Instant::now();
+            let answered: HandedOver = write_bytes(b"[warn] a line nobody drains reads\n");
+            let elapsed: Duration = began.elapsed();
+            assert_eq!(
+                answered,
+                HandedOver::Unwritten,
+                "a line still waiting for a reader is not in the stream"
+            );
+            // One bound is what the first line of a stream nobody drains costs, and four leave room for a loaded
+            //  host without leaving room for a wait that has no end.
+            assert!(
+                elapsed < WARNING_WRITE_CEILING.saturating_mul(4),
+                "the caller waits one bound and not for the reader: {elapsed:?}"
+            );
+            drop(reader);
+        },
+    );
+}

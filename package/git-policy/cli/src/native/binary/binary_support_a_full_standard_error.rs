@@ -275,3 +275,29 @@ pub fn started_on_a_full_pipe(command: &mut std::process::Command) -> (Child, Pi
     let child: Child = spawn_owned(command).expect("the command starts");
     return (child, pipe);
 }
+
+/// What:
+///  Starts `command` with a pipe as its standard error whose read end this control holds open and
+///  whose reader never appears, because the read end is closed here at once.
+/// Why:
+///   A person's terminal can go away while a command runs,
+///  and every byte the command writes to standard error is then refused with `EPIPE`.
+///  The read ends the shared reading makes are drained, so a control that needs a reader that is gone
+///  hands the command this pipe instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const startedOnAClosedPipe = (command) => { command.stdin('ignore').stdout('ignore').stderr('pipe'); const child = spawnOwned(command); child.stderr.destroy(); return child };
+/// ```
+pub fn started_on_a_closed_pipe(command: &mut std::process::Command) -> Child {
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    let mut child: Child = spawn_owned(command).expect("the command starts");
+    // What: The read end is closed here, in the control's own process.
+    // Why:  Every write the command makes to its standard error is then refused, as a program whose reader ended
+    //       has it refused, and no byte of it can ever be read.
+    drop(child.stderr.take());
+    return child;
+}

@@ -3844,7 +3844,10 @@ A worktree whose branch a merge landed is removed by those same routes,
  with the path,
  the branch and the reason,
  and a record whose words could not be written stays for the next command,
- exactly as a failed push's record does.
+ exactly as a failed push's record does:
+ the words count as written only when the thread that writes standard error answers that every byte of the line is in
+ the stream,
+ so a reader that had gone costs the command no wait and the person no record.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
  The hand-over writes,
@@ -8960,6 +8963,14 @@ free,
 staying under its claim otherwise,
 where a later command finds it once this one is gone
 (`Notice::show`).
+The words count as written only when the thread that writes standard error answers that every byte of the line is in
+the stream,
+which is the one place that knows:
+the write of the line answers as soon as the queue has it,
+and a line still waiting when the command gave up is answered as one that did not reach the person,
+so a reader that stopped draining costs the command the one `WARNING_WRITE_CEILING` it owes that reader and never the
+record
+(`src/native/foundation/standard_error_off_the_calling_thread.rs`).
 
 #### A blocked commit is never published
 
@@ -19705,9 +19716,20 @@ They are lines a person can live without:
 the exit status already carries the result,
 and the one stream a commit's own last words keep blocking is its standard output,
 which carries Git's summary and the wrapper's summary line as Git writes them.
+A line is not the record behind it, though:
+the notice of a failed push,
+of a kept worktree or of a removal that went around speaks for a record that is the only trace of what it says,
+so a line the thread could not put in the stream answers so,
+and a record whose line was answered unwritten stays for the next command instead of going with the line
+(the two sections above say the same about the same records).
 A control runs a commit whose standard error is a pipe filled to its capacity and never read,
 and expects the command to return with the commit on the branch and the pipe still full
 (`src/native/binary/binary_commit_stalled_standard_error_tests.rs`).
+A control runs a commit whose standard error is a pipe whose reader has gone,
+with a failed push's record waiting,
+and expects the command to return, the commit to land, and that record to stay for the next command,
+which shows it once
+(the same file).
 Every site above has such a control of its own,
 beside the scenario that makes its line
 (`src/native/binary/`).
