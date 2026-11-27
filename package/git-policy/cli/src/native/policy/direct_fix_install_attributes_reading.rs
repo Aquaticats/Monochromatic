@@ -16,8 +16,6 @@
 //! // const names = (path) => llistxattr(path).split('\0').filter(Boolean); const value = (path, name) => lgetxattr(path, name);
 //! ```
 
-/// How many times a list or a value is asked for before a changing file is refused.
-use super::ATTRIBUTE_ATTEMPTS;
 /// `CStr` is a NUL-terminated name for the system calls;
 ///  `CString` is one this code builds.
 use std::ffi::{
@@ -28,6 +26,26 @@ use std::ffi::{
 use std::os::unix::ffi::OsStrExt;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+
+/// How many times a list or a value is asked for before a changing file is refused.
+///  Exempt from a citation under `LQM` (class:
+/// poll):
+/// it sets how often a condition is looked at again,
+/// so it adds at
+///  most one retry to a read that already exists.
+/// Why:
+///   The kernel answers a list that grew between the size question and the answer with `ERANGE`,
+///  and a
+///       second answer is the usual end of it;
+///  a file whose attributes keep changing has no list this
+///       process can name,
+///  so the reading stops rather than loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ATTRIBUTE_ATTEMPTS = 4;
+/// ```
+pub(super) const ATTRIBUTE_ATTEMPTS: u32 = 4;
 
 /// What:
 ///  A pathname as the system calls want it.

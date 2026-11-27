@@ -128,11 +128,6 @@ file-uses src/native/landing work_item.rs -> work_item_queued_ids.rs
 file-uses src/native/landing work_item_enqueue.rs -> work_item.rs
 file-uses src/native/landing work_item_holding.rs -> work_item.rs
 file-uses src/native/landing work_item_queued_ids.rs -> work_item.rs
-file-uses src/native/lfs lfs_upload_plan.rs -> lfs_upload_plan_arguments.rs
-file-uses src/native/lfs lfs_upload_plan.rs -> lfs_upload_plan_awaiting.rs
-file-uses src/native/lfs lfs_upload_plan_arguments.rs -> lfs_upload_plan.rs
-file-uses src/native/lfs lfs_upload_plan_awaiting.rs -> lfs_upload_plan.rs
-file-uses src/native/lfs lfs_upload_plan_awaiting.rs -> lfs_upload_plan_arguments.rs
 file-uses src/native/lock index_lock_evidence.rs -> index_lock_evidence_words.rs
 file-uses src/native/lock index_lock_evidence_words.rs -> index_lock_evidence.rs
 file-uses src/native/lock index_lock_holder_parsers.rs -> index_lock_holders.rs
@@ -217,14 +212,6 @@ file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_git_lines.r
 file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_report.rs
 file-uses src/native/merge merge_second_pass_git_lines.rs -> merge_second_pass.rs
 file-uses src/native/merge merge_second_pass_report.rs -> merge_second_pass.rs
-file-uses src/native/policy direct_fix_install_attributes.rs -> direct_fix_install_attributes_reading.rs
-file-uses src/native/policy direct_fix_install_attributes_reading.rs -> direct_fix_install_attributes.rs
-file-uses src/native/policy policy_branch_worktree.rs -> policy_checks.rs
-file-uses src/native/policy policy_checks.rs -> policy_branch_worktree.rs
-file-uses src/native/policy policy_checks.rs -> policy_linked_worktree.rs
-file-uses src/native/policy policy_linked_worktree.rs -> policy_checks.rs
-file-uses src/native/policy policy_linked_worktree.rs -> policy_linked_worktree_nested_repositories.rs
-file-uses src/native/policy policy_linked_worktree_nested_repositories.rs -> policy_checks.rs
 file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
 file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
 file-uses src/native/process signal_relay.rs -> signal_report.rs
