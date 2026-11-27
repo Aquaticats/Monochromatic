@@ -942,17 +942,18 @@ fn a_finished_copy_at_the_version_as_another_install(
 
 /// What:
 /// This process's hidden sibling under the name it would carry once this process ended:
-/// the same purpose with the pair of an installer that no longer runs.
+/// the purpose it was made for, with the four facts of an installer that no longer runs.
 /// Why:
 /// A later install claims only a name whose installer the system reports as ended,
 /// and a control cannot end its own test process,
 /// so it renames the leftover to the name a run after this process's end reads.
+/// The purpose is named by the caller:
+/// a hidden name carries the boot and the namespace after the process id and its start time,
+/// so the purpose is not a fixed distance from the end of the name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function asAfterThisProcessEnded(path: string, versionDir: string): string {
-///   const parts = basename(path).split('.');
-///   const purpose = parts[parts.length - 3];
+/// function asAfterThisProcessEnded(path: string, versionDir: string, purpose: string): string {
 ///   const ended = hiddenSibling(versionDir, purpose, anInstallerThatNoLongerRuns());
 ///   renameSync(path, ended);
 ///   return ended;
@@ -961,10 +962,8 @@ fn a_finished_copy_at_the_version_as_another_install(
 fn as_after_this_process_ended(
     path: &Path,
     version_dir: &Path,
+    purpose: &str,
 ) -> PathBuf {
-    let name: String = super::util::file_name_text(path);
-    let parts: Vec<&str> = name.split('.').collect();
-    let purpose: &str = parts[parts.len() - 3];
     let ended: PathBuf = hidden_sibling(version_dir, purpose, an_installer_that_no_longer_runs());
     fs::rename(path, &ended)
         .expect("rename the leftover to the name a later run reads as a dead installer's");
@@ -1072,7 +1071,7 @@ fn a_publish_that_fails_with_the_versions_name_absent_keeps_the_finished_copy_fo
     };
 
     // The run that failed ends, so its claim carries a dead installer's pair, which is what the next install reads.
-    as_after_this_process_ended(&kept, &version_dir);
+    as_after_this_process_ended(&kept, &version_dir, RECOVERED_PURPOSE);
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
     assert!(report.failed.is_empty(), "{report:?}");
     assert!(
@@ -1521,6 +1520,40 @@ fn a_recovery_never_publishes_an_older_version_beside_a_newer_installed_one() {
         a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
         "the finished copy stays hidden, since it may be the only one once 0.2.2 is gone: {:?}",
         names_of(&tool_dir)
+    );
+}
+
+#[test]
+fn a_finished_copy_of_an_older_version_that_no_lock_vouches_for_is_removed_beside_a_newer_one() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    finish_archive(&root, "0.2.2");
+    // A dead install whose marker an earlier build wrote: it records no archive digest, so no install can publish it,
+    // whichever version is locked.
+    let dead: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(dead.join("release-folder")).expect("make the hidden copy");
+    write_executable(&dead.join("release-folder").join(BIN));
+    fs::write(dead.join(COMPLETE_MARKER), format!("{ID} 0.2.1\n")).expect("write the marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(!version_dir.exists(), "{report:?}");
+    assert!(
+        !dead.exists(),
+        "a finished copy no install can publish is not kept: {:?}",
+        names_of(&tool_dir)
+    );
+    assert!(
+        !report
+            .recovered
+            .iter()
+            .any(|sentence| return sentence.contains("left the finished copy")),
+        "the report says nothing was left behind: {report:?}"
     );
 }
 
