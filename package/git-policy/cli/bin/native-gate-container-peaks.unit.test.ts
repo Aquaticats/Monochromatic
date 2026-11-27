@@ -289,9 +289,11 @@ await describe({
           tree.path,
           'peaks.jsonl',
         );
-        // Clippy's container ends part way through, which is what the recorder has to notice and mark.
+        // Clippy's container ends part way through, which is what the recorder has to notice and mark. The window is
+        // sized for a loaded host running the whole suite beside this file: the recorder must have read both roles'
+        // own scopes before the rename, which is what an interval per role allows many times over on a quiet one.
         const removed = (async function removedMidRun(): Promise<void> {
-          await waitUntil(fixtureIntervalMilliseconds * 10,);
+          await waitUntil(fixtureIntervalMilliseconds * 50,);
           await rename(
             clippyScope,
             join(
@@ -310,7 +312,7 @@ await describe({
           userId: 1_000,
           intervalMilliseconds: fixtureIntervalMilliseconds,
           processIntervalMilliseconds: fixtureIntervalMilliseconds,
-          deadlineMilliseconds: fixtureIntervalMilliseconds * 50,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 200,
         },);
         await removed;
         expect(outcome.rolesRead,).toEqual([
@@ -501,7 +503,7 @@ await describe({
           roles: ['suite',],
           intervalMilliseconds: fixtureIntervalMilliseconds,
           processIntervalMilliseconds: fixtureIntervalMilliseconds,
-          deadlineMilliseconds: fixtureIntervalMilliseconds * 200,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 100,
         },);
         await untilWholeSample({ outPath, },);
         const held = await holdStandInCgroupReading({
