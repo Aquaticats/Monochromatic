@@ -135,11 +135,11 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     (
-        "landing/service_work.rs",
+        "landing/service_work_git_handlers.rs",
         "#[cfg_attr(not(test),expect(unused_mut))]",
     ),
     (
-        "landing/service_work.rs",
+        "landing/service_work_git_handlers.rs",
         "#[cfg_attr(not(test),expect(unused_mut))]",
     ),
     ("main.rs", "#[allow(clippy::disallowed_methods)]"),

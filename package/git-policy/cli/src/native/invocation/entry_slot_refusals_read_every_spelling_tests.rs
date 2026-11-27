@@ -152,6 +152,10 @@ fn stopped(action: Action) -> (i32, String) {
     };
 }
 
+/// The pool sentence a control hands in where a refusal must read no pool:
+/// its text in the report would prove the pool was read.
+const NO_POOL_WAS_ASKED: &str = "this control reads no pool";
+
 /// One mount table in which nothing stands at any slot,
 /// so the refusal decides the slot's state without reading this machine's
 /// mounts.
@@ -190,12 +194,27 @@ fn run_the_removal(
         mounts: &mounts,
         intents: &intents,
     };
+    return run_the_removal_with(facts, words, &sources);
+}
+
+/// The same run over the slot sources a control answers,
+/// so a control can script the mount table and the clone's intent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const run = runTheRemovalWith(facts, words, { mounts: aTableWithTheMount, intents: noIntent });
+/// ```
+fn run_the_removal_with(
+    facts: &CopyFacts,
+    words: &[OsString],
+    sources: &SlotReadingSources<'_>,
+) -> ForwardedRun {
     let refusal = |target: &Path, common: &Path| {
         return refuse_the_removal_with(
             target,
             common,
-            RemovalReads::Unreadable("this control reads no pool"),
-            &sources,
+            RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources,
         );
     };
     return run_forwarded_git_with_its_own_steps(
@@ -472,6 +491,92 @@ fn a_bound_slots_removal_behind_a_global_option_this_build_does_not_read_is_refu
 }
 
 /// What:
+///  A removal behind a global option this build does not read,
+///  with a `-C` after it,
+///  is refused even in a repository with no slot records,
+///  and the sentence says the wrapper cannot tell which repository the command
+///  names.
+/// Why:
+///  The owner's answer of 2026-11-26:
+///  `git --future-option=x -C checkouts/repo worktree remove -f -f slot-one`
+///  typed outside the repository stops the wrapper's reading at the option,
+///  so it never learns that `-C` names the repository,
+///  and was forwarded
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+#[test]
+fn a_removal_behind_an_unread_global_that_names_the_repository_is_refused() {
+    let unrecorded: RegisteredSlot =
+        a_registered_slot("entry-slot-unread-global-then-named-repository");
+    let words: Vec<OsString> = text(&[
+        A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ,
+        "-C",
+        unrecorded.repository.to_str().expect("utf-8"),
+        "worktree",
+        "remove",
+        "-f",
+        "-f",
+        "one",
+    ]);
+    let action: Action = plan_invocation(words.as_slice(), &[], &inputs(unrecorded.root.as_path()));
+    let (code, stderr): (i32, String) = stopped(action);
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the refusal is the wrapper's own status: {stderr}"
+    );
+    assert!(
+        stderr.contains(A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ),
+        "the refusal names the option it could not read: {stderr}"
+    );
+    assert!(
+        stderr.contains("which repository the command names"),
+        "the refusal says what it could not prove: {stderr}"
+    );
+    assert!(
+        stderr.contains("git -C <repository> worktree remove"),
+        "the refusal names the spelling the wrapper reads: {stderr}"
+    );
+    assert!(unrecorded.slot.is_dir(), "nothing was removed");
+    assert!(unrecorded.registration.is_dir(), "the registration stands");
+    remove(unrecorded.root.as_path());
+}
+
+/// What:
+///  A move behind a global option this build does not read,
+///  with a `--git-dir` after it,
+///  is refused for the same reason.
+/// Why:
+///  Both words carry the same answer,
+///  and `--git-dir` names the repository as `-C` does,
+///  so a reading that only knew `-C` would leave the move to Git.
+#[test]
+fn a_move_behind_an_unread_global_that_names_the_repository_is_refused() {
+    let unrecorded: RegisteredSlot = a_registered_slot("entry-slot-move-unread-then-git-dir");
+    let words: Vec<OsString> = text(&[
+        A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ,
+        "--git-dir",
+        unrecorded.common.to_str().expect("utf-8"),
+        "worktree",
+        "move",
+        "one",
+        "../moved",
+    ]);
+    let action: Action = plan_invocation(words.as_slice(), &[], &inputs(unrecorded.root.as_path()));
+    let (code, stderr): (i32, String) = stopped(action);
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the refusal is the wrapper's own status: {stderr}"
+    );
+    assert!(
+        stderr.contains("git -C <repository> worktree move"),
+        "the refusal names the spelling the wrapper reads: {stderr}"
+    );
+    assert!(unrecorded.slot.is_dir(), "nothing was moved");
+    remove(unrecorded.root.as_path());
+}
+
+/// What:
 ///  A bound slot's move behind a global option this build does not read is
 ///  refused,
 ///  and the sentence names that option and the spellings the wrapper reads.
@@ -592,6 +697,170 @@ fn a_bound_slots_removal_with_a_record_that_cannot_be_read_is_refused() {
     assert!(
         stderr.contains("restore it from a copy"),
         "the refusal names what to repair: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    assert!(bound.registration.is_dir(), "the registration stands");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A removal of a slot with no binding record and a mount at its path is
+///  refused through the planner and the served run,
+///  naming that mount,
+///  and no pool is read.
+/// Why:
+///  The owner's answer of 2026-11-26 refuses the removal where no record proves
+///  what a slot holds:
+///  Git's own removal would delete the registration and the underlay folder while
+///  the mount at the slot may hold a managed clone's files.
+#[test]
+fn a_removal_of_a_slot_with_a_mount_and_no_record_is_refused() {
+    let unrecorded: RegisteredSlot = a_registered_slot("entry-slot-mount-with-no-record");
+    // A repository the route has served holds its record folder, and this slot has no record in it.
+    publish_under(
+        unrecorded.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            unrecorded.root.join("two").as_path(),
+            unrecorded.registration.as_path(),
+            Some(unrecorded.pointer.clone()),
+        ),
+        "two",
+    );
+    let slot: String = unrecorded.slot.display().to_string();
+    let mounts: ScriptedMountTable = ScriptedMountTable::holding(&[
+        row(1, 0, "/", "/", "zfs", "tank/ROOT"),
+        row(50, 1, "/", slot.as_str(), "zfs", "tank/some-other-dataset"),
+    ]);
+    let intents: ScriptedIntent = ScriptedIntent;
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let words: Vec<OsString> = started_in(
+        unrecorded.repository.as_path(),
+        &["worktree", "remove", "-f", "-f", "one"],
+    );
+    let facts: CopyFacts = settled_facts(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(unrecorded.root.as_path()),
+    ));
+    let stderr: String =
+        the_refusals_report(run_the_removal_with(&facts, words.as_slice(), &sources));
+    assert!(
+        stderr.contains("tank/some-other-dataset"),
+        "the refusal names the mount no record explains: {stderr}"
+    );
+    assert!(
+        !stderr.contains(NO_POOL_WAS_ASKED),
+        "the refusal reads no pool: {stderr}"
+    );
+    assert!(unrecorded.slot.is_dir(), "nothing was removed");
+    assert!(unrecorded.registration.is_dir(), "the registration stands");
+    remove(unrecorded.root.as_path());
+}
+
+/// What:
+///  A removal of a path whose slot name holds a record naming another path is
+///  refused through the planner and the served run,
+///  naming both paths.
+/// Why:
+///  The owner's answer of 2026-11-26 refuses a removal no record proves,
+///  and a record keyed by this name for another path proves nothing about the
+///  worktree the command names.
+#[test]
+fn a_removal_whose_record_names_another_path_is_refused() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-record-of-another-path");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let elsewhere: PathBuf = bound.root.join("elsewhere").join("one");
+    std::fs::create_dir_all(elsewhere.as_path()).expect("the plain folder");
+    let plain: PathBuf =
+        std::fs::canonicalize(elsewhere.as_path()).expect("canonical plain folder");
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "-f",
+            "-f",
+            plain.to_str().expect("utf-8"),
+        ],
+    );
+    let facts: CopyFacts = settled_facts(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        facts.removal_target.as_deref(),
+        Some(plain.as_path()),
+        "the planner reads the operand the command names"
+    );
+    let stderr: String = the_refusals_report(run_the_removal(&facts, words.as_slice()));
+    assert!(
+        stderr.contains("not this slot's record")
+            && stderr.contains(bound.slot.to_str().expect("utf-8")),
+        "the refusal names the path the record holds: {stderr}"
+    );
+    assert!(plain.is_dir(), "nothing was removed");
+    assert!(bound.slot.is_dir(), "the bound slot stands");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A removal of a filled slot at a moment the mount table cannot be read is
+///  refused through the planner and the served run,
+///  naming the reader's reason.
+/// Why:
+///  The owner's answer of 2026-11-26:
+///  with the clone mounted and the mount table unreadable,
+///  Git would delete inside the clone
+///  (the alpha.47 pass's finding 12).
+#[test]
+fn a_removal_at_an_unreadable_mount_table_is_refused() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-unreadable-mount-table");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let mounts: ScriptedMountTable =
+        ScriptedMountTable::unreadable("the table is too large to read");
+    let intents: ScriptedIntent = ScriptedIntent;
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &["worktree", "remove", "-f", "-f", "one"],
+    );
+    let facts: CopyFacts = settled_facts(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    let stderr: String =
+        the_refusals_report(run_the_removal_with(&facts, words.as_slice(), &sources));
+    assert!(
+        stderr.contains("the mount table could not be read")
+            && stderr.contains("the table is too large to read"),
+        "the refusal names the reader's reason: {stderr}"
     );
     assert!(bound.slot.is_dir(), "nothing was removed");
     assert!(bound.registration.is_dir(), "the registration stands");

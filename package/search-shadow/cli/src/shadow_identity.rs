@@ -2,7 +2,7 @@
 //! The rule "a shadow never starts a shadow,
 //! of any version,
 //! as its real program",
-//! in three parts:
+//! in parts:
 //! an identity text that every shadow program carries inside its own file,
 //! a check that reads that text from a candidate (through launcher records when the candidate is a launcher),
 //! and an arrival marker in the environment that stops a shadow which a shadow started anyway.
@@ -29,77 +29,49 @@
 //! Anything started further down (a script the real tool runs,
 //! which may call the shadow again) has another process in between and passes.
 //!
-//! This file declares the parts and re-exports what they answer,
-//! so every caller keeps reading `shadow_identity::<name>`:
-//! `the_carried_identity_text` (the words this program carries in its own file),
-//! `what_a_file_is` (the identity in a file,
-//! and two paths that name one file),
-//! `launcher_records` (a launcher judged by the program it leads to),
-//! `the_program_checked_while_open` (the open-and-check step,
-//! and the start through that file),
-//! and `the_arrival_marker` (the marker,
-//! its reading and the line a stopped shadow prints).
-//!
-//! This file and its five parts are byte-identical copies in four shadow crates
-//! (`cargo-shadow`,
+//! This module is one of four byte-identical copies,
+//! one per shadow crate (`cargo-shadow`,
 //! `mpm-shadow`,
 //! `pnpm-shadow`,
 //! `search-shadow`),
 //! because the four crates share no dependency and a crates.io footprint that stays small is the owner's decision
 //! (`doc/planning/one-release-each-batch-2026-11.md`,
 //! "What the owner decided").
-//! `tests/shadow_identity_copies.rs` of `search-shadow` fails when any of the six files differs.
+//! `tests/shadow_identity_copies.rs` of `search-shadow` fails when the copies differ.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // shadow-identity/index.ts
-//! export * from './the-carried-identity-text.ts';
-//! export * from './what-a-file-is.ts';
-//! export * from './launcher-records.ts';
-//! export * from './the-program-checked-while-open.ts';
-//! export * from './the-arrival-marker.ts';
+//! // shadow-identity.ts
+//! export function identityOfFile(file: FileHandle): string | undefined { /* the ELF section ".monochromatic_shadow_identity" */ }
+//! export function shadowBehind(candidate: string): string | undefined { /* follow `.launch` records, then identityOfFile */ }
+//! export function arrivalAtThisProcess(value: string | undefined): Arrival | undefined { /* pid + birth identity */ }
 //! ```
 //!
-//! The calls themselves are unchanged:
-//! `ownIdentity()`,
-//! `identityOfOpenFile(file)`,
-//! `shadowBehind(candidate)`,
-//! `vet(program).command()`,
-//! `arrivalAtThisProcess()`,
-//! `arrivalLine(tool, arrival)`.
+//! The rule's parts are one file each:
+//! the identity text and the carried section (`identity_text.rs`),
+//! the section reader (`elf_section.rs`),
+//! the launcher records (`launcher_chain.rs`),
+//! the checked start (`vetted_program.rs`),
+//! the arrival marker (`arrival_marker.rs`),
+//! and the same-file comparison (`same_file.rs`).
 
-/// What:
-/// `mod the_carried_identity_text;` declares a private submodule whose code is in
-/// `src/shadow_identity/the_carried_identity_text.rs`.
-/// Why:
-/// The parts stay private and only what this file re-exports is public,
-/// so every caller's path is the one it had before the split.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import * as theCarriedIdentityText from './the-carried-identity-text.ts';
-/// ```
-mod the_carried_identity_text;
+/// The arrival marker that stops a shadow a shadow started.
+mod arrival_marker;
+/// The reader for the ELF section that holds the identity text.
+mod elf_section;
+/// The identity text and what this program says it is.
+mod identity_text;
+/// The launcher records that lead from a candidate to the program it starts.
+mod launcher_chain;
+/// The comparison of two paths by device and inode.
+mod same_file;
+/// The program chosen as the real tool,
+/// opened and checked before it starts.
+mod vetted_program;
 
-/// The identity text in a file,
-/// and whether two paths name one file.
-mod what_a_file_is;
-
-/// The record beside a launcher,
-/// and the program it leads to.
-mod launcher_records;
-
-/// The program opened once,
-/// checked while open,
-/// and started through that file.
-mod the_program_checked_while_open;
-
-/// The marker a shadow leaves for the program it starts,
-/// and the arrival stop.
-mod the_arrival_marker;
-
-/// The environment variable that carries the arrival marker from a shadow to the program it starts.
-pub use the_arrival_marker::{
+/// Re-exports the arrival marker,
+/// what it says and the rule that reads it.
+pub use self::arrival_marker::{
     ARRIVAL_EXIT_CODE,
     ARRIVAL_VARIABLE,
     Arrival,
@@ -113,34 +85,26 @@ pub use the_arrival_marker::{
     parse_arrival,
     process_birth,
 };
-
-/// The identity text this program carries,
-/// its section name and its prefix.
-pub use the_carried_identity_text::{
+/// Re-exports the reader for the identity section.
+pub use self::elf_section::identity_of_open_file;
+/// Re-exports the identity text's names and what this program says it is.
+pub use self::identity_text::{
     IDENTITY_PREFIX,
     IDENTITY_SECTION,
     own_identity,
 };
-
-/// The record suffix and hop bound of a launcher,
-/// and the identity of the shadow behind a candidate.
-pub use launcher_records::{
+/// Re-exports the launcher record suffix,
+/// the hop bound and the record follow.
+pub use self::launcher_chain::{
     LAUNCH_RECORD_SUFFIX,
     MAX_LAUNCHER_HOPS,
     identity_of_open_file_unless_launcher,
     shadow_behind,
 };
-
-/// The program checked while open,
-/// and the check itself.
-pub use the_program_checked_while_open::{
+/// Re-exports the comparison of two paths by the file they name.
+pub use self::same_file::is_same_file;
+/// Re-exports the checked program and the check.
+pub use self::vetted_program::{
     Vetted,
     vet,
-};
-
-/// The identity in an open file,
-/// and whether two paths name one file.
-pub use what_a_file_is::{
-    identity_of_open_file,
-    is_same_file,
 };
