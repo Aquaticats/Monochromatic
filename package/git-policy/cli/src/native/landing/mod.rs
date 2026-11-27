@@ -131,6 +131,15 @@
 //!   index entries and conclusion state.
 //! - `service_land_finish_branch_questions.rs`:
 //!   the answers service land finish branch questions holds.
+//! - `service_land_follow_index_reset_git_questions.rs`:
+//!   how one step of the index reset asks Git,
+//!   on a thread and on the runtime,
+//!   and what answer it stands for.
+//! - `service_land_follow_index_reset_paths.rs`:
+//!   the paths a reset installs, as the bytes `git reset` reads them:
+//!   a pathspec that names one path from the top of the worktree,
+//!   a NUL-separated list of them,
+//!   and the names that differ between two commits.
 //! - `service_land_follow_index_reset.rs`:
 //!   the answers service land follow index reset holds.
 //! - `service_land_follow.rs`:
@@ -764,6 +773,17 @@ pub mod side_reference_written_here;
 pub mod service_land_copy;
 
 pub mod service_land_follow;
+
+/// How one step of the index reset asks Git,
+/// on a thread and on the runtime,
+/// and what answer it stands for.
+pub mod service_land_follow_index_reset_git_questions;
+
+/// The paths a reset installs, as the bytes `git reset` reads them:
+/// a pathspec that names one path from the top of the worktree,
+/// a NUL-separated list of them,
+/// and the names that differ between two commits.
+pub mod service_land_follow_index_reset_paths;
 
 /// What a landing does when its branch write is refused while the branch is still where the batch found it:
 /// the reference locks that stand,

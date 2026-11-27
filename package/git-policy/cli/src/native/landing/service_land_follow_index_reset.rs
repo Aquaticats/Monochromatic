@@ -22,18 +22,28 @@
 //! await resetEntriesAwaiting(git, repository, index, newCommit, names);
 //! ```
 
-use crate::inner_git_words::record_words;
-use crate::service_protocol::{
-    FailureCode,
-    is_zero_object,
+// The names of the files this step was split into stay reachable here,
+// so a caller and a control still name the reset alone.
+pub(crate) use crate::service_land_follow_index_reset_git_questions::classify;
+pub(crate) use crate::service_land_follow_index_reset_paths::{
+    derived_names,
+    derived_names_awaiting,
 };
+
+use crate::inner_git_words::record_words;
+use crate::service_land_follow_index_reset_git_questions::{
+    run,
+    run_awaiting,
+};
+use crate::service_land_follow_index_reset_paths::{
+    pathspec_input,
+    top_literal_spec,
+};
+use crate::service_protocol::FailureCode;
 use crate::transaction_git::{
     GitContext,
     GitOutput,
-    GitRequest,
-    run_git,
 };
-use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
 /// Which index entries a landing updates.
@@ -50,241 +60,6 @@ pub enum IndexPaths<'a> {
         /// the all-zero name when the branch did not exist.
         old: &'a str,
     },
-}
-
-/// What:
-///  The question one step of this module asks Git,
-/// with the input it feeds it and the index it reads.
-/// Why:
-///  Both faces ask one request,
-/// so neither can run another command,
-/// feed other bytes or read another index than
-///  the other;
-/// every pathspec this module writes is its own,
-/// so no pathspec mode of the caller's reaches it
-///  (`GitRequest::own_pathspecs`),
-/// whether the caller set it as a variable or as a global option.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const request = { ...new GitRequest(repository, arguments), ownPathspecs: true, input, index };
-/// ```
-fn request_of(
-    repository: &Path,
-    arguments: &[&str],
-    input: Option<Vec<u8>>,
-    index: Option<&Path>,
-) -> GitRequest {
-    let mut request: GitRequest = GitRequest::new(repository, arguments).own_pathspecs();
-    request.input = input;
-    request.index = index.map(Path::to_path_buf);
-    return request;
-}
-
-/// What:
-///  Git's output of one step,
-///  and the failure a Git that could not be started stands for.
-/// Why:
-///  Both faces read the run through this one function,
-/// so a step Git could not start is the same failure for both of
-///  them,
-/// and every other answer is Git's own output whichever face asked.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const runAnswered = (answered) => answered.error ? 'unavailable' : answered;
-/// ```
-fn run_answered(answered: std::io::Result<GitOutput>) -> Result<GitOutput, FailureCode> {
-    return match answered {
-        Ok(output) => Ok(output),
-        Err(_unstartable) => Err(FailureCode::Unavailable),
-    };
-}
-
-fn run(
-    git: &GitContext,
-    repository: &Path,
-    arguments: &[&str],
-    input: Option<Vec<u8>>,
-    index: Option<&Path>,
-) -> Result<GitOutput, FailureCode> {
-    return run_answered(run_git(
-        git,
-        &request_of(repository, arguments, input, index),
-    ));
-}
-
-/// What:
-///  `run` with its Git child awaited on the runtime.
-/// Why:
-///   A task of the runtime cannot enter it to wait for a child
-/// (`transaction_git_awaiting.rs`),
-/// and every step of this module runs
-///  from the landing once that landing is a task.
-/// The question and the reading of the answer are the synchronous face's,
-/// so
-///  the two cannot differ in what they run or in how they fail.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const output = await runAwaiting(git, repository, arguments, input, index);
-/// ```
-async fn run_awaiting(
-    git: &GitContext,
-    repository: &Path,
-    arguments: &[&str],
-    input: Option<Vec<u8>>,
-    index: Option<&Path>,
-) -> Result<GitOutput, FailureCode> {
-    return run_answered(
-        run_git_awaiting(git, &request_of(repository, arguments, input, index)).await,
-    );
-}
-
-/// The failure a Git step that did not succeed stands for.
-pub fn classify(output: &GitOutput) -> FailureCode {
-    let text: String = output.error_text().to_lowercase();
-    if text.contains("no space left") || text.contains("quota exceeded") {
-        return FailureCode::RepositoryFull;
-    }
-    if text.contains("read-only file system") {
-        return FailureCode::RepositoryReadOnly;
-    }
-    if text.contains("permission denied") {
-        return FailureCode::PermissionDenied;
-    }
-    if text.contains("index.lock") {
-        return FailureCode::IndexInUse;
-    }
-    return FailureCode::Unavailable;
-}
-
-/// A path in the form `reset` reads literally from the top of the repository.
-fn literal(path: &[u8]) -> Vec<u8> {
-    let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-    spec.extend_from_slice(path);
-    return spec;
-}
-
-/// The names (bytes,
-/// NUL-separated) of the paths that differ between `old` and `new`.
-pub(crate) fn derived_names(
-    git: &GitContext,
-    repository: &Path,
-    old: &str,
-    new: &str,
-) -> Result<Vec<u8>, FailureCode> {
-    let output: GitOutput = run(
-        git,
-        repository,
-        &derived_names_arguments(old, new),
-        None,
-        None,
-    )?;
-    if !output.succeeded() {
-        return Err(classify(&output));
-    }
-    return Ok(output.stdout);
-}
-
-/// What:
-///  `derived_names` with its Git child awaited on the runtime.
-/// Why:
-///   A task of the runtime cannot enter it to wait for a child,
-/// and the paths a batch changed are read when the index is
-///  updated from the landing.
-/// The arguments and the failure a refused step stands for are the synchronous face's,
-/// so the two
-///  read one list of names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const names = await derivedNamesAwaiting(git, repository, old, new);
-/// ```
-pub(crate) async fn derived_names_awaiting(
-    git: &GitContext,
-    repository: &Path,
-    old: &str,
-    new: &str,
-) -> Result<Vec<u8>, FailureCode> {
-    let output: GitOutput = run_awaiting(
-        git,
-        repository,
-        &derived_names_arguments(old, new),
-        None,
-        None,
-    )
-    .await?;
-    if !output.succeeded() {
-        return Err(classify(&output));
-    }
-    return Ok(output.stdout);
-}
-
-/// The arguments of the question `derived_names` asks Git.
-fn derived_names_arguments<'a>(
-    old: &'a str,
-    new: &'a str,
-) -> Vec<&'a str> {
-    let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
-    if is_zero_object(old) {
-        // A branch that did not exist: the commit is a root commit, and `--root` lists everything it holds.
-        arguments.push("--root");
-        arguments.push(new);
-    } else {
-        arguments.push(old);
-        arguments.push(new);
-    }
-    return arguments;
-}
-
-/// What:
-///  Whether a byte is the NUL that separates the names of a pathspec list.
-/// Why:
-///  `pathspec_input` splits a NUL-separated list into names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isZeroByte = (byte: number) => byte === 0;
-/// ```
-fn is_zero_byte(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// What:
-///  Whether a name from a NUL-separated list is not empty.
-/// Why:
-///  Two NULs in a row leave an empty name that names nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isNotEmptyName = (name: Uint8Array) => name.length > 0;
-/// ```
-fn is_not_empty_name(name: &&[u8]) -> bool {
-    return !name.is_empty();
-}
-
-/// What:
-///  A path as a pathspec that matches that path from the top of the worktree and nothing else.
-/// Why:
-///  `reset` is given one such spec per path the batch changed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const topLiteralSpec = (path: string) => `:(top,literal)${path}`;
-/// ```
-fn top_literal_spec(path: &String) -> String {
-    return format!(":(top,literal){path}");
-}
-
-/// The standard input of `reset --pathspec-from-file=- --pathspec-file-nul` for a list of NUL-separated names.
-fn pathspec_input(names: &[u8]) -> Vec<u8> {
-    let mut input: Vec<u8> = Vec::new();
-    for name in names.split(is_zero_byte).filter(is_not_empty_name) {
-        input.extend(literal(name));
-        input.push(0);
-    }
-    return input;
 }
 
 /// One try of the index update.
