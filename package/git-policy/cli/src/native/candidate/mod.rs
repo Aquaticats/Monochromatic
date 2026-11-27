@@ -48,6 +48,8 @@
 //! - `candidate_store.rs`:
 //!   per-invocation listing,
 //!   lazy bytes and invalidation of candidate versions.
+//! - `candidate_store_listings.rs`:
+//!   the listings a caller asks the store for and the Git commands behind them.
 //! - `candidate_prediction_listings.rs`:
 //!   the listings one prediction makes:
 //!   the changed paths `git add` would stage,
@@ -103,6 +105,9 @@ pub mod candidate_version;
 /// Per-invocation listing,
 ///  lazy bytes and invalidation of candidate versions.
 pub mod candidate_store;
+
+/// The listings a caller asks the store for and the Git commands behind them.
+pub mod candidate_store_listings;
 
 /// The listings of one commit's tree,
 ///  of the parents of a set of commits and of a tree's blobs,
