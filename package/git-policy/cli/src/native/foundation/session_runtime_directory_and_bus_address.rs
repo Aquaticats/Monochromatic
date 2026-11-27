@@ -14,8 +14,19 @@
 //!  and pointed the program link every worktree's service is started through at the test binary).
 //!  A build the release ships answers them from the process's own environment,
 //!  which is how a command started with another `XDG_RUNTIME_DIR` is judged.
-//!  Every read of either name in this crate comes through this file,
+//!  Every read of either name that decides which session this process acts in comes through this file,
 //!  which `source_guard/no_release_read_of_the_session_places_tests.rs` refuses to let drift.
+//!  Three reads take the value from the environment the entry handed in,
+//!  which in a release run is this process's own environment:
+//!  the `service status` count,
+//!  the note `doctor` adds about the units of removed worktrees,
+//!  and the unit file the resolver looks for the Git the service remembered in.
+//!  That scan names each of the three by the line that makes it,
+//!  with why it reaches no manager,
+//!  and the one command that asks the manager for anything (`service stop-units-of-removed-worktrees`)
+//!  takes both of its places here.
+//!  So a build made for tests cannot be handed a route to this account's manager:
+//!  a control that hands its body this process's whole environment names no runtime directory and no bus at all.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

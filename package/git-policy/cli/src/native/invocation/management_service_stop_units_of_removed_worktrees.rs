@@ -363,19 +363,30 @@ pub(crate) fn stop_units_action(
 }
 
 /// What:
-/// Plans the command from the process's environment:
+/// Plans the command from this session's two places:
 /// connects to the session bus and stops the units.
 /// Why:
 ///   The units belong to the user's manager,
 /// so a missing runtime directory or an unreachable bus is a refusal with its remedy,
 /// and nothing is stopped by any other means.
+///   The two places this command acts under come through
+/// `foundation/session_runtime_directory_and_bus_address.rs`
+/// and not from the environment the entry handed in:
+/// a build made for tests answers them only from what a control handed in,
+/// so no control reaches this account's manager by handing this process's whole environment
+/// (issue 6586's shape;
+/// the alpha.49 behaviour read's Low 3).
+///   The note `doctor` adds still counts the files of the runtime directory its caller names,
+/// which is that environment,
+/// and asks no manager.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// planStopUnitsOfRemovedWorktrees(environment)
+/// planStopUnitsOfRemovedWorktrees(environment) // the state folder from the environment, both session places from the one file
 /// ```
 pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsString)]) -> Action {
-    let Some(runtime_dir) = runtime_dir_of(environment) else {
+    let Some(runtime_dir) = crate::session_runtime_directory_and_bus_address::runtime_directory()
+    else {
         return refused(
             "XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose units could be looked at; run it from a login session",
         );
@@ -385,12 +396,8 @@ pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsS
         runtime_dir: runtime_dir.as_path(),
         state_dir: state.as_deref(),
     };
-    let address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS");
-    let address_text: Option<&str> = match &address {
-        Some(value) => value.to_str(),
-        None => None,
-    };
-    let socket: PathBuf = match session_bus_path(address_text, Some(runtime_dir.as_path())) {
+    let address: Option<String> = crate::session_runtime_directory_and_bus_address::bus_address();
+    let socket: PathBuf = match session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) {
         Some(path) if path.exists() => path,
         _ => {
             return refused(

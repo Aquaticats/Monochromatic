@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
+use crate::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
 use crate::service_instance::{
     SOCKET_DIRECTORY,
     instance_of,
@@ -17,6 +18,10 @@ use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_of_removed_worktrees::{
     note_path,
     record_worktree,
+};
+use crate::session_runtime_directory_and_bus_address::{
+    BUS_ADDRESS_SWITCH,
+    RUNTIME_DIRECTORY_SWITCH,
 };
 use crate::systemd_dbus::CallError;
 use crate::test_support::{
@@ -561,4 +566,121 @@ fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchabl
         "the note says what a person can do: {note}"
     );
     remove(world.root.as_path());
+}
+
+/// What:
+///  A build made for tests takes no route to this account's manager from the environment the entry hands in:
+///  the command is handed this process's whole environment, with a runtime directory and a bus address a login
+///  session would name, and refuses because it has no session place of its own.
+/// Why:
+///  The two places this command acts under come through
+///  `foundation/session_runtime_directory_and_bus_address.rs`,
+///  which a build made for tests answers only from what a control handed in (issue 6586),
+///  so even the environment a real session hands in names no manager here
+///  (the alpha.49 behaviour read's Low 3 asked what such a control would reach).
+///  The body runs in a child with both switches cleared, because the switches belong to the whole process,
+///  and it adds the two places to the inherited list itself:
+///  a control that read only the run's own environment would prove nothing in a run that has no login session.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const environment = [...process.env, ['XDG_RUNTIME_DIR', fixture], ['DBUS_SESSION_BUS_ADDRESS', `unix:path=${fixture}/bus`]];
+/// expect(planStopUnitsOfRemovedWorktrees(environment)).toEqual({ code: 1, stderr: /XDG_RUNTIME_DIR is not set/ });
+/// ```
+#[test]
+fn the_environment_the_entry_hands_in_names_no_manager() {
+    run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "the_environment_the_entry_hands_in_names_no_manager",
+        &[],
+        &[RUNTIME_DIRECTORY_SWITCH, BUS_ADDRESS_SWITCH],
+        || {
+            // What: the places a login session names, which this body names itself so the arm holds in a run that has none.
+            // Why:  the command must refuse them because they came through the environment and not through the one file.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const runtime = fixture('stop-units-handed-in-session'); writeFileSync(join(runtime, 'bus'), '');
+            // ```
+            let runtime: PathBuf = fixture("stop-units-handed-in-session");
+            std::fs::create_dir_all(runtime.as_path()).expect("the runtime directory");
+            std::fs::write(runtime.join("bus"), b"").expect("the stand-in bus");
+            // What: this process's whole environment, without the two switches, and with the two places a session names.
+            // Why:  the switches are what a build made for tests reads, so an arm that left them set would prove nothing.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const environment = [...process.env].filter(([name]) => !name.startsWith('CLI_GIT_TEST_ONLY_SESSION_'));
+            // environment.push(['XDG_RUNTIME_DIR', runtime], ['DBUS_SESSION_BUS_ADDRESS', `unix:path=${runtime}/bus`]);
+            // ```
+            let mut environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+            environment.retain(|(name, _value)| {
+                return name != RUNTIME_DIRECTORY_SWITCH
+                    && name != BUS_ADDRESS_SWITCH
+                    && name != "XDG_RUNTIME_DIR"
+                    && name != "DBUS_SESSION_BUS_ADDRESS";
+            });
+            environment.push((
+                OsString::from("XDG_RUNTIME_DIR"),
+                runtime.clone().into_os_string(),
+            ));
+            environment.push((
+                OsString::from("DBUS_SESSION_BUS_ADDRESS"),
+                OsString::from(format!("unix:path={}", runtime.join("bus").display())),
+            ));
+            let (code, _stdout, stderr) =
+                exit_parts(plan_stop_units_of_removed_worktrees(environment.as_slice()));
+            assert_eq!(code, 1, "{stderr}");
+            assert!(
+                stderr.contains("XDG_RUNTIME_DIR is not set") && stderr.contains(NAMED_COMMAND),
+                "the environment the entry hands in named a runtime directory and a bus, and this build found \
+                 neither of them, because the two places come through the one file: {stderr}"
+            );
+            remove(runtime.as_path());
+        },
+    );
+}
+
+/// What:
+///  The same command takes both of its places from what a control hands in through the one file:
+///  with the two switches naming a runtime directory and a bus of the fixture,
+///  it reaches the bus and refuses because nothing answers there.
+/// Why:
+///  A control that only saw the refusal above could not tell a command reading the one file from a command that
+///  read no place at all, so this arm shows the probe able to see a route.
+///  The bus path names a plain file, which is no socket:
+///  the command asks to connect and learns that nothing answers,
+///  and no manager of this account is reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// planStopUnitsOfRemovedWorktrees([]) // with the two switches set: { code: 1, stderr: /could not be reached/ }
+/// ```
+#[test]
+fn the_command_takes_its_places_from_the_one_file() {
+    let runtime: PathBuf = fixture("stop-units-switched-session");
+    std::fs::create_dir_all(runtime.as_path()).expect("the runtime directory");
+    let bus: PathBuf = runtime.join("bus");
+    std::fs::write(bus.as_path(), b"").expect("the stand-in bus");
+    let address: OsString = OsString::from(format!("unix:path={}", bus.display()));
+    let named: [(&str, &std::ffi::OsStr); 2] = [
+        (RUNTIME_DIRECTORY_SWITCH, runtime.as_os_str()),
+        (BUS_ADDRESS_SWITCH, address.as_os_str()),
+    ];
+    run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "the_command_takes_its_places_from_the_one_file",
+        named.as_slice(),
+        &["XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"],
+        || {
+            let (code, _stdout, stderr) = exit_parts(plan_stop_units_of_removed_worktrees(&[]));
+            assert_eq!(code, 1, "{stderr}");
+            assert!(
+                stderr.contains("could not be reached") && stderr.contains(NAMED_COMMAND),
+                "the runtime directory the control handed in holds a bus path and the command dialled it, \
+                 because the one file is what answers the two places: {stderr}"
+            );
+        },
+    );
+    remove(runtime.as_path());
 }
