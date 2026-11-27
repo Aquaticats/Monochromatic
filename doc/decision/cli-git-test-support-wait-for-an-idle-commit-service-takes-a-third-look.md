@@ -20,6 +20,9 @@ Its second integration pass
 found that the wait can still return early in one case no current test reaches:
 a claim that expired is recovered,
 which moves a record through two folders between the wait's two looks.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The coordinator had already started the fix round with the pass's first-ranked fix and asked whether to keep it.
 
 ## What was chosen
@@ -41,6 +44,8 @@ which left the wait with two looks;
 and "C:
 a signal from the service",
 which had the commit service tell the tests when it is idle.
+
+The pass measured the third look's cost at about 20 more microseconds on an empty wait.
 
 ## Still open from the same pass
 

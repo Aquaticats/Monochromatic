@@ -610,7 +610,12 @@ fn a_root_that_could_not_be_pinned_is_not_signalled() {
 #[test]
 fn the_root_is_pinned_when_its_child_starts() {
     let watch: &str = include_str!("child_watch.rs");
-    let stop: &str = include_str!("child_watch_clock_marks_and_stopping.rs");
+    // The stopping is two files since the pin of a step's root moved beside it, and a pin taken at stopping time would be in either.
+    let stopping: String = format!(
+        "{}\n{}\n",
+        include_str!("child_watch_clock_marks_and_stopping.rs"),
+        include_str!("child_watch_signalling_only_the_child_that_was_started.rs")
+    );
     let watch_code: String = watch
         .lines()
         .filter(|line| {
@@ -618,7 +623,7 @@ fn the_root_is_pinned_when_its_child_starts() {
         })
         .collect::<Vec<&str>>()
         .join("\n");
-    let stop_code: String = stop
+    let stop_code: String = stopping
         .lines()
         .filter(|line| {
             return !line.trim_start().starts_with("//");

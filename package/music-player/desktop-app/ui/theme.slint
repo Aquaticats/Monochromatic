@@ -151,7 +151,8 @@ export global Theme {
 
     // Duration of the fade that a page, the picker overlay, the track menu and a toast play when it appears. It stays
     // under the 150 ms of the Settings pane cross-fade (D109), it only answers a user action (never autonomous or
-    // decorative motion), and it is one token so the app has one place to change or switch it off. Slint 1.18 exposes
-    // no reduced-motion setting of the OS, so there is none to follow yet.
+    // decorative motion), and it is one token so the app has one place to change or switch it off. Slint 1.19 removes
+    // every animation when the system asks for reduced motion, and only its Windows backend reports that setting, so
+    // there is none to follow on Linux and macOS yet.
     out property <duration> motion-enter: 120ms;
 }

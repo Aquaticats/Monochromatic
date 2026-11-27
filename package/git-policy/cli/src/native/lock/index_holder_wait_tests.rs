@@ -22,6 +22,7 @@
 //! ```
 
 use super::*;
+use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::stale_ref_lock_killed_git::Helper;
 use crate::test_support::{
     SharedSink,

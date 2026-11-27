@@ -35,25 +35,68 @@
 //! export function outputWithin(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
 //! ```
 
-/// Imports `std::cell::{Cell, RefCell}` for this file.
-use std::cell::{
-    Cell,
-    RefCell,
+/// What:
+/// `use crate::bounded_io::{collect, feed};` imports the two pipe workers:
+/// one drains a descriptor into a list,
+/// one writes a list into a descriptor.
+/// Why:
+/// Both run on their own threads and both stop when the cancel flag is set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { collect, feed } from 'crate/bounded_io';
+/// ```
+use crate::bounded_io::{
+    collect,
+    feed,
 };
-
-/// Imports `std::io` for this file.
+/// What:
+/// `use rustix::process::Pid;` imports the operating system's process id type.
+/// Why:
+/// The descriptor that wakes the wait when the child ends is opened from the child's process id.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a number
+/// ```
+use rustix::process::Pid;
+/// What:
+/// `use std::io;` imports the standard library's input/output module so this file can name it unqualified.
+/// Why:
+/// The failure of a pipe,
+/// of a start and of a wait are all reported as the I/O variant of the run's error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // an I/O failure is an ordinary thrown Error in TS
+/// ```
 use std::io;
-
-/// Imports `std::marker::PhantomData` for this file.
-use std::marker::PhantomData;
-
-/// Imports `std::os::fd::OwnedFd` for this file.
+/// What:
+/// `use std::os::fd::OwnedFd;` imports the owning descriptor type (its siblings are `BorrowedFd`,
+/// a view,
+/// and `RawFd`,
+/// the bare number).
+/// Why:
+/// The three pipes of the child are handed to the readers that own them until the run ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Node closes a stream descriptor when the stream is closed
+/// ```
 use std::os::fd::OwnedFd;
-
-/// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::PathBuf;
-
-/// Imports `std::process::{Child, Command, ExitStatus, Output, Stdio}` for this file.
+/// What:
+/// `use std::process::{Child, Command, ExitStatus, Output, Stdio};` imports the child handle,
+/// the command builder,
+/// the status it exits with,
+/// the collected output and the choice of a standard stream.
+/// Why:
+/// The whole file is one call that starts a command and answers its output,
+/// and every one of those five is named on the way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ChildProcess, spawn } from 'node:child_process';
+/// ```
 use std::process::{
     Child,
     Command,
@@ -61,35 +104,69 @@ use std::process::{
     Output,
     Stdio,
 };
-
-/// Imports `std::rc::Rc` for this file.
+/// What:
+/// `use std::rc::Rc;` imports the reference-counted pointer type (its sibling `Arc` is the one that is safe to share between threads).
+/// Why:
+/// The state of the open scope is shared with the containment inside one thread only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // every object reference in TS is shared and counted by the garbage collector
+/// ```
 use std::rc::Rc;
-
-/// Imports `std::sync::Arc` for this file.
+/// What:
+/// `use std::sync::Arc;` imports the atomically counted pointer type (its sibling `Rc` counts without atomics,
+/// for one thread only).
+/// Why:
+/// The cancel flag is read by the pipe workers on other threads,
+/// so the count must be atomic.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // shared object references in TS need no count
+/// ```
 use std::sync::Arc;
-
-/// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
+/// What:
+/// `use std::sync::atomic::AtomicBool;` imports a boolean that threads may set and read.
+/// Why:
+/// The cancel flag stops the pipe workers when the run ends,
+/// however it ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let cancelled = false; // single-threaded in Node
+/// ```
 use std::sync::atomic::AtomicBool;
-
-/// Imports `std::sync::mpsc::{Receiver, RecvTimeoutError}` for this file.
+/// What:
+/// `use std::sync::mpsc::{Receiver, RecvTimeoutError};` imports the receiving end of a channel and the error a bounded receive answers.
+/// Why:
+/// Each output worker answers once through one channel,
+/// and the input writer answers whether it took everything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a Promise with Promise.race against a timer
+/// ```
 use std::sync::mpsc::{
     Receiver,
     RecvTimeoutError,
 };
-
-/// Imports `std::time::{Duration, Instant}` for this file.
+/// What:
+/// `use std::time::{Duration, Instant};` imports a span of time and a reading of the monotonic clock (sibling of `Instant`:
+/// `SystemTime`,
+/// the wall clock,
+/// which can jump).
+/// Why:
+/// The deadline of one call is computed from the moment it starts,
+/// on a clock that never jumps back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Date.now() and a number of milliseconds
+/// ```
 use std::time::{
     Duration,
     Instant,
-};
-
-/// Imports `rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group}` for this file.
-use rustix::process::Pid;
-
-/// Imports `crate::bounded_io::{collect, feed}` for this file.
-use crate::bounded_io::{
-    collect,
-    feed,
 };
 
 /// The items that only the tests of the bounded run use.
@@ -130,10 +207,56 @@ pub(crate) use crate::bounded_run_route_cache::{
     use_route_settings_for_test,
 };
 
-/// The route types of the test-only route override.
+/// What one bounded call is allowed and how it fails (split out of this module).
+pub use crate::bounded_run_bound_and_error::{
+    Bound,
+    RunError,
+};
+/// The mark that a run's writers may remain,
+/// set by a test (split out of this module).
 #[cfg(test)]
-use crate::control_group::RouteSettings;
-
+pub use crate::bounded_run_scope::mark_scope_lost_for_test;
+/// The open scope of one run and the command a timed-out run repeats (split out of this module).
+pub use crate::bounded_run_scope::{
+    RunScope,
+    rerun_text,
+    set_rerun,
+};
+/// The innermost open scope of this thread and the state it remembers (split out of this module).
+pub(crate) use crate::bounded_run_scope::{
+    ScopeState,
+    current_scope,
+};
+/// The hook a test puts right after the launcher was spawned (split out of this module).
+#[cfg(test)]
+use crate::bounded_run_trace_and_hooks::AFTER_LAUNCH_HOOK;
+/// The route a test makes the host look like one that lacks a capability with (split out of this module).
+#[cfg(test)]
+pub(crate) use crate::bounded_run_trace_and_hooks::ROUTE_OVERRIDE;
+/// The hook a test puts inside the start of a run (split out of this module).
+#[cfg(test)]
+pub(crate) use crate::bounded_run_trace_and_hooks::START_HOOK;
+/// The hook a test puts after the program started,
+/// and the trace it reads (split out of this module).
+#[cfg(test)]
+use crate::bounded_run_trace_and_hooks::STARTUP_HOOK;
+/// The notice gate,
+/// the trace reader and the hooks a test drives (split out of this module).
+#[cfg(test)]
+pub(crate) use crate::bounded_run_trace_and_hooks::{
+    NOTICE_ENTERED,
+    NOTICE_GATE,
+    after_launch_for_test,
+    on_start_for_test,
+    on_startup_for_test,
+    take_trace_for_test,
+    trace_text,
+};
+/// The trace of a run and the weaker path's notice gate (split out of this module).
+pub(crate) use crate::bounded_run_trace_and_hooks::{
+    WEAKER_NOTICE_GIVEN,
+    trace,
+};
 /// How often the child is asked whether it has ended.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
 /// (handover "Picks made under the owner's delegation"),
@@ -172,424 +295,6 @@ pub(crate) const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 /// so this only needs to cover the scheduling of the worker threads;
 /// the largest output (`cargo metadata` of this repository) drains in well under it.
 pub(crate) const READER_GRACE: Duration = Duration::from_secs(2);
-
-/// Makes the one-line notice of the weaker path appear once per process.
-/// It is a flag that one caller wins with a swap,
-/// not a `Once`:
-/// a caller that loses returns at once,
-/// where `Once::call_once` would make
-/// it wait,
-/// with no deadline,
-/// for the winner's write to standard error (fifth certification pass,
-/// V6:
-/// no wait the runner controls may
-/// depend on another run's slow write).
-pub(crate) static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
-/// A test holds this lock to keep the winner of the notice inside its emission,
-/// so that another run can show it does not wait for it.
-#[cfg(test)]
-pub(crate) static NOTICE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-/// Set when the winner of the notice reached its emission (a test build only).
-#[cfg(test)]
-pub(crate) static NOTICE_ENTERED: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
-thread_local! {
-    /// The command the user ran,
-    /// for the error of a bound that was exceeded.
-    static RERUN: RefCell<Option<String>> = const { RefCell::new(None) };
-
-    /// The scopes of the open transactions of this thread,
-    /// innermost last.
-    static SCOPES: RefCell<Vec<(u64, Rc<ScopeState>)>> = const { RefCell::new(Vec::new()) };
-
-    /// The number the next scope gets.
-    static NEXT_SCOPE: Cell<u64> = const { Cell::new(0) };
-}
-
-#[cfg(test)]
-thread_local! {
-    /// The settings the route is discovered with instead of the ordinary ones,
-    /// so a test can make the host look like one that lacks a capability.
-    pub(crate) static ROUTE_OVERRIDE: RefCell<Option<RouteSettings>> = const { RefCell::new(None) };
-
-    /// A hook that runs inside the start of a run,
-    /// after the scope's record is on disk and before the program starts,
-    /// so a test can overlap other work with the start at a boundary of its own choosing.
-    pub(crate) static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
-
-    /// A hook that runs right after the scope's launcher was spawned and before the launcher record is appended,
-    /// with the launcher's process id,
-    /// so a test can kill the wrapper inside that window.
-    static AFTER_LAUNCH_HOOK: RefCell<Option<Rc<dyn Fn(u32)>>> = const { RefCell::new(None) };
-
-    /// A hook that runs right after the program has started and decides whether the completion of the startup fails:
-    /// it returns
-    /// `true` to make it fail,
-    /// after the test has waited for whatever it needs to be ready (a writer,
-    /// for one).
-    static STARTUP_HOOK: RefCell<Option<Rc<dyn Fn() -> bool>>> = const { RefCell::new(None) };
-
-    /// The ordered events of the recording and the launching of the runs of this thread,
-    /// for the tests of their order.
-    static TRACE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-}
-
-/// What:
-/// `fn scope_state_of(entry: &(u64, Rc<ScopeState>)) -> Rc<ScopeState>` clones the state of one stack entry.
-/// Why:
-/// `Option::map` takes it by path instead of a closure.
-fn scope_state_of(entry: &(u64, Rc<ScopeState>)) -> Rc<ScopeState> {
-    return Rc::clone(&entry.1);
-}
-
-/// What:
-/// `fn trace(event: fmt::Arguments<'_>)` appends an event to this thread's trace in a test build and does nothing otherwise.
-/// Why:
-/// The order record write,
-/// durability barrier,
-/// launch is a property of the real boundaries,
-/// so the tests read an ordered trace of
-/// them (certification group 2).
-/// The event is a `format_args!` value:
-/// nothing is formatted unless a test build turns it into text,
-/// and a production build drops it unread.
-/// An event whose arguments would compute something (read a file,
-/// call a function with a cost) is not passed here;
-/// its statement carries `#[cfg(test)]` and calls `trace_text`,
-/// so a production build never evaluates it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function trace(event: string): void  // the argument is a template that is only rendered in a test build
-/// ```
-#[cfg(test)]
-pub(crate) fn trace(event: std::fmt::Arguments<'_>) {
-    trace_text(event.to_string());
-}
-
-/// What:
-/// `fn trace_text(text: String)` appends an already formatted event to this thread's trace.
-/// Why:
-/// The statements that compute their text are compiled in a test build only.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function traceText(text: string): void
-/// ```
-#[cfg(test)]
-pub(crate) fn trace_text(text: String) {
-    TRACE.with(|slot| {
-        slot.borrow_mut().push(text);
-    });
-}
-
-/// The production build keeps no trace.
-#[cfg(not(test))]
-pub(crate) fn trace(_event: std::fmt::Arguments<'_>) {}
-
-/// What:
-/// `pub(crate) fn take_trace_for_test() -> Vec<String>` returns and clears this thread's trace.
-/// Why:
-/// A test reads the events of the run it just made.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function takeTraceForTest(): string[]
-/// ```
-#[cfg(test)]
-pub(crate) fn take_trace_for_test() -> Vec<String> {
-    return TRACE.with(|slot| {
-        return std::mem::take(&mut *slot.borrow_mut());
-    });
-}
-
-/// What:
-/// `pub(crate) fn on_startup_for_test(hook: Option<Rc<dyn Fn() -> bool>>)` sets the hook that runs after the program started and may
-/// make the completion of the startup fail.
-/// Why:
-/// The row A2/R4 requires a failure after the child and a writer are running to be as conservative as a failed stop.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function onStartupForTest(hook?: () => boolean): void
-/// ```
-#[cfg(test)]
-pub(crate) fn on_startup_for_test(hook: Option<Rc<dyn Fn() -> bool>>) {
-    STARTUP_HOOK.with(|slot| {
-        *slot.borrow_mut() = hook;
-    });
-}
-
-/// What a scope remembers.
-pub(crate) struct ScopeState {
-    /// The file in which the containment of each child started under this scope is recorded.
-    pub(crate) log: PathBuf,
-    /// Whether a run under this scope could not show that everything it started was stopped.
-    pub(crate) lost: Cell<bool>,
-    /// Whether a run under this scope was contained by a process group only.
-    pub(crate) process_group_only: Cell<bool>,
-}
-
-/// The records and the verdict of one open transaction.
-/// It belongs to the thread that opened it:
-/// dropping it,
-/// in any order,
-/// removes only its own entry.
-pub struct RunScope {
-    /// The number of this scope in the stack.
-    id: u64,
-    /// What the scope remembers,
-    /// shared with the runs under it.
-    state: Rc<ScopeState>,
-    /// Keeps the scope on its thread,
-    /// because the stack it is in is thread-local.
-    _on_one_thread: PhantomData<*const ()>,
-}
-
-/// The methods of the type above.
-impl RunScope {
-    /// What:
-    /// `pub fn open(group_log: PathBuf) -> RunScope` makes the runs of this thread record their process groups in `group_log`.
-    /// Why:
-    /// A recovery that finds a killed run's journal needs to know whether a child of that run may still be running.
-    /// The record belongs to the transaction that owns this scope,
-    /// not to the thread (round 6,
-    /// 5b2 6).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// static open(groupLog: string): RunScope
-    /// ```
-    pub fn open(group_log: PathBuf) -> RunScope {
-        let id: u64 = NEXT_SCOPE.get();
-        NEXT_SCOPE.set(id + 1);
-        let state: Rc<ScopeState> = Rc::new(ScopeState {
-            log: group_log,
-            lost: Cell::new(false),
-            process_group_only: Cell::new(false),
-        });
-        // The stack is taken out of its cell and put back, so no closure holds the borrow; nothing else runs in between.
-        let mut stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
-        stack.push((id, Rc::clone(&state)));
-        SCOPES.set(stack);
-        return RunScope {
-            id,
-            state,
-            _on_one_thread: PhantomData,
-        };
-    }
-
-    /// What:
-    /// `pub fn writers_may_remain(&self) -> bool` says whether a run under this scope could not show that everything it
-    /// started was stopped.
-    /// Why:
-    /// Then the files of the transaction cannot be rolled back or finished safely,
-    /// and the command must stop.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// writersMayRemain(): boolean
-    /// ```
-    pub fn writers_may_remain(&self) -> bool {
-        return self.state.lost.get();
-    }
-
-    /// What:
-    /// `pub fn process_group_only(&self) -> bool` says whether a run under this scope was contained by a process group only,
-    /// because no control group could be had.
-    /// Why:
-    /// Quiescence was not shown for what leaves a process group,
-    /// and a caller may say so.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// processGroupOnly(): boolean
-    /// ```
-    pub fn process_group_only(&self) -> bool {
-        return self.state.process_group_only.get();
-    }
-}
-
-/// How the scope ends.
-impl Drop for RunScope {
-    /// What:
-    /// `fn drop(&mut self)` removes this scope's entry and no other.
-    /// Why:
-    /// Transactions may nest and end in any order.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// [Symbol.dispose](): void
-    /// ```
-    fn drop(&mut self) {
-        // Taken out of its cell and put back: nothing else runs in between.
-        let mut stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
-        let mut index: usize = 0;
-        while index < stack.len() {
-            if stack[index].0 == self.id {
-                stack.remove(index);
-            } else {
-                index += 1;
-            }
-        }
-        SCOPES.set(stack);
-    }
-}
-
-/// The bound of one run and the words an error uses.
-#[derive(Clone, Debug)]
-pub struct Bound {
-    /// The longest the child may run.
-    pub limit: Duration,
-    /// What is running,
-    /// for the error.
-    pub what: String,
-    /// The command to run again,
-    /// for the error.
-    pub rerun: String,
-}
-
-/// Why a bounded run did not produce output.
-#[derive(Debug)]
-pub enum RunError {
-    /// The child could not be started or a system call failed.
-    Io(
-        /// The system error.
-        io::Error,
-    ),
-    /// The bound passed;
-    /// the child and everything it started were stopped.
-    TimedOut {
-        /// What was running.
-        what: String,
-        /// The bound.
-        limit: Duration,
-        /// The command to run again.
-        rerun: String,
-    },
-    /// Something the child started could not be stopped or shown to be gone.
-    NotQuiescent {
-        /// What was running.
-        what: String,
-    },
-    /// The output could not be read to its end.
-    IncompleteOutput {
-        /// What was running.
-        what: String,
-    },
-    /// The input could not be delivered to the end.
-    IncompleteInput {
-        /// What was running.
-        what: String,
-    },
-}
-
-/// How the error reads to a person.
-impl std::fmt::Display for RunError {
-    /// What:
-    /// `fn fmt(&self, formatter)` writes the error with what was running and what it means for the files.
-    /// Why:
-    /// The texts say only what is established:
-    /// the command may have changed files before it was stopped.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// toString(): string
-    /// ```
-    fn fmt(
-        &self,
-        formatter: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        return match self {
-            RunError::Io(error) => write!(formatter, "{error}"),
-            RunError::TimedOut {
-                what,
-                limit,
-                rerun,
-            } => write!(
-                formatter,
-                "{what} did not finish within {limit:?}; it and every process it started were stopped. It may have changed files before it was stopped; this tool did not restore or remove anything because of that. Run {rerun} again when it can finish"
-            ),
-            RunError::NotQuiescent {
-                what,
-            } => write!(
-                formatter,
-                "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; this tool changed no file because of that and the journal of the run was kept"
-            ),
-            RunError::IncompleteOutput {
-                what,
-            } => write!(
-                formatter,
-                "the output of {what} could not be read to its end; the partial output was discarded"
-            ),
-            RunError::IncompleteInput {
-                what,
-            } => write!(
-                formatter,
-                "{what} did not take all of its input, so its answer is not trusted"
-            ),
-        };
-    }
-}
-
-/// What:
-/// `fn current_scope() -> Option<Rc<ScopeState>>` is the innermost open scope of this thread.
-/// Why:
-/// The run records into,
-/// and reports to,
-/// the transaction that is open around it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function currentScope(): ScopeState | undefined
-/// ```
-fn current_scope() -> Option<Rc<ScopeState>> {
-    // Taken out of its cell and put back: nothing else runs in between.
-    let stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
-    let innermost: Option<Rc<ScopeState>> = stack.last().map(scope_state_of);
-    SCOPES.set(stack);
-    return innermost;
-}
-
-/// What:
-/// `pub fn on_start_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs inside the start of each run of this thread.
-/// Why:
-/// The spawn-isolation tests overlap an unrelated spawn and a second run with the start of the first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function onStartForTest(hook?: () => void): void
-/// ```
-#[cfg(test)]
-pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
-    START_HOOK.with(|slot| {
-        *slot.borrow_mut() = hook;
-    });
-}
-
-/// What:
-/// `pub fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>)` sets the hook that runs after the scope's launcher was spawned and
-/// before its record is appended,
-/// with the launcher's process id.
-/// Why:
-/// The wrapper's pending-launcher window is real,
-/// and a test kills a real wrapper inside it (sixth pass,
-/// group 12).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function afterLaunchForTest(hook?: (pid: number) => void): void
-/// ```
-#[cfg(test)]
-pub(crate) fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>) {
-    AFTER_LAUNCH_HOOK.with(|slot| {
-        *slot.borrow_mut() = hook;
-    });
-}
 
 /// What:
 /// `fn run_after_launch_hook(pid: u32)` runs the pending-launcher hook,
@@ -809,53 +514,4 @@ fn run_bounded(
         stdout: out,
         stderr: err,
     });
-}
-
-/// What:
-/// `pub fn mark_scope_lost_for_test()` marks the innermost open scope of this thread as one whose writers may remain.
-/// Why:
-/// Tests of the callers need the verdict a run gives when a descendant cannot be stopped,
-/// which a real run cannot be made to give.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function markScopeLostForTest(): void
-/// ```
-#[cfg(test)]
-pub fn mark_scope_lost_for_test() {
-    lose(&current_scope());
-}
-
-/// What:
-/// `pub fn set_rerun(command: Option<String>)` names the command the user ran,
-/// for the errors of runs started by this thread.
-/// Why:
-/// An error that says "run it again" must say which command.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function setRerun(command?: string): void
-/// ```
-pub fn set_rerun(command: Option<String>) {
-    RERUN.set(command);
-}
-
-/// What:
-/// `pub fn rerun_text() -> String` is the text for the command to run again.
-/// Why:
-/// Bounds are built far from the shim that knows the arguments.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function rerunText(): string
-/// ```
-pub fn rerun_text() -> String {
-    // Taken out of its cell and put back: nothing else runs in between.
-    let held: Option<String> = RERUN.take();
-    let text: String = match held.clone() {
-        Some(command) => format!("`{command}`"),
-        None => "the command you ran".to_string(),
-    };
-    RERUN.set(held);
-    return text;
 }

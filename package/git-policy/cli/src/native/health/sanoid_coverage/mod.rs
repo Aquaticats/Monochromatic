@@ -57,8 +57,27 @@
 //!   the check's answer and the lines a report prints.
 //! - `coverage_words.rs`:
 //!   the corrections and the sentences that read a measured value.
+//! - `coverage_facts.rs`:
+//!   what one coverage comparison is asked with,
+//!   and the check's stable name in a report line.
+//! - `coverage_settings_not_modelled.rs`:
+//!   the settings a relevant section writes that this build cannot judge,
+//!   which leave the coverage unproved rather than passed.
+//! - `root_section_findings.rs`:
+//!   the recursive ancestor's section,
+//!   its recursion and its template.
+//! - `exclusion_findings.rs`:
+//!   one excluded dataset:
+//!   its presence,
+//!   its mount point,
+//!   its section,
+//!   its `autosnap` value and its place in file order.
+//! - `store_coverage_finding.rs`:
+//!   the dataset whose mount point holds the store,
+//!   and the finding when the coverage does not reach it.
 //! - `coverage_checks.rs`:
-//!   the comparison itself.
+//!   the comparison itself:
+//!   the order of the checks and the answer they build.
 //! - `space_guard_scope.rs`:
 //!   what the space guard can prune and what it cannot.
 //!
@@ -90,6 +109,23 @@ pub mod coverage_finding;
 
 /// The corrections and the sentences that read a measured value.
 pub mod coverage_words;
+
+/// What one coverage comparison is asked with,
+/// and the check's stable name.
+pub mod coverage_facts;
+
+/// The settings a relevant section writes that this build cannot judge.
+pub mod coverage_settings_not_modelled;
+
+/// The recursive ancestor's section,
+/// its recursion and its template.
+pub mod root_section_findings;
+
+/// One excluded dataset's findings.
+pub mod exclusion_findings;
+
+/// The dataset whose mount point holds the store.
+pub mod store_coverage_finding;
 
 /// The comparison of a measured tree and configuration with the decision.
 pub mod coverage_checks;

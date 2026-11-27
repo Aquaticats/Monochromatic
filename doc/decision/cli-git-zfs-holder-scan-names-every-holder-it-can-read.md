@@ -9,6 +9,9 @@ The three questions came from the integration pass of plan step 9's holder scan,
 on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces` at `1b574285f3`
 (`~/temp/agent/integration-pass-zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/keep/review.md`,
 "For the owner").
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each answer is given as the option's label and its own description,
 as the project was shown them.
 

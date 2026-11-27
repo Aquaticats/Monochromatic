@@ -26,7 +26,10 @@ The place the implementation interface will live is `package/git-policy/cli/SPEC
 The design's lead names six reviews,
 and one more was run on the sixth revision:
 the diff-only gate check kept at
-`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`,
+`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose lows this record carries.
 
 This record was written at `2026-11-20T05:54:01-05:00`,
@@ -252,7 +255,10 @@ see "Amendments to other documents".
 
 The last check is the diff-only gate check of the sixth revision,
 kept at
-`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`.
+`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It is an agent's review,
 non-final and unapproved,
 and it found no high finding,
@@ -373,7 +379,10 @@ and this record carries what those two places leave out:
 the lead leaves out a seventh review,
 the diff-only gate check of the sixth revision,
 kept at
-`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`;
+`~/temp/agent/zfs-staging-under-cache-design-sixth-revision-diff-only-gate-check-2026-11-20/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 and the sixth revision's label is the time its entry was written,
 `2026-11-20T00:14:25-05:00`,
 because a commit cannot name its own commit,
@@ -508,8 +517,18 @@ Accepted in the question tool,
 recorded 2026-11-23T04:06:17-05:00,
 on the integration pass of the build of plan step 9's unmount,
 staging and reattach
-(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`,
+(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "For the owner").
+That pass read the receipt format on `main`:
+it accepts three outcome words for an unmount,
+`done` and `refused` and `failed`,
+its bound on that word is 7 bytes,
+which is `refused`,
+where `cancelled` is 9 and `reattached` is 10,
+and it refuses mount fields on a receipt that is not a `done` mount.
 
 Asked:
 when a removal asks the handler to unmount a clone and the unmount stops short,

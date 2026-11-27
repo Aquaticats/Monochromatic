@@ -273,7 +273,10 @@ it needs a new watch or a rescan. Whether an individual editor recursively disco
 
 ## Evidence and remaining checks
 
-Raw measurements and scripts: `~/temp/agent/checkout-zfs-pnpm-install-measurements-2026-11-19/keep/`.
+Raw measurements and scripts: `~/temp/agent/checkout-zfs-pnpm-install-measurements-2026-11-19/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The isolated pool, main guest and transient template guest were removed. This draft does not settle the mount
 mechanism, benchmark clone creation or relink scheduling in the proposed wrapper, measure long-term snapshot churn,
 or measure a cold registry download. Check the actual live checkout migration, the installed wrapper with its real

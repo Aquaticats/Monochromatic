@@ -19,6 +19,9 @@ with two questions a later review put.
 The design it binds is still unapproved:
 `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 on its own branch.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What was decided
 
@@ -118,6 +121,9 @@ after the design was rewritten to the three answers of this record and reviewed 
 (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-owners-answers.md`,
 section "What is left for the owner",
 question Q-R5).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 Asked:
 by the first answer of this record an add that fails its proof unmounts and destroys the clone it just made.
@@ -151,6 +157,9 @@ on the review of the design's last round
 section "What is left for the owner",
 questions Q-O,
 Q-S and Q-B).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each answer is given as the option's label and its own description,
 as the project was shown them.
 
@@ -224,6 +233,9 @@ recorded 2026-11-22T22:00:52-05:00,
 on a finding of the review of the design's next round
 (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-before-acceptance.md`,
 "What Q-B costs that the document does not say").
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 Asked:
 the project's merge bar says a branch may make nothing `main` does well worse.

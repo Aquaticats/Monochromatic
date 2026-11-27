@@ -8,7 +8,10 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::worktree_copy_publish_file_temporary_name::TEMPORARY_PREFIX;
+use std::ffi::CString;
 use std::fs::OpenOptions;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{
     MetadataExt,
     PermissionsExt,

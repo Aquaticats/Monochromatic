@@ -1,6 +1,14 @@
 //! Controls for the commit command's pure helpers.
 
 use super::*;
+/// What one transaction reported,
+///  and the event a stop's reason is read from.
+use crate::commit_stop_reason::CommitStopReason;
+use crate::commit_transaction::TransactionResult;
+use crate::policy_events::PolicyEvent;
+/// The process directory and a `-C` chain of raw argument bytes.
+use std::ffi::OsString;
+use std::path::Path;
 
 /// The directory a `-C` chain reaches.
 #[test]

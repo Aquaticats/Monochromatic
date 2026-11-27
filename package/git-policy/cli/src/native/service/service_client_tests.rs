@@ -8,9 +8,13 @@
 
 use super::*;
 use crate::service_client_listen_and_ask_to_retire::read_message;
+use crate::service_messages::ClientFailure;
 use crate::service_protocol::{
+    ClientMessage,
+    CommitRequest,
     HEARTBEAT_EVERY,
     HEARTBEAT_SILENCE,
+    ServiceMessage,
     encode_service,
 };
 use crate::service_protocol::{
@@ -20,7 +24,18 @@ use crate::service_protocol::{
 };
 /// The socket a stand-in service listens on and the address it names.
 use crate::service_server::Bind;
-use std::os::unix::net::UnixListener;
+use std::io::{
+    BufReader,
+    Write,
+};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A commit queued behind a full batch of landings has no queue wait of its own,
 /// so the wait ends on the silence of the service,

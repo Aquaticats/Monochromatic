@@ -22,9 +22,10 @@
 //! - `direct_fix_install_journal.rs`:
 //!   the journal an install is recorded in,
 //!   and the sweep that finishes what a kill interrupted.
-//! - `direct_fix_install.rs`:
-//!   installing a direct fix's corrections into the worktree,
-//!   all or none.
+//! - `direct_fix_install_records.rs`:
+//!   the correction an install is given,
+//!   the site it prepared,
+//!   and what it leaves for the person.
 //! - `direct_fix_install_judging.rs`:
 //!   what a name holds,
 //!   and whether it is exactly what an install put there.
@@ -33,6 +34,12 @@
 //!   and its sentences.
 //! - `direct_fix_install_messages.rs`:
 //!   the sentences an install reports.
+//! - `direct_fix_install_preparing.rs`:
+//!   proving every selected file still holds the bytes the fix read,
+//!   and writing the corrected bytes into its journal.
+//! - `direct_fix_install.rs`:
+//!   installing a direct fix's corrections into the worktree,
+//!   all or none.
 //! - `event_hints.rs`:
 //!   the intent-guessing hint that follows a finding,
 //!   an engine failure or a notice.
@@ -51,8 +58,12 @@
 //!   the fixed registry of shipped policies.
 //! - `policy_trigger.rs`:
 //!   lifecycle triggers and the trigger set of every shipped policy.
+//! - `policy_events_kinds.rs`:
+//!   the kinds of event one policy pass produces,
+//!   their fields and the hints they carry.
 //! - `policy_events.rs`:
-//!   policy events and their JSON Lines rendering.
+//!   the JSON Lines rendering of those events,
+//!   numbered in emission order.
 //! - `policy_engine.rs`:
 //!   ordered policy execution for one lifecycle point.
 //! - `policy_branch_worktree.rs`:
@@ -68,6 +79,16 @@
 //!   canonical final LF,
 //!   preserved paths,
 //!   findings.
+//! - `policy_forbidden_strings_scan_outcomes.rs`:
+//!   what one candidate's scan becomes:
+//!   the outcome of a scan that could not complete,
+//!   the finding of each match,
+//!   and the record of a candidate a parent commit's tree already holds.
+//! - `policy_forbidden_strings_scanner.rs`:
+//!   the scanner one invocation uses:
+//!   where its rules come from,
+//!   the one attempt to load them,
+//!   and who writes the compiled rules into the shared cache.
 //! - `policy_forbidden_strings.rs`:
 //!   the optional forbidden-strings policy over the linked scanner,
 //!   with redacted findings.
@@ -112,7 +133,12 @@ pub mod policy_registry;
 /// Lifecycle triggers and the trigger set of every shipped policy.
 pub mod policy_trigger;
 
-/// Policy events and their JSON Lines rendering.
+/// The kinds of event one policy pass produces,
+///  their fields and the hints they carry.
+pub mod policy_events_kinds;
+
+/// The JSON Lines rendering of those events,
+///  numbered in emission order.
 pub mod policy_events;
 
 /// A pathname as events report it:
@@ -169,6 +195,18 @@ pub mod policy_branch_worktree;
 /// The two commands the wrapper records and never refuses.
 pub mod policy_audited;
 
+/// What one candidate's scan becomes:
+///  the outcome of a scan that could not complete,
+///  the finding of each match,
+///  and the record of a candidate a parent commit's tree already holds.
+pub mod policy_forbidden_strings_scan_outcomes;
+
+/// The scanner one invocation uses:
+///  where its rules come from,
+///  the one attempt to load them,
+///  and who writes the compiled rules into the shared cache.
+pub mod policy_forbidden_strings_scanner;
+
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.
 pub mod policy_forbidden_strings;
@@ -187,12 +225,21 @@ pub mod direct_fix_install_writes;
 /// and the sweep that finishes what a kill interrupted.
 pub mod direct_fix_install_journal;
 
+/// The correction an install is given,
+///  the site it prepared,
+///  and what it leaves for the person.
+pub mod direct_fix_install_records;
+
 /// The sweep of the journals an interrupted fix left,
 /// and its sentences.
 pub mod direct_fix_install_journal_sweep;
 
 /// The sentences an install reports.
 pub mod direct_fix_install_messages;
+
+/// Proving every selected file still holds the bytes the fix read,
+///  and writing the corrected bytes into its journal.
+pub mod direct_fix_install_preparing;
 
 /// What a name holds,
 /// and whether it is exactly what an install put there.

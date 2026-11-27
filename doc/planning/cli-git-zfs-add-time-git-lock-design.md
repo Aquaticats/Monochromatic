@@ -23,7 +23,10 @@ with no folder of the home mounted;
 no image was built or removed.
 
 This revision answers the gate review of 2026-11-22T18:05:06-05:00
-(`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review.md`),
+(`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 whose findings are answered one by one in its terms:
 the lock's proof now derives its bytes from the binding record's `nonce=`,
 this design keeps no record of its own,
@@ -208,7 +211,10 @@ so a plain directory's removal shows Git's answer here as well.
 (`podman images` listed it);
 by the review's reading its tag is gone now,
 and the evidence of that round is the scripts and printed lines kept in
-`~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/git-2.56.1-lock-probes/`.
+`~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/git-2.56.1-lock-probes/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 This round ran its own Git-alone arms in a tag that is present now,
 `localhost/git-policy-native-test:gpc-6346-commit-timing-window-20261122T1809-0500`,
 whose image ID is `d681456f37c4fd97a294d00945fed2225ea9c8afe320407f1267e0ab96ba9661`
@@ -233,7 +239,10 @@ The second revision round ran no probe:
 every Git statement it added or rechecked is source reading at `v2.56.1`.
 The third revision round ran none either:
 it read the third check's probe output
-(`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/probe-registration-shapes-output.txt`),
+(`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/probe-registration-shapes-output.txt`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 which measured a finished add's entries and the sanitiser's names in the gate image,
 and Git's source at `v2.56.1`,
 including `refs.c:191` to `:321` and `:376`,
@@ -414,7 +423,10 @@ Nothing was measured in a guest,
 on a pool,
 or through a mount.
 The scripts and their exact printed lines are kept in
-`~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/git-2.56.1-lock-probes/`.
+`~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/git-2.56.1-lock-probes/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## The open item and the answer it carries
 

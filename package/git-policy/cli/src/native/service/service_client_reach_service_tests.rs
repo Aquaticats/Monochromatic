@@ -36,6 +36,7 @@ use super::*;
 /// How the client asks the manager about a unit,
 /// and what its answers keep apart.
 use crate::service_client_settings_and_watches::{
+    Activation,
     ManagerAnswer,
     ManagerWatch,
 };
