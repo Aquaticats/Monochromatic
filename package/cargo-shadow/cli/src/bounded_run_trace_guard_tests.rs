@@ -11,11 +11,15 @@
 //! These tests read the production sources of the bounded run and fail when either rule is broken.
 
 /// The production sources of the bounded run that write trace events.
-const SOURCES: [(&str, &str); 10] = [
+const SOURCES: [(&str, &str); 11] = [
     ("bounded_run.rs", include_str!("bounded_run.rs")),
     (
         "bounded_run_containment.rs",
         include_str!("bounded_run_containment.rs"),
+    ),
+    (
+        "bounded_run_start.rs",
+        include_str!("bounded_run_start.rs"),
     ),
     (
         "bounded_run_record_writes.rs",
