@@ -323,7 +323,8 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
 ///  that is not evidence of a stopped service is no bound at all.
 #[test]
 fn a_running_unit_that_greets_nothing_is_restarted_only_at_the_start_ceiling() {
-    let reach: &str = include_str!("service_client_reach_service.rs");
+    // The wait itself lives in the file the reaching calls, so the control reads that file.
+    let reach: &str = include_str!("service_client_reach_service_the_waits_own_steps.rs");
     assert!(
         reach.contains("(watch.restart)("),
         "the client is what asks for the restart"

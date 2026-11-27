@@ -164,7 +164,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "person-path",
     ),
     ("service/earlier_unix_sockets_that_listen.rs", 2, "system"),
-    ("service/service_journal.rs", 4, "own-record"),
+    (
+        "service/service_journal_records_read_from_the_journal.rs",
+        4,
+        "own-record",
+    ),
     ("service/service_journal_record_age.rs", 1, "own-record"),
     ("service/service_provision.rs", 1, "own-record"),
     (
