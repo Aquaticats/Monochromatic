@@ -9,31 +9,32 @@
 //! `list` compares the observation with the lock;
 //! `install` uses the same observation to skip tools that
 //!           already match and `update` uses it to find npm and PyPI tools that are not installed.
+//! The observers are files of their own,
+//! named for the record each route leaves:
+//! what a program prints (`what_a_program_prints`)
+//! and what the file system holds (`what_the_file_system_holds`).
+//! This file keeps the name a row installs as,
+//! the switch over the routes,
+//! the comparison with the lock and the report.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // observe.ts
+//! export function packageName(tool: LockedTool): string
 //! export function observeTool(ctx: Context, tool: LockedTool): string | undefined
 //! export function observeAll(ctx: Context, tools: LockedTool[]): Observation[]
+//! export * from './observe/what_a_program_prints.ts';
+//! export * from './observe/what_the_file_system_holds.ts';
 //! ```
 
 /// Imports `winning_version` from `super::across_roots`.
 use super::across_roots::winning_version;
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{
-    is_repository_published,
-    observed_cargo_version,
-};
+use super::cargo_installs::is_repository_published;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
-/// Imports `is_executable` and what else this module uses from `super::layout`.
-use super::layout::{
-    applies_to_family,
-    go_bin_dir_of,
-    is_executable,
-    tool_directory,
-    tool_install_dir,
-};
+/// Imports `applies_to_family` from `super::layout`.
+use super::layout::applies_to_family;
 /// Imports what this module uses from `super::model`.
 use super::model::{
     Declaration,
@@ -41,47 +42,34 @@ use super::model::{
     Origin,
     Route,
 };
-/// Imports what this module uses from `super::parse_output`.
-use super::parse_output::{
-    global_pnpm_versions,
-    parse_bin_list,
-    parse_uv_tool_list,
-    version_matches,
-};
-/// Imports what this module uses from `super::published_archive`.
+/// Imports `version_matches` from `super::parse_output`.
+use super::parse_output::version_matches;
+/// Imports `is_published_archive` from `super::published_archive`.
 use super::published_archive::is_published_archive;
-/// Imports what this module uses from `super::runner`.
-use super::runner::{
-    RunOutcome,
-    RunRequest,
-};
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
-/// Imports `Value` from `serde_json`.
-use serde_json::Value;
 /// Imports `Ordering` from `std::cmp`.
 use std::cmp::Ordering;
-/// Imports `fs` from `std`.
-use std::fs;
-/// Imports what this module uses from `std::path`.
-use std::path::{
-    Path,
-    PathBuf,
-};
 
-/// What:
-/// The package key under `uv tool list`:
-/// the package id (or tool id) with `-` turned into `_`.
-/// Why:
-/// `parse_uv_tool_list` keys its map the same way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const key = (tool.packageId ?? tool.id).replaceAll('-', '_');
-/// ```
-fn uv_key(tool: &LockedTool) -> String {
-    return package_name(tool).replace('-', "_");
-}
+/// What a program prints about the tools it installed.
+mod what_a_program_prints;
+/// What the file system holds for the routes that leave a record there.
+mod what_the_file_system_holds;
+
+/// Imports the observers that read a program's output.
+use self::what_a_program_prints::{
+    observe_bin_sourced,
+    observe_mpm_pnpm,
+    observe_mpm_uvx,
+    observe_rustup_toolchain,
+};
+/// Imports the observers that read a file the installer left.
+use self::what_the_file_system_holds::{
+    observe_android_sdk,
+    observe_cargo_binstall,
+    observe_go_install,
+    observe_version_directory,
+};
 
 /// What:
 /// The package or crate name a manager route installs:
@@ -117,299 +105,6 @@ pub fn declared_package_name(declaration: &Declaration) -> String {
         | Origin::GoModule(name) => name,
         _ => declaration.id.clone(),
     };
-}
-
-/// `bin list`,
-/// for the bin-sourced route.
-fn observe_bin_sourced(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    let cli: PathBuf = ctx.find_bin_of("bin", "bin", &[])?;
-    let mut env = ctx.path_env();
-    env.insert(
-        "BIN_CONFIG".to_string(),
-        ctx.scope.bin_config_file.to_string_lossy().to_string(),
-    );
-    let outcome: RunOutcome =
-        ctx.run(&RunRequest::new(&cli.to_string_lossy(), &["list"]).with_env(env));
-    // A listing that failed proves nothing about what is installed, and only the rows `bin list` writes on standard
-    // output are a listing: a diagnostic on standard error that looks like a row is not one.
-    if !outcome.succeeded() {
-        return None;
-    }
-    let versions = parse_bin_list(&outcome.stdout);
-    for name in &tool.declaration.bins {
-        if let Some(version) = versions.get(name) {
-            return Some(version.clone());
-        }
-    }
-    return None;
-}
-
-/// The cargo install root of the crate's version directory,
-/// for the cargo-binstall route (never `cargo binstall --list` or `$CARGO_HOME`,
-/// which describe the shared install).
-fn observe_cargo_binstall(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    return observed_cargo_version(ctx.scope, tool);
-}
-
-/// `pnpm list --global --depth=0 --json`,
-/// for the mpm-pnpm route.
-fn observe_mpm_pnpm(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    let pnpm: PathBuf = ctx.find_bin_of("pnpm", "pnpm", &[])?;
-    let outcome: RunOutcome = ctx.run(&ctx.pnpm_request(
-        &pnpm.to_string_lossy(),
-        &["list", "--global", "--depth=0", "--json"],
-    ));
-    let parsed: Value = match serde_json::from_str(&outcome.stdout) {
-        Ok(value) => value,
-        // Not JSON: pnpm failed or printed something else, so the tool is read as absent.
-        Err(_) => return None,
-    };
-    return global_pnpm_versions(&parsed)
-        .get(&package_name(tool))
-        .cloned();
-}
-
-/// `uv tool list`,
-/// for the mpm-uvx route.
-fn observe_mpm_uvx(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    let uv: PathBuf = ctx.find_bin_of("uv", "uv", &[])?;
-    let outcome: RunOutcome = ctx.run(&ctx.request(&uv.to_string_lossy(), &["tool", "list"]));
-    return parse_uv_tool_list(&outcome.stdout)
-        .get(&uv_key(tool))
-        .cloned();
-}
-
-/// What:
-/// The toolchain this row names,
-/// for the rustup-toolchain route:
-/// the row's channel when `rustup` resolves it to an installed toolchain,
-/// else `None`.
-/// Why:
-/// `rustup toolchain list` prints a channel followed by the host triple it was installed for,
-/// and a name alone cannot tell that triple from a channel that carries a date:
-/// `nightly-x86_64-unknown-linux-gnu` and `nightly-2026-10-30-x86_64-unknown-linux-gnu` both start with `nightly-`.
-/// `rustup which --toolchain <channel>` is the tool deciding which installed toolchain that channel is,
-/// so no name is guessed and a toolchain for another host is never taken for this one.
-/// `rustup_query` keeps the question from installing a toolchain that is missing,
-/// and a query that failed or printed no path proves nothing.
-fn observe_rustup_toolchain(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    let channel: &str = tool.rustup_channel();
-    let rustc: PathBuf = resolved_rustc(ctx, channel)?;
-    // What: a row whose channel text differs from its version also asks that toolchain's compiler which release
-    // it holds.
-    // Why: `which` proves the channel is installed, not that it still holds the release the lock records;
-    // a moving channel (`stable`) can hold a newer release, and a lock pinning `1.90.0` must not read `ok` then.
-    // A locked text that names no release (a dated channel such as `nightly-2026-10-30`) is not compared: the
-    // compiler of such a channel reports `1.9x.0-nightly`, which names no channel date, and the dated channel
-    // text is the identity.
-    if channel != tool.version
-        && names_a_release(&tool.version)
-        && !compiler_reports(ctx, &rustc, &tool.version)
-    {
-        return None;
-    }
-    return Some(channel.to_string());
-}
-
-/// What:
-/// The `rustc` a channel resolves to, from `rustup which --toolchain <channel> rustc`,
-/// or `None` when rustup says that channel is not installed.
-/// Why:
-/// The path is what the version question runs, and its absence is the answer that the channel is not installed.
-fn resolved_rustc(
-    ctx: &Context,
-    channel: &str,
-) -> Option<PathBuf> {
-    let outcome: RunOutcome =
-        ctx.run(&ctx.rustup_query(&["which", "--toolchain", channel, "rustc"]));
-    if !outcome.succeeded() {
-        return None;
-    }
-    let path: &str = outcome.stdout.trim();
-    if path.is_empty() {
-        return None;
-    }
-    return Some(PathBuf::from(path));
-}
-
-/// What:
-/// Whether the compiler at `rustc` reports the release `locked` names (`rustc 1.90.0 (hash date)`).
-/// Why:
-/// The installed compiler is the only witness of which release a moving channel holds now.
-fn compiler_reports(
-    ctx: &Context,
-    rustc: &Path,
-    locked: &str,
-) -> bool {
-    let outcome: RunOutcome = ctx.run(&ctx.request(&rustc.to_string_lossy(), &["--version"]));
-    if !outcome.succeeded() {
-        return false;
-    }
-    // `rustc <release> (<hash> <date>)`: the release is the second word.
-    let released: Option<&str> = outcome.stdout.split_whitespace().nth(1);
-    return released.is_some_and(|reported| return version_matches(reported, locked));
-}
-
-/// What:
-/// Whether `text` names a release (`1.90.0`, `v1.90.0`, `1.90.0-beta.1`) rather than a channel
-/// (`stable`, `nightly`, `nightly-2026-10-30`).
-/// Why:
-/// Only a release text is something a compiler can confirm or contradict;
-/// a channel text is the toolchain's identity, which `rustup which` already resolved.
-fn names_a_release(text: &str) -> bool {
-    let without_prefix: &str = text
-        .strip_prefix('v')
-        .filter(|rest| return !rest.is_empty())
-        .unwrap_or(text);
-    return without_prefix.starts_with(|first: char| return first.is_ascii_digit());
-}
-
-/// The Android command-line tools directory for the locked version,
-/// for the android-sdk route.
-fn observe_android_sdk(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    // A name that is not one plain directory name is refused where the lock is decoded; for any other value the
-    // answer "not installed" is the safe one.
-    let install: PathBuf = tool_install_dir(
-        &ctx.scope.toolchain_root,
-        &tool.declaration.id,
-        &tool.version,
-    )
-    .ok()?;
-    if install.join("cmdline-tools").join(&tool.version).exists() {
-        return Some(tool.version.clone());
-    }
-    return None;
-}
-
-/// The names of the version directories directly inside one tool's directory,
-/// sorted (a missing or unreadable directory has none).
-fn version_directory_names(tool_root: &Path) -> Vec<String> {
-    let Ok(entries) = fs::read_dir(tool_root) else {
-        return Vec::new();
-    };
-    let mut names: Vec<String> = Vec::new();
-    for entry in entries.flatten() {
-        let name: String = entry.file_name().to_string_lossy().to_string();
-        if entry.path().is_dir() && !name.starts_with('.') {
-            names.push(name);
-        }
-    }
-    names.sort();
-    return names;
-}
-
-/// What:
-/// The tool's own install directory,
-/// for routes that leave no record elsewhere (archive,
-/// cargo-git,
-/// rustup-components):
-/// the locked version when its directory exists,
-/// otherwise the first other version directory,
-/// otherwise `None`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function observeVersionDirectory(ctx: Context, tool: LockedTool): string | undefined
-/// ```
-fn observe_version_directory(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    let tool_root: PathBuf =
-        tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id).ok()?;
-    let names: Vec<String> = version_directory_names(&tool_root);
-    if names.contains(&tool.version) {
-        return Some(tool.version.clone());
-    }
-    return names.into_iter().next();
-}
-
-/// Whether the `bin` directory of one Go-installed version holds what `go install` writes there:
-/// every executable the declaration names,
-/// or any executable file when it names none.
-fn go_bins_present(
-    bin_dir: &Path,
-    tool: &LockedTool,
-) -> bool {
-    if tool.declaration.bins.is_empty() {
-        let Ok(entries) = fs::read_dir(bin_dir) else {
-            return false;
-        };
-        for entry in entries.flatten() {
-            if is_executable(&entry.path()) {
-                return true;
-            }
-        }
-        return false;
-    }
-    for name in &tool.declaration.bins {
-        if !is_executable(&bin_dir.join(name)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
-/// The version a Go-installed tool is at,
-/// for the go-install route:
-/// the locked version when the `bin` directory this route gives `go install` as `GOBIN` holds the executables it was
-/// to write,
-/// otherwise the first other version whose `bin` directory does,
-/// otherwise `None`.
-/// Why:
-/// A Go install writes no record anywhere:
-/// its executables are the whole record,
-/// in the same way cargo's record is the whole record of a cargo install.
-/// The version directory is not a record at all,
-/// because the installer creates it before `go` runs,
-/// so reading it would report a tool with no binaries as installed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function observeGoInstall(ctx: Context, tool: LockedTool): string | undefined
-/// ```
-fn observe_go_install(
-    ctx: &Context,
-    tool: &LockedTool,
-) -> Option<String> {
-    let mut candidates: Vec<String> = vec![tool.version.clone()];
-    let Ok(tool_root) = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id) else {
-        return None;
-    };
-    for name in version_directory_names(&tool_root) {
-        if name != tool.version {
-            candidates.push(name);
-        }
-    }
-    for name in candidates {
-        let Ok(bin_dir) = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &name)
-        else {
-            continue;
-        };
-        if go_bins_present(&bin_dir, tool) {
-            return Some(name);
-        }
-    }
-    return None;
 }
 
 /// What:
