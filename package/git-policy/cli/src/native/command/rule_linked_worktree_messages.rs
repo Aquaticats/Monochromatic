@@ -24,9 +24,9 @@
 /// The operation that is waiting for its conflicts,
 /// whose own state `git status` reports.
 use crate::conflict_sides::Operation;
-use crate::rule_linked_worktree::GuardedCommand;
 /// The paths a message names before it counts the rest.
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
+use crate::the_guarded_commands::GuardedCommand;
 use std::ffi::OsStr;
 use std::path::Path;
 
