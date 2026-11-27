@@ -311,6 +311,19 @@ the helper the hung-write controls used put `hw-<process id>-<name>` under the r
 and every control that panicked or failed left one there:
 34 of them by 2026-11-27 (issue 6561).
 
+A fixture's overlay names the place the wrapper records what it learned about the real Git in:
+`test_support::cache_home` makes one folder of the thread's own,
+and `isolated_overlay` names it as `XDG_CACHE_HOME` beside the configuration's own variables.
+The wrapper learns where that Git's system configuration and attributes files are,
+and records the answer under that place,
+so a control's work writes a file of its fixture and never `~/.cache/monochromatic-git-policy-cli`,
+and it reads none another session made (issue 6571).
+A service whose work runs in the test process reads those facts through `for_context`,
+which builds them from the process's variables with the context's overlay over them,
+and a control that hands the writing code no place of its own writes the person's home cache:
+`testing/test_support_tests.rs`'s `the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture`
+starts that code and refuses a place outside the fixture root.
+
 ## Own every child, end it on every path
 
 A child a test starts is the test's to end, on success, on failure and on a panic:
@@ -636,17 +649,30 @@ and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
 
-A round that writes or moves a line behind the controls' test-only switches runs
-`mise run //package/git-policy/cli:native:clippy:test-only-switches`
-(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`)
+A round that writes or moves a line behind a feature name runs that feature's
+`mise run //package/git-policy/cli:native:clippy:<feature>`
 as well as the plain `mise run //package/git-policy/cli:native:clippy`
 (`cargo clippy --locked --offline --all-targets -- -D warnings`),
 because the gate's Clippy step and every plain run compile without a feature
 (`bin/test-native-container.ts`),
 so nothing else lints a line only that build has.
-A line behind the fence's measurement routes takes
-`mise run //package/git-policy/cli:native:clippy:measurement` the same way.
+The controls' test-only switches take
+`mise run //package/git-policy/cli:native:clippy:test-only-switches`
+(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`),
+the start probe's raised deadline takes
+`mise run //package/git-policy/cli:native:clippy:start-probe-raised-deadline`
+(`cargo clippy --locked --offline --all-targets --features start-probe-raised-deadline -- -D warnings`),
+and the fence's measurement routes take
+`mise run //package/git-policy/cli:native:clippy:measurement`
+(`cargo clippy --locked --offline --all-targets --features measurement-routes -- -D warnings`).
 On 2026-11-27 the switch task failed alone on an unused re-export in `foundation/lazy_runtime.rs`,
 whose only namer,
 `testing/no_switch_is_read_without_its_feature_tests`,
-is compiled out where the feature is on (issue 6570).
+is compiled out where the feature is on (issue 6570);
+the raised-deadline task,
+added the same day,
+failed alone on a test-only import
+and a test-only constant that a build with the feature names nowhere
+(`start_probe/probe_deadline_tests.rs`,
+issue 6575),
+and the measurement task was green with nothing to fix.

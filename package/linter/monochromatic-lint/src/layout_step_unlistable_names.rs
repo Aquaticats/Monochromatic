@@ -24,6 +24,7 @@ use crate::{
     layout_finding::key_names,
     layout_folder_index_files::{
         UnlistableName,
+        arrow_word_shape,
         unlistable_folder_name_part,
         unlistable_name_part,
     },
@@ -41,8 +42,41 @@ use std::{
 };
 
 /// What:
+///  One name of a package that no list line could hold:
+///  the file to point the finding at,
+///  the name to spell in its sentence,
+///  whether that name is a folder's,
+///  why it cannot be written,
+///  and, for the arrow words, the one shape it has.
+/// Why:
+///  A finding points at a file and names a cause,
+///  and the cause is a name in the path rather than the file itself:
+///  a folder ending in the arrow makes a module file inside it unwritable,
+///  so a sentence naming that file sends its reader to a name that is not the one to change.
+///  The shape says which of the arrow shapes the folder's name has,
+///  because a reader told four alternatives has to work out which one is theirs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnlistableFound = { file: Path; written: string; isFolder: boolean; reason: UnlistableName; shape?: string };
+/// ```
+#[derive(Clone, Debug)]
+pub(crate) struct UnlistableFound {
+    /// The file whose key the name would appear in.
+    pub(crate) file: PathBuf,
+    /// The path of the offending name, written from the package folder.
+    pub(crate) written: String,
+    /// Whether the offending name is a folder's rather than the file's own.
+    pub(crate) is_folder: bool,
+    /// Why no list line could hold the name.
+    pub(crate) reason: UnlistableName,
+    /// The one shape of the arrow words, when that is the reason.
+    pub(crate) shape: Option<&'static str>,
+}
+
+/// What:
 ///  The first path whose name no list line could hold,
-///  with that path and the name written with the character escaped.
+///  with the file it belongs to and the name written with the character escaped.
 /// Why:
 ///  Every key about such a path holds the name,
 ///  and a line that ends in a trimmed character reads as if the character were not there,
@@ -59,18 +93,21 @@ use std::{
 ///  and the last part of each is a name rather than a folder,
 ///  because a file name and an entry of a `uses` folder are no paths:
 ///  their keys write them as the source does, backslash and arrow words included.
+///  The arrow words are refused only when a rule that reads a `uses` line is selected for the package:
+///  the file rule reads no such line, and it names such a folder in a key, which holds the name as written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistablePath(paths: Path[], base: Path): [Path, string, UnlistableName] | undefined;
+/// function unlistablePath(paths: Path[], base: Path, arrowWordsAreRefused: boolean): UnlistableFound | undefined;
 /// ```
 fn unlistable_path(
     paths: &[PathBuf],
     base: &Path,
-) -> Option<(PathBuf, String, UnlistableName)> {
+    arrow_words_are_refused: bool,
+) -> Option<UnlistableFound> {
     for path in paths {
         let mut parts: Vec<String> = Vec::<String>::new();
-        let mut unlistable: Option<UnlistableName> = None;
+        let mut unlistable: Option<(usize, UnlistableName)> = None;
         // What: each name a key writes, as the file system spells it.
         // Why: a key writes a name's own backslash as written, so the parts of the written path cannot show one.
         let names: Vec<String> = key_names(path, base);
@@ -80,23 +117,41 @@ fn unlistable_path(
             // Why: only a folder name can leave a `uses` line unable to say where one folder ends.
             let folder: bool = index != last;
             let checked: Option<(String, UnlistableName)> = if folder {
-                unlistable_folder_name_part(part.as_str())
+                unlistable_folder_name_part(part.as_str(), arrow_words_are_refused)
             } else {
                 unlistable_name_part(part.as_str())
             };
             match checked {
                 Some((escaped, reason)) => {
                     if unlistable.is_none() {
-                        unlistable = Some(reason);
+                        unlistable = Some((index, reason));
                     }
                     parts.push(escaped);
                 }
                 None => parts.push(part.clone()),
             }
         }
-        if let Some(reason) = unlistable {
-            return Some((path.clone(), parts.join("/"), reason));
-        }
+        let Some((index, reason)) = unlistable else {
+            continue;
+        };
+        // What: whether the name to change is a folder's or the file's own.
+        // Why: the sentence that follows says which one to rename.
+        let is_folder: bool = index != last;
+        // What: the one shape of the arrow words, which only a folder name can have.
+        // Why: the arrow case spells a single cause, so the sentence must not list four.
+        let shape: Option<&'static str> = match reason {
+            UnlistableName::HoldsArrowWords => arrow_word_shape(names[index].as_str()),
+            UnlistableName::EndsInTrimmedWhitespace
+            | UnlistableName::HoldsLineBreak
+            | UnlistableName::HoldsBackslash => None,
+        };
+        return Some(UnlistableFound {
+            file: path.clone(),
+            written: parts[..=index].join("/"),
+            is_folder,
+            reason,
+            shape,
+        });
     }
     return None;
 }
@@ -108,17 +163,18 @@ fn unlistable_path(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableName(tree: ModuleTree, base: Path): [Path, string, UnlistableName] | undefined;
+/// function unlistableName(tree: ModuleTree, base: Path, arrowWordsAreRefused: boolean): UnlistableFound | undefined;
 /// ```
 pub(crate) fn unlistable_name(
     tree: &ModuleTree,
     base: &Path,
-) -> Option<(PathBuf, String, UnlistableName)> {
+    arrow_words_are_refused: bool,
+) -> Option<UnlistableFound> {
     let mut paths: Vec<PathBuf> = Vec::<PathBuf>::new();
     for module in &tree.modules {
         paths.push(module.file.clone());
     }
-    return unlistable_path(paths.as_slice(), base);
+    return unlistable_path(paths.as_slice(), base, arrow_words_are_refused);
 }
 
 /// What:
@@ -130,15 +186,18 @@ pub(crate) fn unlistable_name(
 ///  An entry is no path and never appears on a `uses` line,
 ///  so its key writes its name as the source does:
 ///  a backslash or the arrow words are no reason to refuse it.
+///  The arrow words of a folder above it are refused only when a rule reading a `uses` line is selected,
+///  which is the caller's answer to pass through.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableLinkName(tree: ModuleTree, base: Path): [Path, string, UnlistableName] | undefined;
+/// function unlistableLinkName(tree: ModuleTree, base: Path, arrowWordsAreRefused: boolean): UnlistableFound | undefined;
 /// ```
 pub(crate) fn unlistable_link_name(
     tree: &ModuleTree,
     base: &Path,
-) -> Option<(PathBuf, String, UnlistableName)> {
+    arrow_words_are_refused: bool,
+) -> Option<UnlistableFound> {
     let mut folders: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
     for index in 0..tree.modules.len() {
         folders.insert(folder_of(tree, index));
@@ -156,5 +215,5 @@ pub(crate) fn unlistable_link_name(
     paths.sort();
     // What: an entry of a `uses` folder is a name and no path, so only the character the reader trims and a line break forbid it.
     // Why: its key writes the entry as written, and no `uses` line names an entry.
-    return unlistable_path(paths.as_slice(), base);
+    return unlistable_path(paths.as_slice(), base, arrow_words_are_refused);
 }

@@ -33,16 +33,25 @@ use std::{
 };
 
 /// Read a list from text,
-/// as the file it would be.
+/// as the file it would be,
+/// with every listed path read back against the package folder it belongs to.
 fn parsed(lines: &str) -> AllowList {
-    return parse_allow_list(lines, Path::new("package/allow-list.txt"))
-        .expect("the fixture list is valid");
+    return parse_allow_list(
+        lines,
+        Path::new("package/allow-list.txt"),
+        Path::new("package"),
+    )
+    .expect("the fixture list is valid");
 }
 
 /// The message of the error a bad list raises.
 fn error_of(lines: &str) -> String {
-    return parse_allow_list(lines, Path::new("package/allow-list.txt"))
-        .expect_err("the fixture list is invalid");
+    return parse_allow_list(
+        lines,
+        Path::new("package/allow-list.txt"),
+        Path::new("package"),
+    )
+    .expect_err("the fixture list is invalid");
 }
 
 /// Every shape of entry is read in file order,
@@ -186,21 +195,28 @@ fn a_use_line_reads_the_two_sides_of_its_arrow() {
     assert!(!spelled.covers_use(Path::new("src/x"), Path::new("a")));
 }
 
-/// A name before the arrow that ends in whitespace is an error that names its line,
+/// A name before the arrow that ends in whitespace is a misspelling that names no folder,
 ///  because no folder name of a tree the rules accept can end in whitespace:
-///  a name whose last character the reader trims is refused before any check,
-///  so such a line is always a misspelling rather than a use of a folder that no tree holds.
+///  a name whose last character the reader trims is refused before any check.
+///  One whitespace character sets each word off, and any second one beside a name belongs to that name,
+///  on both sides of the arrow and after the word `uses`,
+///  so the three leftovers of a column-aligned line all read alike.
 #[test]
-fn a_name_before_the_arrow_that_ends_in_whitespace_is_an_error() {
-    for line in ["uses src/a  -> src/b\n", "uses src/a\t -> src/b\n"] {
-        let error: String = error_of(line);
-        assert!(error.contains("Line 1"), "{error}");
-        assert!(error.contains("ends in whitespace"), "{error}");
-        assert!(error.contains("uses <folder> -> <folder>"), "{error}");
-    }
-    // The control: the same use set off with one space each is the use it spells.
-    let list: AllowList = parsed("uses src/a -> src/b\n");
-    assert!(list.covers_use(Path::new("src/a"), Path::new("src/b")));
+fn a_run_of_whitespace_beside_a_name_is_part_of_that_name() {
+    let list: AllowList = parsed(
+        "uses src/a  -> src/b\n\
+         uses src/c\t -> src/d\n\
+         uses src/e ->  src/f\n\
+         uses  src/g -> src/h\n",
+    );
+    assert!(list.covers_use(Path::new("src/a "), Path::new("src/b")));
+    assert!(list.covers_use(Path::new("src/c\t"), Path::new("src/d")));
+    assert!(list.covers_use(Path::new("src/e"), Path::new(" src/f")));
+    assert!(list.covers_use(Path::new(" src/g"), Path::new("src/h")));
+    // The control: the same uses set off with one space each are the uses they spell.
+    let plain: AllowList = parsed("uses src/a -> src/b\n");
+    assert!(plain.covers_use(Path::new("src/a"), Path::new("src/b")));
+    assert!(!plain.covers_use(Path::new("src/a "), Path::new("src/b")));
 }
 
 /// A line holds no name before its arrow when the word and the arrow are set off by two spaces,
@@ -240,15 +256,17 @@ fn a_use_line_with_two_arrows_is_an_error() {
     assert!(error.contains("no folder name holds"), "{error}");
 }
 
-/// A dead `uses` or `file-uses` line that names a folder no folder of the package is called names it,
+/// A dead `uses` or `file-uses` line that names a folder no source folder of the package is called names it,
 ///  so a hand-aligned or mistyped line is told to be re-spaced,
 ///  and a line whose folders the package does hold is told only to be deleted.
+///  A folder on disk that holds no module file is no source folder, so the sentence holds for it too.
 #[test]
 fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
     let base: &Path = Path::new("package");
     let list: AllowList = parsed(
         "uses src/a -> src/b extra\n\
          file-uses src/c one.rs -> two.rs\n\
+         uses src/gone -> src/also-gone\n\
          uses src/a -> src/b\n",
     );
     // What: the folders of the fixture package, as the walk names them.
@@ -259,28 +277,88 @@ fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
         .collect::<BTreeSet<PathBuf>>();
     let findings: Vec<LayoutFinding> =
         dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
-    assert_eq!(findings.len(), 3, "{findings:#?}");
+    assert_eq!(findings.len(), 4, "{findings:#?}");
     assert!(
-        findings[0]
-            .message
-            .contains("names the folder `src/b extra`, which no folder of this package is called"),
+        findings[0].message.contains(
+            "names the folder `src/b extra`. No source folder of this package has that name"
+        ),
         "{}",
         findings[0].message
     );
     assert!(
         findings[1]
             .message
-            .contains("names the folder `src/c`, which no folder of this package is called"),
+            .contains("names the folder `src/c`. No source folder of this package has that name"),
         "{}",
         findings[1].message
     );
+    // What: the word that agrees with two folders the line names and the package lacks.
+    // Why: a line never read names two folders, and its sentence must not speak of one.
     assert!(
-        findings[2]
-            .message
-            .contains("tolerates nothing any more. Delete the line"),
+        findings[2].message.contains(
+            "names the folders `src/gone` and `src/also-gone`. No source folder of this package has that name"
+        ),
         "{}",
         findings[2].message
     );
+    assert!(
+        findings[3]
+            .message
+            .contains("tolerates nothing any more. Delete the line"),
+        "{}",
+        findings[3].message
+    );
+}
+
+/// A `file-uses` line cannot name a folder whose name holds a space,
+///  because its shape is five words set off with one whitespace character each,
+///  so the refusal names that folder and says what to do about it
+///  rather than sending its reader back to a line that already reads as the shape it names.
+#[test]
+fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
+    let error: String = error_of("file-uses src/a b one.rs -> two.rs\n");
+    assert!(error.contains("Line 1"), "{error}");
+    assert!(error.contains("the folder `src/a b`"), "{error}");
+    assert!(error.contains("holds a space"), "{error}");
+    assert!(error.contains("Rename the folder"), "{error}");
+    assert!(
+        !error.contains("A use between two files is written"),
+        "{error}"
+    );
+}
+
+/// A listed path is read back against the package folder,
+///  so a line that climbs out with `..` and comes back in names the use the plain spelling names,
+///  on either side of the arrow and on both at once.
+#[test]
+fn a_listed_path_is_read_back_against_the_package_folder() {
+    for lines in [
+        "uses ../package/src/a -> src/b\n",
+        "uses src/a -> ../package/src/b\n",
+        "uses ../package/src/a -> ../package/src/b\n",
+    ] {
+        let list: AllowList = parsed(lines);
+        assert!(
+            list.covers_use(Path::new("src/a"), Path::new("src/b")),
+            "{lines}"
+        );
+    }
+}
+
+/// Two spellings of one use are the repeat a list refuses,
+///  in a `uses` line on either side of the arrow and in a `file-uses` line,
+///  because every listed path is read into one spelling before a repeat is decided.
+#[test]
+fn two_spellings_of_one_use_are_the_repeat_the_list_refuses() {
+    for lines in [
+        "uses src/a -> src/b\nuses ../package/src/a -> src/b\n",
+        "uses src/a -> src/b\nuses src/a -> ../package/src/b\n",
+        "uses src/a -> src/b\nuses ../package/src/a -> ../package/src/b\n",
+        "file-uses src/ab one.rs -> two.rs\nfile-uses ../package/src/ab one.rs -> two.rs\n",
+    ] {
+        let error: String = error_of(lines);
+        assert!(error.contains("repeats the entry"), "{error} in {lines}");
+    }
 }
 
 /// A list that names one thing twice is not a list of distinct findings.
@@ -300,7 +378,8 @@ fn a_repeated_entry_is_an_error() {
 fn a_list_file_that_is_not_there_is_an_error() {
     let fixture: Fixture = Fixture::new();
     let missing = fixture.path.join("absent.txt");
-    let error: String = read_allow_list(&missing).expect_err("an absent list is an error");
+    let error: String =
+        read_allow_list(&missing, fixture.path.as_path()).expect_err("an absent list is an error");
     assert!(error.contains("cannot be read"), "{error}");
     assert!(error.contains("absent.txt"), "{error}");
 }
@@ -314,7 +393,8 @@ fn a_list_file_that_is_there_is_read_whole() {
         "allow-list.txt",
         "# one entry\nuses src/a -> src/b\n",
     );
-    let list: AllowList = read_allow_list(&written).expect("the fixture list reads");
+    let list: AllowList =
+        read_allow_list(&written, fixture.path.as_path()).expect("the fixture list reads");
     assert_eq!(list.entries().len(), 1);
     assert_eq!(list.source(), written.as_path());
 }
@@ -396,7 +476,8 @@ fn a_list_as_long_as_the_dense_loop_needs_is_read() {
     }
     let fixture: Fixture = Fixture::new();
     let written = write(&fixture.path, "allow-list.txt", text.as_str());
-    let list: AllowList = read_allow_list(&written).expect("the dense loop's list reads");
+    let list: AllowList =
+        read_allow_list(&written, fixture.path.as_path()).expect("the dense loop's list reads");
     assert_eq!(list.entries().len(), lines);
 }
 

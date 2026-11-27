@@ -293,7 +293,12 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ),
     ("worktree_copying/worktree_copy_journal.rs", 1, "own-record"),
     (
-        "worktree_copying/worktree_copy_owed_copy.rs",
+        "worktree_copying/worktree_copy_records_that_name_a_worktree.rs",
+        2,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_owed_copy_records.rs",
         1,
         "own-record",
     ),
@@ -308,7 +313,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "own-record",
     ),
     (
-        "worktree_copying/worktree_copy_stage_claim.rs",
+        "worktree_copying/worktree_copy_stage_claim_held_by_a_command.rs",
         2,
         "own-record",
     ),
@@ -335,11 +340,6 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     (
         "worktree_copying/worktree_copy_unfilled_record.rs",
         1,
-        "own-record",
-    ),
-    (
-        "worktree_copying/worktree_copy_unreadable_records.rs",
-        2,
         "own-record",
     ),
 ];
