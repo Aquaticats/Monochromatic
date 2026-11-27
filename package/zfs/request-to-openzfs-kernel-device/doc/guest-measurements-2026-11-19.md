@@ -31,6 +31,9 @@ brief that asked for the run,
 which is
 `/home/user/temp/agent/zfs-step-2-integration-pass-findings-fixed-2026-11-19/keep/round-evidence/`;
 this file cites them by name.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 This record is the third one this file has held.
 The first read the module

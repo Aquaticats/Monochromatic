@@ -19,6 +19,7 @@ use super::{
     PreparedCandidates,
     prepare_candidates,
 };
+use crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
 use crate::candidate_version::CandidateVersion;
 use crate::test_support::{
     REAL_GIT,
@@ -186,7 +187,7 @@ fn both_sources_start_a_fixed_number_of_processes() {
 fn a_second_baseline_listing_starts_after_two_thousand_and_forty_eight_paths() {
     let root: PathBuf = fixture("prediction-count-chunks");
     let (program, count) = counting_git(root.as_path());
-    let files: usize = super::PATHSPEC_CHUNK_SIZE + 1;
+    let files: usize = PATHSPEC_CHUNK_SIZE + 1;
     let repo: PathBuf = repository_with_new_files(root.as_path(), "repo", files);
     let prepared: PreparedCandidates = prepare_candidates(
         program.as_path(),
