@@ -117,7 +117,7 @@ const THE_STANDING_STEP: Requirement = Requirement {
     required: WHAT_A_CONTROL_MUST_DO,
     files: &[(
         "worktree/add_standing_notice_tests.rs",
-        "six controls publish, print, end or read the step a waiting add's notice names, and one of them makes \
+        "five controls publish, print, end or read the step a waiting add's notice names, and one of them makes \
          descriptor 2 a pipe",
     )],
 };
