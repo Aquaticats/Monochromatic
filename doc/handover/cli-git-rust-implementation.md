@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:53:14-05:00
+## The state at 2026-11-27T12:54:57-05:00
 
-`main` was `239b91c5ee`.
+`main` was `6e6fc27b00`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 237 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 238 more by this time.
 
 ### Rounds running
 
@@ -170,11 +170,13 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
 - nothing for `cargo-shadow`:
-  every round of its `0.1.5-alpha.13` pass is merged and `0.1.5-alpha.14` is released
-  (release commit `8673ec1309`,
-  started 2026-11-27T12:50,
-  to be locked,
-  installed and read by a Claude Sonnet pass once published).
+  every round of its `0.1.5-alpha.13` pass is merged,
+  and `0.1.5-alpha.14` is released
+  (release commit `8673ec1309`),
+  locked (`c652b74260`) and installed,
+  with the session's `git` link put back at 2026-11-27T12:54:30-05:00.
+  A Claude Sonnet read of it runs as a background agent of the coordinating session
+  (`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`).
   The round on the retire's gate is merged (`67103f2285`):
   seven controls,
   each shown red by the edit it guards and reading the real gate through a group directory of its own;
@@ -500,7 +502,7 @@ the workflow pushes its bump commit to `origin/main`,
 and a local merge made meanwhile diverges from it.
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
-(last at 2026-11-27T07:47:16-05:00).
+(last at 2026-11-27T12:54:30-05:00).
 
 - The linter,
   `0.5.2-alpha.19`:
