@@ -46,6 +46,13 @@
 //! so that copy is a finished install,
 //! while the copy at the version's name was unfinished,
 //! which is why it was being replaced at all.
+//! The marker records the tool,
+//! the version and the archive's SHA-256,
+//! and a copy is published only when those facts match the lock's row for the version.
+//! A marker an earlier build wrote records no archive digest,
+//! so it cannot vouch for the bytes and its copy is never published;
+//! when its installer has ended and it belongs to the version this run installs,
+//! it is removed as an unverified leftover.
 //! That copy is put back when the finished one is gone,
 //! because an unfinished copy that holds the program is what the version had before the kill.
 //!
@@ -89,10 +96,18 @@ use super::super::error::ToolchainError;
 use super::super::util::file_name_text;
 /// Imports the question that tells a finished install from an unfinished one.
 use super::is_finished;
-/// Imports the owner of a hidden sibling and its liveness question.
+/// Imports the owner of a hidden sibling,
+/// its liveness question,
+/// and the check on the boot field of a name.
 use super::the_owner_of_a_hidden_sibling::{
     Liveness,
     Owner,
+    is_boot_id,
+};
+/// Imports the marker reads that tell a copy the lock vouches for from one it does not.
+use super::{
+    CopyRecord,
+    marker_vouches,
 };
 /// Imports the hidden names,
 /// the three purposes and the publish step from the module above this one.
@@ -131,6 +146,26 @@ pub(crate) struct Leftover {
     /// or nothing when its name carries no start time,
     /// which an earlier release wrote.
     pub(crate) owner: Option<Owner>,
+}
+
+/// The methods of `Leftover`.
+impl Leftover {
+    /// What:
+    /// What this reader can say about the installer that made the sibling.
+    /// Why:
+    /// A name written by an earlier release carries no owner to ask about,
+    /// and a name whose owner cannot be read is never removed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function liveness(leftover: Leftover): Liveness;
+    /// ```
+    pub(crate) fn liveness(&self) -> Liveness {
+        return match &self.owner {
+            Some(owner) => owner.liveness(),
+            None => Liveness::Unknown,
+        };
+    }
 }
 
 /// What:
@@ -182,12 +217,16 @@ fn may_be_published(holds: Holds) -> bool {
 /// Why:
 /// The name is the whole record,
 /// and a version directory's own name may hold dots,
-/// so the purpose and the two fields naming the installer are read from the right.
-/// A name that ends in the purpose alone,
-/// with no process id after it,
-/// is no sibling this scheme writes.
-/// A name without a start time was written by an earlier release,
-/// and the installer it names cannot be judged.
+/// so the purpose and the fields naming the installer are read from the right.
+/// The newest shape carries the process id,
+/// its start time,
+/// the process namespace and the boot;
+/// a name from the release before this one carries the process id and start time only,
+/// and a name from the release before that carries the process id alone.
+/// The two older shapes cannot be judged by this reader,
+/// so they are still read,
+/// named,
+/// and left where they are.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -196,6 +235,29 @@ fn may_be_published(holds: Holds) -> bool {
 fn parse_name(entry: &str) -> Option<(String, Holds, Option<Owner>)> {
     let stem: &str = entry.strip_prefix('.')?;
     let parts: Vec<&str> = stem.split('.').collect();
+    // What: the newest shape ends in the purpose, process id, start, namespace and boot.
+    // Why: a name with all four facts is the only one this reader may judge against its own.
+    if let [rest @ .., purpose, pid, started, namespace, boot] = parts.as_slice()
+        && !rest.is_empty()
+        && let Some(holds) = holds_of(purpose)
+        && let Ok(number) = pid.parse::<u32>()
+        && let Ok(moment) = started.parse::<u64>()
+        && let Ok(space) = namespace.parse::<u64>()
+        && is_boot_id(boot)
+    {
+        return Some((
+            rest.join("."),
+            holds,
+            Some(Owner {
+                pid: number,
+                started: moment,
+                boot: Some((*boot).to_string()),
+                namespace: Some(space),
+            }),
+        ));
+    }
+    // What: the shape the release before this one wrote ends in the purpose, process id and start time.
+    // Why: without the boot and namespace it cannot be judged, but it is still one of this tool's names.
     if let [rest @ .., purpose, pid, started] = parts.as_slice()
         && !rest.is_empty()
         && let Some(holds) = holds_of(purpose)
@@ -208,9 +270,13 @@ fn parse_name(entry: &str) -> Option<(String, Holds, Option<Owner>)> {
             Some(Owner {
                 pid: number,
                 started: moment,
+                boot: None,
+                namespace: None,
             }),
         ));
     }
+    // What: the oldest shape ends in the purpose and process id alone.
+    // Why: it carries no fact this reader can judge, so it keeps an owner of nothing.
     if let [rest @ .., purpose, pid] = parts.as_slice()
         && !rest.is_empty()
         && let Some(holds) = holds_of(purpose)
@@ -235,7 +301,7 @@ fn parse_name(entry: &str) -> Option<(String, Holds, Option<Owner>)> {
 /// ```ts
 /// function hiddenSiblings(directory: string): Leftover[]
 /// ```
-fn hidden_siblings(directory: &Path) -> Result<Vec<Leftover>, ToolchainError> {
+pub(crate) fn hidden_siblings(directory: &Path) -> Result<Vec<Leftover>, ToolchainError> {
     let entries = match fs::read_dir(directory) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -265,9 +331,7 @@ fn hidden_siblings(directory: &Path) -> Result<Vec<Leftover>, ToolchainError> {
 /// Whether the installer that made this hidden sibling is known to have ended.
 /// A sibling its installer cannot be judged against is never treated as gone.
 fn is_gone(sibling: &Leftover) -> bool {
-    return sibling
-        .owner
-        .is_some_and(|owner| return owner.liveness() == Liveness::Gone);
+    return sibling.liveness() == Liveness::Gone;
 }
 
 /// What:
@@ -289,13 +353,16 @@ fn claim_the_finished_copy(
     version_dir: &Path,
     of_this_version: &[&Leftover],
     first_bin: &str,
+    expected: Option<&CopyRecord>,
 ) -> Result<Option<PathBuf>, ToolchainError> {
     let claim: PathBuf = hidden_sibling(version_dir, RECOVERED_PURPOSE, Owner::here());
     if fs::symlink_metadata(&claim).is_ok() {
         return Ok(Some(claim));
     }
     let candidate = of_this_version.iter().copied().find(|leftover| {
-        return may_be_published(leftover.holds) && is_finished(&leftover.path, first_bin);
+        return may_be_published(leftover.holds)
+            && is_finished(&leftover.path, first_bin)
+            && expected.is_some_and(|record| return marker_vouches(&leftover.path, record));
     });
     let Some(finished) = candidate else {
         return Ok(None);
@@ -362,6 +429,7 @@ fn put_back_the_copy(
 pub(crate) fn recover_leftovers(
     version_dir: &Path,
     first_bin: &str,
+    expected: Option<&CopyRecord>,
 ) -> Result<Recovered, ToolchainError> {
     let Some(directory) = version_dir.parent() else {
         return Ok(Recovered::default());
@@ -379,7 +447,9 @@ pub(crate) fn recover_leftovers(
             .copied()
             .filter(|sibling| return sibling.version == version)
             .collect();
-        if let Some(claim) = claim_the_finished_copy(version_dir, &of_this_version, first_bin)? {
+        if let Some(claim) =
+            claim_the_finished_copy(version_dir, &of_this_version, first_bin, expected)?
+        {
             publish_staged(&claim, version_dir, first_bin)?;
             outcome.published = true;
         } else if fs::symlink_metadata(version_dir).is_err() {

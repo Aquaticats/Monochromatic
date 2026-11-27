@@ -33,6 +33,14 @@ use std::path::{
 
 /// Imports the check that the other toolchain root runs the version about to be deleted.
 use super::super::across_roots::other_root_forwards_to;
+/// Imports the hidden names this tool leaves,
+/// the question whether their installer ended,
+/// and the marker that says whether a copy can be published.
+use super::super::archive_staging::{
+    Liveness,
+    has_vouched_marker,
+    hidden_siblings,
+};
 /// Imports the cargo namespace,
 /// the link that names the version that runs,
 /// and the writes to it.
@@ -50,6 +58,7 @@ use super::super::layout::tool_install_dir;
 /// their removal plan and their link.
 use super::super::published_archive::{
     NamedArchive,
+    is_finished,
     plan_archive_prune,
     point_current_at_newest_archive,
     present_archive_versions,
@@ -61,6 +70,8 @@ use super::super::scope::{
     Scope,
     ScopeKind,
 };
+/// Imports the directory names the toolchain root keeps for something that is no tool.
+use super::super::segment::RESERVED_TOOL_DIRECTORIES;
 /// Imports `worktree_lock_files` from `super::super::worktrees`.
 use super::super::worktrees::worktree_lock_files;
 /// Imports the prefix that marks a crate this repository publishes.
@@ -82,6 +93,122 @@ use super::what_a_failed_run_says_it_removed::{
 };
 /// Imports what the known locks name.
 use super::what_the_known_locks_name::named_by_all;
+/// What:
+/// Every tool directory under the toolchain root,
+/// with the tool id its name is.
+/// Why:
+/// A hidden install sits inside the directory of the tool it installs,
+/// and a tool no lock names any more still leaves those names behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function toolDirectories(root: string): [string, string][]
+/// ```
+fn tool_directories(root: &Path) -> Result<Vec<(String, PathBuf)>, ToolchainError> {
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(ToolchainError::failure(format!(
+                "cannot list {} for the hidden installs it holds: {error}",
+                root.display()
+            )));
+        }
+    };
+    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') || RESERVED_TOOL_DIRECTORIES.contains(&name.as_str()) {
+            continue;
+        }
+        let is_directory: bool = entry
+            .file_type()
+            .map(|kind| return kind.is_dir())
+            .unwrap_or(false);
+        if is_directory {
+            found.push((name, entry.path()));
+        }
+    }
+    return Ok(found);
+}
+
+/// What:
+/// Removes (or, with `dry_run`, lists) every hidden install whose installer has provably ended,
+/// except a finished copy of a version some known lock names,
+/// and names the ones it cannot judge.
+/// Why:
+/// A finished copy of a version a lock names can still be published by that version's own install,
+/// while an unfinished copy,
+/// one no digest vouches for,
+/// or one of a version no lock names will never be used;
+/// leaving it would keep a whole tool's bytes for ever.
+/// A name whose installer cannot be judged is never removed,
+/// and the person is told which path it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pruneHiddenSiblings(scope: Scope, every: Map<string, NamedArchive>, dryRun: boolean, removed: string[]): void
+/// ```
+fn prune_hidden_siblings(
+    scope: &Scope,
+    every: &BTreeMap<String, NamedArchive>,
+    dry_run: bool,
+    removed: &mut Vec<PathBuf>,
+) -> Result<(), ToolchainError> {
+    for (id, directory) in tool_directories(&scope.toolchain_root)? {
+        let siblings =
+            hidden_siblings(&directory).map_err(|error| return after_removing(error, removed))?;
+        for sibling in siblings {
+            match sibling.liveness() {
+                Liveness::Running => continue,
+                Liveness::Unknown => {
+                    eprintln!(
+                        "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; delete it by hand once no install uses it",
+                        sibling.path.display()
+                    );
+                    continue;
+                }
+                Liveness::Gone => {}
+            }
+            let archive: Option<&NamedArchive> = every.get(&id);
+            let named_version: bool = archive.is_some_and(|named| {
+                return named.versions.contains(&sibling.version);
+            });
+            let first_bin: &str = archive
+                .map(|named| return named.first_bin.as_str())
+                .unwrap_or("");
+            let keep: bool = named_version
+                && is_finished(&sibling.path, first_bin)
+                && has_vouched_marker(&sibling.path);
+            if keep {
+                continue;
+            }
+            if !dry_run {
+                let result: std::io::Result<()> = if sibling.path.is_dir() {
+                    fs::remove_dir_all(&sibling.path)
+                } else {
+                    fs::remove_file(&sibling.path)
+                };
+                match result {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == ErrorKind::NotFound => {}
+                    Err(error) => {
+                        return Err(after_removing(
+                            ToolchainError::failure(format!(
+                                "cannot remove the hidden install at {}: {error}",
+                                sibling.path.display()
+                            )),
+                            removed,
+                        ));
+                    }
+                }
+            }
+            removed.push(sibling.path);
+        }
+    }
+    return Ok(());
+}
+
 /// What:
 /// Deletes (or,
 /// with `dry_run`,
@@ -152,7 +279,7 @@ pub fn prune_toolchain(
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
-    let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
+    let (named, named_archive_tools, every_archive) = named_by_all(&lock_files, extra_locks)?;
     // What: the deletions this run will make, with the versions the other toolchain root forwards to left out.
     // Why: the link decision below has to know which versions really stay, and that forward is one way one stays.
     let mut planned: Vec<(String, String, PathBuf)> = Vec::new();
@@ -265,6 +392,7 @@ pub fn prune_toolchain(
         }
     }
     prune_archives(scope, &named_archive_tools, dry_run, &mut removed)?;
+    prune_hidden_siblings(scope, &every_archive, dry_run, &mut removed)?;
     return Ok(removed);
 }
 

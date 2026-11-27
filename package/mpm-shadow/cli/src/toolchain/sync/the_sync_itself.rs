@@ -23,6 +23,7 @@ use super::super::across_roots::winning_root;
 /// Imports the hidden siblings a killed install leaves,
 /// and the repair of them.
 use super::super::archive_staging::{
+    CopyRecord,
     Recovered,
     recover_leftovers,
 };
@@ -48,6 +49,8 @@ use super::super::exposure::{
 use super::super::install::install_tool;
 /// Imports `reconcile_rust_parts` from `super::super::install_rust_android`.
 use super::super::install_rust_android::reconcile_rust_parts;
+/// Imports the artifact row of this host, whose SHA-256 is what the repair compares a hidden copy with.
+use super::super::install_support::artifact_for_host;
 /// Imports `applies_to_family` from `super::super::layout`.
 use super::super::layout::applies_to_family;
 /// Imports the install directory of one tool version.
@@ -105,7 +108,23 @@ fn recover_a_killed_install(
         &tool.declaration.id,
         &tool.version,
     )?;
-    return recover_leftovers(&version_dir, program_that_finishes_the_install(tool));
+    // What: the lock's own record of the archive this version came from.
+    // Why: a hidden copy is published only when its marker records the same tool, version and digest.
+    let expected: Option<CopyRecord> =
+        artifact_for_host(tool, &ctx.host.platform)
+            .ok()
+            .map(|artifact| {
+                return CopyRecord {
+                    tool: tool.declaration.id.clone(),
+                    version: tool.version.clone(),
+                    archive_sha256: artifact.sha256.clone(),
+                };
+            });
+    return recover_leftovers(
+        &version_dir,
+        program_that_finishes_the_install(tool),
+        expected.as_ref(),
+    );
 }
 
 /// What:

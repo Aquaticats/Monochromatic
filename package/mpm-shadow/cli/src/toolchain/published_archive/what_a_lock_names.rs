@@ -152,6 +152,49 @@ pub fn named_archives(
 }
 
 /// What:
+/// Every archive-route tool a lock names,
+/// whichever repository publishes it,
+/// with the versions and first bin each row records.
+/// Why:
+/// A hidden sibling may belong to a third-party archive tool as well as to one of this repository's,
+/// and a finished copy of a version no known lock names is what prune removes.
+/// The rows are only compared with names found on disk,
+/// never joined onto a path,
+/// so a crafted name cannot make this read reach outside the toolchain root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function everyArchiveNamed(lockText: string): Map<string, NamedArchive>
+/// ```
+pub(crate) fn every_archive_named(lock_text: &str) -> BTreeMap<String, NamedArchive> {
+    let mut named: BTreeMap<String, NamedArchive> = BTreeMap::new();
+    let Ok(lock) = serde_json::from_str::<Value>(lock_text) else {
+        return named;
+    };
+    let Some(tools) = lock.get("tools").and_then(Value::as_object) else {
+        return named;
+    };
+    for (id, entry) in tools {
+        if entry.get("route").and_then(Value::as_str) != Some("archive") {
+            continue;
+        }
+        let Some(version) = entry.get("version").and_then(Value::as_str) else {
+            continue;
+        };
+        // What: a first bin the plan could not use is no name to look for, so the marker alone finishes such a copy.
+        // Why: a crafted bin name must not reach a path below the hidden directory.
+        let first_bin: &str = match first_bin_of(entry) {
+            Some(name) if check_bin_name(name).is_ok() => name,
+            _ => "",
+        };
+        let slot: &mut NamedArchive = named.entry(id.clone()).or_default();
+        slot.versions.insert(version.to_string());
+        slot.first_bin = first_bin.to_string();
+    }
+    return named;
+}
+
+/// What:
 /// The version directories under each named tool's directory,
 /// with whether each finished.
 /// Why:
