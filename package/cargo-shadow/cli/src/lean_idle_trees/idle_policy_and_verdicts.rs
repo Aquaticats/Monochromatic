@@ -1,7 +1,8 @@
 //! What:
 //! The idle periods a pass judges a tree by and what the pass says it did with each tree.
 //! Why:
-//! The decision, the removal and the pass all read these names,
+//! The decision,
+//! the removal and the pass all read these names,
 //! and a reader of any one of them meets the types before the steps that use them.
 //!
 //! In TS you'd write (pseudocode):

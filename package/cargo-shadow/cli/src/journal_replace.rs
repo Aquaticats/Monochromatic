@@ -98,7 +98,8 @@ use std::path::Path;
 /// ```
 use crate::file_owner::observe;
 
-/// The name a file is published under, made durable and exclusive.
+/// The name a file is published under,
+/// made durable and exclusive.
 mod creates;
 /// What one replacement answered and where the file it displaced is kept.
 mod outcome_and_keep_rule;
