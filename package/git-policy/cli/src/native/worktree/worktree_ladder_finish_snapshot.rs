@@ -1,6 +1,9 @@
 //! What:
 //!  The snapshot rung after real Git returned:
-//! everything before the swap (the target, the snapshot, the dirty restore or the tree difference,
+//! everything before the swap
+//! (the target,
+//! the snapshot,
+//! the dirty restore or the tree difference,
 //! and the conversion fence's write through Git),
 //! the swap itself,
 //! and the fall back to Git's own checkout when a step cannot finish.

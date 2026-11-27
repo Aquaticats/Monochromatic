@@ -3,7 +3,8 @@
 //! the clone rung's serving step,
 //! the stage claim a rung took or gives back,
 //! and the choice between the two rungs and the fall back to Git's own checkout.
-//! The binding of an add, the snapshot rung's serving and Git's own checkout
+//! The binding of an add,
+//! the snapshot rung's serving and Git's own checkout
 //! are the sibling files `worktree_ladder_finish_binding.rs`,
 //! `worktree_ladder_finish_snapshot.rs` and `worktree_ladder_finish_git_checkout.rs`.
 //! Why:

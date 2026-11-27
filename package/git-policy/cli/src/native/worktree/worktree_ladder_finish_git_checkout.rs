@@ -1,5 +1,6 @@
 //! What:
-//!  Git's own checkout, run in the worktree the add is bound to when a rung cannot finish the add,
+//!  Git's own checkout,
+//! run in the worktree the add is bound to when a rung cannot finish the add,
 //! and the report of an add that could not be completed.
 //! Why:
 //!  Real Git ran with `--no-checkout`,
