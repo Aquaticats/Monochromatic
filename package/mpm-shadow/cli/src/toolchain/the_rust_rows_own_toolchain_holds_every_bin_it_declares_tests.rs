@@ -179,6 +179,48 @@ const THE_FIXTURE_HOST_TRIPLE: &str = "x86_64-unknown-linux-gnu";
 const THE_COMPONENT_THIS_ISSUE_DECLARES: &str = "rustfmt";
 
 // What:
+// `const A_TOOLCHAIN_OLDER_THAN_THE_PIN: &str = "nightly-2026-11-01"` is the channel of a second
+// toolchain installed beside the repository's pin,
+// fifteen days older than the pin's `nightly-2026-11-16`,
+// so rustup's own directory name for it sorts before the pin's.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// The controls below are about a machine holding two toolchains,
+// and the fault issue 6634 records shows itself only when the second one sorts first:
+// a search that takes the first directory by name finds the older toolchain before the pin.
+// Gotcha:
+// The name is a stand-in for rustup's own directory: no toolchain was installed for it.
+// Each control asserts the sort order it relies on instead of trusting this date.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aToolchainOlderThanThePin = 'nightly-2026-11-01';
+// ```
+const A_TOOLCHAIN_OLDER_THAN_THE_PIN: &str = "nightly-2026-11-01";
+
+// What:
+// `const A_TOOLCHAIN_NEWER_THAN_THE_PIN: &str = "nightly-2026-12-01"` is the channel of a second
+// toolchain installed beside the repository's pin,
+// later than the pin's `nightly-2026-11-16`,
+// so rustup's own directory name for it sorts after the pin's.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// A search that took the last directory by name would pass the older-toolchain control for the
+// wrong reason,
+// so this second control holds a toolchain that sorts on the other side of the pin.
+// Gotcha:
+// A stand-in for rustup's own directory, as the older one is;
+// each control asserts the sort order it relies on.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aToolchainNewerThanThePin = 'nightly-2026-12-01';
+// ```
+const A_TOOLCHAIN_NEWER_THAN_THE_PIN: &str = "nightly-2026-12-01";
+
+// What:
 // `struct Component` is one rustup component as the fixtures record it:
 // the name the plan writes and `rustup component add` takes,
 // the `manifest-*` file the lines below were copied from,
@@ -788,6 +830,99 @@ fn the_toolchain_bin(
             THE_FIXTURE_HOST_TRIPLE
         ))
         .join("bin");
+}
+
+// What:
+// `fn the_program_names_in(directory: &Path) -> Vec<String>` is the names of the files directly
+// inside one directory, sorted.
+// Why:
+// The control has to show what the fixture toolchain holds,
+// not only what the test meant to write into it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theProgramNamesIn(directory: string): string[]
+// ```
+// What:
+// `fn a_second_toolchain(rig: &Rig, channel: &str, programs: &[String]) -> PathBuf` writes one more
+// installed toolchain into the fixture's own rustup home and hands back its directory.
+// Why:
+// The farm reads a `rustup-toolchain` row's programs under `<home>/.rustup/toolchains`,
+// so a second toolchain the controls can see has to sit there,
+// named `<channel>-<triple>` the way rustup names one.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function aSecondToolchain(rig: Rig, channel: string, programs: string[]): string
+// ```
+fn a_second_toolchain(
+    rig: &Rig,
+    channel: &str,
+    programs: &[String],
+) -> PathBuf {
+    // What:
+    // the chain joins the home, `.rustup`, `toolchains` and the directory name `format!` builds from
+    // the channel and the host triple.
+    // Why:
+    // That is the one place the search looks,
+    // and a name built any other way would be a directory no rustup ever makes.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const directory = pathJoin(rig.scope.home, '.rustup', 'toolchains', `${channel}-${theFixtureHostTriple}`);
+    // ```
+    let directory: PathBuf = rig
+        .scope
+        .home
+        .join(".rustup")
+        .join("toolchains")
+        .join(format!("{channel}-{THE_FIXTURE_HOST_TRIPLE}"));
+    // What:
+    // one stand-in program per name, each written into the toolchain's own `bin` directory.
+    // Why:
+    // A toolchain holds its programs there,
+    // and a program written anywhere else would not be the toolchain's.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const program of programs) { writeExecutable(pathJoin(directory, 'bin', program)); }
+    // ```
+    for program in programs {
+        write_executable(&directory.join("bin").join(program));
+    }
+    return directory;
+}
+
+// What:
+// `fn the_directory_name_of(toolchain: &Path) -> String` is the name rustup gave one installed
+// toolchain (`nightly-2026-11-16-x86_64-unknown-linux-gnu`).
+// Why:
+// The controls assert the sort order of two such names,
+// which is the state the fault needs,
+// and a comparison of whole paths would also compare the folders above them.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theDirectoryNameOf(toolchain: string): string
+// ```
+fn the_directory_name_of(toolchain: &Path) -> String {
+    // What:
+    // `.file_name()` is the path's last segment as an `Option`,
+    // `.expect(...)` unwraps it,
+    // and `.to_string_lossy()` renders it as text for a comparison.
+    // Why:
+    // Every directory these controls build has a name,
+    // and a name that is not valid UTF-8 still has to appear in a failure rather than be dropped.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return decodeURIComponent(entry.name);
+    // ```
+    return toolchain
+        .file_name()
+        .expect("a toolchain directory has a name")
+        .to_string_lossy()
+        .to_string();
 }
 
 // What:
@@ -1413,4 +1548,219 @@ fn an_install_whose_toolchain_already_holds_the_declared_components_asks_for_not
     // expect(report.missingBins).toEqual([]);
     // ```
     assert_eq!(report.missing_bins, Vec::<String>::new(), "{text}");
+}
+
+// What:
+// `#[test] fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an_older_toolchain_sorts_first()`
+// runs an install against a machine holding the pin and a second toolchain older than it,
+// each with every program the row declares,
+// and reads where the farm's links point.
+// Why:
+// Issue 6634:
+// the farm linked the first toolchain in name order,
+// so on the day the pin moved to a later date the programs of the older toolchain took the farm's
+// `rustc`, `cargo` and `rustfmt` while `list` said the pin was in force.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('an install links the rows programs from the toolchain the row names though an older toolchain sorts first', () => { ... });
+// ```
+#[test]
+fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an_older_toolchain_sorts_first() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    // What:
+    // the pin's own `bin` directory: where the row's programs belong.
+    // Why:
+    // The assertion compares every farm link with it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const pinBin = theToolchainBin(rig, row);
+    // ```
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    // What:
+    // the second toolchain, older than the pin, holding every program the row declares.
+    // Why:
+    // A toolchain missing a program would leave the link to the pin for that name and hide the fault
+    // this control is about.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const older = aSecondToolchain(rig, aToolchainOlderThanThePin, theProgramsOf(held));
+    // ```
+    let older: PathBuf = a_second_toolchain(
+        &rig,
+        A_TOOLCHAIN_OLDER_THAN_THE_PIN,
+        &the_programs_of(&held),
+    );
+    // What:
+    // the name rustup gives the pin's directory,
+    // and the assertion that the older toolchain's name sorts before it.
+    // Why:
+    // The fault shows itself only in that order,
+    // so a control whose names sorted the other way would pass for the wrong reason.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const pinName = `${row.rustupChannel()}-${theFixtureHostTriple}`;
+    // expect(theDirectoryNameOf(older) < pinName).toBe(true);
+    // ```
+    let pin_name: String = format!("{}-{}", row.rustup_channel(), THE_FIXTURE_HOST_TRIPLE);
+    assert!(
+        the_directory_name_of(&older) < pin_name,
+        "the second toolchain's directory sorts before the pin's, which is the state issue 6634 needs"
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What:
+    // one assertion per declared bin:
+    // the farm's link points into the pin's `bin` directory.
+    // Why:
+    // That is the whole of the issue:
+    // the name the row declares has to be the pin's program, whatever other toolchains hold.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const name of row.declaration.bins) { expect(readLink(pathJoin(rig.scope.exposureDir, name))).toBe(pathJoin(pinBin, name)); }
+    // ```
+    for name in &row.declaration.bins {
+        assert_eq!(
+            fs::read_link(rig.scope.exposure_dir.join(name)).expect("the farm holds a link"),
+            pin_bin.join(name),
+            "the farm's link for {name} names the pin's own program; {text}"
+        );
+    }
+    assert_eq!(report.missing_bins, Vec::<String>::new(), "{text}");
+}
+
+// What:
+// `#[test] fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_a_newer_toolchain_sorts_last()`
+// is the same control with the second toolchain sorting after the pin.
+// Why:
+// A search that took the last directory by name would pass the older-toolchain control,
+// so this one holds the state that a "take the last" rule gets wrong.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('an install links the rows programs from the toolchain the row names though a newer toolchain sorts last', () => { ... });
+// ```
+#[test]
+fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_a_newer_toolchain_sorts_last() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    let newer: PathBuf = a_second_toolchain(
+        &rig,
+        A_TOOLCHAIN_NEWER_THAN_THE_PIN,
+        &the_programs_of(&held),
+    );
+    let pin_name: String = format!("{}-{}", row.rustup_channel(), THE_FIXTURE_HOST_TRIPLE);
+    assert!(
+        the_directory_name_of(&newer) > pin_name,
+        "the second toolchain's directory sorts after the pin's, which is the state this control needs"
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    for name in &row.declaration.bins {
+        assert_eq!(
+            fs::read_link(rig.scope.exposure_dir.join(name)).expect("the farm holds a link"),
+            pin_bin.join(name),
+            "the farm's link for {name} names the pin's own program; {text}"
+        );
+    }
+    assert_eq!(report.missing_bins, Vec::<String>::new(), "{text}");
+}
+
+// What:
+// `#[test] fn a_program_the_rows_own_toolchain_lacks_is_unresolved_though_another_toolchain_holds_it()`
+// runs an install whose pin is short of one program the row declares while a second toolchain holds
+// that program,
+// and reads the unresolved-bins line.
+// Why:
+// The row's programs come from the toolchain the row names and from no other:
+// a program the pin lacks is unresolved,
+// and another toolchain's copy must not stand in for it under the pin's name.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a program the rows own toolchain lacks is unresolved though another toolchain holds it', () => { ... });
+// ```
+#[test]
+fn a_program_the_rows_own_toolchain_lacks_is_unresolved_though_another_toolchain_holds_it() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    // What:
+    // the programs the declared formatter component installs,
+    // the first of which the fixture's own toolchain is cut short of.
+    // Why:
+    // The component still shows in `rustup component list --installed`,
+    // so the install asks for no add and the missing program is the whole difference:
+    // a stand-in for a toolchain whose `bin` lost one file.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const programs = componentNamed(theComponentThisIssueDeclares).programs;
+    // ```
+    let programs_of_the_formatter: &'static [&'static str] =
+        component_named(THE_COMPONENT_THIS_ISSUE_DECLARES).programs;
+    assert!(
+        !programs_of_the_formatter.is_empty(),
+        "the formatter component installs at least one program, or this control has no subject"
+    );
+    let cut_short: &'static str = programs_of_the_formatter[0];
+    // What:
+    // removes that one program from the pin's `bin` directory.
+    // Why:
+    // The listing keeps naming its component as installed,
+    // which is the state a cut-short program leaves.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // unlinkSync(pathJoin(pinBin, cutShort));
+    // ```
+    fs::remove_file(pin_bin.join(cut_short)).expect("remove one of the pin's own programs");
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    a_second_toolchain(
+        &rig,
+        A_TOOLCHAIN_OLDER_THAN_THE_PIN,
+        &the_programs_of(&held),
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What:
+    // the report's unresolved bins, which must be the one declared program the pin lacks.
+    // Why:
+    // On a machine whose older toolchain sorts first,
+    // the fault this control holds answered that name with the older toolchain's copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(report.missingBins).toEqual([cutShort]);
+    // ```
+    assert_eq!(
+        report.missing_bins,
+        vec![cut_short.to_string()],
+        "the pin lacks {cut_short}, so the farm names it unresolved; {text}"
+    );
+    // What:
+    // the assertion that the farm holds no link under that name.
+    // Why:
+    // A name with no program in the row's own toolchain is reported,
+    // never linked to another toolchain's copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(existsSync(pathJoin(rig.scope.exposureDir, cutShort))).toBe(false);
+    // ```
+    assert!(
+        !rig.scope.exposure_dir.join(cut_short).exists(),
+        "the farm links no {cut_short}, because the pin holds none; {text}"
+    );
 }
