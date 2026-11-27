@@ -686,33 +686,50 @@ fn the_manifest_listing_answers_from_the_top_under_the_callers_prefix_and_modes(
 /// `directories_of_the_listing`).
 ///  A control holds the process's only place,
 /// so it proves the reading reached the bound by asking for it.
+///  The bound belongs to the whole process and is made once,
+///  by whichever job asks first,
+///  so the body runs in a child of this test binary where this control is that job:
+///  in the run's own process another test may have made the budget already,
+///  and then the bound this control states changes nothing (issue 6477).
 #[test]
 fn the_manifest_directories_are_read_as_a_job_of_the_pool() {
-    let root: PathBuf = fixture("cargo-manifest-place");
-    let worktree: PathBuf = repository(root.as_path(), "worktree");
-    std::fs::write(worktree.join(MANIFEST), b"").expect("manifest");
-    std::fs::create_dir_all(worktree.join("member")).expect("member directory");
-    std::fs::write(worktree.join("member").join(MANIFEST), b"").expect("member manifest");
-    let _staged: String = git_text(
-        worktree.as_path(),
-        &["add", "--", MANIFEST, "member/Cargo.toml"],
-    );
-    let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
-    let git: GitContext = git_context();
-    let destination: PathBuf = worktree.clone();
-    let reading = crate::lazy_runtime::spawn_on_runtime(async move {
-        return manifest_directories_awaiting(&git, destination.as_path()).await;
-    });
-    assert!(
-        reading.is_some(),
-        "this process's runtime has a worker of its own"
-    );
-    let asked: bool = finished
-        .recv_timeout(crate::parallel_test_support::PATIENCE)
-        .expect("the control that holds the only place answered");
-    remove(&root);
-    assert!(
-        asked,
-        "the tracked manifests were read without asking for a place of the process's bound on blocking jobs, so the reading ran on the task that polls the repairs"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_manifest_directories_are_read_as_a_job_of_the_pool",
+        || {
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(1);
+            assert_eq!(
+                crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+                1,
+                "this control is the first to ask for the process's places, so the bound is the one it states"
+            );
+            let root: PathBuf = fixture("cargo-manifest-place");
+            let worktree: PathBuf = repository(root.as_path(), "worktree");
+            std::fs::write(worktree.join(MANIFEST), b"").expect("manifest");
+            std::fs::create_dir_all(worktree.join("member")).expect("member directory");
+            std::fs::write(worktree.join("member").join(MANIFEST), b"").expect("member manifest");
+            let _staged: String = git_text(
+                worktree.as_path(),
+                &["add", "--", MANIFEST, "member/Cargo.toml"],
+            );
+            let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
+            let git: GitContext = git_context();
+            let destination: PathBuf = worktree.clone();
+            let reading = crate::lazy_runtime::spawn_on_runtime(async move {
+                return manifest_directories_awaiting(&git, destination.as_path()).await;
+            });
+            assert!(
+                reading.is_some(),
+                "this process's runtime has a worker of its own"
+            );
+            let asked: bool = finished
+                .recv_timeout(crate::parallel_test_support::PATIENCE)
+                .expect("the control that holds the only place answered");
+            remove(&root);
+            assert!(
+                asked,
+                "the tracked manifests were read without asking for a place of the process's bound on blocking jobs, so the reading ran on the task that polls the repairs"
+            );
+        },
     );
 }
