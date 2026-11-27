@@ -172,6 +172,14 @@
 //!   the conflicted files of a merge tree and the reading of `git merge-tree` output into conflicts.
 //! - `merge_second_pass_finish_stops.rs`:
 //!   which options make the finish of a stopped operation stop where Git would stop.
+//! - `merge_second_pass_finish_words.rs`:
+//!   the words a finish reads:
+//!   a `branch.<name>.mergeoptions` value split as Git splits it,
+//!   the command that ends the operation,
+//!   and the message without Git's conflict hint.
+//! - `merge_second_pass_finish_nesting.rs`:
+//!   how deep one finish may start the next,
+//!   and the todo lines that bound it.
 //! - `merge_second_pass_finish.rs`:
 //!   the finish of a stopped operation,
 //!   like a clean run,
@@ -188,6 +196,12 @@
 //! - `pull_untracked_paths_in_the_way_kept_copies.rs`:
 //!   one such file or link copied beside the Git directory,
 //!   and the numbered folder a pull's copies go into.
+//! - `pull_untracked_paths_in_the_way_kept.rs`:
+//!   what a pull kept of the person's untracked files,
+//!   and what it could not keep.
+//! - `pull_untracked_paths_in_the_way_words.rs`:
+//!   the sentences a pull prints about the copies it kept,
+//!   and the reset Git's own words offer.
 //! - `pull_untracked_paths_in_the_way.rs`:
 //!   the untracked files a pull's branch move would overwrite,
 //!   kept before the failure is worded,
@@ -212,6 +226,14 @@
 //!   which keeps that region in conflict.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
+//! - `merge_second_pass_verdicts.rs`:
+//!   the limits a file is merged under,
+//!   the reasons a conflicted path is left,
+//!   and what became of each path.
+//! - `merge_second_pass_objects.rs`:
+//!   the blob of a merged file,
+//!   the index record that stages it as resolved,
+//!   and the tree a merge from objects is carried by.
 //! - `merge_second_pass.rs`:
 //!   the conflicted files a merge left,
 //!   which of them the word pass may re-merge,
@@ -248,6 +270,9 @@
 //!   and the word pass over the regions it leaves.
 //! - `merge_second_pass_report.rs`:
 //!   the words that list a merged part and the journal entry for a merged file.
+//! - `merge_second_pass_tree_attributes.rs`:
+//!   the tree a merge computed from objects reads its `merge` attribute from,
+//!   and the attribute source that merge names.
 //! - `merge_second_pass_tree.rs`:
 //!   the word-level second pass for merges computed from objects,
 //!   and the attribute tree those merges read.
@@ -260,6 +285,9 @@
 //!   the commit and the two-way update.
 //! - `merge_isolation.rs`:
 //!   a true merge completed in isolation while the index holds staged changes.
+//! - `merge_second_pass_worktree_watch.rs`:
+//!   the paths a stopped operation had already left unmerged before it ran,
+//!   and the conflicts the index holds for the paths it created.
 //! - `merge_second_pass_worktree_install.rs`:
 //!   the files a forwarded second pass merged,
 //!   staged as resolved and written to the worktree.
@@ -268,6 +296,9 @@
 //!   a path another command moved while it computed its merge.
 //! - `merge_second_pass_worktree_words.rs`:
 //!   the sentences the word-level second pass ends a stopped operation with.
+//! - `merge_second_pass_worktree_remerge.rs`:
+//!   the awaited re-merge of the conflicts a stopped operation created,
+//!   and the install of every file no other command moved.
 //! - `merge_second_pass_worktree.rs`:
 //!   the word-level second pass after a forwarded merge,
 //!   rebase,
@@ -288,6 +319,16 @@ pub mod word_merge;
 /// The text a word merge of one region may not write,
 /// which keeps that region in conflict.
 pub mod word_merge_invented_text;
+
+/// The limits a file is merged under,
+/// the reasons a conflicted path is left,
+/// and what became of each path.
+pub mod merge_second_pass_verdicts;
+
+/// The blob of a merged file,
+/// the index record that stages it as resolved,
+/// and the tree a merge from objects is carried by.
+pub mod merge_second_pass_objects;
 
 /// The conflicted files a merge left,
 /// which of them the word pass may re-merge,
@@ -317,6 +358,10 @@ pub mod merge_second_pass_conflicts;
 /// How the word-level second pass starts Git.
 pub mod merge_second_pass_git_runner;
 
+/// The tree a merge computed from objects reads its `merge` attribute from,
+/// and the attribute source that merge names.
+pub mod merge_second_pass_tree_attributes;
+
 /// The word-level second pass for merges computed from objects,
 /// and the attribute tree those merges read.
 pub mod merge_second_pass_tree;
@@ -325,6 +370,14 @@ pub mod merge_second_pass_tree;
 /// rebase,
 /// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
+
+/// The paths a stopped operation had already left unmerged before it ran,
+/// and the conflicts the index holds for the paths it created.
+pub mod merge_second_pass_worktree_watch;
+
+/// The awaited re-merge of the conflicts a stopped operation created,
+/// and the install of every file no other command moved.
+pub mod merge_second_pass_worktree_remerge;
 
 /// The files a forwarded second pass merged,
 /// staged as resolved and written to the worktree.
@@ -336,6 +389,16 @@ pub mod merge_second_pass_worktree_unchanged;
 
 /// The sentences the word-level second pass ends a stopped operation with.
 pub mod merge_second_pass_worktree_words;
+
+/// The words a finish reads:
+/// a `branch.<name>.mergeoptions` value split as Git splits it,
+/// the command that ends the operation,
+/// and the message without Git's conflict hint.
+pub mod merge_second_pass_finish_words;
+
+/// How deep one finish may start the next,
+/// and the todo lines that bound it.
+pub mod merge_second_pass_finish_nesting;
 
 /// The finish of a stopped operation,
 /// like a clean run,
@@ -467,6 +530,14 @@ pub mod pull_isolation_merge_stated;
 /// the fetch it runs,
 /// and the merge it hands on.
 pub mod pull_isolation;
+
+/// What a pull kept of the person's untracked files,
+/// and what it could not keep.
+pub mod pull_untracked_paths_in_the_way_kept;
+
+/// The sentences a pull prints about the copies it kept,
+/// and the reset Git's own words offer.
+pub mod pull_untracked_paths_in_the_way_words;
 
 /// The untracked files a pull's branch move would overwrite,
 /// kept before the failure is worded,

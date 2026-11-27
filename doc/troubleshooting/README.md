@@ -395,6 +395,8 @@ Found while choosing meow's cache key hash and measuring it on a second machine:
   a fix-forward break that is never a reason to pin the nightly back
 - [Cargo prints hundreds of loop warnings before its first compiler line](cargo-loop-warnings-before-the-first-error.md),
   behind which the daily update's report used to lose the check's first error
+- [A `pinned` catalog row that refuses a raised floor makes the daily update land nothing](daily-update-pinned-catalog-row-blocks-a-floor.md),
+  the safe half of issue 6398: the floor never lands without the locks that satisfy it
 
 ## Quick Links
 
