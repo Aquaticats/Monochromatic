@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:27:32-05:00
+## The state at 2026-11-27T12:44:25-05:00
 
-`main` was `0f33063f26`.
+`main` was `8dcc43ed1e`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 226 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 232 more by this time.
 
 ### Rounds running
 
@@ -147,16 +147,18 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it and the Sanoid driver also get a `mise` task each),
   started 2026-11-27T11:40:23-05:00.
   Its two siblings are merged ("What the rounds found");
-- two rounds started 2026-11-27T12:15:56-05:00 from one list:
-  `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`
+- `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`,
+  started 2026-11-27T12:15:56-05:00
   (the gate's reader of a container's control group has the defect issue 6610 fixed in a check scope's reader:
   a container killed for memory can be reported as one that met no kill);
-  and `issue-6613-a-passing-typescript-check-says-what-it-ran`
-  (`native:ts-checks` prints only `exit 0` for a check that passed);
-- in the linter,
-  `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
-  ("Releases of 2026-11-27");
-  `0.5.2-alpha.20` follows its merge;
+- `issue-6617-a-typescript-check-prints-the-commit-it-ran-on`,
+  started 2026-11-27T12:44:52-05:00
+  (`native:ts-checks` prints no commit when started inside the package folder,
+  because the wrapper refuses its `git -C <folder>` away from the checkout's root);
+- nothing in the linter:
+  its alpha.19 pass round is merged and `0.5.2-alpha.20` is released ("Releases of 2026-11-27"),
+  to be locked,
+  installed and read by a Claude Sonnet pass once published;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -177,11 +179,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  two rounds started 2026-11-27T12:00:02-05:00,
-  each named `cargo-shadow-alpha-13-release-pass-` and then:
-  `the-retire-gates-fallback-and-its-words-are-held-by-controls`
-  and `the-refusals-listing-and-its-records-say-what-the-code-does`.
-  The third of that list is merged (`17a5efdf9a`):
+  one round started 2026-11-27T12:00:02-05:00,
+  `cargo-shadow-alpha-13-release-pass-the-retire-gates-fallback-and-its-words-are-held-by-controls`;
+  `0.1.5-alpha.14` follows its merge.
+  The round on the refusal's listing is merged (`cf3210724e`):
+  the last leftover a stop can report reaches the refusal's decision in a control that rests on no race;
+  a branch no input could reach is gone;
+  the listing's order is stated as the code gives it,
+  the scope's own group first,
+  and pinned across two groups;
+  and the refusal for a scope the manager collected says what becomes of the kept journal.
+  The proposal round of that list is merged too (`17a5efdf9a`):
   in a guest on systemd 262.2,
   with the account's inotify watches used up,
   a scope started the way `cargo-shadow` starts one stayed `loaded active running` with no member after its program ended,
@@ -196,15 +204,45 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and the ranking stays as it was,
   with its first pair closer;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  four rounds started 2026-11-27T12:11:40-05:00 from one list,
-  each named `mpm-shadow-alpha-14-release-pass-` and then:
-  `a-failed-or-raced-publish-never-costs-the-finished-copy`;
-  `a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
-  `four-start-messages-name-the-file-and-the-remedy-that-fit`;
-  and `the-busy-start-record-says-what-the-code-and-the-trace-show`,
-  which changes the record alone.
-  The first two both change `leftovers_of_a_killed_install.rs`,
-  each told which part the other holds.
+  one round started 2026-11-27T12:11:40-05:00,
+  `mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
+  `0.2.7-alpha.15` follows its merge and issue 6616's.
+  It changes `leftovers_of_a_killed_install.rs`,
+  which the publish round changed too and has merged,
+  so its branch may meet `main` there.
+  The other three of that list are merged.
+  A failed or raced publish no longer costs the finished copy (`1add32a8fb`):
+  a claimed copy that could not be published stays at the claim for the next install,
+  which publishes it with no download;
+  the copy a kill moved aside is not put back while a live installer holds a claim or a staging name for that version,
+  and a publish that finds a copy put back meanwhile replaces it;
+  a recovery never publishes an older version beside a newer installed one;
+  a run whose recovery failed still installs what it can;
+  and every message on those paths says what is on disk afterwards.
+  Its controls stop at a planted step or a real live process,
+  never by timing,
+  and were shown red by putting the release's decisions back,
+  twelve of them at once.
+  The record of a start refused because the program is being written says what the code and the trace show
+  (`9e13d87bbd`):
+  it names no usual cause,
+  quotes a test that exists,
+  and gives the publish's absence as measured in the installer's own process:
+  none where the file system can exchange,
+  and 24 to 48 microseconds over twelve publishes on the two-rename fallback,
+  where the record had said 5.025 ms from two separate `mv` commands.
+  Four start messages name the file and the remedy that fit (`2ff1248256`):
+  a compiled program's dynamic linker is named as such,
+  the last arm offers no step that cannot show the error,
+  the shadow prints the `mpm` candidates it saw with the reason it took or skipped each
+  (where the message had named `command -v -a mpm`,
+  which bash and zsh reject),
+  and an `mpm` without its execute bit is named with its remedy;
+  17 scenarios kept their exit status and standard output.
+- `issue-6616-the-launchers-not-there-message-names-the-interpreter-that-fits`,
+  started 2026-11-27T12:41:38-05:00:
+  the launcher's own message still names a `#!` first line for a compiled program,
+  in a file the round on the shim's messages was told to leave.
 
 Released again on 2026-11-27:
 `cargo-shadow` `0.1.5-alpha.13`
@@ -718,17 +756,24 @@ and both of alpha.18's Medium findings fixed
 Every printed key reads back with the same binary,
 and the layout gate on `package/git-policy/cli` and on the ZFS binding reports nothing,
 with a control that removes the allow keys reporting 558 and 16 findings.
-Its six Low findings have one round:
-a `uses` line spaced with tabs or no-break spaces still stops the whole rule,
-with a message that does not mention whitespace
-(163 of 220 spellings,
-all of which alpha.16 read);
-a mistyped `file-uses` line gets the wrong message;
-two wording gaps;
-a README mapping gap;
-edits no test would catch;
-and one constructed walk shape that costs 1.64 times alpha.16,
-fixed only if a package of this repository has that shape.
+Its six Low findings had one round,
+merged as `2fcfbfc9f8` and released in `0.5.2-alpha.20`
+(release commit `d4a9bb5544`).
+Of 220 spellings of one `uses` line,
+alpha.19 refused 163 and stopped the whole rule,
+with a message that named no whitespace;
+alpha.20 refuses none:
+31 read as the use and 189 are reported as a dead line that spells the whitespace it read,
+since a second whitespace character beside a name belongs to the name,
+which is the rule the README states.
+alpha.16 read all 220 as the use,
+so a list aligned with more than one character in a gap is reported where alpha.16 took it.
+A mistyped `file-uses` line is told what is wrong with it,
+the two wording gaps and the README mapping gap are closed
+(the README gains "How a list written before alpha.20 maps"),
+and the edits no test would catch have tests.
+The constructed walk shape that costs 1.64 times alpha.16 is left:
+no package of this repository has it.
 
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
@@ -786,7 +831,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6615,
+  issues 6524 to 6617,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -1018,6 +1063,13 @@ and the two `truepeak` files wait on their branch.
   `timings-boot-first`)
   were compared byte for byte and not run in a guest;
   issue 6612's round runs each once.
+- `native:ts-checks` says what a passing check ran (`8dcc43ed1e`,
+  issue 6613),
+  and refuses a unit test run that reported no suite or fewer suites than the package holds unit test files.
+  On `main` at that commit it printed
+  `89 unit test files, and 186 suites reported [PASS]`.
+  The type check can report no count of files without `--extendedDiagnostics` in the shared task template,
+  and says so.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

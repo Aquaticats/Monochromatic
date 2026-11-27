@@ -402,5 +402,14 @@ fn install_archive_files(
         discard_path(&staging);
         return Err(error);
     }
-    return publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""));
+    // What: the publish; its answer says whether this run gave the version's name the copy, which the install report
+    //  reads only for a recovery.
+    // Why: an install that published the copy has nothing else to record here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // publishStaged(staging, installDir, requiredProgram(tool) ?? '');
+    // ```
+    publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""))?;
+    return Ok(());
 }

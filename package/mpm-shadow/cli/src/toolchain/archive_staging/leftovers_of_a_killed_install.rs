@@ -56,6 +56,15 @@
 //! Without the claim both would exchange the copy at the version's name in turn,
 //! and the second would leave the unfinished copy there and the finished one deleted.
 //!
+//! A publish that fails keeps the copy it claimed:
+//! the copy stays under this process's `.recovered` name,
+//! which a later install finds dead and claims,
+//! so no failure here costs the finished copy an offline machine needs.
+//! The copy that was there is put back only when no installer the system reports as running holds a claim or a
+//! staging name for that version:
+//! such an installer is between its claim and its publish,
+//! and a copy put at the version's name in that instant makes its rename fail.
+//!
 //! Nothing here touches a sibling whose installer still runs,
 //! or one whose installer cannot be judged
 //! (`the_owner_of_a_hidden_sibling` says how that is told).
@@ -63,13 +72,21 @@
 //! another version's hidden copy is removed only when it never finished,
 //! and its completeness is judged by the marker alone,
 //! since this run's lock does not say what program that version holds.
+//! A finished copy of a version this run may not publish
+//! (a newer finished version of a repository-published tool is installed,
+//! and an older repository tool is never kept)
+//! is left under its hidden name rather than published or removed:
+//! a version directory of it would break that rule,
+//! and the copy may be the only way that version comes back offline once the newer one is gone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // leftovers-of-a-killed-install.ts
 //! type Holds = 'unpacking' | 'replaced-copy' | 'recovered';
-//! type Recovered = { published: boolean; restored: boolean; removed: string[] };
-//! function recoverLeftovers(versionDir: string, firstBin: string): Recovered;  // throws
+//! type AnOlderVersion = 'may-stay' | { neverKept: string };   // the string is the newer version installed
+//! type FinishedCopy = 'nothing-to-publish' | 'published-here' | 'published-by-another-install' | { olderVersionIsNeverKept: string };
+//! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall: boolean; removed: string[] };
+//! function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion): Recovered;  // throws
 //! ```
 
 /// Imports `fs` from `std`.
@@ -97,6 +114,7 @@ use super::the_owner_of_a_hidden_sibling::{
 /// Imports the hidden names,
 /// the three purposes and the publish step from the module above this one.
 use super::{
+    Published,
     RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     STAGING_PURPOSE,
@@ -134,25 +152,135 @@ pub(crate) struct Leftover {
 }
 
 /// What:
+/// Whether a copy of the version this recovery is about may be kept at all.
+/// Why:
+/// The owner's rule is that an older repository-published tool is never kept once a newer one is installed,
+/// and a recovery runs before the check that a newer version satisfies the lock,
+/// so the recovery is where an older locked version would otherwise appear beside the newer one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AnOlderVersion = 'may-stay' | { neverKept: string };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) enum AnOlderVersion {
+    /// No newer finished version is installed,
+    /// so this version may be published or put back.
+    #[default]
+    MayStay,
+    /// A newer finished version is installed,
+    /// so neither a finished copy nor the copy that was there may reach this
+    /// version's name.
+    NeverKept {
+        /// The newer finished version that is installed.
+        newer: String,
+    },
+}
+
+/// What:
+/// What became of the finished copy a killed install left.
+/// Why:
+/// The install report says what happened to it:
+/// this run published it,
+/// another install published the version meanwhile and this run dropped its own copy,
+/// or the rule above kept it out of the version's name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FinishedCopy = 'nothing-to-publish' | 'published-here' | 'published-by-another-install' | { olderVersionIsNeverKept: string };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) enum FinishedCopy {
+    /// There was no finished copy this run could publish.
+    #[default]
+    NothingToPublish,
+    /// This run published it at the version's name.
+    PublishedHere,
+    /// Another install published the version in the instant since this run looked,
+    /// so this run dropped its copy.
+    PublishedByAnotherInstall,
+    /// A newer finished version of this repository-published tool is installed,
+    /// so the finished copy stays hidden.
+    AnOlderVersionIsNeverKept {
+        /// The newer finished version that is installed.
+        newer: String,
+    },
+}
+
+/// What:
 /// What one recovery of a tool's version directory found and did.
 /// Why:
-/// The install report says whether a finished copy became the version
-/// or the copy that was there came back,
+/// The install report says what became of the finished copy,
+/// whether the copy that was there came back,
+/// whether it was left for a live install to replace,
 /// and which hidden siblings went.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Recovered = { published: boolean; restored: boolean; removed: string[] };
+/// type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall: boolean; removed: string[] };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Recovered {
-    /// Whether a finished copy a killed install left became the version directory.
-    pub(crate) published: bool,
-    /// Whether the copy a killed install moved aside was put back.
+    /// What became of the finished copy a killed install left.
+    pub(crate) finished_copy: FinishedCopy,
+    /// Whether the copy a killed install moved aside was put back at the version's name.
     pub(crate) restored: bool,
+    /// Whether the copy a killed install moved aside was left where it is,
+    /// because a live install is between its claim and its publish for that version and a later install replaces it.
+    pub(crate) left_for_a_live_install: bool,
     /// The hidden siblings this run removed,
     /// which are gone when it returns.
     pub(crate) removed: Vec<PathBuf>,
+}
+
+/// The methods of `Recovered`.
+impl Recovered {
+    /// What:
+    /// Whether this run left a finished copy at the version's name:
+    /// it published one,
+    /// another install had published it,
+    /// or the copy that was there came back.
+    /// Why:
+    /// The report counts a tool as installed when its version's name holds a finished copy after the run,
+    /// whichever of those put it there.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function installedHereOrMeanwhile(recovered: Recovered): boolean {
+    ///   return recovered.finishedCopy === 'published-here' || recovered.finishedCopy === 'published-by-another-install' || recovered.restored;
+    /// }
+    /// ```
+    pub(crate) fn installed_here_or_meanwhile(&self) -> bool {
+        // What: `matches!` asks whether the enum value is one of the variants listed, without binding what it holds.
+        // Why: the two published variants both leave the version's name finished, and `restored` leaves the copy that
+        //  was there.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return ['published-here', 'published-by-another-install'].includes(recovered.finishedCopy) || recovered.restored;
+        // ```
+        return matches!(
+            self.finished_copy,
+            FinishedCopy::PublishedHere | FinishedCopy::PublishedByAnotherInstall
+        ) || self.restored;
+    }
+
+    /// What:
+    /// Whether this run gave the version's name a copy,
+    /// by publishing one or by putting the copy that was there back.
+    /// Why:
+    /// The rule that no older repository tool is kept settles after exactly those two cases,
+    /// and a copy that another install published there is that install's to settle.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function putACopyAtTheVersionName(recovered: Recovered): boolean {
+    ///   return recovered.finishedCopy === 'published-here' || recovered.restored;
+    /// }
+    /// ```
+    pub(crate) fn put_a_copy_at_the_version_name(&self) -> bool {
+        return matches!(self.finished_copy, FinishedCopy::PublishedHere) || self.restored;
+    }
 }
 
 /// What a purpose in a hidden sibling's name says about what it holds,
@@ -271,6 +399,68 @@ fn is_gone(sibling: &Leftover) -> bool {
 }
 
 /// What:
+/// Whether an installer the system reports as running holds a claim or a staging name for this version.
+/// Why:
+/// Such an installer is between its claim and its publish,
+/// and a copy another install puts at the version's name in that instant makes its rename fail;
+/// so the copy a killed install moved aside waits rather than being put back now.
+/// A name whose installer cannot be judged does not hold this off:
+/// blocking would keep the copy of a killed install aside for ever (an earlier release wrote names with no start time),
+/// and putting the copy back costs nothing once the publish replaces a name that appeared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aLiveInstallerHolds(version: string, siblings: Leftover[]): boolean {
+///   return siblings.some((sibling) =>
+///     sibling.version === version &&
+///     mayBePublished(sibling.holds) &&
+///     sibling.owner !== undefined &&
+///     liveness(sibling.owner) === 'running',
+///   );
+/// }
+/// ```
+fn a_live_installer_holds(
+    version: &str,
+    siblings: &[Leftover],
+) -> bool {
+    return siblings.iter().any(|sibling| {
+        return sibling.version == version
+            && may_be_published(sibling.holds)
+            && sibling
+                .owner
+                .is_some_and(|owner| return owner.liveness() == Liveness::Running);
+    });
+}
+
+/// What:
+/// Whether this hidden sibling holds a finished copy that no later install of this version may come to publish:
+/// another version's,
+/// which that version's own install publishes,
+/// or this version's when the rule forbids keeping the version.
+/// Why:
+/// A finished copy may be the only one there is,
+/// so nothing here removes it;
+/// a later install publishes it when that version may be kept again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aFinishedCopyNothingHerePublishes(version: string, olderVersion: AnOlderVersion, sibling: Leftover): boolean {
+///   if (!hasCompleteMarker(sibling.path)) return false;
+///   return sibling.version !== version || olderVersion !== 'may-stay';
+/// }
+/// ```
+fn a_finished_copy_nothing_here_publishes(
+    version: &str,
+    older_version: &AnOlderVersion,
+    sibling: &Leftover,
+) -> bool {
+    if !has_complete_marker(&sibling.path) {
+        return false;
+    }
+    return sibling.version != version || !matches!(older_version, AnOlderVersion::MayStay);
+}
+
+/// What:
 /// Takes a finished copy a dead install left under a name of this process's own,
 /// so no other install publishes from the same directory.
 /// Why:
@@ -305,7 +495,7 @@ fn claim_the_finished_copy(
         // Another install claimed it first, so its copy is the one that will be published.
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(ToolchainError::failure(format!(
-            "cannot claim the finished install at {} that a killed install left: {error}",
+            "cannot claim the finished install at {} that a killed install left: {error}; that copy is still there and nothing was published from it",
             finished.path.display()
         ))),
     };
@@ -334,8 +524,9 @@ fn put_back_the_copy(
             return Ok(false);
         }
         return Err(ToolchainError::failure(format!(
-            "cannot put back the copy at {} that a killed install had moved aside: {error}",
-            replaced.display()
+            "cannot put back the copy at {} that a killed install had moved aside: {error}; that copy is still there, and nothing was put back at {}",
+            replaced.display(),
+            version_dir.display()
         )));
     }
     return Ok(true);
@@ -348,8 +539,12 @@ fn put_back_the_copy(
 /// A later install finishes what a kill cut short instead of downloading the archive again:
 /// the copy a `.staging` or `.recovered` sibling holds is complete,
 /// checked against the lock's SHA-256 and marked before it was to be published,
-/// so publishing it is the finished install the killed run would have published.
-/// A version whose finished copy is gone gets the copy that was there back.
+/// so publishing it is the finished install the killed run would have published,
+/// and a publish that fails leaves it under a name the next install claims.
+/// A version whose finished copy is gone gets the copy that was there back,
+/// unless a live install is between its claim and its publish for that version.
+/// A version the rule forbids keeping gets neither,
+/// and its finished copy stays hidden where it is.
 /// Nothing of an installer that still runs,
 /// and nothing of one whose installer cannot be judged,
 /// is touched,
@@ -357,11 +552,12 @@ fn put_back_the_copy(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function recoverLeftovers(versionDir: string, firstBin: string): Recovered
+/// export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion): Recovered
 /// ```
 pub(crate) fn recover_leftovers(
     version_dir: &Path,
     first_bin: &str,
+    older_version: AnOlderVersion,
 ) -> Result<Recovered, ToolchainError> {
     let Some(directory) = version_dir.parent() else {
         return Ok(Recovered::default());
@@ -373,15 +569,42 @@ pub(crate) fn recover_leftovers(
         .collect();
     let version: String = file_name_text(version_dir);
     let mut outcome: Recovered = Recovered::default();
-    if !is_finished(version_dir, first_bin) {
-        let of_this_version: Vec<&Leftover> = gone
-            .iter()
-            .copied()
-            .filter(|sibling| return sibling.version == version)
-            .collect();
+    let of_this_version: Vec<&Leftover> = gone
+        .iter()
+        .copied()
+        .filter(|sibling| return sibling.version == version)
+        .collect();
+    // What: whether this version may be kept at all, which the owner's rule about an older repository tool decides.
+    // Why: a version that may not be kept gets no copy at its name, published or put back.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const mayStay: boolean = olderVersion === 'may-stay';
+    // ```
+    let may_stay: bool = matches!(older_version, AnOlderVersion::MayStay);
+    if !may_stay {
+        let finished_copy_here: bool = of_this_version.iter().any(|sibling| {
+            return may_be_published(sibling.holds) && is_finished(&sibling.path, first_bin);
+        });
+        if finished_copy_here
+            && let AnOlderVersion::NeverKept {
+                newer,
+            } = &older_version
+        {
+            outcome.finished_copy = FinishedCopy::AnOlderVersionIsNeverKept {
+                newer: newer.clone(),
+            };
+        }
+    } else if !is_finished(version_dir, first_bin) {
         if let Some(claim) = claim_the_finished_copy(version_dir, &of_this_version, first_bin)? {
-            publish_staged(&claim, version_dir, first_bin)?;
-            outcome.published = true;
+            outcome.finished_copy = match publish_staged(&claim, version_dir, first_bin)? {
+                Published::Here => FinishedCopy::PublishedHere,
+                Published::AlreadyThere => FinishedCopy::PublishedByAnotherInstall,
+            };
+        } else if a_live_installer_holds(&version, &siblings) {
+            outcome.left_for_a_live_install = of_this_version
+                .iter()
+                .any(|sibling| return sibling.holds == Holds::ReplacedCopy);
         } else if fs::symlink_metadata(version_dir).is_err() {
             let moved_aside = of_this_version
                 .iter()
@@ -393,9 +616,13 @@ pub(crate) fn recover_leftovers(
         }
     }
     for sibling in &gone {
-        if sibling.version != version && has_complete_marker(&sibling.path) {
-            // Another version's finished copy may be the only one that version has,
-            // and publishing it is that version's own install to do.
+        if a_finished_copy_nothing_here_publishes(&version, &older_version, sibling) {
+            continue;
+        }
+        if outcome.left_for_a_live_install
+            && sibling.version == version
+            && sibling.holds == Holds::ReplacedCopy
+        {
             continue;
         }
         if fs::symlink_metadata(&sibling.path).is_err() {

@@ -50,6 +50,11 @@ pub mod prune;
 /// The PATH lookup that finds the real `mpm` while skipping the shadow itself.
 pub mod real_binary;
 
+/// The interpreter a program names:
+/// a script's `#!` program,
+/// or a compiled program's dynamic linker.
+pub mod named_interpreter;
+
 /// The cached archives and extracted sources of this repository's own crates.
 pub mod registry;
 
@@ -120,6 +125,10 @@ mod shadow_identity_tests;
 #[cfg(test)]
 mod real_binary_tests;
 
+/// The unit tests of the interpreter a program names.
+#[cfg(test)]
+mod named_interpreter_tests;
+
 /// The unit tests of the child launch and exit-status mapping.
 #[cfg(test)]
 mod shim_tests;
@@ -148,3 +157,8 @@ mod cargo_home_tests;
 /// placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
+
+/// The bytes of a compiled program,
+/// built by the unit tests that need one with a linker of its own.
+#[cfg(test)]
+mod program_bytes;

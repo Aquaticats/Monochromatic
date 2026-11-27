@@ -794,6 +794,21 @@ fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
         !said.contains("can still write") && !said.contains("can write nothing"),
         "the refusal says what the members it never read can do: {said}"
     );
+    assert!(
+        said.contains("the journal of this run was kept"),
+        "the refusal does not say what became of the journal of this run: {said}"
+    );
+    assert!(
+        said.contains("settles it by itself once it reads the recorded scope gone"),
+        "the refusal does not say what the next run does with the kept journal: {said}"
+    );
+    assert!(
+        said.contains("cargo-shadow acknowledge")
+            && said.contains(
+                "every process or worker of this run that can modify the workspace has stopped"
+            ),
+        "the refusal does not name the command a run that cannot show what this one left asks for: {said}"
+    );
     drop(transaction);
 }
 

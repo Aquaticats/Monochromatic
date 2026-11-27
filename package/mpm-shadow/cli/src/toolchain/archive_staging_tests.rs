@@ -9,6 +9,8 @@
 
 /// Imports `fs` from `std`.
 use std::fs;
+/// Imports the trait that sets and reads a directory's permission bits.
+use std::os::unix::fs::PermissionsExt;
 /// Imports the trait that reads the signal a killed process ended with.
 use std::os::unix::process::ExitStatusExt;
 /// Imports what these tests use from `std::path`.
@@ -29,12 +31,15 @@ use std::process::{
 use super::archive_install_tests::names_of;
 /// Imports what the publish step answers with.
 use super::archive_staging::{
+    AnOlderVersion,
     COMPLETE_MARKER,
+    FinishedCopy,
     Owner,
     Plant,
     RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     Recovered,
+    RenameRefused,
     STAGING_PURPOSE,
     clear_the_plant,
     has_complete_marker,
@@ -74,6 +79,14 @@ const TOOL_DIRECTORY_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_TOOL_DIRECTORY";
 
 /// The variable that same installer reads the version it publishes from.
 const VERSION_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_VERSION";
+
+/// The variable the fixture whose exchange a policy refuses reads that refusal's operating system number from.
+const REFUSAL_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_EXCHANGE_REFUSAL";
+
+/// The test a control starts to publish a copy whose exchange the file system refuses,
+/// named the way the test binary's own filter names it.
+const INSTALLER_WHOSE_EXCHANGE_IS_REFUSED: &str =
+    "toolchain::archive_staging_tests::the_installer_whose_exchange_a_policy_refuses";
 
 /// What:
 /// The test a control starts as the installer it kills,
@@ -221,6 +234,7 @@ fn the_installer_a_control_kills_between_the_two_renames() {
     plant_these_steps(Plant {
         refuse_the_exchange: true,
         kill_between_the_two_renames: true,
+        ..Plant::default()
     });
     publish_staged(&staging, &version_dir, BIN)
         .expect("the publish of a file system that cannot exchange the two names ends in the kill");
@@ -319,6 +333,7 @@ fn a_copy_that_is_there_is_replaced_in_one_exchange_that_no_kill_can_interrupt()
     plant_these_steps(Plant {
         refuse_the_exchange: false,
         kill_between_the_two_renames: true,
+        ..Plant::default()
     });
     let published = publish_staged(&staging, &version_dir, BIN);
     clear_the_plant();
@@ -348,6 +363,7 @@ fn where_the_file_system_cannot_exchange_the_two_names_the_copy_is_still_replace
     plant_these_steps(Plant {
         refuse_the_exchange: true,
         kill_between_the_two_renames: false,
+        ..Plant::default()
     });
     let published = publish_staged(&staging, &version_dir, BIN);
     clear_the_plant();
@@ -472,7 +488,8 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
     write_executable(&finished_elsewhere.join("release-folder").join(BIN));
     write_complete_marker(&finished_elsewhere, ID, "0.2.2").expect("write the completion marker");
 
-    let recovered: Recovered = recover_leftovers(&version_dir, BIN).expect("recovered");
+    let recovered: Recovered =
+        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
     assert!(
         live.is_dir(),
         "an installer that still runs keeps its directory"
@@ -547,9 +564,10 @@ fn a_third_party_archive_tool_also_finishes_the_publish_a_kill_left() {
     fs::create_dir_all(&dead).expect("make the finished copy a killed install left");
     write_complete_marker(&dead, "node", &rig.tool("node").version).expect("write the marker");
 
-    let recovered: Recovered = recover_leftovers(&version_dir, "").expect("recovered");
+    let recovered: Recovered =
+        recover_leftovers(&version_dir, "", AnOlderVersion::MayStay).expect("recovered");
     assert!(
-        recovered.published,
+        matches!(recovered.finished_copy, FinishedCopy::PublishedHere),
         "the finished copy is published: {recovered:?}"
     );
     assert!(
@@ -642,4 +660,1016 @@ fn a_copy_a_killed_recovery_had_claimed_is_published_by_the_next_install() {
         "the claimed copy became the version: {report:?}"
     );
     assert!(!claimed.exists(), "and the claimed name is gone");
+}
+
+//region The controls for the orders that must never cost a finished copy
+
+/// The name of the file that marks the copy a version's name held before a killed install moved it aside.
+const WHAT_THE_VERSION_HELD: &str = "what-the-version-held";
+
+/// The name of the file that marks a copy an installer was unpacking when it was killed.
+const WHAT_WAS_BEING_UNPACKED: &str = "what-was-being-unpacked";
+
+/// The operating system's number for an input/output error:
+/// an answer no file system gives for a flag it does not support,
+/// so the list of answers that mean "this file system cannot exchange two names" does not take it.
+const AN_INPUT_OUTPUT_ERROR: i32 = rustix::io::Errno::IO.raw_os_error();
+
+/// What:
+/// The state a kill between the two renames leaves:
+/// the version's name holding nothing,
+/// the finished copy under a dead installer's staging name,
+/// and the copy that was there under that installer's aside name.
+/// Why:
+/// Every order of steps from the claim to the publish starts here,
+/// and a control builds the state by hand so nothing it shows depends on timing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatAKillBetweenTheTwoRenamesLeaves(versionDir: string): [string, string] {
+///   const dead = anInstallerThatNoLongerRuns();
+///   const finished = hiddenSibling(versionDir, 'staging', dead);
+///   writeFinishedCopy(finished);
+///   const aside = hiddenSibling(versionDir, 'replaced', dead);
+///   writeUnfinishedCopy(aside, WHAT_THE_VERSION_HELD);
+///   return [finished, aside];
+/// }
+/// ```
+fn what_a_kill_between_the_two_renames_leaves(version_dir: &Path) -> (PathBuf, PathBuf) {
+    let dead: Owner = an_installer_that_no_longer_runs();
+    let finished: PathBuf = hidden_sibling(version_dir, STAGING_PURPOSE, dead);
+    fs::create_dir_all(finished.join("release-folder")).expect("make the finished copy");
+    write_executable(&finished.join("release-folder").join(BIN));
+    write_complete_marker(&finished, ID, &super::util::file_name_text(version_dir))
+        .expect("write the completion marker");
+    let aside: PathBuf = the_copy_a_kill_moved_aside(version_dir);
+    return (finished, aside);
+}
+
+/// What:
+/// The copy that was there,
+/// under a dead installer's aside name:
+/// what a kill leaves when the finished copy is gone or when the copy was moved aside and nothing replaced it.
+/// Why:
+/// Several orders start from that one copy,
+/// and a control needs it without a finished copy beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theCopyAKillMovedAside(versionDir: string): string {
+///   const aside = hiddenSibling(versionDir, 'replaced', anInstallerThatNoLongerRuns());
+///   writeExecutable(join(aside, 'release-folder', BIN));
+///   writeFileSync(join(aside, WHAT_THE_VERSION_HELD), 'the copy that was there');
+///   return aside;
+/// }
+/// ```
+fn the_copy_a_kill_moved_aside(version_dir: &Path) -> PathBuf {
+    let aside: PathBuf = hidden_sibling(
+        version_dir,
+        REPLACED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(aside.join("release-folder")).expect("make the copy that was there");
+    write_executable(&aside.join("release-folder").join(BIN));
+    fs::write(aside.join(WHAT_THE_VERSION_HELD), "the copy that was there").expect("write");
+    return aside;
+}
+
+/// What:
+/// The finished copy of `version_dir` a later install could publish,
+/// when there is one:
+/// at the version's name,
+/// or under a hidden name of that version.
+/// Why:
+/// The one thing no order of steps may cost is the last finished copy,
+/// because offline it is the only way the version comes back;
+/// every control asserts this and names what it found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aFinishedCopyIsOnDisk(versionDir: string, firstBin: string): string | undefined {
+///   if (isFinished(versionDir, firstBin)) return versionDir;
+///   for (const name of namesOf(dirname(versionDir))) {
+///     if (!name.startsWith(`.${basename(versionDir)}.`)) continue;
+///     const candidate = join(dirname(versionDir), name);
+///     if (isFinished(candidate, firstBin)) return candidate;
+///   }
+///   return undefined;
+/// }
+/// ```
+fn a_finished_copy_is_on_disk(
+    version_dir: &Path,
+    first_bin: &str,
+) -> Option<PathBuf> {
+    if is_finished(version_dir, first_bin) {
+        return Some(version_dir.to_path_buf());
+    }
+    let directory: &Path = version_dir.parent()?;
+    let prefix: String = format!(".{}.", super::util::file_name_text(version_dir));
+    for name in names_of(directory) {
+        if !name.starts_with(&prefix) {
+            continue;
+        }
+        let candidate: PathBuf = directory.join(&name);
+        if is_finished(&candidate, first_bin) {
+            return Some(candidate);
+        }
+    }
+    return None;
+}
+
+/// What:
+/// The copy that was there,
+/// put back at the version's name:
+/// what a second install does when it may claim no finished copy and finds the version's name absent.
+/// Why:
+/// The order that lost the finished copy (the review's M2) needs that one rename to happen in the instant between this
+/// publish's check and its rename,
+/// and a control runs it exactly there instead of relying on timing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putTheCopyThatWasThereBack(versionDir: string): void {
+///   for (const name of namesOf(dirname(versionDir))) {
+///     if (!name.startsWith(`.${basename(versionDir)}.replaced.`)) continue;
+///     if (rename(join(dirname(versionDir), name), versionDir) === undefined) return;
+///   }
+/// }
+/// ```
+fn put_the_copy_that_was_there_back(version_dir: &Path) {
+    let Some(directory) = version_dir.parent() else {
+        return;
+    };
+    let prefix: String = format!(
+        ".{}.{REPLACED_PURPOSE}.",
+        super::util::file_name_text(version_dir)
+    );
+    for name in names_of(directory) {
+        if !name.starts_with(&prefix) {
+            continue;
+        }
+        let aside: PathBuf = directory.join(&name);
+        if fs::rename(&aside, version_dir).is_ok() {
+            return;
+        }
+    }
+}
+
+/// The action a control plants as "another install put the copy that was there back":
+/// the one rename a second recovery makes at that step.
+fn put_the_copy_that_was_there_back_as_another_install(
+    _staging: &Path,
+    final_dir: &Path,
+) {
+    put_the_copy_that_was_there_back(final_dir);
+}
+
+/// What:
+/// A finished copy written at the version's name,
+/// which is what another install's publish leaves there.
+/// Why:
+/// The instant a control stops this publish at is also the instant another install's publish can finish,
+/// and this is what the report then has to say about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aFinishedCopyAtTheVersionAsAnotherInstall(_staging: string, finalDir: string): void { writeFinishedCopy(finalDir); }
+/// ```
+fn a_finished_copy_at_the_version_as_another_install(
+    _staging: &Path,
+    final_dir: &Path,
+) {
+    fs::create_dir_all(final_dir.join("release-folder")).expect("make the version");
+    write_executable(&final_dir.join("release-folder").join(BIN));
+    write_complete_marker(final_dir, ID, &super::util::file_name_text(final_dir))
+        .expect("write the completion marker");
+}
+
+/// What:
+/// This process's hidden sibling under the name it would carry once this process ended:
+/// the same purpose with the pair of an installer that no longer runs.
+/// Why:
+/// A later install claims only a name whose installer the system reports as ended,
+/// and a control cannot end its own test process,
+/// so it renames the leftover to the name a run after this process's end reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function asAfterThisProcessEnded(path: string, versionDir: string): string {
+///   const parts = basename(path).split('.');
+///   const purpose = parts[parts.length - 3];
+///   const ended = hiddenSibling(versionDir, purpose, anInstallerThatNoLongerRuns());
+///   renameSync(path, ended);
+///   return ended;
+/// }
+/// ```
+fn as_after_this_process_ended(
+    path: &Path,
+    version_dir: &Path,
+) -> PathBuf {
+    let name: String = super::util::file_name_text(path);
+    let parts: Vec<&str> = name.split('.').collect();
+    let purpose: &str = parts[parts.len() - 3];
+    let ended: PathBuf = hidden_sibling(version_dir, purpose, an_installer_that_no_longer_runs());
+    fs::rename(path, &ended)
+        .expect("rename the leftover to the name a later run reads as a dead installer's");
+    return ended;
+}
+
+/// Sets a directory's permission bits.
+fn set_mode(
+    path: &Path,
+    mode: u32,
+) {
+    let mut permissions = fs::metadata(path).expect("the directory").permissions();
+    permissions.set_mode(mode);
+    fs::set_permissions(path, permissions).expect("set the mode");
+}
+
+/// What:
+/// A directory made read-only for the length of a control,
+/// and writable again when the control leaves.
+/// Why:
+/// A rename inside a directory that refuses writes fails with "permission denied",
+/// which is the one claim failure a disposable fixture can make on its own,
+/// and a directory left read-only would keep its scratch folder from being removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ReadOnly {
+///   constructor(path: string) { this.mode = statSync(path).mode; chmodSync(path, this.mode & ~0o222); }
+///   [Symbol.dispose]() { chmodSync(this.path, this.mode); }
+/// }
+/// ```
+struct ReadOnly {
+    /// The directory itself.
+    path: PathBuf,
+    /// The mode it had before,
+    /// which is what it gets back when the guard drops.
+    mode: u32,
+}
+
+/// The methods of `ReadOnly`.
+impl ReadOnly {
+    /// Makes a directory refuse writes to what it holds.
+    fn new(path: &Path) -> ReadOnly {
+        let mode: u32 = fs::metadata(path)
+            .expect("the directory")
+            .permissions()
+            .mode();
+        set_mode(path, mode & !0o222);
+        return ReadOnly {
+            path: path.to_path_buf(),
+            mode,
+        };
+    }
+}
+
+/// Gives the directory its own mode back when the control leaves,
+/// however it left.
+impl Drop for ReadOnly {
+    fn drop(&mut self) {
+        set_mode(&self.path, self.mode);
+    }
+}
+
+#[test]
+fn a_publish_that_fails_with_the_versions_name_absent_keeps_the_finished_copy_for_the_next_install()
+{
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+    let claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, Owner::here());
+
+    plant_these_steps(Plant {
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    clear_the_plant();
+    let error =
+        recovered.expect_err("the rename that gives an absent name the finished copy failed");
+    assert!(
+        error
+            .message
+            .contains("cannot move the finished install to"),
+        "the failure names the rename that failed: {error}"
+    );
+    assert!(
+        error
+            .message
+            .contains(&format!("still at {}", claim.display())),
+        "the failure names the copy that is on disk: {error}"
+    );
+    let notice: String = format!(
+        "no order costs the finished copy: {:?}",
+        names_of(&tool_dir)
+    );
+    let Some(kept) = a_finished_copy_is_on_disk(&version_dir, BIN) else {
+        panic!("{notice}");
+    };
+
+    // The run that failed ends, so its claim carries a dead installer's pair, which is what the next install reads.
+    as_after_this_process_ended(&kept, &version_dir);
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert!(
+        rig.http.requests().is_empty(),
+        "the next install publishes the copy the failed one left, so it downloads nothing: {:?}",
+        rig.http.requests()
+    );
+    assert!(
+        is_finished(&version_dir, BIN),
+        "the version is installed again: {report:?}"
+    );
+    assert_eq!(
+        names_of(&tool_dir),
+        vec!["0.2.1".to_string(), "current".to_string()],
+        "nothing of the kill or of the failed publish stays"
+    );
+}
+
+#[test]
+fn a_publish_whose_exchange_fails_for_another_reason_keeps_the_finished_copy_and_names_both_paths()
+{
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // The copy that was there, unfinished, at the version's name, and a dead install's finished copy beside it.
+    unmarked_archive(&root, "0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+    let claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, Owner::here());
+
+    plant_these_steps(Plant {
+        answer_the_exchange_with: Some(AN_INPUT_OUTPUT_ERROR),
+        ..Plant::default()
+    });
+    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    clear_the_plant();
+    let error =
+        recovered.expect_err("the exchange failed with an answer that is not \"cannot exchange\"");
+    assert!(
+        error.message.contains("that copy is as it was"),
+        "the failure says the copy at the version's name is as it was: {error}"
+    );
+    assert!(
+        error
+            .message
+            .contains(&format!("still at {}", claim.display())),
+        "the failure says where the finished copy is: {error}"
+    );
+    assert!(
+        a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
+        "no order costs the finished copy: {:?}",
+        names_of(&tool_dir)
+    );
+    assert!(
+        version_dir.join("release-folder").join(BIN).is_file()
+            && !has_complete_marker(&version_dir),
+        "the copy at the version's name is untouched"
+    );
+}
+
+#[test]
+fn a_publish_whose_first_aside_rename_fails_keeps_the_finished_copy() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    unmarked_archive(&root, "0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+    let claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, Owner::here());
+
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        refuse_the_rename: Some((RenameRefused::MovesTheCopyAside, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    clear_the_plant();
+    let error = recovered.expect_err("the rename that moves the copy there aside failed");
+    assert!(
+        error.message.contains("cannot move the copy at"),
+        "the failure names the rename that failed: {error}"
+    );
+    assert!(
+        error
+            .message
+            .contains(&format!("still at {}", claim.display())),
+        "the failure says where the finished copy is: {error}"
+    );
+    assert!(
+        a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
+        "no order costs the finished copy: {:?}",
+        names_of(&tool_dir)
+    );
+    assert!(
+        version_dir.join("release-folder").join(BIN).is_file()
+            && !has_complete_marker(&version_dir),
+        "the copy at the version's name never moved"
+    );
+}
+
+#[test]
+fn a_publish_whose_second_rename_fails_puts_the_copy_back_and_keeps_the_finished_one() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    unmarked_archive(&root, "0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+    let claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, Owner::here());
+
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    clear_the_plant();
+    let error =
+        recovered.expect_err("the rename that gives the version's name the finished copy failed");
+    assert!(
+        error.message.contains("the copy that was there is back at"),
+        "the failure says the copy that was there came back: {error}"
+    );
+    assert!(
+        error
+            .message
+            .contains(&format!("still at {}", claim.display())),
+        "the failure says where the finished copy is: {error}"
+    );
+    assert!(
+        version_dir.join("release-folder").join(BIN).is_file()
+            && !has_complete_marker(&version_dir),
+        "the copy that was there is back at the version's name"
+    );
+    assert!(
+        a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
+        "no order costs the finished copy: {:?}",
+        names_of(&tool_dir)
+    );
+}
+
+#[test]
+fn a_publish_whose_put_back_fails_keeps_the_finished_copy_and_names_the_aside_copy() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    unmarked_archive(&root, "0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+    let claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, Owner::here());
+
+    // A second install puts the copy that was there back in the instant between the two renames, so both the rename
+    // into the version's name and the rename that would put that copy back again fail.
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        another_install_acts: Some(put_the_copy_that_was_there_back_as_another_install),
+        ..Plant::default()
+    });
+    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    clear_the_plant();
+    let error = recovered.expect_err("the rename into the version's name failed");
+    assert!(
+        error.message.contains("could not be put back from"),
+        "the failure names the put-back that failed too: {error}"
+    );
+    assert!(
+        error
+            .message
+            .contains(&format!("still at {}", claim.display())),
+        "the failure says where the finished copy is: {error}"
+    );
+    assert!(
+        a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
+        "no order costs the finished copy: {:?}",
+        names_of(&tool_dir)
+    );
+    assert!(
+        version_dir.join(WHAT_THE_VERSION_HELD).is_file(),
+        "the copy the second install put there is at the version's name"
+    );
+}
+
+#[test]
+fn a_publish_that_finds_a_copy_put_back_meanwhile_replaces_it_and_keeps_the_finished_copy() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // The state a kill between the two renames leaves, and the file system can exchange, so one rename is enough.
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+
+    // The order that lost the finished copy: a second install may claim nothing, sees the version's name absent, and
+    // puts the copy that was there back, all in the instant before this publish's one rename.
+    plant_these_steps(Plant {
+        another_install_acts: Some(put_the_copy_that_was_there_back_as_another_install),
+        ..Plant::default()
+    });
+    let attempt = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    clear_the_plant();
+    let outcome = attempt.expect("the publish replaces the copy that appeared instead of failing");
+    assert_eq!(
+        outcome.finished_copy,
+        FinishedCopy::PublishedHere,
+        "{outcome:?}"
+    );
+    assert!(
+        is_finished(&version_dir, BIN),
+        "the finished copy became the version's name: {outcome:?}"
+    );
+    assert_eq!(
+        names_of(&tool_dir),
+        vec!["0.2.1".to_string()],
+        "the copy the second install put back was replaced, and nothing of the kill stays"
+    );
+}
+
+#[test]
+fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_claim() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let (finished, aside) = what_a_kill_between_the_two_renames_leaves(&version_dir);
+    // A live install holds the finished copy: the name of a process the system reports as running.
+    let running = RunningProgram::start();
+    let live_claim: PathBuf = hidden_sibling(&version_dir, RECOVERED_PURPOSE, running.owner());
+    fs::rename(&finished, &live_claim).expect("the live install claims the finished copy");
+
+    let recovered =
+        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    assert!(
+        !version_dir.exists(),
+        "nothing is put at the version's name while a live install holds a claim: {recovered:?}"
+    );
+    assert!(live_claim.is_dir(), "the live install's claim is untouched");
+    assert!(
+        aside.is_dir(),
+        "the copy that was there waits for the live install: {recovered:?}"
+    );
+    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+    assert!(!recovered.restored, "{recovered:?}");
+}
+
+#[test]
+fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_staging_name() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let (finished, aside) = what_a_kill_between_the_two_renames_leaves(&version_dir);
+    let running = RunningProgram::start();
+    let live_staging: PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, running.owner());
+    fs::rename(&finished, &live_staging).expect("give the live install its staging name");
+
+    let recovered =
+        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    assert!(
+        !version_dir.exists(),
+        "nothing is put at the version's name while a live install holds a staging name: {recovered:?}"
+    );
+    assert!(
+        live_staging.is_dir(),
+        "the live install's staging name is untouched"
+    );
+    assert!(
+        aside.is_dir(),
+        "the copy that was there waits: {recovered:?}"
+    );
+    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+}
+
+#[test]
+fn a_live_installer_of_another_version_does_not_hold_the_copy_back() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // Only the copy that was there: this version's finished copy is gone.
+    let aside: PathBuf = the_copy_a_kill_moved_aside(&version_dir);
+    let running = RunningProgram::start();
+    let elsewhere: PathBuf =
+        hidden_sibling(&tool_dir.join("0.2.2"), STAGING_PURPOSE, running.owner());
+    fs::create_dir_all(&elsewhere).expect("make another version's staging name");
+
+    let recovered =
+        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    assert!(
+        recovered.restored,
+        "another version's live install is nothing to do with this one: {recovered:?}"
+    );
+    assert!(version_dir.join(WHAT_THE_VERSION_HELD).is_file());
+    assert!(!aside.exists(), "the aside name is gone");
+    assert!(
+        elsewhere.is_dir(),
+        "the other version's staging name is untouched"
+    );
+}
+
+#[test]
+fn the_report_counts_one_hidden_directory_in_the_singular() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let unpacking: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(&unpacking).expect("make the unfinished staging directory");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory that a killed install of {ID} left behind"
+        )],
+        "{report:?}"
+    );
+}
+
+#[test]
+fn the_report_counts_several_hidden_directories_in_the_plural() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let first: Owner = an_installer_that_no_longer_runs();
+    // The pair beside the one the helper gives: the first process's number with a moment no process carrying it ever
+    // started at, so a second dead installer's directory can be made.
+    let second: Owner = Owner {
+        pid: first.pid,
+        started: first.started + 1,
+    };
+    for owner in [first, second] {
+        let unpacking: PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, owner);
+        fs::create_dir_all(&unpacking).expect("make an unfinished staging directory");
+    }
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 2 hidden directories that killed installs of {ID} left behind"
+        )],
+        "{report:?}"
+    );
+}
+
+#[test]
+fn a_publish_another_install_made_is_reported_as_theirs_and_not_as_a_publish_this_run_made() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+
+    plant_these_steps(Plant {
+        another_install_acts: Some(a_finished_copy_at_the_version_as_another_install),
+        ..Plant::default()
+    });
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    clear_the_plant();
+    assert_eq!(report.recovered.len(), 1, "{report:?}");
+    assert!(
+        report.recovered[0].contains("another install published that version meanwhile"),
+        "the report says whose publish it was: {report:?}"
+    );
+    assert!(
+        !report.recovered[0].contains("finished the publish"),
+        "no publish happened here, so none is reported: {report:?}"
+    );
+    assert!(is_finished(&version_dir, BIN), "{report:?}");
+}
+
+#[test]
+fn a_recovery_never_publishes_an_older_version_beside_a_newer_installed_one() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // A newer finished version is installed, and a killed install left a finished copy of the older locked one.
+    finish_archive(&root, "0.2.2");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(
+        !version_dir.exists(),
+        "an older repository tool is never kept: {:?}",
+        names_of(&tool_dir)
+    );
+    assert_eq!(
+        super::published_archive::newest_installed_archive(&root, ID, BIN).as_deref(),
+        Some("0.2.2"),
+        "the newer version is the only one installed"
+    );
+    assert!(report.installed.is_empty(), "{report:?}");
+    assert_eq!(report.unchanged, vec![ID.to_string()], "{report:?}");
+    assert_eq!(report.recovered.len(), 1, "{report:?}");
+    assert!(
+        report.recovered[0]
+            .contains("0.2.2 is installed and an older repository tool is never kept"),
+        "the report states the rule that kept the copy out: {report:?}"
+    );
+    assert!(
+        a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
+        "the finished copy stays hidden, since it may be the only one once 0.2.2 is gone: {:?}",
+        names_of(&tool_dir)
+    );
+}
+
+#[test]
+fn a_run_whose_recovery_failed_still_installs_the_version_it_could_download() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    serve_releases(&rig, &["0.2.1"]);
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+
+    plant_these_steps(Plant {
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    clear_the_plant();
+    assert!(
+        !rig.http.requests().is_empty(),
+        "the install after the failed recovery downloaded the release: {report:?}"
+    );
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    assert!(
+        report.failed.is_empty(),
+        "the version is in place, so the recovery's problem is a warning: {report:?}"
+    );
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| return warning.contains("cannot move the finished install")),
+        "the recovery's problem is reported: {report:?}"
+    );
+    assert!(is_finished(&version_dir, BIN), "{report:?}");
+}
+
+#[test]
+fn a_recovery_that_failed_and_an_install_that_failed_are_one_failure_naming_both() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    what_a_kill_between_the_two_renames_leaves(&version_dir);
+
+    plant_these_steps(Plant {
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    // The release is not served, so the install after the failed recovery cannot download anything either.
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    clear_the_plant();
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    assert!(
+        report.failed[0]
+            .1
+            .contains("cannot move the finished install")
+            && report.failed[0]
+                .1
+                .contains("the install that followed it also failed"),
+        "the failure names both causes: {report:?}"
+    );
+    assert!(
+        a_finished_copy_is_on_disk(&version_dir, BIN).is_some(),
+        "the finished copy is still there for the next install: {:?}",
+        names_of(&tool_dir)
+    );
+}
+
+#[test]
+fn the_claim_never_takes_an_unfinished_copy_for_the_version() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // The finished copy is gone: what is left is an unfinished unpacking and the copy the version had.
+    let unpacking: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(unpacking.join("release-folder")).expect("make the unfinished copy");
+    write_executable(&unpacking.join("release-folder").join(BIN));
+    fs::write(unpacking.join(WHAT_WAS_BEING_UNPACKED), "half a release").expect("write");
+    let aside: PathBuf = hidden_sibling(
+        &version_dir,
+        REPLACED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(aside.join("release-folder")).expect("make the copy that was there");
+    write_executable(&aside.join("release-folder").join(BIN));
+    fs::write(aside.join(WHAT_THE_VERSION_HELD), "the copy that was there").expect("write");
+
+    let recovered =
+        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    assert!(recovered.restored, "{recovered:?}");
+    assert!(
+        version_dir.join(WHAT_THE_VERSION_HELD).is_file(),
+        "the version gets the copy it had, never the half-unpacked one: {:?}",
+        names_of(&tool_dir)
+    );
+    assert!(!has_complete_marker(&version_dir));
+    assert!(!unpacking.exists(), "the unfinished copy is removed");
+}
+
+#[test]
+fn another_versions_finished_copy_is_never_published_under_this_versions_name() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // This version's name holds nothing, and the only finished copy in the directory belongs to another version.
+    let elsewhere: PathBuf = hidden_sibling(
+        &tool_dir.join("0.2.2"),
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(elsewhere.join("release-folder")).expect("make the other version's copy");
+    write_executable(&elsewhere.join("release-folder").join(BIN));
+    write_complete_marker(&elsewhere, ID, "0.2.2").expect("write the marker");
+    let aside: PathBuf = hidden_sibling(
+        &version_dir,
+        REPLACED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(aside.join("release-folder")).expect("make the copy that was there");
+    write_executable(&aside.join("release-folder").join(BIN));
+    fs::write(aside.join(WHAT_THE_VERSION_HELD), "the copy that was there").expect("write");
+
+    let recovered =
+        recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay).expect("recovered");
+    assert!(recovered.restored, "{recovered:?}");
+    assert!(
+        version_dir.join(WHAT_THE_VERSION_HELD).is_file(),
+        "this version gets the copy it had: {:?}",
+        names_of(&tool_dir)
+    );
+    assert!(
+        !is_finished(&version_dir, BIN),
+        "another version's finished copy is never this version's"
+    );
+    assert!(
+        elsewhere.is_dir(),
+        "the other version's finished copy is left for its own install: {recovered:?}"
+    );
+}
+
+#[test]
+fn a_claim_that_fails_for_another_reason_is_reported() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let (finished, _aside) = what_a_kill_between_the_two_renames_leaves(&version_dir);
+    // A directory that refuses writes inside it refuses the claim's rename, and the answer is not "no such file".
+    let read_only = ReadOnly::new(&tool_dir);
+
+    let recovered = recover_leftovers(&version_dir, BIN, AnOlderVersion::MayStay);
+    drop(read_only);
+    let error = recovered.expect_err("the claim's rename was refused");
+    assert!(
+        error
+            .message
+            .contains("cannot claim the finished install at"),
+        "the failure names the claim: {error}"
+    );
+    assert!(
+        finished.is_dir(),
+        "the finished copy is still there: {:?}",
+        names_of(&tool_dir)
+    );
+}
+
+//endregion
+#[test]
+fn a_permission_denial_on_the_exchange_is_named_on_standard_error_and_the_other_fallbacks_are_silent()
+ {
+    // What: `Errno::ACCESS.raw_os_error()` is the operating system's own number for "permission denied", and
+    //  `Errno::INVAL` the one for a flag the file system does not support (TS: `error.code`).
+    // Why: the first is the answer a policy that refuses only the exchange gives, which must be named, and the second is
+    //  the answer a file system that cannot exchange gives, which stays silent.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const denied = runTheInstallerWhoseExchangeIsRefused(toolDir, version, 'EACCES');
+    // const unsupported = runTheInstallerWhoseExchangeIsRefused(toolDir, version, 'EINVAL');
+    // ```
+    let denied: std::process::Output =
+        run_the_installer_whose_exchange_a_policy_refuses(rustix::io::Errno::ACCESS.raw_os_error());
+    assert!(denied.status.success(), "{denied:?}");
+    let named: String = String::from_utf8_lossy(&denied.stderr).to_string();
+    assert!(
+        named.starts_with("mpm-shadow: warning:"),
+        "the denial is one line on standard error: {named}"
+    );
+    assert!(
+        named.contains("Permission denied"),
+        "the line names the error: {named}"
+    );
+    assert!(
+        named.contains("in one exchange was refused"),
+        "the line says which call was refused: {named}"
+    );
+
+    let silent: std::process::Output =
+        run_the_installer_whose_exchange_a_policy_refuses(rustix::io::Errno::INVAL.raw_os_error());
+    assert!(silent.status.success(), "{silent:?}");
+    assert!(
+        silent.stderr.is_empty(),
+        "an answer that means the file system cannot exchange the two names falls back in silence: {}",
+        String::from_utf8_lossy(&silent.stderr)
+    );
+}
+
+/// What:
+/// Starts this test binary again to publish a finished copy over an unfinished one whose exchange the file system refuses,
+/// and answers what that process wrote on standard error.
+/// Why:
+/// The one line a permission denial prints on standard error can only be read from the process that writes it,
+/// and the fixture is a process of its own because a plant lives in a thread of the publish that reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runTheInstallerWhoseExchangeIsRefused(refusal: number): ChildProcessOutput {
+///   return spawnSync(process.execPath, [testBinary, '--exact', INSTALLER_WHOSE_EXCHANGE_IS_REFUSED, '--ignored', '--test-threads=1'], {
+///     env: { ...process.env, MPM_SHADOW_TEST_FIXTURE_TOOL_DIRECTORY: toolDir, MPM_SHADOW_TEST_FIXTURE_VERSION: version, MPM_SHADOW_TEST_FIXTURE_EXCHANGE_REFUSAL: String(refusal) },
+///   });
+/// }
+/// ```
+fn run_the_installer_whose_exchange_a_policy_refuses(refusal: i32) -> std::process::Output {
+    let rig = Rig::new();
+    let tool_directory: PathBuf =
+        tool_directory(&rig.scope.toolchain_root, ID).expect("a plain name");
+    let output = Command::new(std::env::current_exe().expect("the test binary's own path"))
+        .arg("--exact")
+        .arg(INSTALLER_WHOSE_EXCHANGE_IS_REFUSED)
+        .arg("--ignored")
+        .arg("--test-threads=1")
+        // What: `--nocapture` keeps the test harness from taking the child's standard error for its own report, so the
+        //  line the publish writes reaches this process.
+        // Why: a captured line is printed only when the child fails, and this child is expected to succeed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // childArgs.push('--nocapture');
+        // ```
+        .arg("--nocapture")
+        .env(TOOL_DIRECTORY_VARIABLE, &tool_directory)
+        .env(VERSION_VARIABLE, "0.2.1")
+        .env(REFUSAL_VARIABLE, refusal.to_string())
+        .output()
+        .expect("start the installer whose exchange is refused");
+    return output;
+}
+
+/// What:
+/// The installer a control starts whose exchange a policy refuses:
+/// it writes the copy an install publishes over an unfinished one,
+/// and publishes it with the refusal planted.
+/// Why:
+/// The line an exchange's permission denial prints is read from this process's standard error,
+/// and this test refuses rather than passes when the publish did not fall back to the two renames.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('the installer whose exchange a policy refuses', () => {
+///   publishStaged(staging, versionDir, BIN).expect('the two renames publish the copy');
+/// });
+/// ```
+#[test]
+#[ignore = "a fixture a control starts: it publishes a copy whose exchange a policy refuses"]
+fn the_installer_whose_exchange_a_policy_refuses() {
+    let tool_directory: String = std::env::var(TOOL_DIRECTORY_VARIABLE)
+        .expect("a control names the fixture's tool directory");
+    let version: String = std::env::var(VERSION_VARIABLE).expect("a control names the version");
+    let refusal: String =
+        std::env::var(REFUSAL_VARIABLE).expect("a control names the answer the exchange gives");
+    let version_dir: PathBuf = PathBuf::from(tool_directory).join(&version);
+    // The unfinished copy at the version's name, and the finished copy an install would publish.
+    write_executable(&version_dir.join("release-folder").join(BIN));
+    let staging: PathBuf = staging_dir_of(&version_dir);
+    fs::create_dir_all(staging.join("release-folder")).expect("make the staging directory");
+    write_executable(&staging.join("release-folder").join(BIN));
+    write_complete_marker(&staging, ID, &version).expect("write the completion marker");
+
+    plant_these_steps(Plant {
+        answer_the_exchange_with: Some(refusal.parse().expect("an operating system error number")),
+        ..Plant::default()
+    });
+    publish_staged(&staging, &version_dir, BIN).expect("the two renames publish the copy");
+    clear_the_plant();
 }

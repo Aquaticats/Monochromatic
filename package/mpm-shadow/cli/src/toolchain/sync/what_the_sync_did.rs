@@ -19,7 +19,10 @@
 //! ```
 
 /// Imports what a later install did with the leftovers of a killed one.
-use super::super::archive_staging::Recovered;
+use super::super::archive_staging::{
+    FinishedCopy,
+    Recovered,
+};
 /// Imports the version comparison the warning uses.
 use super::super::parse_output::version_matches;
 /// What `install` did:
@@ -39,9 +42,12 @@ pub struct SyncReport {
     /// (one another program put at the locked version,
     /// which `install_tool` never sees).
     pub reconciled: Vec<String>,
-    /// One sentence per version this run finished the publish of,
-    /// or whose copy a killed install had moved aside and this run put back,
-    /// with the hidden directories it removed,
+    /// One sentence per version a recovery touched:
+    /// the publish this run finished,
+    /// the copy it dropped because another install had published the version meanwhile,
+    /// the finished copy it left hidden because an older repository tool is never kept,
+    /// the copy a killed install had moved aside that came back or was left for a live install,
+    /// and the hidden directories it removed,
     /// each of which it found gone afterwards.
     pub recovered: Vec<String>,
     /// Tool id and failure text.
@@ -71,11 +77,72 @@ pub struct SyncReport {
 }
 
 /// What:
-/// The sentence the install report prints for a version a killed install left unfinished,
+/// `1 hidden directory`,
+/// or `3 hidden directories`,
+/// for a count of hidden siblings a recovery removed.
+/// Why:
+/// The report says how many went,
+/// and a sentence that says "the 1 hidden directories" reads as a fault in the tool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hiddenDirectories(count: number): string { return count === 1 ? '1 hidden directory' : `${count} hidden directories`; }
+/// ```
+fn hidden_directories(count: usize) -> String {
+    if count == 1 {
+        return "1 hidden directory".to_string();
+    }
+    return format!("{count} hidden directories");
+}
+
+/// What:
+/// `a killed install`,
+/// or `killed installs`,
+/// agreeing with the count of hidden directories.
+/// Why:
+/// The same sentence says one directory or several,
+/// and the subject that left them changes with the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whoLeftThem(count: number): string { return count === 1 ? 'a killed install' : 'killed installs'; }
+/// ```
+fn who_left_them(count: usize) -> &'static str {
+    if count == 1 {
+        return "a killed install";
+    }
+    return "killed installs";
+}
+
+/// What:
+/// `, and removed 1 hidden directory that a killed install left behind`,
+/// for the end of a sentence that already said what became of the finished copy.
+/// Why:
+/// One wording,
+/// so the two sentences about a recovery read the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removedClause(count: number): string {
+///   return `, and removed ${hiddenDirectories(count)} that ${whoLeftThem(count)} left behind`;
+/// }
+/// ```
+fn removed_clause(count: usize) -> String {
+    return format!(
+        ", and removed {} that {} left behind",
+        hidden_directories(count),
+        who_left_them(count)
+    );
+}
+
+/// What:
+/// The sentence the install report prints for a version a recovery touched,
 /// or `None` when the recovery found and did nothing.
 /// Why:
 /// An install that finished the publish of a version without downloading anything did something a person should see,
-/// and one that only removed hidden directories of an installer known to have ended says what went.
+/// and so did one that dropped its copy for a publish another install made,
+/// and one that only removed hidden directories of an installer known to have ended.
+/// "Finished the publish" is printed only for a publish this run made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,32 +154,67 @@ pub(crate) fn recovery_sentence(
     recovered: &Recovered,
 ) -> Option<String> {
     let removed: usize = recovered.removed.len();
-    if recovered.published {
-        let mut sentence: String =
-            format!("finished the publish of {id} {version} that a killed install left");
+    let head: Option<String> = match &recovered.finished_copy {
+        FinishedCopy::PublishedHere => Some(format!(
+            "finished the publish of {id} {version} that a killed install left"
+        )),
+        FinishedCopy::PublishedByAnotherInstall => Some(format!(
+            "dropped the copy of {id} {version} that a killed install left, because another install published that version meanwhile"
+        )),
+        FinishedCopy::AnOlderVersionIsNeverKept {
+            newer,
+        } => Some(format!(
+            "left the finished copy of {id} {version} that a killed install left under its hidden name, because {newer} is installed and an older repository tool is never kept"
+        )),
+        FinishedCopy::NothingToPublish if recovered.restored => Some(format!(
+            "put back the copy of {id} {version} that a killed install had moved aside"
+        )),
+        FinishedCopy::NothingToPublish if recovered.left_for_a_live_install => Some(format!(
+            "left the copy of {id} {version} that a killed install had moved aside where it is, because another install is between its claim and its publish of that version"
+        )),
+        FinishedCopy::NothingToPublish => None,
+    };
+    if let Some(mut sentence) = head {
         if removed > 0 {
-            sentence.push_str(&format!(
-                ", and removed the {removed} hidden directories killed installs left behind"
-            ));
-        }
-        return Some(sentence);
-    }
-    if recovered.restored {
-        let mut sentence: String =
-            format!("put back the copy of {id} {version} that a killed install had moved aside");
-        if removed > 0 {
-            sentence.push_str(&format!(
-                ", and removed the {removed} hidden directories killed installs left behind"
-            ));
+            sentence.push_str(&removed_clause(removed));
         }
         return Some(sentence);
     }
     if removed > 0 {
         return Some(format!(
-            "removed the {removed} hidden directories that killed installs of {id} left behind"
+            "removed {} that {} of {id} left behind",
+            hidden_directories(removed),
+            who_left_them(removed)
         ));
     }
     return None;
+}
+
+/// What:
+/// The sentence the install report prints when a recovery put an older version at its name and the newest-only rule then
+/// removed it.
+/// Why:
+/// The same run warns that older repository tools are never kept,
+/// so the removal is a second thing a person should see rather than a silent finish.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function olderVersionsRemovedSentence(id: string, versions: string[]): string
+/// ```
+pub(crate) fn older_versions_removed_sentence(
+    id: &str,
+    versions: &[String],
+) -> String {
+    if versions.len() == 1 {
+        return format!(
+            "removed the older {id} {} that this run recovered, because a newer one is installed and an older repository tool is never kept",
+            versions[0]
+        );
+    }
+    return format!(
+        "removed the older {id} versions {}, because a newer one is installed and an older repository tool is never kept",
+        versions.join(", ")
+    );
 }
 
 /// What:

@@ -101,8 +101,11 @@ use crate::nesting::{
 };
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates_reporting;
+/// Imports the PATH lookup's answer:
+/// the program to start and every `mpm` it saw.
+use crate::real_binary::Lookup;
 /// Imports `find_in_path` from `crate::real_binary`.
-use crate::real_binary::find_in_path;
+use crate::real_binary::lookup_in_path;
 /// Imports the arrival marker rules and the check made on the open program just before its start.
 use crate::shadow_identity::{
     ARRIVAL_EXIT_CODE,
@@ -123,11 +126,13 @@ use crate::shadow_notice::{
     version_line,
 };
 /// Imports the messages for a start that did not happen,
-/// and the two reasons one does not happen.
+/// the two reasons one does not happen,
+/// and the message for a PATH that holds no real `mpm`.
 use crate::start_failure::{
     StartFailure,
     StartRefusal,
     command_line,
+    describe_missing_real_mpm,
     describe_nesting_refusal,
     describe_start_failure,
 };
@@ -463,32 +468,32 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     let path_variable: String = env::var("PATH").unwrap_or_default();
     let own_path: PathBuf = own_real_path();
 
-    // What:     `match find_in_path(...) { Some(program) => ..., None => ... }` picks the branch for found or not
-    //           found. `&` lends the borrowed arguments.
-    // Why:      With no real mpm on PATH there is nothing to run.
+    // What:     `let lookup: Lookup = lookup_in_path(...)`, then `match &lookup.chosen { Some(program) => ..., None => ... }`
+    //           picks the branch for found or not found. `&` lends the borrowed arguments.
+    // Why:      With no real mpm on PATH there is nothing to run, and the lookup's own list of what it saw is what
+    //           the message names: a file without its execute bit and a directory of that name need different repairs.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const program = findInPath(...); if (program === undefined) { console.error(...); return 127; }
+    // const lookup = lookupInPath(...); if (lookup.chosen === undefined) { console.error(describeMissingRealMpm(lookup)); return 127; }
     // ```
-    let program: PathBuf = match find_in_path(SHADOWED_NAME, &path_variable, &own_path) {
-        Some(found) => found,
+    let lookup: Lookup = lookup_in_path(SHADOWED_NAME, &path_variable, &own_path);
+    let program: PathBuf = match &lookup.chosen {
+        Some(found) => found.clone(),
         None => {
-            // What:     The cause names every way the lookup can find nothing, and the next line names the remedy.
+            // What:     The whole message, the cause and the remedy, is one text built where the words live.
             // Why:      A person who sees only one line and no remedy has to guess whether mpm is missing or out of order on PATH.
-            eprintln!(
-                "mpm-shadow: no real {SHADOWED_NAME} found on PATH: {SHADOWED_NAME} is not installed, every `{SHADOWED_NAME}` on PATH is this shadow or a launcher of one, or an install had moved the real `{SHADOWED_NAME}` aside at the moment of the lookup"
-            );
-            eprintln!(
-                "mpm-shadow: what to do: install the real `{SHADOWED_NAME}` (this shadow starts it and never provides it), or put its directory on PATH after this shadow's, then run the command again"
-            );
+            eprintln!("{}", describe_missing_real_mpm(&lookup));
             return NOT_FOUND_EXIT_CODE;
         }
     };
 
     let depth: u32 = nesting_depth(env::var(NESTING_ENV).ok().as_deref());
     if must_refuse(depth) {
-        eprintln!("{}", describe_nesting_refusal(&arguments, &program, depth));
+        eprintln!(
+            "{}",
+            describe_nesting_refusal(&arguments, &program, depth, &lookup)
+        );
         return EXEC_FAILED_EXIT_CODE;
     }
 
@@ -515,6 +520,7 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
                 refusal: &refusal,
                 retry,
                 depth,
+                lookup: &lookup,
             };
             eprintln!("{}", describe_start_failure(&failure));
             return EXEC_FAILED_EXIT_CODE;

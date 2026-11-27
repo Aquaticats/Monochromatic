@@ -53,6 +53,29 @@ The fix is to sort the names before either reads them,
 and a control for it fails only on an arm whose listing order is not the name order,
 which the recipe below makes deterministic.
 
+## The order a refusal names a scope's members in
+
+One listing of a scope's members is ordered by the walk and never by the file system
+(`listings` in `src/control_group_stop_listing.rs`,
+stated on `Listing` in `src/control_group_stop_report.rs`):
+the scope's own group first,
+then each group below it depth first,
+with the greatest name first at each group,
+and the processes of one group in ascending process id order.
+Both orders are the tool's own:
+`sub_groups` sorts the names of the groups below a group,
+and the walk pushes them in that order onto a stack and takes the last one off,
+while each group's processes are sorted before they are named.
+The control is
+`control_group_stop::leftover_tests::the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greatest_name_first`,
+which puts one member in the scope's own group,
+one in `alpha` and two in `beta` below it,
+says that the numbers were handed out in the order the members were started,
+and then reads where each is named.
+A listing that took the groups in the other order,
+or one that sorted every member by process id across the groups,
+fails it.
+
 ## Controlling a comparison, and running it on an arm where the order differs
 
 A control that asks which names exist sorts them first:

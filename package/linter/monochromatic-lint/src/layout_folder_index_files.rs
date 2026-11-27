@@ -23,13 +23,14 @@
 use crate::{
     layout_allow_entries::{
         ARROW,
-        FOLDER_USE_WORD,
         SET_OFF_ARROW,
+        name_holds_an_arrow_word,
     },
     layout_finding::{
         LayoutFinding,
         key_path,
         shown,
+        spelled_whitespace,
     },
     layout_index_file_items::{
         IndexRole,
@@ -107,7 +108,7 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
     // What: the name with every line break spelled `\u{a}`.
     // Why: the message that names the file, and the key a line would hold, must each stay on one line.
     if name.contains('\n') {
-        return Some((name.replace('\n', "\\u{a}"), UnlistableName::HoldsLineBreak));
+        return Some((spelled_whitespace(name), UnlistableName::HoldsLineBreak));
     }
     // What: the name's last character, or nothing when the name is empty.
     // Why: only the last character can be the one the reader trims away.
@@ -117,12 +118,10 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
     }
     // What: the name with its last character spelled `\u{20}`, `\u{9}` or `\u{a0}`.
     // Why: the character itself is invisible in a terminal, so the message would not name the file.
-    let spelled: String = format!(
-        "{}\\u{{{:x}}}",
-        &name[..name.len() - last.len_utf8()],
-        last as u32
-    );
-    return Some((spelled, UnlistableName::EndsInTrimmedWhitespace));
+    return Some((
+        spelled_whitespace(name),
+        UnlistableName::EndsInTrimmedWhitespace,
+    ));
 }
 
 /// What:
@@ -149,10 +148,10 @@ pub(crate) fn unlistable_folder_name_part(
     arrow_words_are_refused: bool,
 ) -> Option<(String, UnlistableName)> {
     if name.contains('\\') {
-        return Some((String::from(name), UnlistableName::HoldsBackslash));
+        return Some((spelled_whitespace(name), UnlistableName::HoldsBackslash));
     }
     if arrow_words_are_refused && arrow_word_shape(name).is_some() {
-        return Some((String::from(name), UnlistableName::HoldsArrowWords));
+        return Some((spelled_whitespace(name), UnlistableName::HoldsArrowWords));
     }
     return unlistable_name_part(name);
 }
@@ -162,30 +161,31 @@ pub(crate) fn unlistable_folder_name_part(
 ///  or nothing when its name holds none of them.
 /// Why:
 ///  The rule prints `uses <folder> -> <folder>`,
-///  and the reader takes the first ` -> ` of that line as the arrow.
-///  A name that closes another ` -> ` with the space the line sets its words off with
+///  and the reader takes the first `->` that whitespace sets off as the arrow.
+///  A name that closes such an arrow word with the whitespace the line sets its words off with
 ///  makes the reader split inside the name and read another pair of folders.
 ///  The line's own shape is the guard: a name is refused only when the line that would name it on the side before the arrow
-///  really does hold a second ` -> `,
-///  so the check cannot drift from what the printer writes and the reader reads.
+///  really does hold a second arrow,
+///  so the check cannot drift from what the printer writes and the reader reads,
+///  and a tab or a no-break space beside the arrow is refused as a space there is.
 ///  The sentence that shape earns names exactly one cause, never a list of four,
 ///  because a reader who is told four reasons has to check which one is theirs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const arrowWordShape = (name: string) => {
-///   if (!`uses ${name} `.includes(' -> ')) return undefined
+///   if (!nameHoldsAnArrowWord(name)) return undefined
 ///   if (name === '->') return 'is `->`'
 ///   if (name.startsWith('-> ')) return 'begins with `-> `'
 ///   if (name.endsWith(' ->')) return 'ends with ` ->`'
 ///   if (name.includes(' -> ')) return 'holds ` -> `'
-///   return 'holds an arrow word'
+///   return 'sets off an arrow word with a whitespace character other than a space'
 /// }
 /// ```
 pub(crate) fn arrow_word_shape(name: &str) -> Option<&'static str> {
     // What: whether the line naming this folder before its arrow would hold a second arrow.
-    // Why: the four shapes below are the ways a name does that, and this is the one test they must all satisfy.
-    if !format!("{FOLDER_USE_WORD} {name} ").contains(SET_OFF_ARROW) {
+    // Why: every shape below is a way a name does that, and this is the one test they must all satisfy.
+    if !name_holds_an_arrow_word(name) {
         return None;
     }
     if name == ARROW {
@@ -200,9 +200,9 @@ pub(crate) fn arrow_word_shape(name: &str) -> Option<&'static str> {
     if name.contains(SET_OFF_ARROW) {
         return Some("holds ` -> `");
     }
-    // What: a name the line cannot be set off from in a way the four shapes above do not name.
-    // Why: the guard above already refused it, so the run says the name holds an arrow word rather than letting it pass.
-    return Some("holds an arrow word");
+    // What: a name whose arrow word is set off by a tab, a no-break space or another whitespace character.
+    // Why: the guard above already refused it, and the four shapes above spell a space, so the sentence names the difference.
+    return Some("sets off an arrow word with a whitespace character other than a space");
 }
 
 /// What:

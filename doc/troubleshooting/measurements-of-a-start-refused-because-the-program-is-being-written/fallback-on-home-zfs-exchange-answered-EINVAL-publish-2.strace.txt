@@ -1,0 +1,14 @@
+2429685 1795800430.945686 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz.download", "<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz") = 0 <0.000041>
+2429714 1795800430.950784 +++ exited with 0 +++
+2429710 1795800430.950846 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2429714, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2429710 1795800430.951296 +++ exited with 0 +++
+2429685 1795800430.951327 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2429710, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2429685 1795800430.951935 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2429685.33573853/.fixture-tool.2429685.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2429685.33573853/fixture-tool") = 0 <0.000037>
+2429685 1795800430.952164 renameat2(AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2429685.33573853", AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", RENAME_EXCHANGE) = -1 EINVAL (Invalid argument) (INJECTED) <0.000005>
+2429685 1795800430.952396 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2429685.33573853") = 0 <0.000029>
+2429685 1795800430.952457 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2429685.33573853", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 <0.000024>
+2429685 1795800430.953100 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.current.2429685.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/current") = 0 <0.000022>
+2429685 1795800430.953796 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.launch.2429685.tmp", "<fixture>/work/.cache/toolchain-launchers/fixture-tool.launch") = 0 <0.000028>
+2429685 1795800430.954177 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.2429685.bin", "<fixture>/work/.cache/toolchain-launchers/fixture-tool") = 0 <0.000030>
+2429685 1795800430.954349 rename("<fixture>/work/.cache/toolchain-bin/.fixture-tool.2429685.tmp", "<fixture>/work/.cache/toolchain-bin/fixture-tool") = 0 <0.000026>
+2429685 1795800430.955547 +++ exited with 0 +++

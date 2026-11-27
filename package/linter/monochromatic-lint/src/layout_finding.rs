@@ -72,6 +72,42 @@ pub fn shown(
 }
 
 /// What:
+///  A name with the whitespace a reader cannot see spelled as its code point.
+/// Why:
+///  A message names a folder, a file or an entry so its reader can find it,
+///  and a tab, a no-break space or a space at either end of a name prints as nothing a reader can see:
+///  a message that showed `src/a` for a folder named `src/a ` would send its reader to a name the package does hold.
+///  A space between two words stays a space, because the message already reads as words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const spelledWhitespace = (name) => [...name]
+///   .map((letter, index) =>
+///     letter.isWhitespace() && (letter !== ' ' || index === 0 || index === name.length - 1)
+///       ? `\\u{${letter.codePointAt(0)}}`
+///       : letter)
+///   .join('')
+/// ```
+pub(crate) fn spelled_whitespace(name: &str) -> String {
+    // What: the position of the name's last character, which is an end like the first one is.
+    // Why: a space at either end is invisible in a message, where a space between two words is not.
+    let last: usize = name.chars().count().saturating_sub(1);
+    let mut spelled: String = String::with_capacity(name.len());
+    for (index, letter) in name.chars().enumerate() {
+        // What: whether this character prints as nothing a reader could measure.
+        // Why: every whitespace character but a space between two words disappears into the line it stands in.
+        let invisible: bool =
+            letter.is_whitespace() && (letter != ' ' || index == 0 || index == last);
+        if !invisible {
+            spelled.push(letter);
+            continue;
+        }
+        spelled.push_str(format!("\\u{{{:x}}}", letter as u32).as_str());
+    }
+    return spelled;
+}
+
+/// What:
 ///  A path as one finding's key writes it:
 ///  relative to the package folder when it is inside it,
 ///  the walk from the package folder when it is outside (a module a `#[path]` names elsewhere),
