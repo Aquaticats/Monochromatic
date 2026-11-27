@@ -240,7 +240,8 @@ Route:
 `cargo install --git <url> --rev <revision> --root <install dir>`.
 The same `cargo install` writes the program for a registry route the plan does not use here.
 Traced,
-with the toolchain's cargo,
+with the toolchain's cargo
+(1.102.0-nightly),
 on a local crate (`cargo install --path .`,
 no network,
 `CARGO_NET_OFFLINE=true`).
