@@ -896,8 +896,8 @@ because the launcher is then never killed.
 #### What cargo-shadow does now
 
 The run asks the manager to stop the unit it started,
-after the control group is shown empty,
-on every path that ends a run that way:
+after the kernel's last `populated` read says the control group has no member,
+on every path that ends a run:
 a normal end,
 a bound that passes,
 a refusal after the program started,
@@ -916,12 +916,14 @@ A stop the manager refuses for another reason is a warning naming the unit and t
 because the run already proved that no writer is left;
 the unit is housekeeping after the proof,
 not part of it.
-A run whose stop could not show the scope empty does not ask for the unit to be stopped:
-a member may still write,
+A run whose scope still has a member does not ask for the unit to be stopped:
+the member may still write,
 the refusal's report names it,
 and a manager stop would kill it behind that report.
-Such a unit is populated,
+That unit is populated,
 not the loaded-and-empty leftover this step exists for.
+A stop that failed to read the scope while the scope was already empty still retires it,
+because the gate is the kernel's own last `populated` line and not the stop's answer.
 The cost is one `systemctl` call per scoped run:
 `systemctl --user stop` of such an empty scope took 4 ms to 5 ms in three probes on 2026-11-27,
 and the manager showed the unit `not-found` as soon as the stop returned in all three.
@@ -946,6 +948,8 @@ the four path controls found no stop request,
 and the unit stayed loaded;
 the stop itself removed:
 the planted unit stayed `loaded`).
+The scope's own `populated` read is what allows the retirement after a stop that failed,
+and the controls that keep a live writer still see their writer in the scope and leave its unit alone.
 
 #### What was tried and did not work, or was not chosen
 

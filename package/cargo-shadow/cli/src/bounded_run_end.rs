@@ -114,6 +114,38 @@ use std::process::Child;
 use std::rc::Rc;
 
 /// What:
+/// `fn empty_now(group: &ControlGroup) -> bool` says whether the scope has no member at this moment,
+/// or its directory is gone.
+/// Why:
+/// The unit is only stopped when nothing can write in it:
+/// an absent group is empty,
+/// `populated 0` is the kernel's own word for empty,
+/// and a group that cannot be read is taken as one that may still have a member.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function emptyNow(group: ControlGroup): boolean
+/// ```
+fn empty_now(group: &ControlGroup) -> bool {
+    // What:     `match populated_at(...) { ... }` reads the kernel's `populated` line: `Ok(true)` is a member, `Ok(false)` is none.
+    //           `Err(error)` carries a read failure; `NotFound` and `NODEV` mean the directory is gone, which is empty, and every
+    //           other error is a group that may have a member.
+    // Why:      This is the gate the retirement hangs on, so an unreadable group is never treated as empty.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { return !populatedAt(group.directory) } catch (error) { return error.code === 'ENOENT' || error.code === 'ENODEV' }
+    // ```
+    return match crate::control_group::populated_at(group.directory()) {
+        Ok(populated) => !populated,
+        Err(error) => {
+            error.kind() == std::io::ErrorKind::NotFound
+                || error.raw_os_error() == Some(rustix::io::Errno::NODEV.raw_os_error())
+        }
+    };
+}
+
+/// What:
 /// `fn retire(group: &ControlGroup, route: &Route)` asks the manager to stop the scope unit of a run that has ended,
 /// and warns when the manager may still load it.
 /// Why:
@@ -202,17 +234,18 @@ pub(crate) fn stop_everything(
         route,
     } = containment
     {
-        // What:     `if outcome.is_ok()` asks whether the stop showed the scope empty before the unit is stopped.
-        // Why:      A stop that could not show the scope empty may still have a member that can write,
-        //           and the refusal has to be inspectable (its report names the members);
-        //           asking the manager to stop the unit would kill that member behind the report.
-        //           Such a unit is not the loaded-and-empty leftover this step exists for.
+        // What:     `if empty_now(group)` asks the kernel, one last time, whether the scope has no member.
+        // Why:      The stop's own answer is not the only one that matters here:
+        //           it may have failed to read the scope while the scope was already empty (a refusal path),
+        //           and then the unit is the loaded-and-empty leftover this step exists for.
+        //           A scope that still has a member must keep its unit,
+        //           because the refusal's report names that member and a manager stop would kill it behind the report.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // if (outcome.ok) retire(group, route)
+        // if (emptyNow(group)) retire(group, route)
         // ```
-        if outcome.is_ok() {
+        if empty_now(group) {
             retire(group, route);
         }
     }
