@@ -84,6 +84,7 @@ pub fn check_root_context<F: RepositoryFacts>(
             path: Some(EventPath::from_git_bytes(ROOT_CONTEXT_PATH.as_bytes())),
             location: None,
             fix_available: false,
+            commit_correction: None,
         }]);
     }
     return PolicyOutcome::Findings(Vec::new());

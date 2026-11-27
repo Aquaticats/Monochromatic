@@ -17,6 +17,7 @@
 //! test('a record a proc hides is never read as an installer that ended');
 //! test('a run that cannot read its boot writes a name no later run reclaims');
 //! test('a name of another boot is ended whatever its start time says');
+//! test('a name of another boot and another namespace is ended');
 //! ```
 
 /// Imports `fs` from `std`.
@@ -299,6 +300,81 @@ fn a_name_of_another_boot_is_ended_whatever_its_start_time_says() {
             .iter()
             .any(|removed| return removed.path == leftover),
         "the directory of an installer of another boot is removed: {recovered:?}"
+    );
+    assert!(
+        !leftover.exists(),
+        "nothing of that name stays: {:?}",
+        names_of(&tool_dir)
+    );
+}
+
+/// What:
+/// A name whose boot and namespace both differ from the reader's:
+/// its own liveness,
+/// and what a later run does with the directory under it.
+/// Why:
+/// No process survives a reboot,
+/// so the boot alone says that installer ended,
+/// whatever its namespace says;
+/// no test set both fields before,
+/// so a guard that asked the namespace first kept every test green
+/// and left such a name unjudged for ever,
+/// although both releases treat it as ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a name of another boot and another namespace is ended', () => {
+///   const here = Owner.here();
+///   const elsewhere = { pid: process.pid, started: startTimeOfAProcess(process.pid), boot: A_BOOT_THIS_MACHINE_NEVER_HAD, namespace: here.namespace + 1 };
+///   expect(elsewhere.liveness()).toBe('gone');
+///   const recovered = recoverLeftovers(versionDir, BIN, 'may-stay', theLocksRecord('0.2.1'));
+///   expect(recovered.removed).toContain(hiddenSibling(versionDir, STAGING_PURPOSE, elsewhere));
+/// });
+/// ```
+#[test]
+fn a_name_of_another_boot_and_another_namespace_is_ended() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    let here: Owner = Owner::here();
+    let started: u64 = start_time_of_a_process(std::process::id())
+        .expect("the system reports this process's start");
+    // What: a name of another boot and another process namespace, one more than this namespace's inode number.
+    // Why: no process survives a reboot, so the boot alone decides, and the namespace differs too, which is the state
+    //  no test built before.
+    let elsewhere: Owner = Owner {
+        pid: std::process::id(),
+        started,
+        boot: Some(A_BOOT_THIS_MACHINE_NEVER_HAD.to_string()),
+        namespace: Some(here.namespace.expect("this process's namespace") + 1),
+    };
+    assert_eq!(
+        elsewhere.liveness(),
+        Liveness::Gone,
+        "a name from another boot names an installer that reboot certainly ended, whatever its namespace says"
+    );
+
+    // What: an unfinished copy under that name, which the reader now knows no installer holds.
+    // Why: the liveness answer is only worth having if the removal follows it.
+    let leftover: PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, elsewhere);
+    fs::create_dir_all(leftover.join("release-folder")).expect("make the unfinished copy");
+    write_executable(&leftover.join("release-folder").join(BIN));
+    fs::write(leftover.join(WHAT_WAS_BEING_UNPACKED), "half a release").expect("write");
+
+    let recovered = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("the leftovers are read");
+    assert!(
+        recovered
+            .removed
+            .iter()
+            .any(|removed| return removed.path == leftover),
+        "the directory of an installer of another boot and namespace is removed: {recovered:?}"
     );
     assert!(
         !leftover.exists(),

@@ -29,6 +29,7 @@ use crate::diagnostics::EngineFailureCode;
 /// The tool-cache exemption entry these checks are built with.
 use crate::effective_target::ToolCacheDirectory;
 /// The event form of a pathname.
+use crate::event_hints::CommitCorrection;
 use crate::event_path::EventPath;
 use crate::policy_checks::{
     ShippedChecks,
@@ -170,6 +171,7 @@ fn not_at_root(
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
 }
 
@@ -481,6 +483,7 @@ fn add_reads_its_candidates_after_add_explicit() {
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
     assert_eq!(
         run(&["add", "."], sweeping_facts.clone(), &[]),
@@ -837,6 +840,9 @@ fn add_findings_come_from_what_the_add_would_stage() {
         path: Some(EventPath::from_git_bytes("a.txt".as_bytes())),
         location: None,
         fix_available: false,
+        // What: an `add` stages worktree bytes a commit would take and correct.
+        // Why:  the hint of this finding says so, so the event carries that answer.
+        commit_correction: Some(CommitCorrection::Corrects),
     });
     assert_eq!(
         run(&["add", "a.txt"], facts.clone(), &[]),
@@ -857,6 +863,7 @@ fn add_findings_come_from_what_the_add_would_stage() {
         path: Some(EventPath::from_git_bytes("CONTEXT.md".as_bytes())),
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
     assert_eq!(
         run(&["add", "--", "CONTEXT.md"], facts.clone(), &[]),

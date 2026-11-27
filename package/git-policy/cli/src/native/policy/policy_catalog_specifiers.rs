@@ -139,6 +139,7 @@ fn policy_finding(
         path: Some(EventPath::from_git_bytes(candidate.path.as_slice())),
         location: None,
         fix_available: false,
+        commit_correction: None,
     };
 }
 

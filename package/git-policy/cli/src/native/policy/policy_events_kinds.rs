@@ -97,6 +97,10 @@ pub struct FindingEvent {
     pub location: Option<FindingLocation>,
     /// Whether the engine holds a correction for this finding.
     pub fix_available: bool,
+    /// What a commit that takes the bytes this finding names does with them,
+    ///  when the hint of its code has to say it;
+    ///  `None` for a finding whose hint never speaks of a commit.
+    pub commit_correction: Option<crate::event_hints::CommitCorrection>,
 }
 
 /// What:

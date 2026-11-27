@@ -3351,6 +3351,15 @@ a commit that normalization emptied) ends with the hint.
 The rejections that already carry their own alternatives (`require-root`,
 `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
+The `final-newline` finding says what corrects the file where the finding is made:
+an `add` and `git monochromatic-git-policy-cli check` name the commit's correction,
+ which happens while the settings keep `final-newline` on,
+ and `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now;
+a commit whose selection is read-only (`-p`,
+ `-i`,
+ `--include`),
+ a landed commit and a pushed commit say to edit the file,
+ because nothing corrects bytes that are already recorded.
 `src/native/policy/event_hints.rs` holds the texts,
 and its tests fail when a finding code or an engine failure code has no hint.
 
@@ -5397,6 +5406,9 @@ Listing one with a severity is the only way to turn it on,
   never from the worktree.
   Files below `dist/final/node/` or `bundle/node/` are also exempt,
   as generated output.
+  A commit that may correct the file corrects its ending itself;
+  an `add` and a direct check stage the bytes and warn,
+  so their hint names the commit's correction and the `fix` command.
 - `markdown/autofix`:
    default `warn`.
   Runs the linked `monochromatic-lint` fix engine over staged Markdown inside the commit,

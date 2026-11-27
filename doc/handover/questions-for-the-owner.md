@@ -3369,6 +3369,28 @@ the coordinating session's:
 wait > release now,
 because the wait is one round long and the cost of releasing lands on every call of a kind.
 
+That wait is over:
+the round merged as `aa7b4eb927` at 2026-11-27T17:49:46-05:00,
+a call with no user manager to reach makes one ask again,
+and the release started after it.
+One thing the round left:
+a host whose manager died and left its socket file or its directory behind is still asked five times.
+
+- Leave it (taken):
+  the cost is the five asks on such a host and nothing anywhere else.
+- Tell a dead socket from a manager that is reexecuting:
+  such a host would be asked once.
+  The cost is a rule nobody has found:
+  in the round's sampling a reexec answered `Connection refused` in 393 of 399 refused asks,
+  which is what a socket file with nothing listening answers too,
+  and a wrong guess there refuses a call across a reexec.
+
+Ranking,
+the round's and the coordinating session's:
+leave it > tell them apart,
+because the second risks the failure the asking again exists to prevent.
+Issue 6629 stays open for it.
+
 ### What stays unexplained
 
 The ten failures of 2026-11-27 came after the reexec had ended,
@@ -3491,7 +3513,8 @@ so a narrower surface is a design change and breaks no published contract.
 The second pass over `0.2.7-alpha.16` found both,
 with both released binaries on fixtures.
 The coordinating session read it whole and wrote this entry.
-A round holds each with a control and writes it into the README;
+A round held each with a control and wrote it into the README,
+merged as `d46572181c`;
 neither behaviour changes before the owner says so.
 
 ### A recovery that puts an unfinished copy back also points `current` at the newest finished version
@@ -3535,8 +3558,21 @@ which is not so here.
   The cost is a status 1 for a run that left everything in place,
   and a retired version on disk until a `prune`.
 
-The round builds the one it can argue from the package's own rules and returns the other;
-the coordinating session ranks neither before its report.
+The round kept the behaviour and wrote it into the README (merged as `d46572181c`),
+with a control that holds it.
+Its argument is from the code:
+the later step moves the link of whichever toolchain root wins,
+which can be the other root,
+so a removal tied to that step could remove under this root's link that has not moved.
+A make-up would need a second move of this same link,
+would still end 1 if that failed too,
+and would have to leave a plain install of an already-installed tool alone.
+
+Ranking,
+the round's and the coordinating session's:
+the behaviour stays > the run makes up for it,
+because the removal must never run under a link that still names the version going away,
+and the cost of staying is one status 1 and one `prune`.
 
 ## Veto open: two picks of the wrapper round on the list guards (recorded 2026-11-27T17:12:22-05:00)
 
@@ -3668,3 +3704,38 @@ Ranking,
 the round's and the coordinating session's:
 declare the component > drop the bins,
 because the repository's own tasks run both programs.
+
+## Veto open: two things the round on the `final-newline` hint left as they are (recorded 2026-11-27T17:48:05-05:00)
+
+The round of issue 6627 merged as `0f69dbfe93`.
+The coordinating session read its report whole and wrote this entry.
+None holds a release.
+
+### `finding_hint` takes a fourth positional parameter
+
+The repository's rule asks a function of two or more parameters to take one object.
+
+- A fourth positional parameter (taken):
+  it follows the neighbouring functions of the crate,
+  and publishes three names.
+- One object:
+  the rule is kept.
+  The cost is five more published names,
+  by the round's count.
+
+Ranking,
+the round's:
+the positional parameter > the object,
+because the crate's own functions around it are positional.
+The coordinating session adds no ranking:
+the rule is written for TypeScript,
+and this is Rust.
+
+### A landed commit and a manual push still say to edit the file and stage it again
+
+That is a true next step and not the only one:
+the `fix` command corrects the worktree copy,
+and the person still commits it.
+The issue asked that the sentence stay only where nothing corrects the bytes,
+which is what the round did;
+saying more there was not built.

@@ -174,6 +174,10 @@ pub(crate) mod control_group_route_view;
 /// The short programs the route discovery runs under one deadline (split out of the route discovery module).
 pub(crate) mod control_group_route_child_runs;
 
+/// The read that tells a host where no user manager can be reached from a host whose manager is there and did not answer for a
+/// moment (split out of the route discovery module).
+pub(crate) mod control_group_route_manager_reach;
+
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
 pub mod control_group_process_identity;
 

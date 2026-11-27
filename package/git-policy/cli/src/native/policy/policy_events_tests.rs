@@ -96,6 +96,7 @@ fn finding(severity: Severity) -> FindingEvent {
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     };
 }
 
@@ -121,6 +122,7 @@ fn finding_has_the_incumbent_shape() {
             byte_end: 18_446_744_073_709_551_615,
         }),
         fix_available: true,
+        commit_correction: None,
     };
     assert_eq!(
         rendered_without_hint(41, &PolicyEvent::Finding(full)),

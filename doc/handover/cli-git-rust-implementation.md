@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:30:22-05:00
+## The state at 2026-11-27T17:51:01-05:00
 
-`main` was `45b9aaeb94`.
+`main` was `aa7b4eb927`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 275 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 279 more by this time.
 
 ### Rounds running
 
@@ -162,7 +162,14 @@ because Pi fits the answer into what the window leaves,
 and it keeps no margin.
 Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
 A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
-issue 6631.
+issue 6631,
+whose round,
+`issue-6631-the-watch-control-that-delivers-a-message-to-a-later-turn-holds-in-a-whole-run`,
+started 2026-11-27T17:31:49-05:00.
+That round is the first started on the rebuilt copy:
+its session selects the virtual writer and Qwen's member answers it.
+The window a new run records is in its `summary.json` when it ends,
+which the coordinator reads for the first such run.
 The owner also wrote,
 of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
 "nw-large is advisor,
@@ -201,9 +208,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The branch added controls and no release code.
   That hint tells a person to edit a file the next commit corrects,
   which is issue 6627;
-  its round,
-  `issue-6627-the-final-newline-hint-at-git-add-says-what-the-next-commit-does`,
-  started 2026-11-27T17:04:25-05:00.
+  its round is merged (`0f69dbfe93`) and the issue is closed.
+  At an `add` and at a direct check the hint now says a commit that takes the file corrects the ending,
+  and names the `fix` command for correcting it now;
+  the sentence that says to edit the file stays for a commit whose selection is read-only,
+  a landed commit and a manual push,
+  where nothing corrects the bytes.
+  The round measured both steps on fixtures,
+  and found no `add` at which nothing corrects the file,
+  which the brief had asked a control for.
+  The push of that merge was refused by GitHub with `GH009` and cleared by one push by hand,
+  as `doc/troubleshooting/github-lfs-integrity-rejection.md` records with the others.
   Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
   issue 6620 (`bc24b2e688`),
   issue 6619 (`1ef6287246`),
@@ -615,22 +630,36 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   with nothing to build until a red run's output is kept whole.
   The commit's `Closes` line closed issue 6623 at the merge;
   a comment on that commit says `Refs` is the accurate word.
-  `0.1.5-alpha.16` waits again,
-  by the coordinator's choice with the veto open,
-  for the round of issue 6629.
-  The failure that wait prevents is measured:
-  where no user manager can be reached,
-  every call now makes five asks and takes 883.1 ms at the median,
-  against 43.2 ms and one ask for `0.1.5-alpha.15`
-  (12.90 to 29.68 times as long per round,
-  median 20.55,
-  nine interleaved rounds beside byte-identical copies),
-  and the repository's workflows install the locked binary
-  (`.github/actions/repo-tools-setup/action.yml`),
-  so releasing and locking it would put that wait into every such call.
-  That round,
-  `issue-6629-a-call-with-no-user-manager-to-reach-asks-once-and-a-reexec-is-still-ridden-through`,
-  started 2026-11-27T17:04:25-05:00.
+  That span cost a call 883.1 ms at the median where no user manager can be reached,
+  against 43.2 ms for `0.1.5-alpha.15`,
+  so `0.1.5-alpha.16` waited for the round of issue 6629,
+  which is merged (`aa7b4eb927`).
+  The discovery now reads in its own process whether anything on the host could carry an ask:
+  the runtime directory and the bus address,
+  the manager's own socket and directory,
+  and the bus socket.
+  Where nothing could,
+  the first failed ask is the answer.
+  It matches no words of another program.
+  Measured again with the same harness,
+  in both ways of having no manager:
+  one ask per call in all 72 calls,
+  and the branch's call at 1.01 to 1.28 times the released binary's per round with neither variable set
+  (median 1.11),
+  and at 0.87 to 1.05 times with a runtime directory that holds nothing
+  (median 1.00),
+  while byte-identical copies moved as much.
+  The control that reexecutes a container's own manager passed three times with the change,
+  and failed there with the asking again taken out.
+  Sampled across real reexecs,
+  the manager's socket was absent for 0.17 ms and for 0.28 ms in one run and never in another,
+  and the manager's directory was there in every sample,
+  which is why a reexec does not read as no manager.
+  One residue:
+  a host whose manager died and left its socket file or its directory behind is still asked five times.
+  Its commit's `Closes` line closed issue 6629 at the merge,
+  and the coordinator reopened the issue for that residue.
+  `0.1.5-alpha.16` is released next.
   Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
   saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
   Issue 6619's round is merged (`1ef6287246`).
@@ -808,7 +837,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The row's `cargo-fmt` and `rustfmt` resolve here only because the `rustfmt` component was added by hand on 2026-11-25,
   which no component the plan declares installs:
   issue 6630,
-  with the pick in `doc/handover/questions-for-the-owner.md`.
+  with the pick in `doc/handover/questions-for-the-owner.md`,
+  and its round,
+  `issue-6630-the-rust-rows-bins-are-the-programs-its-declared-components-install`,
+  started 2026-11-27T17:31:49-05:00.
+  The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
+  saying what issue 6626's merge changed and which files that round has.
   Its Claude Sonnet read returned,
   a same-vendor second pass,
   and was read whole
@@ -819,7 +853,44 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and `a-link-move-that-fails-once-and-what-a-put-back-does-to-current`.
   The round of issue 6626 got a note in its inbox at 2026-11-27T17:10:09-05:00,
   naming the files those two have.
-  `0.2.7-alpha.17` follows the merges of all three.
+  The first of the two,
+  on the sentences,
+  is merged (`21c91bc9fd`):
+  each of its seven points held on `main` and was shown red there by a test that reads the sentence from a run.
+  A failed listing names the hidden names an earlier install left;
+  the second-copy clause says the version holds its completion marker and its program at its name,
+  where it said nothing was lost;
+  the step by hand is a copy of the copy's contents,
+  printed as a command,
+  where a move nested the copy inside a directory already at the version's name;
+  the failed download's clause names a download that matches the lock's digest and that the install can keep;
+  and `prune --toolchain` says one of five things it read.
+  The README says which sentences its list holds.
+  Its whole test task passed 901 of 901 on its merged tree.
+  It left the rule behind the second-copy clause alone,
+  as its brief said,
+  and priced it:
+  keeping a second copy whose program differs means reading both programs on every recovery,
+  and still cannot tell a program cut short from one rebuilt at the same size.
+  The second,
+  on the move of `current`,
+  is merged (`d46572181c`).
+  A test can now make that move fail,
+  through a seam compiled out of a shipped build,
+  and two controls hold that nothing is removed when the link cannot be moved;
+  both fail with the `return` after the failed move taken out.
+  A control holds a hidden name whose boot and namespace both differ as ended,
+  and fails with the two comparisons swapped.
+  The warning after a failed listing no longer speaks of a copy,
+  because none was read.
+  Two behaviours stay as they are,
+  each held by a control and said in the README,
+  and each waits for the owner:
+  a move of `current` that fails once ends the run 1 and leaves the older version until `prune --toolchain`,
+  and a recovery that puts an unfinished copy back points `current` at the newest finished version.
+  Its whole test task passed 906 of 906 on its merged tree.
+  The round of issue 6630 got notes at 2026-11-27T17:35:16-05:00 and after this merge on what both rounds changed.
+  `0.2.7-alpha.17` follows the merge of issue 6630's round.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -2443,6 +2514,12 @@ and the two `truepeak` files wait on their branch.
   Clippy and whole test task run there:
   on 2026-11-27 three `mpm-shadow` rounds merged with no textual conflict,
   and the merged tree did not compile.
+  After a merge,
+  origin holds the tip before the next step:
+  when the commit service's push of `main` is refused with `GH009`,
+  it does not try again,
+  and one `git push origin main` clears it
+  (`doc/troubleshooting/github-lfs-integrity-rejection.md`).
   A release commit of the linter counts as such a change for the wrapper:
   it writes the new version into `Cargo.toml` and `Cargo.lock` of `package/git-policy/cli` and of its fuzz sidecar,
   so a wrapper branch that took `main` in before it is checked again with it.
@@ -2470,8 +2547,8 @@ and the two `truepeak` files wait on their branch.
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
 - When a tool's fix rounds have merged and `main` equals `origin/main`:
-  release `cargo-shadow` `0.1.5-alpha.16` once the round of issue 6629 has merged,
-  and `mpm-shadow` `0.2.7-alpha.17` once its rounds have,
+  release `cargo-shadow` `0.1.5-alpha.16` now,
+  and `mpm-shadow` `0.2.7-alpha.17` once the round of issue 6630 has merged,
   lock each on a branch worktree,
   install,
   put the session's `git` link back,

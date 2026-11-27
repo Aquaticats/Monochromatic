@@ -516,7 +516,8 @@
           "clippy",
           "rust-src",
           "llvm-tools",
-          "rustc-dev"
+          "rustc-dev",
+          "rustfmt"
         ],
         "rustTargets": [
           "aarch64-linux-android",
@@ -1681,5 +1682,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:dc7256be1699d2eef2c98a45ae6be7ad803bf6377825bc2033f783c9f2003a27"
+  "digest": "sha256:ee66199b52703e78e892e1d1b3d9a3607039fecd17f95463e348a1250b2a2d57"
 }

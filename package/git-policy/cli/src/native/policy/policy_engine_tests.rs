@@ -155,6 +155,7 @@ fn a_note_beside_an_error_finding_still_blocks() {
                     path: None,
                     location: None,
                     fix_available: false,
+                    commit_correction: None,
                 }],
                 notes: vec![PolicyNote {
                     message: String::from("it was left as it is"),
@@ -303,6 +304,7 @@ fn finding(code: &'static str) -> PolicyFinding {
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     };
 }
 
@@ -385,6 +387,7 @@ fn event(
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
 }
 
@@ -673,6 +676,7 @@ fn finding_details_reach_the_event() {
             byte_end: 5,
         }),
         fix_available: true,
+        commit_correction: None,
     };
     let (result, _) = run(
         Trigger::DirectCheck,
@@ -699,6 +703,7 @@ fn finding_details_reach_the_event() {
                     byte_end: 5,
                 }),
                 fix_available: true,
+                commit_correction: None,
             }),
             event(
                 Trigger::DirectCheck,

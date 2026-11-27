@@ -90,5 +90,6 @@ pub(crate) fn rejected(
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     }]);
 }
