@@ -114,6 +114,9 @@
 //! - `sweep_standing_mount_source.rs`:
 //!   one mount's source,
 //!   asked of the kernel by the mount's unique number.
+//! - `sweep_standing_mounts_kernel_table.rs`:
+//!   the kernel's mount table and the poll that says it changed,
+//!   and the seam a control answers with a table it built.
 //! - `sweep_standing_mounts.rs`:
 //!   whether a clone's own mount stands at its slot,
 //!   from one polled read of the kernel's mount table and that one mount's source.
@@ -222,6 +225,10 @@ pub mod sweep_first_attach;
 /// One mount's source,
 /// asked of the kernel by the mount's unique number.
 pub mod sweep_standing_mount_source;
+
+/// The kernel's mount table and the poll that says it changed,
+/// and the seam a control answers with a table it built.
+pub mod sweep_standing_mounts_kernel_table;
 
 /// Whether a clone's own mount stands at its slot,
 /// from one polled read of the kernel's mount table and that one mount's
