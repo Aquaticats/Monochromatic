@@ -16,8 +16,11 @@
  The count of unit test files a package holds is the harness's own discovery (`mise.toml`,
  `[task_templates."test:unit"]`): `**\/*.unit.test.ts` below the package, never a file under `node_modules`, and never a
  `*.expensive.*` file, which a run counts only when it is given `--all`. That count is read below the folder the task's
- path names, which is looked for in the folder the checks ran in and every folder above it, because mise gives a package's
- own task the package's folder as its working directory (`bin/native-ts-checks.ts` takes that folder by default).
+ path names, which is looked for in the folder the checks ran in and every folder above it up to the checkout, because
+ mise gives a package's own task the package's folder as its working directory (`bin/native-ts-checks.ts` takes that
+ folder by default). The harness's two further exclusions are not copied because neither can apply to a package's own
+ task: a file the run drops as inactive is dropped by its package-relative path, which never holds a paused tree's name,
+ and the files a package's `test` task owns are dropped only when the glob runs above that package.
  */
 import { glob, } from 'node:fs/promises';
 import {
@@ -27,6 +30,7 @@ import {
 
 import { countedText, } from './native-check-scope-bound-lines.ts';
 import {
+  checkoutMarkerName,
   type PathKind,
   pathKindOf,
 } from './native-gate-paths.ts';
@@ -206,11 +210,12 @@ function taskPartsOf({ task }: { readonly task: string; }): {
 }
 
 /**
- The folder a task's path names, looked for in the folder the checks ran in and every folder above it.
+ The folder a task's path names, looked for in the folder the checks ran in and every folder above it up to the checkout.
 
  `mise` gives a package's own task the package's folder as its working directory, so the folder the checks ran in is often
  the package itself and the task's path is only found above it; a run started at a checkout's root finds it there. The
- nearest folder wins, so a checkout inside another one is never read through the outer one.
+ nearest folder wins, and the search stops at the first folder that is a checkout's own, so a run never counts the files of
+ a package that lies outside the checkout it works in.
 
  @param path - the path the task named inside a checkout
 
@@ -253,11 +258,12 @@ async function folderHoldingPath({
     folder = above;
   }
   /**
-   What each folder holds under the task's path.
+   What each folder holds under the task's path, and whether it is a checkout's own folder.
    */
   const looked = await Promise.all(folders.map(async function kindUnder(folder): Promise<{
     readonly folder: string;
     readonly kind: PathKind;
+    readonly marker: PathKind;
   }> {
     return {
       folder,
@@ -265,20 +271,24 @@ async function folderHoldingPath({
         folder,
         path
       ), }),
+      marker: await pathKindOf({ path: join(
+        folder,
+        checkoutMarkerName
+      ), }),
     };
   },));
-  /**
-   The nearest folder that holds the path the task named.
-   */
-  const found = looked.find(function isFolder(candidate) {
-    return candidate.kind === 'folder';
-  },);
-  if (found === undefined)
-    return { kind: 'missing', };
-  return {
-    kind: 'found',
-    root: found.folder,
-  };
+  for (const candidate of looked) {
+    // The nearest folder that holds the path is the one the task named, and nothing above it belongs to this run.
+    if (candidate.kind === 'folder')
+      return {
+        kind: 'found',
+        root: candidate.folder,
+      };
+    // A checkout's own folder ends the search, so a package outside the checkout the run works in is never counted.
+    if (candidate.marker !== 'missing')
+      return { kind: 'missing', };
+  }
+  return { kind: 'missing', };
 }
 
 /**
@@ -339,6 +349,8 @@ async function expectationOfTask({
  @param packageDirectory - the package's directory
 
  @returns the files' paths relative to the package, in code unit order
+
+ @throws Error when the folder cannot be read, which is no answer about what it holds
 
  @example
  ```ts
@@ -594,6 +606,8 @@ function unitTestsOfNoPackageLines({
  @param worktree - the checkout the check ran in
 
  @returns the lines to print under the check's status, and whether the run counts as passed
+
+ @throws NativeGateError when a folder the task's path is looked for cannot be looked at
 
  @example
  ```ts

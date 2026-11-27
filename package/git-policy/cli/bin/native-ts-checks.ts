@@ -327,7 +327,8 @@ export type CheckResult = {
 
  @param check - the check and its outcome
 
- @param worktree - the checkout the check ran in, which a unit test file count is read from
+ @param worktree - the folder the checks ran in, in or above which a task's own path and so its unit test file count is
+ looked for
 
  @returns the status line, for a check that did not pass the lines that say why, the bound lines its scope earned, and
  whether the run counts the check as passed

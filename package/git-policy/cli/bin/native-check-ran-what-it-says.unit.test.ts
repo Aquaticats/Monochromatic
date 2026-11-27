@@ -332,6 +332,35 @@ await describe({
       },
     }),
     it({
+      name: 'never counts a package outside the checkout the run works in',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ran-what-', });
+        await writePackageFixture({
+          checkout: scratch.path,
+          packagePath: 'package/a',
+        });
+        // The folder the checks run in is a checkout's own, so the package above it belongs to another checkout.
+        await writeFixtureFile({
+          root: scratch.path,
+          path: 'checkout/.git',
+          text: 'gitdir: elsewhere\n',
+        });
+        /**
+         What a check earns for a package that lies outside the checkout it ran in.
+         */
+        const ran = await ranWhatItSaysOf({
+          task: '//package/a:test:unit',
+          output: outputOf({ lines: [suiteLine({ name: 'a', }),], }),
+          worktree: join(
+            scratch.path,
+            'checkout'
+          ),
+        });
+        expect(ran.refused,).toBe(true,);
+        expect(ran.lines.join('\n',),).toContain('no folder at or above',);
+      },
+    }),
+    it({
       name: 'counts the suites of a test:unit task that names no package, and derives no file count',
       fn: async () => {
         /**
@@ -380,6 +409,17 @@ await describe({
         expect(statement,).toContain('reports no count of the files it checked',);
         // The flag that would report it, which the task does not pass, is named.
         expect(statement,).toContain('--extendedDiagnostics',);
+        /**
+         What a bare task name earns, which is the same statement.
+         */
+        const bare = await ranWhatItSaysOf({
+          task: 'lint:types',
+          output: '',
+          worktree: import.meta.dirname,
+        });
+        expect(bare.lines,).toHaveLength(ran.lines.length,);
+        expect(bare.lines.join('\n',),).toContain('reports no count of the files it checked',);
+        expect(bare.refused,).toBe(false,);
       },
     }),
     it({
