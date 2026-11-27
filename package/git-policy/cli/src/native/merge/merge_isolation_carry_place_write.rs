@@ -1,5 +1,6 @@
 //! What:
-//!  The entry a carry's write makes:
+//!  The entry a carry's write makes,
+//!  and the mode and permission bits a path stands with:
 //!  a file created as Git's own checkout creates one,
 //!  a symbolic link,
 //!  and the permission bits a person set on their own entry.
@@ -28,6 +29,12 @@ use std::path::Path;
 /// The mode a symbolic link is recorded with.
 pub(crate) const SYMBOLIC_LINK_MODE: &str = "120000";
 
+/// The Git mode of an executable file.
+pub(crate) const EXECUTABLE_MODE: &str = "100755";
+
+/// The Git mode of an ordinary file.
+pub(crate) const PLAIN_FILE_MODE: &str = "100644";
+
 /// The bits a checkout creates a plain file with,
 /// before the file system narrows them.
 pub(crate) const THE_BITS_A_CHECKOUT_CREATES_WITH: u32 = 0o666;
@@ -35,6 +42,37 @@ pub(crate) const THE_BITS_A_CHECKOUT_CREATES_WITH: u32 = 0o666;
 /// The bits a checkout creates an executable file with,
 /// before the file system narrows them.
 pub(crate) const THE_BITS_A_CHECKOUT_CREATES_EXECUTABLE_WITH: u32 = 0o777;
+
+/// What:
+///  The mode Git records for what stands at a worktree path.
+/// Why:
+///   A link's bytes are its target text and Git records no mode of the file it points at,
+/// so the kind is read before
+///  the bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function modeOf(metadata): '120000' | '100755' | '100644';
+/// ```
+pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.file_type().is_symlink() {
+            return SYMBOLIC_LINK_MODE;
+        }
+        if metadata.permissions().mode() & 0o111 != 0 {
+            return EXECUTABLE_MODE;
+        }
+        return PLAIN_FILE_MODE;
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        return PLAIN_FILE_MODE;
+    }
+}
 
 /// What:
 ///  Whether a mode string is one of Git's own for a regular file,
@@ -169,6 +207,38 @@ pub(crate) fn write_entry(
 /// setgid and sticky bits above them,
 /// which are the ones Git records none of.
 pub(crate) const EVERY_PERMISSION_BIT: u32 = 0o7777;
+
+/// What:
+///  The permission bits a plain file carries,
+///  or nothing on a platform whose permissions are not these bits.
+/// Why:
+///  A capture keeps them because the merge may delete the path,
+///  and the read,
+/// write and special bits of the person's file are then nowhere else:
+///  Git records the executable bit alone,
+/// so a `chmod 0600` on a tracked `0644` file is invisible to Git.
+///  A path the merge writes takes Git's own mode instead,
+/// which the file system decides from the umask as it does for Git
+///  (`SPEC.md`,
+///  "Carry edits forward").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePermissions = (metadata) => process.platform === 'win32' ? undefined : metadata.mode & 0o7777;
+/// ```
+pub(crate) fn the_permissions(metadata: &std::fs::Metadata) -> Option<u32> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        return Some(metadata.permissions().mode() & EVERY_PERMISSION_BIT);
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        return None;
+    }
+}
 
 /// What:
 ///  Create a file with the bytes and the mode Git's own checkout creates one with,

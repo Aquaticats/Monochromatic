@@ -2,7 +2,8 @@
 //!
 //! What:
 //!  One control that reads the capability sets of a program started from this run's fixture root,
-//!  inside the namespace where that root takes a name that is not UTF-8.
+//!  inside the namespace where that root takes a name that is not UTF-8,
+//!  and one that the window a control states for its child is the window that child gets.
 //! Why:
 //!  The program a fixture starts there is Git,
 //!  and a capability Git holds is refused by the confinement that answers for it,
@@ -11,6 +12,10 @@
 //!  the `dac_override` section).
 //!  A control that reads the child's own `/proc/self/status` sees the state the kernel starts it in,
 //!  whatever the started program does afterwards.
+//!  The second control covers the window that child is given:
+//!  every control here runs its whole body in that child,
+//!  so a window that is not the one the control stated fails a body the host only made slow
+//!  (issue 6546).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,8 +26,22 @@
 //! ```
 
 use std::process::Command;
+use std::time::Duration;
 
 use super::in_a_fixture_root_taking_any_name;
+use crate::call_catching_panics::call_catching_panics;
+use crate::root_namespace_test_support::in_a_root_namespace_within;
+
+/// The variable that says which half of the deadline control a run is,
+/// set in that control's child alone.
+const THE_CHILD_HALF: &str = "CLI_GIT_TEST_WINDOW_STATED_CONTROL";
+
+/// How long the deadline control's body holds inside its child.
+const THE_BODY_HOLDS: Duration = Duration::from_secs(3);
+
+/// The window the deadline control states for its child,
+///  which is shorter than the body it runs.
+const THE_WINDOW: Duration = Duration::from_secs(1);
 
 /// The capability sets a program starts with,
 /// as the status file prints them.
@@ -139,4 +158,57 @@ fn capability_set_from(
         });
     return u64::from_str_radix(printed, 16)
         .unwrap_or_else(|error| panic!("the status file prints {set} as {printed}, which is not a hexadecimal capability word: {error}"));
+}
+
+/// What:
+///  The window a control states is the window the child that runs its body is given:
+///  a body that holds longer than that window is ended at it,
+///  and the failure names the figure the control stated.
+/// Why:
+///  A control whose body does more than a handful of files' work states its own window
+///  (`service_landing_state::awkward_change_lists_land_as_native_git_commits_them`,
+///  issue 6546),
+///  and a window that never reaches the child leaves such a control failing on the host's load instead;
+///  the default answers `CHILD_TEST_DEADLINE`,
+///  whose 120 s this control's own message would name.
+///  The child is this test binary on this test,
+///  so the body that holds is written here as the half that reads `THE_CHILD_HALF`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a stated window is the childs window', () => {
+///   if (process.env[THE_CHILD_HALF]) { sleep(THE_BODY_HOLDS); return; }
+///   const warned = catchingPanics(() => inARootNamespaceWithin(THE_CHILD_HALF, self, THE_WINDOW));
+///   assert(warned.message.includes(`did not end within ${secondsOf(THE_WINDOW)} s`));
+/// });
+/// ```
+#[test]
+fn the_window_a_control_states_is_the_window_its_child_gets() {
+    if std::env::var_os(THE_CHILD_HALF).is_some() {
+        std::thread::sleep(THE_BODY_HOLDS);
+        return;
+    }
+    let caught: std::thread::Result<bool> = call_catching_panics((), |()| {
+        return in_a_root_namespace_within(
+            THE_CHILD_HALF,
+            "testing::fixture_root_taking_any_name_of_unit_tests::tests::the_window_a_control_states_is_the_window_its_child_gets",
+            THE_WINDOW,
+        );
+    });
+    let Err(payload) = caught else {
+        panic!(
+            "the child that holds {THE_BODY_HOLDS:?} was not ended by the {:?} window the control stated for it",
+            THE_WINDOW
+        );
+    };
+    let words: Option<&str> = payload.downcast_ref::<&str>().copied();
+    let said: String = match payload.downcast_ref::<String>() {
+        Some(text) => text.clone(),
+        None => words.unwrap_or_default().to_string(),
+    };
+    let owed: String = format!("did not end within {} s", THE_WINDOW.as_secs_f64());
+    assert!(
+        said.contains(owed.as_str()),
+        "the failure names no {owed:?}, so the window the control stated did not reach its child: {said}"
+    );
 }
