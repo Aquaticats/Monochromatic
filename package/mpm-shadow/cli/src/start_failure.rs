@@ -102,14 +102,18 @@ fn nesting_note(depth: u32) -> String {
 }
 
 /// What:
-/// The cause and the remedy for a start the system refused because another program is writing the program's file.
+/// The cause and the remedy for a start the system refused because another process holds open for writing
+/// a file this start needs.
 /// Why:
-/// `execve` refuses a file that any process holds open for writing (`ETXTBSY`),
+/// `execve` refuses such a file (`ETXTBSY`),
 /// and both the shadow mode and the launcher mode meet that refusal,
 /// so the words live in one place and both say the same thing:
-/// a replacement is in progress,
-/// nothing is broken,
-/// and the same command works once the write has finished.
+/// some process holds open for writing a file this start needs,
+/// that file is the program itself or the interpreter named on its first line,
+/// this tool cannot tell which process holds it or why,
+/// and the same command works once the write has finished and left a whole program.
+/// It never names a usual cause and never claims a replacement is in progress:
+/// the refusal proves a write, and nothing about who writes or why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,9 +121,9 @@ fn nesting_note(depth: u32) -> String {
 /// ```
 pub fn being_written_cause_and_remedy(error: &Error) -> (String, String) {
     let cause: String = format!(
-        "the program's file is open for writing by another program ({error}): the system does not start a file that any process holds open for writing. An upgrade or an install of that program is the usual cause, because it writes the new copy there before anything can start it"
+        "the system refused to start it because a file this start needs is open for writing by some other process ({error}): the program itself, or the interpreter named on the program's first line (`#!`). mpm-shadow cannot tell which process holds that file, or why it holds it"
     );
-    let remedy: String = "run the same command again once that write has finished: nothing of this command ran, and the same command works as soon as the program's file is no longer being written".to_string();
+    let remedy: String = "run the same command again once that process has finished with the file: nothing of this command ran, so nothing has to be undone, and the start succeeds as soon as the file is free and whole. If a write was cut short, the file is a broken program or interpreter, and starting it again will not work: install or upgrade it again, which writes a whole new copy into place".to_string();
     return (cause, remedy);
 }
 
@@ -152,8 +156,11 @@ fn cause_and_remedy(failure: &StartFailure) -> (String, String) {
             format!("give the program execute permission (`chmod +x {program}`) and make sure every directory on its path can be searched, then run the command again"),
         ),
         ErrorKind::NotFound => (
-            format!("the program, or the interpreter named on its first line (`#!`), does not exist ({})", failure.error),
-            "check that the program still exists and that the interpreter named on its first line is installed, then run the command again".to_string(),
+            format!(
+                "the program, or the interpreter named on its first line (`#!`), is not there ({}). A program can be gone because an install or an upgrade moved it aside and has not yet named the new copy into place, so a start that lands between those two steps finds nothing; an interpreter can be missing because it is not installed",
+                failure.error
+            ),
+            "run the same command again: an install or an upgrade that had moved the program aside has finished by then. If the program, or the interpreter its first line names, is still missing, install it again".to_string(),
         ),
         _ => (
             format!("the operating system could not start the program ({})", failure.error),

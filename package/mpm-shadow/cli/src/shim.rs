@@ -107,6 +107,7 @@ use crate::real_binary::find_in_path;
 use crate::shadow_identity::{
     ARRIVAL_EXIT_CODE,
     StartMode,
+    VetRefusal,
     Vetted,
     arrival_at_this_process,
     arrival_line,
@@ -278,9 +279,20 @@ pub fn start_and_wait(
     // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
     let vetted: Vetted = match vet(program) {
         Ok(checked) => checked,
-        Err(reason) => {
+        // What:     The system's own error is handed on with its kind, so the message is chosen by what happened.
+        // Why:      A program that is no longer there has to reach the missing-program arm: wrapped in a
+        //           text it reached the catch-all, which told the reader to run the missing program by hand.
+        Err(VetRefusal::NotOpened(error)) => {
             return ProgramRun::NotStarted {
-                error: std::io::Error::other(reason),
+                error,
+                retry: RetryReport::default(),
+            };
+        }
+        // What:     A shadow (or a launcher that leads to one) found at the moment of the start.
+        // Why:      Starting it would start a shadow, so the start is reported as refused.
+        Err(VetRefusal::LeadsToShadow(sentence)) => {
+            return ProgramRun::NotStarted {
+                error: std::io::Error::other(sentence),
                 retry: RetryReport::default(),
             };
         }
@@ -449,7 +461,14 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     let program: PathBuf = match find_in_path(SHADOWED_NAME, &path_variable, &own_path) {
         Some(found) => found,
         None => {
-            eprintln!("mpm-shadow: no real {SHADOWED_NAME} found on PATH");
+            // What:     The cause names every way the lookup can find nothing, and the next line names the remedy.
+            // Why:      A person who sees only one line and no remedy has to guess whether mpm is missing or out of order on PATH.
+            eprintln!(
+                "mpm-shadow: no real {SHADOWED_NAME} found on PATH: {SHADOWED_NAME} is not installed, every `{SHADOWED_NAME}` on PATH is this shadow or a launcher of one, or an install had moved the real `{SHADOWED_NAME}` aside at the moment of the lookup"
+            );
+            eprintln!(
+                "mpm-shadow: what to do: install the real `{SHADOWED_NAME}` (this shadow starts it and never provides it), or put its directory on PATH after this shadow's, then run the command again"
+            );
             return NOT_FOUND_EXIT_CODE;
         }
     };

@@ -29,6 +29,7 @@ use crate::shadow_identity::{
     IDENTITY_SECTION,
     MAX_LAUNCHER_HOPS,
     StartMode,
+    VetRefusal,
     arrival_line,
     arrival_value,
     birth_in,
@@ -355,17 +356,19 @@ fn vet_refuses_a_shadow_and_a_launcher_that_leads_to_one_and_accepts_a_real_prog
         &folder.path().join("real").join("grep"),
     );
 
-    let refused_shadow: String = vet(&shadow).err().expect("a shadow is refused");
-    let refused_launcher: String = vet(&launcher)
+    let refused_shadow = vet(&shadow).err().expect("a shadow is refused");
+    let refused_launcher = vet(&launcher)
         .err()
         .expect("a launcher of a shadow is refused");
 
     assert!(
-        refused_shadow.contains(own_identity()) && refused_shadow.contains("a shadow"),
+        refused_shadow.to_string().contains(own_identity())
+            && refused_shadow.to_string().contains("a shadow"),
         "{refused_shadow}"
     );
     assert!(
-        refused_launcher.contains("leads to") || refused_launcher.contains("or leads"),
+        refused_launcher.to_string().contains("leads to")
+            || refused_launcher.to_string().contains("or leads"),
         "{refused_launcher}"
     );
     assert!(vet(&real).is_ok());
@@ -460,16 +463,26 @@ fn a_program_that_cannot_be_read_is_still_started_by_its_path() {
 }
 
 #[test]
-fn a_missing_program_is_refused_with_its_path() {
+fn a_missing_program_is_refused_with_the_systems_own_answer_and_its_kind() {
     let folder = scratch();
     let missing: PathBuf = folder.path().join("no-such-program");
 
-    let reason: String = vet(&missing).err().expect("a missing program is refused");
+    let refused = vet(&missing).err().expect("a missing program is refused");
 
-    assert!(
-        reason.contains("no-such-program") && reason.contains("cannot be opened"),
-        "{reason}"
-    );
+    // What:     The error's own kind is the system's `NotFound`, and its text is the system's.
+    // Why:      The start's message is chosen by the kind: a text with no kind reached the catch-all arm.
+    match refused {
+        VetRefusal::NotOpened(error) => {
+            assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{error}");
+            assert!(
+                error.to_string().contains("No such file or directory"),
+                "{error}"
+            );
+        }
+        VetRefusal::LeadsToShadow(sentence) => {
+            panic!("a missing program is not a shadow: {sentence}")
+        }
+    }
 }
 
 #[test]

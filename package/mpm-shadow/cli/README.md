@@ -1517,11 +1517,15 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   `mpm install` in the tree (`mpm-shadow install -g` for the machine-global launcher,
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
-  A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
-  A start the system refused because another program is writing that file gets the same explanation the shadow mode gives:
-  the file is open for writing by another program,
-  which is what an upgrade or an install does while it writes the new copy,
-  and the same command works once that write has finished.
+  A file that vanishes between the check and the start still gets a `could not start` line:
+  the program is gone,
+  or the interpreter named on its first line is,
+  and the command that writes the tool's links again is the remedy for both.
+  A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
+  some process holds open for writing the program's file, or the interpreter named on its first line,
+  the shadow cannot tell which process holds it or why,
+  the same command works once that write has finished and left a whole program,
+  and a write cut short leaves a broken program, which installing the tool again replaces.
   The launcher does not retry it either,
   for the reason the shadow mode does not.
 - The launcher never reads `PATH` or the working directory,
@@ -1969,13 +1973,16 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   After a start that needed retries it says so once on standard error.
 - Explains,
   and never retries,
-  a start the system refused because another program is writing the program's file
+  a start the system refused because another process holds open for writing a file it needs
   (`ETXTBSY`,
   "Text file busy"):
-  the message says the file is open for writing by another program,
-  that an upgrade or an install is the usual cause,
-  and that the same command works once the write has finished.
-  It never names running the program by hand,
+  the message says the file is the program or the interpreter named on its first line,
+  that the shadow cannot tell which process holds it or why,
+  that the same command works once that write has finished and left a whole program,
+  and that a write cut short leaves a broken program, which installing it again replaces.
+  It never names a usual cause,
+  because no measurement shows one,
+  and it never names running the program by hand,
   which shows nothing once the write is over.
   There is no window for a retry to cover.
   Read from the code,
@@ -1994,7 +2001,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   and it is how `mpm` itself is installed and upgraded.
   A start that meets one of those renames instead of a write finds the program absent for 2.6 ms to 3.5 ms,
   because the archive install moves the old version directory aside before renaming the new one in,
-  and that is reported as the missing-program cause.
+  and it is reported as a program that is not there:
+  one cause and one remedy,
+  whichever of the lookup, the check on the open file and the start itself is the step that found nothing.
   A writer that does hold the published file open is outside this tool
   and keeps it for as long as its own work takes,
   which is why the refusal is explained rather than hidden behind a stall.

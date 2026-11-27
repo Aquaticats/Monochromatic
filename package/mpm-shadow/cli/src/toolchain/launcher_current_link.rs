@@ -218,10 +218,31 @@ pub fn missing_program_advice(facts: MissingProgram<'_>) -> String {
         (None, Some(used)) => format!("{}'s `current` link names {used}, but", facts.tool_id),
         (None, None) => format!("{} has no readable `current` link, so", facts.tool_id),
     };
-    let command: String = match facts.scope {
+    let command: String = repair_command(facts.scope, facts.lock_file);
+    return format!(
+        "{versions} no program named {name} was found under `current` or at the recorded path; {command}"
+    );
+}
+
+/// What:
+/// The one command that makes a launcher's links again in its scope.
+/// Why:
+/// `install` rebuilds the exposure directory and every launcher record from the lock,
+/// so it is the remedy for a missing program and for a program whose interpreter is missing as well;
+/// the machine-global scope has no checkout to run it in and names `mpm-shadow` instead of `mpm`,
+/// because only a worktree's `PATH` makes `mpm` this tool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function repairCommand(scope: ScopeKind, lockFile: string): string
+/// ```
+pub fn repair_command(
+    scope: ScopeKind,
+    lock_file: &Path,
+) -> String {
+    return match scope {
         ScopeKind::Repo => {
-            let tree: PathBuf = facts
-                .lock_file
+            let tree: PathBuf = lock_file
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_default();
@@ -234,7 +255,4 @@ pub fn missing_program_advice(facts: MissingProgram<'_>) -> String {
             "run `mpm-shadow install -g` to make the machine-global links again".to_string()
         }
     };
-    return format!(
-        "{versions} no program named {name} was found under `current` or at the recorded path; {command}"
-    );
 }
