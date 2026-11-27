@@ -780,7 +780,10 @@ Every build container's own cgroup was read every 250 ms:
 Podman gives each build container a scope of its own beside the harness's, so a step's peak and its own stall are
 readable per step;
 the harness's copy of the readings is in
-`~/temp/agent/size-the-gate-image-build-memory-2026-11-24/keep/arms/`,
+`~/temp/agent/size-the-gate-image-build-memory-2026-11-24/keep/arms/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 and the harness and the summariser that produced them are in that folder's `keep/harness/`.
 
 The arms ran in this order, host load at each start being what the day had:
