@@ -621,6 +621,20 @@ Branch `fix/claude-code-plugin-source-bash-sleep-prefix-review-fixes`:
 `lint:types` and `build` for `claude-code-plugin-bash-output-filter`,
 and `test:unit` with no `[FAIL]` line and the `startsWithRedirection` suite present.
 
+## Traffic since the merges
+
+A scan of main-session transcripts on 2026-11-27 at about 13:18 -05:00
+for Bash results that start with "Exit code 143 Command timed out after"
+found one since 2026-11-26,
+a `sleep 6; cat ...` on 2026-11-26 under the earlier hook (the scan's positive control),
+none between the two merges (12:49:47 to 13:14:31 -05:00),
+and none after.
+During those 25 minutes the live hook stopped redirection-led and backslash-newline `sleep` shapes,
+as the probe in the troubleshooting record shows,
+but no recorded main-session call hit one.
+The scan cannot see commands that REPL scripts run,
+whose results sit inside REPL output.
+
 ## Open
 
 - Re-run the probes in `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`

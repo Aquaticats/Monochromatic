@@ -83,12 +83,20 @@ Accepted consequences:
   a moved command is stopped 30 minutes after the move,
   or 10 in a `-p` run with a text prompt.
 - Claude Code refuses a call whose first statement is `sleep N` with N of 25 or more
-  ("Do not chain shorter sleeps to work around this block"),
-  and the second-pass review traced that check to the input as the model sent it,
+  ("Do not chain shorter sleeps to work around this block")
   before any hook runs,
-  so the prefix does not get such a call past it.
+  so the prefix does not get such a call past it:
+  live at 2026-11-27T13:19 -05:00,
+  `sleep 30 && printf g1-done > g1.out` was refused in 13 ms and never reached a `PreToolUse` logger,
+  while `sleep 20 && ...` reached the hook,
+  was prefixed and moved
+  (`doc/troubleshooting/claude-code-foreground-sleep-block.md` records the guard).
 - After a prefixed `sleep N & ...`,
   `$!` names the background subshell rather than the `sleep`.
+- The redirection-led and backslash-newline prefix cases and the `$!` difference were adopted by the implementing session
+  after the second-pass review of 2026-11-27,
+  open to the owner's veto,
+  as following from the owner's choice that clamped commands keep running.
 - The prefix relies on Claude Code reading only the first command word.
   A release that read further would stop prefixed sleeps at their timeout,
   so the behavior is re-probed after each Claude Code upgrade as

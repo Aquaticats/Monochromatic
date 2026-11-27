@@ -184,7 +184,9 @@ and moves instead of being stopped.
 Output,
 exit status and working directory are unchanged;
 only `$!` after a prefixed `sleep N &` names the background subshell instead of the `sleep`.
-Claude Code itself refuses a leading `sleep` of 25 seconds or more before the hook runs.
+Claude Code itself refuses a leading `sleep` of 25 seconds or more before the hook runs
+(probed live on 2026-11-27;
+see [`doc/troubleshooting/claude-code-foreground-sleep-block.md`](../../../doc/troubleshooting/claude-code-foreground-sleep-block.md)).
 The rule follows Claude Code 2.1.332's own check,
 traced in
 [`doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`](../../../doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md);

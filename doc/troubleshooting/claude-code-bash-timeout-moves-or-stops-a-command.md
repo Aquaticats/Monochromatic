@@ -154,7 +154,14 @@ which the review read as 25.
 The review traced that validation to the input as the model sent it,
 before the `PreToolUse` hooks run,
 so a hook's prefix does not get such a call past it.
-Neither the threshold nor the ordering was probed live.
+A live probe at 2026-11-27T13:19 -05:00 agrees,
+with the guard's flag `tengu_amber_sentinel` cached as `true`:
+`sleep 30 && printf g1-done > g1.out` was refused in 13 ms with "Blocked: sleep 30 followed by: printf g1-done"
+and never reached the `PreToolUse` logger placed first in the hook list,
+while `sleep 20 && printf g2-done > g2.out` reached it,
+was prefixed by this repository's hook,
+and moved at 2156 ms.
+`doc/troubleshooting/claude-code-foreground-sleep-block.md` records the guard itself.
 
 ## Verification
 
