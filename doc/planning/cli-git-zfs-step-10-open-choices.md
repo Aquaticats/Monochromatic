@@ -13,7 +13,10 @@ the second in `dc0635971e`,
 and the questions the second carried were built from a same-vendor read of it,
 whose full text is in that round's
 `keep/read-of-the-step-10-open-choices-revision.md`,
-under `~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`.
+under `~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That read is a second pass by a Claude model,
 not an independent review.
 
