@@ -126,9 +126,12 @@
 //!   the request,
 //!   the answer,
 //!   the parsed command line and the query context.
+//! - `the_configuration_listing_and_a_remote_address.rs`:
+//!   the two answers that read only the configuration:
+//!   the merged listing and the address of a remote.
 //! - `repo_read_query_refs.rs`:
 //!   in-process repository reads:
-//!   answers for the reference and configuration command lines.
+//!   answers for the reference command lines.
 //! - `repo_read_tree_cached.rs`:
 //!   in-process repository reads:
 //!   the part of a tree that differs from an index,
@@ -456,8 +459,13 @@ pub mod the_answers_about_commits_trees_and_objects;
 /// the parsed command line and the query context.
 pub mod repo_read_query_request_answer_and_context;
 
+/// The two answers that read only the configuration:
+/// the merged listing and the address of a remote.
+#[cfg(unix)]
+pub mod the_configuration_listing_and_a_remote_address;
+
 /// In-process repository reads:
-/// answers for the reference and configuration command lines.
+/// answers for the reference command lines.
 #[cfg(unix)]
 pub mod repo_read_query_refs;
 
