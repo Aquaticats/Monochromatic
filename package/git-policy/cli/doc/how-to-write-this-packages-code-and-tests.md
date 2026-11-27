@@ -286,6 +286,18 @@ A child must not keep the test's standard output or error open after the test:
 close or redirect the streams it does not need.
 `lfs::lfs_upload`'s `git-lfs` stand-in, which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
 is the shape that leaked.
+A helper whose state a control reads is one the control ends, never one that ends by itself:
+`identity_of_process` and `process_birth_identity` answer nothing for a process that has exited,
+so a control that reads one passes or fails by how fast this host woke its thread.
+Such a helper waits for its own end (`sleep` with a hold the control states,
+`cat` on a pipe the control holds), and the control kills it before it asserts on what a gone number means.
+On 2026-11-27 the record sweep control read the identity of `talk`,
+which printed its usage and exited at once,
+so the read lost that race whenever the host was slow (issue 6574).
+Every other helper a control of this crate expects to be alive
+is a `sleep` with its own argument,
+a `cat` or `tee` on a pipe the control holds,
+or a shell running a script that waits.
 A child a shipped call starts itself is still the test's to end:
 a control of the relay's end rule starts the child with `process_group(0)`,
 has that child write down the number of the group it leads,
