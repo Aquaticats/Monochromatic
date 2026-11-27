@@ -30,8 +30,9 @@ export const BATCH_UNIT_SECONDS = 172_800;
 export const BATCH_UNIT_CPU_PERCENT = 400;
 
 /**
- The memory the batch's unit may hold. Each launcher makes a worktree, and the wrapper's `git worktree add` copies the checkout's
- ignored files into it, which fits in this several times over; the runs they start are bounded by their own units.
+ The memory the batch's unit may hold. It was sized while every launcher ran `pnpm install --offline` in the worktree it had
+ just made; a launcher now only waits while the wrapper's `git worktree add` copies the checkout's ignored files, so the value
+ is kept as it was, and what that copy needs is not measured here. The runs they start are bounded by their own units.
  */
 export const BATCH_UNIT_MEMORY = '16G';
 

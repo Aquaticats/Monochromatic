@@ -522,7 +522,7 @@ and a command of this package runs from the package's own folder.
 On 2026-11-11 that refusal ended all ten starts of a batch before any of them made a worktree.
 
 The worktree holds what the checkout held when the add filled it:
-every tracked file at the base,
+the files the branch has checked out,
 and the checkout's ignored files copied in,
 `node_modules`, the build folders and the toolchain launchers among them
 (`package/git-policy/cli/README.md`,
@@ -538,10 +538,12 @@ it hands `pnpm install --offline --frozen-lockfile` and `mpm-shadow install --fr
 in a record the service runs after the add returns,
 and where none answers it runs them itself.
 pnpm's relink runs where `pnpm-lock.yaml` and `node_modules` are both there;
-a worktree whose copy ended before it reached them is filled by the next command run in it.
+a worktree whose copy ended before it reached them is filled by the next command run in it;
+and a checkout that held no `node_modules` at all has none to copy,
+so its worktree has none for pnpm's relink to rewrite.
 
 This launcher runs no install of its own.
-That relink is the install the worktree needs,
+That relink is the install a copied worktree needs,
 so a second one started in the same window is what left two worktrees on 2026-11-21
 whose ignored-state copy could never finish,
 with a warning about each on every `git` command of every session until they were removed
@@ -554,8 +556,7 @@ and its status stopped nothing and named nothing a reader could act on
 (issue 6418).
 It now prints one line saying where the worktree's `node_modules` comes from.
 A worktree this launch found already there took no add of its own,
-so this launch hands no relink over:
-the record the add that filled it wrote is the one the service runs.
+so this launch hands no relink over and installs nothing.
 
 For as long as the service has not run that record,
 the worktree holds the copied links,
@@ -568,6 +569,21 @@ the wrapper's own reading of that cost is in
 Whether a launcher should wait for the relink is open,
 and the signal it would wait on is part of what issue 6339 records as owed:
 this package waits for no signal it does not have.
+
+Three further cases are open, and no record decides them.
+A checkout that held no `node_modules` when the add filled the worktree
+copies nothing for pnpm's relink to rewrite,
+so the run starts without dependencies;
+the install this launcher ran until 2026-11-27 made them from the offline store
+whenever the store held every tarball.
+A worktree that was already there holds what the add that made it left,
+which nothing here hands a relink over for or checks;
+the install this launcher used to run applied to it as well.
+And the `git` this launcher makes the worktree with is the one its own `PATH` names,
+while the preflight above checks the `git` the session would run:
+a plain `git worktree add` copies no ignored files and relinks nothing,
+so the line this launcher prints would be wrong about such a worktree,
+and the run would start without the dependencies the checkout holds.
 A run that finds something its build needs missing names it in its report
 (`doc/rules-every-pi-brief-carries.md`).
 

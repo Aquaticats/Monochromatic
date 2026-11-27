@@ -293,8 +293,10 @@ if (!readOnlyInMain) {
   // answers (`package/git-policy/cli/README.md`, "Package-manager state in a new worktree"). A second install started in that
   // window is what left two worktrees on 2026-11-21 whose copy could never finish, with a warning about each on every `git`
   // command of every session until they were removed (issue 6339), so this launcher leaves the relink to its owner and says
-  // where the worktree's `node_modules` comes from instead of reporting a status of its own.
-  console.log('dependencies: the wrapper\'s worktree add copies node_modules and relinks it; this launcher installs nothing (issue 6339)',);
+  // where the worktree's `node_modules` comes from instead of reporting a status of its own. The add is run by the `git` on this
+  // command's own `PATH`, so all of that rests on that program being the wrapper; `README.md` names what is open about it, and
+  // about a checkout that held no `node_modules` and a worktree that was already there.
+  console.log('dependencies: the worktree add copies node_modules and relinks it; this launcher installs nothing (issue 6339)',);
 }
 
 await mkdir(

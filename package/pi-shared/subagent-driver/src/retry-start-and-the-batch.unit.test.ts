@@ -752,7 +752,7 @@ await describe({
               name: 'a',
               started: {
                 status: 1,
-                output: 'worktree add: status 0\ndependencies: the wrapper\'s worktree add copies node_modules and relinks it; this launcher installs nothing (issue 6339)\nsomething broke\n',
+                output: 'worktree add: status 0\ndependencies: the worktree add copies node_modules and relinks it; this launcher installs nothing (issue 6339)\nsomething broke\n',
               },
             },),).toBe('a: status 1 something broke',);
           },
