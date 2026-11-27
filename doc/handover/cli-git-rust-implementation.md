@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:50:42-05:00
+## The state at 2026-11-27T14:04:49-05:00
 
-`main` was `739bccb167`.
+`main` was `2f5cc0aeb7`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 245 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 246 more by this time.
 
 ### Rounds running
 
@@ -154,12 +154,26 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (346 folders named `*-scratch` under `~/temp/agent`,
   counted 2026-11-27T13:26);
 - for the wrapper's `0.6.1-alpha.49` behaviour pass,
-  three rounds started 2026-11-27T13:02:42-05:00 from one list still run,
+  two rounds started 2026-11-27T13:02:42-05:00 from one list still run,
   each named `wrapper-alpha-49-release-pass-` and then:
-  `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`;
-  `every-sentence-that-names-a-process-shows-its-name-safely`;
+  `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`
   and `four-small-points-of-the-behaviour-read`.
-  The fourth is merged (`739bccb167`):
+  The round on process names is merged (`946cbeb0a2`):
+  it found eighteen places that printed a name another program chose with no escape,
+  where the read named five,
+  and each now escapes for what wraps the name in its sentence,
+  parentheses or backticks,
+  through one function;
+  the weaker second escaper is gone,
+  and its masking of a URL's user name stays as its own function;
+  a guard lists the eighteen sentences and fails on a `format!` that reads such a name without the escape.
+  With a program named to close the parenthesis and erase the line,
+  the released alpha.49 printed the name raw in one of two sentences of one wait,
+  and the branch's build escapes it in both.
+  The whole `source_guard` module passed on the pinned tree at `946cbeb0a2`,
+  203 of 203,
+  which is the first run of the three merged rounds' guards together.
+  The round on the merge pass is merged (`739bccb167`):
   the merge pass no longer writes back a line a side removed when both sides only deleted lines.
   It refuses an answer that holds more copies of a line than both sides hold,
   or whose lines are in an order one side does not hold,
@@ -420,6 +434,12 @@ a Claude Sonnet read of `mpm-shadow`'s `0.2.7-alpha.15`
 (same vendor as some of the authors,
 so a second pass and not an independent review),
 at the path this section gives beside that release.
+Its first agent was cut off by a usage limit with twenty transcripts kept and no review written
+(its last write was at 2026-11-27T13:55:43-05:00);
+a second agent,
+started 2026-11-27T14:04:19-05:00,
+checks those transcripts,
+does the items they leave open and writes the review.
 The coordinator rewrites what lasts from it into this file before scratch expires.
 
 What `cargo-shadow`'s alpha.14 read found
