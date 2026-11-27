@@ -364,7 +364,7 @@ pub fn with_leading_notice(
 /// ```ts
 /// function failureAfter(printedSoFar: string, message: string): Action;
 /// ```
-pub fn failure_after(
+pub(crate) fn failure_after(
     printed_so_far: &str,
     message: &str,
 ) -> Action {
