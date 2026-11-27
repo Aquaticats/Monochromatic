@@ -17,7 +17,7 @@ logs, so any misreading of a log line is the writer's, not the probe's.
   (`git describe --tags --exact-match` answered `zfs-2.4.4`;
   scratch,
   deleted on 2026-11-27;
-  not kept).
+  what this record uses from it is stated here).
   The module running on this machine is `2.4.4-1`
   (`/sys/module/zfs/version`), so the tag is the right one to read.
 - Linux v6.17 sources fetched whole and read: `fs/namespace.c`, `fs/namei.c`, `fs/open.c`,
