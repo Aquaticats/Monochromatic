@@ -71,9 +71,9 @@ pub(crate) use crate::worktree_snapshot_stubs::{
 };
 use crate::worktree_trash::{
     Pruned,
-    TrashManifest,
     prune_snapshot,
 };
+use crate::worktree_trash_manifest::TrashManifest;
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;

@@ -128,7 +128,7 @@ pub struct LadderResult {
     /// The trash that snapshot left in the destination,
     /// when it left one.
     #[cfg(target_os = "linux")]
-    pub trash: Option<crate::worktree_trash::PendingTrash>,
+    pub trash: Option<crate::the_names_and_the_manifest_of_the_trash::PendingTrash>,
     /// The durable record of this add,
     /// for the copy that fills the destination to own until its journal exists.
     pub claim: Option<StageClaim>,

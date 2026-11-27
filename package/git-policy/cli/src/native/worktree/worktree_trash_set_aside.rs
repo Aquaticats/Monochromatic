@@ -24,10 +24,6 @@
 //! const { Trash, makeTrash, reopenTrash } = setAside;
 //! ```
 
-use super::{
-    TRASH_PARENT,
-    TrashManifest,
-};
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{
     ObjectId,
@@ -40,10 +36,12 @@ use crate::fs_beneath::{
 };
 use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::random_id::random_uuid;
+use crate::the_names_and_the_manifest_of_the_trash::TRASH_PARENT;
 use crate::worktree_path_failure_message::{
     path_failure,
     subject_failure,
 };
+use crate::worktree_trash_manifest::TrashManifest;
 use std::ffi::{
     OsStr,
     OsString,
