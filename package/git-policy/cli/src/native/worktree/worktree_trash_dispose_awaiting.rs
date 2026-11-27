@@ -30,11 +30,37 @@ use crate::work_item::WorkItem;
 use crate::worktree_trash_dispose::delete_trash_awaiting;
 use crate::worktree_trash_manifest::TrashManifest;
 
-/// The point a control holds to keep a trash running while it checks what the service did meanwhile;
-/// it is reached on whichever thread runs the trash,
-/// and inert unless a control asks for it.
+/// What:
+///  The point at which the trash `item` names begins,
+///  for a control that holds it while it checks what the service did meanwhile
+///  (`service_fault_hooks_test_support.rs`).
+/// Why:
+///   The point names the record whose trash is emptied,
+///  so two controls of one process hold the beginning of their own trash and neither answers the other (issue 6543),
+///  as `collection_point` names the directory it collects and `instance_read_point` the directory it reads.
+///  It is reached on whichever task runs the trash,
+///  and inert unless a control asks for it.
+/// Gotcha:
+///  The point names the record's object and not its repository:
+/// a trash record's id is its kind and its object alone (`WorkItem::id`),
+/// so the second trash of one repository reaches a point of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const insideASlowStepPoint = (item: WorkItem) => `inside-a-slow-step-of-${item.oid}`;
+/// ```
 #[cfg(test)]
-pub(crate) const INSIDE_A_SLOW_STEP: &str = "inside-a-slow-step";
+pub(crate) fn inside_a_slow_step_point(item: &WorkItem) -> String {
+    // What:     `format!` builds an owned `String`, a heap-allocated growable UTF-8 buffer whose sibling is the
+    //           borrowed `&str`, from the template and the record's object.
+    // Why:      the hold registry keeps the point after this call returns, so the text cannot be a slice of `item`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return `inside-a-slow-step-of-${item.oid}`;
+    // ```
+    return format!("inside-a-slow-step-of-{}", item.oid);
+}
 
 /// What:
 ///  Empty the trash directory the manifest of `item` describes,
@@ -52,7 +78,7 @@ pub async fn empty_trash_awaiting(item: &WorkItem) -> Verdict {
     // A control holds the service here, which is where this kind's slow step begins and before any path of the record is used,
     //  so a control can say what the round did while the trash ran. The release executable keeps nothing of it.
     #[cfg(test)]
-    crate::service_fault::hooks::await_on_any_thread(INSIDE_A_SLOW_STEP).await;
+    crate::service_fault::hooks::await_on_any_thread(inside_a_slow_step_point(item).as_str()).await;
     let manifest: TrashManifest =
         match TrashManifest::decode(item.oid.as_str(), item.parent.as_str()) {
             Ok(found) => found,
