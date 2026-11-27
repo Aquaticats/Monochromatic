@@ -20,7 +20,7 @@
 # What changed on 2026-11-27: this list keys every entry by its module path and member, and covers the three shapes
 #       the first version could not read (a qualified function, a field or method of a published type, and a
 #       re-export over several lines). The surface it names is the same one 0.6.1-alpha.49 published; the entries
-#       grew from 6,695 to 12,400 because a member is a name too.
+#       grew from 6,695 to 12,396 because a member is a name too.
 #
 # Named by another crate of this package, which is what needs the reach: the fuzz sidecar
 # (`package/git-policy/cli.fuzz`), the executable target (`src/native/main.rs`) and the two integration test
