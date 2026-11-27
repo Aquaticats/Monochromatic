@@ -419,6 +419,84 @@ where C's figure holds only for stalls no longer than the one that sized it.
 C beats A because A leaves the refusal recurring under load,
 which this host has every day.
 
+## Open: where the wrapper package's TypeScript unit tests and lint run (issue 6584, recorded 2026-11-27T08:32:56-05:00)
+
+On 2026-11-27 the wrapper package's TypeScript side was found red on `main` with nothing running it:
+`test:unit` failed two files and `lint:oxlint` reported 850 errors.
+The unit tests are fixed (issues 6579 and 6580);
+the lint has four rounds (issue 6581).
+The release gate runs the Rust suite and Clippy,
+and what the gate runs is recorded as the owner's.
+The proposal is `doc/planning/git-policy-cli-where-the-typescript-unit-tests-and-lint-run.md`.
+
+What the three checks cost,
+measured once on this host:
+`lint:types` 2.8 s and 0.45 GB,
+`lint:oxlint` 12.8 s and 1.0 GB,
+`test:unit` 22.2 s and 4.5 GB,
+37.8 s one after another.
+
+- A:
+  inside the release gate,
+  as a third check beside the suite and Clippy,
+  run on the host inside the gate's unit.
+  It runs whenever a batch's gate runs,
+  and a refusal names it.
+  A TypeScript failure then turns a batch's gate red.
+- C:
+  at the coordinator's tip check after a batch of merges,
+  through the package's `native:ts-checks`.
+  It answers before the gate starts;
+  it is a routine,
+  and a routine that lapses does so silently,
+  which is what happened.
+- B:
+  a unit beside the gate,
+  started with it.
+  A second verdict to read,
+  with nothing tying the two together.
+- E:
+  a CI workflow of its own,
+  filtered by path.
+  It reports without anyone deciding to run it,
+  on a surface that was not read:
+  `forbidden-strings` failed on `main` on each of the last three pushes.
+- D:
+  the advisory CI workflow's fast subset,
+  whose budget of eight runs a day misses most merges.
+- F:
+  in every round that changes the package,
+  before its branch merges.
+  It cannot see a break two branches make together.
+- G:
+  required checks on pull requests,
+  as comparable repositories do,
+  which the recorded merge bar rules out.
+
+Ranking,
+the round's:
+A > C > B > E > D > F > G,
+by how soon and how surely a red check is seen by someone who was not watching.
+A beats C because the gate is what a release waits for,
+so its step cannot lapse unnoticed.
+C beats B because it adds one command to a step that happens anyway and answers first.
+B beats E because its answer is read where the batch's green is declared.
+E beats D because it runs on every matching push.
+D beats F because it needs no brief to be obeyed.
+F beats G because G cannot run without pull requests.
+
+The proposal's other questions:
+whether a red check may hold a merge;
+whether the placement lands before or after issue 6581 is fixed,
+since a gate that runs the lint while it is red refuses every batch;
+what memory bound the step gets;
+and whether `native:ts-checks` should run `lint:oxlint` by default.
+
+Until an answer,
+the coordinator runs C by hand:
+`test:unit`,
+`lint:types` and `lint:oxlint` on `main` with each batch check.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.

@@ -142,16 +142,19 @@ const kept: {
  ```
  */
 export async function removeKeptMachines(): Promise<void> {
-  for (const held of kept) {
+  // Every machine is removed in the same step: they are independent containers this run started, and the removal of one
+  // says nothing about the next, so none of them waits for another. A run that asked to keep its machines prints one
+  // line each and removes none.
+  await Promise.all(kept.map(async function removeOneMachine(held) {
     if (process.env
       .GPC_KEEP_CONTAINER
       !== undefined) {
       console.log(`machine ${held.machine
         .container} was kept for diagnosis`);
-      continue;
+      return;
     }
     await stopMachine(held,);
-  }
+  },));
   kept.length = 0;
 }
 
