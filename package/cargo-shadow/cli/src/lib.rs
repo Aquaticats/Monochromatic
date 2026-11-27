@@ -68,12 +68,6 @@ pub mod journal;
 /// conditional replace).
 pub mod journal_replace;
 
-/// What one replacement answered and where the file it displaced is kept (split out of the journal replacement module).
-pub mod journal_replace_outcome_and_keep_rule;
-
-/// Making the names a file is published under durable and exclusive (split out of the journal replacement module).
-pub mod journal_replace_creates;
-
 /// The directories a creation left unsynchronized (split out of the journal replacement module).
 pub mod journal_replace_unsynced;
 
@@ -130,12 +124,6 @@ pub mod journal_unready_record_context;
 
 /// Runs a child process within a time bound.
 pub mod bounded_run;
-
-/// What one bounded call is allowed and how it fails (split out of the bounded run module).
-pub mod bounded_run_bound_and_error;
-
-/// The open scope of one run as this process remembers it (split out of the bounded run module).
-pub mod bounded_run_scope;
 
 /// The trace of a run and the hooks a test drives inside one (split out of the bounded run module).
 pub mod bounded_run_trace_and_hooks;
@@ -210,9 +198,6 @@ pub mod file_owner;
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
-/// Reads one table of the crates.io database dump (split out of `dump.rs`).
-pub mod dump_table_reading;
-
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
@@ -226,11 +211,6 @@ pub mod git_system_config_lookup;
 /// The reader of the few Git configuration keys the trust base needs,
 /// without Git.
 pub mod git_config;
-
-/// The character lexer of Git configuration text:
-/// the section header,
-/// the value and the key readers (split out of the Git configuration module).
-pub mod git_config_lexer;
 
 /// The plain-file reader of `HEAD` and of where a repository's files are that chooses the trust base without Git.
 pub mod git_refs;
@@ -246,13 +226,6 @@ pub mod git_refs_environment;
 /// from the object files,
 /// that an object name in a reference names a commit.
 pub mod git_objects;
-
-/// The check that a commit stored in a pack file is a commit (split out of the git objects module).
-pub mod git_objects_packed_commit;
-
-/// The reader of a version 2 pack index:
-/// its fan-out table and the offset of one object's entry (split out of the git objects module).
-pub mod git_objects_pack_index;
 
 /// The reading of the Git configuration files in Git's order,
 /// split out of `git_refs.rs`.
@@ -294,10 +267,6 @@ pub mod install_error;
 /// Replaces refused new versions with the newest older release that passes.
 pub mod set_aside;
 
-/// The choice of an older release for a refused version:
-/// the release-age and trust checks it must pass (split out of the set-aside module).
-pub mod set_aside_older_release_choice;
-
 /// The shadow's install step:
 /// fingerprint fast path,
 /// then the install over one workspace.
@@ -311,10 +280,6 @@ pub mod notice_marker;
 
 /// The crates.io lookups.
 pub mod registry;
-
-/// crates.io through a fetcher,
-/// with the API limits it keeps (split out of the registry module).
-pub mod registry_crates_io;
 
 /// Reading crates.io's answers and the history cache into records (split out of the registry module).
 pub mod registry_record_reading;
@@ -337,10 +302,6 @@ pub mod shadow_step;
 
 /// The shadow's answer to `cargo update` and `cargo generate-lockfile`.
 pub mod shadow_update;
-
-/// Running one update of either kind,
-/// and the stand-in lockfile a full update writes (split out of the shadow update module).
-pub mod shadow_update_run;
 
 /// The rule that a shadow never starts a shadow:
 /// the identity every shadow carries,

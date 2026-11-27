@@ -69,6 +69,16 @@
 //!   and the proof that one of them is gone.
 //! - `lock_holder_record_reads.rs`:
 //!   what the wrapper's records of the processes it started say about a lock's holder.
+//! - `single_owner_claim_record.rs`:
+//!   the text of one claim file and the record it reads back as.
+//! - `single_owner_claim_files.rs`:
+//!   the numbered claim files one item's claims are kept in:
+//!   their generation names,
+//!   the private file every write goes through,
+//!   and the publishing,
+//!   reading and releasing of one.
+//! - `single_owner_claim_liveness.rs`:
+//!   the owner a claim names and whether that process still runs.
 //! - `single_owner_claim.rs`:
 //!   the numbered claim files that let exactly one command work on one worktree or checkout,
 //!   without a lock.
@@ -305,6 +315,22 @@ pub(crate) mod stale_ref_lock_killed_git;
 /// for the controls.
 #[cfg(test)]
 pub(crate) mod stale_ref_lock_stage;
+
+/// The text of one claim file and the record it reads back as.
+#[cfg(target_os = "linux")]
+pub mod single_owner_claim_record;
+
+/// The numbered claim files one item's claims are kept in:
+/// their generation names,
+/// the private file every write goes through,
+/// and the publishing,
+/// reading and releasing of one.
+#[cfg(target_os = "linux")]
+pub mod single_owner_claim_files;
+
+/// The owner a claim names and whether that process still runs.
+#[cfg(target_os = "linux")]
+pub mod single_owner_claim_liveness;
 
 /// The numbered claim files that let exactly one command work on one worktree or checkout,
 /// without a lock.

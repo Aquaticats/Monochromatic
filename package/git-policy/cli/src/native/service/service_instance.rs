@@ -269,7 +269,7 @@ pub const EARLIER_RELEASES_PROGRAM_POINTER: &str = "service-program";
 /// The path of the link the releases before this one named in their unit texts.
 pub fn earlier_releases_program_pointer(runtime_dir: &Path) -> PathBuf {
     return crate::service_provision_host_and_manager::runtime_unit_dir(runtime_dir)
-        .join(crate::service_files_of_a_stopped_instance::NOTES_FOLDER)
+        .join(crate::service_files_of_a_stopped_instance_note_beside_socket::NOTES_FOLDER)
         .join(EARLIER_RELEASES_PROGRAM_POINTER);
 }
 

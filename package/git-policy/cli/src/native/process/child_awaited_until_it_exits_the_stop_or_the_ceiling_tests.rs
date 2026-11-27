@@ -326,6 +326,10 @@ fn a_program_the_step_started_is_ended_with_it() {
 ///   The ceiling must not take over the answer when the service is shutting down:
 ///   that stop is reported as itself,
 ///   so the command says the service stopped it rather than that it ran too long.
+///   The stop and the pipe the handler wakes the shutdown through belong to the whole process,
+///   so this control runs its body in a child of its own
+///   (`crate::process_wide_state_child_test_support`),
+///   as issue 6531 found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -334,54 +338,60 @@ fn a_program_the_step_started_is_ended_with_it() {
 #[cfg(unix)]
 #[test]
 fn a_stop_of_the_service_ends_the_step_before_its_ceiling() {
-    use crate::stop_of_the_service_noticed_by_its_children::{
-        Settled,
-        prepare_to_notice,
-        record_from_a_signal_handler,
-        tell_the_stop_and_wait_for_the_work,
-        wake_the_shutdown_from_a_signal_handler,
-    };
-    prepare_to_notice().expect("the wake pipe");
-    let step: Child = a_step_that_never_answers();
-    let result: (
-        std::io::Result<(ChildOutcome, Option<CeilingStop>)>,
-        Settled,
-    ) = crate::lazy_runtime::run_on_runtime(async {
-        // The count is held until the wait answers, as the relay holds it, so the shutdown sees this step as work in
-        //  flight and nothing else.
-        let (unfinished, stop): (
-            crate::stop_of_the_service_noticed_by_its_children::Unfinished,
-            Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>,
-        ) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child(
-            "a step",
-        )
-        .expect("counted work");
-        assert!(stop.is_some(), "the service hands each waiter an arm");
-        return tokio::join!(
-            async move {
-                let answered = wait_until_it_exits_the_stop_or_the_ceiling(
-                    adopt(step),
-                    stop,
-                    Ceilings::of(Duration::from_secs(60)),
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_stop_of_the_service_ends_the_step_before_its_ceiling",
+        || {
+            use crate::stop_of_the_service_noticed_by_its_children::{
+                Settled,
+                prepare_to_notice,
+                record_from_a_signal_handler,
+                tell_the_stop_and_wait_for_the_work,
+                wake_the_shutdown_from_a_signal_handler,
+            };
+            prepare_to_notice().expect("the wake pipe");
+            let step: Child = a_step_that_never_answers();
+            let result: (
+                std::io::Result<(ChildOutcome, Option<CeilingStop>)>,
+                Settled,
+            ) = crate::lazy_runtime::run_on_runtime(async {
+                // The count is held until the wait answers, as the relay holds it, so the shutdown sees this step as work in
+                //  flight and nothing else.
+                let (unfinished, stop): (
+                    crate::stop_of_the_service_noticed_by_its_children::Unfinished,
+                    Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>,
+                ) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child(
                     "a step",
-                    WhatTheCeilingIsTold::alone(),
                 )
-                .await;
-                drop(unfinished);
-                return answered;
-            },
-            async {
-                tokio::time::sleep(Duration::from_millis(300)).await;
-                assert!(record_from_a_signal_handler(libc::SIGTERM));
-                assert!(wake_the_shutdown_from_a_signal_handler());
-                return tell_the_stop_and_wait_for_the_work(Duration::from_secs(60)).await;
-            }
-        );
-    })
-    .expect("the runtime");
-    let error: std::io::Error = result.0.expect_err("a stopped step has no outcome");
-    assert!(crate::child_watch::is_ended_by_stop(&error), "{error}");
-    assert_eq!(result.1, Settled::Completely);
+                .expect("counted work");
+                assert!(stop.is_some(), "the service hands each waiter an arm");
+                return tokio::join!(
+                    async move {
+                        let answered = wait_until_it_exits_the_stop_or_the_ceiling(
+                            adopt(step),
+                            stop,
+                            Ceilings::of(Duration::from_secs(60)),
+                            "a step",
+                            WhatTheCeilingIsTold::alone(),
+                        )
+                        .await;
+                        drop(unfinished);
+                        return answered;
+                    },
+                    async {
+                        tokio::time::sleep(Duration::from_millis(300)).await;
+                        assert!(record_from_a_signal_handler(libc::SIGTERM));
+                        assert!(wake_the_shutdown_from_a_signal_handler());
+                        return tell_the_stop_and_wait_for_the_work(Duration::from_secs(60)).await;
+                    }
+                );
+            })
+            .expect("the runtime");
+            let error: std::io::Error = result.0.expect_err("a stopped step has no outcome");
+            assert!(crate::child_watch::is_ended_by_stop(&error), "{error}");
+            assert_eq!(result.1, Settled::Completely);
+        },
+    );
 }
 
 /// What:

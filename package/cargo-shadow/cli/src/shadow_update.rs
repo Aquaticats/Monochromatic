@@ -58,6 +58,21 @@ use std::io::Write;
 use std::path::Path;
 
 /// What:
+/// `use self::run::{run_full_update, run_update};` imports the two ways an update runs,
+/// from the sibling file that holds them.
+/// Why:
+/// The command below picks one of them for the plan it was given,
+/// and the run itself lives in the `run` part of this module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { runFullUpdate, runUpdate } from 'crate/shadow_update/run';
+/// ```
+use self::run::{
+    run_full_update,
+    run_update,
+};
+/// What:
 /// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `text_of` is used by `check_direct`.
@@ -165,21 +180,6 @@ use crate::shadow_step::{
     prepare,
 };
 /// What:
-/// `use crate::shadow_update_run::{run_full_update, run_update};` imports the two ways an update runs,
-/// from the sibling file that holds them.
-/// Why:
-/// The command below picks one of them for the plan it was given,
-/// and the run itself lives in `shadow_update_run.rs`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { runFullUpdate, runUpdate } from 'crate/shadow_update_run';
-/// ```
-use crate::shadow_update_run::{
-    run_full_update,
-    run_update,
-};
-/// What:
 /// `use crate::update::UpdateKind;` imports `UpdateKind` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `UpdateKind` is used by `run_update_command`,
@@ -206,9 +206,13 @@ use crate::update_plan::{
     plan_update,
 };
 
+/// Running one update of either kind,
+/// and the stand-in lockfile a full update writes (split out of this module).
+mod run;
+
 /// The stand-in lockfile a full update writes,
 /// and the work that runs while it is in place (split out of the shadow update module).
-pub use crate::shadow_update_run::{
+pub use self::run::{
     PlaceholderBody,
     run_with_placeholder_lock,
     run_with_placeholder_lock_hooked,
