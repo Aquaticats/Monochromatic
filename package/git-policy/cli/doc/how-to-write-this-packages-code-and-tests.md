@@ -203,6 +203,32 @@ and a control that read it asserted on the cap the run happened to carry rather 
 (issue 6537;
 the quota's effect on `available_parallelism` is measured in
 `doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
+A round's widths are that same answer,
+and its memory figure is the one a control trips over:
+`HostResources::read` takes the free bytes of this process's control group,
+and the page cache a build wrote inside that group is charged to it,
+so a run in a capped scope reads no headroom at all and every batch runs one item at a time
+(measured for issue 6567:
+a threaded `landing::` run whose build filled a 10 GB cap read `memory_available: Some(0)`,
+and both side-by-side controls of `landing/service_work_items_side_by_side_tests.rs` then saw one item inside the
+handler;
+the same run with a warm build read 23.5 GB free and passed,
+`doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
+So the batches are sized by a host the caller states:
+`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take it,
+the shipped round reads the machine once and hands that one reading to every batch it drains,
+and a control that needs two items beside each other states a host of its own
+(`A_HOST_THAT_BOUNDS_NO_BATCH`),
+as a control whose subject is a batch that keeps its turn states one that puts a single item at a time
+(`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
+both in `landing/service_work_items_side_by_side.rs`.
+A width a control states for the whole process
+(`hold_the_width_to`,
+`landing/service_work_items_side_by_side.rs`)
+is a measurement's alone,
+because every other test of the run reads it too:
+that value was held at one by `a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent`
+while the side-by-side controls of the same process read it (issue 6567).
 
 The service's stop is one such fact
 (`process/stop_of_the_service_noticed_by_its_children.rs`):
