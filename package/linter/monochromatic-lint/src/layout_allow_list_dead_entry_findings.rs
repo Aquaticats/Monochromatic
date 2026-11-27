@@ -433,10 +433,8 @@ fn what_the_line_would_read_as(
     }
     // What: the word the edited line begins with, when that line reads as one of the list's use shapes.
     // Why: the reader that decides what a line is decides the sentence too, so the sentence says only what reads.
-    return match crate::layout_allow_entries::shape_of_a_line(trimmed) {
-        Some(word) => Some(format!("{edit}, the line reads as a `{word}` line.")),
-        None => None,
-    };
+    return crate::layout_allow_entries::shape_of_a_line(trimmed)
+        .map(|word| return format!("{edit}, the line reads as a `{word}` line."));
 }
 
 /// What:
