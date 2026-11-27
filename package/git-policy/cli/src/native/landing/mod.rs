@@ -10,6 +10,9 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `service_durable_the_background_sync_thread.rs`:
+//!   the task that makes a landing's syncs after the landing answered,
+//!   and the wait a control makes until its queue is empty.
 //! - `service_messages_the_failures_a_person_can_meet.rs`:
 //!   every failure the client can meet,
 //!   and the facts its text names.
@@ -1141,6 +1144,10 @@ pub mod service_object_questions_left_to_git;
 /// Where the landing's own syncs wait:
 /// queued for a background thread when the landing publishes,
 /// made before return otherwise.
+/// The task that makes a landing's syncs after the landing answered,
+/// and the wait a control makes until its queue is empty.
+pub mod service_durable_the_background_sync_thread;
+
 pub mod service_durable;
 
 /// The syncs one landing made,
