@@ -3,7 +3,8 @@
 //!  The field is written into a line a person reads,
 //!  and the name in it is a name another program chose (`/proc/<pid>/comm`),
 //!  so a name that would end the parentheses around it,
-//!  or that would move the cursor or start a line, must come back spelled out.
+//!  or that would move the cursor or start a line,
+//!  must come back spelled out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

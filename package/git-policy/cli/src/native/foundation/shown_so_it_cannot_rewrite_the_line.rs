@@ -6,7 +6,8 @@
 //!  written as an escape,
 //!  the backslash escaped,
 //!  and the character that would end the wrapping escaped too
-//!  (a parenthesis, or a backtick).
+//!  (a parenthesis,
+//!  or a backtick).
 //! Why:
 //!  A process sets the name this program prints for it (`/proc/<pid>/comm`)
 //!  to any bytes it likes,
@@ -14,9 +15,11 @@
 //!  an escape byte can move the cursor or erase the line this program is writing,
 //!  a line break starts a line this program never wrote,
 //!  and the character that closes the wrapping ends the name before the name
-//!  does, so the rest of it reads as this program's own words.
+//!  does,
+//!  so the rest of it reads as this program's own words.
 //!  The name is shown as text that can do none of those things (`AGENTS.md`,
-//!  rule `SYB`: text crossing a syntax boundary obeys the destination grammar,
+//!  rule `SYB`:
+//!  text crossing a syntax boundary obeys the destination grammar,
 //!  encoded where it is written into that grammar),
 //!  and a person can still read which program is named.
 //!  Nothing here decides where the name sits in the sentence:
@@ -33,7 +36,8 @@
 ///  which the name inside may not hold.
 /// Why:
 ///  Each sentence of this program names a program inside its own punctuation
-///  (`PID 5 (git)`, `` `ssh-keygen` (process 6) ``),
+///  (`PID 5 (git)`,
+///  `` `ssh-keygen` (process 6) ``),
 ///  so the character that closes that punctuation is escaped for the sentence
 ///  that uses it and only there:
 ///  a parenthesis inside a backtick-wrapped name is part of the name,
@@ -45,9 +49,11 @@
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TheWrappingAroundTheName {
-    /// A pair of parentheses: `(git)`.
+    /// A pair of parentheses:
+    /// `(git)`.
     Parentheses,
-    /// A pair of backticks: `` `git` ``.
+    /// A pair of backticks:
+    /// `` `git` ``.
     Backticks,
 }
 

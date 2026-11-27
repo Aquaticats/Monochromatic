@@ -4058,7 +4058,6 @@ fn preserve_on_descriptor
 fn preserve_on_link
 fn previous_branch_expression
 fn print_after_a_refusal
-fn printable
 fn printable_after
 fn printed_for_this_command
 fn private_checks

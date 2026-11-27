@@ -76,7 +76,8 @@ fn the_character_that_closes(wrapping: TheWrappingAroundTheName) -> char {
 }
 
 /// What:
-///  The characters a backslash in the shown text may lead: the escapes this program writes.
+///  The characters a backslash in the shown text may lead:
+///  the escapes this program writes.
 /// Why:
 ///  A lone backslash would leave the rest of the name reading as this program's own text,
 ///  and the escapes are the only places the shown text may hold a backslash.

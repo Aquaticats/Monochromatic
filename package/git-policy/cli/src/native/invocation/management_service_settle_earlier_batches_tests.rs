@@ -1095,7 +1095,8 @@ fn a_name_that_would_end_the_backticks_cannot_rewrite_the_unsure_program_sentenc
 ///  The sentence that names the process whose command line could not be read,
 ///  by the name the kernel keeps for it.
 /// Why:
-///  The name comes from `/proc/<pid>/comm`, which the program sets to any bytes it likes,
+///  The name comes from `/proc/<pid>/comm`,
+///  which the program sets to any bytes it likes,
 ///  so a backtick in it would end the backticks that show it.
 ///
 /// In TS you'd write (pseudocode):

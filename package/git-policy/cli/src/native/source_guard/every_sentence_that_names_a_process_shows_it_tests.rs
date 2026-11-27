@@ -4,7 +4,8 @@
 //!  and every sentence of this program that names a process calls
 //!  `shown_so_it_cannot_rewrite_the_line` once per name for the wrapping that sentence uses.
 //! Why:
-//!  A process sets its own name (`/proc/<pid>/comm`, and the `comm` field of `/proc/<pid>/stat`)
+//!  A process sets its own name (`/proc/<pid>/comm`,
+//!  and the `comm` field of `/proc/<pid>/stat`)
 //!  to any bytes it likes,
 //!  and a command line is its own text too:
 //!  an escape in it moves the cursor or erases the line,
@@ -13,12 +14,16 @@
 //!  so the rest of the name reads as this program's own words.
 //!  Alpha.49 escaped one waiting line and printed the same name raw three lines later
 //!  (the review's finding M2 of 2026-11-27),
-//!  and no module test could see it, because each sentence only ever met a name of printable ASCII.
+//!  and no module test could see it,
+//!  because each sentence only ever met a name of printable ASCII.
 //!  Two lists make the rule checkable:
-//!  the sentences this program has, which each call the escape, and the accessors a name is read
-//!  through, which no `format!` may interpolate raw.
+//!  the sentences this program has,
+//!  which each call the escape,
+//!  and the accessors a name is read through,
+//!  which no `format!` may interpolate raw.
 //! Gotcha:
-//!  The second list reads the accessors a name is reached through, not the value:
+//!  The second list reads the accessors a name is reached through,
+//!  not the value:
 //!  a sentence that binds the name to a local of another spelling before it formats it is
 //!  seen by the first list alone,
 //!  which is why the first list names every sentence and fails when one stops calling the escape.
@@ -43,7 +48,8 @@ use std::path::{
     PathBuf,
 };
 
-/// The escape every sentence that names a process calls, once for each name it shows.
+/// The escape every sentence that names a process calls,
+/// once for each name it shows.
 const THE_ESCAPE: &str = "shown_so_it_cannot_rewrite_the_line(";
 
 /// The one function that writes text another program chose into a line.
@@ -269,7 +275,8 @@ fn sources_in(
 ///  Every function of this crate closes at column 0,
 ///  so the body is what the counts below are taken over,
 ///  and a sentence that moved into a sibling file is not found at all
-///  (the entry then names no body, which fails).
+///  (the entry then names no body,
+///  which fails).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -391,7 +398,8 @@ fn names_a_process(text: &str) -> bool {
 }
 
 /// What:
-///  Every `format!` call in `text`, each as the call's own text and where it starts.
+///  Every `format!` call in `text`,
+///  each as the call's own text and where it starts.
 /// Why:
 ///  A format call may run over many lines,
 ///  and a name is interpolated inside the call,
@@ -527,7 +535,8 @@ fn release_texts(
 
 /// What:
 ///  Every sentence this program has that shows a name another program chose calls the one escape,
-///  once per name, for the wrapping that sentence uses.
+///  once per name,
+///  for the wrapping that sentence uses.
 /// Why:
 ///  A sentence that stopped calling it would print the name as the program spelled it,
 ///  which is how alpha.49 printed one name escaped and the same name raw in another line of the
@@ -567,7 +576,8 @@ fn every_sentence_that_names_a_process_shows_it_for_the_wrapping_it_uses() {
 /// Why:
 ///  This is the half of the ban that sees a sentence nobody listed:
 ///  a new sentence that reads `comm` or a command line and writes it into a line
-///  is the finding, whatever file it is in.
+///  is the finding,
+///  whatever file it is in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

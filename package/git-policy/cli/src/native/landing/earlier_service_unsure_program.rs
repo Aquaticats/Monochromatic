@@ -79,7 +79,8 @@ pub struct UnsureProgram {
 /// as the masker does everywhere else.
 ///  This is the masking alone:
 /// the sentence that shows the words escapes them for its own wrapping,
-///  so the escape is written once, where the destination grammar is known
+///  so the escape is written once,
+///  where the destination grammar is known
 ///  (`AGENTS.md`,
 ///  rule `SYB`).
 ///
@@ -87,7 +88,7 @@ pub struct UnsureProgram {
 /// ```ts
 /// function maskedWords(bytes: Uint8Array): string;
 /// ```
-pub fn masked_words(bytes: &[u8]) -> String {
+pub(crate) fn masked_words(bytes: &[u8]) -> String {
     let masked: Vec<u8> = mask_url_secrets(bytes);
     return String::from_utf8_lossy(masked.as_slice()).into_owned();
 }

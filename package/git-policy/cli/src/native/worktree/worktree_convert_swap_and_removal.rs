@@ -186,7 +186,8 @@ pub fn swap_phase(
 }
 
 /// What:
-///  One process the scan saw inside the worktree, as the refusal that names it:
+///  One process the scan saw inside the worktree,
+///  as the refusal that names it:
 ///  its number and the program it runs,
 ///  the program shown so no byte of it can act on the line.
 /// Why:

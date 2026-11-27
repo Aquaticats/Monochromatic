@@ -3,7 +3,8 @@
 //!  A process sets its own name to any bytes it likes (`/proc/<pid>/comm`),
 //!  and that sentence is how a person finds which program holds the lock,
 //!  so a name that would end the parentheses it is shown in,
-//!  or that would move the cursor or start a line, must come back spelled out.
+//!  or that would move the cursor or start a line,
+//!  must come back spelled out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

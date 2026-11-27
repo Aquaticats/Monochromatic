@@ -34,7 +34,8 @@ fn the_margin_is_the_multiple_of_the_measurement_rounded_up_to_a_whole_second() 
 ///  a line break that would start a line this program never wrote,
 ///  and a right-to-left override that would reorder it.
 /// Why:
-///  The name comes from `/proc/<pid>/comm`, which the program sets to any bytes it likes,
+///  The name comes from `/proc/<pid>/comm`,
+///  which the program sets to any bytes it likes,
 ///  and the verdict is the line a person reads to find it.
 ///
 /// In TS you'd write (pseudocode):
@@ -57,7 +58,8 @@ const SHOWN_NAME: &str = "x\\) FORGED\\u{1b}[2K\\n\\u{202e}";
 
 /// What:
 ///  The verdict of a lock and of a staging file that a live process has open are one sentence,
-///  built by `a_held_file_verdict`, and it shows the name so no byte of it can end the parentheses
+///  built by `a_held_file_verdict`,
+///  and it shows the name so no byte of it can end the parentheses
 ///  or start a line.
 /// Why:
 ///  The two judgements say the same words about the same kernel-chosen name,
