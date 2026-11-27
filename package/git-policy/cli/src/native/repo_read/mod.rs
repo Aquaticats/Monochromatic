@@ -85,6 +85,9 @@
 //!   in-process repository reads:
 //!   the object database of a repository,
 //!   its packs and alternates.
+//! - `object_abbreviation_pack_index.rs`:
+//!   one pack index and one multi-pack-index of an object directory,
+//!   read for the count and the sorted names they hold.
 //! - `object_abbreviation.rs`:
 //!   the abbreviated object name Git prints (`core.abbrev`,
 //!   the automatic length,
@@ -292,6 +295,11 @@ pub mod repo_read_pack;
 /// its packs and alternates.
 #[cfg(unix)]
 pub mod repo_read_odb;
+
+/// One pack index and one multi-pack-index of an object directory,
+/// read for the count and the sorted names they hold.
+#[cfg(unix)]
+pub mod object_abbreviation_pack_index;
 
 /// The abbreviated object name Git prints (`core.abbrev`,
 /// the automatic length,
