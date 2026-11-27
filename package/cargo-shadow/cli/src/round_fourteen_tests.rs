@@ -20,6 +20,9 @@
 
 use std::fs;
 use std::io::Write;
+// What: `CommandExt` adds the Unix-only methods of `std::process::Command`, such as `process_group`.
+// Why: the plant is a chain of three programs, and this test ends all of them as one group.
+use std::os::unix::process::CommandExt;
 use std::path::{
     Path,
     PathBuf,
@@ -820,7 +823,8 @@ const PLANT_FOREIGN_NAMESPACE: &str = "CARGO_SHADOW_ROUND_FOURTEEN_PLANT_FOREIGN
 /// This is a stand-in the test writes itself for the other session the schedule's comment names:
 /// it makes one namespace where a run of the whole suite on this host makes many.
 struct ForeignNamespace {
-    /// What makes the namespace and keeps it alive:
+    /// What makes the namespace and keeps it alive,
+    /// leading a process group of its own:
     /// `nsenter` into the writer's user namespace,
     /// a new time namespace,
     /// and a `sleep` in it.
@@ -833,11 +837,26 @@ struct ForeignNamespace {
 /// How the guard cleans up.
 impl Drop for ForeignNamespace {
     /// What:
-    /// `fn drop(&mut self)` ends the program that holds the namespace,
-    /// and with it the namespace.
+    /// `fn drop(&mut self)` ends every process the holder made,
+    /// and with them the namespace.
     /// Why:
-    /// a failed assertion must leave neither the holder nor the namespace behind.
+    /// a failed assertion must leave neither the holder nor the namespace behind,
+    /// and the holder is three processes deep
+    /// (`nsenter`,
+    /// `unshare`,
+    /// the `sleep`),
+    /// so ending the one this struct holds would leave the `sleep` in the namespace for its whole sleep.
     fn drop(&mut self) {
+        let Ok(leader) = i32::try_from(self.holder.id()) else {
+            // A process id that does not fit `i32` is not a process this test started.
+            let _ = self.holder.kill();
+            let _ = self.holder.wait();
+            return;
+        };
+        // The process group holds the id of its leader, which is the program this struct started.
+        if let Some(group) = rustix::process::Pid::from_raw(leader) {
+            let _ = rustix::process::kill_process_group(group, rustix::process::Signal::KILL);
+        }
         let _ = self.holder.kill();
         let _ = self.holder.wait();
     }
@@ -881,6 +900,8 @@ fn plant_foreign_namespace(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        // A process group of its own, so the guard above can end every process the plant makes with one signal.
+        .process_group(0)
         .spawn()
         .expect(
             "the other session's namespace (it needs nsenter and unshare with permission for a user and time namespace)",
