@@ -23,8 +23,7 @@ leaves `zfsdev` as the one survivor (section "Owner's route decision").
   (input and script: `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/keep/compute-the-vet-report-fingerprint.ts`).
   (scratch,
   deleted on 2026-11-27;
-  not kept;
-  the input is built from the report by the governing skill's "Compatibility fingerprint" section).
+  not kept).
 - **Active audit owner**: the coordinating Claude Code session; the discovery phase is run by a Pi run on
   DeepSeek V4.1 Flash, by the owner's answer of 2026-11-18: "Use pi with deepseek to run it."
 - **Prior compatible report**: none; no file under `doc/audit/` names ZFS.
@@ -324,8 +323,7 @@ Source: OpenZFS cloned at tag `zfs-2.4.4` (annotated tag `f75f3256a0`, commit
 `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/openzfs-at-zfs-2.4.4`.
 (scratch,
 deleted on 2026-11-27;
-not kept;
-the clone is the annotated tag `f75f3256a0`, commit `71a9f9578616a90c3c14bb59629fb4d31bfd68d1` above).
+not kept).
 Installed here: `zfs-utils 2.4.4-3` owns `/usr/lib/libzfs_core.so`; `pkg-config` reports `libzfs_core` and `libzfs`
 2.4.4 with `-lzfs -lzfs_core -lnvpair`; headers are under `/usr/include/libzfs`; there is no `libnvpair.pc`.
 
