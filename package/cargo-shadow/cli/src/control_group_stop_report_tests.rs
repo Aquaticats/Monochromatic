@@ -724,12 +724,20 @@ fn a_refusal_whose_members_could_not_be_read_says_nothing_about_what_they_can_do
     let error: RunError = result.expect_err("a run whose members could not be read is not stopped");
     let said: String = error.to_string();
     assert!(
-        said.contains("its members could not be read"),
+        said.contains("the scope's members could not be read"),
         "the refusal does not say that the members could not be read: {said}"
     );
-    assert!(
-        said.contains("and its members could not be read;"),
-        "the refusal does not open by saying its members could not be read: {said}"
+    // What:     `.matches("members could not be read")` counts the times the message says the members could not be read.
+    // Why:      The opening clause and the sentence are one message, so the fact is said once (issue 6528's second review, Low 1).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const saidAgain = said.split('members could not be read').length - 1;
+    // ```
+    let said_again: usize = said.matches("members could not be read").count();
+    assert_eq!(
+        said_again, 1,
+        "the refusal says the members could not be read {said_again} times: {said}"
     );
     assert!(
         !said.contains("can still write") && !said.contains("can write nothing"),
@@ -812,19 +820,6 @@ fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
     assert!(
         !said.contains("so no member of it is left to stop"),
         "the refusal claims no member is left on an absence it did not verify: {said}"
-    );
-    // What:     `said.contains("journal")` is true when the stop's own words carry the kept journal.
-    // Why:      What becomes of a kept journal is said once, by the refusal that keeps it
-    //           (`journal_recover::KEPT_JOURNAL`), because a stop of a bare process group keeps one too and has no scope to name.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const speaksOfTheJournal = said.includes('journal');
-    // ```
-    let speaks_of_the_journal: bool = said.contains("journal");
-    assert!(
-        !speaks_of_the_journal,
-        "the stop's own words say what became of the journal, so the refusal that keeps it would say it twice: {said}"
     );
     drop(transaction);
 }

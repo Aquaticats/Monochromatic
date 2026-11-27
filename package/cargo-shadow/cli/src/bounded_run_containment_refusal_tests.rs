@@ -332,3 +332,51 @@ fn the_refusal_of_a_process_group_carries_a_journal_sentence_that_names_no_scope
         "the refusal of a process group names a scope, which such a run never had: {refusal}"
     );
 }
+
+/// The control of the error a contained call prints when its stop could not settle it:
+/// it says what may still write and what the tool did not do,
+/// and it says nothing about a journal,
+/// because the refusal that keeps the journal says that once
+/// (`journal_recover::KEPT_JOURNAL`),
+/// and a call that ran outside any transaction has no journal to speak of.
+#[test]
+fn the_not_quiescent_error_says_nothing_about_a_journal() {
+    // What:     `RunError::NotQuiescent` is the error a contained call answers when its stop could not show every writer gone.
+    // Why:      Its text is printed by the callers that have no refusal around it, and the install and update refusals add the
+    //           sentence about the journal themselves.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const error = new RunError.NotQuiescent({ what: 'cargo update', shortfall: 'the stop waited 5s' });
+    // ```
+    let error: crate::bounded_run::RunError = crate::bounded_run::RunError::NotQuiescent {
+        what: "cargo update".to_string(),
+        shortfall: "the stop of the scope waited 5s for the kernel to report it empty".to_string(),
+    };
+
+    // What:     `error.to_string()` is what a caller prints for the error.
+    // Why:      The assertions judge the message a person reads, not the fields.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const said = String(error);
+    // ```
+    let said: String = error.to_string();
+
+    assert!(
+        said.contains("could not be stopped or shown to be gone"),
+        "the error does not say what the stop could not show: {said}"
+    );
+    assert!(
+        said.contains("the stop of the scope waited 5s for the kernel to report it empty"),
+        "the error does not carry the stop's own words: {said}"
+    );
+    assert!(
+        said.contains("this tool changed no file because of that"),
+        "the error does not say what the tool did not do: {said}"
+    );
+    assert!(
+        !said.contains("journal"),
+        "the error says what became of a journal, which the refusal that keeps one says once: {said}"
+    );
+}

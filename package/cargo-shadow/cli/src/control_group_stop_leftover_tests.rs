@@ -479,9 +479,9 @@ fn a_listing_cut_after_one_member_names_it_and_refuses_the_run() {
         "the stop never reached the listing and the read this control arms, so the refusal has another cause"
     );
     assert!(
-        refusal.contains("after it listed 1 member")
+        refusal.contains("it listed 1 member")
             && refusal.contains(&member.pid().to_string())
-            && refusal.contains("cut at its own bound"),
+            && refusal.contains("stopped at its own bound"),
         "the refusal does not name the member it read before the cut ({}): {refusal}",
         member.pid()
     );
