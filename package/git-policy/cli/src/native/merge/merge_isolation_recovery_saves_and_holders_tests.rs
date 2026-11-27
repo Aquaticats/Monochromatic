@@ -380,10 +380,18 @@ fn a_copy_a_merge_that_still_runs_names_is_left_alone() {
 /// no process this command can read holds it open
 /// (a Kimi K3.1 Pro review of `bc3d54f9cd`,
 /// its third finding).
+///  The line it prints names the program that holds the copy,
+///  by its process number and its command,
+///  so the person reading it can end that program and run the command again
+/// (issue 6542:
+/// the control failed once in a threaded run of the `merge::` filter of a tree it does not change,
+/// `349 passed; 1 failed`,
+/// and passed in the three later runs of that tree,
+/// `350 passed; 0 failed` each).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// write('f.txt', bytes); write(aside, bytes); keepCopy(aside); holder = sleep(stdin = open(aside)); await recover(...); expect(exists(aside)).toBe(true); holder.kill(); await recover(...); expect(exists(aside)).toBe(false);
+/// write('f.txt', bytes); write(aside, bytes); keepCopy(aside); holder = sleep(stdin = open(aside)); await recover(...); expect(exists(aside)).toBe(true); expect(said).toContain(`PID ${holder.pid}`); holder.kill(); await recover(...); expect(exists(aside)).toBe(false);
 /// ```
 #[test]
 fn a_copy_a_program_still_holds_open_is_not_removed() {
@@ -404,6 +412,7 @@ fn a_copy_a_program_still_holds_open_is_not_removed() {
     ));
     let mut holder: std::process::Child = crate::test_support::spawn_owned(&mut holder_command)
         .expect("a program holding the copy open");
+    let holder_id: u32 = holder.id();
     let mut said: Vec<u8> = Vec::new();
     let _first = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
         .expect("recovery");
@@ -415,6 +424,14 @@ fn a_copy_a_program_still_holds_open_is_not_removed() {
     assert!(
         text.contains("holds the copy open"),
         "the line says why the copy stays: {text}"
+    );
+    assert!(
+        text.contains(format!("PID {holder_id}").as_str()),
+        "the line names the process that holds the copy, which is the one this control started ({holder_id}): {text}"
+    );
+    assert!(
+        text.contains("sleep"),
+        "the line names the command that holds the copy: {text}"
     );
     assert_eq!(
         std::fs::read(aside.as_path()).expect("the copy"),
