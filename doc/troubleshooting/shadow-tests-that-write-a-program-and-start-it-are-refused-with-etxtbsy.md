@@ -149,6 +149,17 @@ shim                   4 passed, 9 failed                  13 passed, 0 failed
 The failures were all `Os { code: 26, kind: ExecutableFileBusy, message: "Text file busy" }`,
 raised where the test starts the program.
 
+Re-run on the tree merged with `origin/main` at `c6de27ba06`,
+so the numbers hold after the crates' own reformat commit:
+every count above repeated,
+and each crate's own task was green
+(`mise run //package/mpm-shadow/cli:test`:
+780 tests run,
+780 passed;
+`mise run //package/search-shadow/cli:test`:
+118 tests run,
+118 passed).
+
 `tests/copied_checkout_record.rs` (1 test) and `tests/toolchain.rs` (24 tests) wrote no program they start and
 passed in the shape before the change,
 so nothing in them changed.
