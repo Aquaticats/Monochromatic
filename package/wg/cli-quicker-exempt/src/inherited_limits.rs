@@ -9,18 +9,27 @@
 //! The I/O weight is copied when it is below the kernel default,
 //! and so are the per-device limits of `io.max`,
 //! keyed by device.
-//! CPU weight and cpusets are not copied.
 
-/// Names a user chose,
-/// delimited so a cause ends them where the line does.
-use crate::report_cause::quote_name;
+/// Reading the limit files of the cgroups a process leaves.
+mod cgroup_limit_reading;
+/// Reading the text of one cgroup limit file.
+mod limit_file_parsing;
+
+/// Reading the limits of every cgroup the process leaves.
+pub use cgroup_limit_reading::read_inherited_limits;
+/// The parsers of the limit files,
+/// which a test reads on its own.
+#[cfg(test)]
+pub use limit_file_parsing::{
+    parse_cpu_max,
+    parse_io_max,
+    parse_io_weight,
+    parse_limit,
+};
+
 /// The per-device limits keyed by device,
 /// in a stable order.
 use std::collections::BTreeMap;
-/// Syscall and parse failures.
-use std::io;
-/// Cgroup directories.
-use std::path::Path;
 
 /// The kernel's default I/O weight,
 /// which a cgroup that sets nothing has,
@@ -227,239 +236,4 @@ fn lighter(
     } else {
         Some(weight)
     };
-}
-
-/// Reports a nonempty run of digits.
-fn is_digits(text: &str) -> bool {
-    return !text.is_empty() && text.bytes().all(is_digit_byte);
-}
-
-/// Reports an ASCII digit byte.
-fn is_digit_byte(byte: u8) -> bool {
-    return byte.is_ascii_digit();
-}
-
-/// Reports a `major:minor` device number.
-fn is_device_number(word: &str) -> bool {
-    return match word.split_once(':') {
-        Some((major, minor)) => is_digits(major) && is_digits(minor),
-        None => false,
-    };
-}
-
-/// Parses `io.max`:
-/// one line per device,
-/// the `major:minor` and then `key=value` words,
-/// where `max` is no limit.
-/// A key this parser does not know is skipped,
-/// so a newer kernel's extra key does not stop every move,
-/// and a value that is neither `max` nor a number is an error.
-pub fn parse_io_max(text: &str) -> io::Result<BTreeMap<String, DeviceLimits>> {
-    let mut devices: BTreeMap<String, DeviceLimits> = BTreeMap::new();
-    for line in text.lines() {
-        let mut words = line.split_whitespace();
-        let Some(device) = words.next() else {
-            continue;
-        };
-        if !is_device_number(device) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("not an io.max device: {device:?}"),
-            ));
-        }
-        let mut limits = DeviceLimits::default();
-        for word in words {
-            let Some((key, value)) = word.split_once('=') else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("not an io.max setting: {word:?}"),
-                ));
-            };
-            let parsed = parse_limit(value)?;
-            match key {
-                "rbps" => limits.read_bandwidth = parsed,
-                "wbps" => limits.write_bandwidth = parsed,
-                "riops" => limits.read_iops = parsed,
-                "wiops" => limits.write_iops = parsed,
-                _unknown => {}
-            }
-        }
-        if limits != DeviceLimits::default() {
-            devices.insert(device.to_string(), limits);
-        }
-    }
-    return Ok(devices);
-}
-
-/// Reads the `io.max` file of one cgroup directory,
-/// where a missing file means the controller sets no limit there.
-fn read_io_max(directory: &Path) -> io::Result<BTreeMap<String, DeviceLimits>> {
-    let path = directory.join("io.max");
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
-        Err(error) => {
-            return Err(io::Error::new(
-                error.kind(),
-                format!("{}: {error}", quote_name(&path.display().to_string())),
-            ));
-        }
-    };
-    return match parse_io_max(&text) {
-        Ok(devices) => Ok(devices),
-        Err(error) => Err(io::Error::new(
-            error.kind(),
-            format!("{}: {error}", quote_name(&path.display().to_string())),
-        )),
-    };
-}
-
-/// Parses `io.weight`:
-/// the `default` line holds the weight of the cgroup,
-/// and lines for single devices are not read.
-/// The kernel default is no weight to carry.
-pub fn parse_io_weight(text: &str) -> io::Result<Option<u64>> {
-    for line in text.lines() {
-        let Some(rest) = line.strip_prefix("default ") else {
-            continue;
-        };
-        return match rest.trim().parse::<u64>() {
-            Ok(weight) if weight == DEFAULT_IO_WEIGHT => Ok(None),
-            Ok(weight) => Ok(Some(weight)),
-            Err(_error) => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("not an io.weight default: {:?}", rest.trim()),
-            )),
-        };
-    }
-    return Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "an io.weight without a default line",
-    ));
-}
-
-/// Parses a cgroup limit file:
-/// `max` is unlimited and a number is the limit.
-pub fn parse_limit(text: &str) -> io::Result<Option<u64>> {
-    let trimmed = text.trim();
-    if trimmed == "max" {
-        return Ok(None);
-    }
-    return match trimmed.parse::<u64>() {
-        Ok(number) => Ok(Some(number)),
-        Err(_error) => Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("not a cgroup limit: {trimmed:?}"),
-        )),
-    };
-}
-
-/// Parses `cpu.max`,
-/// `max <period>` or `<quota> <period>`,
-/// into microseconds of CPU time per second.
-pub fn parse_cpu_max(text: &str) -> io::Result<Option<u64>> {
-    let mut words = text.split_whitespace();
-    let (Some(quota), Some(period)) = (words.next(), words.next()) else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("not a cpu.max line: {:?}", text.trim()),
-        ));
-    };
-    let Some(quota_value) = parse_limit(quota)? else {
-        return Ok(None);
-    };
-    let Ok(period_value) = period.parse::<u64>() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("not a cpu.max period: {period:?}"),
-        ));
-    };
-    if period_value == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "a cpu.max period of zero",
-        ));
-    }
-    return Ok(Some(quota_value.saturating_mul(1_000_000) / period_value));
-}
-
-/// Reads one limit file of one cgroup directory,
-/// where a missing file means the controller sets no limit there.
-fn read_limit_file(
-    directory: &Path,
-    name: &str,
-    parse: fn(&str) -> io::Result<Option<u64>>,
-) -> io::Result<Option<u64>> {
-    let path = directory.join(name);
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(io::Error::new(
-                error.kind(),
-                format!("{}: {error}", quote_name(&path.display().to_string())),
-            ));
-        }
-    };
-    return match parse(&text) {
-        Ok(limit) => Ok(limit),
-        Err(error) => Err(io::Error::new(
-            error.kind(),
-            format!("{}: {error}", quote_name(&path.display().to_string())),
-        )),
-    };
-}
-
-/// Reads the limits set on one cgroup directory.
-fn read_directory_limits(directory: &Path) -> io::Result<InheritedLimits> {
-    return Ok(InheritedLimits {
-        cpu_quota_per_sec_usec: read_limit_file(directory, "cpu.max", parse_cpu_max)?,
-        memory_max: read_limit_file(directory, "memory.max", parse_limit)?,
-        memory_high: read_limit_file(directory, "memory.high", parse_limit)?,
-        memory_swap_max: read_limit_file(directory, "memory.swap.max", parse_limit)?,
-        tasks_max: read_limit_file(directory, "pids.max", parse_limit)?,
-        io_weight: read_limit_file(directory, "io.weight", parse_io_weight)?,
-        io_devices: read_io_max(directory)?,
-    });
-}
-
-/// Reports a nonempty path component.
-fn is_component(part: &&str) -> bool {
-    return !part.is_empty();
-}
-
-/// Splits a cgroup path into its components.
-fn components(cgroup: &str) -> Vec<&str> {
-    return cgroup.split('/').filter(is_component).collect();
-}
-
-/// Reads the limits of every cgroup the process leaves.
-/// These are the cgroups on the way from `origin` up to,
-/// but not including,
-/// the deepest ancestor it shares with `destination`.
-/// A limit file that cannot be read is an error:
-/// guessing "no limit" could loosen the process.
-pub fn read_inherited_limits(
-    cgroup_root: &Path,
-    origin: &str,
-    destination: &str,
-) -> io::Result<InheritedLimits> {
-    let origin_parts = components(origin);
-    let destination_parts = components(destination);
-    let mut shared = 0;
-    while shared < origin_parts.len()
-        && shared < destination_parts.len()
-        && origin_parts[shared] == destination_parts[shared]
-    {
-        shared += 1;
-    }
-    let mut limits = InheritedLimits::default();
-    for depth in (shared + 1)..=origin_parts.len() {
-        let mut directory = cgroup_root.to_path_buf();
-        for part in &origin_parts[..depth] {
-            directory.push(part);
-        }
-        limits.tighten(&read_directory_limits(&directory)?);
-    }
-    return Ok(limits);
 }
