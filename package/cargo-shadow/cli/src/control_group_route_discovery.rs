@@ -363,15 +363,37 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
 /// which is the shape of this question being answered with a failure and of nothing else those controls do (issue 6619).
 /// A program this discovery starts can fail for a moment that is not the host's answer about itself,
 /// and asking again is what tells the two apart.
-const ASKING_AGAIN_ATTEMPTS: u32 = 3;
+/// What it rests on:
+/// the manager's own reexecution,
+/// measured 2026-11-27 in a container of its own (Linux 7.3.5,
+/// systemd 262)
+/// and in a guest (Linux 6.8,
+/// systemd 255):
+/// asks fail while the manager reexecutes and answer again as soon as it has,
+/// and the longest reexec across which an ask failed was 0.588 s.
+/// Five attempts `ASKING_AGAIN_PAUSE` apart span 0.800 s,
+/// which covers that,
+/// and a reload of 0.415 s to 0.654 s refused no ask at all.
+/// What it does not rest on:
+/// the event it was asked about,
+/// ten controls whose asks began about half a second after a reexec had ended (issue 6623):
+/// no ask failed in the five seconds after any reexec measured here,
+/// so nothing is sized to that event and it stays open.
+/// Cost where no manager answers:
+/// 0.810 s and five asks per call,
+/// measured in a container with none (README,
+/// "Development").
+const ASKING_AGAIN_ATTEMPTS: u32 = 5;
 
 /// How long the discovery waits before it asks the same question again.
 /// What it rests on:
-/// ten polls of `DISCOVERY_POLL`,
-/// for a moment of pressure or a manager that is reloading to pass.
+/// the longest reexec measured across which asks fail (0.588 s,
+/// 2026-11-27),
+/// so that four waits of this length hold the question open past the end of one however early in it the first ask fell,
+/// and a copy of each figure is in `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
 /// An ask that spent its own deadline is not made again at all (see `ask_where_the_slice_is`),
 /// so this wait is never spent on a host whose manager does not answer.
-const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(50);
+const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
 
 /// What one ask of the manager left when it answered nothing:
 /// the words of the failure,
@@ -644,3 +666,10 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
 #[cfg(test)]
 #[path = "control_group_route_discovery_asking_again_tests.rs"]
 mod asking_again_tests;
+
+/// The controls of the span the asking again covers:
+/// a moment as long as the longest reexec measured here,
+/// and a real reexec of a container's own user manager (issue 6623).
+#[cfg(test)]
+#[path = "control_group_route_discovery_reexec_tests.rs"]
+mod reexec_tests;
