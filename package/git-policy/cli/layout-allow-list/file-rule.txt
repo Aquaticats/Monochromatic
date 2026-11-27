@@ -519,8 +519,6 @@ file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> wor
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unreadable_record_aside.rs
 file-uses src/native/worktree_removal_deferred_origin_check origin_refusal.rs -> planned_origin.rs
 file-uses src/native/worktree_removal_deferred_origin_check planned_origin.rs -> origin_refusal.rs
-file-uses src/native/zfs_mounted_dataset mounted_dataset_refusal.rs -> the_designs_datasets_in_the_mount_table.rs
-file-uses src/native/zfs_mounted_dataset the_designs_datasets_in_the_mount_table.rs -> mounted_dataset_refusal.rs
 index-item src/native/invocation/typed_network_command_relay/mod.rs enum-TypedNetworkCommandEnding
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-relay_when_ssh_carries
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-sentence_after_a_refused_probe_of_a_push
