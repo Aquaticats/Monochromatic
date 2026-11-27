@@ -1,4 +1,4 @@
-# mpm-shadow: a start refused with "Text file busy" is explained as a replacement, not retried
+# mpm-shadow: a start refused with "Text file busy" is explained, and not retried
 
 `mpm-shadow` 0.2.7-alpha.12,
 running the real `mpm` from `PATH` (its shadow mode)
@@ -56,9 +56,12 @@ one process has that exact inode open for writing.
 `VettedSpawn::attempt`),
 and `start_retry::is_refusal` counts only `ErrorKind::WouldBlock`,
 the system's refusal to create another process (`EAGAIN`).
-`ErrorKind::ExecutableFileBusy` is errno 26,
-and it therefore reaches the catch-all arm of `start_failure::cause_and_remedy`,
-which is written for a cause nobody has classified.
+`ErrorKind::ExecutableFileBusy` is errno 26.
+In `0.2.7-alpha.12` it reached the catch-all arm of `start_failure::cause_and_remedy`,
+which is written for a cause nobody has classified;
+since `0.2.7-alpha.13` it has an arm of its own,
+`being_written_cause_and_remedy`,
+and the section "What the code does instead" says what that arm's words claim.
 
 There are two ways the file comes to be open for writing:
 
@@ -407,9 +410,17 @@ and `fs::rename` in place of `mv`'s `renameat2`):
   writes `<name>.download` and renames it,
   and the archive publish (`src/toolchain/archive_staging.rs`,
   `publish_staged`)
-  moves the old version directory aside and renames the staging directory in.
-  Read from the code;
-  the renames were traced in the absence arm below.
+  gives the version's name the finished copy in one call:
+  an exchange of the two names where the file system can make one
+  (`replace_the_copy_that_is_there`,
+  `archive_staging/exchanging_the_two_names.rs`),
+  and two renames where it cannot (`two_renames`).
+  A name nothing holds yet gets the finished copy in one `rename`
+  (`move_the_finished_install`),
+  and a finished copy already there is kept.
+  Read from the code,
+  and traced on 2026-11-27 with both released binaries
+  (the section "The absence a concurrent start meets" and the transcripts beside this record).
 
 ## Which of those paths a start through this tool resolves
 
@@ -431,7 +442,8 @@ For those two paths the writers are:
   and swaps the `bin` link;
 - a launcher's program:
   `cargo binstall` (read),
-  `cargo install` (traced) and this tool's archive install (traced shapes).
+  `cargo install` (traced) and this tool's archive install (traced,
+  its publish included).
 
 `go install` and `pnpm add --global` write a published path in place,
 and neither writes a path a start through this tool resolves:
@@ -449,7 +461,8 @@ published path for writing.
 What is true is narrower,
 and it is what the decision rests on:
 the writers of the two paths a start through this tool resolves
-stage the file and rename it into place.
+stage the file and give it its name in one call,
+a rename or an exchange.
 
 ## The window a single-threaded probe cannot see
 
@@ -538,41 +551,99 @@ What this does and does not show:
 
 ## The absence a concurrent start meets
 
-The archive install publishes a version by moving the old version directory aside
-and renaming the staging directory in
-(`src/toolchain/archive_staging.rs`,
-`publish_staged`),
-with two renames rather than one exchange.
-Traced on the same shape (`mv`,
-which uses `renameat2` with `RENAME_NOREPLACE`):
+First the probe,
+on a publish slowed on purpose,
+so that its silence on an unslowed publish means something.
+`strace --inject=rename,renameat2:delay_enter=300ms`
+holds the process 300 ms before it enters each rename,
+which for the two-rename publish opens the version's name for that long:
 
-```text
-renameat2(AT_FDCWD<<fixture>/arms/tools/other>, "1.0.0", AT_FDCWD<<fixture>/arms/tools/other>, ".1.0.0.replaced.4246", RENAME_NOREPLACE) = 0
-renameat2(AT_FDCWD<<fixture>/arms/tools/other>, ".1.0.0.staging.4246", AT_FDCWD<<fixture>/arms/tools/other>, "1.0.0", RENAME_NOREPLACE) = 0
-```
+- the poller saw the name absent for 300.175 ms;
+- the trace's own arithmetic gave 300.086 ms,
+  from the two renames' entry times 300.126 ms apart less the first rename's own 40 us;
+- so both instruments see an absence of the length that is there,
+  and agree with it and with each other within 90 us.
 
-`10:00:50.666269` to `10:00:50.671294`:
-the program does not exist for **5.025 ms**,
-which is what the `absent=` counts in the arms above are.
+With the exchange slowed the same way,
+the poller counted no absence in 54,266 polls:
+the publish was later,
+and the name was never absent.
 
-```text
-START_PROBE path=<fixture>/arms/tools/other/1.0.0/program span_ms=1200 pause_us=200 ran=720 refused=0 absent=8 other=[] first_refusal_us=- last_refusal_us=-
-```
+On an unslowed publish the archive install puts the finished copy at the version's name in one call,
+and since `0.2.7-alpha.14` that call is `renameat2` with `RENAME_EXCHANGE`
+(`publish_staged`,
+`replace_the_copy_that_is_there`,
+`archive_staging/exchanging_the_two_names.rs`),
+and `man 2 renameat2` says the two names change places atomically,
+so a reader of the version's name finds either the copy that was there or the finished one.
+Measured on 2026-11-27,
+with the released `0.2.7-alpha.14` binary
+(sha256 `b60ba895f3392bad1cdb0396695a127a6b348a47f166dcffc22f82ad66cbb250`,
+the bytes of `/home/user/Monochromatic/.cache/toolchain-bin/mpm-shadow` too),
+in a fixture toolchain root of its own,
+over an unfinished copy at the version's name (a program with no completion marker),
+three publishes on this host's home file system (ZFS) and three on tmpfs,
+each under `strace --follow-forks` with absolute microsecond entry times and each call's own duration,
+with the same poller `stat`ing the version's name throughout
+(`measurements-of-a-start-refused-because-the-program-is-being-written/`,
+the logs and their raw traces):
+
+- the publish is that one call,
+  and its own work took 32 to 41 us on the home file system
+  and 7 to 11 us on tmpfs;
+- the poller counted no absence in any of the six publishes
+  (`absent=0` over 54,692 to 55,440 polls each,
+  one poll every 72 to 73 us),
+  and saw the copy that was there,
+  then the finished copy;
+- that zero rests on the call being one atomic exchange and not on the count,
+  because the poller cannot resolve an absence shorter than its own poll.
+
+Where the file system answers the exchange with `EINVAL`,
+`ENOTSUP`,
+`EPERM`,
+`EACCES` or `ENOSYS` (`cannot_exchange`),
+the code publishes in two renames (`two_renames`):
+the copy at the version's name moves to a hidden `.replaced` sibling,
+and the finished one is renamed in after it.
+That pair leaves the instant the exchange removes,
+and it is the only window this module has.
+Measured on the same fixture and date,
+with the same released binary and strace answering the exchange `EINVAL`,
+which is what a file system that cannot exchange gives:
+
+- the version's name was absent for 24 to 38 us on the home file system
+  and 26 to 41 us on tmpfs,
+  from the two renames' entry times 34 to 67 us apart less the first rename's own 8 to 29 us;
+- that is the released binary's own fallback,
+  reached with the `EINVAL` a file system gives,
+  not a stand-in for it;
+- `0.2.7-alpha.13`
+  (sha256 `087df55ec17f5a0c2b2d74c3e9d07cba0bf2730acc9882a736beb4a53b5b2181`,
+  fetched with `gh release download`),
+  whose publish is always that pair,
+  measured 25 to 35 us on the home file system
+  and 26 to 48 us on tmpfs,
+  in three publishes on each;
+- the interval is therefore 24 to 48 us across the twelve publishes,
+  two orders of magnitude below the 5.025 ms this record used to state;
+  that figure came from two separate `mv` commands standing in for the publish,
+  and each `mv` paid its own process start,
+  which the two renames of one install do not;
+- the poller,
+  one poll every 72 to 100 us in these runs,
+  landed inside the instant in 5 of the 12 unslowed publishes and reported 77 to 87 us,
+  which is its own poll's cost inside the gap and an upper bound,
+  not the figure;
+  the entry times and the first rename's own duration are the figure.
 
 `ErrorKind::NotFound` is a different branch of the message,
 and it is not this refusal.
 The uv arms meet the same absence for longer:
 62 and 67 absent starts while uv rebuilt the tool environment in place.
-
-That window is gone where the file system can exchange two names,
-since the round for issue 6600 (2026-11-27):
-`publish_staged` now replaces the copy at the version's name with
-`renameat2` and `RENAME_EXCHANGE` in one call,
-so the program exists throughout,
-and the two renames above are the fallback for a file system that answers `EINVAL`,
-`EOPNOTSUPP`,
-`EPERM`,
-`EACCES` or `ENOSYS` to that call.
+A first install still leaves the name absent until it publishes,
+because there is nothing there to exchange with,
+and `move_the_finished_install` renames the finished copy into the absent name.
 `package/mpm-shadow/cli/src/toolchain/archive_staging.rs` and its parts say what a kill in the fallback's instant leaves,
 and how a later install finishes it.
 
@@ -586,7 +657,7 @@ and a single-threaded prober cannot see it.
 
 For a writer this tool starts or stands in front of,
 no traced or read one opens the two paths a start resolves:
-they stage and rename.
+they stage the new copy and give it the name in one call.
 The writers that do hold a published path open are:
 `go install` across file systems (3.531 ms,
 traced,
@@ -602,13 +673,19 @@ each for as long as its own work takes.
 
 ## What the code does instead
 
-`start_failure::being_written_cause_and_remedy` says the program's file is open for writing by another
-program,
-that an upgrade or an install of that program is the usual cause,
-and that the same command works once the write has finished.
-It names no step that cannot show the error again,
-and it does not claim a replacement is certainly in progress:
+`start_failure::being_written_cause_and_remedy` says that a file this start needs is open for writing by
+some other process,
+that the file is the program itself or the interpreter named on the program's first line,
+and that mpm-shadow cannot tell which process holds it or why.
+It names no usual cause,
+so it does not say that an upgrade or an install is one,
+and it does not claim a replacement is in progress:
 the system's refusal says only that some process holds the file open for writing.
+Its remedy is to run the same command again once that process has finished,
+because nothing of this command ran,
+and to install or upgrade the program again if a write was cut short and left a broken file.
+It names no step that cannot show the error again:
+a hand run shows nothing once the write is over.
 `src/shim.rs` and `src/toolchain/launcher/starting_it.rs` both print those words,
 because `spawn` and `exec` meet the same refusal.
 
@@ -627,16 +704,19 @@ including one a killed run left,
 stays until the next run that starts,
 which is the behaviour the README's shadow-mode section already states.
 The shim test
-`a_start_refused_because_the_program_is_being_written_says_the_file_is_being_replaced`
-compares the file set before and after,
+`a_start_refused_because_the_program_is_being_written_says_what_the_refusal_proves_and_what_to_do`
+(`package/mpm-shadow/cli/tests/shim/a_start_that_fails_and_the_nesting_bound.rs`)
+compares the cargo home's file set before and after,
 and pins that.
 
 ## What a future writer must do
 
 A program this tool publishes is written under a name no start resolves,
-and published with `rename`:
-a temporary file beside the target for one program,
-a hidden staging directory beside a version directory for an archive.
+and given its own name in one call:
+a `rename` of a temporary file beside the target for one program,
+and for an archive a hidden staging directory beside the version directory,
+which one `renameat2` with `RENAME_EXCHANGE` puts in place where the file system can,
+and two renames put in place where it cannot.
 A writer that opens the published path for writing makes every start of that program fail with
 `ETXTBSY` for as long as it holds it,
 whether the start is this tool's or any other program's,
@@ -647,11 +727,55 @@ for paths no start through this tool resolves.
 ## What this record rests on
 
 Each figure above is derived from the trace line or the prober line quoted beside it,
-and every quoted line comes from a run this round made in a throwaway root on this machine,
+and every quoted line comes from a run made in a throwaway root on this machine,
 2026-11-27.
 The prober source is beside this record;
 the traces and the prober's output lines are quoted here,
 and nothing here cites a scratch folder that a later reader cannot open.
+
+The figures for the archive publish's absence are not quoted line by line;
+their runs are beside this record,
+in `measurements-of-a-start-refused-because-the-program-is-being-written/`:
+the harness that builds the fixture and runs each publish
+(`measure_a_publish_and_read_its_absence.py`),
+the poller it starts (`poll_the_published_name.c`),
+one log per arm with every figure the harness computed
+(`exchange-on-home-zfs.log.txt`,
+`exchange-on-tmpfs.log.txt`,
+`fallback-on-home-zfs.log.txt`,
+`fallback-on-tmpfs.log.txt`,
+`two-renames-on-home-zfs.log.txt`,
+`two-renames-on-tmpfs.log.txt`,
+`control-two-renames-slowed-300ms-on-home-zfs.log.txt`,
+`control-exchange-slowed-300ms-on-home-zfs.log.txt`),
+and each publish's own `strace` output beside them
+(`exchange-on-home-zfs-publish-1.strace.txt`,
+`fallback-on-home-zfs-exchange-answered-EINVAL-publish-1.strace.txt`,
+`two-renames-on-home-zfs-publish-1.strace.txt`,
+`control-two-renames-slowed-300ms-on-home-zfs-publish-1.strace.txt`,
+and the rest).
+The fixture's own paths are written `<fixture>`,
+and the round's scratch folder `<scratch>`,
+in the copies kept here;
+nothing else in them is changed.
+The figure for each publish is computed from one trace in this folder:
+the two renames' entry timestamps,
+and the first rename's own duration from its `-T` field,
+which is the elapsed time from the call's entry to its exit.
+That strace's stamp is the call's entry,
+not its exit,
+was checked on this machine with a read another process holds open for 200 ms
+(`strace-entry-times-under-a-held-read.strace.txt`):
+the read's stamp sits 50 us after the program's own clock before the read,
+and 197.0 ms before its clock after it.
+Each publish had a toolchain root,
+a home and a cache of its own,
+and none of them was the installed one:
+the installed `mpm-shadow` and the real toolchain root were read,
+never written.
+The tmpfs fixtures were made under `/dev/shm`,
+the tmpfs this machine has,
+and removed after the round.
 
 Read,
 not run:
@@ -663,7 +787,8 @@ and the installed 8.3.0 `meta-package-manager` wheel's `managers/uv.py`
 
 The kernel rule:
 `man 2 execve`,
-quoted above.
+quoted above,
+and `man 2 renameat2` for the exchange that leaves the version's name in place.
 
 What was not run or read:
 
@@ -680,6 +805,10 @@ What was not run or read:
   only `tar`'s was traced.
 - The writers named under "What does not work" as outside this tool:
   no in-place writer's window was measured here.
+- A file system that refuses the exchange:
+  this host's ZFS home and its tmpfs both answer it,
+  so the two-rename fallback was reached with the `EINVAL` strace answered
+  rather than with a file system of this machine.
 - A start of the real `mpm` while `uv tool upgrade` replaces it:
   the mechanism was traced,
   the end-to-end start was not.
@@ -705,6 +834,28 @@ Corrections this version carries:
 - The uv section quoted one command's trace and said the other used the same mechanism.
   Both are traced here,
   and the self-upgrade command `mpm` runs is the one traced.
+- It said a start refused with `Text file busy` is explained as a replacement (its title),
+  and that the message names an upgrade or an install as `the usual cause`.
+  `being_written_cause_and_remedy` names no cause,
+  and `src/start_failure_tests.rs` and `tests/launcher.rs` assert that the words `usual cause` never appear.
+- It named a shim test,
+  `a_start_refused_because_the_program_is_being_written_says_the_file_is_being_replaced`,
+  which no code holds.
+  The test is
+  `a_start_refused_because_the_program_is_being_written_says_what_the_refusal_proves_and_what_to_do`
+  in `package/mpm-shadow/cli/tests/shim/a_start_that_fails_and_the_nesting_bound.rs`,
+  and it compares the cargo home's file set before and after,
+  which is what the record says it pins.
+- It said the archive publish moves the old version directory aside and renames the staging directory in,
+  with two renames rather than one exchange,
+  and that the program does not exist for 5.025 ms.
+  Since `0.2.7-alpha.14` the publish is one exchange where the file system can make one,
+  the two renames are its fallback,
+  and that fallback's instant measured 24 to 48 us on 2026-11-27.
+  The 5.025 ms was two `mv` processes standing in for the publish,
+  not the install's two renames in one process.
+- It said a program this tool publishes is published with `rename`.
+  An archive over a copy already at the version's name is published with one exchange where the file system can make one.
 
 ## What the evidence says about repeating a refused start
 
@@ -713,6 +864,15 @@ with what each costs.
 Neither is chosen here:
 the pick recorded with issue 6585 is before the owner again,
 and this record only says what the measurements now support.
+
+What this round changed for the choice:
+nothing.
+Both options are about a start the system refuses because a file is open for writing (`ETXTBSY`),
+and the archive publish's instant was an absence,
+which a start meets as `NotFound` and the message explains as a different arm.
+The exchange removes that absence and leaves the refusal the options are about untouched,
+so the window each option weighs is still the fork-held descriptor's 1 to 3 ms,
+measured in this record's threaded arm and in the two sibling records.
 
 ### Explain only, as released
 

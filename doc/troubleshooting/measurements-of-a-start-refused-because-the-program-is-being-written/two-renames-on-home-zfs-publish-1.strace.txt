@@ -1,0 +1,13 @@
+2408024 1795800396.369750 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz.download", "<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz") = 0 <0.000031>
+2408037 1795800396.372945 +++ exited with 0 +++
+2408034 1795800396.372986 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2408037, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2408034 1795800396.373264 +++ exited with 0 +++
+2408024 1795800396.373285 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2408034, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2408024 1795800396.373807 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2408024/.fixture-tool.2408024.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2408024/fixture-tool") = 0 <0.000021>
+2408024 1795800396.374002 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2408024") = 0 <0.000027>
+2408024 1795800396.374059 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2408024", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 <0.000019>
+2408024 1795800396.375191 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.current.2408024.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/current") = 0 <0.000021>
+2408024 1795800396.375908 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.launch.2408024.tmp", "<fixture>/work/.cache/toolchain-launchers/fixture-tool.launch") = 0 <0.000024>
+2408024 1795800396.376247 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.2408024.bin", "<fixture>/work/.cache/toolchain-launchers/fixture-tool") = 0 <0.000021>
+2408024 1795800396.376393 rename("<fixture>/work/.cache/toolchain-bin/.fixture-tool.2408024.tmp", "<fixture>/work/.cache/toolchain-bin/fixture-tool") = 0 <0.000021>
+2408024 1795800396.377276 +++ exited with 0 +++

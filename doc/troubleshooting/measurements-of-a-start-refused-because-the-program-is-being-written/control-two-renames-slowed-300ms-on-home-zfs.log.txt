@@ -1,0 +1,12 @@
+arm two-renames-on-home-zfs: binary <scratch>/bin/a13/mpm-shadow  sha256 087df55ec17f5a0c2b2d74c3e9d07cba0bf2730acc9882a736beb4a53b5b2181  file system zfs  server https://127.0.0.1:29543
+delay before entering each rename: 300 ms
+exchange answered EINVAL: False
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 1: install status 0 in 2.46 s
+  the publish is two calls:
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2445277") = 0 (DELAYED) <0.300040>
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2445277", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 (DELAYED) <0.300042>
+  entries 300126 us apart, the first call's own work took 40 us, with 300 ms planted before it, so the version's name was absent for 300086 us
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=18027596 polls=54270 absent=3812 old=15819 new=34639 other=0 absences=1 longest_absence_us=300175 seen=old>new
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: two-renames-on-home-zfs-slowed-300ms-publish-1.strace.txt
