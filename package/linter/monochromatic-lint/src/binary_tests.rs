@@ -3868,8 +3868,354 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
         "The layout rules stop at src/a -> b/mod.rs,",
-        "holds the words",
+        "would read as another pair of folders",
     ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// Write a package of two folders that use each other, with the list of one shape of `uses` line:
+///  the loop itself is recorded, so a run reports only what the line handed in changes.
+#[cfg(unix)]
+fn write_two_folder_loop(
+    fixture: &Fixture,
+    list: &str,
+) {
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod b;\n");
+    fixture.write("src/a/mod.rs", "use crate::b::B;\npub struct A;\n");
+    fixture.write("src/b/mod.rs", "use crate::a::A;\npub struct B;\n");
+    fixture.write("folder.txt", list);
+}
+
+/// A folder whose name ends in the arrow is refused before any check,
+///  because the `uses` line that would name it reads as another pair of folders:
+///  `uses src/a -> -> src/g/c0` reads as the folder `src/a` using `-> src/g/c0`.
+#[cfg(unix)]
+#[test]
+fn layout_a_folder_name_that_ends_in_the_arrow_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write(
+        "src/lib.rs",
+        "#[path = \"a ->/mod.rs\"]\nmod a;\nmod g;\nmod x;\n",
+    );
+    fixture.write("src/g/mod.rs", "pub mod c0;\npub mod own;\n");
+    fixture.write("src/g/c0/mod.rs", "pub struct G;\n");
+    fixture.write("src/g/own.rs", "use crate::x::X;\n");
+    fixture.write("src/x/mod.rs", "pub mod f;\n");
+    fixture.write(
+        "src/x/f.rs",
+        "use crate::a::A;\nuse crate::g::c0::G;\npub struct X;\n",
+    );
+    fixture.write("src/a ->/mod.rs", "pub mod f;\n");
+    fixture.write("src/a ->/f.rs", "use crate::g::c0::G;\npub struct A;\n");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in [
+        "The layout rules stop at src/a ->/mod.rs,",
+        "would read as another pair of folders",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A folder whose name begins with the arrow is refused before any check,
+///  because a `uses` line naming it would be read from an arrow inside its own name.
+#[cfg(unix)]
+#[test]
+fn layout_a_folder_name_that_begins_with_the_arrow_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write("src/lib.rs", "#[path = \"-> a/mod.rs\"]\nmod a;\n");
+    fixture.write("src/-> a/mod.rs", "pub struct A;\n");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in [
+        "The layout rules stop at src/-> a/mod.rs,",
+        "would read as another pair of folders",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A folder named exactly the arrow is refused before any check,
+///  because the space a `uses` line sets its words off with closes another arrow with its name.
+#[cfg(unix)]
+#[test]
+fn layout_a_folder_name_that_is_the_arrow_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write("src/lib.rs", "#[path = \"->/mod.rs\"]\nmod a;\n");
+    fixture.write("src/->/mod.rs", "pub struct A;\n");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in [
+        "The layout rules stop at src/->/mod.rs,",
+        "would read as another pair of folders",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A folder ending in the arrow beside one beginning with it is refused whichever comes first,
+///  because one printed line, `uses src/a -> -> -> src/b`, could name two pairs at once.
+#[cfg(unix)]
+#[test]
+fn layout_two_folder_names_that_could_share_one_uses_line_are_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write(
+        "src/lib.rs",
+        "#[path = \"a ->/mod.rs\"]\nmod a;\n#[path = \"-> b/mod.rs\"]\nmod b;\n",
+    );
+    fixture.write("src/a ->/mod.rs", "pub struct A;\n");
+    fixture.write("src/-> b/mod.rs", "pub struct B;\n");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    assert!(
+        message.contains("The layout rules stop at src/a ->/mod.rs,")
+            || message.contains("The layout rules stop at src/-> b/mod.rs,"),
+        "{message}"
+    );
+    assert!(
+        message.contains("would read as another pair of folders"),
+        "{message}"
+    );
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A `uses` line whose spacing leaves the name before the arrow ending in whitespace is refused,
+///  because no folder name of a tree the rules accept ends in whitespace:
+///  the run names the line instead of reporting the entry dead and telling the reader to delete it.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_line_whose_name_before_the_arrow_ends_in_whitespace_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    write_two_folder_loop(
+        &fixture,
+        "uses src/a  -> src/b\nuses src/b -> src/a\nmissing-link src/a -> src/b\nmissing-link src/b -> src/a\n",
+    );
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in ["Line 1", "ends in whitespace", "uses <folder> -> <folder>"] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A `uses` line with two spaces in front of a name reads a folder whose name starts with a space,
+///  and the finding for the dead entry names the folder it read and says the package holds none of it,
+///  so a hand-aligned line is re-spaced rather than deleted.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_line_with_a_doubled_space_in_front_of_a_name_names_the_folder_it_read() {
+    let fixture: Fixture = Fixture::new();
+    write_two_folder_loop(
+        &fixture,
+        "uses  src/a -> src/b\nuses src/b -> src/a\nmissing-link src/a -> src/b\nmissing-link src/b -> src/a\n",
+    );
+    let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(listed.status, 1, "{} {}", listed.stdout, listed.stderr);
+    for part in [
+        "The allow-list entry `uses  src/a -> src/b`",
+        "names the folder ` src/a`",
+        "which no folder of this package is called",
+    ] {
+        assert!(
+            listed.stdout.contains(part),
+            "{part} missing in {}",
+            listed.stdout
+        );
+    }
+}
+
+/// A `uses` line with a word after the folder it names reads that word as part of the name,
+///  and the finding for the dead entry says no folder of the package is called that,
+///  so a mistyped line is named as mistyped rather than only told to be deleted.
+#[cfg(unix)]
+#[test]
+fn layout_a_use_line_with_a_word_after_its_folder_names_the_folder_the_tree_lacks() {
+    let fixture: Fixture = Fixture::new();
+    write_two_folder_loop(
+        &fixture,
+        "uses src/a -> src/b extra\nuses src/b -> src/a\nmissing-link src/a -> src/b\nmissing-link src/b -> src/a\n",
+    );
+    let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(listed.status, 1, "{} {}", listed.stdout, listed.stderr);
+    for part in [
+        "The allow-list entry `uses src/a -> src/b extra`",
+        "names the folder `src/b extra`",
+        "which no folder of this package is called",
+    ] {
+        assert!(
+            listed.stdout.contains(part),
+            "{part} missing in {}",
+            listed.stdout
+        );
+    }
+}
+
+/// An entry of a `uses` folder is no path,
+///  so a name that holds a backslash keeps it in the key about the entry,
+///  which the next run reads back as the same entry.
+#[cfg(unix)]
+#[test]
+fn layout_a_uses_entry_name_that_holds_a_backslash_keeps_its_name_in_its_key() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod b;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    fixture.write("src/a/x.rs", "use crate::b::B;\npub struct X;\n");
+    fixture.write("src/b/mod.rs", "pub struct B;\n");
+    uses_link(&fixture.path, "src/a/uses/b\\c", "../../b");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "link src/a/uses/b\\c named-after-another-folder"),
+        "{keys:?}"
+    );
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{keys:?}\n{}\n{}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// An entry of a `uses` folder never appears on a `uses` line,
+///  so a name that holds the arrow words is no ambiguity and its key holds the name as written.
+#[cfg(unix)]
+#[test]
+fn layout_a_uses_entry_name_that_holds_the_arrow_words_keeps_its_name_in_its_key() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod b;\n");
+    fixture.write("src/a/mod.rs", "pub mod x;\n");
+    fixture.write("src/a/x.rs", "use crate::b::B;\npub struct X;\n");
+    fixture.write("src/b/mod.rs", "pub struct B;\n");
+    uses_link(&fixture.path, "src/a/uses/b -> c", "../../b");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "link src/a/uses/b -> c named-after-another-folder"),
+        "{keys:?}"
+    );
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{keys:?}\n{}\n{}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// A file name is no path, so a key about a file whose name holds a backslash keeps that name,
+///  and the key the rule prints is the line the next run reads back.
+#[test]
+fn layout_a_glob_key_about_a_file_name_that_holds_a_backslash_keeps_its_name() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod m;\n#[path = \"a\\\\b.rs\"]\nmod q;\n");
+    fixture.write("src/m.rs", "pub struct M;\n");
+    fixture.write("src/a\\b.rs", "pub use crate::m::*;\n");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "glob src/a\\b.rs crate::m"),
+        "{keys:?}"
+    );
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{keys:?}\n{}\n{}",
+        held.stdout,
+        held.stderr
+    );
+}
+
+/// A `file-uses` line is five words set off with one whitespace character each,
+///  so a folder whose name holds a space makes six words and the whole list is refused.
+///  This is the limit the README's "Known limits" sentence states for the file rule.
+#[cfg(unix)]
+#[test]
+fn layout_a_file_use_line_whose_folder_name_holds_a_space_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write("src/lib.rs", "#[path = \"a b/mod.rs\"]\nmod m;\n");
+    fixture.write(
+        "src/a b/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\n//! - `two.rs`: two.\nmod one;\nmod two;\n",
+    );
+    fixture.write("src/a b/one.rs", "use super::two::T;\npub struct O;\n");
+    fixture.write("src/a b/two.rs", "use super::one::O;\npub struct T;\n");
+    fixture.write("file.txt", "file-uses src/a b one.rs -> two.rs\n");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    for part in ["Line 1", "file-uses <folder> <file> -> <file>"] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
