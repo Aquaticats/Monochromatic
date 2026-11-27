@@ -246,6 +246,10 @@
 //!   what the ceiling of the scratch `git commit` does when it comes:
 //!   ends the step it watches,
 //!   and answers whether that step was signalled.
+//! - `scratch_step_stall_decided_once.rs`:
+//!   the one decision two enforcers of a step's ceiling make together:
+//!   whether the ceiling stands aside for a step the kernel holds in a disk wait,
+//!   and the process the kernel is holding.
 //! - `scratch_step_held_by_the_kernel.rs`:
 //!   the line a commit prints when the step it stopped is still held by the kernel.
 //! - `scratch_step_look_below.rs`:
@@ -255,9 +259,6 @@
 //! - `scratch_step_programs_below.rs`:
 //!   the programs a look of the notice saw below the step,
 //!   and the time each was credited with.
-//! - `scratch_step_stall_decided_once.rs`:
-//!   the one decision two enforcers of a step's ceiling make together:
-//!   whether the ceiling stands aside for a step the kernel holds in a disk wait.
 //! - `native_commit_waiting_notice_ceiling.rs`:
 //!   the ceiling of the commit Git builds in the scratch repository,
 //!   as the setting a person gives it.

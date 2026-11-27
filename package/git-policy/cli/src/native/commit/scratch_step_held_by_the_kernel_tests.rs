@@ -1,6 +1,7 @@
 //! Controls for the line a commit prints when the step it stopped is still held by the kernel.
 
 use super::*;
+use crate::scratch_step_stall_decided_once::HeldProgram;
 
 /// The line names the step,
 /// says the stop was sent,
