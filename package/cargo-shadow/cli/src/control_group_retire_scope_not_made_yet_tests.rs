@@ -145,12 +145,12 @@ fn a_scope_whose_directory_was_never_made_is_read_as_collected_and_the_run_says_
         never_made.display()
     );
 
-    // The positive control first: the same look at the member's own directory says the unit keeps its member, so a silent
+    // The positive control first: the same look at the member's own directory says the group still holds one, so a silent
     // answer at the absent one is not the look's only possible answer for this unit.
     let real_word: Option<String> = retire(&scope.group, &systemctl, RETIRE_BOUND);
     let real_said: String = real_word.expect("a scope with a member is reported as left loaded");
     assert!(
-        real_said.contains("still has a member"),
+        real_said.contains("the kernel's `populated 1` line was read"),
         "the positive control did not report the member the scope holds: {real_said}"
     );
 
