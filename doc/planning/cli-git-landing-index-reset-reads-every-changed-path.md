@@ -393,7 +393,8 @@ whose positive control read one watched file and reported `opens=1 accesses=1`.
 
 ### The record for issue 6546, taken as given
 
-`doc/troubleshooting/git-policy-cli-landing-index-reset-reads-every-changed-path.md`
+The record for issue 6546,
+[`git-policy-cli-landing-index-reset-reads-every-changed-path.md`](../troubleshooting/git-policy-cli-landing-index-reset-reads-every-changed-path.md),
 holds the measurement this issue rests on,
 taken 2026-11-27 between 04:00 and 05:00 -05:00 at a load average of 123 to 186,
 from the twin harness `service_landing_state::awkward_change_lists_land_as_native_git_commits_them`:
