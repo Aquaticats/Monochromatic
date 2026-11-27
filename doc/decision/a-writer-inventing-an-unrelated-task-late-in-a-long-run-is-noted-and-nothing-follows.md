@@ -30,4 +30,11 @@ moved verbatim on 2026-11-23:
   So it is kept as an observation of a writer inventing a task late in a long run,
   and nothing follows from it.
   Excerpt:
-  `~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/writer-invented-an-unrelated-task-in-its-own-reasoning-2026-11-22T18-30-46.txt`.
+  `~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/writer-invented-an-unrelated-task-in-its-own-reasoning-2026-11-22T18-30-46.txt`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
+  The excerpt opens with the model's own words,
+  "That output was from the design doc,
+  not the clip.",
+  and names `aerospace-clip.html` and its `high-energy-reflink-safety` section.
