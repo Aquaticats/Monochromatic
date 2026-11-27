@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-cargo-shadow"
-version = "0.1.5-alpha.13"
+version = "0.1.5-alpha.14"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"

@@ -7656,7 +7656,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   (`bin/native-check-scope-watch-accounting.ts`),
   because a scope takes its control group with it,
   and a reading that answers less than the whole one before it is not kept
-  (`bin/native-check-scope-accounting.ts`):
+  (`bin/cgroup-whole-readings.ts`,
+  which this reader and the gate container's reader both use):
   the kernel removes a control group's files one at a time and the directory after them,
   so a reading taken while a scope ends answers part of the group,
   and a check judged on that reading was told no bound of its own failed it
@@ -8215,6 +8216,11 @@ because a release waits on that gate and its suite is what the CPUs shorten
   the peak it reached,
   and the two options that raise it.
   A run that met no kill prints nothing.
+  A dying cgroup gives its files up one at a time,
+  so a reading taken while a container's cgroup goes answers only part of it;
+  such a reading never replaces the whole one before it
+  (`bin/cgroup-whole-readings.ts`),
+  which is why the line rests on the last reading that answered every part of the one before it.
 - The Clippy container has a bound of its own,
   8 GiB from `bin/native-gate-container-limits.ts` (`gateClippyMemory`),
   because it compiles every target of the crate,

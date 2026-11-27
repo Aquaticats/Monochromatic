@@ -7,7 +7,8 @@ Which words it prints is chosen by what happened,
 and this record lists every refusal that can reach it,
 what became of each,
 and what a person can still do about the ones with no arm of their own.
-It is the durable half of issue 6606.
+It is the durable half of issue 6606,
+and of the launcher's own sentences for the same findings (issue 6616).
 
 ## Symptom
 
@@ -224,6 +225,56 @@ because the link that loops keeps looping.
   and then with the copy taken away.
   The arm that says nothing about which file is missing is the one where the program itself is gone,
   because then no bytes are left to say.
+- The launcher mode prints the same finding,
+  and now names the same file:
+  it reads the program's own bytes through `named_interpreter::missing_interpreter`
+  (`src/named_interpreter.rs`),
+  which the shadow mode's not-there arm chooses its words with as well,
+  so the two cannot disagree about which file is missing.
+  `src/toolchain/launcher/starting_it.rs` holds the launcher's sentences (`missing_lines`),
+  and its being-written arm now passes the program to `being_written_cause_and_remedy`,
+  so that sentence names the program's own interpreter too instead of both kinds.
+  Reproduced and re-measured 2026-11-27 in a fixture of this round's own,
+  before and after the change,
+  with the binary built from `main` and then from the branch;
+  the fixture gives a copy of a compiled program on this machine
+  (`/usr/bin/true`) a dynamic linker of its own by pointing its `PT_INTERP` entry at a copy of the
+  linker it names (`tests/written_programs/through_a_child_process.rs`,
+  `give_a_linker_of_its_own`),
+  so that copy can be held open for writing and then taken away.
+  The message a vanished program gets,
+  before and after:
+
+  ```text
+  mpm-shadow: could not start <path>/bin/tool: the program is gone, or the interpreter named on its first line (`#!`) is (No such file or directory (os error 2)); it was there when this launcher checked the path
+  mpm-shadow: what to do: run `mpm install` in <tree> to make this tree's links again, and install the interpreter its first line names if that is the file that is missing
+  ```
+
+  ```text
+  mpm-shadow: could not start <path>/bin/tool: its dynamic linker (`<path>/bin/linker-of-its-own`) is not there (No such file or directory (os error 2)), and a compiled program cannot start without it; the program itself was there when this launcher checked the path
+  mpm-shadow: what to do: run `mpm install` in <tree> to make this tree's links again, and install or upgrade the package that provides `<path>/bin/linker-of-its-own` if that linker is the file that is missing
+  ```
+
+  A script whose interpreter is gone gets the interpreter named the same way,
+  a refusal because the program or its linker is being written names the file that fits,
+  and the arm where the program's own bytes are gone names both kinds and claims neither.
+  Every arm of that fixture ran with a control arm in which the same program started,
+  and the exit status and standard output were byte-identical before and after for all thirteen runs
+  (`tests/launcher.rs`).
+  The being-written sentence for the launcher now names the program's linker where it used to name both
+  kinds:
+
+  ```text
+  ... a file this start needs is open for writing by some other process (Text file busy (os error 26)): the program itself, or the interpreter it names, which is the program after `#!` on a script's first line or a compiled program's dynamic linker. mpm-shadow cannot tell which process holds that file, or why it holds it
+  ```
+
+  ```text
+  ... a file this start needs is open for writing by some other process (Text file busy (os error 26)): the program itself, or its dynamic linker (`<path>/bin/linker-of-its-own`), which is the interpreter a compiled program names where a script has its `#!` line. mpm-shadow cannot tell which process holds that file, or why it holds it
+  ```
+- The message of a launcher that finds no program at all is unchanged
+  (`mpm-shadow: not starting <path>: no file exists there`),
+  because it names no first line and no interpreter.
+  `src/toolchain/launcher/starting_it.rs` (`report_program_not_found`).
 - A refused shadow has its own arm:
   the path,
   the shadow the file is or leads to (the sentence `vet` built),
@@ -367,10 +418,10 @@ Windows and macOS are out of scope.
 This record is unapproved and non-final.
 What was done is recorded here and in the commits.
 What is open is the owner's review,
-the option of repeating a start refused as busy,
-which this change leaves exactly as it was,
-and the launcher's own sentence for a program that vanished,
-which still says the interpreter is named on the program's first line
-(`src/toolchain/launcher/starting_it.rs`).
-That file belongs to another round of this release pass,
-so this round read it and left it unchanged.
+and the option of repeating a start refused as busy,
+which this change leaves exactly as it was.
+The launcher's own sentence for a program that vanished was the other open item of the earlier round:
+it said the interpreter is named on the program's first line (`src/toolchain/launcher/starting_it.rs`),
+and the round that took that file (`issue 6616`) now reads the file the same way the shadow mode does.
+The words and the fixture run are above,
+under "What the code does now".

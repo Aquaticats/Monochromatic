@@ -117,16 +117,21 @@ use crate::bounded_run::{
     use_route_settings_for_test,
 };
 /// What:
-/// `use crate::cgroup_test_support::wait_up_to;` imports the bounded wait of the scope controls.
+/// `use crate::cgroup_test_support::{this_test_needs_a_delegated_scope, wait_up_to};` imports the bounded wait of the scope
+/// controls and the line that says a control cannot run where this host has no manager.
 /// Why:
 /// The unit is collected by the manager's next pass,
-/// which this control waits for instead of sleeping.
+/// which these controls wait for instead of sleeping,
+/// and a host without a manager must report them as not run rather than as failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { waitUpTo } from 'crate/cgroup_test_support';
+/// import { thisTestNeedsADelegatedScope, waitUpTo } from 'crate/cgroup_test_support';
 /// ```
-use crate::cgroup_test_support::wait_up_to;
+use crate::cgroup_test_support::{
+    this_test_needs_a_delegated_scope,
+    wait_up_to,
+};
 /// What:
 /// `use crate::control_group::RouteSettings;` imports the settings that make the run ask the recording program instead of
 /// `systemctl`.
@@ -138,6 +143,23 @@ use crate::cgroup_test_support::wait_up_to;
 /// import { RouteSettings } from 'crate/control_group';
 /// ```
 use crate::control_group::RouteSettings;
+/// What:
+/// `use crate::control_group::retire::{RETIRE_BOUND, retire_unit};` imports the bound a question keeps and the one request
+/// that frees a unit,
+/// for the warning helper's own clean-up.
+/// Why:
+/// The helper's stand-in cannot free the unit it refused,
+/// a failed assertion in the parent must not leave it loaded,
+/// and the control reads the same bound the step does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group/retire';
+/// ```
+use crate::control_group::retire::{
+    RETIRE_BOUND,
+    retire_unit,
+};
 /// What:
 /// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
 /// Why:
@@ -303,6 +325,16 @@ fn run_recording(
     limit: Duration,
     stuck_scope: bool,
 ) -> Observed {
+    // What:     `this_test_needs_a_delegated_scope()` fails with the suite's own "not run" line where this host cannot give a
+    //           run a scope.
+    // Why:      Every control that comes through here reads a unit, so none of them may fail for the host's lack of a
+    //           manager: the task's degraded run has to learn this control's name, not count a failure.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // thisTestNeedsADelegatedScope()
+    // ```
+    this_test_needs_a_delegated_scope();
     let (program, log) = recording_systemctl(directory);
     let settings: RouteSettings = RouteSettings {
         systemctl: program.display().to_string(),
@@ -485,4 +517,223 @@ fn an_ordinary_run_asks_the_manager_nothing() {
         observed.unit,
         load_state(&observed.unit)
     );
+}
+
+/// The control of a run whose stop could not show the scope empty:
+/// the run is refused,
+/// and its unit is still asked for and freed.
+/// The stop is made to fail at once (a failpoint),
+/// because a real stop that cannot show a scope empty takes its whole bound and a member that cannot be killed;
+/// what this control reads is the retirement,
+/// which has to happen whatever the stop answered.
+#[test]
+fn a_run_whose_stop_is_not_shown_empty_still_asks_for_its_unit() {
+    let directory = scratch();
+    arm(Point::ContainmentStopError);
+    let observed = run_recording(directory.path(), &mut Command::new("true"), RUN_BOUND, true);
+
+    assert!(
+        !crate::failpoints::fires(Point::ContainmentStopError),
+        "the stop never reached the failure this control arms, so the run was not refused by it"
+    );
+    assert!(
+        matches!(observed.result, Err(RunError::NotQuiescent { .. })),
+        "the injected stop failure did not refuse the run"
+    );
+    assert_stopped_and_gone(&observed);
+}
+
+/// The environment variable that tells the warning helper process which run to make.
+const WARNING_SCENARIO: &str = "CARGO_SHADOW_RETIRE_WARNING_SCENARIO";
+/// The environment variable that gives the warning helper process the directory its stand-ins live in.
+const WARNING_DIRECTORY: &str = "CARGO_SHADOW_RETIRE_WARNING_DIRECTORY";
+
+/// What:
+/// `fn failing_systemctl(directory: &Path) -> PathBuf` writes a program that logs its arguments,
+/// fails a stop request with one line of its own,
+/// and runs the real `systemctl` for every other request,
+/// and answers the program.
+/// Why:
+/// The warning this control reads is printed only when the manager refuses the stop,
+/// and the same program has to answer the route discovery's own questions from the real manager,
+/// or the run would make no scope to leave.
+/// It is a stand-in:
+/// no claim about a real manager rests on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function failingSystemctl(dir: string): string
+/// ```
+fn failing_systemctl(directory: &Path) -> PathBuf {
+    let program: PathBuf = directory.join("failing-systemctl");
+    let log: PathBuf = directory.join("failing-systemctl-calls");
+    let text: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nif [ \"$3\" = stop ]; then\n  echo 'the stand-in refuses the stop' >&2\n  exit 1\nfi\nexec '{real}' \"$@\"\n",
+        log = log.display(),
+        real = systemctl_path()
+    );
+    fs::write(&program, text).expect("write the stand-in");
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    return program;
+}
+
+/// The helper process of the warning control:
+/// it makes one run under the scenario its environment names and exits.
+/// The warning a run prints goes to the real standard error of the process that made the run,
+/// so a fresh process is the only way a test can read it.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error"]
+fn retire_warning_fixture() {
+    let (Ok(scenario), Ok(scratch)) = (
+        std::env::var(WARNING_SCENARIO),
+        std::env::var(WARNING_DIRECTORY),
+    ) else {
+        return;
+    };
+    let directory: PathBuf = PathBuf::from(scratch);
+    let program: PathBuf = failing_systemctl(&directory);
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+    use_route_settings_for_test(Some(settings));
+    let _ = take_trace_for_test();
+    let result: Result<Output, RunError> = if scenario == "member" {
+        // The stop is made to fail before it kills anything, so the program's grandchild is still in the scope when the
+        // retirement reads it.
+        arm(Point::ContainmentStopError);
+        output_within(
+            Command::new("sh").args(["-c", "sleep 30 &"]),
+            None,
+            &bound(RUN_BOUND),
+        )
+    } else {
+        // The look answers the state of the stuck scope of issue 6578, which a run of a real program cannot leave.
+        arm(Point::RetireSeesStuckScope);
+        output_within(&mut Command::new("true"), None, &bound(RUN_BOUND))
+    };
+    use_route_settings_for_test(None);
+    // What:     `let unit: String = launched_scope(&take_trace_for_test())` is the unit the run made, read from the run's own
+    //           trace; the retirement's own request goes through the stand-in, so the unit is freed here with the real manager.
+    // Why:      A failed assertion in the parent must not leave a unit behind, and the stand-in cannot free it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const unit = launchedScope(takeTrace())
+    // ```
+    let unit: String = launched_scope(&take_trace_for_test());
+    // What:     `println!("unit {unit}")` puts the unit's name on the helper's standard output, where the control that started it
+    //           reads it.
+    // Why:      The control then checks that the unit is gone and stops it itself when it is not, so a helper that failed after
+    //           making a scope cannot leave a unit behind unnoticed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // console.log(`unit ${unit}`)
+    // ```
+    println!("unit {unit}");
+    let _ = retire_unit("systemctl", &unit, RETIRE_BOUND);
+    assert!(
+        result.is_err() || scenario == "refused",
+        "the member run was not refused, so its member would have been killed by the stop: {result:?}"
+    );
+}
+
+/// The control of the words a run prints:
+/// the warning a refused retirement leaves on the run's own standard error,
+/// read from a fresh process that makes the run,
+/// for each of the two states a run can leave a unit in.
+/// The trace of the other controls shows which warning a run selects;
+/// this shows that it is printed,
+/// so a change that removed the printing and kept the answer would fail here and pass there.
+#[test]
+fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let scenarios: [(&str, &str, &str); 2] = [
+        (
+            "refused",
+            "may still be loaded",
+            "the stand-in refuses the stop",
+        ),
+        ("member", "was left loaded", "still has a member"),
+    ];
+    for (scenario, state, detail) in scenarios {
+        let output = Command::new(std::env::current_exe().expect("this test executable"))
+            .args([
+                "--ignored",
+                "--exact",
+                "bounded_run_end::retire_tests::retire_warning_fixture",
+                "--nocapture",
+            ])
+            .env(WARNING_SCENARIO, scenario)
+            .env(WARNING_DIRECTORY, directory.path())
+            .output()
+            .expect("the warning helper");
+
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(
+            output.status.success(),
+            "{scenario}: the helper failed: {stderr}"
+        );
+        // What:     the helper's own line names the unit it made; the control reads it, stops it if the helper left it, and only
+        //           then judges the words.
+        // Why:      A helper that failed after making a scope would otherwise leave a unit and its member behind for the rest of
+        //           the machine's uptime.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const unit = stdout.split('\n').find((line) => line.startsWith('unit ')).slice(5)
+        // if (loadState(unit) !== 'not-found') { retireUnit('systemctl', unit); panic(...) }
+        // ```
+        let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
+        let unit: String = stdout
+            .lines()
+            .find_map(|line| {
+                return line.strip_prefix("unit ").map(str::to_string);
+            })
+            .unwrap_or_else(|| {
+                panic!("{scenario}: the helper printed no unit: {stdout}");
+            });
+        if load_state(&unit) != "not-found" {
+            let _ = retire_unit("systemctl", &unit, RETIRE_BOUND);
+            panic!(
+                "{scenario}: the helper left {unit} loaded as {}",
+                load_state(&unit)
+            );
+        }
+        let printed: Vec<&str> = stderr
+            .lines()
+            .filter(|line| {
+                return line.starts_with("cargo-shadow: warning: the scope unit ");
+            })
+            .collect();
+        assert_eq!(
+            printed.len(),
+            1,
+            "{scenario}: the warning was not printed exactly once on standard error: {stderr}"
+        );
+        assert!(
+            printed[0].contains(state) && printed[0].contains(detail),
+            "{scenario}: the printed warning does not say what was read: {}",
+            printed[0]
+        );
+        if scenario == "refused" {
+            assert!(
+                !printed[0].contains("was left loaded"),
+                "the run says the unit was left loaded, where the manager was asked and answered: {}",
+                printed[0]
+            );
+        }
+        if scenario == "member" {
+            assert!(
+                printed[0].contains(
+                    "a member that joins after this look is killed by that stop with nothing printed"
+                ),
+                "the printed warning does not name the window after the look: {}",
+                printed[0]
+            );
+        }
+    }
 }

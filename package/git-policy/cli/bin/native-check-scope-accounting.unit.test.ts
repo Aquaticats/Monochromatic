@@ -10,7 +10,6 @@ import {
 import {
   SCOPE_NOT_READ,
   checkScopeCgroupPath,
-  isRemoved,
   readScopeAccounting,
 } from './native-check-scope-accounting.ts';
 import { createGateScratchDirectory } from './stand-in-gate-programs-for-tests.ts';
@@ -142,46 +141,6 @@ await describe({
           scratch.path,
           'gpc-check-gone.scope'
         ), }),).toBe(SCOPE_NOT_READ,);
-      },
-    }),
-    it({
-      name: 'takes the kernel removing a file of a control group as a file that answers no figure',
-      fn: async () => {
-        // The error Node builds for this kernel's answer, captured on this host on 2026-11-27 from a control group the
-        // account made and removed while a reader read it (`kernfs_seq_start` answering `ENODEV` for a node the kernel
-        // had deactivated): `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
-        /**
-         One answer of a file whose control group is going.
-         */
-        const removed = Object.assign(
-          new Error('ENODEV: no such device, read \'/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/gpc-probe-6610-d6157fac49704927860679adb5c5b0b6-110/pids.max\''),
-          {
-            code: 'ENODEV',
-            errno: -19,
-            syscall: 'read',
-            path: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/gpc-probe-6610-d6157fac49704927860679adb5c5b0b6-110/pids.max',
-          },
-        );
-        expect(isRemoved(removed,),).toBe(true,);
-        // A file that is not there, and words that only look like the code, are not an answer of the kernel's.
-        /**
-         The answer of a file a directory does not hold.
-         */
-        const missing = Object.assign(
-          new Error('ENOENT: no such file or directory, open \'/sys/fs/cgroup/a.scope/pids.max\''),
-          {
-            code: 'ENOENT',
-            errno: -2,
-            syscall: 'open',
-            path: '/sys/fs/cgroup/a.scope/pids.max',
-          },
-        );
-        expect(isRemoved(missing,),).toBe(false,);
-        /**
-         Words that name the code without carrying it.
-         */
-        const words = new Error('ENODEV');
-        expect(isRemoved(words,),).toBe(false,);
       },
     }),
     it({

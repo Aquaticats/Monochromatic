@@ -63,14 +63,14 @@ mod cause_and_remedy;
 mod path_commands;
 
 /// What:
-/// `pub use self::cause_and_remedy::{...}` hands the arms' two public sentences out under the name callers already use.
+/// `pub use self::cause_and_remedy::being_written_cause_and_remedy;` hands out the shared words for a start
+/// refused because a file it needs is being written.
 /// Why:
-/// The launcher mode reports the being-written refusal with them,
-/// and it names them through this module.
-pub use self::cause_and_remedy::{
-    being_written_cause_and_remedy,
-    being_written_cause_and_remedy_for,
-};
+/// The shadow mode and the launcher mode meet the same refusal,
+/// and they name it through this module.
+/// Both pass the program they start,
+/// so the words say which interpreter that program names.
+pub use self::cause_and_remedy::being_written_cause_and_remedy;
 /// What:
 /// `pub use self::path_commands::describe_missing_real_mpm;` hands out the message for a PATH with no real `mpm`.
 /// Why:

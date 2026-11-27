@@ -90,6 +90,12 @@ const HOST_COMMAND_TIMEOUT_MS = 120_000;
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
 
 /**
+ The swap file the guest adds, in gibibytes, so the rustc a one-job build runs has room for the linker beside it: the
+ same 6 GiB the settling-command, removal-lineage, mount-git-worktree and zfs-step-22 drivers' guests add.
+ */
+const SWAP_GIB = '6G';
+
+/**
  Milliseconds the arm may take.
  */
 const ARM_TIMEOUT_MS = 1_800_000;
@@ -339,8 +345,22 @@ async function run({ chosen, }: { readonly chosen: Options; },): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked --features test-only-switches > /root/lock-build.log 2>&1',
-    'tail --lines=3 /root/lock-build.log',
+    'df --human-readable / /mnt/shared',
+    'free',
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    'free',
+    // One job and a swap file, as the settling-command, removal-lineage and mount-git-worktree drivers do: cargo's
+    // default of one job per vCPU ran four rustcs here, the guest's own `AnonPages` reached 7,701,208 kB of its
+    // 7,755 MiB with `MemAvailable` at 63,928 kB, and the kernel killed the lib test's rustc at 6,668,028 kB of
+    // anonymous memory (measured 2026-11-27 in this driver's own guest, issue 6611). At one job the same reading of
+    // the guest's `/proc/meminfo` peaks at 7,019,956 kB, one rustc of this crate's tests, with `MemAvailable` at
+    // 625,704 kB at its lowest, so the bound rests on that figure and the swap file on the linker beside it.
+    'if cargo build --release --tests --locked --features test-only-switches --jobs 1 > /root/lock-build.log 2>&1; then status=0; else status=$?; fi',
+    // A build the guest's killer ends leaves no compile error to read, so the log is printed here and the status is
+    // the script's own: `set -eu` alone would end the script at the killed build and keep the reason in the guest.
+    'grep --extended-regexp "^(error|warning)" --after-context=6 /root/lock-build.log | tail --lines=80 || true',
+    'tail --lines=5 /root/lock-build.log',
+    'exit $status',
   ].join('\n',);
   await runGuestScript({
     logDirectory: chosen.logDirectory,
