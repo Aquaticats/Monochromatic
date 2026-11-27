@@ -236,6 +236,20 @@ impl ControlGroup {
     }
 
     /// What:
+    /// `pub(crate) fn unit(&self) -> String` is the scope's unit name as the manager knows it: the token and the `.scope` suffix.
+    /// Why:
+    /// The stop of a unit after its run ended names it to `systemctl`,
+    /// and only this type holds the name.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// unit(): string
+    /// ```
+    pub(crate) fn unit(&self) -> String {
+        return format!("{}.scope", self.name);
+    }
+
+    /// What:
     /// `pub(crate) fn record(&self) -> Record` is what a journal keeps of this scope.
     /// Why:
     /// The journal line is written and forced to disk before the program starts.

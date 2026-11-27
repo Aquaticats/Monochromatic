@@ -74,6 +74,20 @@ use crate::control_group::{
     Route,
 };
 /// What:
+/// `use crate::control_group_retire::{RETIRE_BOUND, retire_unit};` imports the end of a run's scope unit and its bound.
+/// Why:
+/// A run shows its control group empty and then asks the manager to stop the unit it started,
+/// so a unit the manager never noticed becoming empty is not left `active (running)` (issue 6578).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group_retire';
+/// ```
+use crate::control_group_retire::{
+    RETIRE_BOUND,
+    retire_unit,
+};
+/// What:
 /// `use crate::control_group_stop::report::StopReport;` imports what the stop of a scope answers.
 /// Why:
 /// The shortfall of a run that cannot be shown stopped is built from that report,
@@ -419,29 +433,54 @@ pub(crate) fn stop_process_group(
 }
 
 /// What:
-/// `fn stop_everything(containment, child) -> Result<(), String>` ends the run early or at its normal exit:
-/// it kills and reaps the direct child,
+/// `fn retire(group: &ControlGroup, route: &Route)` asks the manager to stop the scope unit of a run that has ended,
+/// and warns when the manager may still load it.
+/// Why:
+/// The scope is already shown empty,
+/// so this is housekeeping for the unit and never a claim about a writer;
+/// a manager that cannot be asked does not turn the run into "not quiescent",
+/// but a person has to be told that the unit may stay.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function retire(group: ControlGroup, route: Route): void
+/// ```
+fn retire(
+    group: &ControlGroup,
+    route: &Route,
+) {
+    let unit: String = group.unit();
+    // What:     `if let Err(reason) = retire_unit(...)` runs the warning only when the retire answered a failure; `&route.systemctl`
+    //           and `&unit` lend the two names to the call.
+    // Why:      A retired unit needs nothing said, and a warning on every run would be noise.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reason = retireUnit(route.systemctl, unit, RETIRE_BOUND).error
+    // if (reason) console.error(`... ${unit} ... ${reason}`)
+    // ```
+    if let Err(reason) = retire_unit(&route.systemctl, &unit, RETIRE_BOUND) {
+        eprintln!(
+            "cargo-shadow: warning: the scope unit {unit} of the run that just ended may still be loaded ({reason})"
+        );
+    }
+}
+
+/// What:
+/// `fn stop_containment(containment, child) -> Result<(), String>` kills and reaps the direct child,
 /// stops what the containment holds,
 /// and answers `Ok` only if all of it is shown gone,
 /// or the words a refusal carries saying what was not shown and why.
 /// Why:
-/// This is the one way a run is ended,
-/// on timeout,
-/// on a normal exit and on every error path.
-/// The direct child goes first:
-/// it is the process that becomes the program,
-/// so once it is reaped nothing of this program's can
-/// still start the program in a scope that is not there yet.
-/// A scope that cannot be stopped,
-/// and any failure to inspect or stop it,
-/// is "not shown gone",
-/// and the text says how long the stop waited and what it was waiting for (issue 6528).
+/// This is the proof of quiescence on its own,
+/// so `stop_everything` can add the end of the scope unit after it on every outcome,
+/// the refusal paths included.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stopEverything(containment: Containment, child: ChildProcess): string | undefined
+/// function stopContainment(containment: Containment, child: ChildProcess): string | undefined
 /// ```
-pub(crate) fn stop_everything(
+fn stop_containment(
     containment: &Containment,
     child: &mut Child,
 ) -> Result<(), String> {
@@ -495,6 +534,63 @@ pub(crate) fn stop_everything(
             )),
         },
     };
+}
+
+/// What:
+/// `fn stop_everything(containment, child) -> Result<(), String>` ends the run early or at its normal exit:
+/// it stops what the containment holds,
+/// asks the manager to stop the run's scope unit,
+/// and answers `Ok` only if all of the containment is shown gone,
+/// or the words a refusal carries saying what was not shown and why.
+/// Why:
+/// This is the one way a run is ended,
+/// on timeout,
+/// on a normal exit and on every error path.
+/// The unit is asked to stop on every one of those paths,
+/// because a scope whose process was already exiting when the manager attached it never becomes populated,
+/// so the manager never gets the kernel's empty notification and would leave the unit `active (running)` (issue 6578).
+/// The direct child goes first:
+/// it is the process that becomes the program,
+/// so once it is reaped nothing of this program's can
+/// still start the program in a scope that is not there yet.
+/// A scope that cannot be stopped,
+/// and any failure to inspect or stop it,
+/// is "not shown gone",
+/// and the text says how long the stop waited and what it was waiting for (issue 6528).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stopEverything(containment: Containment, child: ChildProcess): string | undefined
+/// ```
+pub(crate) fn stop_everything(
+    containment: &Containment,
+    child: &mut Child,
+) -> Result<(), String> {
+    // What:     `let outcome: Result<(), String> = stop_containment(...)` keeps the proof (or the shortfall) while the scope unit is
+    //           ended; `Result<(), String>` is the success-or-reason pair of the whole stop.
+    // Why:      The unit has to be ended whatever the proof says, and the caller must still receive the proof itself.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const outcome = stopContainment(containment, child)
+    // ```
+    let outcome: Result<(), String> = stop_containment(containment, child);
+    // What:     `if let Containment::Scope { group, route } = containment` runs the retirement only for a delegated scope; the process
+    //           group path has no unit. `group` and `route` are borrowed views into the containment.
+    // Why:      Only a scope leaves a unit behind; the weaker path leaves nothing in the manager.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (containment.kind === 'scope') retire(containment.group, containment.route)
+    // ```
+    if let Containment::Scope {
+        group,
+        route,
+    } = containment
+    {
+        retire(group, route);
+    }
+    return outcome;
 }
 
 /// What:
@@ -654,3 +750,8 @@ pub(crate) fn reason_of(unavailable: &GroupUnavailable) -> String {
 pub(crate) fn open_pidfd(pid: Pid) -> Option<OwnedFd> {
     return pidfd_open(pid, PidfdFlags::empty()).ok();
 }
+
+/// The controls that every path a run controls retires its scope unit (issue 6578).
+#[cfg(test)]
+#[path = "bounded_run_retire_tests.rs"]
+mod retire_tests;

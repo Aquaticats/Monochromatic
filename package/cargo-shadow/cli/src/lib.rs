@@ -179,6 +179,9 @@ pub mod control_group_machine_identity;
 /// and the reads of `cgroup.events` (split out of the control group module).
 pub mod control_group_stop;
 
+/// The end of a run's scope unit after its control group is shown empty (split out of the containment module).
+pub mod control_group_retire;
+
 /// The resource limits of the caller's control group,
 /// read so the scope of a run keeps them.
 pub mod inherited_limits;
