@@ -237,9 +237,7 @@ file-uses src/native/policy policy_linked_worktree.rs -> policy_linked_worktree_
 file-uses src/native/policy policy_linked_worktree_nested_repositories.rs -> policy_checks.rs
 file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
 file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
-file-uses src/native/process signal_relay.rs -> signal_relay_descriptor.rs
 file-uses src/native/process signal_relay.rs -> signal_report.rs
-file-uses src/native/process signal_relay_descriptor.rs -> signal_relay.rs
 file-uses src/native/process signal_report.rs -> signal_relay.rs
 file-uses src/native/push auto_push.rs -> auto_push_awaiting.rs
 file-uses src/native/push auto_push.rs -> auto_push_reconcile.rs

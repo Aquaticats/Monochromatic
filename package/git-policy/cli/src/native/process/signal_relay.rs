@@ -42,45 +42,33 @@
 //! and a recycled PID is never reached.
 //!  Elsewhere a signal that arrives in the instant between the child's exit and its reaping
 //!  could reach a recycled PID.
+//!
+//! Files beside this one,
+//!  and why the relay is not one file:
+//!  `signal_relay_child_published_to_the_handler.rs` holds the child the handler signals,
+//!  the slots a signal caught before that child exists waits in,
+//!  and the publishing the handler reaches it through.
+//!  `rust/max-lines` splits the relay by role,
+//!  and the guard with its handler is the role that catches and owns the signals.
 
-/// A child owned until it is reaped,
-/// awaited through its pidfd.
-use crate::child_awaited_through_a_pidfd::adopt;
-/// The process's runtime,
-/// which the synchronous face enters.
-use crate::lazy_runtime::run_on_runtime;
-/// The descriptor the handler sends through,
-/// and the pidfd that names the child it points at.
-use crate::signal_relay_descriptor::{
-    ensure_relay_descriptor,
-    pidfd_of,
-    point_relay_at,
+pub(crate) use super::signal_relay_child_published_to_the_handler::{
+    CeilingDuty,
+    publish_child,
+    retire_child,
 };
-/// The start of the child,
-/// pausing on the runtime's timer when the system refuses a process.
-use crate::start_retry::spawn_retrying_without_blocking;
-/// `c_int` is the C integer type signal numbers and status codes use.
+use super::signal_relay_child_published_to_the_handler::{
+    PENDING,
+    relay_pending,
+    run_relayed,
+};
+use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
+use crate::forwarding::ChildOutcome;
+use crate::lazy_runtime::run_on_runtime;
+use crate::signal_report::read_report;
 #[cfg(unix)]
 use std::ffi::c_int;
-/// `io` is the input and output error type the spawn and wait calls return.
 use std::io;
-/// `Command` builds the child,
-/// and `ExitStatus` is how it ended.
 use std::process::Command;
-
-/// The record of a step the wait had to end itself at its ceiling.
-use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
-/// The Git child's end,
-/// with the exit-code mapping the wrapper's exit uses.
-use crate::forwarding::ChildOutcome;
-/// What the kernel's own report of a signal says:
-/// whether a process sent it,
-/// and which one.
-///
-/// Why a sibling file:
-/// `rust/max-lines` and the report's own controls live beside it
-/// (`process/signal_report.rs`).
-use crate::signal_report::read_report;
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -145,43 +133,6 @@ const PROCESS_SENDER_CODES: &[c_int] = &[libc::SI_USER, libc::SI_QUEUE];
 pub const RELAYED_SIGNALS: &[c_int] = &[libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
-///  Whether a child is published to the handler:
-/// on Linux the descriptor `RELAY_FD` stands for it,
-/// elsewhere `CHILD_PID` names it.
-/// Why:
-///   The handler runs asynchronously,
-/// so it can only read state through atomics.
-#[cfg(unix)]
-static CHILD_PUBLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// What:
-///  PID of the Git child being waited for,
-/// or zero when none is,
-/// on the systems that have no pidfd.
-/// Why:
-///   Without a pidfd the handler signals by number,
-/// with the recycled-number window the module's limits name.
-#[cfg(all(unix, not(target_os = "linux")))]
-static CHILD_PID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
-
-/// What:
-///  The one descriptor number the relay signals through,
-/// made by the first guard and never closed.
-/// Why:
-///   A descriptor that is closed while a handler reads its number can be reused by an unrelated pidfd and then signal the wrong
-///  process.
-/// This number is never closed,
-/// so it always names either the published child or `/dev/null`:
-/// publishing and
-///  retiring replace what it refers to with `dup3`,
-/// atomically,
-/// and no other code can be handed this number.
-/// A signal that finds
-///  `/dev/null` fails harmlessly.
-#[cfg(target_os = "linux")]
-pub(crate) static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::new();
-
-/// What:
 ///  Whether a service owns this process's stop signals,
 /// so no guard relays them.
 /// Why:
@@ -191,16 +142,6 @@ pub(crate) static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync:
 #[cfg(unix)]
 static SERVICE_OWNS_SIGNALS: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
-
-/// What:
-///  One slot per relayed signal,
-/// holding a signal number that has not been relayed yet,
-/// or zero.
-/// Why:
-///   A signal that arrives before the child exists is relayed as soon as its PID is recorded.
-#[cfg(unix)]
-static PENDING: [std::sync::atomic::AtomicI32; 4] =
-    [const { std::sync::atomic::AtomicI32::new(0) }; 4];
 
 /// What:
 ///  Whether a guard owns the handlers of this process.
@@ -254,81 +195,6 @@ extern "C" fn relay_handler(
         crate::signal_relay_relayed_stop::note(signal, sender);
     }
     relay_pending();
-}
-
-/// What:
-///  Send every pending signal to the published child,
-/// claiming each slot so it is sent once.
-/// Why:
-///   Both the handler and the waiting code call this;
-/// the atomic swap decides which one sends a given signal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const signal of pending.drain()) child.kill(signal);
-/// ```
-#[cfg(unix)]
-fn relay_pending() {
-    if !CHILD_PUBLISHED.load(std::sync::atomic::Ordering::SeqCst) {
-        return;
-    }
-    for slot in &PENDING {
-        let signal: c_int = slot.swap(0, std::sync::atomic::Ordering::SeqCst);
-        if signal != 0 {
-            send_to_published_child(signal);
-        }
-    }
-}
-
-/// What:
-///  Send `signal` to the published child through its pidfd.
-/// Why:
-///   The call is a raw system call of `rustix`'s Linux backend,
-/// which neither allocates nor touches `errno`,
-/// so the handler leaves
-///  the interrupted code's `errno` as it found it.
-/// A child that was reaped,
-/// or the `/dev/null` that stands in when none is
-///  published,
-/// makes the call fail,
-/// and the failure is ignored.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// child.kill(signal); // by the pidfd, never by a number that may have been reused
-/// ```
-#[cfg(target_os = "linux")]
-fn send_to_published_child(signal: c_int) {
-    let Some(descriptor) = RELAY_FD.get() else {
-        return;
-    };
-    let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
-        return;
-    };
-    // SAFETY: the descriptor number is never closed (see `RELAY_FD`), so it stays open for the whole process.
-    let borrowed: std::os::fd::BorrowedFd<'_> =
-        unsafe { std::os::fd::BorrowedFd::borrow_raw(*descriptor) };
-    let _failed_harmlessly = rustix::process::pidfd_send_signal(borrowed, named);
-}
-
-/// What:
-///  Send `signal` to the child whose number is published,
-/// on the systems that have no pidfd.
-/// Why:
-///   The limit named on the module:
-/// a number reused between the child's exit and its reaping would be signalled.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(pid, signal);
-/// ```
-#[cfg(all(unix, not(target_os = "linux")))]
-fn send_to_published_child(signal: c_int) {
-    let pid: i32 = CHILD_PID.load(std::sync::atomic::Ordering::SeqCst);
-    if pid > 0 {
-        // SAFETY: `kill` sends one signal to a PID this module recorded; a failure is ignored because the child may have ended.
-        unsafe { libc::kill(pid, signal) };
-    }
 }
 
 /// What:
@@ -595,214 +461,6 @@ impl SignalGuard {
             Err(refusal) => Err(io::Error::other(refusal.to_string())),
         };
     }
-}
-
-/// What:
-///  Who ends a Git step that reaches its ceiling.
-/// Why:
-///  The wait that owns a child is the only place its number cannot be reused,
-/// so it is the enforcement a ceiling always has (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
-///  The notice thread ends the same step through the descriptor taken at its start,
-/// which names that step for good,
-/// so one bound has two enforcers and its stop is recorded once.
-///  A commit that may open an editor is under no ceiling at all:
-/// the person is the wait,
-/// and a stop would lose what they typed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CeilingDuty = { told: ChildNumber; bound?: Ceilings; lines?: Queue; stall?: TheStallDecidedOnce };
-/// ```
-pub struct CeilingDuty<'a> {
-    /// The spot the step's number is published into the moment it starts.
-    pub told: &'a crate::child_number_told_at_start::ChildNumber,
-    /// The two moments that end the step,
-    /// both counted from its start;
-    /// nothing when a message may be typed into an editor in it.
-    pub bound: Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::Ceilings>,
-    /// The queue the command says through the writer thread it hands the step's lines to,
-    /// and nothing when the command has no line to say.
-    pub while_held: Option<&'a std::sync::mpsc::SyncSender<String>>,
-    /// The one decision this ceiling shares with the notice's thread,
-    /// so neither enforcer can end the step at the usual ceiling after the other has stood aside;
-    /// nothing when no notice thread watches this step,
-    /// and the wait then decides on its own.
-    pub stall: Option<&'a crate::scratch_step_stall_decided_once::TheStallDecidedOnce>,
-}
-
-/// What:
-///  Publish a child this process started to the relay's handler,
-/// for the sibling module that owns the token.
-/// Why:
-///   The descriptor is this module's business alone,
-/// so the token asks here rather than reaching for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// publishChild(childId): boolean
-/// ```
-pub(crate) fn publish_child(child_id: u32) -> bool {
-    return publish(child_id);
-}
-
-/// What:
-///  Stop the handler pointing at the child that token published,
-/// for the sibling module that owns the token.
-/// Why:
-///   The same reason as `publish_child`:
-/// one module points the descriptor,
-/// and one stops it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// retireChild(published: boolean): void
-/// ```
-pub(crate) fn retire_child(published: bool) {
-    retire(published);
-}
-
-/// What:
-///  Stop publishing the child,
-/// on a system that has no relay to point.
-/// Why:
-///   The relayed-child token drops on every platform,
-/// and there is nothing to point back on this one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function retire(published: boolean): void {}
-/// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-pub(crate) fn retire_child(_published: bool) {}
-
-/// Spawns the child,
-/// publishes it to the handler when `relaying`,
-/// relays any signal that was caught before the child existed,
-/// and waits for it on its pidfd.
-///
-/// A handler that runs before the spawn keeps its signal in `PENDING` and finds no child.
-/// The child is published before the drain,
-/// so that signal is relayed here,
-/// not lost.
-#[cfg(unix)]
-async fn run_relayed(
-    command: &mut Command,
-    relaying: bool,
-    duty: CeilingDuty<'_>,
-) -> io::Result<(ChildOutcome, Option<CeilingStop>)> {
-    // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
-    let (_unfinished, stop) =
-        crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child(
-            "a Git step of a commit",
-        )?;
-    let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
-    duty.told.publish(i32::try_from(started.id()).unwrap_or(0));
-    let owned = adopt(started);
-    let published: bool = relaying && publish(owned.id());
-    // What: The wait that owns the child is the one that ends it at the ceiling.
-    // Why:  A ceiling that depends on the notice's thread depends on a thread the system may refuse to make,
-    //       and on one that has not died since it started.
-    //       This wait needs neither:
-    //       the number of an unreaped child cannot be reused, and only this path reaps it,
-    //       so its signal reaches the step and never a successor.
-    //       The notice's own ceiling stays as the second enforcer of the same bound,
-    //       and a stop is recorded once, by whichever of the two ended the step.
-    let waited: (ChildOutcome, Option<CeilingStop>) = match duty.bound {
-        Some(ceilings) => crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_exits_the_stop_or_the_ceiling(
-            owned,
-            stop,
-            ceilings,
-            "a Git step of a commit",
-            crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::WhatTheCeilingIsTold { stall: duty.stall, lines: duty.while_held },
-        )
-        .await?,
-        None => (
-            crate::forwarding::outcome_of(crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await?),
-            None,
-        ),
-    };
-    // The child is reaped, so a signal that finds the descriptor still pointing at it fails with `ESRCH`; the descriptor is
-    //  repointed before the next child all the same.
-    retire(published);
-    return Ok(waited);
-}
-
-/// Publish the child with this id to the handler and relay what was waiting for it;
-/// a failure to publish leaves the child
-/// unrelayed and is logged,
-/// because the commit must go on.
-/// True when the child was published.
-#[cfg(target_os = "linux")]
-fn publish(child_id: u32) -> bool {
-    let opened: Option<std::os::fd::OwnedFd> = i32::try_from(child_id)
-        .ok()
-        .and_then(rustix::process::Pid::from_raw)
-        .and_then(pidfd_of);
-    if let Err(error) = ensure_relay_descriptor() {
-        // The commit must go on: without the descriptor the child is not relayed to, and the log says so.
-        crate::diagnostic_log::warn(
-            "signalRelay",
-            format!(
-                "no descriptor for the relay ({error}), so signals will not be relayed to the child"
-            )
-            .as_str(),
-        );
-        return false;
-    }
-    let Some(pidfd) = opened else {
-        crate::diagnostic_log::warn(
-            "signalRelay",
-            "the child could not be given a pidfd, so signals sent to this process will not be relayed to it",
-        );
-        return false;
-    };
-    if let Err(error) = point_relay_at(Some(&pidfd)) {
-        crate::diagnostic_log::warn("signalRelay", format!("the relay could not be pointed at the child ({error}), so signals will not be relayed to it").as_str());
-        return false;
-    }
-    CHILD_PUBLISHED.store(true, std::sync::atomic::Ordering::SeqCst);
-    relay_pending();
-    return true;
-}
-
-/// Publish the child with this id by its number,
-/// on the systems that have no pidfd.
-#[cfg(all(unix, not(target_os = "linux")))]
-fn publish(child_id: u32) -> bool {
-    let Ok(pid) = libc::pid_t::try_from(child_id) else {
-        return false;
-    };
-    CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
-    CHILD_PUBLISHED.store(true, std::sync::atomic::Ordering::SeqCst);
-    relay_pending();
-    return true;
-}
-
-/// Stop publishing the child and point the relay at nothing.
-#[cfg(target_os = "linux")]
-fn retire(published: bool) {
-    if !published {
-        return;
-    }
-    CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
-    if let Err(error) = point_relay_at(None) {
-        crate::diagnostic_log::warn(
-            "signalRelay",
-            format!("the relay could not be pointed away from the ended child: {error}").as_str(),
-        );
-    }
-}
-
-/// Stop publishing the child,
-/// on the systems that have no pidfd.
-#[cfg(all(unix, not(target_os = "linux")))]
-fn retire(published: bool) {
-    if !published {
-        return;
-    }
-    CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
-    CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Restore the previous dispositions and release the process-wide slot.

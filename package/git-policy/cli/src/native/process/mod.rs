@@ -123,6 +123,10 @@
 //!   an owned child awaited until it exits,
 //!   or ended and reaped here when its step's ceiling comes,
 //!   because a number is safe only while the child is this process's own unreaped child.
+//! - `signal_relay_child_published_to_the_handler.rs`:
+//!   the child this process publishes to the relay's handler:
+//!   the slots a signal caught before that child exists waits in,
+//!   and the publishing the handler reaches it through.
 //! - `signal_relay.rs`:
 //!   catching SIGINT,
 //!   SIGTERM,
@@ -166,6 +170,11 @@ pub mod process_start;
 /// SIGHUP and SIGQUIT while a Git child runs,
 /// and relaying only process-sent signals.
 pub mod signal_relay;
+
+/// The child this process publishes to the relay's handler:
+/// the slots a signal caught before that child exists waits in,
+/// and the publishing the handler reaches it through.
+pub mod signal_relay_child_published_to_the_handler;
 
 /// The stop signal this process relayed to a child,
 /// and the process the kernel named as its sender,
