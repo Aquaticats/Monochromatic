@@ -286,7 +286,10 @@ the scan never saw the holder 50772
 
 The 28 tests are the ten `lock::stale_ref_locks`, `lock::index_lock_holders`,
 `lock::index_holder_wait`, the three `process` controls (`process::open_file_of_a_descriptor` and
-two `process::process_use`), `merge::merge_isolation::repository_tests`, the three
+two `process::process_use`), `merge::merge_isolation::repository_tests`
+(now `merge::merge_isolation_round::repository_tests`,
+since the split of 2026-11-27 moved the test file),
+the three
 `merge::merge_isolation_recovery`, `merge_never_fails::a_merge_that_meets_a_holder_proven_alive_saves_itself_at_once`,
 two `landing::service_index_lock`, `landing::service_index_unheld_removal`, two
 `landing::service_land_reference_lock` and the three `wait_notice` binary controls

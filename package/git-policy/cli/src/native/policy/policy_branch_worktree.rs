@@ -14,13 +14,8 @@
 //! // checkBranchWorktree(facts, ['switch', 'topic'])
 //! ```
 
-/// The engine's outcomes,
-///  the three endings every check shares and the facts interface.
-use crate::policy_checks::{
-    clean,
-    fact_unavailable,
-    rejected,
-};
+/// The engine's outcome,
+///  and the facts interface every check asks.
 use crate::policy_engine::PolicyOutcome;
 use crate::repository_facts::RepositoryFacts;
 /// The rule core and its text.
@@ -29,6 +24,12 @@ use crate::rule_branch_worktree::{
     BranchWorktreeDecision,
     branch_creation_message,
     decide_branch_worktree,
+};
+/// The three endings every check shares.
+use crate::the_answers_a_policy_gives::{
+    clean,
+    fact_unavailable,
+    rejected,
 };
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;

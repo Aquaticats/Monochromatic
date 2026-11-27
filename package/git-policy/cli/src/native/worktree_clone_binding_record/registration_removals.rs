@@ -1,23 +1,24 @@
 //! What:
 //!  The removals the recipe makes below held descriptors:
 //!  a file or a tree, the ref store's files before its folders,
-//!  and every entry a listing shows.
+//!  every entry a listing shows,
+//!  the names one run works from,
+//!  and why a run stopped.
 //! Why:
 //!  Every call is descriptor-relative and treats `ENOENT` as the step's own success,
 //!  so one run serves every row the table clears
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "The recipe that clears rows 1 to 5, 7 and 8").
-//!  Kept apart from the order so both stay under the file limit.
+//!  Kept apart from the order so both stay under the file limit,
+//!  and the names and the refusal sit here rather than beside the order,
+//!  so the recipe's two files use each other in one direction only
+//!  (`AGENTS.md` rule LYF).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await emptyAndRemove(parent, 'logs', 'HEAD'); await removeOneBelow(parent, name);
 //! ```
 
-use super::registration_recipe::{
-    RecipeRefusal,
-    ToClear,
-};
 use crate::entries_of_one_open_folder::entry_names;
 use crate::fs_beneath::{
     entry_metadata_at,
@@ -27,6 +28,84 @@ use crate::fs_beneath::{
 use std::ffi::OsStr;
 use std::io::Read as _;
 use std::path::Path;
+
+/// What:
+///  The names one recipe run works from,
+///  each a name below a descriptor the caller already holds.
+/// Why:
+///  A path read at the wrong moment names another object,
+///  so the walk never leaves the two pinned parents.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToClear = { slotParent: fd; slotName: string; slot: string; worktreesParent: fd; registrationName: string; registration: string };
+/// ```
+pub struct ToClear<'a> {
+    /// The `.claude/worktrees` parent's descriptor.
+    pub slot_parent: &'a std::fs::File,
+    /// The slot's own name below that parent,
+    /// and the file the pointer is removed from.
+    pub slot_pointer_name: &'a OsStr,
+    /// The slot's path,
+    /// which the pointer's bytes must name this registration from.
+    pub slot: &'a Path,
+    /// The `worktrees` parent's descriptor.
+    pub worktrees_parent: &'a std::fs::File,
+    /// The registration's name below that parent.
+    pub registration_name: &'a OsStr,
+    /// The registration's path,
+    /// which the slot's pointer must name.
+    pub registration: &'a Path,
+}
+
+/// What:
+///  Why a recipe run stopped without finishing.
+/// Why:
+///  Every stop names the name it refused and the way forward,
+///  and nothing it removed is put back:
+///  the row that stands is one the finder still recognises.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Refusal = { message: string };
+/// ```
+#[derive(Debug)]
+pub enum RecipeRefusal {
+    /// The slot's pointer names another registration,
+    /// so it is not this add's to remove.
+    PointerNamesAnother {
+        /// The pointer's words.
+        found: String,
+    },
+    /// A name still stands where the recipe expected an empty registration.
+    EntryLeft {
+        /// The name that stands.
+        name: String,
+    },
+    /// The system refused a call.
+    Io(std::io::Error),
+}
+
+impl RecipeRefusal {
+    /// The sentence a person reads.
+    pub fn message(&self) -> String {
+        return match self {
+            RecipeRefusal::PointerNamesAnother {
+                found,
+            } => format!(
+                "the slot's `.git` holds `{found}` and not this add's registration, so nothing was removed. Ways forward: inspect the registration it names and remove the entry by hand if it is not a worktree."
+            ),
+            RecipeRefusal::EntryLeft {
+                name,
+            } => format!(
+                "the registration still holds `{name}` after the recipe removed the names it knew, so it was not removed. Nothing else was changed. Ways forward: inspect the entry, remove what it is once you know, and run the command again."
+            ),
+            RecipeRefusal::Io(error) => format!(
+                "a removal was refused ({error}), so the recipe stopped at that name and changed nothing else. Ways forward: fix the refusal and run the command again."
+            ),
+        };
+    }
+}
 
 /// One system call's answer,
 /// with `ENOENT` read as the step's own success.
