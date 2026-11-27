@@ -77,12 +77,13 @@ and successfully returned `startupWired` from its Bash command.
   since `~/.claude/settings.json` runs the bundle from the main checkout.
   Live check at 12:50 -05:00:
   in this interactive code-mode session a REPL command with `.timeout(600000)` moved at 2058 ms.
+  The Claude Sonnet second pass found two sleep shapes the prefix missed and a narrow disable check;
+  both are fixed on branch `fix/claude-code-plugin-source-bash-sleep-prefix-review-fixes`
+  ("Second-pass review findings" in the planning record).
   Open:
-  a Claude Sonnet second pass (same vendor,
-  not independent) is still running,
-  and its findings are to be weighed and fixed;
   re-probe the sleep rule after each Claude Code upgrade as
-  `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md` describes.
+  `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md` describes,
+  and the owner's veto or acceptance of the disabled-background exception.
   `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the evidence.
 
 ## Next step
