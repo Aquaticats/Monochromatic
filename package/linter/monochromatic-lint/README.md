@@ -1397,7 +1397,8 @@ and a line that reads as none of them fails the run:
   for the one before the arrow and for the one after it:
   one whitespace character sets each word off,
   whatever character it is,
-  a space, a tab or a no-break space,
+  a space,
+  a tab or a no-break space,
   and a second whitespace character beside a name belongs to that name,
   on either side of the arrow.
   So a list aligned with tabs reads as one aligned with spaces does,
@@ -2085,13 +2086,15 @@ and what the messages say.
   while this release reads the same 31 as the use,
   reports the other 189 dead,
   and refuses none
-  (measured on 2026-11-27 against the alpha.16 binary, which read all 220 as the use).
+  (measured on 2026-11-27 against the alpha.16 binary,
+  which read all 220 as the use).
   A spelling whose gap is not one whitespace character names the folder the second character made,
   so its line is re-spaced rather than refused,
   which is what alpha.19 already did for a gap of two spaces.
 - A gap of two whitespace characters is one separator and one character of the name beside it,
   on either side of the arrow and after the word `uses`,
-  and a dead `uses` line spells that character as `\u{9}`, `\u{a0}` or `\u{20}`,
+  and a dead `uses` line spells that character as `\u{9}`,
+  `\u{a0}` or `\u{20}`,
   where alpha.19 refused the run for a tab or a no-break space there
   and printed a space at either end of a name as itself.
 - A folder name whose arrow word is set off by a tab or a no-break space
