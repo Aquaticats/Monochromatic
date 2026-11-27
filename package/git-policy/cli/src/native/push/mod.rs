@@ -173,9 +173,13 @@
 //!   the line prefixes,
 //!   the attempt limit,
 //!   the stale-rejection test and the small Git queries.
+//! - `auto_push_reconcile_branch_move.rs`:
+//!   the step that moves the branch to the published merge,
+//!   with the window a command's own `git switch` opens in it
+//!   and the refusal Git answers with.
 //! - `auto_push_reconcile_branch_advance.rs`:
-//!   the move of the local branch after the merge was pushed,
-//!   and the checks that guard it.
+//!   when the local branch may move after the merge was pushed,
+//!   and the record that settles a move left half done.
 //! - `auto_push_reconcile_plan.rs`:
 //!   what one reconcile run integrates,
 //!   where it publishes,
@@ -428,8 +432,13 @@ pub mod auto_push_reconcile_basics_and_limits;
 /// built in the object store without a worktree or an index.
 pub mod auto_push_reconcile_merge_commit;
 
-/// The move of the local branch after the merge was pushed,
-/// and the checks that guard it.
+/// The step that moves the branch to the published merge,
+/// with the window a command's own `git switch` opens in it
+/// and the refusal Git answers with.
+pub mod auto_push_reconcile_branch_move;
+
+/// When the local branch may move after the merge was pushed,
+/// and the record that settles a move left half done.
 pub mod auto_push_reconcile_branch_advance;
 
 /// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
