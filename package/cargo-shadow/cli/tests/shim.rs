@@ -499,8 +499,9 @@ fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
 
 /// How long a writer the command left behind is given to close its pipe once the command's process group was killed.
 /// Why:
-/// A killed process's descriptors close as it is torn down, which took 1 ms to 5 ms in the probes beside `REAP_BOUND` in
-/// `src/bounded_run.rs`, so five seconds is only ever reached by a writer that nothing can end.
+/// A killed process's descriptors close as it is torn down,
+/// which took 1 ms to 5 ms in the probes beside `REAP_BOUND` in `src/bounded_run.rs`,
+/// so five seconds is only ever reached by a writer that nothing can end.
 const WRITER_END_GRACE: Duration = Duration::from_secs(5);
 
 /// How often a running command is asked whether it ended.
@@ -508,28 +509,43 @@ const POLL: Duration = Duration::from_millis(50);
 
 /// How many cargo calls one resolving run makes one after another at most.
 /// Why:
-/// The install step updates the lockfile, updates it again when the first update did not settle it, checks it against its manifests, and
-/// then the user's own command runs: five calls, which is what this file's own fake cargo logged for a fixed run
-/// (`update --workspace --locked --offline`, `update --workspace --offline`, two `metadata` calls, and `check -q`). The program bounds
-/// each of those calls and never the run, and no call of this fixture takes anything like its allowance, so a run that made one call
-/// more would still end far inside the bound below.
+/// The install step updates the lockfile,
+/// updates it again when the first update did not settle it,
+/// checks it against its manifests,
+/// and then the user's own command runs:
+/// five calls,
+/// which is what this file's own fake cargo logged for a fixed run
+/// (`update --workspace --locked --offline`,
+/// `update --workspace --offline`,
+/// two `metadata` calls,
+/// and `check -q`).
+/// The program bounds each of those calls and never the run,
+/// and no call of this fixture takes anything like its allowance,
+/// so one more call would still end far inside the bound below.
 const RUN_CALLS: u64 = 5;
 
 /// How long a run of the built shadow may take here before the control ends it.
 /// Why:
-/// The bound ends a run that hangs, and it must never decide a healthy run's outcome: a control that fails on this machine's speed
-/// measures the machine and not the program. The program allows each cargo call `CARGO_CALL_SECONDS` and allows a run no bound at all,
-/// so the bound of a run is that allowance times the calls a run makes in sequence. Its predecessor was twenty seconds of wall clock,
-/// which no healthy run on this host was bounded by: with it the control could not tell a loop from a slow machine and its message
-/// claimed a loop either way.
+/// The bound ends a run that hangs,
+/// and it must never decide a healthy run's outcome:
+/// a control that fails on this machine's speed measures the machine and not the program.
+/// The program allows each cargo call `CARGO_CALL_SECONDS` and allows a run no bound at all,
+/// so the bound of a run is that allowance times the calls a run makes in sequence.
+/// Its predecessor was twenty seconds of wall clock,
+/// which no healthy run on this host was bounded by:
+/// with it the control could not tell a loop from a slow machine,
+/// and its message claimed a loop either way.
 const RUN_BOUND: Duration =
     Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS * RUN_CALLS);
 
 /// What a chain that must not nest did.
 enum ChainEnd {
-    /// The command ended by itself, with its complete output.
+    /// The command ended by itself,
+    /// with its complete output.
     Ended(Output),
-    /// A launcher was entered at a depth other than the first shadow's: the second start led back, and the command was killed.
+    /// A launcher was entered at a depth other than the first shadow's:
+    /// the second start led back,
+    /// and the command was killed.
     Nested(Vec<String>),
     /// Neither happened within the bound.
     Hung,
@@ -537,21 +553,30 @@ enum ChainEnd {
 
 /// A started command whose two streams are read while it runs.
 /// Why:
-/// A child that prints more than a pipe holds blocks in a write nobody reads and then never exits, so a correct run looks like a hang
-/// until a clock ends it: that measures the reader and not the program under test. A pipe of this host holds 8192 bytes (measured
-/// 2026-11-27, in a plain shell and in a user scope alike), so a message of a few kilobytes per start is enough to reach it.
+/// A child that prints more than a pipe holds blocks in a write nobody reads and then never exits,
+/// so a correct run looks like a hang
+/// until a clock ends it:
+/// that measures the reader and not the program under test.
+/// A pipe of this host holds 8192 bytes,
+/// measured 2026-11-27 in a plain shell and in a user scope alike,
+/// so a message of a few kilobytes per start is enough to reach it.
 struct Running {
-    /// The command itself, still running or ended and not yet reaped.
+    /// The command itself,
+    /// still running or ended and not yet reaped.
     child: Child,
-    /// Everything it wrote to standard output, read on its own thread.
+    /// Everything it wrote to standard output,
+    /// read on its own thread.
     printed_out: Receiver<Vec<u8>>,
-    /// Everything it wrote to standard error, read on its own thread.
+    /// Everything it wrote to standard error,
+    /// read on its own thread.
     printed_err: Receiver<Vec<u8>>,
 }
 
 /// Reads one pipe to its end on a thread and hands the bytes back through a channel.
 /// Why:
-/// The channel is what lets the wait for a pipe be bounded: a `JoinHandle` can only be joined, and a descendant that inherited the pipe
+/// The channel is what lets the wait for a pipe be bounded:
+/// a `JoinHandle` can only be joined,
+/// and a descendant that inherited the pipe
 /// keeps that join open after the command itself is gone.
 fn read_pipe<R: std::io::Read + Send + 'static>(mut pipe: R) -> Receiver<Vec<u8>> {
     let (sender, receiver) = std::sync::mpsc::channel();
@@ -565,7 +590,8 @@ fn read_pipe<R: std::io::Read + Send + 'static>(mut pipe: R) -> Receiver<Vec<u8>
 
 /// Ends one process group with a signal and reaps the command that led it.
 /// Why:
-/// The group is the command and everything it started, and it is also what holds the two pipes after the command itself ended.
+/// The group is the command and everything it started,
+/// and it is also what holds the two pipes after the command itself ended.
 fn kill_group_and_reap(
     child: &mut Child,
     group: u32,
@@ -577,10 +603,14 @@ fn kill_group_and_reap(
     return child.wait().expect("reap the command");
 }
 
-/// Ends one stream at `deadline`, killing the run's process group when a writer the run left behind still holds its pipe.
+/// Ends one stream at `deadline`,
+/// killing the run's process group when a writer the run left behind still holds its pipe.
 /// Why:
-/// The wait for a pipe is part of the run's own bound: a descendant that inherited the pipe keeps it open after the command ended, and
-/// only the end of the group frees it. `None` says a writer nothing can end still holds it, so what arrived is not the run's output.
+/// The wait for a pipe is part of the run's own bound:
+/// a descendant that inherited the pipe keeps it open after the command ended,
+/// and only the end of the group frees it.
+/// `None` says a writer nothing can end still holds it,
+/// so what arrived is not the run's output.
 fn ended_stream(
     printed: &Receiver<Vec<u8>>,
     group: u32,
@@ -597,9 +627,11 @@ fn ended_stream(
     return printed.recv_timeout(WRITER_END_GRACE).ok();
 }
 
-/// One stream's whole text, or a stop that says it is not the run's output.
+/// One stream's whole text,
+/// or a stop that says it is not the run's output.
 /// Why:
-/// A pipe that a killed group still holds holds output nothing can rescue, and a part of it must never be read as the whole.
+/// A pipe that a killed group still holds holds output nothing can rescue,
+/// and a part of it must never be read as the whole.
 fn whole_stream(
     printed: &Receiver<Vec<u8>>,
     group: u32,
@@ -616,7 +648,9 @@ fn whole_stream(
 
 /// How a running command is asked.
 impl Running {
-    /// Starts the command in its own process group, so a runaway tree can be killed whole, and reads both of its streams.
+    /// Starts the command in its own process group,
+    /// so a runaway tree can be killed whole,
+    /// and reads both of its streams.
     fn start(command: &mut Command) -> Running {
         use std::os::unix::process::CommandExt;
         use std::process::Stdio;
@@ -636,7 +670,8 @@ impl Running {
         };
     }
 
-    /// Whether the command ended, without waiting for it.
+    /// Whether the command ended,
+    /// without waiting for it.
     fn ended(&mut self) -> bool {
         return self.child.try_wait().expect("poll").is_some();
     }
@@ -647,11 +682,14 @@ impl Running {
         let _ = kill_group_and_reap(&mut self.child, group);
     }
 
-    /// Ends the command if it has not ended, and collects both streams without waiting past `deadline`.
+    /// Ends the command if it has not ended,
+    /// and collects both streams without waiting past `deadline`.
     /// Why:
-    /// The same deadline ends the wait for a stream and the group that holds it, so a run whose descendant kept a pipe is reported with
-    /// its complete output instead of hanging the control, and a pipe that no kill frees stops the control instead of passing a part of
-    /// the output as the run's.
+    /// The same deadline ends the wait for a stream and the group that holds it,
+    /// so a run whose descendant kept a pipe is reported with its complete output,
+    /// instead of hanging the control,
+    /// and a pipe that no kill frees stops the control,
+    /// instead of passing a part of the output as the run's.
     fn finish(
         mut self,
         deadline: Instant,
@@ -694,10 +732,14 @@ fn output_within(
 
 /// The launcher entries whose depth is not the first shadow's.
 /// Why:
-/// The entry trace is append-only and every line is `run <depth> <what started the launcher>`. The first shadow's own starts are all at
-/// depth one, and a second start that reaches the launcher again enters it at depth two or more and writes that line before it prints
-/// anything, so the line is the loop's own evidence and is there the instant the loop happens, whatever this machine's speed. Only whole
-/// lines count: a line still being appended is not an entry yet.
+/// The entry trace is append-only and every line is `run <depth> <what started the launcher>`.
+/// The first shadow's own starts are all at depth one,
+/// and a second start that reaches the launcher again enters it at depth two or more,
+/// and writes that line before it prints anything,
+/// so the line is the loop's own evidence and is there the instant the loop happens,
+/// whatever this machine's speed.
+/// Only whole lines count:
+/// a line still being appended is not an entry yet.
 fn entries_below_the_first_shadows_depth(trace: &Path) -> Vec<String> {
     let text: String = std::fs::read_to_string(trace).unwrap_or_default();
     let Some(last) = text.rfind('\n') else {
@@ -715,11 +757,17 @@ fn entries_below_the_first_shadows_depth(trace: &Path) -> Vec<String> {
         .collect();
 }
 
-/// Runs a command whose chain must not nest, reading the entry trace as the event that shows a loop.
+/// Runs a command whose chain must not nest,
+/// reading the entry trace as the event that shows a loop.
 /// Why:
-/// The verdict is the whole trace, read after the chain ended: the entry and the end of a stopped inner shadow can fall in the same poll,
-/// so a verdict taken from that poll can lose an entry that is already on disk. Reading the trace while the chain still runs stays as an
-/// early exit for a runaway, and it can only report a nesting, never hide one. The bound only ends a run that neither ended nor nested,
+/// The verdict is the whole trace,
+/// read after the chain ended:
+/// the entry and the end of a stopped inner shadow can fall in the same poll,
+/// so a verdict taken from that poll can lose an entry that is already on disk.
+/// Reading the trace while the chain still runs stays as an early exit for a runaway,
+/// and it can only report a nesting,
+/// never hide one.
+/// The bound only ends a run that neither ended nor nested,
 /// so nothing here reports this machine's speed as a loop.
 fn chain_end_within(
     command: &mut Command,
@@ -752,8 +800,9 @@ fn chain_end_within(
 
 /// The output of a chain that must have ended by itself.
 /// Why:
-/// A run that neither ended nor entered the launcher again is a hang, and the message has to say what the run had done rather than claim
-/// a loop it never saw.
+/// A run that neither ended nor entered the launcher again is a hang,
+/// and the message has to say what the run had done,
+/// rather than claim a loop it never saw.
 fn ended(
     end: ChainEnd,
     world: &World,
@@ -777,21 +826,25 @@ fn ended(
 
 /// How long the helper may take to hand back the output of a command that ended at once while one of its descendants kept a pipe.
 /// Why:
-/// A second is a hundred times the milliseconds a shell needs to start and quit, and a tenth of the hold of the writer below, so a helper
-/// that waits for the writer fails this control and a helper that ends the wait at its own bound passes it, without this machine's speed
-/// deciding either way.
+/// A second is a hundred times the milliseconds a shell needs to start and quit,
+/// and a tenth of the hold of the writer below,
+/// so a helper that waits for the writer fails this control,
+/// and a helper that ends the wait at its own bound passes it,
+/// without this machine's speed deciding either way.
 const INHERITED_PIPE_BOUND: Duration = Duration::from_secs(1);
 
 /// How long the descendant in the control below holds the pipes its parent left it.
 /// Why:
-/// The hold has to outlast the bound by a clear margin, so that a helper which waits for the pipe instead of the command is visibly slow
+/// The hold has to outlast the bound by a clear margin,
+/// so that a helper which waits for the pipe instead of the command is visibly slow
 /// rather than marginally so.
 const WRITER_HOLD: Duration = Duration::from_secs(10);
 
 /// A command that ends at once and leaves a descendant holding its pipes.
 /// Why:
-/// A helper that reads a pipe to its end waits for the end of the pipe and not for the end of the command, and a writer the command left
-/// behind is what holds it: this is the window in which a bound on the command alone never ends the wait.
+/// A helper that reads a pipe to its end waits for the end of the pipe and not for the end of the command,
+/// and a writer the command left behind is what holds it:
+/// this is the window in which a bound on the command alone never ends the wait.
 #[test]
 fn a_run_whose_child_leaves_a_writer_holding_a_pipe_ends_at_its_bound_and_not_when_that_writer_ends()
  {
@@ -818,21 +871,28 @@ fn a_run_whose_child_leaves_a_writer_holding_a_pipe_ends_at_its_bound_and_not_wh
 
 /// How many bytes the child in the control below prints.
 /// Why:
-/// A reader that starts only after the child ended cannot collect more than its pipe holds, and the child cannot end until it is read. Two
-/// megabytes is above the largest pipe this host allows at all (`fs.pipe-max-size` is 1048576 bytes) and above the 64 KiB that the
-/// kernels this package's probes ran on held, so the window is the same on any host rather than one message further on.
+/// A reader that starts only after the child ended cannot collect more than its pipe holds,
+/// and the child cannot end until it is read.
+/// Two megabytes is above the largest pipe this host allows at all,
+/// where `fs.pipe-max-size` is 1048576 bytes,
+/// and above the 64 KiB that the kernels this package's probes ran on held,
+/// so the window is the same on any host,
+/// rather than one message further on.
 const OUTPUT_OVER_A_PIPE: usize = 2 * 1024 * 1024;
 
 /// How long the child below is given to print two megabytes and exit.
 /// Why:
-/// Copying that through two processes takes milliseconds, and thirty seconds is thousands of times that, so a run that reaches it is one
-/// whose output nobody read rather than a slow machine.
+/// Copying that through two processes takes milliseconds,
+/// and thirty seconds is thousands of times that,
+/// so a run that reaches it is one whose output nobody read,
+/// rather than a slow machine.
 const OVER_A_PIPE_BOUND: Duration = Duration::from_secs(30);
 
 /// A child that prints more than a pipe holds.
 /// Why:
-/// The child blocks in a write nobody reads and never exits, so a helper that reads only after the child exits reports a hang for a run
-/// that finished its work.
+/// The child blocks in a write nobody reads and never exits,
+/// so a helper that reads only after the child exits reports a hang,
+/// for a run that finished its work.
 #[test]
 fn a_child_that_prints_more_than_a_pipe_holds_is_read_while_it_runs_and_its_output_arrives_whole() {
     let wanted: String = OUTPUT_OVER_A_PIPE.to_string();
@@ -862,19 +922,28 @@ fn a_child_that_prints_more_than_a_pipe_holds_is_read_while_it_runs_and_its_outp
 
 /// How many times the window of a chain that ends inside one poll is tried before the control gives up making it.
 /// Why:
-/// The entry and the end of a stopped inner shadow can fall in the same poll of the helper, so a chain that enters the launcher again and
-/// stops at once is the window; a handful of tries makes it appear, and a control that never sees it still fails.
+/// The entry and the end of a stopped inner shadow can fall in the same poll of the helper,
+/// so a chain that enters the launcher again and
+/// stops at once is the window;
+/// a handful of tries makes it appear,
+/// and a control that never sees it still fails.
 const NESTED_ENTRY_ATTEMPTS: usize = 8;
 
 /// How long a chain in the control below is given to write its entry and stop.
 /// Why:
-/// That control is about the verdict and not about speed, so its bound only ends a child that never ends: a shell that writes one line and
-/// exits takes milliseconds, and thirty seconds is far above what this machine's load has ever added to that.
+/// That control is about the verdict and not about speed,
+/// so its bound only ends a child that never ends:
+/// a shell that writes one line and
+/// exits takes milliseconds,
+/// and thirty seconds is far above what this machine's load has ever added to that.
 const CHAIN_PROMPT_BOUND: Duration = Duration::from_secs(30);
 
-/// A chain that enters the launcher at a depth of its own and stops at once, as a second start that leads back does.
+/// A chain that enters the launcher at a depth of its own and stops at once,
+/// as a second start that leads back does.
 /// Why:
-/// The entry is on disk before the command exits, so a verdict taken from the poll that saw the exit can report an end and lose it, and
+/// The entry is on disk before the command exits,
+/// so a verdict taken from the poll that saw the exit can report an end and lose it,
+/// and
 /// the remaining assertions of a stop control pass on an ended chain as well.
 #[test]
 fn a_chain_that_entered_the_launcher_again_is_reported_as_nested_even_when_it_ends_at_once() {
@@ -910,14 +979,20 @@ fn a_chain_that_entered_the_launcher_again_is_reported_as_nested_even_when_it_en
 
 /// The fewest cargo calls one resolving run makes one after another.
 /// Why:
-/// The install step's update, its check of the lockfile against its manifests, and the user's own command: three calls at the very least,
+/// The install step's update,
+/// its check of the lockfile against its manifests,
+/// and the user's own command:
+/// three calls at the very least,
 /// each of which the program may allow `CARGO_CALL_SECONDS`.
 const LEAST_SEQUENTIAL_CALLS: u32 = 3;
 
 /// The bound of a whole run covers the cargo calls that run makes one after another.
 /// Why:
-/// The program bounds each cargo call and not the run, so a whole-run bound of one call ends a healthy run whose every call met its own
-/// allowance. It reads the two numbers rather than running two slow cargo calls, so it costs nothing and cannot itself be slow.
+/// The program bounds each cargo call and not the run,
+/// so a whole-run bound of one call ends a healthy run whose every call met its own
+/// allowance.
+/// It reads the two numbers rather than running two slow cargo calls,
+/// so it costs nothing and cannot itself be slow.
 #[test]
 fn the_bound_of_a_whole_run_covers_the_cargo_calls_it_makes_in_sequence() {
     let one_call: Duration = Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS);
