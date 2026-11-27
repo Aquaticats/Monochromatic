@@ -119,7 +119,8 @@ pub(crate) struct HoldingLine {
 ///  and a file whose excused line is reflowed or moved to another line
 ///  keeps the count it had and passes,
 ///  which is the case a list of lines would fail for no reason.
-///  The count is of uses, so a second use written on the line that already holds one is a second use.
+///  The count is of uses,
+///  so a second use written on the line that already holds one is a second use.
 pub(crate) struct MayHold {
     /// The file's `/`-separated identity under `src/native`.
     pub(crate) file: &'static str,
