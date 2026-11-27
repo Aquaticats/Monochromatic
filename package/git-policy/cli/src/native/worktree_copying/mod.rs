@@ -118,6 +118,15 @@
 //! - `worktree_copy_manifest.rs`:
 //!   the deterministic parent-first manifest of a copy,
 //!   and the mode application to a staged copy.
+//! - `worktree_copy_compare_entry_match.rs`:
+//!   the comparison of one manifest entry against the filesystem:
+//!   its kind,
+//!   its mode,
+//!   its link target or its bytes.
+//! - `worktree_copy_compare_walks.rs`:
+//!   the source's walk under the stage's leave-out rule,
+//!   and the stage's own walk,
+//!   each one job of the blocking pool.
 //! - `worktree_copy_compare.rs`:
 //!   exact comparison of manifest entries against the filesystem,
 //!   and the source stability check after staging.
@@ -328,6 +337,17 @@ pub mod worktree_copy_prune;
 /// The deterministic parent-first manifest of a copy,
 /// and the mode application to a staged copy.
 pub mod worktree_copy_manifest;
+
+/// The comparison of one manifest entry against the filesystem:
+/// its kind,
+/// its mode,
+/// its link target or its bytes.
+pub mod worktree_copy_compare_entry_match;
+
+/// The source's walk under the stage's leave-out rule,
+/// and the stage's own walk,
+/// each one job of the blocking pool.
+pub mod worktree_copy_compare_walks;
 
 /// Exact comparison of manifest entries against the filesystem,
 /// and the source stability check after staging.
