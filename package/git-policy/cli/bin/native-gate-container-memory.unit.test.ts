@@ -474,11 +474,13 @@ await describe({
               description: 'the watch to read the scope\'s figures',
             },);
             expect(lastSampleOf(watch,).peakBytes,).toBe(1_589_641_216,);
-            // The kill arrives after the watch has been reading, which is what a polled counter has to survive.
+            // The kill arrives after the watch has been reading, which is what a polled counter has to survive. The
+            // file holds every counter the kernel writes for it, as a kernel's does: a counter file never loses a line
+            // while its group lives.
             await writeScopeFile({
               scope,
               name: 'memory.events',
-              text: 'max 1024\noom 1\noom_kill 1\n',
+              text: 'low 0\nhigh 0\nmax 1024\noom 1\noom_kill 1\noom_group_kill 0\n',
             });
             await until({
               condition: function killed() {

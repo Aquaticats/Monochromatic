@@ -10,6 +10,14 @@
  (`doc/planning/git-policy-cli-cachyos-test-containers.md`, "The Clippy container's own memory bound, measured
  2026-11-27"). `memory.current` of that scope counts the container's children too, and `memory.events` counts the times
  the bound was reached and the kills it caused there, which is exactly what a killed check has to be told apart by.
+
+ The kernel removes a control group's files one at a time, and the directory after them: `cgroup_destroy_locked` clears
+ the files with `css_clear_dir` and only then calls `kernfs_remove` on the directory (`kernel/cgroup/cgroup.c`), and a
+ file the kernel is removing answers `ENODEV` while it is deactivated (`fs/kernfs/file.c`). A reading taken while a
+ container's cgroup goes therefore answers some of its files and not the others, and such a reading never replaces one
+ that answered more (`{@link answersEveryPartOf}` in `bin/cgroup-whole-readings.ts`): a `memory.events` that went before
+ the read would have the gate report a container killed inside its bound as one that met no kill
+ (`bin/native-gate-container-memory.ts` prints that line).
  */
 import {
   readFile,
@@ -19,6 +27,10 @@ import { join, } from 'node:path';
 
 import { isMissing, } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/fs-guards.ts';
 
+import {
+  answersEveryPartOf,
+  isRemoved,
+} from './cgroup-whole-readings.ts';
 import { isWholeNumberText, } from './native-gate-arguments.ts';
 
 //region Where a container's figures are
@@ -39,7 +51,8 @@ export const bytesPerGibibyte = 1_073_741_824;
 export const bytesPerMebibyte = 1_048_576;
 
 /**
- A container's cgroup that is not there to read, which a container that already ended leaves behind.
+ A container's cgroup that is not there to read, which a container that already ended leaves and which a reading that
+ answered less than the one it would replace answers.
 
  A sentinel rather than a nullish value, because this repository models absence without nullish unions: every caller
  narrows it with `!==` or `typeof value === 'symbol'` before it reads a figure out of a sample.
@@ -152,7 +165,8 @@ export type ContainerMemoryRead = ContainerMemorySample | typeof CGROUP_NOT_THER
 
  @param path - the file
 
- @returns its text, or {@link FIGURE_NOT_WRITTEN} when this host's kernel writes no such file
+ @returns its text, or {@link FIGURE_NOT_WRITTEN} when this host's kernel writes no such file and when the kernel is
+ removing it
 
  @throws the error of a file that is there and cannot be read, which is a host this reader cannot account for
  */
@@ -164,7 +178,7 @@ async function fileText(path: string,): Promise<string | typeof FIGURE_NOT_WRITT
     )).trim();
   }
   catch (error) {
-    if (isMissing(error,))
+    if (isMissing(error,) || isRemoved(error,))
       return FIGURE_NOT_WRITTEN;
     throw error;
   }
@@ -272,7 +286,10 @@ async function cgroupIsThere(cgroupPath: string,): Promise<boolean> {
 
  @param cgroupPath - the container's scope, from {@link containerCgroupPathOf}
 
- @returns the figures the kernel holds for it now, or {@link CGROUP_NOT_THERE} once the container ended
+ @param replaces - the reading this one would replace, which it must answer every part of
+
+ @returns the figures the kernel holds for it now, or {@link CGROUP_NOT_THERE} once the container ended and once a
+ reading answered less than the one it would replace
 
  @example
  ```ts
@@ -281,8 +298,10 @@ async function cgroupIsThere(cgroupPath: string,): Promise<boolean> {
  */
 export async function readContainerMemory({
   cgroupPath,
+  replaces = CGROUP_NOT_THERE,
 }: {
   readonly cgroupPath: string;
+  readonly replaces?: ContainerMemoryRead;
 },): Promise<ContainerMemoryRead> {
   /**
    Whether the container's scope is there to read at all.
@@ -393,6 +412,39 @@ export async function readContainerMemory({
     sample.pidsCurrent = pidsCurrent;
   if ((typeof pidsPeak) !== 'symbol')
     sample.pidsPeak = pidsPeak;
+  /**
+   Whether the control group answered any figure at all, which a group that is there always does: a directory the kernel
+   is removing answers no file of its own, which must not be read as a reading without figures.
+   */
+  const wroteAFigure = [
+    current,
+    peak,
+    max,
+    swapCurrent,
+    swapMax,
+    pidsCurrent,
+    pidsPeak,
+  ].some(function written(figure) {
+    return (typeof figure) !== 'symbol';
+  });
+  /**
+   Whether it answered any counter at all.
+   */
+  const wroteACounter = [
+    statCounters,
+    events,
+  ].some(function counted(counters) {
+    return Object.keys(counters,)
+      .length
+      > 0;
+  });
+  if ((!wroteAFigure) && (!wroteACounter))
+    return CGROUP_NOT_THERE;
+  if (!answersEveryPartOf({
+    read: sample,
+    kept: replaces,
+  },))
+    return CGROUP_NOT_THERE;
   return sample;
 }
 

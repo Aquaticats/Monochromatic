@@ -249,6 +249,12 @@ export async function holdStandInCgroupReading({
     'w',
   );
 
+  /**
+   Take one file away from the group at the point of the reading this hold chose, then let the reading answer the file
+   it was held at.
+
+   @param file - the group's file to take away before the reading goes on
+   */
   async function goOnWithout({ file }: { readonly file: string; },): Promise<void> {
     await rm(join(
       cgroupPath,

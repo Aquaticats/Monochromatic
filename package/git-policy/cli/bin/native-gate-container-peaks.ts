@@ -10,6 +10,11 @@
  `libpod-*.scope` until the scope goes, which it marks with one last line holding the figures the scope last gave. The
  tests are named from the processes themselves, by `bin/native-gate-container-processes.ts`.
 
+ A dying group gives its files up one at a time, so a reading taken while it goes answers a part of it
+ (`doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`). Such a reading is no
+ sample of this container and never becomes a line: what the record says is the last whole reading, and a group that lost
+ a file never answers a whole one again, so the end line holds that reading.
+
  Usage:
    node bin/native-gate-container-peaks.ts --log <gate log> --out <jsonl> [--interval-ms 100]
      [--process-interval-ms 1000] [--deadline-seconds 5400]
@@ -302,9 +307,18 @@ async function readRoleOnce({
     ...(recording.userId === undefined ? {} : { userId: recording.userId, }),
   },);
   /**
-   What that scope holds now.
+   What that scope holds now, or the statement that it is gone, which the last figures this role gave are repeated for.
+
+   A reading that answered less than the one kept loses a part of the group the kernel is removing, so it is no sample of
+   this container: what the lines say is the last whole reading, and a group that loses a file never answers a whole one
+   again.
    */
-  const sample: ContainerMemoryRead = await readContainerMemory({ cgroupPath, },);
+  const sample: ContainerMemoryRead = await readContainerMemory({
+    cgroupPath,
+    replaces: state.lastSamples
+      .get(role,)
+      ?? CGROUP_NOT_THERE,
+  },);
   if (sample !== CGROUP_NOT_THERE) {
     state.lastSamples
       .set(

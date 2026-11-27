@@ -206,9 +206,12 @@ async function readOnce({
   readonly intervalMilliseconds: number;
 },): Promise<void> {
   /**
-   What the scope holds now, or the statement that it is gone.
+   What the scope holds now, or the statement that it is gone and that it lost a part of what was read before it.
    */
-  const read = await readContainerMemory({ cgroupPath, },);
+  const read = await readContainerMemory({
+    cgroupPath,
+    replaces: state.lastRead,
+  },);
   if (read !== CGROUP_NOT_THERE)
     state.lastRead = read;
   await waitUntil(intervalMilliseconds,);
@@ -218,11 +221,13 @@ async function readOnce({
  One running container's memory watch: the last figures it read, and how to end it.
 
  The last read is kept because a container's cgroup goes with it: what a caller asks after the container ended can only
- be what was read while it ran.
+ be what was read while it ran. A reading that answered less than the one before it read the cgroup while it was going,
+ so it is not kept: what a caller is told is the last reading that answered every part of the one before it, which is at
+ worst the reading of the moment the cgroup began to go.
  */
 export type ContainerMemoryWatch = {
   /**
-   The last figures read from the container's cgroup, or {@link CGROUP_NOT_THERE} when its scope was never there.
+   The last figures read from the container's cgroup, or {@link CGROUP_NOT_THERE} when its scope was never read.
    */
   readonly lastRead: () => ContainerMemoryRead;
   /**

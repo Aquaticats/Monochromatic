@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtempDisposable, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import {
   holdStandInCgroupReading,
   removeStandInCgroup,
 } from './stand-in-cgroup-files-for-tests.ts';
+import { until } from './until-a-test-condition-holds.ts';
 
 /**
  Private scratch parent outside the repository, whose backing device is known.
@@ -164,6 +166,29 @@ function scopeOf({
     'user.slice',
     `libpod-${containerId}.scope`,
   );
+}
+
+/**
+ Wait until the recorder has written a sample line of the whole group, with the kill its events count.
+
+ That line is the whole reading this test holds the next one of, so the group loses its kill counter part way through a
+ reading and never on the way to the first one.
+
+ @param outPath - the file the recorder writes one line per sample to
+ */
+async function untilWholeSample({ outPath }: { readonly outPath: string; },): Promise<void> {
+  await until({
+    condition: function wholeSample() {
+      return existsSync(outPath,)
+        && readFileSync(
+          outPath,
+          'utf8',
+        )
+          .includes('"oom_kill":1',);
+    },
+    description: 'the recorder to write a sample line of the whole group, with the kill its events count',
+    pollMilliseconds: fixtureIntervalMilliseconds,
+  },);
 }
 
 /**
@@ -386,6 +411,7 @@ await describe({
         /**
          The reading this test holds, so the group loses its kill counter at a chosen point of it.
          */
+        await untilWholeSample({ outPath, },);
         const held = await holdStandInCgroupReading({
           cgroupPath: suiteScope,
           at: 'pids.peak',
