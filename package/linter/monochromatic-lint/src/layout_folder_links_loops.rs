@@ -369,21 +369,22 @@ pub(crate) fn route_from(
     let mut steps: Vec<(PathBuf, PathBuf, Proof)> = Vec::<(PathBuf, PathBuf, Proof)>::new();
     let mut node: PathBuf = start.to_path_buf();
     while node != *goal {
-        // What: how many uses still lead from this entry to the group, and the uses it can take.
+        // What: the `?` operator hands back `None` from the whole function when the value before it is the absent variant of `Option`.
+        // Why: an entry the walk never reached has no route, so no finding is spelled for it.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const here = distance.get(node); if (here === undefined) return undefined;
+        // ```
+        // What: how many uses still lead from this entry to the group.
         // Why: a step may only go to an entry one use closer, so no route spells a longer way than the shortest one.
-        let Some(here) = distance.get(&node).copied() else {
-            // What: `None` is the absent variant of `Option`.
-            // Why: an entry the walk never reached has no route, so no finding is spelled for it.
-            return None;
-        };
-        let Some(targets) = search.get(&node) else {
-            return None;
-        };
+        let here: usize = *distance.get(&node)?;
+        // What: the uses this entry can take.
+        // Why: a reached entry was reached along a use, so the graph holds the uses it leaves.
+        let targets: &BTreeMap<PathBuf, Proof> = search.get(&node)?;
         // What: the distance a successor of this entry must hold to be a step of the shortest route.
         // Why: an entry at zero is the goal itself, so no entry before the goal has a step to look for.
-        let Some(closer) = here.checked_sub(1) else {
-            return None;
-        };
+        let closer: usize = here.checked_sub(1)?;
         // What: the first successor in ascending path order that sits one use closer to the group.
         // Why: that order is what spells the smallest of two equally short routes on every machine.
         let mut next: Option<(PathBuf, PathBuf, Proof)> = None;
@@ -396,9 +397,7 @@ pub(crate) fn route_from(
         }
         // What: the step this route takes, which an entry the walk reached always has.
         // Why: such an entry was reached along a use, so one of its successors is one use closer.
-        let Some((from, after, proof)) = next else {
-            return None;
-        };
+        let (from, after, proof) = next?;
         steps.push((from, after.clone(), proof));
         node = after;
     }
