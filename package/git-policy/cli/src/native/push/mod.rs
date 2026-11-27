@@ -201,6 +201,10 @@
 //! - `auto_push_destination_settings.rs`:
 //!   the settings that decide where one branch is pushed,
 //!   read from one listing of the configuration.
+//! - `bounded_push_output.rs`:
+//!   the output a push keeps:
+//!   the text read back through whole lines,
+//!   and the line that says only the head of it is kept.
 //! - `bounded_push.rs`:
 //!   the auto-push's real `git push` with a deadline and its low-speed abort.
 //! - `auto_push_reconcile_merge_commit_answer_ceilings.rs`:
@@ -438,6 +442,11 @@ pub mod bounded_query;
 /// The thread that gives a second-pass command its request,
 /// and the bounds it runs under.
 pub mod bounded_query_input;
+
+/// The output a push keeps:
+/// the text read back through whole lines,
+/// and the line that says only the head of it is kept.
+pub mod bounded_push_output;
 
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
