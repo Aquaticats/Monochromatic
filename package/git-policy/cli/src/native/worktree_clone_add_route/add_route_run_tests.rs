@@ -27,6 +27,11 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::testing::the_destruction_plan_a_control_plants::{
+    ACloneAPlanNames,
+    APlanAControlPlants,
+    plant,
+};
 use crate::transaction_git::GitContext;
 use crate::worktree_clone_add_route::add_preflight::Preflight;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
@@ -34,11 +39,9 @@ use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 use crate::worktree_clone_binding_record::registration_home::{
     binding_path,
     home_folder,
-    plans_folder,
 };
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_slot_state::slot_state_test_records::record_at;
@@ -172,14 +175,13 @@ fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
         container_dataset: String::from("tank/clones"),
         pool: String::from("tank"),
     };
-    let folder: PathBuf = plans_folder(route.common_dir.as_path());
-    std::fs::create_dir_all(folder.as_path()).expect("the plan folder");
-    let plan_text: String = format!(
-        "{PLAN_HEADER}\ncloneDataset={}\ncloneGuid={THE_PLANS_KEY}\nhead=present\nattempts=0\n",
-        route.clone_dataset()
-    );
-    let plan_path: PathBuf = folder.join(THE_PLANS_KEY);
-    std::fs::write(plan_path.as_path(), plan_text.as_bytes()).expect("the standing plan");
+    let standing: APlanAControlPlants =
+        APlanAControlPlants::a_removals_first_write(ACloneAPlanNames::a_fixture_clone(
+            route.common_dir.as_path(),
+            route.clone_dataset().as_str(),
+            DatasetGuid::parse(THE_PLANS_KEY).expect("the plan's key is a canonical GUID"),
+        ));
+    let plan_path: PathBuf = plant(&standing);
     let plan: AddPlan = AddPlan {
         destination: route.destination.clone(),
         insert_at: 2,
