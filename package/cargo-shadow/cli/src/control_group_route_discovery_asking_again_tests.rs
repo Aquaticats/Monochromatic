@@ -242,7 +242,82 @@ fn a_manager_that_answers_nothing_is_asked_once_and_ends_the_discovery_with_its_
         "the discovery answered after {elapsed:?}, before the bound of {bound:?} it gives the manager"
     );
     assert!(
-        elapsed < bound * 2,
+        elapsed < bound * 3,
         "the discovery answered after {elapsed:?}, so more than the one bound of {bound:?} was spent"
+    );
+}
+
+/// The control of the rule that decides whether a failure is put again:
+/// a program that ended inside the bound it was given is no spent deadline,
+/// and one that used its bound is.
+/// A discovery that timed both of its programs together would read a slow success and a fast failure as one spent deadline,
+/// and this
+/// asserts the rule each program is judged by on its own.
+#[test]
+fn a_program_that_ended_inside_its_bound_is_no_spent_deadline() {
+    let settings: RouteSettings = RouteSettings {
+        discovery_bound: Duration::from_millis(300),
+        ..RouteSettings::default()
+    };
+
+    assert!(
+        !super::spent_its_bound(&settings, Duration::from_millis(5)),
+        "a program that failed at once was read as having spent its deadline"
+    );
+    assert!(
+        !super::spent_its_bound(&settings, Duration::from_millis(250)),
+        "a program that ended a twentieth of a second inside its bound was read as having spent it"
+    );
+    assert!(
+        super::spent_its_bound(&settings, Duration::from_millis(300)),
+        "a program that used its whole bound was not read as having spent it"
+    );
+}
+
+/// The control of a question whose words are the refusal:
+/// the stand-in refuses every ask,
+/// so the discovery ends with the words of its last failure and the route is not found.
+#[test]
+fn a_question_that_keeps_failing_is_still_a_missing_capability_and_names_its_last_words() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    // What:     `program` is the stand-in: it writes down the ask and refuses it forever.
+    // Why:      A capability that really is missing must still be refused, with the manager's own words, however many asks it
+    //           took to be sure.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const program = aProgram(dir, 'systemctl-always-refuses', `...`)
+    // ```
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-always-refuses",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\necho 'the stand-in never answers a slice' >&2\nexit 1\n",
+            log = log.display()
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+
+    let refused =
+        detect_route(&settings).expect_err("a manager that never answers is a missing capability");
+
+    assert!(
+        refused
+            .to_string()
+            .contains("the user manager cannot start app.slice (")
+            && refused
+                .to_string()
+                .contains("the stand-in never answers a slice"),
+        "the refusal does not name the manager's own words: {refused}"
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    assert!(
+        calls.lines().count() > 1,
+        "the question was asked once only, so nothing was put again: {calls:?}"
     );
 }

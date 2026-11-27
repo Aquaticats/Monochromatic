@@ -84,6 +84,12 @@ const streamed = async (args) => {
     child.on('close', (code) => {
       resolve(code)
     })
+    // A program that could not be started at all answers here and never closes, so this answers for it too: a task that waited for a
+    // close that never comes would hang, and one that died on an unhandled event would keep nothing.
+    child.on('error', (error) => {
+      gathered.err += `cargo could not be started (${error})\n`
+      resolve(1)
+    })
   })
   return { status, stdout: gathered.out, stderr: gathered.err }
 }
@@ -178,7 +184,10 @@ const main = async () => {
   }
   if (problems.length > 0) {
     console.error(['', 'cargo-shadow tests: this run does not report, because its accounting is wrong:', ...problems.map((problem) => { return `  ${problem}`; }), ''].join('\n'))
-    console.error(`cargo-shadow tests: the whole output of this failing run is in ${keep(reportedText)}`)
+    // Both runs of a degraded run are kept: the totals this check judged came from the first one, and only the second one was written
+    // to the terminal, so one file alone is not the evidence of why the accounting failed.
+    console.error(`cargo-shadow tests: the whole output of the run that looked for the tests this host cannot run is in ${keep(learnedText)}`)
+    console.error(`cargo-shadow tests: the whole output of the report run is in ${keep(reportedText)}`)
     return 1
   }
   console.error(
@@ -190,6 +199,7 @@ const main = async () => {
     ].join('\n'),
   )
   if (reported.status !== 0) {
+    console.error(`cargo-shadow tests: the whole output of the run that looked for the tests this host cannot run is in ${keep(learnedText)}`)
     console.error(`cargo-shadow tests: the whole output of this failing run is in ${keep(reportedText)}`)
   }
   return reported.status === null ? 1 : reported.status

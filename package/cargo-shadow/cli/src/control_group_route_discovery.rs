@@ -373,10 +373,28 @@ const ASKING_AGAIN_ATTEMPTS: u32 = 3;
 /// so this wait is never spent on a host whose manager does not answer.
 const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(50);
 
+/// What one ask of the manager left when it answered nothing:
+/// the words of the failure,
+/// and whether the program ran out of the bound that ask gave it.
+/// Why:
+/// The two are different failures.
+/// A manager that answered nothing inside its bound is what a host without one looks like,
+/// and a second ask would only spend a second bound;
+/// a program that failed at once can be a moment of pressure,
+/// and asking again is what tells the two apart.
+/// Each program is timed on its own,
+/// because the discovery starts two of them and a slow one followed by a fast failure must still be put again.
+struct FailedAsk {
+    /// The words the refusal names.
+    reason: String,
+    /// Whether the program this ask ran ran out of the bound the ask gave it.
+    spent_its_deadline: bool,
+}
+
 /// What:
-/// `fn ask_once(settings: &RouteSettings) -> Result<String, String>` starts the slice when the ordinary question is asked,
+/// `fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk>` starts the slice when the ordinary question is asked,
 /// asks the manager where the slice is,
-/// and answers the path it reported or the words of its failure.
+/// and answers the path it reported or what the failure left.
 /// Why:
 /// The two asks are one answer about one thing:
 /// a slice that could not be started cannot be asked about.
@@ -385,12 +403,13 @@ const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(50);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function askOnce(settings: RouteSettings): string  // throws the reason
+/// function askOnce(settings: RouteSettings): string  // throws FailedAsk
 /// ```
-fn ask_once(settings: &RouteSettings) -> Result<String, String> {
+fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
     // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
     // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
     if settings.question.is_none() {
+        let began: Instant = Instant::now();
         let started: Result<String, String> = run_plain(
             &settings.systemctl,
             &["--user", "start", &settings.slice],
@@ -398,10 +417,13 @@ fn ask_once(settings: &RouteSettings) -> Result<String, String> {
             settings.discovery_bound,
         );
         if let Err(reason) = started {
-            return Err(format!(
-                "the user manager cannot start {} ({reason})",
-                settings.slice
-            ));
+            return Err(FailedAsk {
+                reason: format!(
+                    "the user manager cannot start {} ({reason})",
+                    settings.slice
+                ),
+                spent_its_deadline: spent_its_bound(settings, began.elapsed()),
+            });
         }
     }
     let ordinary: Vec<String> = vec![
@@ -418,6 +440,7 @@ fn ask_once(settings: &RouteSettings) -> Result<String, String> {
         .iter()
         .map(String::as_str)
         .collect();
+    let began: Instant = Instant::now();
     let answered: String = match run_plain(
         &settings.systemctl,
         &question,
@@ -426,20 +449,48 @@ fn ask_once(settings: &RouteSettings) -> Result<String, String> {
     ) {
         Ok(text) => text,
         Err(reason) => {
-            return Err(format!(
-                "the user manager cannot be asked where {} is ({reason})",
-                settings.slice
-            ));
+            return Err(FailedAsk {
+                reason: format!(
+                    "the user manager cannot be asked where {} is ({reason})",
+                    settings.slice
+                ),
+                spent_its_deadline: spent_its_bound(settings, began.elapsed()),
+            });
         }
     };
     let reported: &str = answered.trim();
     if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
-        return Err(format!(
-            "the user manager reports no control group for {}",
-            settings.slice
-        ));
+        return Err(FailedAsk {
+            reason: format!(
+                "the user manager reports no control group for {}",
+                settings.slice
+            ),
+            // An answer that is not a path is an answer: the program ran and ended inside its bound, so it is put again.
+            spent_its_deadline: false,
+        });
     }
     return Ok(reported.to_string());
+}
+
+/// What:
+/// `fn spent_its_bound(settings: &RouteSettings, took: Duration) -> bool` says whether one program that failed used the whole bound
+/// the ask gave it.
+/// Why:
+/// Only the program's own time says it ran out of its bound:
+/// the discovery starts two programs per ask,
+/// so the time around both tells neither.
+/// `DISCOVERY_POLL` is the interval the wait notices an end at,
+/// and twice it is the most an ended program can be noticed after its deadline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function spentItsBound(settings: RouteSettings, took: number): boolean
+/// ```
+fn spent_its_bound(
+    settings: &RouteSettings,
+    took: Duration,
+) -> bool {
+    return took + DISCOVERY_POLL * 2 >= settings.discovery_bound;
 }
 
 /// What:
@@ -450,7 +501,7 @@ fn ask_once(settings: &RouteSettings) -> Result<String, String> {
 /// A run and every control that needs a delegated scope ask this before they may do anything,
 /// and one failed ask is not the host's answer about itself:
 /// the same host answers a moment later (issue 6619).
-/// An ask that spent its own deadline is the one failure that is not put again,
+/// An ask whose program spent its own deadline is the one failure that is not put again,
 /// because a manager that answered nothing inside its bound is what a host without one looks like,
 /// and a second ask would only spend a second bound.
 ///
@@ -471,23 +522,13 @@ fn ask_where_the_slice_is(settings: &RouteSettings) -> Result<String, String> {
             // ```
             std::thread::sleep(ASKING_AGAIN_PAUSE);
         }
-        let began: Instant = Instant::now();
         match ask_once(settings) {
             Ok(reported) => return Ok(reported),
-            Err(reason) => {
-                // What:     an ask that ended within a poll of its own bound was a manager that did not answer, and it ends the
-                //           discovery with its own words; every other failure is put again.
-                // Why:      the deadline is the one answer a wait cannot change, and `DISCOVERY_POLL` and its grace are the most an
-                //           ask can end after it.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // if (began.elapsed() + DISCOVERY_POLL * 2 >= settings.discoveryBound) throw new Error(reason)
-                // ```
-                if began.elapsed() + DISCOVERY_POLL * 2 >= settings.discovery_bound {
-                    return Err(reason);
+            Err(failed) => {
+                if failed.spent_its_deadline {
+                    return Err(failed.reason);
                 }
-                last = reason;
+                last = failed.reason;
             }
         }
     }

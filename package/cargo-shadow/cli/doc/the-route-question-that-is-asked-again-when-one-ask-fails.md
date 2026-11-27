@@ -62,36 +62,46 @@ answered no to the question and died there.
 The one red run's ten failed in ten to thirteen milliseconds,
 which is that shape and not the shape of any assertion or of a scope that was started and failed.
 
-## What was ruled out
+## What did not reproduce, and what the timings rule out
 
-- Another round's work starting and stopping scopes.
+- Another round's work starting and stopping scopes did not make them fail here.
   With a run of the scope-heavy modules (91 tests,
   starting and stopping scopes throughout) beside the ten,
   twice,
-  the ten passed in both rounds (0.353 s to 5.104 s each):
-  the churn of another suite of this crate does not make them fail.
-- The manager's own answer under that churn.
+  the ten passed in both rounds (0.353 s to 5.104 s each).
+  That is not the same as "churn is not the cause":
+  it says that this shape,
+  at this rate,
+  does not produce the failure on this host.
+- The manager's own answer under that churn answered every time.
   2,000 asks of the question `detect_route` asks (`systemctl --user start app.slice` and
   `systemctl --user show app.slice --property=ControlGroup --value`) over 100 seconds,
   in one scope with that suite running in the same one,
   every ask answered with the path of the slice.
-  A slice that empties is not the case here:
+  A slice that empties and is collected is not the case here either:
   `app.slice` holds this account's application scopes and its agent units,
-  so it is never collected.
-- The tests' own assertions and the stopping of a scope.
+  so it does not empty.
+- The tests' own assertions and the stopping of a scope are ruled out by the timings.
   Nothing behind the question finishes in ten milliseconds;
-  a control that failed at an assertion would have taken at least the tenth of a second a scope takes.
-- A scope that could not be started.
-  A `systemd-run` that fails leaves the control waiting out `STATE_WAIT` (twenty seconds)
-  for a member that never appears,
-  and the ten failed in ten milliseconds.
+  a control that failed at an assertion would have taken at least the tenth of a second a scope takes,
+  and a `systemd-run` that fails leaves the control waiting out `STATE_WAIT` (twenty seconds)
+  for a member that never appears.
+- A fixture folder,
+  or one test executable,
+  shared by two whole runs is ruled out.
+  `scratch()` makes a randomly named directory for each control,
+  and the two runs of that minute read different build folders
+  (`~/.cargo/build/f3/…` and `~/.cargo/build/toolchain/nightly-2026-11-16/…`,
+  from the journal's own test-scratch paths).
 
 ## What the one red run met, and what is not measured
 
 The question was answered no.
 Which of its answers was no is not measured,
 because the messages were lost.
-The answers that do not depend on the moment cannot have been it:
+The answers the discovery can give were read from its own refusals
+(`detect_route` in `src/control_group_route_discovery.rs`),
+and the ones that do not depend on the moment cannot have been it:
 a host that is not a cgroup v2 mount,
 no `systemd-run` on `PATH`,
 a slice without `cgroup.kill`,
@@ -127,9 +137,11 @@ which asks the manager up to `ASKING_AGAIN_ATTEMPTS` (three) times,
 ten polls of `DISCOVERY_POLL`) apart,
 and answers the path the first good ask reported.
 One failure of that program is no longer the host's answer about itself.
-An ask that spent its own deadline is not put again:
+An ask whose program spent its own deadline is not put again:
 a manager that answered nothing inside its bound is what a host without one looks like,
 and a second ask would only spend a second bound.
+Each program an ask runs is timed on its own (`spent_its_bound`),
+because the discovery starts two of them and a slow success followed by a fast failure must still be put again.
 The words of the last failure are still the refusal,
 so a run that goes on in the weaker path,
 and a control that reports `not run`,
@@ -140,16 +152,30 @@ with a `systemctl` on `PATH` that refuses the first ask of every process that ca
 so each of the ten meets a refused ask at its own start:
 
 - with the change:
-  the ten passed (0.117 s to 5.180 s each),
-  and the two controls of the change passed.
+  the ten passed (0.109 s to 5.181 s each),
+  and the controls of the change passed,
+  four of them:
+  the question put again after a failed ask,
+  a manager that answered nothing asked once,
+  a program that ended inside its bound read as no spent deadline,
+  and a question that keeps failing still refused with the manager's own words.
 - with `ASKING_AGAIN_ATTEMPTS` set back to one and nothing else changed:
   the ten failed in 0.010 s to 0.012 s each,
   every one of them printing
   `not run [...] this host cannot give it a delegated control group (the user manager cannot start app.slice (systemctl failed (the stand-in refused this ask)))`,
-  and `a_question_that_fails_at_once_is_put_again_and_the_route_is_found` failed while
-  `a_manager_that_answers_nothing_is_asked_once_and_ends_the_discovery_with_its_own_words` passed.
+  and two of the four controls failed with them.
 
-The controls are `control_group_route_discovery::asking_again_tests`.
+The controls are `control_group_route_discovery::asking_again_tests`:
+the question is put again after a failed ask,
+a manager that answered nothing is asked once,
+a program that ended inside its bound is no spent deadline,
+and a question that keeps failing still refuses with the manager's own words.
+The last two are not made red by the change being taken out:
+the bound rule is a rule about one program,
+and the manager that answers nothing is asked once either way.
+The question that fails at once and the question that keeps failing are:
+with `ASKING_AGAIN_ATTEMPTS` at one they both fail,
+the second on its own claim that the question was put more than once.
 
 ## A failing run leaves its messages
 
@@ -160,6 +186,17 @@ which the repository's `.gitignore` excludes,
 and its last lines name that file.
 The suite is still streamed to the terminal as it is written,
 so a run that takes minutes is not hidden while it happens.
+A degraded run keeps both of its runs when it fails:
+the one that looked for the tests this host cannot run,
+and the report run.
+What this does not cover,
+and why:
+the output is held in the task's own memory and written when the run ends,
+so a task killed outright,
+by the kernel's OOM killer among others,
+keeps nothing;
+and the kept file is standard output followed by standard error,
+not the order the two streams interleaved in.
 
 Measured 2026-11-27 on this host,
 with one planted panic in `git_sha1_tests::the_digest_of_nothing_is_the_published_one`:
@@ -186,3 +223,9 @@ the panic's message and the summary.
   No control of this package plants a read of `/sys/fs/cgroup` that fails for a moment.
 - The repository linter's `rust/max-lines` finding on `src/lib.rs` (304 code lines,
   limit 300) is on this branch's base already and is not this round's.
+- A kept run is written when the run ends,
+  not as it streams,
+  so a task that is killed before its suite ends keeps nothing (above).
+  Writing it as it streams would cost a file per run,
+  including the runs that pass,
+  and this round did not measure whether that is worth it.

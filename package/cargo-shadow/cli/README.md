@@ -1240,7 +1240,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   `a_frozen_run_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
   measured 2026-11-27).
   No run reminds the person of a kept journal it leaves:
-  that would be a change of what those runs print, which nobody has decided.
+  that would be a change of what those runs print,
+  which nobody has decided.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
   Two runs of one process do not wait for each other and share no lock:
