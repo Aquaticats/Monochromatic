@@ -1,7 +1,8 @@
 //! What:
 //!  The reversible,
 //! flat,
-//! case-insensitive-safe file name of one branch's push files.
+//! case-insensitive-safe file name of one branch's push files,
+//! and the hash that shortens a key too long for a file name.
 //! Why:
 //!  The failure notice of a push is kept per branch (`push_failure_notice`),
 //!  and the incumbent's per-branch push files (`src/auto-push-branch-key.ts`) used the same names,
@@ -198,7 +199,28 @@ pub fn decode_branch_key(key: &str) -> Result<String, BranchKeyError> {
     };
 }
 
-/// Encoding and decoding behave as the incumbent's branch key codec.
+/// A 64-bit FNV-1a hash of the text,
+/// in hexadecimal.
+/// Why it sits beside the branch key:
+///  it shortens a key too long for a file name,
+///  and names a record by the fields it holds,
+///  so the two ways one push file is named are read together.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fnvHex = (text) => { let h = 0xcbf29ce484222325n; for (const b of new TextEncoder().encode(text)) { h ^= BigInt(b); h = BigInt.asUintN(64, h * 0x100000001b3n); } return h.toString(16).padStart(16, '0'); };
+/// ```
+pub fn fnv_hex(text: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in text.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    return format!("{hash:016x}");
+}
+
+/// Encoding and decoding behave as the incumbent's branch key codec,
+/// and the hash names a file the key is too long for.
 #[cfg(test)]
 #[path = "auto_push_branch_key_tests.rs"]
 mod tests;

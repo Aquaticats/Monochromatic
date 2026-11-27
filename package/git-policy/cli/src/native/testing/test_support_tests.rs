@@ -866,4 +866,79 @@ fn a_child_dies_with_the_test_process_that_started_it() {
     remove(root.as_path());
 }
 
+/// What:
+///  A removal that gives up says the fixture's path and every name it still holds,
+///  each with what it is,
+///  so the writer that put one there is named by the failure itself.
+/// Why:
+///   Issue 6568's failure said that a directory was not empty and named no entry,
+///  so the writer took a round of measurement to find;
+///  a control cannot be asked to keep its fixtures after a failure,
+///  so the failure has to carry the names.
+#[test]
+fn a_refused_removal_names_what_the_fixture_still_holds() {
+    let root: PathBuf = fixture("refused-removal-names");
+    let held: PathBuf = root.join("held");
+    std::fs::create_dir(held.as_path()).expect("a folder the removal was given");
+    std::fs::write(held.join("a-record-left-behind"), "content").expect("a file");
+    // A removal of a path that is not a folder refuses at once, whatever writes it, so this control costs no wait.
+    let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        remove(held.join("a-record-left-behind").as_path());
+    }));
+    let failure: Box<dyn std::any::Any + Send> =
+        refused.expect_err("a removal of a file is not a removal of a fixture");
+    let words: String = match failure.downcast_ref::<String>() {
+        Some(text) => text.clone(),
+        None => panic!("the failure carries words"),
+    };
+    assert!(
+        words.starts_with("remove only the fixture: "),
+        "the failure says what was asked of it: {words}"
+    );
+    assert!(words.contains("still holds"), "{words}");
+    assert!(
+        words.contains("(file)"),
+        "the name left behind is said with what it is: {words}"
+    );
+    assert!(
+        words.contains("a-record-left-behind"),
+        "the name left behind is in the failure: {words}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The report of a fixture that still holds something names every entry,
+///  with its kind and where it is,
+///  and cuts a long list at its own bound rather than bury the first line.
+/// Why:
+///   The report is what a person reads when a teardown fails,
+///  and a folder's own name alone does not say whether a writer made a folder or a record,
+///  nor how deep it sits.
+#[cfg(unix)]
+#[test]
+fn the_report_of_a_fixture_names_every_entry_with_what_it_is() {
+    let root: PathBuf = fixture("report-of-a-fixture");
+    std::fs::create_dir(root.join("a-folder").as_path()).expect("folder");
+    std::fs::write(root.join("a-folder/a-nested-file"), "content").expect("file");
+    std::fs::write(root.join("a-file"), "content").expect("file");
+    std::os::unix::fs::symlink("a-file", root.join("a-link")).expect("link");
+    for number in 0..41 {
+        std::fs::write(root.join(format!("many-{number}")), "").expect("file");
+    }
+    let report: String =
+        super::fixture_support_shared_by_both_test_targets::what_the_fixture_still_holds(
+            root.as_path(),
+        );
+    assert!(report.contains("a-file (file)"), "{report}");
+    assert!(report.contains("a-folder (directory)"), "{report}");
+    assert!(report.contains("a-folder/a-nested-file (file)"), "{report}");
+    assert!(report.contains("a-link (link)"), "{report}");
+    assert!(
+        report.ends_with(", and 5 more"),
+        "a list past the bound says how many it left out: {report}"
+    );
+    remove(root.as_path());
+}
+
 //endregion

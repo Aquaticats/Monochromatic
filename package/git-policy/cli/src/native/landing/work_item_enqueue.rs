@@ -20,13 +20,13 @@ use crate::private_storage::{
     create_private_directory_all,
     write_private_file_unsynced,
 };
-use crate::work_item::{
+use crate::work_item_record::WorkItem;
+use crate::work_item_state_directories_and_claim_names::{
     CLAIMED,
     DONE,
     FAILED,
     PENDING,
     RECOVERING,
-    WorkItem,
     entries_oldest_first,
     id_of_entry,
     state_directory,

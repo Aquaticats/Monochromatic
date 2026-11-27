@@ -31,7 +31,7 @@ use crate::worktree_copy_stage_claim::{
     claim_names,
     claim_stage_for_add_as,
 };
-use crate::worktree_copy_stage_claim_reaping::StageVerdicts;
+use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
 use crate::worktree_copy_unreadable_records::{
     UNREADABLE_FOLDER,
     move_aside,
@@ -320,7 +320,7 @@ fn a_claim_whose_folder_is_named_beside_it_is_written_again() {
         "a claim stands again under its own name: {names:?}"
     );
     let recovered: Option<(PathBuf, Option<String>)> =
-        crate::worktree_copy_stage_claim_reaping::read_claim(claim_path.as_path()).expect("read");
+        crate::worktree_copy_stage_claim_record::read_claim(claim_path.as_path()).expect("read");
     let (container, owner) = recovered.expect("the claim reads again");
     assert_eq!(
         container,

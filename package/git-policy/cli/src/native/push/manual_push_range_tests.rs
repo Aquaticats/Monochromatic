@@ -15,6 +15,11 @@ use crate::candidate_prediction::{
 };
 use crate::manual_push_probe::PushUpdate;
 use crate::manual_push_range_published_tips::*;
+use crate::manual_push_update_and_query_limits::{
+    ManualPushRangeError,
+    run_git_bytes,
+    write_within,
+};
 use crate::test_support::{
     fixture,
     git,
@@ -25,6 +30,7 @@ use std::path::{
     Path,
     PathBuf,
 };
+use std::time::Duration;
 use std::time::Instant;
 
 /// Environment of every Git child of these fixtures.

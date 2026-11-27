@@ -25,10 +25,8 @@ use crate::child_class::class_of;
 /// which the controls of the steps' bounds still ask.
 #[cfg(test)]
 use crate::child_watch::StepBound;
-use crate::child_watch::{
-    WatchTerms,
-    output_watched_within_for_a_stop,
-};
+use crate::child_watch::WatchTerms;
+use crate::child_watch_one_shot_run::output_watched_within_for_a_stop;
 use crate::repo_read_hook::try_request;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::{

@@ -56,9 +56,9 @@ use crate::worktree_copy_stage_claim::{
     claim_names,
     rewrite_claim,
 };
-use crate::worktree_copy_stage_claim_reaping::{
+use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
+use crate::worktree_copy_stage_claim_record::{
     ClaimFile,
-    StageVerdicts,
     claim_file_reading,
 };
 use crate::worktree_copy_stage_made_object::read_made;
@@ -86,11 +86,14 @@ use std::path::{
 /// and the readers of that folder,
 /// re-exported so a caller that only needs the folder reaches it here.
 pub use crate::worktree_copy_unreadable_record_aside::{
-    UNREADABLE_FOLDER,
     moved_record_path,
     unreadable_record_names,
     unreadable_records_stand,
 };
+
+/// The folder under the journal root that keeps those records,
+/// whose name the journal's own names file defines.
+pub use crate::worktree_copy_journal_names_and_shapes::UNREADABLE_FOLDER;
 
 /// What:
 ///  The stage container a claim that cannot be read still names through the records beside it.

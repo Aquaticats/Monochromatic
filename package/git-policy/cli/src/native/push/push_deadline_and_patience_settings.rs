@@ -3,12 +3,15 @@
 //! the environment variable that sets the deadline,
 //! its default,
 //!  the reading of a positive whole number of seconds,
-//! and the patience a push runs under.
+//! the patience a push runs under,
+//! and the grace a stopped run is given before it is killed.
 //! Why:
 //!  `bounded_push.rs` runs and stops the push;
 //! the settings it reads do not use it,
 //! so they sit in a file of their own and
 //!  `bounded_push.rs` re-exports them for the callers that import them from there.
+//!  The grace sits here too,
+//!  because the queries that a stop bounds read it and never run a push.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -52,6 +55,21 @@ pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 /// "Push stall window,
 /// 30 seconds").
 pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
+
+/// How long a stopped push gets to end after the polite stop signal before it is killed.
+///  Citation:
+/// partial.
+/// The helpers of a stopped push were measured on 2026-11-03 to outlive it for 60 seconds,
+/// and a `git-lfs` that
+///  never answers for good,
+/// and empty tracking-ref locks appeared about 37 seconds after a stop;
+/// those justify the kill that
+///  follows the grace and the sweep,
+/// not five seconds,
+/// and no measurement of how long Git takes to remove its own locks on a
+///  polite stop exists.
+/// An open question for the owner.
+pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
 /// The variable a control sets to shorten the window a run whose connection is open may stay silent for.
 ///  It is named as a control's because the window is fixed for every shipped run (`SPEC.md`,

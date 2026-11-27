@@ -17,7 +17,6 @@
 
 use crate::process_identity::ProcessIdentityError;
 use std::io::Read;
-use std::path::Path;
 
 /// The first bytes of a lock the service holds,
 /// followed by the batch number,
@@ -36,7 +35,7 @@ pub const LOCK_MARKER: &str = "cli-git-service ";
 pub const MARKER_VERSION: &str = "v2 ";
 
 /// The longest marker this reader looks at.
-const MARKER_LIMIT: u64 = 512;
+pub(crate) const MARKER_LIMIT: u64 = 512;
 
 /// What a service marker names.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,48 +118,6 @@ pub fn parse_marker(text: &str) -> Option<Marked> {
         holder,
         current,
     });
-}
-
-pub use crate::service_index_identity::{
-    BOOT_SEPARATOR,
-    HolderState,
-    ReaderView,
-    check_procfs_view,
-    current_pid_scope,
-    holder_is_elsewhere,
-    holder_is_gone,
-    holder_is_running,
-    holder_state,
-    holder_state_in,
-    identity_in_view,
-    identity_in_view_on,
-    mark_names_a_gone_holder,
-    own_identity,
-    pid_of_self_stat,
-};
-
-/// The marker of the file at `path`,
-/// when it holds one.
-///
-/// The lock is opened by `open_plain_file`,
-/// which opens without blocking and refuses everything that is not a plain file,
-/// so a named pipe at the
-///  lock's name is answered at once instead of waiting for a writer that may never come
-/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
-pub fn marker_of(path: &Path) -> Option<Marked> {
-    let mut text: String = String::new();
-    crate::plain_file::open_plain_file(path)
-        .ok()?
-        .take(MARKER_LIMIT)
-        .read_to_string(&mut text)
-        .ok()?;
-    return parse_marker(text.as_str());
-}
-
-/// Whether the lock at `lock` is the service's and its holder is gone,
-/// so it may be removed.
-pub fn is_reclaimable(lock: &Path) -> bool {
-    return matches!(marker_of(lock), Some(marked) if holder_is_gone(marked.holder.as_ref()));
 }
 
 /// The marker of the already open `file`,

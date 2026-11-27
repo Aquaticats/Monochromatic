@@ -25,11 +25,6 @@
 //!   its program,
 //!   start time and the way to end it,
 //!   and a summary of unreadable processes.
-//! - `index_lock_evidence_words.rs`:
-//!   the sentences a lock's evidence is reported in:
-//!   the line naming a holder,
-//!   the line at a wait's ceiling,
-//!   and the diagnostic for a PID number this process table does not have.
 //! - `index_lock_holders_accounts.rs`:
 //!   which account owns one process of the scan,
 //!   which tells a holder this account cannot read from another account's.
@@ -42,6 +37,11 @@
 //!   found by device and inode.
 //! - `index_lock_evidence.rs`:
 //!   evidence about a foreign `index.lock` and the verdict it supports.
+//! - `index_lock_evidence_words.rs`:
+//!   the sentences a lock's evidence is reported in:
+//!   the line naming a holder,
+//!   the line at a wait's ceiling,
+//!   and the diagnostic for a PID number this process table does not have.
 //! - `index_wait_outcome.rs`:
 //!   what came of one wait:
 //!   not held,
@@ -82,6 +82,10 @@
 //! - `single_owner_claim.rs`:
 //!   the numbered claim files that let exactly one command work on one worktree or checkout,
 //!   without a lock.
+//! - `stale_ref_lock_names.rs`:
+//!   the names a lock and its pid file are written under,
+//!   where the pid file sits,
+//!   and the process number it names.
 //! - `stale_ref_lock_found.rs`:
 //!   the record of one judged reference lock and the outcome of a clearing pass.
 //! - `stale_ref_lock_identity.rs`:
@@ -107,10 +111,10 @@
 //! - `stale_ref_lock_message.rs`:
 //!   what the wrapper prints about reference locks,
 //!   and the quoted command that clears one it will not remove.
-//! - `stale_ref_lock_retire.rs`:
-//!   removal of a proven stale lock with its companions.
 //! - `stale_ref_lock_walk.rs`:
 //!   which files below a Git directory are reference locks.
+//! - `stale_ref_lock_retire.rs`:
+//!   removal of a proven stale lock with its companions.
 //! - `stale_ref_locks.rs`:
 //!   the reference locks a killed Git left behind:
 //!   judged one by one,
@@ -220,6 +224,11 @@ pub mod stopped_git_locks;
 /// removed on a proof,
 /// otherwise described.
 pub mod stale_ref_locks;
+
+/// The names a lock and its pid file are written under,
+/// where the pid file sits,
+/// and the process number it names.
+pub mod stale_ref_lock_names;
 
 /// The record of one judged reference lock and the outcome of a clearing pass.
 pub mod stale_ref_lock_found;

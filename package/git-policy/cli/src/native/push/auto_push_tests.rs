@@ -4,6 +4,8 @@
 //! each case below reproduces one of its cases.
 
 use super::*;
+use crate::auto_push_awaiting::push_once;
+use crate::auto_push_single_flight::PushGit;
 use crate::test_support::{
     fixture,
     git,
@@ -1312,7 +1314,7 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
         run(sync_repo.as_path(), sync_landed.as_str());
     let mut awaited_err: Vec<u8> = Vec::new();
     let awaited_result: Result<AutoPushResult, SingleFlightError> =
-        crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(
+        crate::lazy_runtime::run_on_runtime(crate::auto_push_awaiting::push_once_awaiting(
             &push_git(awaited_repo.as_path()),
             &head_ref(awaited_repo.as_path()),
             awaited_landed.as_str(),
