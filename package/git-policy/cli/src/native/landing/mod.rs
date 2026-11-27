@@ -376,10 +376,23 @@
 //!   the state folders of the work queue,
 //!   the names of claim files,
 //!   and the listing of a folder oldest first.
-//! - `work_item.rs`:
-//!   the durable work-item record for asynchronous work (review,
+//! - `work_item_record.rs`:
+//!   the durable work-item record of asynchronous work (review,
 //!   push,
-//!   maintenance) left for a resident consumer.
+//!   maintenance) left for a resident consumer:
+//!   its fields,
+//!   its one JSON line and the reader of that line.
+//! - `work_item_claim_taking.rs`:
+//!   the steps that take one pending record out of the queue,
+//!   and the stamp that keeps a claim's lease readable.
+//! - `work_item_settling.rs`:
+//!   moving a held item's claim to its state,
+//!   starting the claim's lease again,
+//!   and the age of the oldest pending item.
+//! - `work_item.rs`:
+//!   the one name a caller uses for the record,
+//!   the steps that take and settle it,
+//!   and the files they are declared beside.
 //! - `owed_index_update.rs`:
 //!   the record of an index update a landed batch owes.
 //! - `held_commit_settle.rs`:
@@ -540,9 +553,25 @@ pub mod maintenance_decision;
 /// then `git maintenance run --auto`.
 pub mod maintenance_run;
 
-/// The durable work-item record for asynchronous work (review,
+/// The durable work-item record of asynchronous work (review,
 /// push,
-/// maintenance) left for a resident consumer.
+/// maintenance) left for a resident consumer:
+/// its fields,
+/// its one JSON line and the reader of that line.
+pub mod work_item_record;
+
+/// The steps that take one pending record out of the queue,
+/// and the stamp that keeps a claim's lease readable.
+pub mod work_item_claim_taking;
+
+/// Moving a held item's claim to its state,
+/// starting the claim's lease again,
+/// and the age of the oldest pending item.
+pub mod work_item_settling;
+
+/// The one name a caller uses for the record,
+/// the steps that take and settle it,
+/// and the files they are declared beside.
 pub mod work_item;
 
 /// The digest a push's id carries for its branch,
