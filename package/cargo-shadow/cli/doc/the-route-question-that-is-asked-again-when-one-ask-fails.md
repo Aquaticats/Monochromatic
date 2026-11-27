@@ -215,12 +215,12 @@ what it answered and how long it took.
   systemd 262,
   a user manager of its own holding 657 units (this account's held 606 on that day),
   and `systemctl --user` answered over the manager's private socket.
-  Seven reexecs of 0.430 s to 0.588 s and two reloads of 0.654 s and 0.734 s,
+  Six reexecs of 0.430 s to 0.588 s and two reloads of 0.654 s and 0.734 s,
   in three runs of 284,
   305 and 574 rounds of the asks,
   each reaching 10 s past its last disturbance:
   every ask answered except during the reexecs themselves,
-  where 59 asks refused over those seven windows,
+  where 59 asks refused over those six windows,
   in 3 ms to 6 ms
   (`Failed to connect to user scope bus via local transport: Connection reset by peer`)
   or after waiting 0.08 s to 0.35 s
@@ -238,10 +238,10 @@ what it answered and how long it took.
   a user manager of its own holding 760 units,
   and `systemctl --user` answered over the session bus (dbus-broker),
   which is the transport this account's manager has.
-  Seven reexecs of 0.292 s to 0.393 s and three reloads of 0.375 s to 0.448 s,
+  Nine reexecs of 0.292 s to 0.393 s and three reloads of 0.375 s to 0.448 s,
   in three runs of 6,886,
   7,145 and 7,307 rounds of the asks,
-  each reaching 5 s past its last disturbance:
+  each reaching at least 5 s past every window and 12 s past its last:
   fifteen asks refused,
   every one of them inside a reexec window
   (`Transport endpoint is not connected`,
@@ -254,7 +254,10 @@ what it answered and how long it took.
   The read of the caller's limits,
   the slice's stat,
   its `cgroup.kill`,
-  the namespace and the `statx` answered every time.
+  the namespace and the `statx` answered every time of 7,302 in the last of those runs,
+  which is the one whose every ask was the caller's own group's (the two before it read a leaf service
+  group of the guest that carries no `io.weight`,
+  a guest's own arrangement and not a moment).
 - The case the measurement must be able to see:
   the same asks with no manager to reach refused every one of them
   (`Failed to connect to user scope bus via local transport: No such file or directory`),
