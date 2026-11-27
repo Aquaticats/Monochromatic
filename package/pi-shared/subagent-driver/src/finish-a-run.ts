@@ -1,9 +1,11 @@
 /**
- What a launcher does once its unit has ended: the wake of an agent whose own work outlived its turn, and what becomes of the
- worktree.
+ What a launcher does once its unit has ended: the wake of an agent whose own work outlived its turn, what becomes of the worktree,
+ and what becomes of the run's scratch folder under `${HOME}/temp/agent`, which is cleared before the worktree is weighed so that
+ no worktree step can skip it.
 
- The step is kept apart from the launcher that starts the unit so it can be read alone: it is where a run is resumed and where a
- worktree may be removed, and both turn on what the run left running.
+ The step is kept apart from the launcher that starts the unit so it can be read alone: it is where a run is resumed, where a
+ worktree may be removed, and where a scratch folder is cleared beside its `keep/`, and each of the three turns on what the run
+ left running.
 
  @module
  */
@@ -26,6 +28,7 @@ import {
   SessionFileUnreadableError,
   sessionFileOfRun,
 } from './session-file-of-a-run.ts';
+import { clearScratchFolderOfARun, } from './scratch-folder-of-a-run.ts';
 import {
   type GitRunner,
   removeWorktree,
@@ -74,6 +77,17 @@ export type FinishRequest = {
    The status the run's unit ended with, which this step answers with unless the run was resumed.
    */
   readonly unitStatus: number;
+
+  /**
+   Whether the manager answered that the unit is not running, which is what a run's end is for its scratch folder: a launcher
+   whose own wait gave up leaves the folder whole.
+   */
+  readonly unitEnded: boolean;
+
+  /**
+   The folder every run's scratch lives in, which is absolute: the home directory of the run plus `temp/agent`.
+   */
+  readonly agentScratchFolder: string;
 
   /**
    How long the run may last, which bounds the wait for its own work.
@@ -171,7 +185,9 @@ export type FinishedRun = {
 async function ownWorkStillRunning(request: FinishRequest,): Promise<readonly string[]> {
   return processesStillWorkingFor({
     runName: request.runName,
-    worktree: request.worktree,
+    // A run that works in the checkout itself has the whole checkout as its worktree, and every other session works there too: only
+    // its run folder and a folder carrying its own name count as its own work.
+    worktree: request.readOnlyInMain ? '' : request.worktree,
     runFolder: request.runFolder,
     processes: await processesAtTheirFolders({ processFolder: request.processFolder, },),
     excludingPid: process.pid,
@@ -263,13 +279,13 @@ async function resumeTheSession({
  A run that is resumed answers with the status the resumed launcher ended with; every other run answers with the status its unit
  ended with.
 
- @param request - the run, its worktree, how it ended, and the seams a test replaces
+ @param request - the run, its worktree, its scratch folder, how it ended, and the seams a test replaces
 
  @returns the status the launcher exits with
 
  @example
  ```ts
- const finished = await finishTheRun({ runName: 'a', runFolder: '/runs/a-1', unitStatus: 0, wallSeconds: 600, readOnlyInMain: false, worktree: '/repo/.claude/worktrees/pi-a', checkoutFolder: '/repo', processFolder: '/proc', runsFolder: '/runs', commandLine: [], launcherEntry: '/pkg/src/start-pi-run-in-a-worktree.ts', wakesSoFar: 0, environment: process.env, git, run, report: console.log, wait, now: Date.now, },);
+ const finished = await finishTheRun({ runName: 'a', runFolder: '/runs/a-1', unitStatus: 0, unitEnded: true, agentScratchFolder: '/home/a/temp/agent', wallSeconds: 600, readOnlyInMain: false, worktree: '/repo/.claude/worktrees/pi-a', checkoutFolder: '/repo', processFolder: '/proc', runsFolder: '/runs', commandLine: [], launcherEntry: '/pkg/src/start-pi-run-in-a-worktree.ts', wakesSoFar: 0, environment: process.env, git, run, report: console.log, wait, now: Date.now, },);
  ```
  */
 export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun> {
@@ -324,6 +340,27 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
   const ownWorkLeftRunning = ((wake.step === 'could-not-resume') || (wake.step === 'work-still-runs'))
     ? wake.ownWork
     : [];
+
+  // The run's scratch folder goes before the worktree is weighed, because nothing in it may be skipped by a worktree step that
+  // fails: what the agent left beside its `keep/` is a build folder, a checkout or a fixture repository that nothing needs once the
+  // run has ended, and leaving it was what put 346 folders under `~/temp/agent` by 2026-11-27 (issue 6618). What stays is the
+  // report, the logs and the measurements a reader of the report needs, and a run that is resumed finds them because its `keep/`
+  // was never touched.
+  /**
+   What became of the run's scratch folder.
+   */
+  const scratch = await clearScratchFolderOfARun({
+    agentScratchFolder: request.agentScratchFolder,
+    runsFolder: request.runsFolder,
+    runFolder: request.runFolder,
+    runName: request.runName,
+    unitEnded: request.unitEnded,
+    // Read here rather than taken from the wake above: the wake weighs a run's own work only for one that finished its turn, and a
+    // run that ended on a cap or an error may still have a build in the folder that writes into its scratch by absolute path.
+    ownWorkStillRuns: (await ownWorkStillRunning(request,)).length > 0,
+    processFolder: request.processFolder,
+  },);
+  request.report(`${request.runName}: ${scratch.line}`,);
 
   /**
    Whether the worktree's HEAD is a branch.
