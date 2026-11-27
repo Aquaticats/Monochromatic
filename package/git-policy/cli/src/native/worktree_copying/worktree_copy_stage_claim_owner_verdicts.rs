@@ -73,7 +73,8 @@ impl StageVerdicts {
     /// because the writer its name carries no longer runs.
     /// Why:
     ///   The sweep that removes the temporaries reads the set this judge fills,
-    /// so the judgement is taken once, before anything is removed.
+    /// so the judgement is taken once,
+    /// before anything is removed.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
