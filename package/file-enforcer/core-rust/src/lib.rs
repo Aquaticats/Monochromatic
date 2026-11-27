@@ -89,10 +89,10 @@ pub mod config_reader;
 
 /// What:
 ///  `config_decode_rules` decodes each rule kind's object into its `RuleConfig` variant;
-/// it is private.
+/// it is private and holds the dispatch by `kind`,
+/// while the per-kind readers live in the four modules below.
 /// Why:
-///  The per-kind field lists live in one place,
-/// next to the corpus that proves them against the schema,
+///  The per-kind field lists live next to the corpus that proves them against the schema,
 /// and callers only need `decode_config`.
 ///
 /// In TS you'd write (pseudocode):
@@ -100,6 +100,66 @@ pub mod config_reader;
 /// // private module: decodeRule(reader, value, pointer): RuleConfig | undefined
 /// ```
 mod config_decode_rules;
+
+/// What:
+///  `config_decode_rules_built_in_kinds` decodes the seven kinds this crate implements itself:
+/// `concat`,
+/// `mode-only`,
+/// `package-licenses`,
+/// `mirror`,
+/// `toml-keys`,
+/// `json-keys` and
+/// `mise-path-list`;
+/// it is private and split out of `config_decode_rules`.
+/// Why:
+///  A kind's accepted keys belong next to the fields that read them,
+/// the same names the derived schema lists.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: decodeConcat(...), decodeModeOnly(...), decodeTomlKeys(...)
+/// ```
+mod config_decode_rules_built_in_kinds;
+
+/// What:
+///  `config_decode_rules_kinds_from_other_crates` decodes the three kinds another crate supplies a builder for:
+/// `rust-catalog`,
+/// `browserslist` and
+/// `jetbrains-harper`;
+/// it is private and split out of `config_decode_rules`.
+/// Why:
+///  This crate checks the fields those kinds accept but never implements them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: decodeRustCatalog(...), decodeBrowserslist(...), decodeJetbrainsHarper(...)
+/// ```
+mod config_decode_rules_kinds_from_other_crates;
+
+/// What:
+///  `config_decode_rules_key_edits` decodes the `edits` array that `toml-keys` and `json-keys` share;
+/// it is private and split out of `config_decode_rules`.
+/// Why:
+///  One reader keeps the accepted keys equal in both kinds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: decodeEdits(reader, object, pointer): KeyEdit[]
+/// ```
+mod config_decode_rules_key_edits;
+
+/// What:
+///  `config_decode_rules_path_and_mode_readers` decodes the repo-relative path and octal mode members several kinds read;
+/// it is private and split out of `config_decode_rules`.
+/// Why:
+///  A path outside the worktree and a mode that is not octal both fail at publish time,
+/// so both are reported while the rest of the config still decodes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: repoPath(...), modeText(...)
+/// ```
+mod config_decode_rules_path_and_mode_readers;
 
 /// What:
 ///  `config_decode` turns a loaded `ConfigDocument` into a typed `Config`,
