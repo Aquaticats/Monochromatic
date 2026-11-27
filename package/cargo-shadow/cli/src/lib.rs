@@ -171,6 +171,9 @@ pub mod git_system_config_lookup;
 /// without Git.
 pub mod git_config;
 
+/// The character lexer of Git configuration text: the section header, the value and the key readers (split out of the Git configuration module).
+pub mod git_config_lexer;
+
 /// The plain-file reader of `HEAD`,
 /// branch configuration and references that chooses the trust base without Git.
 pub mod git_refs;
