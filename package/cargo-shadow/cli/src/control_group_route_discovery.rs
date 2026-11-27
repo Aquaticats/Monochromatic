@@ -256,6 +256,8 @@ impl Default for RouteSettings {
 pub(crate) struct Route {
     /// The program that makes the scope.
     pub(crate) systemd_run: String,
+    /// The program that asks the manager to stop a scope unit after its run ended.
+    pub(crate) systemctl: String,
     /// The slice the scopes are made in.
     pub(crate) slice: String,
     /// The directory of the slice in the cgroup file system,
@@ -487,6 +489,7 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
     };
     return Ok(Route {
         systemd_run: settings.systemd_run.clone(),
+        systemctl: settings.systemctl.clone(),
         slice: settings.slice.clone(),
         slice_dir,
         namespace,

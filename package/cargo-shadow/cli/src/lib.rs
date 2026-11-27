@@ -142,6 +142,10 @@ pub mod bounded_run_containment;
 /// The start of a child inside the containment (split out of the containment module).
 pub mod bounded_run_start;
 
+/// The end of a bounded run,
+/// and the stop of its scope unit after it (split out of the containment module).
+pub mod bounded_run_end;
+
 /// Error text that is built only when a failure happens,
 /// passed as a `format_args!` value instead of a closure.
 pub mod lazy_error_text;

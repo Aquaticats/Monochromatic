@@ -835,6 +835,22 @@ and an HTTP 429 is retried after its `Retry-After`.
   the stop ends only when the kernel says `populated 0` or the absence of the scope is verified,
   and every failure on
   this path after the program started is "not quiescent".
+  After a last read of the scope's `populated` line shows no member,
+  the run asks the manager to stop the unit it started
+  (`systemctl --user --no-ask-password stop <name>.scope`,
+  `src/control_group_retire.rs`),
+  on every path that ends a run,
+  because a scope whose process was already exiting when the manager wrote its id into the scope's
+  `cgroup.procs` never becomes populated,
+  so the kernel sends no empty notification and the unit would stay `active (running)` with no member
+  (issue 6578;
+  [the census, the reproduction and the count](../../../doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md)).
+  A unit the manager already collected is read as `not-found` and is not a refusal;
+  a stop it refuses for another reason is a warning that names the unit,
+  because the run's own proof that no writer is left has already held.
+  A run whose scope still has a member keeps its unit,
+  so the member its refusal names stays inspectable and is not killed behind the report;
+  a stop that failed to read the scope while it was already empty still retires the unit.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,

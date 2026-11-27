@@ -1787,3 +1787,62 @@ timed" says which row file is which run,
 on Git 2.43.0" says which of that round's rows is which shape,
 and "The re-time on Git 2.56.1,
 2026-11-22" says which re-time row is which shape.
+
+## The harness after 2026-11-27
+
+This section is unapproved and non-final:
+it records what the two host harnesses of 2026-11-21 do today,
+so that removing them can be weighed.
+Nothing above it changed.
+
+Both harnesses were run on 2026-11-27,
+after they were rewritten to a clean `lint:oxlint` (issue 6581).
+Each is now one script and a run of named modules beside it:
+
+- `perf/fence-size-read-beside-the-check-2026-11-21-host-measure.ts`,
+  with
+  `-host-measure-paths.ts`,
+  `-host-measure-source.ts`,
+  `-host-measure-add.ts`,
+  `-host-measure-phases.ts` and
+  `-commands.ts`,
+  which the control also runs;
+- `perf/fence-size-read-beside-the-check-2026-11-21-control-identical-fence.ts`,
+  with
+  `-identical-fence-paths.ts`,
+  `-identical-fence-source.ts` and
+  `-identical-fence-add.ts`;
+- the pure logic of both,
+  under `package/git-policy/cli/bin/`:
+  `fence-size-read-beside-the-check-2026-11-21-add-timing-record.ts`,
+  `-host-measure-phase.ts` and
+  `-identical-fence-report.ts`,
+  each with a unit test file.
+  They live in `bin/` because a unit test may import only the package's artifact directories,
+  and `bin/` is this package's.
+
+### Neither can reproduce its own arms any more
+
+Both scripts set `MONOCHROMATIC_CLONE_SIZE_READ_BESIDE`,
+which starts the size read beside the source check,
+and the crate no longer reads that variable:
+`worktree_clone_conversion_fence_measurement_routes.rs` reads only
+`MONOCHROMATIC_CLONE_FENCE`,
+whose values are `decline` and `all` (options C and D).
+So both arms of the control run one behaviour,
+and a run of it says the two arms agreed without having compared two behaviours.
+
+### Nor does this host take the rung they measured
+
+A run on 2026-11-27 reports `"route": "Git's checkout"`,
+where the rows of 2026-11-21 say `"route": "clones"`:
+the wrapper's own line says
+`clone: Some("the filesystem does not share data blocks between files")`,
+so the clone rung does not apply under `/home/user/temp` today.
+A run of `adds loose 1` still writes its rows and prints its summary,
+and a row file it wrote holds the keys,
+in the order,
+that the 2026-11-21 files hold.
+The two harnesses are therefore kept for their shape and not for a figure:
+every number this document states still rests on the row files under "Where the numbers are",
+which no run of today can reproduce.
