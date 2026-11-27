@@ -86,6 +86,24 @@ use super::published_archive_tests::{
 /// Imports the install itself.
 use super::sync::sync_tools;
 
+/// The control of a publish a second install races between its two renames,
+/// and of the copy an install's own failed publish keeps.
+#[path = "archive_staging_tests/the_publishes_that_fail_or_race_tests.rs"]
+mod the_publishes_that_fail_or_race_tests;
+
+/// The controls of the copies a recovery may not publish:
+/// an older version beside a newer one in either toolchain root,
+/// and a marker that matches the lock's row on some fields but not all.
+#[path = "archive_staging_tests/the_copies_a_recovery_may_not_publish_tests.rs"]
+mod the_copies_a_recovery_may_not_publish_tests;
+
+/// The controls of what a hidden name's boot and its process record decide:
+/// a record `/proc` hides,
+/// a name written by a run that could not read its boot,
+/// and a name of another boot that carries no start time.
+#[path = "archive_staging_tests/the_liveness_of_a_hidden_name_tests.rs"]
+mod the_liveness_of_a_hidden_name_tests;
+
 /// The variable the installer this control kills reads the tool directory of its fixture from.
 const TOOL_DIRECTORY_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_TOOL_DIRECTORY";
 
@@ -576,7 +594,11 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
         "a name written without a start time cannot be judged, so it stays as it is: {:?}",
         recovered.removed
     );
-    let removed: Vec<&PathBuf> = recovered.removed.iter().collect();
+    let removed: Vec<&PathBuf> = recovered
+        .removed
+        .iter()
+        .map(|leftover| return &leftover.path)
+        .collect();
     assert!(
         removed.contains(&&gone),
         "the number of a process that ended is read as gone: {removed:?}"
@@ -651,7 +673,12 @@ fn a_third_party_archive_tool_also_finishes_the_publish_a_kill_left() {
     )
     .expect("recovered");
     assert!(
-        matches!(recovered.finished_copy, FinishedCopy::PublishedHere),
+        matches!(
+            recovered.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ),
         "the finished copy is published: {recovered:?}"
     );
     assert!(
@@ -1298,9 +1325,13 @@ fn a_publish_that_finds_a_copy_put_back_meanwhile_replaces_it_and_keeps_the_fini
     );
     clear_the_plant();
     let outcome = attempt.expect("the publish replaces the copy that appeared instead of failing");
-    assert_eq!(
-        outcome.finished_copy,
-        FinishedCopy::PublishedHere,
+    assert!(
+        matches!(
+            outcome.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ),
         "{outcome:?}"
     );
     assert!(
@@ -1342,7 +1373,7 @@ fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_cl
         aside.is_dir(),
         "the copy that was there waits for the live install: {recovered:?}"
     );
-    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+    assert!(recovered.left_for_a_live_install.is_some(), "{recovered:?}");
     assert!(!recovered.restored, "{recovered:?}");
 }
 
@@ -1376,7 +1407,7 @@ fn the_copy_a_kill_moved_aside_is_not_put_back_while_a_live_installer_holds_a_st
         aside.is_dir(),
         "the copy that was there waits: {recovered:?}"
     );
-    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+    assert!(recovered.left_for_a_live_install.is_some(), "{recovered:?}");
 }
 
 #[test]
@@ -2147,7 +2178,12 @@ fn a_vouched_finished_copy_of_this_version_is_published_without_a_download() {
     )
     .expect("the leftovers are read");
     assert!(
-        recovered.finished_copy == FinishedCopy::PublishedHere,
+        matches!(
+            recovered.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ),
         "{recovered:?}"
     );
     assert!(is_finished(&version_dir, BIN));
@@ -2196,7 +2232,7 @@ fn the_copy_a_kill_moved_aside_waits_while_an_installer_this_reader_cannot_judge
         aside.is_dir(),
         "the copy that was there waits where it is: {recovered:?}"
     );
-    assert!(recovered.left_for_a_live_install, "{recovered:?}");
+    assert!(recovered.left_for_a_live_install.is_some(), "{recovered:?}");
     assert!(!recovered.restored, "{recovered:?}");
     assert!(unseeable.is_dir(), "nothing of an unjudged name is touched");
 }
