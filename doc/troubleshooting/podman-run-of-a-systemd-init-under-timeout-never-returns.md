@@ -33,3 +33,6 @@ the hourly pass now reads each run's feed age
 (`~/temp/agent/scratch-scripts/turns-of-running-pi-runs.ts`;
 its turn count is wrong,
 its feed age is right).
+(scratch,
+deleted on 2026-11-27;
+not kept).

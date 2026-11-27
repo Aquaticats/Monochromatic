@@ -51,7 +51,10 @@ reverts them at runtime for that run only.
 ### The question
 
 The alpha.45 release pass's L2
-(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/commit-push-lfs-lock/keep/review.md`):
+(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/commit-push-lfs-lock/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)):
 the relayed URL mask in `package/git-policy/cli/src/native/lfs/lfs_output_mask.rs` keeps a path segment only when it is
 lower-case letters and `-._~`,
 so `https://github.com/Org/Repo.git/info/lfs` printed as `https://github.com/<credentials>/<credentials>/info/lfs`.

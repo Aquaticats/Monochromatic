@@ -9,6 +9,10 @@ use crate::capture_invocation::{
     capture_invocation_base,
     capture_invocation_layout,
 };
+use crate::commit_index_copying::{
+    PrivateIndexSeed,
+    seed_of_index_bytes,
+};
 use crate::commit_preparation::{
     PreparationError,
     PreparationRequest,

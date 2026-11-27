@@ -109,7 +109,11 @@ naming the control that did not run, so a run in which it never ran is visible.
 Measured on 2026-11-24 on this host, one process per test: the 69 unit controls and the 17 binary
 controls of this cause that failed before the change passed after it (`keep/per-test-before`,
 `keep/per-test-after`, `keep/binary-per-test-before` and `keep/binary-per-test-after` in
-`~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`). One control of the cascade,
+`~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+One control of the cascade,
 `worktree_clone_mount::slot_identity_store::tests::a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry`,
 had printed `SKIPPED` and passed without running; it now runs and proves the refusal.
 
@@ -126,7 +130,18 @@ process per test: `keep/red-before-the-two-controls.log`,
 `keep/module-tests-threaded-failures-alone.log`, `keep/every-test-one-process-each.log`,
 `keep/green-after-the-fix.log`, `keep/green-after-the-late-two.log`,
 `keep/green-after-the-nineteenth.log` and `keep/green-after-the-shadow-three.log` in
-`~/temp/agent/non-utf8-capture-invocation-controls-on-a-utf8only-home-2026-11-25/`.
+`~/temp/agent/non-utf8-capture-invocation-controls-on-a-utf8only-home-2026-11-25/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+
+### The scanner's package met the same cause (issue 6491)
+
+`package/forbidden-strings/cli`'s embedding control makes a rule file whose name is not valid UTF-8 under
+`CARGO_TARGET_TMPDIR`, which is on the dataset above, and met this cause on 2026-11-27.
+Its own answer and its red and green runs are recorded in
+`package/forbidden-strings/cli/doc/embedding-control-on-a-file-system-that-refuses-a-name-that-is-not-utf8.md`;
+this section keeps only the fact that the refusing layer is the same one described above.
 
 ### The inner half's Git holds no capability (issue 6459)
 
@@ -836,6 +851,9 @@ Every list of test names above is a file beside this investigation's logs, in
 `/home/user/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/scratch/`:
 `cause-<cause>.txt` holds the names, `main-failing-names.txt` the 185 the full suite failed, and
 `main185-a1.log`, `main185-b1.log` and their siblings the arms' own nextest output.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What does not work
 
@@ -942,7 +960,10 @@ answered `No space left on device`, its cgroup reporting `oom_kill 0`, while a 1
 took all 96 MiB. A caller's smaller `--memory` bound moves the memory bound back below the ceiling,
 which is the caller's own choice of bound. The two probes' logs are in
 `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/scratch/`:
-`prewarm-module-on-a-64m-tmpfs.log` and `tmpfs-size-returns-enospc-probe.log`.
+`prewarm-module-on-a-64m-tmpfs.log` and `tmpfs-size-returns-enospc-probe.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The gate's manifest now records the root and the mount options beside the image and the limits, so a
 future failure can read where the tests ran.
 
@@ -1061,7 +1082,10 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
   `9173 tests run: 9166 passed (5 slow), 7 failed, 28 skipped` in 743 s. Its two failures besides
   those five are the standing pair below, and its Clippy step compiled clean from the mounted locked
   toolchain (the gate's refusal named only the test run). Its output is kept beside the second run's
-  under `scratch/keep/` of `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`,
+  under `scratch/keep/` of `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   read back from the system journal of the two containers it ran (`tender_blackburn`, cgroup
   `libpod-c731bc55...`, and `great_maxwell`, cgroup `libpod-1418d739...`):
   `gate-run-1-whole-output-from-the-journal.log` holds the seven failures with their process output,

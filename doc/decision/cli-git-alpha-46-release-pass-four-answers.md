@@ -4,6 +4,9 @@ Status: accepted by the owner on 2026-11-25, through the question tool, after th
 `monochromatic-git-policy-cli-v0.6.1-alpha.45..955051b29f` (same vendor, second passes):
 `~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/` (`one-program-root-modes/keep/review.md`,
 `zfs-add-and-removal-route/keep/review.md`, `commit-push-lfs-lock-and-the-rest/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each question carried its finding, its options with their costs, and a ranking.
 
 ## What `SSH_ASKPASS` holds

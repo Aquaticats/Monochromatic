@@ -45,6 +45,16 @@
 //! await drainPending(gitDir, handlers, now, lease, renewal, retrying)
 //! ```
 
+use super::service_work_drain_claims_by_kind::{
+    ClaimsByKind,
+    claims_by_kind,
+};
+use super::service_work_drain_housekeeping_and_upkeep::{
+    leave_housekeeping_for_a_later_round,
+    may_start_housekeeping,
+    upkeep_the_held_items_awaiting,
+};
+use super::service_work_drain_look_again::look_again_awaiting;
 use super::service_work_drain_pushes_of_each_branch::push_the_branches_awaiting;
 use super::service_work_drain_waves_of_one_kind::{
     ask_prewarm,
@@ -77,63 +87,20 @@ use crate::service_work_items_side_by_side::{
 use crate::service_work_storage_awaited::{
     acceptable_awaiting,
     claim_all_awaiting,
-    next_claim_expiry_awaiting,
     requeue_expired_awaiting,
     settle_all_awaiting,
     still_held_awaiting,
 };
 use crate::work_item::{
     Claimed,
-    DONE,
     FAILED,
-    PENDING,
     WorkKind,
 };
 use std::path::{
     Path,
     PathBuf,
 };
-use std::time::{
-    Duration,
-    Instant,
-};
-
-/// What:
-///  The identity of a claimed item,
-/// for the one line that names the housekeeping a round left for a later one.
-/// Why:
-///  A named function keeps the line that builds the list to the words that describe it,
-/// and the drain reads it once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const idOf = (item: Claimed) => item.id;
-/// ```
-fn id_of_claimed(item: &Claimed) -> String {
-    return item.id.clone();
-}
-
-/// What:
-///  Whether this round may start the housekeeping item it is holding:
-/// its slice still has room,
-/// or no housekeeping of this round has started yet.
-/// Why:
-///   The bound is about how much housekeeping a round starts,
-/// so the first item of a round always starts.
-/// A round that could spend its whole slice on the listing,
-/// the settling of the claims it refused and the steps of the kinds before this one would otherwise leave every item for a
-///  later round that would spend its slice the same way,
-/// so a repository's trash would be left to a round that never comes and the loop of later rounds would spin.
-fn may_start_housekeeping(
-    slice: &HousekeepingOfOneRound,
-    started: &mut bool,
-) -> bool {
-    if *started && slice.spent() {
-        return false;
-    }
-    *started = true;
-    return true;
-}
+use std::time::Duration;
 
 /// What:
 ///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
@@ -229,26 +196,16 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
         }
         // The host's CPUs and memory, read once for every batch of this round, so a round's widths are one reading.
         let host: HostResources = HostResources::read();
-        let mut pushes: Vec<Claimed> = Vec::new();
-        let mut trashes: Vec<Claimed> = Vec::new();
-        let mut prewarms: Vec<Claimed> = Vec::new();
-        let mut relinks: Vec<Claimed> = Vec::new();
-        let mut deletions: Vec<Claimed> = Vec::new();
-        let mut reviews: Vec<Claimed> = Vec::new();
-        let mut ahead: Vec<Claimed> = Vec::new();
-        let mut upkeep: Vec<Claimed> = Vec::new();
-        for item in acceptable {
-            match item.item.kind {
-                WorkKind::Push => pushes.push(item),
-                WorkKind::Trash => trashes.push(item),
-                WorkKind::Prewarm => prewarms.push(item),
-                WorkKind::Relink => relinks.push(item),
-                WorkKind::SubvolumeDelete => deletions.push(item),
-                WorkKind::Review => reviews.push(item),
-                WorkKind::SnapshotAhead => ahead.push(item),
-                _ => upkeep.push(item),
-            }
-        }
+        let ClaimsByKind {
+            pushes,
+            trashes,
+            prewarms,
+            relinks,
+            mut deletions,
+            reviews,
+            ahead,
+            upkeep,
+        } = claims_by_kind(acceptable);
         // The pushes of this round's branches run beside each other, and each branch is settled, and its notice written,
         //  as its own push ends (`service_work_drain_pushes_of_each_branch.rs`).
         let pushed: Option<HeldClaims> = push_the_branches_awaiting(
@@ -278,48 +235,21 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             Some(back) => held = back,
             None => break 'round,
         }
-        let mut upkept: Vec<PathBuf> = Vec::new();
-        let still_here: Vec<Claimed> =
-            match still_held_awaiting(held, work_dir.as_path(), upkeep).await {
-                Some((back, mine)) => {
-                    held = back;
-                    mine
-                }
-                None => break 'round,
-            };
-        for item in still_here {
-            // The person's push is the backup and the upkeep is what keeps the repository cheap to read, so a round that has
-            //  spent its housekeeping ends here and the rest waits for a later round, named below.
-            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
-                left_for_a_later_round.push(item);
-                continue;
-            }
-            if !upkept.contains(&item.item.repository) {
-                upkept.push(item.item.repository.clone());
-                let upkeep_began: Instant = Instant::now();
-                match handlers.maintenance_awaiting(&item.item).await {
-                    Verdict::Failed(reason) | Verdict::Retry(reason) => {
-                        crate::service_warn!("automatic maintenance did not run: {reason}")
-                    }
-                    // Only a push answers `Delivered`, and the upkeep of this kind keeps no record; what it said would be a line about
-                    //  work that was not a push, so it is said in the journal beside the line that the upkeep ran.
-                    Verdict::Delivered {
-                        said,
-                        ..
-                    } => crate::service_log!(
-                        "automatic maintenance ran maintenance_ms={} and said: {said}",
-                        upkeep_began.elapsed().as_millis()
-                    ),
-                    Verdict::Done | Verdict::Skipped(_) => crate::service_log!(
-                        "automatic maintenance ran maintenance_ms={}",
-                        upkeep_began.elapsed().as_millis()
-                    ),
-                };
-            }
-            match settle_all_awaiting(held, work_dir.as_path(), vec![item], DONE).await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        // The housekeeping this round runs, and the items it leaves for a later round, are one step of their own
+        //  (`service_work_drain_housekeeping_and_upkeep.rs`).
+        match upkeep_the_held_items_awaiting(
+            held,
+            work_dir.as_path(),
+            handlers,
+            upkeep,
+            &slice,
+            &mut housekeeping_has_started,
+            &mut left_for_a_later_round,
+        )
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // A new worktree's copied package state is relinked before anything else it asked for: it is the work the add
         //  stopped doing, and the person's next command in the worktree depends on it.
@@ -457,21 +387,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
         // The housekeeping this round did not start goes back to `pending` for a later round, named here once, so a person
         //  reading the journal sees where their trash went and the service says when it looks again.
         if !left_for_a_later_round.is_empty() {
-            let names: Vec<String> = left_for_a_later_round.iter().map(id_of_claimed).collect();
-            crate::service_log!(
-                "the round leaves {} housekeeping items of {} for a later round, because it spent {} ms of its {} ms on housekeeping: {}",
-                names.len(),
-                git_dir.display(),
-                slice.spent_ms(),
-                slice.bound().as_millis(),
-                names.join(", ")
-            );
-            // A set the system refused a thread for cannot be handed back, and the records it held keep their lease.
-            let _settled: Option<HeldClaims> = settle_all_awaiting(
+            leave_housekeeping_for_a_later_round(
                 held,
+                git_dir,
                 work_dir.as_path(),
-                std::mem::take(&mut left_for_a_later_round),
-                PENDING,
+                &mut left_for_a_later_round,
+                &slice,
             )
             .await;
             look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
@@ -480,44 +401,6 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.
     renewing.stop_awaiting().await;
-    // What:
-    //  When this look's caller must look at this directory again:
-    //  the earliest of the housekeeping left for a later look and the end of the earliest claim still held here,
-    // its own or another instance's.
-    // Why:
-    //  A claim this look kept (a retryable answer, a settling step that could not run) has nothing else to look at it again:
-    //  the service's own words promise it is tried again when its claim runs out, so the look that kept it owes that moment
-    //  to the one loop that will come back.
-    let claim_wait: Option<Duration> =
-        match next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await {
-            Ok(wait) => wait.map(no_sooner_than_a_look_again),
-            // A look that could not read the claims proves nothing about them, so this one asks to be looked at again after its own
-            //  pause rather than answering nothing: a claim it may still hold is owed a wake, and the refusal is already said.
-            Err(_unread) => Some(LOOK_AGAIN_AFTER_DEFERRING),
-        };
-    return match (look_again, claim_wait) {
-        (Some(deferred), Some(claim)) => Some(deferred.min(claim)),
-        (deferred, claim) => deferred.or(claim),
-    };
-}
-
-/// What:
-///  A wait that has already run out,
-/// as the pause a look that left housekeeping for a later look takes.
-/// Why:
-///   A claim already past its lease that the taking back could not move answers a wait of no time at all,
-/// and a look that came back at once would spin the service on the same claim.
-/// The pause is the one such a look already waits,
-/// so nothing is looked at later than that.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const noSoonerThanALookAgain = (left) => left.isZero() ? LOOK_AGAIN_AFTER_DEFERRING : left;
-/// ```
-fn no_sooner_than_a_look_again(left: Duration) -> Duration {
-    return if left.is_zero() {
-        LOOK_AGAIN_AFTER_DEFERRING
-    } else {
-        left
-    };
+    // When this look's caller must look at this directory again (`service_work_drain_look_again.rs`).
+    return look_again_awaiting(work_dir.as_path(), lease, look_again).await;
 }

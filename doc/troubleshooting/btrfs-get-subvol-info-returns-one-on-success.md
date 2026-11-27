@@ -216,7 +216,10 @@ kernel 6.8.0-147-generic,
 Git 2.43.0
 and btrfs-progs 6.6.3.
 The driver,
-filterset and ioctl probe are in `~/temp/agent/btrfs-subvol-info-success-value-2026-11-22/keep/`.
+filterset and ioctl probe are in `~/temp/agent/btrfs-subvol-info-success-value-2026-11-22/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That kernel answered a created subvolume with `result=1 errno=0 (Success) treeid=256 otransid=8`
 and the top-level subvolume with `result=0`:
 

@@ -10,7 +10,10 @@ The repository linter's `rust/max-lines` is 300 code lines, as an error, for eve
 The root `rustfmt.toml` the owner set on 2026-11-25 puts one struct field, one import and one parameter on each line,
 and the git wrapper was formatted with it as `00b6a940b4` (2026-11-26T01:51:40-05:00).
 Measured on `main` at `987635373a`
-(`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`):
+(`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)):
 the wrapper's code lines grew 1.472 times across 1740 files;
 281 of its files were over 300, 19 of them over before the reformat and 262 only because of it;
 the other crates held 152 files over 300.

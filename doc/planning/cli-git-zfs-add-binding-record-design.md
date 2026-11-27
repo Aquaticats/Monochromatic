@@ -14,7 +14,10 @@ no decision record,
 no handover and no other planning document.
 
 This revision answers the gate review
-of tip `1e9bc35f1e` (`/home/user/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review.md`),
+of tip `1e9bc35f1e` (`/home/user/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 which read this document beside the sibling "The add-time Git lock of a ZFS clone worktree".
 Its findings that belong here are H1 as far as the claim goes,
 H2,
@@ -739,7 +742,10 @@ and run A agrees with it.
 The two claims that differ in arm 9 are the ones that decide M9:
 an unlocked registration is deleted by prune and by gc,
 and a locked one is not.
-The transcripts and scripts are this round's `/home/user/temp/agent/zfs-add-binding-record-design-2026-11-22/keep/`.
+The transcripts and scripts are this round's `/home/user/temp/agent/zfs-add-binding-record-design-2026-11-22/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 F7.
 The wrapper already writes a record inside a registration on every add it makes:

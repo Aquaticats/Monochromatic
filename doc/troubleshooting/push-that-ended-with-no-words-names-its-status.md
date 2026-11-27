@@ -175,6 +175,9 @@ and the candidates the sources rule out are these:
 The third closure check of the branch
 (`~/temp/agent/integration-pass-lfs-push-programs-held-in-memory-2026-11-21/keep/review.md`,
 section "Closure check of f7d4e77c35")
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 corrected the first reading of this incident in two ways.
 
 - The fixture's teardown is where the signal came from.

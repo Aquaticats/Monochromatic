@@ -275,7 +275,10 @@ and the questions left".
   whose covered-descriptor rule this design reuses where it fits.
 
 - The second-pass gate review,
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-second-pass.md`,
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-second-pass.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole.
 
 - `package/git-policy/cli/SPEC.md` at "The wrapper's side and its deadline",
@@ -309,7 +312,10 @@ and the questions left".
 - The step 9 holder-scan branch and the step 9 unmount branch as work in flight.
   This design designs no scan and no unmount turn.
 - The review of this revision,
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-after-the-owners-answers.md`,
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-after-the-owners-answers.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   and its measurement `private-mounts-unit-mountinfo.txt` beside it.
 
@@ -321,7 +327,10 @@ and the questions left".
   `fs/proc_namespace.c` and `fs/namei.c`,
   for the propagation and matcher facts below.
 - The review after the further answers,
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-after-the-further-answers.md`,
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-after-the-further-answers.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   and its kernel readings.
 
@@ -360,7 +369,10 @@ and the questions left".
   and `Documentation/filesystems/sharedsubtree.rst`;
   the accepted staging design's "The unmount call from staging" and "The staged-folder record" for the recorded-handle route.
 - The fourth review,
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-fourth.md`,
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-fourth.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   whole,
   and its "Corrections to my own last review".
 
@@ -379,7 +391,10 @@ and the questions left".
 
 No probe this round.
 The five host probes of the first round stand,
-kept with their outputs in `/home/user/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/keep/`:
+kept with their outputs in `/home/user/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 `process-relations.ts`,
 `pidfd-probe.py`,
 `namespace-pin-probe.py`,
@@ -436,7 +451,10 @@ not a guest's.
   in another session with a controlling terminal,
   as the `zsh`'s parent.
   (Measured by the gate review,
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/chain-claude-code-bash-shape.txt`.)
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/chain-claude-code-bash-shape.txt`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here.)
 
 - F5.
   A command run as a `systemd-run --user --pipe --wait` service unit is its own session leader and its parent is
@@ -813,7 +831,10 @@ not a guest's.
   `:3221` to `:3226`,
   and `man/systemd.exec.xml:2858` to `:2900`;
   measured by the review,
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/private-mounts-unit-mountinfo.txt`.)
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/private-mounts-unit-mountinfo.txt`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here.)
 
 - F39.
   `mount(2)` with `MS_PRIVATE` on a mount root makes that one mount private:

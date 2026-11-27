@@ -55,6 +55,9 @@ The owner decided both parts through the question tool on 2026-11-13 at about 11
 The brief is `~/temp/agent/pi-runs/issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once-prompt.md`
 (it replaces the investigation brief written before the decision,
 which is deleted).
+(scratch,
+deleted on 2026-11-27;
+not kept).
 The first part rests on the branch `refactor/git-policy-cli-commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`,
 cut off on 2026-11-12 and in the resume queue,
 so that resume goes before this run,

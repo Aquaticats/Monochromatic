@@ -19,7 +19,10 @@ use crate::test_support::{
     remove,
     repository,
 };
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  An intent of one batch that names `repository` and `reference`,

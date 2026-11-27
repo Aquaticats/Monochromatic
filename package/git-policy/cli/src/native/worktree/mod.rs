@@ -134,17 +134,37 @@
 //! - `worktree_path_failure_message.rs`:
 //!   the one message shape of a failed step on a path:
 //!   `<path> <what> (<error>)`.
+//! - `worktree_add_binding_record.rs`:
+//!   the record that carries an add's binding:
+//!   the binding itself,
+//!   the text it is written as,
+//!   and the ignored-state copy the add still owes.
+//! - `worktree_add_binding_registration_path.rs`:
+//!   the places a registration's `gitdir` and a destination's `.git` pointer name,
+//!   resolved by their text.
+//! - `worktree_add_binding_registration_owner.rs`:
+//!   the proof that this command made one registration.
 //! - `worktree_add_binding.rs`:
 //!   the binding of a `git worktree add` to the directories Git made for it,
-//!   its record,
 //!   and the check that the binding holds.
 //! - `worktree_clean_content.rs`:
 //!   the decision,
 //!   by content and without a Git process,
 //!   whether a tracked file that its index entry's stat data cannot vouch for (a racily clean entry,
+//! - `worktree_clean_content_attribute_file_identity.rs`:
+//!   which file a name holds,
+//!   as its device and inode.
+//! - `worktree_clean_content_attribute_bytes.rs`:
+//!   the bytes of one attributes file,
+//!   up to the room the caller's bound leaves.
+//! - `worktree_clean_content_attribute_reading.rs`:
+//!   the reading of one attributes file,
+//!   at an absolute path or below the root.
+//! - `worktree_clean_content_attribute_configuration.rs`:
+//!   where Git takes the attributes files that apply whatever the path is.
 //! - `worktree_clean_content_attributes.rs`:
-//!   the attribute files a content decision reads,
-//!   and what it charges the caller for them.
+//!   which attribute files apply to one path,
+//!   and what the decision does with the answer.
 //! - `worktree_clean_tree_walk_held_paths.rs`:
 //!   the directory chain a walk keeps,
 //!   and the read of one tracked file's stat fields below a held root.
@@ -153,6 +173,15 @@
 //! - `worktree_clean_tree_walk.rs`:
 //!   the walks of tracked files against the index's recorded stat data,
 //!   by metadata or by content.
+//! - `worktree_clean_state.rs`:
+//!   what a clean check reads before it judges:
+//!   the marks of an operation in progress,
+//!   what `HEAD` names,
+//!   the index with its stat fields and the commit's tree.
+//! - `worktree_clean_tracked_proof.rs`:
+//!   the tracked-file proof:
+//!   every tracked file unchanged by its stat data or by its content,
+//!   and the first entry a reset cannot undo.
 //! - `worktree_clean.rs`:
 //!   whether a worktree is clean enough to copy from or to remove without asking Git,
 //!   proven in process.
@@ -188,14 +217,49 @@
 //!   the record,
 //!   beside a worktree,
 //!   of the objects one conversion may leave at its converting name.
-//! - `worktree_convert_phases.rs`:
-//!   the journaled phases of one worktree conversion.
+//! - `worktree_convert_stage_identity.rs`:
+//!   the identity of the object at a path,
+//!   at a conversion's converting name,
+//!   and with the directory that holds it held open.
 //! - `worktree_convert_unrecorded_stage.rs`:
 //!   the empty stage a conversion created and did not record,
 //!   and whether the object at the converting name is it.
+//! - `worktree_convert_verdict_and_options.rs`:
+//!   what one conversion answers,
+//!   and what the command asks of it.
+//! - `worktree_convert_job.rs`:
+//!   one conversion's job:
+//!   its candidate,
+//!   its converting sibling and its journal,
+//!   the stage it makes sure of,
+//!   and Git's index lock that it holds.
+//! - `worktree_convert_swap_and_removal.rs`:
+//!   the swap of the copy into the worktree's place,
+//!   the index refresh,
+//!   and the removal of the old tree.
+//! - `worktree_convert_phases.rs`:
+//!   the copy phase of one worktree conversion and its proof.
+//! - `worktree_convert_abandon.rs`:
+//!   undoing a conversion that did not reach its swap.
 //! - `worktree_convert.rs`:
 //!   converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 //!   resumably.
+//! - `worktree_convert_budget.rs`:
+//!   how many conversions one run runs at once,
+//!   from the bytes one holds and the ceiling the filesystem's work sets.
+//! - `worktree_convert_targets.rs`:
+//!   what one run covers and how its worktrees are laid into lanes.
+//! - `worktree_convert_each_worktree.rs`:
+//!   one worktree's conversion as a job of the blocking pool inside the runner's task.
+//! - `worktree_convert_report.rs`:
+//!   the lines a run says as its conversions finish,
+//!   in input order,
+//!   and how many of each kind there were.
+//! - `worktree_convert_run_awaiting.rs`:
+//!   the run on the runtime:
+//!   every worktree a task,
+//!   each conversion a job of the blocking pool,
+//!   and the summary the run ends with.
 //! - `worktree_convert_command.rs`:
 //!   `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
 //!   the worktrees to cover and the report.
@@ -298,6 +362,17 @@
 //!   and its cleanup.
 //! - `worktree_trash_exclude_line.rs`:
 //!   the repository's own exclude line that keeps a standing trash out of every `git add --all`.
+//! - `worktree_snapshot_source_cheap_refusals.rs`:
+//!   the reasons a snapshot rung or a clone rung cannot serve a planned add,
+//!   read from the two filesystems before anything is copied.
+//! - `worktree_snapshot_source_refusal.rs`:
+//!   why a source cannot be copied,
+//!   and which kind of check said so.
+//! - `worktree_snapshot_source_reads.rs`:
+//!   the reads the source's checks make,
+//!   each timed as the work it is:
+//!   the Git configuration and the reasons it rules a source out,
+//!   and the cleanliness of the files.
 //! - `worktree_snapshot_source.rs`:
 //!   the snapshot source:
 //!   whether the creating worktree can be snapshotted for a new worktree,
@@ -330,10 +405,17 @@
 //! - `worktree_ladder_target.rs`:
 //!   what both filling rungs read from Git's `--no-checkout` result,
 //!   and the one step that applies the tree difference.
+//! - `worktree_clone_conversion_fence_attributes.rs`:
+//!   the attributes a decision reads:
+//!   which attributes file above a tracked path is untracked,
+//!   what Git answers for each tracked path,
+//!   and the half of the fence they decide before anything is copied.
+//! - `worktree_clone_conversion_fence_write.rs`:
+//!   the one Git run that writes the paths the fence leaves to Git.
 //! - `worktree_clone_conversion_fence.rs`:
 //!   the fence over a clone rung's bytes:
 //!   which paths the clones may carry,
-//!   and the one Git run that writes the rest.
+//!   and which paths Git must write.
 //! - `worktree_clone_conversion_fence_measurement_routes.rs`:
 //!   the measurement-only shapes of that fence:
 //!   option C,
@@ -377,9 +459,25 @@
 //!   the paths the proof settles cloned,
 //!   the index built from the tree,
 //!   and the rest written by Git.
+//! - `worktree_dirty_restore_left_out.rs`:
+//!   the line that tells the person a snapshot of a checkout with changes left the changes out,
+//!   and the journal record of what the add did with a dirty checkout.
+//! - `worktree_dirty_restore_stage_git_questions.rs`:
+//!   the questions the restore asks of the stage:
+//!   the words of each Git run there,
+//!   and the ignored paths the stage holds.
+//! - `worktree_dirty_restore_proof.rs`:
+//!   the proof that the stage equals what Git's checkout of the target commit makes.
 //! - `worktree_dirty_restore.rs`:
 //!   the restore of a snapshot of a main checkout with uncommitted changes,
-//!   and its proof.
+//!   the files the reset cannot see,
+//!   and the changes it leaves out.
+//! - `worktree_ladder_finish_binding.rs`:
+//!   the binding of an add to the directories Git made for it,
+//!   and the claim on the stage name that a rung took or gives back.
+//! - `worktree_ladder_finish_git_checkout.rs`:
+//!   Git's own checkout in the bound worktree when a rung cannot finish the add,
+//!   and the report of an add that could not be completed.
 //! - `worktree_ladder_finish_clones.rs`:
 //!   the answers worktree ladder finish clones holds.
 //! - `worktree_ladder_target_tree_skip.rs`:
@@ -536,22 +634,46 @@
 //! - `worktree_kept_folders.rs`:
 //!   the folder a taken worktree folder is kept in when the name it came from is taken,
 //!   and the cleanup that must leave it alone.
+//! - `worktree_ladder_run_rung_and_refusal.rs`:
+//!   the rung the ladder chose before real Git ran,
+//!   and the log line and abandoned read every refused rung leaves.
+//! - `worktree_ladder_run_choose.rs`:
+//!   the choice of rung for one invocation,
+//!   every check made before real Git runs.
 //! - `worktree_ladder_run.rs`:
 //!   the ladder's choice of rung before real Git runs.
 //! - `worktree_ladder.rs`:
 //!   the cheap-worktree ladder around one `git worktree add`:
 //!   what runs before real Git and after it.
+//! - `worktree_snapshot_placeholders_entries.rs`:
+//!   one entry of a folder that holds worktrees,
+//!   and the two moments a control may change the snapshot at.
+//! - `worktree_snapshot_placeholders_hand_over.rs`:
+//!   the trash a whole worktree folder goes into,
+//!   the fresh empty folder that takes its place,
+//!   and the folder kept beside the trash.
 //! - `worktree_snapshot_placeholders.rs`:
 //!   the empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 //!   found below the folders that hold worktrees and removed as empty directories.
+//! - `worktree_snapshot_stubs.rs`:
+//!   the stubs a snapshot holds for what must not be carried:
+//!   the empty directories nested worktrees leave,
+//!   and the worktree's own `.git` pointer.
+//! - `worktree_snapshot_place.rs`:
+//!   the swap of a finished snapshot with the destination,
+//!   and the settling of what the exchange displaced.
 //! - `worktree_snapshot.rs`:
 //!   the snapshot rung's mechanics:
 //!   snapshot to a stage name,
 //!   make it a worktree,
 //!   swap it into place.
+//! - `worktree_ladder_finish_snapshot.rs`:
+//!   the snapshot rung after real Git returned:
+//!   the snapshot and the swap into place,
+//!   and the fall back to Git's checkout.
 //! - `worktree_ladder_finish.rs`:
 //!   the ladder's steps after real Git returned:
-//!   the snapshot rung and the fall back to Git's checkout.
+//!   the clone rung and the claim each rung takes or gives back.
 //! - `worktree_trash_set_aside_entries.rs`:
 //!   the entries a snapshot's leave-out sets aside,
 //! - `worktree_trash_unaccounted.rs`:
@@ -659,6 +781,19 @@ pub mod worktree_subvolume;
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
 
+/// What a clean check reads before it judges:
+/// the marks of an operation in progress,
+/// what `HEAD` names,
+/// the index with its stat fields and the commit's tree.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_state;
+
+/// The tracked-file proof:
+/// every tracked file unchanged by its stat data or by its content,
+/// and the first entry a reset cannot undo.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tracked_proof;
+
 /// What a clean check says about one tracked file:
 /// refusals,
 /// recorded stat data and the metadata verdict.
@@ -688,8 +823,23 @@ pub mod worktree_attributes;
 
 pub mod worktree_clean_content;
 
-/// The attribute files a content decision reads,
-/// and what it charges the caller for them.
+/// Which file a name holds,
+/// as its device and inode.
+pub mod worktree_clean_content_attribute_file_identity;
+
+/// The bytes of one attributes file,
+/// up to the room the caller's bound leaves.
+pub mod worktree_clean_content_attribute_bytes;
+
+/// The reading of one attributes file,
+/// at an absolute path or below the root.
+pub mod worktree_clean_content_attribute_reading;
+
+/// Where Git takes the attributes files that apply whatever the path is.
+pub mod worktree_clean_content_attribute_configuration;
+
+/// Which attribute files apply to one path,
+/// and what the decision does with the answer.
 pub mod worktree_clean_content_attributes;
 
 /// The environment and attribute files a content check reads,
@@ -842,11 +992,36 @@ pub mod worktree_clone_domain;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_source_changed_paths;
 
+/// The cheap reasons a snapshot rung or a clone rung cannot serve a planned add.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_cheap_refusals;
+
+/// Why a source cannot be copied,
+/// and which kind of check said so.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_refusal;
+
+/// The reads the source's checks make,
+/// each timed as the work it is.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_reads;
+
 /// The snapshot source:
 /// whether the creating worktree can be snapshotted for a new worktree,
 /// and what that needs.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_source;
+
+/// The stubs a snapshot holds for what must not be carried:
+/// the empty directories nested worktrees leave,
+/// and the worktree's own `.git` pointer.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_stubs;
+
+/// The swap of a finished snapshot with the destination,
+/// and the settling of what the exchange displaced.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_place;
 
 /// The snapshot rung's mechanics:
 /// snapshot to a stage name,
@@ -896,14 +1071,39 @@ pub mod worktree_snapshot_ahead_claim;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead_job;
 
+/// One entry of a folder that holds worktrees,
+/// and the two moments a control may change the snapshot at.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_placeholders_entries;
+
+/// The trash a whole worktree folder goes into,
+/// the fresh empty folder that takes its place,
+/// and the folder kept beside the trash.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_placeholders_hand_over;
+
 /// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 /// found below the folders that
 ///  hold worktrees and removed as empty directories.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_placeholders;
 
+/// The record that carries an add's binding,
+/// the text it is written as,
+/// and the ignored-state copy the add still owes.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding_record;
+
+/// The places a registration's `gitdir` and a destination's `.git` pointer name,
+/// resolved by their text.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding_registration_path;
+
+/// The proof that this command made one registration.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding_registration_owner;
+
 /// The binding of a `git worktree add` to the directories Git made for it,
-/// its record,
 /// and the check that the binding holds.
 #[cfg(target_os = "linux")]
 pub mod worktree_add_binding;
@@ -1004,11 +1204,22 @@ pub mod worktree_clone_conversion_decline;
 #[cfg(target_os = "linux")]
 pub mod worktree_change_a_rung_cannot_serve;
 
+/// The attributes a decision reads:
+/// which attributes file above a tracked path is untracked,
+/// what Git answers for each tracked path,
+/// and the half of the fence they decide before anything is copied.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_fence_attributes;
+
 /// The fence over a clone rung's bytes:
 /// which paths the clones may carry,
-/// and the one Git run that writes the rest.
+/// and which paths Git must write.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_fence;
+
+/// The one Git run that writes the paths the fence leaves to Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_fence_write;
 
 /// The measurement-only shapes of that fence:
 /// option C,
@@ -1078,6 +1289,16 @@ pub mod worktree_ladder_target;
 #[cfg(target_os = "linux")]
 pub mod ladder_step_ceilings;
 
+/// The rung the ladder chose before real Git ran,
+/// and the log line and abandoned read every refused rung leaves.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_run_rung_and_refusal;
+
+/// The choice of rung for one invocation,
+/// every check made before real Git runs.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_run_choose;
+
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;
@@ -1095,8 +1316,24 @@ pub mod inner_git_words;
 #[cfg(target_os = "linux")]
 pub mod worktree_slow_route;
 
+/// The binding of an add to the directories Git made for it,
+/// and the claim on the stage name that a rung took or gives back.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_binding;
+
+/// Git's own checkout in the bound worktree when a rung cannot finish the add,
+/// and the report of an add that could not be completed.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_git_checkout;
+
+/// The snapshot rung after real Git returned:
+/// the snapshot and the swap into place,
+/// and the fall back to Git's checkout.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_snapshot;
+
 /// The ladder's steps after real Git returned:
-/// the snapshot rung and the fall back to Git's checkout.
+/// the clone rung and the claim each rung takes or gives back.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
@@ -1105,8 +1342,22 @@ pub mod worktree_ladder_finish;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish_trash_record;
 
+/// The line a snapshot of a checkout with changes leaves,
+/// and the journal record of what the add did with a dirty checkout.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore_left_out;
+
+/// The questions the restore asks of the stage.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore_stage_git_questions;
+
+/// The proof that the stage equals what Git's checkout of the target commit makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore_proof;
+
 /// The restore of a snapshot of a main checkout with uncommitted changes,
-/// and its proof.
+/// the files the reset cannot see,
+/// and the changes it leaves out.
 #[cfg(target_os = "linux")]
 pub mod worktree_dirty_restore;
 
@@ -1126,6 +1377,15 @@ pub mod shell_quote;
 #[cfg(target_os = "linux")]
 pub mod worktree_finish_commands;
 
+/// What one conversion answers,
+/// and what the command asks of it.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_verdict_and_options;
+
+/// Undoing a conversion that did not reach its swap.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_abandon;
+
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 /// resumably.
 #[cfg(target_os = "linux")]
@@ -1144,9 +1404,28 @@ pub mod worktree_convert_candidate;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_inspection;
 
-/// The journaled phases of one worktree conversion.
+/// The identity of the object at a path,
+/// at a conversion's converting name,
+/// and with the directory that holds it held open.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_stage_identity;
+
+/// One conversion's job:
+/// its candidate,
+/// its converting sibling and its journal,
+/// the stage it makes sure of,
+/// and Git's index lock that it holds.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_job;
+
+/// The copy phase of one worktree conversion and its proof.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
+/// The swap of the copy into the worktree's place,
+/// the index refresh,
+/// and the removal of the old tree.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_swap_and_removal;
 
 /// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
 #[cfg(target_os = "linux")]
@@ -1182,6 +1461,29 @@ pub mod worktree_convert_remove;
 
 /// The grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
 pub mod worktree_convert_arguments;
+
+/// How many conversions one run of `convert-worktree-to-subvolume` runs at once.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_budget;
+
+/// What one run of `convert-worktree-to-subvolume` covers,
+/// and how its worktrees are laid into lanes.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_targets;
+
+/// One worktree's conversion as a job of the blocking pool inside the runner's task.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_each_worktree;
+
+/// The lines a run of `convert-worktree-to-subvolume` says as its conversions finish,
+/// in input order.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_report;
+
+/// The run of `convert-worktree-to-subvolume` on the runtime,
+/// with what it needs besides the line sink.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_run_awaiting;
 
 /// `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
 /// the worktrees to cover and the report.

@@ -273,6 +273,9 @@ then one canonical scratch path.
 Scratch mode was `700`,
 UID was `1000`,
 and type was `directory`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### Build-backed regression harness
 
