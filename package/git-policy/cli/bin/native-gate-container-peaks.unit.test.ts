@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtempDisposable, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +11,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { recordGateContainerPeaks } from './native-gate-container-peaks.ts';
+import {
+  holdStandInCgroupReading,
+  removeStandInCgroup,
+} from './stand-in-cgroup-files-for-tests.ts';
+import { until } from './until-a-test-condition-holds.ts';
 
 /**
  Private scratch parent outside the repository, whose backing device is known.
@@ -43,6 +49,7 @@ type PeakLine = {
   readonly end: boolean;
   readonly peakBytes?: number;
   readonly stat?: Readonly<Record<string, number>>;
+  readonly events?: Readonly<Record<string, number>>;
   readonly processes?: readonly Readonly<Record<string, unknown>>[];
 };
 
@@ -162,6 +169,29 @@ function scopeOf({
 }
 
 /**
+ Wait until the recorder has written a sample line of the whole group, with the kill its events count.
+
+ That line is the whole reading this test holds the next one of, so the group loses its kill counter part way through a
+ reading and never on the way to the first one.
+
+ @param outPath - the file the recorder writes one line per sample to
+ */
+async function untilWholeSample({ outPath }: { readonly outPath: string; },): Promise<void> {
+  await until({
+    condition: function wholeSample() {
+      return existsSync(outPath,)
+        && readFileSync(
+          outPath,
+          'utf8',
+        )
+          .includes('"oom_kill":1',);
+    },
+    description: 'the recorder to write a sample line of the whole group, with the kill its events count',
+    pollMilliseconds: fixtureIntervalMilliseconds,
+  },);
+}
+
+/**
  A fixture run whose evidence directory names both containers, and whose log names the directory.
 
  @param tree - the fixture tree
@@ -259,9 +289,11 @@ await describe({
           tree.path,
           'peaks.jsonl',
         );
-        // Clippy's container ends part way through, which is what the recorder has to notice and mark.
+        // Clippy's container ends part way through, which is what the recorder has to notice and mark. The window is
+        // sized for a loaded host running the whole suite beside this file: the recorder must have read both roles'
+        // own scopes before the rename, which is what an interval per role allows many times over on a quiet one.
         const removed = (async function removedMidRun(): Promise<void> {
-          await waitUntil(fixtureIntervalMilliseconds * 10,);
+          await waitUntil(fixtureIntervalMilliseconds * 50,);
           await rename(
             clippyScope,
             join(
@@ -280,7 +312,7 @@ await describe({
           userId: 1_000,
           intervalMilliseconds: fixtureIntervalMilliseconds,
           processIntervalMilliseconds: fixtureIntervalMilliseconds,
-          deadlineMilliseconds: fixtureIntervalMilliseconds * 50,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 200,
         },);
         await removed;
         expect(outcome.rolesRead,).toEqual([
@@ -321,6 +353,192 @@ await describe({
           return sample.role === 'clippy';
         },);
         expect(clippySamples.at(-1,)?.end,).toBe(true,);
+      },
+      timeout: 60_000,
+    }),
+    it({
+      name: 'ends a role on the last whole reading it kept when a reading loses the events a kill is counted in',
+      fn: async () => {
+        await using tree = await mkdtempDisposable(join(
+          scratchParent,
+          'gate-peaks-lost-events-',
+        ),);
+        /**
+         The run's log and evidence directory.
+         */
+        const { logPath } = await fixtureRun({ tree: tree.path, },);
+        /**
+         The cgroup root the fixture scope lives under.
+         */
+        const root = join(
+          tree.path,
+          'cgroup',
+        );
+        /**
+         The suite's scope, which holds a kill until its group starts going.
+         */
+        const suiteScope = scopeOf({
+          root,
+          containerId: suiteId,
+        });
+        await writeRunningScope({
+          path: suiteScope,
+          peakBytes: 1_589_641_216,
+        });
+        await writeScopeFile({
+          scope: suiteScope,
+          name: 'memory.events',
+          text: 'max 1\noom 1\noom_kill 1\n',
+        });
+        /**
+         Where the recorder writes its samples.
+         */
+        const outPath = join(
+          tree.path,
+          'peaks.jsonl',
+        );
+        /**
+         What the recorder is still finding while this test moves the group.
+         */
+        const recording = recordGateContainerPeaks({
+          logPath,
+          outPath,
+          root,
+          userId: 1_000,
+          roles: ['suite',],
+          intervalMilliseconds: fixtureIntervalMilliseconds,
+          processIntervalMilliseconds: fixtureIntervalMilliseconds,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 200,
+        },);
+        /**
+         The reading this test holds, so the group loses its kill counter at a chosen point of it.
+         */
+        await untilWholeSample({ outPath, },);
+        const held = await holdStandInCgroupReading({
+          cgroupPath: suiteScope,
+          at: 'pids.peak',
+        },);
+        await held.goOnWithout({ file: 'memory.events', },);
+        // The scope goes once its last file is read, which is the end line's moment.
+        await removeStandInCgroup({ cgroupPath: suiteScope, });
+        /**
+         What the recorder found.
+         */
+        const outcome = await recording;
+        expect(outcome.rolesRead,).toEqual(['suite',],);
+        /**
+         Every line the recorder wrote, in the order it wrote them.
+         */
+        const samples = (await readFile(
+          outPath,
+          'utf8',
+        ))
+          .trim()
+          .split('\n',)
+          .map(function parsed(line) {
+            return JSON.parse(line,) as PeakLine;
+          },);
+        /**
+         The role's last line, which says its scope went.
+         */
+        const end = samples.at(-1,);
+        expect(end?.end,).toBe(true,);
+        // A reading that lost the events it would have reported is no sample of this container, so every line says what
+        // the whole reading said: the bound killed one process.
+        expect(samples.filter(function whole(sample) {
+          return sample.events?.oom_kill !== 1;
+        },),).toEqual([],);
+      },
+      timeout: 60_000,
+    }),
+    it({
+      name: 'keeps watching a role whose reading lost a part while its cgroup is still there, and ends it only when the directory goes',
+      fn: async () => {
+        await using tree = await mkdtempDisposable(join(
+          scratchParent,
+          'gate-peaks-still-there-',
+        ),);
+        /**
+         The run's log and evidence directory.
+         */
+        const { logPath } = await fixtureRun({ tree: tree.path, },);
+        /**
+         The cgroup root the fixture scope lives under.
+         */
+        const root = join(
+          tree.path,
+          'cgroup',
+        );
+        /**
+         The suite's scope, which this test leaves where it is once it has lost a file.
+         */
+        const suiteScope = scopeOf({
+          root,
+          containerId: suiteId,
+        });
+        await writeRunningScope({
+          path: suiteScope,
+          peakBytes: 1_589_641_216,
+        });
+        await writeScopeFile({
+          scope: suiteScope,
+          name: 'memory.events',
+          text: 'max 1\noom 1\noom_kill 1\n',
+        });
+        /**
+         Where the recorder writes its samples.
+         */
+        const outPath = join(
+          tree.path,
+          'peaks.jsonl',
+        );
+        /**
+         The reading this test holds, so the group loses its kill counter at a chosen point of it.
+         */
+        const recording = recordGateContainerPeaks({
+          logPath,
+          outPath,
+          root,
+          userId: 1_000,
+          roles: ['suite',],
+          intervalMilliseconds: fixtureIntervalMilliseconds,
+          processIntervalMilliseconds: fixtureIntervalMilliseconds,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 100,
+        },);
+        await untilWholeSample({ outPath, },);
+        const held = await holdStandInCgroupReading({
+          cgroupPath: suiteScope,
+          at: 'pids.peak',
+        },);
+        await held.goOnWithout({ file: 'memory.events', },);
+        /**
+         What the recorder found, which is a deadline, because the group never went.
+         */
+        const outcome = await recording;
+        expect(outcome.rolesRead,).toEqual(['suite',],);
+        // A reading this role's group lost a file to is no reading of it and says nothing about whether the group is
+        // gone, so the recorder keeps asking and is still watching the role when its deadline comes.
+        expect(outcome.rolesStillRunning,).toEqual(['suite',],);
+        /**
+         Every line the recorder wrote, in the order it wrote them.
+         */
+        const samples = (await readFile(
+          outPath,
+          'utf8',
+        ))
+          .trim()
+          .split('\n',)
+          .map(function parsed(line) {
+            return JSON.parse(line,) as PeakLine;
+          },);
+        expect(samples.length,).toBeGreaterThan(0,);
+        // No line is the end line, and every one is a whole reading of the group: the kill the bound counted is in it.
+        expect(samples.filter(function ended(sample) {
+          return sample.end;
+        },),).toEqual([],);
+        expect(samples.filter(function whole(sample) {
+          return sample.events?.oom_kill !== 1;
+        },),).toEqual([],);
       },
       timeout: 60_000,
     }),
