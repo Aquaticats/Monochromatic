@@ -98,8 +98,11 @@ pub fn find_asset<'a>(
 /// One URL path segment:
 /// every byte outside the unreserved set is percent-encoded.
 /// Why:
-/// A git tag may hold `#`, `?`, `%` and `+`;
-/// left as they are, they end the path at a fragment,
+/// A git tag may hold `#`,
+/// `?`,
+/// `%` and `+`;
+/// left as they are,
+/// they end the path at a fragment,
 /// start a query or spell another character,
 /// so the request would name a different release or none.
 fn encode_path_segment(text: &str) -> String {

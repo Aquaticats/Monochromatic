@@ -291,8 +291,10 @@ fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
     );
 }
 
-/// What a lock row whose `packageId` names a channel, and whose version records the release that channel resolved to,
-/// must get from a sync: the toolchain is recognised and its parts are listed under the channel,
+/// What a lock row whose `packageId` names a channel,
+/// and whose version records the release that channel resolved to,
+/// must get from a sync:
+/// the toolchain is recognised and its parts are listed under the channel,
 /// so nothing is installed again.
 #[test]
 fn a_toolchain_row_naming_a_channel_is_recognised_and_reconciled_under_that_channel() {

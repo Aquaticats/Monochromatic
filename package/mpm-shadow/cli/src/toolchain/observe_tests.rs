@@ -174,7 +174,8 @@ fn a_python_tool_is_absent_when_uv_itself_is_not_installed() {
     assert_eq!(observe_tool(&rig.context(), &tool), None);
 }
 
-/// A toolchain row names a channel, and rustup resolves that channel to the toolchain it installed:
+/// A toolchain row names a channel,
+/// and rustup resolves that channel to the toolchain it installed:
 /// the observation asks `rustup which` about the channel and reports the channel,
 /// so a dated install of the same channel is never renamed into this row's toolchain.
 #[test]
@@ -209,7 +210,8 @@ fn a_rust_toolchain_is_the_one_rustup_resolves_for_the_channel_the_row_names() {
 }
 
 /// The row names `stable` and records the release that channel resolved to (`1.90.0`):
-/// the toolchain is the channel, and a `1.90.0` install is another toolchain.
+/// the toolchain is the channel,
+/// and a `1.90.0` install is another toolchain.
 #[test]
 fn a_toolchain_of_the_recorded_release_is_not_the_channel_the_row_names() {
     let rig = Rig::new();
@@ -299,8 +301,11 @@ fn a_channel_holding_the_locked_release_satisfies_the_lock() {
     );
 }
 
-/// A dated channel is its own release: that channel's compiler reports a nightly release with a commit
-/// date, which names no channel date, so nothing is compared and no compiler runs.
+/// A dated channel is its own release:
+/// that channel's compiler reports a nightly release with a commit
+/// date,
+/// which names no channel date,
+/// so nothing is compared and no compiler runs.
 #[test]
 fn a_dated_channel_is_read_without_asking_the_compiler_which_release_it_holds() {
     let rig = Rig::new();
@@ -321,7 +326,8 @@ fn a_dated_channel_is_read_without_asking_the_compiler_which_release_it_holds() 
     );
 }
 
-/// A query that failed proves nothing, whatever it printed;
+/// A query that failed proves nothing,
+/// whatever it printed;
 /// an answer with no path proves nothing either.
 #[test]
 fn a_failed_or_empty_rustup_which_leaves_the_toolchain_absent() {
@@ -576,7 +582,8 @@ fn an_observed_version_satisfies_a_repository_published_lock_by_the_alpha_number
     );
 }
 
-/// The `bin` downloader of the bin-sourced route, as the fake toolchain would have installed it.
+/// The `bin` downloader of the bin-sourced route,
+/// as the fake toolchain would have installed it.
 fn install_bin_downloader(rig: &Rig) -> std::path::PathBuf {
     let tool = rig.lock.tool("bin").expect("the downloader tool");
     let directory: std::path::PathBuf =
@@ -605,7 +612,8 @@ fn a_bin_listing_row_on_stdout_is_read_as_installed() {
 }
 
 /// A row printed on stderr is not a listing:
-/// every other observer reads stdout only, and a diagnostic that happens to look like a row must not
+/// every other observer reads stdout only,
+/// and a diagnostic that happens to look like a row must not
 /// be recorded as an installed version.
 #[test]
 fn a_bin_listing_row_on_stderr_is_not_read_as_installed() {
@@ -621,7 +629,8 @@ fn a_bin_listing_row_on_stderr_is_not_read_as_installed() {
     assert_eq!(observe_tool(&rig.context(), &tool), None);
 }
 
-/// A failed listing is read as absent, not as installed:
+/// A failed listing is read as absent,
+/// not as installed:
 /// a run that exited non-zero proves nothing about what is installed.
 #[test]
 fn a_failed_bin_listing_is_read_as_absent() {

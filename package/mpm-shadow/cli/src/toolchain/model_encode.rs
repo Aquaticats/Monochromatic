@@ -204,7 +204,8 @@ pub fn added_plan_entry_value(declaration: &Declaration) -> Value {
 /// two-space indentation,
 /// no trailing newline.
 /// Why:
-/// Serializing an in-memory `Value` cannot fail (there is no I/O, and every text is valid UTF-8),
+/// Serializing an in-memory `Value` cannot fail (there is no I/O,
+/// and every text is valid UTF-8),
 /// so the impossible error panics here instead of being written into a file as an error document.
 ///
 /// In TS you'd write (pseudocode):

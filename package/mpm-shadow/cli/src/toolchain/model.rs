@@ -338,7 +338,8 @@ impl LockedTool {
     /// the declaration's `packageId` when it has one,
     /// else the locked version.
     /// Why:
-    /// `rustup` names a toolchain by the channel it was installed as (`stable`, `nightly-2026-10-30`),
+    /// `rustup` names a toolchain by the channel it was installed as (`stable`,
+    /// `nightly-2026-10-30`),
     /// and `rustup toolchain list` prints that channel followed by the host triple,
     /// so every stage that names this row's toolchain (its install,
     /// its components and targets,
