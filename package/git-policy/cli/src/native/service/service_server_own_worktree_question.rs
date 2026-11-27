@@ -15,7 +15,7 @@
 //! if (ownWorktreeGoneNow(settings, untilIdle)) stopOwnUnitsAndEnd();
 //! ```
 
-use crate::service_server::ServeSettings;
+use crate::service_server_serve_settings::ServeSettings;
 use std::time::Duration;
 
 /// What:

@@ -46,6 +46,8 @@ use crate::lean_proc_scan::{
     ScanReport,
     scan_processes,
 };
+/// Imports the rule the tool counts bytes by.
+use crate::lean_removal::allocated_bytes_of;
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
 /// Named reads of directory entries.
@@ -392,7 +394,7 @@ fn judge(
             used.how
         ));
     }
-    let bytes: u64 = tree_bytes(&toolchain.path, deadline).bytes;
+    let bytes: u64 = tree_bytes(&toolchain.path, deadline, allocated_bytes_of).bytes;
     if dry_run {
         emit(
             log,

@@ -53,6 +53,8 @@ use crate::lean_policy::{
     RECORD_PROTECT_SECONDS,
     RECORD_RETENTION_SECONDS,
 };
+/// Imports the names this file uses from `crate::lean_removal`.
+use crate::lean_removal::allocated_bytes_of;
 /// Imports the names this file uses from `crate::lean_run_records_glue`.
 use crate::lean_run_records_glue::sweep_records_directory;
 /// Imports the names this file uses from `crate::lean_run_report`.
@@ -171,6 +173,7 @@ pub fn sweep_and_cap(
                 cap_bytes: *cap,
                 grace_seconds: GRACE_SECONDS,
                 deadline: *deadline,
+                count_bytes: allocated_bytes_of,
             },
             environment,
             now,
