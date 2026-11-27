@@ -171,9 +171,10 @@ export type VirtualModelsHost = {
  Definitions of the virtual models Pi lists for this package.
 
  Each pool appears twice in Pi's catalog: as a physical pool model the router dispatches through, and
- as the public virtual model a session selects. The declared window and output limit are the
- smallest every registered member of that pool reports, so Pi's compaction threshold fits them all;
- Pi applies the answering member's own limits from the next request on.
+ as the public virtual model a session selects. The declared window and output limit are the head
+ registered member's, so Pi compacts on the window of the member every request is asked of first; a
+ member further along whose own window cannot hold a request is passed over for that request, and Pi
+ applies the answering member's own output limit from the next request on.
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 

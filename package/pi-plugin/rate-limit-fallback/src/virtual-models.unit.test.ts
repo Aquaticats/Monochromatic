@@ -199,13 +199,33 @@ await describe({
       },
     },),
     it({
-      name: 'declares the smallest limits its pool’s registered members report',
+      name: 'declares the limits its pool’s head registered member reports',
       fn: async function declaredLimits() {
         const withLimits = byId(virtualModelDefinitions({
           readMemberLimits(provider, id,) {
-            if ((provider !== WRITER_TARGETS[1].provider) || (id !== WRITER_TARGETS[1].id))
-              return { contextWindow: 0, maxTokens: 0, };
-            return { contextWindow: MEMBER_WINDOW, maxTokens: MEMBER_OUTPUT, };
+            if ((provider === WRITER_TARGETS[0].provider) && (id === WRITER_TARGETS[0].id))
+              return { contextWindow: MEMBER_WINDOW, maxTokens: MEMBER_OUTPUT, };
+            if ((provider === WRITER_TARGETS[1].provider) && (id === WRITER_TARGETS[1].id))
+              // Half the head's pair, so an advertisement of the smallest member's limits fails here.
+              return { contextWindow: MEMBER_WINDOW / 2, maxTokens: MEMBER_OUTPUT / 2, };
+            return { contextWindow: 0, maxTokens: 0, };
+          },
+        },),);
+        const writer = withLimits.get(WRITER_VIRTUAL_ID,);
+        expect(writer?.contextWindow,).toBe(MEMBER_WINDOW,);
+        expect(writer?.maxTokens,).toBe(MEMBER_OUTPUT,);
+      },
+    },),
+    it({
+      name: 'declares the next member’s limits when the first member is not registered',
+      fn: async function headIsFirstRegistered() {
+        const withLimits = byId(virtualModelDefinitions({
+          readMemberLimits(provider, id,) {
+            // The first member of the order is not in this session's registry, and dispatch skips it
+            // the same way, so the head is the next member that is registered.
+            return ((provider === WRITER_TARGETS[1].provider) && (id === WRITER_TARGETS[1].id))
+              ? { contextWindow: MEMBER_WINDOW, maxTokens: MEMBER_OUTPUT, }
+              : { contextWindow: 0, maxTokens: 0, };
           },
         },),);
         const writer = withLimits.get(WRITER_VIRTUAL_ID,);

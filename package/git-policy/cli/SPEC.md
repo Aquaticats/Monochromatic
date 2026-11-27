@@ -21458,26 +21458,44 @@ merge `b928c5fa6999`,
 whose resolution `24f8c1947b` corrected by hand).
 A base line written twice in the region is read by word:
 which copy a side deleted cannot be told there.
-Two rules refuse a word merge there rather than write a copy a side deleted.
+Three rules refuse a word merge there rather than write a copy a side deleted.
 A region whose word merge would write more copies of a line the base held
 than the side that holds it fewer times than the base did still holds,
 while the other side's part holds it as often as the base did,
 is refused rather than merged,
 and keeps both sides
 (`keeps_a_deleted_line` in the same file).
+An answer of the merge is refused as well
+when it writes more copies of a line the base held than the two sides leave:
+at most as many as the side that holds fewer of them holds,
+while neither side wrote more copies of that line than the base held,
+and at most as many as the side that wrote more of them holds,
+while one side did
+(`writes_past_the_copies_the_sides_leave` in the same file).
+That bound is read over the whole answer the merge resolves,
+which is one region for a merge from objects and the file the pass was handed otherwise,
+because a region that holds more copies of a line than its own two sides leave can be right
+when another region holds fewer of them.
+It is read for a region one side also wrote a line into as well:
+a copy that side wrote lifts the bound of that one line,
+and says nothing about the others.
+A line the base never held,
+and a line both sides wrote more copies of than the base held,
+are not judged:
+no bound over the two sides is right for either.
 And a region whose two parts each hold only lines of the base's part,
 in the base's order,
 is one where both sides only deleted lines,
 so the union of the two deletions is the only right answer there:
-a word merge of such a region that would write more copies of a line
-than both parts hold of it,
-or write the lines in an order one part does not hold them in,
+a word merge of such a region that would write the lines
+in an order one part does not hold them in
 is refused rather than merged,
 and keeps both sides
-(`writes_past_the_union_of_two_deletions` in the same file).
-A region one side also wrote a line into is read by word without that second rule,
-because a line one side added is a line the other side does not hold,
-and the bounds over the two parts say nothing about a merge that is right.
+(`writes_past_what_the_sides_leave` in the same file).
+The order is judged only there,
+because a side that wrote a line of its own holds an order the other side does not.
+A file one of these rules refuses keeps both sides of every region the two sides disagree about,
+so the answer that was refused never lands without a marker.
 The measurements above were taken on 2026-11-10,
 before these rules,
 and were not run again.

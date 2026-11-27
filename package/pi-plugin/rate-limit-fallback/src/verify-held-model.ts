@@ -37,7 +37,7 @@ const HELD_TRANSCRIPT_TURNS = 2;
  `--provider=rate-limit-fallback --model=writer` resolves the model before `session_start`, so the
  session holds the catalog entry the pool carried then. The extension registers the provider again
  inside `session_start`, once the registry is known, and this arm requires the held entry to carry
- the members' smallest window afterwards instead of the provisional one.
+ the head registered member's window afterwards instead of the provisional one.
 
  @param cwd - disposable verification home
 
@@ -137,7 +137,7 @@ export async function verifyHeldModelArm({
   assert.equal(
     boundEntry?.contextWindow,
     HELD_LIMITS.contextWindow,
-    'the registry must carry the window the held arm members report',
+    'the registry must carry the window the held arm reports',
   );
   assert.equal(
     session.model

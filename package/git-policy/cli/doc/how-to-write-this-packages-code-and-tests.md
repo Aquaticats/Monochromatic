@@ -808,21 +808,46 @@ and that module is `#[cfg(target_os = "linux")]` (`worktree/mod.rs`).
 `source_guard/items_nameable_from_outside_release.txt`:
 a name another crate can reach without a line fails,
 a line whose name is no longer reachable fails,
-and a `pub use` that carries a name out of a module the `pub mod` chain does not reach fails without its line.
+and a `pub use` that publishes a name the `pub mod` chain does not already reach fails without its line.
 
 A line is added only where a release publishes a name on purpose:
-write it as `<kind> <name>` under a reason of its own that names the commit which added it.
+write it as `<module path> <kind> <name>` under a reason of its own that names the commit which added it.
+A name a re-export publishes is written as `<module path> pub use <target>::<published name>` instead.
 A name a split needs only inside the crate takes `pub(crate)`,
 `pub(super)` or `pub(in path)`,
 and no line.
 
-The list's header says how the reading is bounded,
-and a widening in a shape it does not read is one only the diff shows:
-a `pub` item written at the first column of a line in a module the `pub mod` chain reaches,
-a `#[macro_export] macro_rules!`,
-and a `pub use` written on one line whose module that chain does not reach.
-`#[cfg(test)]` above a declaration keeps it out,
-and an item inside an inline `mod name { ... }` is not read.
+The reader's own top doc states the reading:
+a bare `pub` item at the first column of a file the `pub mod` chain reaches,
+whatever count of qualifiers stands before its kind,
+as `pub async fn`,
+`pub const unsafe fn` and
+`pub extern "C" fn` do;
+a `pub` field,
+a method or an associated constant of a type that chain publishes,
+read in a body that opens its `{` on the declaration's own line or on a later one;
+a `#[macro_export] macro_rules!`;
+and a `pub use` over any number of lines,
+one entry per name it publishes,
+with an `as` rename read as the published name,
+a glob written `pub use <module>::*`,
+and a re-export written without a leading path read from the module that writes it.
+A gate keeps a name out only where it holds only when testing,
+so `#[cfg(test)]` and `#[cfg(all(test, unix))]` keep one out
+and `#[cfg(all(not(test), unix))]` does not.
+
+What the reading still cannot see,
+and why,
+is in that same doc:
+a `pub` field written in a tuple-like struct's parentheses,
+a member of a type published only through a `pub use` facade,
+a `pub trait`'s methods and a `pub enum`'s variants,
+an item inside an inline `mod name { ... }`,
+a glob's own names,
+the second path a re-export adds when it keeps the name it re-exports,
+and a signature or a value that changes under a name that stays.
+So a widening in one of those shapes is one only the diff shows,
+and a changed signature or constant value never shows at all.
 
 ## Show that a guard works
 
@@ -863,7 +888,10 @@ The search a merge owes is wider than that grep:
 a control may also read a source file while it runs
 (`std::fs::read_to_string` of a path under `src/native`),
 and the guards that read a part of the tree do it through the shared scan of
-`source_guard/source_scan_banned_lines_tests.rs`.
+`source_guard/source_scan_banned_lines_tests.rs`,
+or,
+where a guard lists the tree itself,
+through `source_guard/source_scan_tests.rs`.
 `rg 'read_to_string' src/native --glob '*_tests.rs'` lists the ones outside `source_guard`.
 
 A call a control requires belongs to the folder that asks it and not to one file of that folder
@@ -896,14 +924,22 @@ and only the control above was stale.
 
 ## A guard over part of the tree states its scope, its excuses and its anchor
 
-`source_guard/source_scan_banned_lines_tests.rs` is the one scan a ban over part of the release tree reads,
-and it answers four questions:
+`source_guard/source_scan_banned_lines_tests.rs` answers four questions for a ban over part of the release tree:
 which release sources the ban covers,
 which of their code lines hold what it forbids,
 which entries excuse one,
 and whether the scope still reaches the code the ban is about.
-Every guard reads the tree through it,
+A guard that states its scope as prefixes reads the tree through it
+(`release_sources_under`,
+`release_sources_holding`),
 so a file a split makes inside a scope is covered the day it lands (issue 6599).
+Not every guard does:
+some list the tree themselves with `release_sources_in` or `classified_sources` of
+`source_guard/source_scan_tests.rs`,
+some read a few files with `include_str!`,
+and one walks `src/native` with its own `files_below`
+(`source_guard/no_start_at_login_tests.rs`),
+and each of those says in its own doc what its reading covers.
 
 Scope.
 `release_sources_under(prefixes)` covers a place and names it as a folder (`landing/`) or as the start of a
@@ -922,14 +958,20 @@ because that folder holds other code that does the same thing for its own reason
 the guard's top doc says what a reader has to check.
 
 Excuses.
-`MayHold { file, text, uses, why }` names one file,
-one banned text,
-how many uses of that text the file holds,
+`MayHold { file, text, line, why }` names one file,
+one banned text or name,
+the line that one use is written on,
 and the reason it may.
-The count is what an entry names rather than the excused lines,
-so a use added to that file fails
-and a file whose excused line is reflowed or moved keeps its count and passes.
-`entries_that_match_nothing` fails an entry that no longer matches anything,
+The line is what an entry names rather than a count of uses:
+a use removed and another of the same text added to the same file is a finding twice over,
+because the line the entry names holds nothing and the new use is excused by nothing,
+where a count would have kept the file excused.
+Each entry covers one finding,
+so a second line written exactly like an excused one needs its own entry.
+A line `rustfmt` reflows makes the entry stale,
+which the guard reports,
+and the entry and the reflow are one commit's work.
+`entries_that_match_nothing` fails an entry no finding took,
 so the list can only shrink.
 
 Anchor.
@@ -940,10 +982,33 @@ and a scope that reached nothing would pass every tree.
 A banned text is a substring of one line of code,
 and a line whose first characters are `//` is not code.
 A ban on a call is `lines_calling_one_of`,
-which reads the name where a name begins:
-`link(` is a finding,
-and `hard_link(`,
-`read_link(` and `is_symlink(` are not.
+which reads the name where the line spells the call:
+the last segment of a path (`fs::symlink`),
+the call (`symlink(`,
+with the whitespace Rust allows before its arguments),
+and the call with its types written out (`symlink::<_, _>(`).
+The name is read only where no byte of a longer name touches it,
+so `link` is a finding and `hard_link`,
+`read_link`,
+`unlink` and `is_symlink` are not.
+That is what makes a rename's import (`use std::os::unix::fs::symlink as make_link;`) and a function taken as a
+value (`let f = std::os::unix::fs::symlink;`) findings:
+the call they then make cannot be told from any other call,
+and the line that brings the name into scope can.
+A `use` list may also write that rename in braces (`use std::os::unix::fs::{symlink as make_link};`),
+where the name follows a brace rather than a path,
+so `name as` is read as a spelling of the call.
+A ban on a name no other use shares is `lines_naming_one_of`,
+which reads it wherever the line writes it,
+so a type in a signature and in a `use` list is a finding too;
+`UnixStream` and `Stderr` are read that way,
+and `link` and `stderr` are not,
+because this crate has a field named `link` and local variables named `stderr`.
+Three spellings no reader of lines sees,
+and each guard whose scope could hold one says so in its top doc:
+a call a macro written outside the scope expands to,
+a name a glob import (`use super::*;`) brings into scope without writing it,
+and a call whose name and `(` a line break separates.
 
 ## Walk the sources through the one walk, never a recursive read
 

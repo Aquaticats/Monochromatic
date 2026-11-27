@@ -93,6 +93,14 @@ export { neuralWattEvidence, } from './quota-endpoints.ts';
 export { QUOTA_READ_INTERVAL_MS, } from './member-capacity.ts';
 
 /**
+ How large one request is before a member is asked to hold it, exported so the suites reach the
+ shipped estimate.
+
+ @internal
+ */
+export { estimateRequestTokens, } from './request-size.ts';
+
+/**
  Reads one member's limits from the session registry.
 
  @param registry - the session's live model registry
@@ -250,8 +258,9 @@ export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
       },
     },
     getModels() {
-      // The smallest registered member's limits, so Pi's compaction threshold fits every
-      // member; model-pools' provisional limits stand in before a session binds.
+      // The head registered member's limits, so Pi compacts on the window of the member every request
+      // is asked of first; a later member whose own window is smaller is passed over for a request it
+      // cannot hold. model-pools' provisional limits stand in before a session binds.
       /**
        Session bound by the last session start, or undefined before one.
        */
@@ -326,9 +335,9 @@ export default function rateLimitFallbackExtension(pi: FallbackHost,): void {
         members: new Map(),
       };
       // Pi composes its model snapshot from getModels() when a provider is registered, so the pool
-      // registers again now that the registry is known and the catalog can carry the smallest
-      // registered member's limits instead of the provisional ones. The virtual models carry the
-      // same limits, so Pi compacts on a threshold every member of the pool can honour.
+      // registers again now that the registry is known and the catalog can carry the head registered
+      // member's limits instead of the provisional ones. The virtual models carry the same limits, so
+      // Pi compacts on the window of the member a request is asked of first.
       pi.registerProvider(provider,);
       registerVirtualModels({
         host: pi,
