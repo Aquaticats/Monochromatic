@@ -31,82 +31,40 @@
 /// How much of a command's total the record names,
 /// which the record's own methods answer with.
 pub use crate::commit_accounting::Accounting;
-/// The build's own stretches,
-/// by name,
-/// kept apart from the preparation's so neither reading is read as the other.
-use crate::commit_build_part_durations::{
-    build_parts_json,
-    drain_build_parts,
-};
-use crate::commit_index_builds::{
-    IndexBuild,
-    drain_index_builds,
-    index_builds_json,
-};
-use crate::commit_prepare_part_durations::{
-    PreparePart,
-    drain_prepare_parts,
-    prepare_parts_json,
-};
+use crate::commit_index_builds::IndexBuild;
+use crate::commit_prepare_part_durations::PreparePart;
 /// Why this commit did not land,
 /// which the record states beside how it went and what it exited with.
-use crate::commit_stop_reason::{
-    CommitStopReason,
-    stop_json,
-};
+use crate::commit_stop_reason::CommitStopReason;
+/// A duration in whole milliseconds,
+///  which the record's start stamp is taken in.
+use crate::commit_timing_json_words::whole_milliseconds;
+/// Where the record goes and which service instance it belongs to.
+use crate::commit_timing_place::Place;
+/// What the client did to hand one request to the service and get its answer,
+/// kept in a file of its own,
+/// re-exported where every caller of it already looks.
+pub use crate::commit_timing_submit::SubmitTrace;
 use crate::common_directory_of_a_git_directory::common_directory_of;
-use crate::diagnostic_log::debug;
-use crate::iso_time::now_iso;
-use crate::json_record::{
-    quote,
-    string_array,
-};
-use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
-use crate::log_lines_appended_without_a_lock::append_line;
 /// The preparation's own work,
 /// by name,
 /// as its sites note it.
-use crate::prepare_work_spans::{
-    PrepareSpan,
-    drain_spans,
-    spans_json,
-};
-use crate::quiet_ledger::{
-    drain,
-    longest_healthy,
-    object_json,
-};
+use crate::prepare_work_spans::PrepareSpan;
 /// What the notice of the scratch `git commit` saw while the step ran,
 /// one entry per build.
-use crate::scratch_commit_step::{
-    ScratchStepFacts,
-    drain_scratch_steps,
-    scratch_steps_json,
-};
+use crate::scratch_commit_step::ScratchStepFacts;
 use crate::service_instance::instance_of;
-use crate::service_protocol::{
-    LandingFigures,
-    RELEASE,
-};
-use crate::time_spent_outside_the_phases::{
-    OutsideThePhases,
-    outside_the_phases,
-};
-use crate::transaction_step_durations::{
-    StepFigure,
-    drain_steps,
-    steps_json,
-};
+/// What the command paid outside its phases.
+use crate::time_spent_outside_the_phases::OutsideThePhases;
+use crate::transaction_step_durations::StepFigure;
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
-use std::path::{
-    Path,
-    PathBuf,
-};
+/// `Path` is a borrowed filesystem path;
+/// `Duration` is an elapsed stretch and `Instant` a monotonic reading.
+use std::path::Path;
 use std::time::{
     Duration,
     Instant,
 };
-
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
 /// A full file moves aside to the next free generation
 /// (`monochromatic-git-policy-cli-commit-timing.jsonl.<number>`),
@@ -118,8 +76,9 @@ pub const TIMING_FILE: &str = COMMIT_TIMING_LOG.current;
 /// never when a field is added.
 pub const TIMING_SCHEMA_VERSION: u32 = 1;
 
-/// Module tag for diagnostics.
-const TAG: &str = "commitTiming";
+/// Module tag for diagnostics,
+///  which the append of this record reports a failure under.
+pub(crate) const TAG: &str = "commitTiming";
 
 /// What the client did to reach a service that speaks this release,
 /// with the waits that reaching cost,
@@ -131,125 +90,6 @@ pub use crate::commit_reach_trace::{
     holder_kind_after,
     holder_kind_of,
 };
-
-/// What:
-///  What the client did to hand one request to the service and get its answer.
-/// Why:
-///   The queue wait,
-/// the wait for a foreign index lock and the landing itself all happen between the send and the answer;
-///  the service's own log line for the request splits that wait,
-/// and this record says how long the whole of it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SubmitTrace = { total: number; reach: ReachTrace; answerWait: number; positions: number[]; waitingNotices: number; holderKind?: string };
-/// ```
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct SubmitTrace {
-    /// The whole of the sends,
-    /// reaches included.
-    pub total: Duration,
-    /// How the service was reached.
-    pub reach: ReachTrace,
-    /// Time from a request being written to the answer (or the connection breaking),
-    /// summed over the sends.
-    pub answer_wait: Duration,
-    /// The queue positions the service reported,
-    /// in order,
-    /// without repeats.
-    pub positions: Vec<usize>,
-    /// Notices the service sent while it waited for another program's hold on the index.
-    pub waiting_notices: usize,
-    /// What the last of those notices said of the holder:
-    /// `proven-alive` when it named a process proven to hold the lock,
-    /// `unproven` when it said the owner could not be proven alive.
-    pub holder_kind: Option<&'static str>,
-    /// Times the connection broke before an answer and the same request was sent again.
-    pub reconnects: usize,
-    /// Requests written.
-    pub sends: usize,
-    /// What the landing of this commit spent and held,
-    /// as the service's answer stated it;
-    /// `None` for a service of a release that sends no figures,
-    /// so a reader never takes zeros for a figure nobody measured.
-    pub landing: Option<LandingFigures>,
-}
-
-/// Where the record goes and which service instance it belongs to.
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Place {
-    /// The worktree's own Git directory.
-    git_dir: PathBuf,
-    /// The common Git directory,
-    /// which holds the file.
-    common_dir: PathBuf,
-    /// The instance name that `journalctl --user --unit=cli-git@<instance>.service` takes.
-    instance: String,
-}
-
-/// The whole milliseconds of a duration.
-fn whole_milliseconds(elapsed: Duration) -> u128 {
-    return elapsed.as_millis();
-}
-
-/// The JSON word for a field that has no value.
-fn null_word() -> String {
-    return String::from("null");
-}
-
-/// What:
-///  The landing's own figures as one JSON object,
-/// or the JSON word for no value when the service sent none.
-/// Why:
-///   The record of a slow commit then explains its landing on its own:
-/// which read spent the time,
-/// how long the landing held what others queued on,
-/// how many commits queued behind it
-/// and how many syncs it made with the time of each,
-/// without a second file read by request identity.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const landingJson = (l) => l === null ? 'null' : JSON.stringify({ lockHoldMs: l.lockHoldMs, queuedBehind: l.queuedBehind, readsMs: l.readsMs, reads: Object.fromEntries(l.reads), syncs: l.syncs });
-/// ```
-fn landing_json(landing: Option<&LandingFigures>) -> String {
-    let Some(figures) = landing else {
-        return null_word();
-    };
-    let mut reads: Vec<String> = Vec::new();
-    for (name, ms) in &figures.reads {
-        reads.push(format!("{}:{ms}", quote(name.as_str())));
-    }
-    let mut syncs: Vec<String> = Vec::new();
-    for sync in &figures.syncs {
-        syncs.push(format!(
-            "{{\"what\":{},\"waited\":{},\"ms\":{}}}",
-            quote(sync.what.as_str()),
-            sync.waited,
-            sync.ms
-        ));
-    }
-    return format!(
-        "{{\"lockHoldMs\":{},\"queuedBehind\":{},\"readsMs\":{},\"reads\":{{{}}},\"syncs\":[{}]}}",
-        figures.lock_hold_ms,
-        figures.queued_behind,
-        figures.reads_ms,
-        reads.join(","),
-        syncs.join(","),
-    );
-}
-
-impl Place {
-    /// The instance as a JSON string.
-    fn instance_json(&self) -> String {
-        return quote(self.instance.as_str());
-    }
-
-    /// The worktree's own Git directory as a JSON string.
-    fn git_dir_json(&self) -> String {
-        return quote(&self.git_dir.to_string_lossy());
-    }
-}
 
 /// What:
 ///  The phases of one wrapped commit,
@@ -267,12 +107,12 @@ impl Place {
 #[derive(Clone, Debug)]
 pub struct CommitTiming {
     /// The monotonic start.
-    began: Instant,
+    pub(crate) began: Instant,
     /// Milliseconds since the Unix epoch at the start,
     /// for finding the commit among the service's journal lines.
-    start_millis: u128,
+    pub(crate) start_millis: u128,
     /// Known once the worktree's Git directory was found.
-    place: Option<Place>,
+    pub(crate) place: Option<Place>,
     /// The branch (or `HEAD`) the first preparation found.
     pub reference: Option<String>,
     /// The identity the commit's request carries,
@@ -624,7 +464,7 @@ impl CommitTiming {
     }
 
     /// What the phases leave uncovered out of `total`.
-    fn other(
+    pub(crate) fn other(
         &self,
         total: Duration,
     ) -> Duration {
@@ -638,150 +478,6 @@ impl CommitTiming {
             + self.handoff
             + self.closing;
         return total.saturating_sub(covered);
-    }
-
-    /// What:
-    ///  The record as one line of JSON ending in a newline.
-    /// Why:
-    ///   One `write` call per line keeps lines of concurrent commits from interleaving;
-    /// a branch name with a quote or a
-    ///  newline is escaped by `quote`,
-    /// so the line stays one line.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// JSON.stringify(record) + '\n'
-    /// ```
-    pub fn line(
-        &self,
-        total: Duration,
-        exit_code: i32,
-    ) -> String {
-        let place: Option<&Place> = self.place.as_ref();
-        let branch: String = self.reference.as_deref().map_or_else(null_word, quote);
-        let answered_by: String = self
-            .submit
-            .reach
-            .answered_by
-            .as_deref()
-            .map_or_else(null_word, quote);
-        let request: String = self.request.as_deref().map_or_else(null_word, quote);
-        let level: &str = if self.outcome == "stopped" {
-            "warn"
-        } else {
-            "info"
-        };
-        let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
-        return format!(
-            "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
-             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"stop\":{},\"totalMs\":{},\
-             \"routeMs\":{},\"prepareMs\":{},\"attempts\":{},\"prepareSpans\":{},\"prepareSpansDropped\":{},\"indexBuilds\":{},\"scratchSteps\":{},\
-             \"buildMs\":{},\"buildParts\":{},\"buildPartsDropped\":{},\"provisionMs\":{},\
-             \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
-             \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
-             \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
-             \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"closingMs\":{},\"otherMs\":{},\
-             \"scratchRemovalMs\":{},\"removalsThatDidNotFinish\":{},\"stderrMs\":{},\
-             \"prepareParts\":{},\"preparePartsDropped\":{},\
-             \"longestQuietMs\":{},\"quietMs\":{},\"steps\":{},\"stepsDropped\":{},\"landing\":{}}}\n",
-            quote(now_iso().as_str()),
-            self.start_millis,
-            std::process::id(),
-            quote(RELEASE),
-            place.map_or_else(null_word, Place::instance_json),
-            place.map_or_else(null_word, Place::git_dir_json),
-            quote(self.outcome),
-            stop_json(self.stop.as_ref()),
-            total.as_millis(),
-            self.route.as_millis(),
-            self.prepare.as_millis(),
-            self.attempts,
-            spans_json(self.prepare_spans.as_slice()),
-            self.prepare_spans_dropped,
-            index_builds_json(self.index_builds.as_slice()),
-            scratch_steps_json(self.scratch_steps.as_slice()),
-            self.build.as_millis(),
-            build_parts_json(self.build_parts.as_slice()),
-            self.build_parts_dropped,
-            self.provision.as_millis(),
-            self.submit.total.as_millis(),
-            self.submit.sends,
-            self.submit.reach.elapsed.as_millis(),
-            self.submit.reach.tries,
-            self.submit.reach.refused,
-            self.submit.reach.start_waited.as_millis(),
-            self.submit.reach.retires_sent,
-            string_array(self.submit.reach.releases_seen.as_slice()),
-            self.submit.answer_wait.as_millis(),
-            positions.join(","),
-            self.submit.waiting_notices,
-            self.submit.holder_kind.map_or_else(null_word, quote),
-            self.submit.reconnects,
-            self.after_landing.as_millis(),
-            self.gate.as_millis(),
-            self.handoff.as_millis(),
-            self.closing.as_millis(),
-            self.other(total).as_millis(),
-            self.outside.scratch_removal.as_millis(),
-            self.outside.removals_that_did_not_finish,
-            self.outside.standard_error.as_millis(),
-            prepare_parts_json(self.prepare_parts.as_slice()),
-            self.prepare_parts_dropped,
-            longest_healthy(self.quiet.as_slice()),
-            object_json(self.quiet.as_slice()),
-            steps_json(self.steps.as_slice()),
-            self.steps_dropped,
-            landing_json(self.submit.landing.as_ref()),
-        );
-    }
-
-    /// What:
-    ///  Appends the record to the repository's timing file,
-    /// best effort.
-    /// Why:
-    ///   The command's result never depends on the record:
-    /// a file that cannot be written is only a debug line.
-    /// The directory
-    ///  is never created,
-    /// and nothing is flushed to disk,
-    /// so the record costs one `write`.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// recordTiming(timing, exitCode)
-    /// ```
-    pub fn finish(
-        &self,
-        exit_code: i32,
-    ) {
-        let Some(place) = self.place.as_ref() else {
-            return;
-        };
-        let target: PathBuf = place.common_dir.join(TIMING_FILE);
-        // The ledger holds what this command's Git steps and tools showed; the record takes it and the next command starts empty.
-        let mut with_quiet: CommitTiming = self.clone();
-        // A build no seam closed is the phase the command ended in, so its time is stated here rather than left to the remainder.
-        with_quiet.close_an_open_build();
-        // The stretch after the last phase is closed here, and the total is read after it, so it is a named phase too.
-        with_quiet.close_the_closing();
-        with_quiet.quiet = drain();
-        (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
-        with_quiet.index_builds = drain_index_builds();
-        (with_quiet.prepare_spans, with_quiet.prepare_spans_dropped) = drain_spans();
-        with_quiet.outside = outside_the_phases();
-        (with_quiet.prepare_parts, with_quiet.prepare_parts_dropped) = drain_prepare_parts();
-        (with_quiet.build_parts, with_quiet.build_parts_dropped) = drain_build_parts();
-        with_quiet.scratch_steps = drain_scratch_steps();
-        let line: String = with_quiet.line(self.began.elapsed(), exit_code);
-        if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
-            debug(
-                TAG,
-                &format!(
-                    "the timing record could not be written to {}: {error}",
-                    target.display()
-                ),
-            );
-        }
     }
 }
 

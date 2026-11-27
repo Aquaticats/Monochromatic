@@ -229,7 +229,7 @@ const cases: Guard[] = [
     before: 'worker.registry.remove_by_id(client.id());',
     after: 'worker.registry.stop(client.name());',
     integration: 'language',
-    test: 'lifecycle::crash_fails_the_pending_request_and_the_next_open_restarts',
+    test: 'lifecycle::crash_and_restart::crash_fails_the_pending_request_and_the_next_open_restarts',
     failure: 'an exited server could not be started again'
   },
   {

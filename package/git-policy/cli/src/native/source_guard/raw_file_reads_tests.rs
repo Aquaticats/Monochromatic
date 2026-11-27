@@ -120,7 +120,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ),
     ("lock/index_lock_evidence.rs", 1, "system"),
     ("lock/index_lock_holder_words.rs", 1, "system"),
-    ("lock/index_lock_holders.rs", 1, "system"),
+    ("lock/proc_fd_holder_scan.rs", 1, "system"),
     ("lock/single_owner_claim.rs", 1, "system"),
     ("lock/stale_ref_lock_judge.rs", 1, "system"),
     ("merge/merge_isolation_editor.rs", 1, "own-record"),
