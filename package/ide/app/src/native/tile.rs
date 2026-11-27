@@ -67,6 +67,20 @@ pub(super) use pass::sync_pass;
 /// Both timers of the tile poll run this.
 use wait::poll_unless_step_due;
 
+/// What:
+///  Position and width of one materialized tile:
+///  its first line,
+/// its line count,
+/// the wrap width its lines are broken at,
+///  and the part of those lines its raster holds when they are too tall for one.
+/// Why:
+///  The requested tile and the displayed tile are both values of this type,
+///  so a result can be checked against the window it was built for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TileBounds = { first: number; count: number; width: number; clip?: Clip };
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct TileBounds {
     /// First materialized source line.
@@ -174,6 +188,8 @@ fn start_poll(
         });
 }
 
+/// Take at most one finished tile from the worker and what the pass measured,
+/// and apply them when they are valid.
 pub(super) fn poll(
     window: &AppWindow,
     state: &Rc<RefCell<State>>,

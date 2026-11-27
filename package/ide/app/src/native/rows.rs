@@ -41,7 +41,8 @@ use std::{
 mod held;
 /// The scrolling rule's clock.
 mod quiet;
-/// Deciding what the blocks and the map are made of, rebuilding them,
+/// Deciding what the blocks and the map are made of,
+/// rebuilding them,
 ///  and installing the result.
 mod rebuild;
 /// The window's models and setters for the vertical mapping.

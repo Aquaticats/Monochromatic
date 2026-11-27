@@ -31,7 +31,8 @@ use super::pass::{
     sync_pass,
 };
 /// The toolkit's component handle,
-///  which lends the window, and its string type for an error message.
+///  which lends the window,
+/// and its string type for an error message.
 use slint::{
     ComponentHandle,
     SharedString,
@@ -79,9 +80,6 @@ fn measured_rows_match(
     }
     return true;
 }
-
-/// Take at most one finished tile from the worker and what the pass measured,
-/// and apply them when they are valid.
 
 /// Swap a finished tile in,
 /// or count it as discarded.

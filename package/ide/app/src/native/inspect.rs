@@ -63,7 +63,7 @@ use inspection_file::{
     problem_snapshot,
     records,
 };
-/// The timer that installs each snapshot when its moment comes.
+/// Timer callbacks and weak window references belong to the toolkit event loop.
 use slint::{
     ComponentHandle,
     Timer,

@@ -10,13 +10,17 @@
 //!  `retries` asks again for what a server still owes,
 //!  and `trouble` keeps the failure each server last had for a request kind.
 
-/// What a failed request means, and whether an error is the server's own answer.
+/// What a failed request means,
+/// and whether an error is the server's own answer.
 mod failure;
-/// Storing one server's inlay hints, or asking for them again.
+/// Storing one server's inlay hints,
+/// or asking for them again.
 mod inlay_hints;
-/// Storing a pull-diagnostics answer, or asking for it again.
+/// Storing a pull-diagnostics answer,
+/// or asking for it again.
 mod pull_diagnostics;
-/// Sending a request again, and recording what a server still owes.
+/// Sending a request again,
+/// and recording what a server still owes.
 mod retries;
 /// The failure kept per server and request kind.
 mod trouble;

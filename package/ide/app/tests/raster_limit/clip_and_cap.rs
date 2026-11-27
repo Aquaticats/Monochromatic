@@ -35,7 +35,8 @@ use ide_app::shaped_text::{
     texture_fits,
     tile_cap,
 };
-/// The tile's paint commands.
+/// The palette of the tile,
+/// and the items whose ink is read back.
 use ide_app::tile_scene::{
     Item,
     paint_stack,

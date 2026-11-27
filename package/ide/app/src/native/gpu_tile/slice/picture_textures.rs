@@ -19,6 +19,8 @@ use slint::Image;
 /// The GPU's own types.
 use slint::wgpu_30::wgpu;
 
+/// The textures of one picture,
+///  made when its shape changes and reused while it stays the same.
 impl Inner {
     /// What:
     ///  The uses of a texture of the picture:

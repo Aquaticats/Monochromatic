@@ -9,6 +9,8 @@ use crate::row_map::CODE_ROW;
 /// Half-open ranges of visual rows and source characters.
 use std::ops::Range;
 
+/// The visual rows of one shaped line,
+///  and the source characters each of them shows.
 impl ShapedRow {
     /// Number of source characters shown on this row,
     ///  excluding its line terminator.

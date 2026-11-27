@@ -14,7 +14,8 @@ use super::trouble::{
     Channel,
     keep_trouble,
 };
-/// The class reported to the interface, for a failure an answer keeps.
+/// The class reported to the interface,
+/// for a failure an answer keeps.
 use crate::language::reply::{
     LanguageReply,
     RequestKind,

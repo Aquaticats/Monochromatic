@@ -43,11 +43,11 @@ use std::ops::Range;
 /// the chunks of a picture are all one size but the last.
 pub(super) const SCRATCH_KEPT: usize = 4;
 
-/// Draw the picture.
 /// The textures a picture's chunks are grouped into,
 ///  and the scratch texture each chunk is rendered in.
 mod picture_textures;
 
+/// Draw the picture.
 impl Inner {
     /// What:
     ///  How the chunks of a picture are grouped into textures on a device whose side is at most `limit`,
