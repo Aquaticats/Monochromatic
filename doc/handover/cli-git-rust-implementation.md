@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T11:33:40-05:00
+## The state at 2026-11-27T11:47:15-05:00
 
-`main` was `97d9afb21c`.
+`main` was `7e215a38c2`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 219 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 222 more by this time.
 
 ### Rounds running
 
@@ -127,23 +127,36 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
 - for the wrapper package's lint,
   which was red on `main` with nothing running it,
-  two rounds for the guest scripts of issue 6581
-  (`issue-6581-oxlint-clean-guest-scripts-part-1-of-3` and `-part-2-of-3`,
-  each writing `Refs #6581`,
-  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`).
+  the last round for the guest scripts of issue 6581,
+  `issue-6581-oxlint-clean-guest-scripts-part-1-of-3`
+  (it writes `Refs #6581`,
+  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`;
+  three files were left,
+  with 235 errors and 447 warnings,
+  when part 2 measured `main`).
   Part 3 is merged (`3621047a9d`):
   the four ZFS guest drivers lint clean,
   share their plumbing in `bin/guest-route-*.ts`,
   and two of them build one target at two jobs,
   because one release `rustc` of this crate's tests takes 6.7 to 6.9 GiB of an 8 GiB guest
-  and the kernel had killed both builds;
-- `issue-6595-slot-state-guest-arm-plants-a-plan-its-reader-accepts`:
-  with its build reachable,
-  the slot-state guest arm fails in its guest at its own assertion,
-  because it plants a plan with no `head=` line,
-  which the reader has refused since 2026-11-25;
-  every assertion after `SLOT-STATE pending-add` in that arm is unverified until it is fixed.
-  The container gate does not run that arm;
+  and the kernel had killed both builds.
+  Part 2 is merged (`cc660cae3a`):
+  four more drivers lint clean and share steps in `bin/mvm-guest-*.ts`,
+  a second set beside part 3's,
+  which issue 6612 joins into one once part 1 has merged
+  (no round yet;
+  part 1 was told of both sets by an inbox note);
+- three rounds for what part 2's report left,
+  started 2026-11-27T11:40 from one list:
+  `issue-6608-verification-process-tests-wait-for-the-child-by-a-fact-it-gives`;
+  `issue-6610-a-check-scopes-last-counters-keep-every-part-they-read`
+  (a unit test of what a check's scope counted failed once in one whole run,
+  reading no `pids.events`;
+  the cause is not established);
+  and `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
+  (the driver's build at four jobs is killed in its 8 GiB guest,
+  so its arm has not run on the current tree;
+  it and the Sanoid driver also get a `mise` task each);
 - in the linter,
   `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
   ("Releases of 2026-11-27");
@@ -170,11 +183,22 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   log under `~/temp/agent/gate/` by the same name),
   with the three feature Clippy arms run beside it in the gate's worktree
   (`~/temp/agent/feature-clippy-arms-in-the-gate-worktree-at-97d9afb21c-2026-11-27/keep/`);
-  `0.6.1-alpha.49` follows a passing verdict;
-- for all four shadow crates,
-  `issue-6609-the-four-shadow-crates-identity-rule-copies-agree-again`:
-  `mpm-shadow`'s copies of the shared identity rule differ from the other three since `c388b2b725`,
-  so `package/search-shadow/cli/tests/shadow_identity_copies.rs` fails on `main`.
+  `0.6.1-alpha.49` follows a passing verdict.
+  What merged after the gate's commit changes no release code of the wrapper
+  (part 2 of issue 6581 is TypeScript,
+  and issue 6595 is test code and the package guide);
+  the compile check,
+  the four Clippy tasks and the test modules issue 6595 touched run on `main`'s tip in a worktree no merge moves,
+  `.claude/worktrees/typescript-checks-on-main-tip-before-wrapper-alpha-49`,
+  with their output under
+  `~/temp/agent/typescript-checks-on-main-tip-before-wrapper-alpha-49-2026-11-27/keep/`.
+  `native:ts-checks` exited 0 there at `7976b3daff`,
+  for `test:unit` and `lint:types`;
+  it prints no suite or file names for a check that passed,
+  which is issue 6613
+  (no round yet:
+  it waits for issue 6610's round,
+  which holds two of its files).
 
 Released again on 2026-11-27,
 each with a Claude Sonnet pass to follow or running:
@@ -711,7 +735,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6609,
+  issues 6524 to 6613,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -889,6 +913,23 @@ and the two `truepeak` files wait on their branch.
   issue 6607):
   with standard error a pipe whose reader was gone,
   the parent read `SIGPIPE` before and status 2 after.
+- The slot-state guest arm runs to its end again (`3823f2101a`,
+  issue 6595):
+  it plants its plan through the removal's own writer,
+  and in two guest runs every marker after `SLOT-STATE pending-add` printed and no later assertion failed,
+  so the release code was not at fault.
+  A host control now fails when a planted plan is one the add's reader refuses,
+  and the package guide says a control plants a plan through the writer.
+- The four shadow crates' copies of their shared rule agree again (`7e215a38c2`,
+  issue 6609),
+  and each package's own test task runs the comparison,
+  shown red in all four by one planted byte.
+  `pnpm-shadow` and `search-shadow` print a refused start with the system's own answer;
+  neither is released,
+  because the standing answer on alphas does not name them
+  (`doc/handover/questions-for-the-owner.md`).
+  `cargo-shadow`'s start uses a check of its own with two outcomes the shared refusal has no word for,
+  and keeps its own line.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

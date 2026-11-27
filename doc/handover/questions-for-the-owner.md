@@ -1009,6 +1009,47 @@ A beats B because the old suffix is on disk either way,
 and a second one doubles what a reader must know.
 B beats C because C keeps one machine's drive in messages every user of the wrapper can meet.
 
+### Whether `pnpm-shadow` and `search-shadow` are released as alphas now (issue 6609, recorded 2026-11-27T11:46:49-05:00)
+
+`mpm-shadow`'s copies of the rule the four shadow tools share had changed alone,
+so the comparison in `search-shadow`'s tests failed on `main`.
+The round for issue 6609 carried the change into the other three crates
+(merged as `7e215a38c2`):
+each package's own test task now runs the comparison,
+and `pnpm-shadow` and `search-shadow` print a refused start with the system's own answer and its kind
+(`could not start <path>: No such file or directory (os error 2)`,
+where the path stood twice before).
+The text that marks a program as a shadow did not change,
+so the installed shadows still know each other.
+The standing answer on alphas names the wrapper,
+`cargo-shadow`,
+`mpm-shadow` and the Pi driver packages
+(`doc/decision/cli-git-wrapper-owner-answers-2026-11-12.md`,
+item 4.9);
+these two are not in it,
+so neither was released.
+`cargo-shadow` and `mpm-shadow` take the change in their next alphas.
+
+- A:
+  release `pnpm-shadow` `0.1.3-alpha.2` and `search-shadow` `0.2.3-alpha.2` now,
+  lock and install them,
+  and count both under the standing answer from here on.
+  The installed tools then match `main`;
+  two more tools release without a question each time.
+- B:
+  release both this once,
+  and ask again next time.
+- C:
+  leave both at their installed alphas until a change of their own asks for a release.
+  The installed tools print the older line;
+  nothing else differs.
+
+Ranking:
+A > B > C.
+A beats B because the four tools change together whenever their shared rule does,
+and a question per release would hold two of the four behind the others.
+B beats C because an installed tool that differs from `main` is one more thing a reader of a report must know.
+
 ### Picks the coordinating session made, veto open
 
 - `cargo-shadow`,
