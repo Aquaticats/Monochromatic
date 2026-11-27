@@ -51,13 +51,22 @@ export const bytesPerGibibyte = 1_073_741_824;
 export const bytesPerMebibyte = 1_048_576;
 
 /**
- A container's cgroup that is not there to read, which a container that already ended leaves and which a reading that
- answered less than the one it would replace answers.
+ A container's cgroup that is not there to read, which a container that already ended leaves behind.
 
  A sentinel rather than a nullish value, because this repository models absence without nullish unions: every caller
  narrows it with `!==` or `typeof value === 'symbol'` before it reads a figure out of a sample.
  */
 export const CGROUP_NOT_THERE: unique symbol = Symbol('container cgroup that is not there to read',);
+
+/**
+ A reading of a container's cgroup that is no whole reading of it: the group answered no file of its own, or answered
+ less than the reading it would replace, which is a group the kernel is removing.
+
+ Kept apart from {@link CGROUP_NOT_THERE} because a caller that ends something when the cgroup goes cannot end it on a
+ reading it merely refused: only a directory the reader cannot stat is gone, and a group whose files are being removed is
+ a group the next reading may still answer a part of.
+ */
+export const READING_NOT_WHOLE: unique symbol = Symbol('a control group answer that lost a part of the reading before it',);
 
 /**
  A figure this host's kernel does not write, which is not a failure: an older kernel has no `memory.peak`, and a scope
@@ -156,9 +165,10 @@ export type ContainerMemorySample = {
 };
 
 /**
- One container's own accounting, or the statement that its cgroup is not there to read.
+ One container's own accounting, or the statement that its cgroup is not there to read, or that the reading taken is no
+ whole reading of it.
  */
-export type ContainerMemoryRead = ContainerMemorySample | typeof CGROUP_NOT_THERE;
+export type ContainerMemoryRead = ContainerMemorySample | typeof CGROUP_NOT_THERE | typeof READING_NOT_WHOLE;
 
 /**
  Read one file of a cgroup as trimmed text.
@@ -288,8 +298,9 @@ async function cgroupIsThere(cgroupPath: string,): Promise<boolean> {
 
  @param replaces - the reading this one would replace, which it must answer every part of
 
- @returns the figures the kernel holds for it now, or {@link CGROUP_NOT_THERE} once the container ended and once a
- reading answered less than the one it would replace
+ @returns the figures the kernel holds for it now, or {@link CGROUP_NOT_THERE} once the container ended and
+ {@link READING_NOT_WHOLE} once the reading answered no file of the group and once it answered less than the one it would
+ replace
 
  @example
  ```ts
@@ -439,12 +450,12 @@ export async function readContainerMemory({
       > 0;
   });
   if ((!wroteAFigure) && (!wroteACounter))
-    return CGROUP_NOT_THERE;
+    return READING_NOT_WHOLE;
   if (!answersEveryPartOf({
     read: sample,
     kept: replaces,
   },))
-    return CGROUP_NOT_THERE;
+    return READING_NOT_WHOLE;
   return sample;
 }
 

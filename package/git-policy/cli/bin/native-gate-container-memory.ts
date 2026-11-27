@@ -17,6 +17,7 @@ import {
   type ContainerMemoryRead,
   type ContainerMemorySample,
   CGROUP_NOT_THERE,
+  READING_NOT_WHOLE,
   bytesPerGibibyte,
   bytesPerMebibyte,
   containerCgroupPathOf,
@@ -206,13 +207,13 @@ async function readOnce({
   readonly intervalMilliseconds: number;
 },): Promise<void> {
   /**
-   What the scope holds now, or the statement that it is gone and that it lost a part of what was read before it.
+   What the scope holds now, the statement that it is gone, or the statement that this reading is no whole reading of it.
    */
   const read = await readContainerMemory({
     cgroupPath,
     replaces: state.lastRead,
   },);
-  if (read !== CGROUP_NOT_THERE)
+  if ((read !== CGROUP_NOT_THERE) && (read !== READING_NOT_WHOLE))
     state.lastRead = read;
   await waitUntil(intervalMilliseconds,);
 }

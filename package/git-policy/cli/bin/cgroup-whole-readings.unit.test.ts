@@ -44,13 +44,12 @@ await describe({
           },
         }),
         it({
-          name: 'names no part for a figure a kernel wrote nothing for and for the text a reading carries',
+          name: 'names no part for a figure a kernel wrote no file for and for the text a reading carries',
           fn: async () => {
             expect(partsOf({
               sample: {
                 cgroupPath: '/sys/fs/cgroup/b.scope',
                 readAt: '2026-11-27T13:00:00.000Z',
-                peakBytes: undefined,
                 events: {},
               },
             },),).toEqual(new Set(),);

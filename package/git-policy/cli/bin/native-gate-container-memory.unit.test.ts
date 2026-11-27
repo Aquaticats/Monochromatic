@@ -12,6 +12,7 @@ import {
 import {
   type ContainerMemorySample,
   CGROUP_NOT_THERE,
+  READING_NOT_WHOLE,
   containerCgroupPathOf,
   readContainerMemory,
 } from './native-gate-container-cgroup-memory.ts';
@@ -153,8 +154,8 @@ async function figuresOf(cgroupPath: string,): Promise<ContainerMemorySample> {
    What the reader answered for that scope.
    */
   const read = await readContainerMemory({ cgroupPath, },);
-  if (read === CGROUP_NOT_THERE)
-    throw new Error(`the reader answered that ${cgroupPath} is not there, and its files are`,);
+  if ((read === CGROUP_NOT_THERE) || (read === READING_NOT_WHOLE))
+    throw new Error(`the reader answered no whole reading of ${cgroupPath}, and its files are`,);
   return read;
 }
 
@@ -170,8 +171,8 @@ function lastSampleOf(watch: ContainerMemoryWatch,): ContainerMemorySample {
    What the watch last read.
    */
   const read = watch.lastRead();
-  if (read === CGROUP_NOT_THERE)
-    throw new Error('the watch read no figures from its scope yet',);
+  if ((read === CGROUP_NOT_THERE) || (read === READING_NOT_WHOLE))
+    throw new Error('the watch read no whole reading of its scope yet',);
   return read;
 }
 
@@ -299,7 +300,7 @@ await describe({
           timeout: 20_000,
         }),
         it({
-          name: 'answers that the cgroup was not read when the group is there and answered no file of its own',
+          name: 'answers that the reading is no whole reading of a group that is there and answered no file of its own',
           fn: async () => {
             await using tree = await mkdtempDisposable(join(
               scratchParent,
@@ -316,12 +317,12 @@ await describe({
               scope,
               { recursive: true, },
             );
-            expect(await readContainerMemory({ cgroupPath: scope, }),).toBe(CGROUP_NOT_THERE,);
+            expect(await readContainerMemory({ cgroupPath: scope, }),).toBe(READING_NOT_WHOLE,);
           },
           timeout: 20_000,
         }),
         it({
-          name: 'answers that the cgroup was not read when a reading lost a part of the one it would replace',
+          name: 'answers that the reading is no whole reading of one that lost a part of the reading it would replace',
           fn: async () => {
             await using tree = await mkdtempDisposable(join(
               scratchParent,
@@ -352,7 +353,7 @@ await describe({
             expect(await readContainerMemory({
               cgroupPath: scope,
               replaces: whole,
-            },),).toBe(CGROUP_NOT_THERE,);
+            },),).toBe(READING_NOT_WHOLE,);
             // A reading with nothing to keep replaces nothing, so a group a kernel is still making is still read.
             expect(await readContainerMemory({ cgroupPath: scope, }),).not.toBe(CGROUP_NOT_THERE,);
           },
@@ -550,7 +551,8 @@ await describe({
                  What the watch has read so far.
                  */
                 const read = watch.lastRead();
-                return (read !== CGROUP_NOT_THERE) && containerMemoryKilled({ events: read.events, });
+                return (read !== CGROUP_NOT_THERE) && (read !== READING_NOT_WHOLE)
+                  && containerMemoryKilled({ events: read.events, });
               },
               description: 'the watch to read the whole group, with the kill its events count',
               pollMilliseconds: gateMemoryPollMilliseconds,

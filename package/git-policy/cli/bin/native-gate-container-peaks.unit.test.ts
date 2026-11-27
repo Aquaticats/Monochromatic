@@ -406,7 +406,7 @@ await describe({
           roles: ['suite',],
           intervalMilliseconds: fixtureIntervalMilliseconds,
           processIntervalMilliseconds: fixtureIntervalMilliseconds,
-          deadlineMilliseconds: fixtureIntervalMilliseconds * 50,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 200,
         },);
         /**
          The reading this test holds, so the group loses its kill counter at a chosen point of it.
@@ -443,6 +443,97 @@ await describe({
         expect(end?.end,).toBe(true,);
         // A reading that lost the events it would have reported is no sample of this container, so every line says what
         // the whole reading said: the bound killed one process.
+        expect(samples.filter(function whole(sample) {
+          return sample.events?.oom_kill !== 1;
+        },),).toEqual([],);
+      },
+      timeout: 60_000,
+    }),
+    it({
+      name: 'keeps watching a role whose reading lost a part while its cgroup is still there, and ends it only when the directory goes',
+      fn: async () => {
+        await using tree = await mkdtempDisposable(join(
+          scratchParent,
+          'gate-peaks-still-there-',
+        ),);
+        /**
+         The run's log and evidence directory.
+         */
+        const { logPath } = await fixtureRun({ tree: tree.path, },);
+        /**
+         The cgroup root the fixture scope lives under.
+         */
+        const root = join(
+          tree.path,
+          'cgroup',
+        );
+        /**
+         The suite's scope, which this test leaves where it is once it has lost a file.
+         */
+        const suiteScope = scopeOf({
+          root,
+          containerId: suiteId,
+        });
+        await writeRunningScope({
+          path: suiteScope,
+          peakBytes: 1_589_641_216,
+        });
+        await writeScopeFile({
+          scope: suiteScope,
+          name: 'memory.events',
+          text: 'max 1\noom 1\noom_kill 1\n',
+        });
+        /**
+         Where the recorder writes its samples.
+         */
+        const outPath = join(
+          tree.path,
+          'peaks.jsonl',
+        );
+        /**
+         The reading this test holds, so the group loses its kill counter at a chosen point of it.
+         */
+        const recording = recordGateContainerPeaks({
+          logPath,
+          outPath,
+          root,
+          userId: 1_000,
+          roles: ['suite',],
+          intervalMilliseconds: fixtureIntervalMilliseconds,
+          processIntervalMilliseconds: fixtureIntervalMilliseconds,
+          deadlineMilliseconds: fixtureIntervalMilliseconds * 200,
+        },);
+        await untilWholeSample({ outPath, },);
+        const held = await holdStandInCgroupReading({
+          cgroupPath: suiteScope,
+          at: 'pids.peak',
+        },);
+        await held.goOnWithout({ file: 'memory.events', },);
+        /**
+         What the recorder found, which is a deadline, because the group never went.
+         */
+        const outcome = await recording;
+        expect(outcome.rolesRead,).toEqual(['suite',],);
+        // A reading this role's group lost a file to is no reading of it and says nothing about whether the group is
+        // gone, so the recorder keeps asking and is still watching the role when its deadline comes.
+        expect(outcome.rolesStillRunning,).toEqual(['suite',],);
+        /**
+         Every line the recorder wrote, in the order it wrote them.
+         */
+        const samples = (await readFile(
+          outPath,
+          'utf8',
+        ))
+          .trim()
+          .split('\n',)
+          .map(function parsed(line) {
+            return JSON.parse(line,) as PeakLine;
+          },);
+        expect(samples.length,).toBeGreaterThan(0,);
+        // No line is the end line, and every one is a whole reading of the group: the kill the bound counted is in it.
+        expect(samples.filter(function ended(sample) {
+          return sample.end;
+        },),).toEqual([],);
         expect(samples.filter(function whole(sample) {
           return sample.events?.oom_kill !== 1;
         },),).toEqual([],);

@@ -19,12 +19,19 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { wait as waitUntil, } from '@monochromatic-dev/async-time-core/ts';
+
 import { runGateCommand } from './native-gate-run.ts';
 
 /**
  Milliseconds `mkfifo` is given to make one named pipe, which is far more than the call needs.
  */
 const namedPipeDeadlineMilliseconds = 5_000;
+
+/**
+ Milliseconds a held read is given to reach its file, which is far more than a reading of a fixture takes.
+ */
+const readingReachedDeadlineMilliseconds = 5_000;
 
 /**
  Bytes a fixture's `memory.peak` holds, which is the peak a check at its largest was measured at.
@@ -242,12 +249,31 @@ export async function holdStandInCgroupReading({
     heldPath,
   );
   /**
-   The writing end of the held read, whose open answers once a reading has opened the pipe.
+   The writing end of the held read, whose open answers once a reading has opened the pipe, and which is waited for
+   with a bound of its own so a fixture nothing reads fails naming that file instead of waiting forever.
    */
-  const writer = await open(
+  const opening = open(
     heldPath,
     'w',
   );
+  /**
+   Whether a reading reached the pipe before the wait ran out.
+   */
+  const reached = await Promise.race([
+    opening.then(function opened() {
+      return true;
+    },),
+    waitUntil(readingReachedDeadlineMilliseconds,)
+      .then(function waited() {
+        return false;
+      },),
+  ]);
+  if (!reached)
+    throw new Error(`no reading of ${cgroupPath} reached ${at} within ${String(readingReachedDeadlineMilliseconds)} ms, so the pipe at ${heldPath} holds nothing open`,);
+  /**
+   The writing end of the held read.
+   */
+  const writer = await opening;
 
   /**
    Take one file away from the group at the point of the reading this hold chose, then let the reading answer the file

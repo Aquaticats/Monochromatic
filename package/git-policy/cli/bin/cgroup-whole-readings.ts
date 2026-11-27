@@ -18,10 +18,19 @@
 //region What one reading answered
 
 /**
+ One reading of a control group, as its own reader assembled it.
+
+ A figure a reader answered is a number and a counter file is a record of them, which is every part this rule counts; a
+ reader's text fields, such as the path the reading came from and the moment it was taken, are no parts.
+ */
+export type CgroupReading = Readonly<Record<string, number | string | Readonly<Record<string, number>>>>;
+
+/**
  Every part of one reading, by name: each figure it answered and each counter of each counter file.
 
  A reading's text fields, such as the path it came from and the moment it was taken, are no parts: every reading answers
- them, so they say nothing about what the group held.
+ them, so they say nothing about what the group held. A figure this host's kernel writes no file for is no key of the
+ reading at all, so it answers no part either.
 
  @param sample - one reading of a control group
 
@@ -32,17 +41,15 @@
  partsOf({ sample }); // new Set(['pidsPeak', 'pidsEvents.max', 'cpuStat.nr_periods'])
  ```
  */
-export function partsOf({ sample }: { readonly sample: Readonly<Record<string, unknown>>; },): ReadonlySet<string> {
+export function partsOf({ sample }: { readonly sample: CgroupReading; },): ReadonlySet<string> {
   /**
    The parts answered so far.
    */
   const parts = new Set<string>();
   for (const [name, part] of Object.entries(sample,)) {
-    if (part === undefined)
-      continue;
     if ((typeof part) === 'number')
       parts.add(name,);
-    else if (((typeof part) === 'object') && (part !== null)) {
+    else if ((typeof part) === 'object') {
       for (const counter of Object.keys(part,))
         parts.add(`${name}.${counter}`,);
     }
@@ -72,7 +79,7 @@ export function partsOf({ sample }: { readonly sample: Readonly<Record<string, u
  answersEveryPartOf({ read, kept: watch.lastRead() });
  ```
  */
-export function answersEveryPartOf<Sample extends Readonly<Record<string, unknown>>>({
+export function answersEveryPartOf<Sample extends CgroupReading>({
   read,
   kept,
 }: {
