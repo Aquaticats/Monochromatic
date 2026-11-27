@@ -42,8 +42,8 @@ use crate::random_id::{
     random_uuid,
 };
 use crate::service_index_hold::IndexLock;
-use crate::the_names_of_the_index_lock::storage_failure;
 use crate::service_protocol::FailureCode;
+use crate::the_names_of_the_index_lock::storage_failure;
 use std::io::Write as _;
 use std::os::unix::fs::{
     DirBuilderExt as _,
