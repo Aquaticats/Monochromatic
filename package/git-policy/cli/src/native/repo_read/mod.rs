@@ -109,6 +109,14 @@
 //!   in-process repository reads:
 //!   the part of a tree that differs from an index,
 //!   found beside its cache-tree.
+//! - `repository_location.rs`:
+//!   the one query for repository identity,
+//!   top level and the path below it.
+//! - `repository_facts_git_provider.rs`:
+//!   the provider that asks real Git for a fact:
+//!   the values it holds,
+//!   the one query every fact goes through,
+//!   and the small messages its questions report.
 //! - `repository_facts_abort_discard_record.rs`:
 //!   the record of the commit an abort restores,
 //!   read in bounded time from a regular file only,
@@ -130,9 +138,6 @@
 //! - `repository_facts_untracked_files.rs`:
 //!   the worktree's untracked files whose paths a revision's tree tracks,
 //!   read beside the provider so its interface file stays within its line bound.
-//! - `repository_location.rs`:
-//!   the one query for repository identity,
-//!   top level and the path below it.
 //! - `repo_read_adapter.rs`:
 //!   in-process repository reads:
 //!   the layout turned into the shapes the wrapper's existing queries answer with.
@@ -164,6 +169,10 @@ pub mod repository_location;
 
 /// The one query for the worktree a repository's shared settings belong to.
 pub mod repo_read_main_worktree;
+
+/// The provider that asks real Git for a repository fact,
+///  beside the interface it implements.
+pub mod repository_facts_git_provider;
 
 /// Lazily fetched repository facts behind one interface,
 ///  with the real-Git provider.
