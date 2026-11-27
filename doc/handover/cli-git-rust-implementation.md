@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:30:22-05:00
+## The state at 2026-11-27T17:35:16-05:00
 
-`main` was `45b9aaeb94`.
+`main` was `21c91bc9fd`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 275 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 276 more by this time.
 
 ### Rounds running
 
@@ -162,7 +162,14 @@ because Pi fits the answer into what the window leaves,
 and it keeps no margin.
 Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
 A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
-issue 6631.
+issue 6631,
+whose round,
+`issue-6631-the-watch-control-that-delivers-a-message-to-a-later-turn-holds-in-a-whole-run`,
+started 2026-11-27T17:31:49-05:00.
+That round is the first started on the rebuilt copy:
+its session selects the virtual writer and Qwen's member answers it.
+The window a new run records is in its `summary.json` when it ends,
+which the coordinator reads for the first such run.
 The owner also wrote,
 of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
 "nw-large is advisor,
@@ -808,7 +815,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The row's `cargo-fmt` and `rustfmt` resolve here only because the `rustfmt` component was added by hand on 2026-11-25,
   which no component the plan declares installs:
   issue 6630,
-  with the pick in `doc/handover/questions-for-the-owner.md`.
+  with the pick in `doc/handover/questions-for-the-owner.md`,
+  and its round,
+  `issue-6630-the-rust-rows-bins-are-the-programs-its-declared-components-install`,
+  started 2026-11-27T17:31:49-05:00.
+  The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
+  saying what issue 6626's merge changed and which files that round has.
   Its Claude Sonnet read returned,
   a same-vendor second pass,
   and was read whole
@@ -819,7 +831,27 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and `a-link-move-that-fails-once-and-what-a-put-back-does-to-current`.
   The round of issue 6626 got a note in its inbox at 2026-11-27T17:10:09-05:00,
   naming the files those two have.
-  `0.2.7-alpha.17` follows the merges of all three.
+  The first of the two,
+  on the sentences,
+  is merged (`21c91bc9fd`):
+  each of its seven points held on `main` and was shown red there by a test that reads the sentence from a run.
+  A failed listing names the hidden names an earlier install left;
+  the second-copy clause says the version holds its completion marker and its program at its name,
+  where it said nothing was lost;
+  the step by hand is a copy of the copy's contents,
+  printed as a command,
+  where a move nested the copy inside a directory already at the version's name;
+  the failed download's clause names a download that matches the lock's digest and that the install can keep;
+  and `prune --toolchain` says one of five things it read.
+  The README says which sentences its list holds.
+  Its whole test task passed 901 of 901 on its merged tree.
+  It left the rule behind the second-copy clause alone,
+  as its brief said,
+  and priced it:
+  keeping a second copy whose program differs means reading both programs on every recovery,
+  and still cannot tell a program cut short from one rebuilt at the same size.
+  The other round of the read and the round of issue 6630 got a note at 2026-11-27T17:35-05:00 on what it reworded.
+  `0.2.7-alpha.17` follows the merges of the two that still run.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,

@@ -4,7 +4,8 @@
 //! Why:
 //! A hidden name holds bytes of a tool no version scan lists,
 //! so a removal here can cost the only finished copy of a version;
-//! the line it prints for a name it cannot judge therefore says whether that directory holds one.
+//! the line it prints for a name it cannot judge therefore says what it read there
+//! and what deleting that directory would cost.
 //! It sits in a file of its own because the prune next to it is longer than a person reads at once.
 //!
 //! In TS you'd write (pseudocode):
@@ -49,39 +50,174 @@ use super::super::what_a_failed_run_says_it_removed::after_removing;
 use super::tool_directories;
 
 /// What:
-/// The line `prune --toolchain` prints for a hidden name whose installer it cannot judge,
-/// for a directory that holds a finished copy and for one that holds none.
+/// What a `prune --toolchain` run read at a hidden name whose installer it cannot judge:
+/// no finished copy at all,
+/// no completion marker where no program name is known,
+/// a completion marker where no program name is known,
+/// a finished copy where the version stands finished at its own name,
+/// or a finished copy that is the version's only one here.
 /// Why:
-/// Deleting such a directory by hand is the only way a person clears it,
-/// and when it holds a finished copy that deletion costs the version its only finished bytes;
-/// the line has to say which case it is,
-/// or a person deletes the copy the version needs.
+/// The line says which of these it read,
+/// because a marker alone is not a working tool,
+/// a version that is finished at its name needs no hidden copy,
+/// and only the last of them is a copy whose deletion costs the version its bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function theLineForANameItCannotJudge(id: string, version: string, path: string, holdsAFinishedCopy: boolean): string {
+/// type WhatItRead = 'no-finished-copy' | 'no-completion-marker' | 'a-completion-marker-only' | 'a-second-finished-copy' | 'the-versions-only-finished-copy';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WhatItRead {
+    /// The directory holds no finished copy,
+    /// and a program name is known to look for.
+    NoFinishedCopy,
+    /// The directory holds no completion marker,
+    /// and no known lock names a program to look for.
+    NoCompletionMarker,
+    /// The directory holds a completion marker,
+    /// and no known lock names the program that would finish the copy.
+    ACompletionMarkerOnly,
+    /// The directory holds a finished copy of the version,
+    /// and the version stands finished at its own name.
+    ASecondFinishedCopy,
+    /// The directory holds a finished copy of the version,
+    /// and no finished copy of the version is at its own name.
+    TheVersionsOnlyFinishedCopy,
+}
+
+/// What:
+/// What this run read at the hidden name at `path`,
+/// which belongs to `version` of the tool at `directory`.
+/// Why:
+/// The two questions differ by what the run could read:
+/// a program is looked for only when a known lock names one,
+/// and the version's own name is read only when the hidden name holds a finished copy,
+/// because only then does the answer decide what a deletion costs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatItRead(directory: string, path: string, version: string, firstBin: string): WhatItRead {
+///   const finished = isFinished(path, firstBin);
+///   if (firstBin === '') return finished ? 'a-completion-marker-only' : 'no-completion-marker';
+///   if (!finished) return 'no-finished-copy';
+///   return isFinished(join(directory, version), firstBin) ? 'a-second-finished-copy' : 'the-versions-only-finished-copy';
+/// }
+/// ```
+fn what_it_read(
+    directory: &Path,
+    path: &Path,
+    version: &str,
+    first_bin: &str,
+) -> WhatItRead {
+    // What: the question that tells a finished install from an unfinished one, asked of the hidden name.
+    // Why: with no program name it reads the completion marker alone, which is all any read of that name can say.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const finished = isFinished(path, firstBin);
+    // ```
+    let finished: bool = is_finished(path, first_bin);
+    if first_bin.is_empty() {
+        // What: no known lock names a program, so the marker is the whole read.
+        // Why: the line then says `a completion marker`, never `a finished copy`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return finished ? 'a-completion-marker-only' : 'no-completion-marker';
+        // ```
+        return if finished {
+            WhatItRead::ACompletionMarkerOnly
+        } else {
+            WhatItRead::NoCompletionMarker
+        };
+    }
+    if !finished {
+        // What: no finished copy under the hidden name, which the line says as today.
+        // Why: nothing is lost with a directory that holds no finished copy.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return 'no-finished-copy';
+        // ```
+        return WhatItRead::NoFinishedCopy;
+    }
+    // What: whether the version's own name holds a finished copy, read beside the hidden one.
+    // Why: a version that is finished at its name does not need what a deletion would take.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return isFinished(join(directory, version), firstBin) ? 'a-second-finished-copy' : 'the-versions-only-finished-copy';
+    // ```
+    return if is_finished(&directory.join(version), first_bin) {
+        WhatItRead::ASecondFinishedCopy
+    } else {
+        WhatItRead::TheVersionsOnlyFinishedCopy
+    };
+}
+
+/// What:
+/// The line `prune --toolchain` prints for a hidden name whose installer it cannot judge,
+/// for each of the things that run can have read there.
+/// Why:
+/// Deleting such a directory by hand is the only way a person clears it,
+/// and the line has to say what the deletion costs without claiming a read the run did not make:
+/// a marker is not a finished copy,
+/// and a copy beside a version that stands finished at its name costs the version nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theLineForANameItCannotJudge(id: string, version: string, path: string, read: WhatItRead): string {
 ///   const start = `left ${path}: the installer that made it cannot be judged, so it is not removed`;
-///   return holdsAFinishedCopy
-///     ? `${start}; it holds a finished copy of ${id} ${version}, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged`
-///     : `${start}; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it`;
+///   switch (read) {
+///     case 'no-finished-copy': return `${start}; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it`;
+///     case 'no-completion-marker': return `${start}; it holds no completion marker, so deleting it by hand loses no finished copy, once no install uses it`;
+///     case 'a-completion-marker-only': return `${start}; it holds a completion marker, but no known lock names the program that would finish a copy of ${id} ${version}, so deleting it by hand loses whatever that name holds, which nothing publishes while its installer cannot be judged`;
+///     case 'a-second-finished-copy': return `${start}; it holds a second finished copy of ${id} ${version}, because ${version} is finished at its name, and deleting it by hand loses only that second copy`;
+///     case 'the-versions-only-finished-copy': return `${start}; it holds a finished copy of ${id} ${version}, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged`;
+///   }
 /// }
 /// ```
 fn the_line_for_a_name_it_cannot_judge(
     id: &str,
     version: &str,
     path: &Path,
-    holds_a_finished_copy: bool,
+    read: WhatItRead,
 ) -> String {
-    if holds_a_finished_copy {
-        return format!(
-            "left {}: the installer that made it cannot be judged, so it is not removed; it holds a finished copy of {id} {version}, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged",
-            path.display()
-        );
-    }
-    return format!(
-        "left {}: the installer that made it cannot be judged, so it is not removed; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it",
+    // What: the two clauses every one of these lines shares.
+    // Why: the name, why it stays, and the version differ per line, so only this much is common.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const start = `left ${path}: the installer that made it cannot be judged, so it is not removed`;
+    // ```
+    let start: String = format!(
+        "left {}: the installer that made it cannot be judged, so it is not removed",
         path.display()
     );
+    // What: `match` on the five answers, each of which is a different read of the same directory.
+    // Why: a sentence that names a copy the run did not read is the fault this wording exists to avoid.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (read) { ... }
+    // ```
+    return match read {
+        WhatItRead::NoFinishedCopy => format!(
+            "{start}; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it"
+        ),
+        WhatItRead::NoCompletionMarker => format!(
+            "{start}; it holds no completion marker, so deleting it by hand loses no finished copy, once no install uses it"
+        ),
+        WhatItRead::ACompletionMarkerOnly => format!(
+            "{start}; it holds a completion marker, but no known lock names the program that would finish a copy of {id} {version}, so deleting it by hand loses whatever that name holds, which nothing publishes while its installer cannot be judged"
+        ),
+        WhatItRead::ASecondFinishedCopy => format!(
+            "{start}; it holds a second finished copy of {id} {version}, because {version} is finished at its name, and deleting it by hand loses only that second copy"
+        ),
+        WhatItRead::TheVersionsOnlyFinishedCopy => format!(
+            "{start}; it holds a finished copy of {id} {version}, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged"
+        ),
+    };
 }
 
 /// What:
@@ -98,7 +234,9 @@ fn the_line_for_a_name_it_cannot_judge(
 /// or one of a version no lock names will never be used;
 /// leaving it would keep a whole tool's bytes for ever.
 /// A name whose installer cannot be judged is never removed,
-/// and the person is told which path it is and whether it holds a finished copy.
+/// and the person is told which path it is,
+/// what the run read there,
+/// and what deleting it would cost.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,14 +262,22 @@ pub(super) fn prune_hidden_siblings(
             match sibling.liveness() {
                 Liveness::Running => continue,
                 Liveness::Unknown => {
-                    let holds_a_finished_copy: bool = is_finished(&sibling.path, first_bin);
+                    // What: what this run read at the name, from the hidden directory and the version's own name.
+                    // Why: the line says what was read, and a tool no known lock names gives no program to look for.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const read = whatItRead(directory, sibling.path, sibling.version, firstBin);
+                    // ```
+                    let read: WhatItRead =
+                        what_it_read(&directory, &sibling.path, &sibling.version, first_bin);
                     eprintln!(
                         "mpm-shadow: {}",
                         the_line_for_a_name_it_cannot_judge(
                             &id,
                             &sibling.version,
                             &sibling.path,
-                            holds_a_finished_copy
+                            read
                         )
                     );
                     continue;

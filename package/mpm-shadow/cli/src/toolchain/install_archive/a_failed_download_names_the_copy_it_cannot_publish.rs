@@ -100,14 +100,19 @@ fn a_finished_copy_this_build_cannot_publish(
 /// and a person who reads only "download failed" has no way to know that;
 /// the sentence names the copy,
 /// why no run publishes it,
-/// and the two ways an offline machine gets the version back.
+/// and the two ways an offline machine gets the version back,
+/// each worded for what this run read:
+/// a download brings the version back only when its bytes match the lock and the install can keep them,
+/// so a failure whose network was there is not told a network would repair it,
+/// and the step by hand copies the copy's contents,
+/// which reaches a version's name that holds nothing and one that already holds a directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function addingTheCopyThisBuildCannotPublish(error: ToolchainError, tool: LockedTool, versionDir: string): ToolchainError {
 ///   const copy = aFinishedCopyThisBuildCannotPublish(versionDir, requiredProgram(tool) ?? '');
 ///   if (copy === undefined) return error;
-///   return { kind: error.kind, message: `${error.message}; a finished copy of ${tool.id} ${tool.version} sits under the hidden name ${copy}, whose installer this build cannot judge, so no install of this build publishes it; the version comes back from a download with the network there, or by moving that copy to ${versionDir} by hand, which checks none of its bytes against the lock` };
+///   return { kind: error.kind, message: `${error.message}; a finished copy of ${tool.id} ${tool.version} sits under the hidden name ${copy}, whose installer this build cannot judge, so no install of this build publishes it; the version comes back from a download that matches this lock's SHA-256 and that the install can keep, or by copying that copy's contents into ${versionDir} by hand (\`cp --archive ${copy}/. ${versionDir}\`), which checks none of its bytes against the lock` };
 /// }
 /// ```
 pub(super) fn adding_the_copy_this_build_cannot_publish(
@@ -122,10 +127,12 @@ pub(super) fn adding_the_copy_this_build_cannot_publish(
     return ToolchainError {
         kind: error.kind,
         message: format!(
-            "{}; a finished copy of {} {} sits under the hidden name {}, whose installer this build cannot judge, so no install of this build publishes it; the version comes back from a download with the network there, or by moving that copy to {} by hand, which checks none of its bytes against the lock",
+            "{}; a finished copy of {} {} sits under the hidden name {}, whose installer this build cannot judge, so no install of this build publishes it; the version comes back from a download that matches this lock's SHA-256 and that the install can keep, or by copying that copy's contents into {} by hand (`cp --archive {}/. {}`), which checks none of its bytes against the lock",
             error.message,
             tool.declaration.id,
             tool.version,
+            copy.display(),
+            version_dir.display(),
             copy.display(),
             version_dir.display()
         ),
