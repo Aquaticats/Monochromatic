@@ -25,6 +25,10 @@
 //!   the standards-review shadow run:
 //!   which commits get an entry,
 //!   and the capped model input.
+//! - `standards_review_client_failure_words.rs`:
+//!   the standards-review shadow run:
+//!   the words a failed call is named with,
+//!   with every cause below it.
 //! - `standards_review_client.rs`:
 //!   the standards-review shadow run:
 //!   the in-process HTTPS call to the decisions gateway,
@@ -89,6 +93,11 @@ pub mod standards_review_request;
 /// The standards-review shadow run:
 /// log entry rendering and appending.
 pub mod standards_review_entry;
+
+/// The standards-review shadow run:
+/// the words a failed call is named with,
+/// with every cause below it.
+pub mod standards_review_client_failure_words;
 
 /// The standards-review shadow run:
 /// the in-process HTTPS call to the decisions gateway,
