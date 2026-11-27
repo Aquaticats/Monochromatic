@@ -2024,6 +2024,9 @@ what they say and what a walk costs.
   A package that selects the file rule alone reads such a tree as alpha.17 did,
   because that rule reads no `uses` line and names such a folder in a key,
   which holds the name as written.
+  A folder name that holds ` -> ` between two names stops the run under the same condition,
+  while alpha.17 refused that one even under the file rule alone:
+  the shape it spells now reads as the other three do.
 - The message of that refusal names the folder whose name is the cause,
   and the one shape that name has,
   where alpha.18 named the module file inside that folder and listed four shapes.
@@ -2175,9 +2178,9 @@ and what the messages say.
   or holds one of those shapes with a tab or a no-break space where they spell a space,
   because no line could name the folder such a name belongs to.
   The arrow words of a folder name are refused only while the folder rule is selected,
-  so the file rule alone reads a tree that holds one,
+  so the file rule alone reads a tree that holds one of any of those shapes,
   names such a folder in a key,
-  and keeps that key as it always did.
+  and prints a key its reader reads back.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.

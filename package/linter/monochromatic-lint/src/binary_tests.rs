@@ -3921,6 +3921,49 @@ fn layout_a_folder_name_that_sets_its_arrow_off_with_a_tab_is_refused() {
     }
 }
 
+/// Every arrow shape of a folder name is read when the file rule alone is selected,
+///  which is the fourth shape a name can have that a `uses` line could not carry:
+///  this rule reads no such line, it names such a folder in a key,
+///  and every key it prints is a line its reader reads back.
+#[cfg(unix)]
+#[test]
+fn layout_the_file_rule_alone_reads_every_arrow_shape_of_a_folder_name() {
+    // What: the four shapes a folder name can give an arrow word, named so a shape lost from the table is a failure.
+    // Why: only the bare arrow was held before, so a reader that took only that shape would have stayed green.
+    const SHAPES: [&str; 4] = ["->", "a ->", "-> a", "a -> b"];
+    for named in SHAPES {
+        let fixture: Fixture = Fixture::new();
+        fixture.write(
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+        );
+        fixture.write(CONFIG, FILE_RULES);
+        fixture.write("file.txt", "");
+        fixture.write(
+            "src/lib.rs",
+            format!("#[path = \"{named}/mod.rs\"]\nmod a;\n").as_str(),
+        );
+        fixture.write(
+            format!("src/{named}/mod.rs").as_str(),
+            "pub mod one;\npub mod two;\n",
+        );
+        fixture.write(format!("src/{named}/one.rs").as_str(), "pub struct One;\n");
+        fixture.write(format!("src/{named}/two.rs").as_str(), "pub struct Two;\n");
+        let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "file.txt");
+        assert!(
+            keys.iter().any(|key| return key.contains(named)),
+            "the folder `{named}` is named in a key as written: {keys:?}"
+        );
+        assert_eq!(
+            (held.status, held.stdout.as_str()),
+            (0, ""),
+            "the keys of the folder `{named}` are read back: {} {}",
+            held.stdout,
+            held.stderr
+        );
+    }
+}
+
 /// A folder name that would be misread on a `uses` line is refused only while the folder rule is selected:
 ///  the file rule reads no `uses` line,
 ///  so it reads such a tree as alpha.17 did rather than stop the run.
