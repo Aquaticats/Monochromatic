@@ -9,7 +9,8 @@
 //! and the checked-out bytes are staged in the same directory,
 //! outside the worktree,
 //! so the checked-out tree never shows them.
-//! Both are written exclusively and synced, so a power cut leaves one of the two files whole.
+//! Both are written exclusively and synced,
+//! so a power cut leaves one of the two files whole.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -5,7 +5,9 @@
 //!  the parent of every `process-<pid>` folder,
 //!  so every test process of one run links the one copy rather than writing a copy of the whole executable into a
 //!  folder of its own
-//!  (the container gate's fixture root is a 768 MiB tmpfs, and a copy per process filled it: issue 6488).
+//!  (the container gate's fixture root is a 768 MiB tmpfs,
+//! and a copy per process filled it:
+//! issue 6488).
 //! Why:
 //!  Cargo's scratch directory moves with `build.build-dir`,
 //! which this repository's hosts relocate to another volume

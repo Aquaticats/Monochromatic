@@ -20,8 +20,11 @@
 
 /// Import the one size every file this repair reads is bounded by.
 use crate::plain_file::SMALL_FILE_LIMIT;
-/// The bytes of a `toolchain.lock.json` this repair reads, past which the lock is no lock it can read.
-///  Measured on this repository on 2026-11-13: its lock is 63,625 bytes, so this bound is sixteen times it,
+/// The bytes of a `toolchain.lock.json` this repair reads,
+/// past which the lock is no lock it can read.
+///  Measured on this repository on 2026-11-13:
+/// its lock is 63,625 bytes,
+/// so this bound is sixteen times it,
 /// and a lock that large would declare some three thousand tools.
 ///  A longer lock is refused rather than read,
 /// and a refusal is the answer an unreadable lock already gets:
@@ -53,7 +56,8 @@ pub(super) const TAG: &str = "packageRepairToolchain";
 thread_local! {
     /// The writer a control stands in the classification-to-removal window with.
     pub(crate) static WHEN_THE_REMOVAL_BEGINS: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
-    /// Whether this thread's removal stops once a record is aside, which no release build can do.
+    /// Whether this thread's removal stops once a record is aside,
+    /// which no release build can do.
     pub(crate) static KILLED_AFTER_THE_RECORD_IS_ASIDE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// The replacement a control makes in the window between a record's name being looked at and its open,
     /// which no release build has.

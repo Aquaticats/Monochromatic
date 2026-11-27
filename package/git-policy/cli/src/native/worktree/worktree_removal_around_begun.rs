@@ -3,7 +3,8 @@
 //!  so a command killed inside that pass leaves a state the next command finishes instead of one only
 //!  `--force` clears.
 //! Why:
-//!  A removal without `--force` proves the worktree clean, and only then empties it.
+//!  A removal without `--force` proves the worktree clean,
+//! and only then empties it.
 //! The pass deletes the worktree's own entries first
 //!  and forgets the worktree in Git after it,
 //! so a command killed in between leaves tracked files deleted,
@@ -52,7 +53,8 @@ use std::path::{
 pub const BEGUN_FOLDER: &str = "monochromatic-git-policy-cli/around-removals-begun";
 
 /// The most bytes of a record that is read:
-/// five short lines and the hexadecimal form of a path, which is twice its length.
+/// five short lines and the hexadecimal form of a path,
+/// which is twice its length.
 const RECORD_LIMIT: u64 = 16384;
 
 /// The first line of every record,
@@ -80,7 +82,8 @@ const TARGET_PREFIX: &str = "targetHex=";
 /// and the worktree's says
 ///  the tree is the one that pass emptied:
 /// a person who removed the worktree and added another at the same path is
-///  two other objects, and an earlier record removes nothing of theirs.
+///  two other objects,
+/// and an earlier record removes nothing of theirs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

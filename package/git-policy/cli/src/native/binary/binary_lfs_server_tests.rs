@@ -1566,9 +1566,11 @@ fn a_submodule_push_without_a_new_pointer_still_gets_the_notice() {
 /// It records every question and answers one,
 /// so a route that asks a person is seen at once and never waits for an answer that will not come.
 struct Recorder {
-    /// The program itself, in the fixture's own root.
+    /// The program itself,
+    /// in the fixture's own root.
     program: PathBuf,
-    /// Every question it was asked, one per line;
+    /// Every question it was asked,
+    /// one per line;
     /// absent until it starts.
     log: PathBuf,
 }
@@ -1823,7 +1825,8 @@ fn published_url_form(
 /// the command's session has no controlling terminal,
 /// and the upload fails at once with the login the caller can act on,
 /// under the same no-prompt rule a command a person typed runs under.
-/// The arm before it shows the recorder answering this server, so the empty log below means the rule held.
+/// The arm before it shows the recorder answering this server,
+/// so the empty log below means the rule held.
 #[test]
 fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_dialog() {
     let fixture: Fixture = fixture("lfs-real-no-terminal");

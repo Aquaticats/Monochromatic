@@ -30,7 +30,9 @@ const SEPARATOR: char = '|';
 ///  the file that holds the site,
 ///  relative to `src/native`,
 ///  and why the site is not moved onto `spawn_owned` yet.
-///  `String` is an owned text buffer (sibling: `&str`, a borrowed view).
+///  `String` is an owned text buffer (sibling:
+/// `&str`,
+/// a borrowed view).
 /// Why:
 ///  `String` and not `&str` because the entries outlive the text they were read from,
 ///  and the reason is read back in a failure message.
@@ -51,7 +53,8 @@ pub(super) struct Entry {
 /// What:
 ///  `pub(super) fn entries(ledger: &str) -> Result<Vec<Entry>, String>` reads the ledger text into its entries.
 ///  A line that is blank or begins with `#` is a note and is skipped.
-///  `Result<Vec<Entry>, String>` is "the entries or one text saying what is wrong" (sibling: `Option<Vec<Entry>>`,
+///  `Result<Vec<Entry>, String>` is "the entries or one text saying what is wrong" (sibling:
+/// `Option<Vec<Entry>>`,
 ///  which cannot say why).
 /// Why:
 ///  The ledger is data beside the code,
@@ -86,7 +89,9 @@ pub(super) fn entries(ledger: &str) -> Result<Vec<Entry>, String> {
 
 /// What:
 ///  `fn count_by_path(entries: &[Entry]) -> BTreeMap<String, usize>` is how many ledger lines name each file.
-///  `BTreeMap<String, usize>` is a map kept in key order (TS: `Map`, but iterated sorted).
+///  `BTreeMap<String, usize>` is a map kept in key order (TS:
+/// `Map`,
+/// but iterated sorted).
 /// Why:
 ///  One line per site means the count is the number of sites the ledger still expects in that file,
 ///  and it is what a start added to a ledgered file changes.

@@ -118,9 +118,11 @@ impl JudgedObject {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalPoint {
-    /// The look inside the lineage proof, before anything is taken down.
+    /// The look inside the lineage proof,
+    /// before anything is taken down.
     BeforeTheUnmount,
-    /// One of the two checks, after the verified unmount.
+    /// One of the two checks,
+    /// after the verified unmount.
     AtACheck,
 }
 
@@ -142,9 +144,12 @@ pub enum RefusalPoint {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalForm {
-    /// Nothing was taken down, nothing is pending and there is nothing to cancel.
+    /// Nothing was taken down,
+    /// nothing is pending and there is nothing to cancel.
     NothingTakenDown,
-    /// The clone is unmounted, the removal stays pending, and the cancel command is the way back.
+    /// The clone is unmounted,
+    /// the removal stays pending,
+    /// and the cancel command is the way back.
     PendingAfterTheUnmount,
     /// The check sent no request and could not compare a planned object.
     NothingCompared,
@@ -171,7 +176,8 @@ impl RefusalForm {
 ///  reattaches the clone,
 ///  unlinks the second or removes a registration
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-///  "What a refusal leaves, and what the record keeps").
+///  "What a refusal leaves,
+/// and what the record keeps").
 ///  The answer is a value rather than a sentence so the cancel command,
 ///  `doctor` and a receipt read one rule.
 ///

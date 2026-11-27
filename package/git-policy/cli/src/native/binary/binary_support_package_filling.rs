@@ -7,12 +7,16 @@
 //! A filling whose clean is ended before it takes anything keeps nothing,
 //! and at the gate of 2026-11-15T06:00-05:00 one was ended by a signal 9 from outside the tool's own runner
 //! (`real_cargo_leaves_a_stale_lockfile_as_checked_out`).
-//!  A control cannot produce that ending by waiting: the runner words its own ceiling and its own quiet window as
-//! `CeilingReached` and `TimedOut`, and only a signal it did not send is worded `stopped by signal <n>`
-//! (`package_repair_command.rs`, `run_tool_reaping_started_within`).
+//!  A control cannot produce that ending by waiting:
+//! the runner words its own ceiling and its own quiet window as
+//! `CeilingReached` and `TimedOut`,
+//! and only a signal it did not send is worded `stopped by signal <n>`
+//! (`package_repair_command.rs`,
+//! `run_tool_reaping_started_within`).
 //! So the one ending a control needs a stand-in for is here,
 //! beside the reader that says how a filling ended,
-//! and it is asked for by name, so a run that does not ask for it never meets it.
+//! and it is asked for by name,
+//! so a run that does not ask for it never meets it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +26,8 @@
 use crate::support_fixture_service::Fixture;
 
 /// What:
-///  The ending a filling's clean is given, when a control asks for one.
+///  The ending a filling's clean is given,
+/// when a control asks for one.
 /// Why:
 ///   The runner words a tool that ended by a signal from outside its own ceiling and quiet window as
 /// `stopped by signal <n>`,
@@ -35,21 +40,27 @@ use crate::support_fixture_service::Fixture;
 /// ```
 pub const A_FILLS_CLEAN_ENDING_VARIABLE: &str = "CLI_GIT_TEST_ONLY_FILL_CLEAN";
 
-/// The one ending a control may name: the clean ends itself with `SIGKILL`,
+/// The one ending a control may name:
+/// the clean ends itself with `SIGKILL`,
 /// which the runner reports exactly as it reports a signal from outside its own bounds.
 pub const ENDED_WITH_SIGKILL: &str = "killed";
 
-/// The other ending a control may name: the filling's clean works for `A_SLOW_FILLS_CLEAN_SECONDS` before it is the real
+/// The other ending a control may name:
+/// the filling's clean works for `A_SLOW_FILLS_CLEAN_SECONDS` before it is the real
 /// Cargo.
 /// Why:
-///  A filling that fails at once settles at once, so it cannot say whether a control waits for a filling that is still
-/// working. One that works for seconds can: a run of the control that reads the displaced bytes only after the sleep is a
+///  A filling that fails at once settles at once,
+/// so it cannot say whether a control waits for a filling that is still
+/// working.
+/// One that works for seconds can:
+/// a run of the control that reads the displaced bytes only after the sleep is a
 /// run whose wait covers a filling in progress,
 /// which is what tells the control's own teardown apart from the machine as the sender of a signal at the gate.
 pub const SLOW_FILLS_CLEAN: &str = "slow";
 
 /// How long a filling's clean is made to work when a run asks for [`SLOW_FILLS_CLEAN`].
-///  Eight seconds is more than every other step of the control takes together, so a run that waited for it is told apart
+///  Eight seconds is more than every other step of the control takes together,
+/// so a run that waited for it is told apart
 /// from one that read the folder while the filling still worked.
 pub const A_SLOW_FILLS_CLEAN_SECONDS: u32 = 8;
 
@@ -59,7 +70,8 @@ pub const A_SLOW_FILLS_CLEAN_SECONDS: u32 = 8;
 ///   The service writes that line before it answers the record's verdict,
 /// and the line reaches the fixture's log through a thread that copies the service's error stream,
 /// so a control that reads the log the moment the record settles can be a moment early.
-/// Five seconds is far past a copy the machine is not stalled in, and a wait that ends without the line still says
+/// Five seconds is far past a copy the machine is not stalled in,
+/// and a wait that ends without the line still says
 /// what the record came to.
 pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -72,11 +84,15 @@ pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::
 /// at the gate of 2026-11-15T06:00-05:00 this control failed with
 /// `the bytes the clean displaced were not kept: []`
 /// for a filling that was still in the queue when it looked,
-/// and the fill's own reason, which the service wrote a moment later, never reached the person.
-///  So a record the queue still holds is waited for, within `SERVICE_WORK_PATIENCE`,
+/// and the fill's own reason,
+/// which the service wrote a moment later,
+/// never reached the person.
+///  So a record the queue still holds is waited for,
+/// within `SERVICE_WORK_PATIENCE`,
 /// because the states that mean "still to come" are not the three the commit cases wait on:
 /// a filling the drain holds stands in `held` while it runs,
-/// and a control that counted only `pending`, `claimed` and `recovering` read an empty folder in that window.
+/// and a control that counted only `pending`,
+/// `claimed` and `recovering` read an empty folder in that window.
 /// The sentence then names where the record stands and quotes the service's words about this worktree,
 /// which is the whole of what a reader needs to know why nothing is there.
 ///
@@ -129,24 +145,31 @@ pub fn a_filling_that_did_not_run_to_its_end(
 /// What:
 ///  Where one worktree's filling stands in its queue.
 pub enum Standing {
-    /// Its record settled in `done`: the service ran the filling to its end.
+    /// Its record settled in `done`:
+    /// the service ran the filling to its end.
     Done,
-    /// Its record stands where the queue keeps work it gave up on, named.
+    /// Its record stands where the queue keeps work it gave up on,
+    /// named.
     GivenUp(&'static str),
-    /// Its record stands in a state that may yet run, named.
+    /// Its record stands in a state that may yet run,
+    /// named.
     Open(&'static str),
     /// No record of this worktree's filling is in the queue at all.
     Nowhere,
 }
 
 /// The word a filling's record is given when no state of the work directory holds it.
-/// It is not a state of the queue: no record there means the add handed nothing over, which is its own answer.
+/// It is not a state of the queue:
+/// no record there means the add handed nothing over,
+/// which is its own answer.
 const NAMED_NOWHERE: &str = "no state of the work directory";
 
 /// What:
 ///  The state of the work directory that holds this worktree's prewarm record now.
 /// Why:
-///   A record the queue holds in `pending`, `claimed`, `recovering` or `held` is work that may yet run,
+///   A record the queue holds in `pending`,
+/// `claimed`,
+/// `recovering` or `held` is work that may yet run,
 /// and `held` is where a filling the drain is running stands,
 /// so a reader that wants to know how a filling ended waits while any of them holds it.
 /// A record in `failed` is the consumer's answer that the work was given up,
@@ -184,7 +207,8 @@ fn where_the_filling_stands(
 /// Why:
 ///   The record of a filling is named by its own object and branch,
 /// and only a prewarm of this worktree says what this control is waiting for;
-/// a claim's file holds the record itself, so every state is read the same way.
+/// a claim's file holds the record itself,
+/// so every state is read the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,7 +245,8 @@ fn stands_in(
 ///   The service writes that line before it answers the record's verdict,
 /// and the line reaches the fixture's log through a thread that copies the service's error stream,
 /// so a reader that looks the moment the record settles can be a moment early.
-/// The line names the build directory it could not fill, so the worktree's own path is what tells this filling's
+/// The line names the build directory it could not fill,
+/// so the worktree's own path is what tells this filling's
 ///  line from those of every other worktree the same service filled.
 ///
 /// In TS you'd write (pseudocode):
@@ -281,7 +306,8 @@ pub fn end_the_fills_clean(fixture: &Fixture) {
 /// the fill's clean ends by signal,
 /// the resolution after that signals fails as a resolution on a machine that has just lost one of its tools,
 ///  and the checked-out lock is never displaced.
-/// Every other run of Cargo in the fixture is the real one, and the fixture's own build happens before this link is
+/// Every other run of Cargo in the fixture is the real one,
+/// and the fixture's own build happens before this link is
 /// replaced at all.
 ///
 /// In TS you'd write (pseudocode):

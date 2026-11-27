@@ -132,7 +132,8 @@ fn a_stop_the_wait_ended_at_the_bound_it_waited_for_names_that_bound() {
 ///  A step the notice's thread ended names the bound that really ended it and the programs it could not list.
 /// Why:
 ///   The notice's own stop is the record of that stop:
-///  the wait that owns the child answered nothing, because the step ended at the notice's signal.
+///  the wait that owns the child answered nothing,
+/// because the step ended at the notice's signal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

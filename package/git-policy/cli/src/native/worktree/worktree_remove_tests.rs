@@ -957,7 +957,8 @@ fn btrfs_a_pending_deletion_inside_a_worktree_is_taken_with_the_removal() {
 /// On this path there is none,
 /// so an ending of its own is what keeps the words true;
 /// the control
-///  makes the volume go at the one moment the state can change, between the pass and the look,
+///  makes the volume go at the one moment the state can change,
+/// between the pass and the look,
 /// rather than racing it.
 ///
 /// In TS you'd write (pseudocode):
@@ -1137,7 +1138,8 @@ fn a_worktree_with_a_volume(
 /// and a second command that proved the same worktree clean finds the hand-over
 ///  refused;
 /// it then destroys the subvolume here.
-/// That is a race between two removals, so a control makes it a stated step.
+/// That is a race between two removals,
+/// so a control makes it a stated step.
 struct HandOverRefused;
 
 impl RemoveOperations for HandOverRefused {
@@ -1193,7 +1195,8 @@ impl RemoveOperations for HandOverRefused {
 ///   The line the person's command prints for a hand-over promises a delete the commit service still has to make,
 /// and on this
 ///  path the files are already gone when the command returns;
-/// a control reads the ending, and the words control beside it
+/// a control reads the ending,
+/// and the words control beside it
 ///  reads what that ending says.
 ///
 /// In TS you'd write (pseudocode):
@@ -1309,7 +1312,8 @@ fn btrfs_a_resume_writes_no_warning_that_its_pass_is_not_recorded() {
 
 /// What:
 ///  The four lines a destroy leaves are told apart:
-///  the two that wait for the commit service, and the two that say the files are gone now,
+///  the two that wait for the commit service,
+/// and the two that say the files are gone now,
 ///  each in its forced and unforced form.
 /// Why:
 ///   A person looking for the files reads exactly one of them,

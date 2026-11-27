@@ -18,7 +18,8 @@ use crate::typed_network_command_relay::a_target_the_sentence_may_name::{
 use crate::typed_network_command_relay::the_options_before_the_remote::remote_operand;
 
 /// What:
-///  The words of one command line, as the person typed them.
+///  The words of one command line,
+/// as the person typed them.
 /// Why:
 ///  Every control below reads arguments and never a shell line.
 ///
@@ -33,7 +34,8 @@ fn words(parts: &[&str]) -> Vec<std::ffi::OsString> {
         .collect();
 }
 
-/// A clone's own word is its remote, and a directory after it is not.
+/// A clone's own word is its remote,
+/// and a directory after it is not.
 #[test]
 fn a_clone_names_its_url_as_its_first_word() {
     let arguments: Vec<std::ffi::OsString> = words(&[
@@ -59,7 +61,8 @@ fn a_clone_names_its_url_as_its_first_word() {
     );
 }
 
-/// A fetch's remote is the first word that is not an option, and an option's value is not that word.
+/// A fetch's remote is the first word that is not an option,
+/// and an option's value is not that word.
 #[test]
 fn a_fetch_names_its_remote_after_the_option_values() {
     let arguments: Vec<std::ffi::OsString> = words(&[
@@ -86,7 +89,8 @@ fn a_fetch_names_its_remote_after_the_option_values() {
     );
 }
 
-/// A word Git's table does not know leaves the remote unread, so the command keeps today's process replacement.
+/// A word Git's table does not know leaves the remote unread,
+/// so the command keeps today's process replacement.
 #[test]
 fn an_unknown_option_leaves_the_remote_unread() {
     let arguments: Vec<std::ffi::OsString> = words(&["fetch", "--no-such-option-at-all", "origin"]);
@@ -95,7 +99,8 @@ fn an_unknown_option_leaves_the_remote_unread() {
     assert_eq!(remote_operand(unknown, unknown_region), None);
 }
 
-/// A command outside the four is not a typed network command, and a global option comes before the command word.
+/// A command outside the four is not a typed network command,
+/// and a global option comes before the command word.
 #[test]
 fn only_the_four_network_commands_are_read() {
     assert_eq!(
@@ -118,7 +123,8 @@ fn only_the_four_network_commands_are_read() {
     );
 }
 
-/// Every scheme ssh speaks is carried, and every other transport is not.
+/// Every scheme ssh speaks is carried,
+/// and every other transport is not.
 #[test]
 fn ssh_carries_its_own_schemes_and_the_scp_form() {
     for url in [
@@ -147,7 +153,8 @@ fn ssh_carries_its_own_schemes_and_the_scp_form() {
     }
 }
 
-/// The host is the name the remote gives, and the connect words carry the port only when it is not ssh's own.
+/// The host is the name the remote gives,
+/// and the connect words carry the port only when it is not ssh's own.
 #[test]
 fn the_host_is_the_name_the_remote_gives() {
     assert_eq!(
@@ -286,7 +293,8 @@ fn a_bracketed_address_is_a_host_the_sentence_may_name() {
     );
 }
 
-/// A host, user or port that is not a plain word is dropped rather than printed into a command.
+/// A host,
+/// user or port that is not a plain word is dropped rather than printed into a command.
 #[test]
 fn nothing_a_host_cannot_hold_reaches_the_sentence() {
     // A URL that names no host this wrapper may print gets no sentence at all, and no byte is dropped and printed as if the

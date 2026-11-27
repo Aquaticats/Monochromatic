@@ -1,20 +1,26 @@
 //! What:
-//!  The fill's restore: whether it still has to run, and the reset of the clone
+//!  The fill's restore:
+//! whether it still has to run,
+//! and the reset of the clone
 //!  to the commit the caller asked for.
 //! Why:
 //!  The clone is a snapshot of a checkout that may hold uncommitted edits and
-//!  whose `HEAD` may not be the commit this add checks out, so the tree must be
+//!  whose `HEAD` may not be the commit this add checks out,
+//! so the tree must be
 //!  made equal to Git's own checkout of that commit before any name is published
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The restore" step 6).
-//!  A resume must not run it twice: the publication takes the private index's
-//!  name away, so a Git run pointed at the gone private name would read an empty
+//!  A resume must not run it twice:
+//! the publication takes the private index's
+//!  name away,
+//! so a Git run pointed at the gone private name would read an empty
 //!  index
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "What a resume finds").
 //!  `add_fill.rs` runs the fill in order and would go over the file-size limit
 //!  carrying the restore,
-//!  and the restore runs through the btrfs rung's own `restore_dirty`, so nothing
+//!  and the restore runs through the btrfs rung's own `restore_dirty`,
+//! so nothing
 //!  here re-implements a reset.
 //!
 //! In TS you'd write (pseudocode):
@@ -42,7 +48,8 @@ use std::path::Path;
 ///  and the publication takes that index's name away,
 ///  so a resume that finds the worktree's own index already standing was
 ///  past the restore and must not run it again:
-///  a restored tree needs no second restore, and a Git run pointed at the
+///  a restored tree needs no second restore,
+/// and a Git run pointed at the
 ///  gone private name would read an empty index
 ///  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 ///  "What a resume finds",
@@ -66,16 +73,21 @@ pub(super) fn the_restore_still_runs(
 ///  through the btrfs rung's own restore against the private index.
 /// Why:
 ///  The clone is a snapshot of a checkout that may hold uncommitted edits and
-///  whose `HEAD` may not be the commit this add checks out, so the tree must be
+///  whose `HEAD` may not be the commit this add checks out,
+/// so the tree must be
 ///  made equal to Git's own checkout of that commit before any name is published
 ///  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 ///  "The restore" step 6).
-///  The restore runs only once the private index stands, and it reads and writes
-///  that file rather than the worktree's own, so no run touches a name the
+///  The restore runs only once the private index stands,
+/// and it reads and writes
+///  that file rather than the worktree's own,
+/// so no run touches a name the
 ///  worktree does not hold yet.
 ///
 /// # Errors
-/// The restore refused: the clean, the reset or its own proof.
+/// The restore refused:
+/// the clean,
+/// the reset or its own proof.
 pub(super) fn restore_the_clone(input: &FillInput<'_>) -> Result<(), String> {
     let target: Target = Target {
         admin: input.admin_path.to_path_buf(),

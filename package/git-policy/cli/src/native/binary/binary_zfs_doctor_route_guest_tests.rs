@@ -1,5 +1,6 @@
 //! What:
-//!  Plan step 18's `doctor` checks for steps 2 to 9, run against a real
+//!  Plan step 18's `doctor` checks for steps 2 to 9,
+//! run against a real
 //!  file-backed pool in a throwaway guest:
 //!  the three groups pass on the design's layout,
 //!  and each broken fact answers the finding that names it.
@@ -334,8 +335,10 @@ fn install_layout() {
 /// so a rerun starts from nothing.
 ///
 /// A `zpool destroy` that refuses leaves the pool's image belonging to a live
-/// pool, and the next `zpool create` on that image then fails with "part of
-/// active pool": the refused destroy is what an earlier arm's killed run left,
+/// pool,
+/// and the next `zpool create` on that image then fails with "part of
+/// active pool":
+/// the refused destroy is what an earlier arm's killed run left,
 /// and this guest has no dataset worth keeping.
 fn clear_what_a_killed_arm_left() {
     // A killed arm leaves its staging bind mounted, and `remove_dir_all` cannot remove a folder a mount holds, so every
@@ -525,7 +528,8 @@ fn publish_the_records() {
     ]);
 }
 
-/// The cache, the staging folder and its private bind.
+/// The cache,
+/// the staging folder and its private bind.
 fn make_the_staging_folder() {
     let cache: String = format!("{FIXTURE}/cache");
     std::fs::create_dir_all(cache.as_str()).expect("the cache");
@@ -1768,16 +1772,20 @@ fn breaks_missing_slot() {
 
 /// What:
 ///  A checkout dataset that lists its snapshot directory is a finding naming
-///  `visible`, the command that sets `disabled`, and the module floor.
+///  `visible`,
+/// the command that sets `disabled`,
+/// and the module floor.
 /// Why:
 ///  Only `disabled` keeps the kernel from mounting a snapshot an account enters
 ///  by name,
-///  so a person must learn the value, the command and that an older module has
+///  so a person must learn the value,
+/// the command and that an older module has
 ///  no such value,
 ///  and the value is read through this route's own dataset-stats reply rather
 ///  than through `zfs get`
 ///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-///  "What hiding comes to, answered 2026-11-23").
+///  "What hiding comes to,
+/// answered 2026-11-23").
 fn breaks_snapdir_visible() {
     zfs(&["set", "snapdir=visible", checkout_dataset().as_str()]);
     let datasets: Vec<DatasetFacts> = dataset_facts();
@@ -1880,7 +1888,8 @@ fn snapdir_of(dataset: &str) -> git_policy_cli::doctor_zfs_route::SnapdirSetting
 ///  container and the clones inherit it,
 ///  so a child that did not follow its parent would leave every clone showing
 ///  its own snapshot directory;
-///  the child carries no origin, so the read is inheritance rather than a value
+///  the child carries no origin,
+/// so the read is inheritance rather than a value
 ///  a clone copied from its origin snapshot.
 fn snapdir_follows_the_container() {
     let probe: String = format!("{}/snapdir-probe", container_dataset());

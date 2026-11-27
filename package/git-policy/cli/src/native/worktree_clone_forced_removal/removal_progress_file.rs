@@ -84,14 +84,17 @@ pub struct ProgressRefusal {
     /// Which call refused,
     /// or which fact of the file did.
     pub calling: &'static str,
-    /// The errno the call answered, where it answered one.
+    /// The errno the call answered,
+    /// where it answered one.
     pub errno: Option<i32>,
-    /// What it said, in plain words.
+    /// What it said,
+    /// in plain words.
     pub said: String,
 }
 
 impl std::fmt::Display for ProgressRefusal {
-    /// One sentence naming the call, the errno and what it said.
+    /// One sentence naming the call,
+    /// the errno and what it said.
     fn fmt(
         &self,
         formatter: &mut std::fmt::Formatter<'_>,

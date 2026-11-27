@@ -364,7 +364,8 @@ pub(super) fn remove_if_any(path: &Path) -> Result<(), String> {
 }
 
 /// What:
-///  Remove the staging copy, its target directory and the marker a filling of this workspace left behind
+///  Remove the staging copy,
+/// its target directory and the marker a filling of this workspace left behind
 ///  when it was killed after it published,
 /// and nothing at all when this job's own marker is not there.
 /// Why:

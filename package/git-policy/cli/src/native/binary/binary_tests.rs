@@ -35,14 +35,17 @@ mod support_running_a_command_and_reading_the_answer;
 
 /// The owner a helper process is started with,
 /// which the child-test runner beside it asks for;
-/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+/// the same file the unit tests use,
+/// which this crate includes because the library's own modules are private to it.
 ///  This crate's fixtures start their helpers through the `spawn_owned` and `own_group` this file holds,
 ///  which `support` names on to every control.
 #[path = "../testing/test_process_owner.rs"]
 mod test_process_owner;
 
-/// The one place a test-binary child is started, waited for with a deadline and checked for its one passing test;
-/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+/// The one place a test-binary child is started,
+/// waited for with a deadline and checked for its one passing test;
+/// the same file the unit tests use,
+/// which this crate includes because the library's own modules are private to it.
 #[path = "../testing/child_test_process.rs"]
 mod child_test_process;
 
@@ -52,7 +55,8 @@ mod child_test_process;
 #[path = "../testing/umask_child_test_support.rs"]
 mod umask_child_test_support;
 
-/// The fixture lifecycle both test targets run on, written once and included here by `#[path]`
+/// The fixture lifecycle both test targets run on,
+/// written once and included here by `#[path]`
 /// as the unit tests include it.
 #[path = "../testing/fixture_support_shared_by_both_test_targets.rs"]
 mod fixture_support_shared_by_both_test_targets;
@@ -81,7 +85,8 @@ mod the_destruction_plans_writer {
 #[path = "../testing/the_destruction_plan_a_control_plants.rs"]
 mod the_destruction_plan_a_control_plants;
 
-/// The processes still in a helper's process group, and the leaders' own read of this process's ancestry.
+/// The processes still in a helper's process group,
+/// and the leaders' own read of this process's ancestry.
 #[path = "binary_support_process_group_members.rs"]
 mod support_process_group_members;
 
@@ -91,7 +96,9 @@ mod support_process_group_members;
 #[path = "binary_support_a_full_standard_error.rs"]
 mod support_a_full_standard_error;
 
-/// The executable, words and runtime directory a fixture's service starts with, and the manager's restart.
+/// The executable,
+/// words and runtime directory a fixture's service starts with,
+/// and the manager's restart.
 #[path = "binary_support_fixture_service_start.rs"]
 mod support_fixture_service_start;
 
@@ -166,7 +173,8 @@ mod support_observation_waiting_for_the_after_commit_work;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
-/// The installed ZED history event's name in this control's own folder, and the words the other
+/// The installed ZED history event's name in this control's own folder,
+/// and the words the other
 /// root modes are reached through.
 #[path = "binary_support_installed_name.rs"]
 mod support_installed_name;
@@ -196,7 +204,8 @@ mod support_btrfs_controls;
 mod support_zfs_controls;
 
 /// The one place a control says that it needs a fixture root on which a file can be reflinked,
-/// which a btrfs host, a ZFS host and an XFS host with reflink answer.
+/// which a btrfs host,
+/// a ZFS host and an XFS host with reflink answer.
 #[path = "binary_support_reflink_controls.rs"]
 mod support_reflink_controls;
 
@@ -506,7 +515,8 @@ mod merge_carries_edits_moved;
 #[path = "binary_merge_lock_after_the_clear_tests.rs"]
 mod merge_lock_after_the_clear;
 
-/// The branch moving between a merge's preparation and its landing, while another command holds the index:
+/// The branch moving between a merge's preparation and its landing,
+/// while another command holds the index:
 /// the merge refuses instead of saving itself,
 /// and the next run lands it on the branch as it is now.
 #[path = "binary_merge_the_branch_moved_before_its_save_tests.rs"]
@@ -1265,8 +1275,12 @@ mod zfs_add_guest;
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
-/// Plan step 22's guest measurements: the add against ordinary Git, the
-/// waits, the sweep's cost, retention and the request budget.
+/// Plan step 22's guest measurements:
+/// the add against ordinary Git,
+/// the
+/// waits,
+/// the sweep's cost,
+/// retention and the request budget.
 #[path = "binary_zfs_step_22_measurement_guest_tests.rs"]
 mod zfs_step_22_measurement;
 
@@ -1280,7 +1294,10 @@ mod root_mode_name;
 mod zfs_unmount_guest;
 
 /// Plan step 13's managed Git lock in the throwaway guest:
-/// Git's own lock, the clone mounted over the slot, the pointer's loss, and the three prune commands.
+/// Git's own lock,
+/// the clone mounted over the slot,
+/// the pointer's loss,
+/// and the three prune commands.
 #[path = "binary_zfs_managed_lock_guest_tests.rs"]
 mod zfs_managed_lock_guest;
 
@@ -1307,7 +1324,9 @@ mod zfs_holder_scan_guest;
 #[path = "binary_zfs_doctor_route_guest_tests.rs"]
 mod zfs_doctor_route_guest;
 
-/// Plan step 20's Sanoid coverage, exclusions, prune and guard scope in the throwaway guest:
+/// Plan step 20's Sanoid coverage,
+/// exclusions,
+/// prune and guard scope in the throwaway guest:
 /// Sanoid 2.3.0 with the Ubuntu package's 2.2.0 beside it.
 #[path = "binary_zfs_sanoid_coverage_guest_tests.rs"]
 mod zfs_sanoid_coverage_guest;
@@ -1316,8 +1335,11 @@ mod zfs_sanoid_coverage_guest;
 #[path = "binary_zfs_slot_state_guest_fixture.rs"]
 mod zfs_slot_state_guest_fixture;
 
-/// Plan step 12's arms: one real clone's mounted and unmounted class, a pending add and
-/// removal, and the refusal beside Git's own answer.
+/// Plan step 12's arms:
+/// one real clone's mounted and unmounted class,
+/// a pending add and
+/// removal,
+/// and the refusal beside Git's own answer.
 #[path = "binary_zfs_slot_state_guest_tests.rs"]
 mod zfs_slot_state_guest;
 

@@ -22,7 +22,8 @@
 //!  root published it before the receipt,
 //!  and a missing file is a missing answer and never a clear one.
 //!  A receipt whose nonce matches and whose scan file is missing is therefore a
-//!  refusal of the removal at that step, which is what V2 adopts.
+//!  refusal of the removal at that step,
+//! which is what V2 adopts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -81,7 +82,8 @@ pub enum ScanFileRefusal {
     },
     /// The dataset's scan file is not there.
     /// Why:
-    ///  A missing file is a missing answer, so the removal refuses at the step that needed it
+    ///  A missing file is a missing answer,
+    /// so the removal refuses at the step that needed it
     ///  rather than reading the receipt as a clear scan.
     Absent {
         /// The file's path.
@@ -364,7 +366,8 @@ impl ScanFile {
 ///  following no link.
 /// Why:
 ///  Opening by a path resolved again after the proof reads whatever is at that path now,
-///  and this boundary is the receipt's own: the descriptor is the authority.
+///  and this boundary is the receipt's own:
+/// the descriptor is the authority.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

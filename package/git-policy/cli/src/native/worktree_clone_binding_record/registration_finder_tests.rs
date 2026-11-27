@@ -10,7 +10,8 @@ use crate::worktree_clone_binding_record::registration_finder::{
     owned_by_another_slot,
 };
 
-/// Git's sanitiser collapses `..`, replaces a leading dot and a forbidden byte,
+/// Git's sanitiser collapses `..`,
+/// replaces a leading dot and a forbidden byte,
 /// turns `@{`'s brace into `-`,
 /// strips a trailing `.lock` repeatedly and keeps a trailing dot.
 #[test]

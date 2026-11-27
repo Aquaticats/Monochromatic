@@ -115,7 +115,8 @@ pub mod conflict_side_source;
 /// The operation in progress and the conflicted paths.
 pub mod conflict_side_state;
 
-/// The pathspec modes and their spellings, which decide whether a token names one file.
+/// The pathspec modes and their spellings,
+/// which decide whether a token names one file.
 pub mod conflict_side_modes;
 
 /// The saved copy of each file a command replaces.

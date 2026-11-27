@@ -1566,7 +1566,8 @@ fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
 ///  and a stop that named the shorter ceiling would say the wrapper ended a step at a bound it had
 ///  already passed.
 ///  The refusal is the system's answer at a process's thread limit,
-///  and a control plants it, as the ceiling's own controls do.
+///  and a control plants it,
+/// as the ceiling's own controls do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1630,7 +1631,8 @@ fn a_scratch_commit_whose_notice_thread_was_refused_still_says_the_step_was_wait
 }
 
 /// How many looks a control refuses before the ceiling of the wait that owns the step comes:
-/// more than the notice's thread makes that early, so the look that decides the ceiling cannot succeed.
+/// more than the notice's thread makes that early,
+/// so the look that decides the ceiling cannot succeed.
 const A_FEW_LOOKS_THAT_CANNOT_BE_MADE: usize = 6;
 
 /// A ceiling long enough that the notice's own planted ceiling comes well first,
@@ -1645,17 +1647,20 @@ const A_CEILING_THE_NOTICE_DECIDES_FIRST: std::time::Duration = std::time::Durat
 const A_LONGER_STALL_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// What:
-///  A commit whose scratch step the kernel holds, and whose look at its ceiling could not be made,
+///  A commit whose scratch step the kernel holds,
+/// and whose look at its ceiling could not be made,
 ///  lands when the step ends.
 /// Why:
 ///   Finding 1 of the 2026-11-12 review of the stand-aside:
 ///  a look that failed was read as "not held",
 ///  so the wait killed a step the kernel held at the usual ceiling,
 ///  and a commit that would have landed failed.
-///  A look that failed decides nothing, and the look is made again.
+///  A look that failed decides nothing,
+/// and the look is made again.
 ///  What a control states is the kernel's answer about the signer,
 ///  which is the whole of what a stalled disk gives the step,
-///  and the commit, the signer and the shadow repository are real.
+///  and the commit,
+/// the signer and the shadow repository are real.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1721,15 +1726,20 @@ fn a_scratch_commit_whose_ceiling_look_failed_lands_when_the_step_ends() {
 }
 
 /// What:
-///  A commit whose notice stood aside for a step the kernel held, and whose wait then did not find the kernel holding it,
-///  lands, and no stop claims a wait that did not happen.
+///  A commit whose notice stood aside for a step the kernel held,
+/// and whose wait then did not find the kernel holding it,
+///  lands,
+/// and no stop claims a wait that did not happen.
 /// Why:
 ///   Finding 2 of the 2026-11-12 review of the stand-aside:
-///  the two enforcers decided separately, so one could stand aside while the other ended the step at the usual ceiling,
+///  the two enforcers decided separately,
+/// so one could stand aside while the other ended the step at the usual ceiling,
 ///  and the words then named the longer bound and said the step was waited for to it.
 ///  The stand-aside is one decision both enforcers read,
-///  so the wait may not undo it, and the step lands when its signer ends.
-///  The kernel's hold is stated and then taken away, which is a step that leaves that state and comes back to its work,
+///  so the wait may not undo it,
+/// and the step lands when its signer ends.
+///  The kernel's hold is stated and then taken away,
+/// which is a step that leaves that state and comes back to its work,
 ///  and no run on this host can make a real process do either.
 ///
 /// In TS you'd write (pseudocode):

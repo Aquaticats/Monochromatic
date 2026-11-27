@@ -1,6 +1,7 @@
 //! What:
 //!  The one place where a binary-level control states that it needs a fixture root on which a file can be
-//!  reflinked (`FICLONE`), and what it does where there is none.
+//!  reflinked (`FICLONE`),
+//! and what it does where there is none.
 //! Why:
 //!  A control that asserts the clone rung served its add needs a root on which `FICLONE` works:
 //! the gate image's fixture root is a tmpfs the container makes (`bin/native-gate-fixture-root.ts`),

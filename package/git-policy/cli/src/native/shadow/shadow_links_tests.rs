@@ -758,9 +758,11 @@ fn a_store_that_is_not_a_directory_is_linked_as_it_is() {
 /// Why:
 ///  The store is listed whether the repository holds it or not,
 /// so the entry the creation links can name something other than the directory the listing read:
-/// a `git-lfs` that starts, a sweep of a scratch volume,
+/// a `git-lfs` that starts,
+/// a sweep of a scratch volume,
 ///  or a person's own command can change the name in that window.
-///  A commit that fails there fails where real Git's commit, which never reads this name,
+///  A commit that fails there fails where real Git's commit,
+/// which never reads this name,
 ///  lands.
 #[cfg(unix)]
 #[test]
@@ -816,7 +818,8 @@ fn a_store_another_command_takes_while_the_creation_links_is_not_a_failure() {
 /// and a filter that needs the store reports what it cannot write itself,
 ///  which is where real Git's commit fails too.
 ///  The gate's containers run this suite as root,
-/// where no mode refuses this account, so the control names that and returns.
+/// where no mode refuses this account,
+/// so the control names that and returns.
 #[cfg(unix)]
 #[test]
 fn a_store_the_account_cannot_make_does_not_fail_the_creation() {

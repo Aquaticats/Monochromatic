@@ -15,11 +15,13 @@
 //!  session (`process::process_tree::member_read`),
 //!  so this folder reads the four fields it needs itself and the report names
 //!  the one read a later step should expose
-//!  (`process_session_record` is this folder's own, per a build-ahead round's
+//!  (`process_session_record` is this folder's own,
+//! per a build-ahead round's
 //!  rules).
 //!  A record that could not be read is kept apart from one that has gone,
 //!  because a blind read refuses a forced removal and a task that has gone does
-//!  not: "a task that has gone (`ENOENT`,
+//!  not:
+//! "a task that has gone (`ENOENT`,
 //!  `ESRCH`) is gone,
 //!  not blind;
 //!  a blind spot refuses".
@@ -177,7 +179,11 @@ pub struct ProcessRecord {
     pub pid: i32,
     /// The kernel's name for it.
     pub command: CommandWord,
-    /// Its state letter (`R`, `S`, `D`, `Z`, ...).
+    /// Its state letter (`R`,
+    /// `S`,
+    /// `D`,
+    /// `Z`,
+    /// ...).
     pub state: char,
     /// The parent the kernel records for it.
     pub parent: i32,

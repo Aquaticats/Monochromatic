@@ -1,7 +1,10 @@
 //! What:
-//!  The lock of the registration the scan has just adopted: take the whole one,
-//!  complete the cut-short one in place, write a lost one again and answer the
-//!  one line, and refuse the words this add did not write.
+//!  The lock of the registration the scan has just adopted:
+//! take the whole one,
+//!  complete the cut-short one in place,
+//! write a lost one again and answer the
+//!  one line,
+//! and refuse the words this add did not write.
 //! Why:
 //!  The project decided on 2026-11-22 that any wrapped command which holds the
 //!  slot's claim and has proved the registration writes a lost lock again and says
@@ -10,10 +13,12 @@
 //!  reading here
 //!  (`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`;
 //!  `doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-//!  "The states, the checks and the words").
+//!  "The states,
+//! the checks and the words").
 //!  `add_registration.rs` adopts through this and would go over the file-size
 //!  limit carrying it,
-//!  and the lock's words are the classification's own, so a reader meets them
+//!  and the lock's words are the classification's own,
+//! so a reader meets them
 //!  here rather than in the scan's decision.
 //!
 //! In TS you'd write (pseudocode):
@@ -51,7 +56,8 @@ use std::path::Path;
 ///  reading here
 ///  (`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`;
 ///  `doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-///  "The states, the checks and the words").
+///  "The states,
+/// the checks and the words").
 ///  A lock the classification calls a person's is never overwritten,
 ///  and the sentence a person reads is the classification's own.
 pub(super) fn settle_the_lock(

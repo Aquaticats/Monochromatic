@@ -3809,3 +3809,202 @@ the coordinating session's:
 move the whole bug > leave it > move this cause alone,
 because the first keeps the rule and the record whole,
 and the last trades one for the other.
+
+## Veto open: whether a command the linter prints may spell a name it must hold raw (recorded 2026-11-27T18:17:40-05:00)
+
+The Claude Sonnet read of the linter's `0.5.2-alpha.22` found that the loop message,
+the missing-link message and the command that message gives
+(`mkdir --parents <folder>/uses && ln --symbolic ...`)
+print a folder's name raw when it holds a character that prints as nothing,
+a right-to-left override among them.
+The list reader's own messages spell such a character since alpha.22.
+No round builds any of this yet;
+the read's other findings went to a round.
+
+- Sentences spell the name,
+  and a command keeps it raw and says in words that it holds such a character (the coordinating session's pick):
+  the command works when copied.
+  The cost:
+  the raw character still reaches the terminal inside the command's text.
+- Spell the name everywhere,
+  commands too:
+  nothing raw reaches a terminal.
+  The cost:
+  the copied command names a folder that is not there,
+  so the message has to say how to type the real name.
+- Leave the messages as they are:
+  no work.
+  The cost:
+  the module's own comment says every message spells such a character,
+  which is then not so.
+
+Ranking,
+the coordinating session's:
+sentences spell and commands stay raw > spell everywhere > leave them,
+because the first keeps the command usable and the second gives a command that fails,
+and because the second still tells a person what the name holds where the third prints it unseen.
+
+The Braille blank,
+U+2800,
+prints as an empty cell and is printed raw by both releases:
+Unicode does not count it among the characters that print as nothing.
+The pick is to leave it;
+the other way is to add it to the set by hand,
+which ties the set to a list of the linter's own beside Unicode's.
+
+## Veto open: what four rounds of 2026-11-27 chose or left (recorded 2026-11-27T18:42:35-05:00)
+
+The coordinating session read each round's report whole and wrote this entry.
+None holds a release.
+
+### The wrapper: a slot command behind a shell alias that could not be placed is refused
+
+When Git cannot be asked where a `!` alias's shell runs,
+a removal,
+a move or a prune of a worktree behind that alias was forwarded with no refusal.
+The round on the alias reading (merged as `461d441ef7`) refuses it,
+with words saying what could not be read.
+
+- Refuse it (taken):
+  a bound slot keeps its protection.
+  The cost:
+  such a command is refused whenever one start of Git fails,
+  also in a repository with no record at all,
+  and the person types it again without the alias.
+- Forward it and print a line:
+  nothing is refused that Git would have run.
+  The cost:
+  a removal of a bound slot deletes the registration and the pointer under the clone.
+
+Ranking,
+the round's and the coordinating session's:
+refuse > forward,
+because the owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe.
+
+### The wrapper: the guard in that same failure state
+
+When that ask fails,
+the guard judges the caller's own worktree.
+For an alias whose own words name no other place that is the right worktree.
+For one whose words carry `-C`,
+`--git-dir` or `--work-tree` it is the wrong one.
+
+- Leave it (taken):
+  the guard refuses only what it can prove.
+  The cost:
+  in that failure state a guarded command aimed at another worktree is judged for the caller's.
+- Refuse a guarded command behind such an alias when the ask fails:
+  the hole closes.
+  The cost:
+  a false refusal of every such command whenever one start of Git fails,
+  and no record says the guard may refuse what it cannot place.
+
+Ranking,
+the coordinating session's:
+refuse > leave it,
+because a command judged for the wrong worktree is the failure this release set out to end,
+and a refusal can be typed again.
+The round built neither way of its own accord and left it as it was.
+
+### The wrapper: one more line in the folder rule's allow list, and two more files over the line budget
+
+The plan says the allow list may only shrink
+and that a split inside the `invocation/` folder waits for the crate's move.
+That round made one new file there to keep a file under the budget,
+with one `group-file` line for it,
+and left two other files over the budget,
+at 313 and 305 code lines.
+
+- As the round did (taken):
+  one file stays under the budget at the cost of one line the move deletes.
+- Take the line out and leave that file over the budget too,
+  with the folder's other nine:
+  the list does not grow.
+  The cost:
+  one more file over the budget until the move.
+
+Ranking,
+the coordinating session's:
+take the line out > as the round did,
+because the plan's rule is that the list only shrinks and the round broke it for one file while keeping it for two.
+Nothing is built either way until the owner says.
+
+### The scanner of forbidden strings: what a link given by name means
+
+The workflow no longer hands the scanner a link whose target is a folder
+(issue 6632,
+merged as `fc1c84b58e`),
+and a round now makes it hand over each such link's own name and target text through an option the released scanner has
+(issue 6633).
+Inside the scanner a link given by name is still followed:
+a link to a file is read through,
+and a link to a folder is a read error.
+Each way below needs a release of the scanner,
+which is not an alpha and is asked first.
+
+- Leave it (taken):
+  no release.
+  The cost:
+  any other caller that lists a folder link gets one read error for it.
+- Leave links out of named arguments as the walk does:
+  no read error.
+  The cost:
+  a link to a file is no longer read through.
+- Scan a link's own name and target text and never follow it:
+  the most is inspected.
+  The cost:
+  a new output shape in a security gate,
+  and a link to a file is no longer read through.
+
+Ranking,
+the coordinating session's:
+scan name and target text > leave it > leave links out,
+because the first inspects what Git stores and follows nothing outside the repository,
+and the last inspects least.
+
+### The linter: when its read, fix and release loop ends
+
+Twelve alphas of the linter were released on 2026-11-26 and 2026-11-27,
+by the count of its release commits,
+each read by a second pass,
+each read answered by a fix round and the next alpha.
+The read of `0.5.2-alpha.22` found no High and no Medium finding,
+and nine Low ones on folder names that hold tabs,
+arrows or characters that print as nothing.
+A fix round for seven of them runs.
+
+- Stop reading each alpha once a read finds no High and no Medium
+  (the coordinating session's pick for what follows `0.5.2-alpha.23`):
+  the alpha is still released and locked,
+  and the next read waits for a change that is more than an answer to a read.
+- Go on as now:
+  every alpha is read.
+  The cost:
+  each read finds a handful of Low points on names no repository here holds,
+  and each fix adds reading logic the next read probes.
+
+Ranking,
+the coordinating session's:
+stop at a read with no High and no Medium > go on,
+because the findings no longer change what a person using the linter here meets.
+Until the owner says,
+`0.5.2-alpha.23` is read as the others were.
+
+### `cargo-shadow`: how much room its module list has
+
+`src/lib.rs` holds 201 code lines against the budget of 300,
+after 52 test files were declared by the modules they test (merged as `60ecd08eef`).
+Thirty test files that belong to no one module stay declared there.
+
+- Leave them (taken):
+  99 lines of room.
+- Group those thirty under one parent module:
+  about 149 code lines.
+  The cost:
+  26 more test paths change,
+  for a grouping the suites do not have.
+
+Ranking,
+the round's:
+leave them > group them,
+because the room is enough for 99 more modules.

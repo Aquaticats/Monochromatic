@@ -1,5 +1,6 @@
 //! What:
-//!  The paths a command line names, read by their literal spelling,
+//!  The paths a command line names,
+//! read by their literal spelling,
 //! and which of them the index marks as unmerged.
 //! Why:
 //!  The refusal must never claim a file the command would not replace,

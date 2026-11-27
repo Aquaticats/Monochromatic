@@ -49,6 +49,11 @@ pub mod entry_forward_action_planning;
 #[cfg(target_os = "linux")]
 pub mod entry_zfs_slot_commands;
 
+/// The refusal of a slot command the wrapper read and could not place,
+///  in a file of its own so the slot glue stays under the linter's line limit.
+#[cfg(target_os = "linux")]
+pub mod entry_zfs_slot_commands_the_unread_place;
+
 /// The stop of an invocation that names the repository through a link to the 860 drive that does not resolve.
 pub mod entry_repository_link_stop;
 

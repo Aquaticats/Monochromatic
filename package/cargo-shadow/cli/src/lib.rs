@@ -10,6 +10,16 @@
 //! and the items it holds are re-exported (`pub use`) by the module they lived in before,
 //! so the file layout stays out of the library's visible surface,
 //! which then holds the paths a later split does not widen.
+//! A unit test's sidecar is declared by the module it tests
+//! (`#[cfg(test)] #[path = "<name>_tests.rs"] mod <name>_tests;`) rather than here,
+//! so this list holds subjects and not controls:
+//! a round that adds a module with its tests adds one line to it.
+//! Three kinds of test module still stand below:
+//! a round's own suite,
+//! the fixtures several test files share,
+//! and the identity's tests,
+//! whose subject is one of the four byte-identical copies
+//! that the other shadow crates carry and `tests/shadow_identity_copies.rs` compares.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -395,6 +405,9 @@ pub mod verb;
 
 /// The unit tests of the identity,
 /// the launcher-record follow and the arrival marker.
+/// These are declared here although one module owns them:
+/// `src/shadow_identity.rs` is one of four byte-identical copies (`tests/shadow_identity_copies.rs`),
+/// so a line declaring them there would differ between the four shadow crates.
 #[cfg(test)]
 mod shadow_identity_tests;
 
@@ -402,97 +415,6 @@ mod shadow_identity_tests;
 /// placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
-
-/// What:
-/// `#[cfg(test)] mod catalog_warning_tests;` declares the tests in `src/catalog_warning_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the catalog warning:"
-/// so the behavior of `catalog_warning` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // catalog_warning_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod catalog_warning_tests;
-
-/// What:
-/// `#[cfg(test)] mod checks_tests;` declares the tests in `src/checks_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the release-age and trust checks over newly locked versions."
-/// so the behavior of `checks` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // checks_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod checks_tests;
-
-/// What:
-/// `#[cfg(test)] mod cli_tests;` declares the tests in `src/cli_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the command grammar:"
-/// so the behavior of `cli` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // cli_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod cli_tests;
-
-/// What:
-/// `#[cfg(test)] mod dump_tests;` declares the tests in `src/dump_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the CSV reader and the dump fill,"
-/// so the behavior of `dump` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // dump_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod dump_tests;
-
-/// What:
-/// `#[cfg(test)] mod git_base_tests;` declares the tests in `src/git_base_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the choice of the trust base,
-/// against real throwaway git repositories."
-/// so the behavior of `git_base` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // git_base_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod git_base_tests;
-
-/// What:
-/// `#[cfg(test)] mod git_config_tests;` declares the tests in `src/git_config_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the Git configuration reader."
-/// so the behavior of `git_config` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // git_config_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod git_config_tests;
 
 /// The differential tests of the plain-file base reader,
 /// with Git as the oracle.
@@ -506,14 +428,6 @@ mod journal_protocol_tests;
 /// The round 6 tests of the command line named in errors.
 #[cfg(test)]
 mod rerun_tests;
-
-/// The tests of the SHA-1 used for object names.
-#[cfg(test)]
-mod git_sha1_tests;
-
-/// The round 6 tests of the recovery of unready journals and of the ready record.
-#[cfg(test)]
-mod journal_recover_tests;
 
 /// Round 8 tests of acceptance rows that no other test file of the round holds.
 #[cfg(test)]
@@ -535,13 +449,6 @@ mod contain_counterexample_tests;
 /// Rounds 7 and 8 tests of what a journal records about containment and what a recovery and an admission do with it.
 #[cfg(test)]
 mod containment_record_tests;
-/// The control of what a run's last look at its scope answers when the scope's directory was never made,
-/// which is the state a launcher that exits before the manager makes the group leaves.
-#[cfg(test)]
-mod control_group_retire_scope_not_made_yet_tests;
-/// Round 7 tests of the three phases of finishing a transaction and how an update joins them with its own outcome.
-#[cfg(test)]
-mod finish_phase_tests;
 /// Round 8 tests of the failures on the containment path after a program started,
 /// and of the bounds on the waits.
 #[cfg(test)]
@@ -604,416 +511,9 @@ mod git_fallback_tests;
 #[cfg(test)]
 mod wait_bound_tests;
 
-/// The tests of the runner that starts the real cargo for the install and update steps.
-#[cfg(test)]
-mod cargo_run_tests;
-
-/// The tests of the bounded child runs.
-#[cfg(test)]
-mod bounded_run_tests;
-
-/// The guard that a production build never computes a trace event.
-#[cfg(test)]
-mod bounded_run_trace_guard_tests;
-
 /// Test-only switches that make one named step fail once.
 #[cfg(test)]
 pub mod failpoints;
-
-/// What:
-/// `#[cfg(test)] mod git_refs_tests;` declares the tests in `src/git_refs_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the plain-file reader of references and branch configuration,
-/// over hand-made repository directories."
-/// so the behavior of `git_refs` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // git_refs_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod git_refs_tests;
-
-/// What:
-/// `#[cfg(test)] mod file_owner_tests;` declares the tests in `src/file_owner_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the ownership evidence for a file a child may have written."
-/// so the behavior of `file_owner` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // file_owner_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod file_owner_tests;
-
-/// What:
-/// `#[cfg(test)] mod guard_tests;` declares the tests in `src/guard_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the loop guard:"
-/// so the behavior of `guard` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // guard_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod guard_tests;
-
-/// What:
-/// `#[cfg(test)] mod manifest_edit_tests;` declares the tests in `src/manifest_edit_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the manifest transaction around cargo's breaking update."
-/// so the behavior of `manifest_edit` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // manifest_edit_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod manifest_edit_tests;
-
-/// What:
-/// `#[cfg(test)] mod notice_marker_tests;` declares the tests in `src/notice_marker_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the notice marker:"
-/// so the behavior of `notice_marker` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // notice_marker_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod notice_marker_tests;
-
-/// What:
-/// `#[cfg(test)] mod real_binary_tests;` declares the tests in `src/real_binary_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the PATH lookup:"
-/// so the behavior of `real_binary` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // real_binary_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod real_binary_tests;
-
-/// What:
-/// `#[cfg(test)] mod shadow_notice_tests;` declares the tests in `src/shadow_notice_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the notice:"
-/// so the behavior of `shadow_notice` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // shadow_notice_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod shadow_notice_tests;
-
-/// What:
-/// `#[cfg(test)] mod shadow_update_tests;` declares the tests in `src/shadow_update_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the stand-in lockfile that a full update of a root without a lockfile uses."
-/// so the behavior of `shadow_update` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // shadow_update_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod shadow_update_tests;
-
-/// What:
-/// `#[cfg(test)] mod shadow_step_tests;` declares the tests in `src/shadow_step_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the fallback after a failed install step:"
-/// so the behavior of `shadow_step` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // shadow_step_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod shadow_step_tests;
-
-/// What:
-/// `#[cfg(test)] mod install_step_tests;` declares the tests in `src/install_step_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the shadow's install step:"
-/// so the behavior of `install_step` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // install_step_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod install_step_tests;
-
-/// What:
-/// `#[cfg(test)] mod install_policy_tests;` declares the tests in `src/install_policy_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the policy checks of a local (not frozen) install:"
-/// so the behavior of `install` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // install_policy_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod install_policy_tests;
-
-/// What:
-/// `#[cfg(test)] mod install_tests;` declares the tests in `src/install_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the install step,"
-/// so the behavior of `install` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // install_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod install_tests;
-
-/// What:
-/// `#[cfg(test)] mod journal_tests;` declares the tests in `src/journal_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of compare-before-replace and of recovery from a killed run."
-/// so the behavior of `journal` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // journal_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod journal_tests;
-
-/// What:
-/// `#[cfg(test)] mod lockfile_tests;` declares the tests in `src/lockfile_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the lockfile reading,"
-/// so the behavior of `lockfile` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // lockfile_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod lockfile_tests;
-
-/// What:
-/// `#[cfg(test)] mod options_tests;` declares the tests in `src/options_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the option reading:"
-/// so the behavior of `options` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // options_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod options_tests;
-
-/// What:
-/// `#[cfg(test)] mod policy_tests;` declares the tests in `src/policy_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the release-age and trust decisions,"
-/// so the behavior of `policy` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // policy_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod policy_tests;
-
-/// What:
-/// `#[cfg(test)] mod selectors_tests;` declares the tests in `src/selectors_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the selector syntax,"
-/// so the behavior of `selectors` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // selectors_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod selectors_tests;
-
-/// What:
-/// `#[cfg(test)] mod tighten_tests;` declares the tests in `src/tighten_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the catalog floor raise that `cargo update --breaking` performs,"
-/// so the behavior of `tighten` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // tighten_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod tighten_tests;
-
-/// What:
-/// `#[cfg(test)] mod time_text_tests;` declares the tests in `src/time_text_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the timestamp reading and writing."
-/// so the behavior of `time_text` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // time_text_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod time_text_tests;
-
-/// What:
-/// `#[cfg(test)] mod toolchain_tests;` declares the tests in `src/toolchain_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the toolchain choice,"
-/// so the behavior of `toolchain` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // toolchain_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod toolchain_tests;
-
-/// What:
-/// `#[cfg(test)] mod update_tests;` declares the tests in `src/update_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the catalog update,"
-/// so the behavior of `update` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // update_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod update_tests;
-
-/// What:
-/// `#[cfg(test)] mod update_plan_tests;` declares the tests in `src/update_plan_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the `cargo update` to `pnpm update` mapping."
-/// so the behavior of `update_plan` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // update_plan_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod update_plan_tests;
-
-/// What:
-/// `#[cfg(test)] mod verb_tests;` declares the tests in `src/verb_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the command-word rules:"
-/// so the behavior of `verb` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // verb_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod verb_tests;
-
-/// What:
-/// `#[cfg(test)] mod verify_tests;` declares the tests in `src/verify_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the check of every locked entry:"
-/// so the behavior of `verify` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // verify_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod verify_tests;
-
-/// What:
-/// `#[cfg(test)] mod version_order_tests;` declares the tests in `src/version_order_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the version ordering,"
-/// so the behavior of `version_order` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // version_order_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod version_order_tests;
-
-/// What:
-/// `#[cfg(test)] mod workspace_tests;` declares the tests in `src/workspace_tests.rs`;
-/// the attribute compiles it only for test builds (a TS test file that production code never imports).
-/// Why:
-/// Its header says:
-/// "The unit tests of the repository and workspace lookup."
-/// so the behavior of `workspace` is pinned where a change shows up as a red test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // workspace_tests.test.ts, run by the test runner only
-/// ```
-#[cfg(test)]
-mod workspace_tests;
-
-/// The tests of the limits a run's scope keeps from its caller.
-#[cfg(test)]
-mod inherited_limits_tests;
 
 /// The device and inode of an entry,
 /// the clock and the deadline of the lean-folder tools.
@@ -1024,10 +524,6 @@ pub mod lean_lock_probe;
 
 /// The scan of `/proc` for processes using a path.
 pub mod lean_proc_scan;
-
-/// The tests of the process scan and of what it cannot read.
-#[cfg(test)]
-mod lean_proc_scan_tests;
 
 /// The one way the lean-folder tools remove an entry.
 pub mod lean_removal;
@@ -1055,17 +551,9 @@ mod lean_test_support;
 #[cfg(test)]
 mod lean_sweep_tests;
 
-/// The tests of the removal primitive.
-#[cfg(test)]
-mod lean_removal_tests;
-
 /// Mechanism A:
 /// the toolchain-keyed build folder of a host cargo run.
 pub mod lean_keyed_folder;
-
-/// The tests of the toolchain-keyed build folder.
-#[cfg(test)]
-mod lean_keyed_folder_tests;
 
 /// The trees of a host build base.
 pub mod lean_build_trees;
@@ -1074,25 +562,13 @@ pub mod lean_build_trees;
 /// the collection of verified-idle trees.
 pub mod lean_idle_trees;
 
-/// The tests of the idle-tree collection.
-#[cfg(test)]
-mod lean_idle_trees_tests;
-
 /// Mechanism E:
 /// the size cap of a profile directory.
 pub mod lean_size_caps;
 
-/// The tests of the size cap.
-#[cfg(test)]
-mod lean_size_caps_tests;
-
 /// Mechanism D:
 /// the retention of verification run records.
 pub mod lean_run_records;
-
-/// The tests of the run-record retention.
-#[cfg(test)]
-mod lean_run_records_tests;
 
 /// The tests of the wiring of the run-record retention to the tasks that write records.
 #[cfg(test)]
@@ -1102,16 +578,8 @@ mod lean_records_wiring_tests;
 /// found from the Git directory's files.
 pub mod lean_checkouts;
 
-/// The tests of the checkout listing.
-#[cfg(test)]
-mod lean_checkouts_tests;
-
 /// The removal of dated nightly toolchains no checkout pins.
 pub mod lean_rustup_toolchains;
-
-/// The tests of the toolchain retirement.
-#[cfg(test)]
-mod lean_rustup_toolchains_tests;
 
 /// The words of the repository's sources that can name an image or a volume.
 pub mod lean_container_references;
@@ -1121,10 +589,6 @@ pub mod lean_podman_cleanup;
 
 /// Real Podman behind the cleanup's interface.
 pub mod lean_podman_real;
-
-/// The tests of the Podman cleanup.
-#[cfg(test)]
-mod lean_podman_cleanup_tests;
 
 /// The numbers of the lean-folder tools and what each rests on.
 pub mod lean_policy;
@@ -1151,21 +615,9 @@ pub mod lean_run;
 /// The idle-trees mechanism of a run and what its pass reports.
 pub mod lean_run_trees;
 
-/// The tests of the record of where a pass stopped.
-#[cfg(test)]
-mod lean_progress_tests;
-
-/// The tests of the order a run takes its mechanisms in.
-#[cfg(test)]
-mod lean_run_tests;
-
 /// Mechanism F:
 /// the continuous systemd user service and its installer.
 pub mod lean_service_units;
-
-/// The tests of the service units.
-#[cfg(test)]
-mod lean_service_units_tests;
 
 /// The command-line glue of `cargo-shadow lean`.
 pub mod lean_command;

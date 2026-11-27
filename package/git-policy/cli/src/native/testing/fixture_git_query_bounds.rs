@@ -22,7 +22,8 @@
 /// How long one real-Git query of a control may run before this helper ends it.
 /// Why sixty:
 ///  The same bound the binary-level controls give one fixture Git run
-/// (`NATIVE_GIT_BOUND_SECONDS`), and for the same measurement:
+/// (`NATIVE_GIT_BOUND_SECONDS`),
+/// and for the same measurement:
 /// the longest disk stall one `fsync` of a trivial command showed on this host is 4.74 s
 /// (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`),
 /// so sixty is more than ten times it.
@@ -60,15 +61,21 @@ pub(crate) const REPORTING_THE_END: std::time::Duration = std::time::Duration::f
 
 /// How often the wait looks whether the query ended.
 /// Why one millisecond:
-///  this helper owns the wait, so no second thread may collect the query while the bound's signal is on its way;
-/// the standard library has no timed wait, so the wait looks,
+///  this helper owns the wait,
+/// so no second thread may collect the query while the bound's signal is on its way;
+/// the standard library has no timed wait,
+/// so the wait looks,
 /// and a query that ends in a millisecond costs about a millisecond.
-///  The typed-value sweep, which makes thousands of these calls, measured 143 s with a ten-millisecond look and 25 s
+///  The typed-value sweep,
+/// which makes thousands of these calls,
+/// measured 143 s with a ten-millisecond look and 25 s
 /// with a wait in another thread that this replaces.
 pub(super) const LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(1);
 
 /// How long a query this helper has killed may take to be reaped.
 /// Why five seconds:
-///  a `SIGKILL`ed child is reaped at once, so this window only covers the kernel and the scheduler;
-/// a query that still has not been reaped in it is a defect of this helper, not a slow host.
+///  a `SIGKILL`ed child is reaped at once,
+/// so this window only covers the kernel and the scheduler;
+/// a query that still has not been reaped in it is a defect of this helper,
+/// not a slow host.
 pub(super) const REAPING: std::time::Duration = std::time::Duration::from_secs(5);

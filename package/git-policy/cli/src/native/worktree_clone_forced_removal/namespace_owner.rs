@@ -106,7 +106,8 @@ pub struct OwnerRefusal {
 }
 
 impl std::fmt::Display for OwnerRefusal {
-    /// One sentence naming the call, what it was asked and the errno.
+    /// One sentence naming the call,
+    /// what it was asked and the errno.
     fn fmt(
         &self,
         formatter: &mut std::fmt::Formatter<'_>,
@@ -183,7 +184,8 @@ pub fn identity_of(namespace: &std::fs::File) -> Result<String, OwnerRefusal> {
 ///  and the owner's inode is what compares with ours.
 ///
 /// # Errors
-/// The ioctl refused, or the descriptor it answered could not be described.
+/// The ioctl refused,
+/// or the descriptor it answered could not be described.
 pub fn owner_of(namespace: &std::fs::File) -> Result<u64, OwnerRefusal> {
     // SAFETY: the ioctl takes the descriptor this process holds and answers a new one, which the `OwnedFd` below owns.
     let answered: libc::c_int = unsafe { libc::ioctl(namespace.as_raw_fd(), libc::NS_GET_USERNS) };
@@ -236,7 +238,8 @@ pub fn our_user_namespace() -> Result<u64, OwnerRefusal> {
 ///  and the act asks one function whether the holder's copy is locked.
 ///
 /// # Errors
-/// The namespace, its owner or this process's own user namespace could not be
+/// The namespace,
+/// its owner or this process's own user namespace could not be
 /// read.
 pub fn read_the_owner(namespace_path: &Path) -> Result<NamespaceOwner, OwnerRefusal> {
     let namespace: std::fs::File = open_a_namespace(namespace_path)?;

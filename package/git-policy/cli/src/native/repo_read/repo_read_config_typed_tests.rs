@@ -163,7 +163,8 @@ fn real(
 
 /// The environment every real-Git query of this control runs with:
 ///  no system or global configuration,
-/// and a home inside the repository, so nothing of the account's own reaches a fixture.
+/// and a home inside the repository,
+/// so nothing of the account's own reaches a fixture.
 fn hermetic_environment(repo: &Path) -> Vec<(OsString, OsString)> {
     return vec![
         (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
@@ -642,7 +643,8 @@ fn edge_spellings(kind: Kind) -> Vec<Option<String>> {
 /// or by leaving Git to answer:
 ///  no repository Git refuses is answered in process.
 ///
-/// The rule held here: a kind whose lower bound is zero or more is an unsigned number to Git,
+/// The rule held here:
+/// a kind whose lower bound is zero or more is an unsigned number to Git,
 /// and Git refuses every spelling of an unsigned number that carries a minus sign,
 /// even when the number it stands for is zero
 ///  (`git_parse_unsigned` in `parse.c` of the Git under test,

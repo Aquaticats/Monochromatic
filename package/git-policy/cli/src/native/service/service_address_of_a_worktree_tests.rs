@@ -105,8 +105,10 @@ fn a_runtime_directory_past_the_path_is_served_at_an_abstract_name() {
 }
 
 /// What:
-///  An abstract name fits the field one abstract name may take, for the longest runtime directory there can be,
-///  and it carries the account, the runtime directory and the instance.
+///  An abstract name fits the field one abstract name may take,
+/// for the longest runtime directory there can be,
+///  and it carries the account,
+/// the runtime directory and the instance.
 /// Why:
 ///   A name that did not fit would fail the commit at the moment the kernel refused it,
 /// which is the failure this change removes,
@@ -288,7 +290,8 @@ fn a_name_is_found_in_the_table_of_unix_sockets_and_a_longer_name_holding_it_is_
 }
 
 /// What:
-///  A path address is there when its file is, and an abstract one is not there when nothing of its name listens.
+///  A path address is there when its file is,
+/// and an abstract one is not there when nothing of its name listens.
 /// Why:
 ///  The route hands an existing socket to the command,
 /// and the path form's answer must stay the one it had (`service_route_tests.rs`).
@@ -349,12 +352,19 @@ fn the_boundary_between_the_two_forms_is_the_one_the_kernel_has() {
 /// What:
 ///  The name a spelling gives before provisioning makes the directory is the name it gives after.
 /// Why:
-///   The client's abstract name is made once, before anything is created, and the socket unit's name is made a moment
-/// later, after provisioning has made the directory (`service_provision.rs`).
+///   The client's abstract name is made once,
+/// before anything is created,
+/// and the socket unit's name is made a moment
+/// later,
+/// after provisioning has made the directory (`service_provision.rs`).
 /// A spelling whose name moved between those two moments gave the manager one address and the commit another,
-/// so nothing listened where the commit asked and the wait ran out: this happened with a `..` part over a directory
-/// that was not there yet, and real Git made the commit in the same directory.
-/// Every spelling here resolves to one place, and each is made only after its name was asked for, in the order
+/// so nothing listened where the commit asked and the wait ran out:
+/// this happened with a `..` part over a directory
+/// that was not there yet,
+/// and real Git made the commit in the same directory.
+/// Every spelling here resolves to one place,
+/// and each is made only after its name was asked for,
+/// in the order
 /// provisioning uses.
 #[test]
 fn one_spelling_names_one_place_before_and_after_the_directory_exists() {
@@ -408,10 +418,14 @@ fn one_spelling_names_one_place_before_and_after_the_directory_exists() {
 }
 
 /// What:
-///  A spelling that cannot be resolved at all still gives one name, the same one every time it is asked.
+///  A spelling that cannot be resolved at all still gives one name,
+/// the same one every time it is asked.
 /// Why:
-///   A path through a file, or through a link that points nowhere, stands in no place a service could listen at.
-/// The name is the spelling with its `..` and `.` parts folded, and nothing else,
+///   A path through a file,
+/// or through a link that points nowhere,
+/// stands in no place a service could listen at.
+/// The name is the spelling with its `..` and `.` parts folded,
+/// and nothing else,
 /// so both ends of one commit make the same name and the commit stops where provisioning cannot make the directory
 /// (`a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it` in `service_provision_refusals_before_the_wait_tests.rs`).
 #[test]

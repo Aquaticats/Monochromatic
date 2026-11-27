@@ -13,7 +13,8 @@
 //!  the plan read is the record writer's first statement,
 //!  so nothing is ever asked of the device or the record home a fixture hands it,
 //!  and what a person reads is then this control's own subject
-//!  (issue 6450: the add printed a Rust `Debug` value here).
+//!  (issue 6450:
+//! the add printed a Rust `Debug` value here).
 
 use super::fresh_the_record;
 use super::resume_the_record;
@@ -333,7 +334,8 @@ fn a_record_written_for_another_request_names_the_file_git_leaves_behind() {
 ///  so the runner is where the decline has to happen for the claim,
 ///  the locked registration,
 ///  the clone and the origin snapshot to stay unwritten
-///  (`SPEC.md`, "What this release does not yet do").
+///  (`SPEC.md`,
+/// "What this release does not yet do").
 ///  On a machine with the pool,
 ///  a run that did not decline would take the claim and then meet the restore's
 ///  refusal with nothing to settle it.
@@ -420,8 +422,10 @@ fn an_untracked_repository_makes_the_runner_decline_before_the_claim() {
 ///  so this is the answer a person meets:
 ///  the lock sentence names a rule of the ZFS clone route,
 ///  and the ladder hands the same words to Git,
-///  whose `worktree add` takes `--lock`, `--reason` and `--checkout` by itself
-///  (`SPEC.md`, the ladder's forms).
+///  whose `worktree add` takes `--lock`,
+/// `--reason` and `--checkout` by itself
+///  (`SPEC.md`,
+/// the ladder's forms).
 ///  Refusing here failed an add another rung makes (issue 6453).
 ///
 /// In TS you'd write (pseudocode):

@@ -1,18 +1,25 @@
 //! What:
 //!  Controls for what one exchange with the service costs and what it learns about the process on the other end:
-//! the write of a request, whose wait is on the bytes a service takes and not on a clock,
-//! the read of one line, whose wait is the bound the connection carries,
+//! the write of a request,
+//! whose wait is on the bytes a service takes and not on a clock,
+//! the read of one line,
+//! whose wait is the bound the connection carries,
 //! and the account the kernel names for a connection.
 //! Why:
-//!  A request of one mebibyte fills both buffers of a local connection (233,152 bytes measured here), so a write of it
-//!  waits in the kernel until the service reads, and a service that stopped reading never does:
+//!  A request of one mebibyte fills both buffers of a local connection (233,152 bytes measured here),
+//! so a write of it
+//!  waits in the kernel until the service reads,
+//! and a service that stopped reading never does:
 //! the audit of release 0.6.1-alpha.12 found a commit there with no bound at all.
-//! A line a service sends a byte at a time used to restart the operating system's read timeout with every byte, so one
+//! A line a service sends a byte at a time used to restart the operating system's read timeout with every byte,
+//! so one
 //! `read_line` could outlive every bound of the client.
-//! A socket file is protected by the directory it stands in, and an abstract name has no file and no permission bits,
+//! A socket file is protected by the directory it stands in,
+//! and an abstract name has no file and no permission bits,
 //! so the kernel's word about the peer is what keeps another account out of a service that answers at one
 //! (`service_address_of_a_worktree.rs`).
-//! Another account's process cannot be started from a control, which runs as the account that started the test suite,
+//! Another account's process cannot be started from a control,
+//! which runs as the account that started the test suite,
 //! so the comparison is held at both answers and the read is proven to give this account's own id for a live connection.
 
 use super::*;

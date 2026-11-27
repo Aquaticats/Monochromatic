@@ -1,9 +1,14 @@
 //! What:
-//!  The capture's fixed words and the widths its bound rests on: the header
-//!  line, the keys the fixed part writes, and the widest form of each value.
+//!  The capture's fixed words and the widths its bound rests on:
+//! the header
+//!  line,
+//! the keys the fixed part writes,
+//! and the widest form of each value.
 //! Why:
 //!  The bound is the index's own entry count times one line's widest form plus
-//!  the fixed lines, and no separate total is shipped, exactly as the design
+//!  the fixed lines,
+//! and no separate total is shipped,
+//! exactly as the design
 //!  says
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "What 'the captured source' is").
@@ -19,13 +24,17 @@
 
 use super::add_capture::MAXIMUM_PATH_BYTES;
 
-/// The first line of a capture, naming the grammar's version.
-/// Version 2 carries the C3 and C4 digests a dirty source needs; a version 1
-/// record holds none, so it is refused rather than read as one that does.
+/// The first line of a capture,
+/// naming the grammar's version.
+/// Version 2 carries the C3 and C4 digests a dirty source needs;
+/// a version 1
+/// record holds none,
+/// so it is refused rather than read as one that does.
 pub const CAPTURE_HEADER: &str =
     "# monochromatic-git-policy-cli zfs worktree add capture, version 2";
 
-/// The keys the fixed part writes, in the order it writes them.
+/// The keys the fixed part writes,
+/// in the order it writes them.
 pub const CAPTURE_FIXED_KEYS: &[&str] = &[
     "nonce",
     "repository",
@@ -43,14 +52,19 @@ pub const CAPTURE_FIXED_KEYS: &[&str] = &[
 /// The widest decimal form of a 64-bit unsigned number.
 const WIDEST_DECIMAL: usize = 20;
 
-/// The widest nanosecond count, nine digits.
+/// The widest nanosecond count,
+/// nine digits.
 pub(super) const WIDEST_NANOS: usize = 10;
 
-/// The widest commit name, 64 hexadecimal digits for a SHA-256 repository.
+/// The widest commit name,
+/// 64 hexadecimal digits for a SHA-256 repository.
 pub(super) const WIDEST_COMMIT: usize = 64;
 
 /// One captured entry's widest line:
-/// hex path, six fields, two times, the executable bit and a link's hex target.
+/// hex path,
+/// six fields,
+/// two times,
+/// the executable bit and a link's hex target.
 pub const CAPTURE_ENTRY_LINE_MAXIMUM_BYTES: u64 = (2 * MAXIMUM_PATH_BYTES) as u64
     + 1
     + 7
@@ -64,7 +78,9 @@ pub const CAPTURE_ENTRY_LINE_MAXIMUM_BYTES: u64 = (2 * MAXIMUM_PATH_BYTES) as u6
     + (2 * MAXIMUM_PATH_BYTES) as u64
     + 1;
 
-/// One digest's widest line: the hex path, the SHA-256 and their space.
+/// One digest's widest line:
+/// the hex path,
+/// the SHA-256 and their space.
 pub const CAPTURE_DIGEST_LINE_MAXIMUM_BYTES: u64 = (2 * MAXIMUM_PATH_BYTES) as u64 + 1 + 64 + 1;
 
 /// The capture's fixed lines' widest total.

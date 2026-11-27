@@ -42,7 +42,8 @@ use std::path::PathBuf;
 /// What:
 ///  What stands at the plan's own file name for one clone.
 /// Why:
-///  "No plan", "a plan that reads" and "a file that does not read" are three
+///  "No plan",
+/// "a plan that reads" and "a file that does not read" are three
 ///  answers with three readers:
 ///  the first is the healthy state,
 ///  the second is a removal in flight or one that was killed,
@@ -96,7 +97,8 @@ pub struct RemovalPlanFacts {
 /// What:
 ///  One snapshot name and the outcome its own history ends on.
 /// Why:
-///  The plan's lines, the clone's own snapshots and the blocked removal's
+///  The plan's lines,
+/// the clone's own snapshots and the blocked removal's
 ///  report all read the same merge rule,
 ///  so one value carries it and no caller re-derives it.
 ///
@@ -146,7 +148,8 @@ impl RecordedSnapshot {
 /// Why:
 ///  One line per name is what a person compares with `zfs list`,
 ///  and the merge rule belongs here rather than at each reader,
-///  so the plan's report, the clone's snapshot line and the blocked removal
+///  so the plan's report,
+/// the clone's snapshot line and the blocked removal
 ///  cannot disagree about one name.
 ///
 /// In TS you'd write (pseudocode):

@@ -220,7 +220,8 @@ fn an_untracked_entry_inside_a_volume_is_left_out_of_the_question() {
 ///  A worktree Git reports nothing about is told apart from one whose entries are all missing,
 ///  and from one holding a change.
 /// Why:
-///   An empty `git status` read as "only deletions" made a fresh, clean worktree look like one a pass of
+///   An empty `git status` read as "only deletions" made a fresh,
+/// clean worktree look like one a pass of
 ///   this program had half emptied,
 /// and the words built on that answer told a person their entries were
 ///  missing when none was;

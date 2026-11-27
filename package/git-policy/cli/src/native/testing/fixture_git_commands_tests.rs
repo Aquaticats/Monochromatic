@@ -3,7 +3,8 @@
 //!  a descendant that holds one of the query's pipes,
 //! and endings that are the query's own.
 //! Why:
-//!  The bound is the helper's own promise, so two things must hold:
+//!  The bound is the helper's own promise,
+//! so two things must hold:
 //! a pipe some other process still holds cannot hold the answer past the bound,
 //! and the ending the answer reports is the last status the wait returned,
 //! which means a query killed by the helper's signal at the bound
@@ -30,7 +31,8 @@ use crate::test_support::{
     fixture,
     remove,
 };
-/// `OsString` is owned operating-system text, which a query's arguments are.
+/// `OsString` is owned operating-system text,
+/// which a query's arguments are.
 use std::ffi::OsString;
 /// `signal` reads which signal ended a query.
 use std::os::unix::process::ExitStatusExt;
@@ -70,10 +72,12 @@ fn shell_arguments(source: &str) -> Vec<OsString> {
 }
 
 /// A descendant in a session of its own that holds the query's output pipe
-/// cannot hold the answer past the bound, and the answer says what it left.
+/// cannot hold the answer past the bound,
+/// and the answer says what it left.
 ///  The descendant sleeps longer than the answer may take and shorter than the run's watchdog,
 /// so a helper that waited for it fails this control instead of hanging the run.
-///  No control sends it a signal: a number read back from a file is not a process this run started,
+///  No control sends it a signal:
+/// a number read back from a file is not a process this run started,
 /// and the fixture's own teardown owns the directory the descendant works in.
 #[test]
 fn a_query_whose_descendant_holds_its_pipe_answers_at_its_bound_and_says_so() {
@@ -104,14 +108,16 @@ fn a_query_whose_descendant_holds_its_pipe_answers_at_its_bound_and_says_so() {
     remove(root.as_path());
 }
 
-/// An input larger than a pipe holds, written to a query that never reads it,
+/// An input larger than a pipe holds,
+/// written to a query that never reads it,
 /// does not hold the answer past the bound:
 ///  the bound ends the query,
 /// the write that the ending broke is part of that ending,
 /// and the answer says so.
 ///  The bound is long enough that the machine's speed cannot be what fails this control:
 /// the defect it guards against never returns at all,
-/// and the answer it asks for arrives within the bound, the reaping window and five seconds of slack
+/// and the answer it asks for arrives within the bound,
+/// the reaping window and five seconds of slack
 /// whatever else the host is doing.
 #[test]
 fn an_input_a_query_never_reads_does_not_hold_the_answer_past_its_bound() {
@@ -147,10 +153,14 @@ fn an_input_a_query_never_reads_does_not_hold_the_answer_past_its_bound() {
 }
 
 /// The query's own exit in the window between the bound's end and the signal
-/// is the query's ending, and this helper reports it as its own.
-///  The seam places that exit there: the query ends by itself with a status of its own while the seam waits for it
-/// without reaping it, and the signal then reaches a query that has already ended.
-///  Nothing in this control is a race: the seam returns only once the kernel says the query has exited,
+/// is the query's ending,
+/// and this helper reports it as its own.
+///  The seam places that exit there:
+/// the query ends by itself with a status of its own while the seam waits for it
+/// without reaping it,
+/// and the signal then reaches a query that has already ended.
+///  Nothing in this control is a race:
+/// the seam returns only once the kernel says the query has exited,
 /// so the machine's speed cannot decide the answer.
 #[test]
 fn a_query_that_ends_by_itself_before_the_signal_is_its_own_ending() {
@@ -290,7 +300,9 @@ fn a_query_that_ends_by_itself_keeps_its_own_ending() {
     remove(root.as_path());
 }
 
-/// One query that writes, and ends, says what it wrote:
+/// One query that writes,
+/// and ends,
+/// says what it wrote:
 ///  the bound does not turn its output into nothing.
 #[test]
 fn a_query_that_ends_by_itself_keeps_its_output() {

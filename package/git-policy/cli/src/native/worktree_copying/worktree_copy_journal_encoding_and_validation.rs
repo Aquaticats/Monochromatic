@@ -322,7 +322,8 @@ pub fn parse_journal(
 /// type JournalRefusal = { kind: 'not-json'; cause: Error } | { kind: 'not-the-shape' } | { kind: 'unsafe'; error: WorktreeCopyError };
 /// ```
 pub enum JournalRefusal {
-    /// The bytes are not JSON at all: what a write cut short by a crash leaves.
+    /// The bytes are not JSON at all:
+    /// what a write cut short by a crash leaves.
     NotJson(String),
     /// The JSON is not the record this release writes.
     NotTheShape,

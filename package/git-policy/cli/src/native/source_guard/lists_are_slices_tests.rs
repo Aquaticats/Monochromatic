@@ -5,7 +5,9 @@
 //! Why:
 //!  Every entry added or removed edits the count beside it,
 //!  and the count says nothing a reader needs
-//!  (the owner, 2026-11-25: "Isn't 95 a magic number that can be avoided?";
+//!  (the owner,
+//! 2026-11-25:
+//! "Isn't 95 a magic number that can be avoided?";
 //!  debt ledger item 19,
 //!  and the rule `doc/how-to-write-this-packages-code-and-tests.md` states).
 //!  An array keeps a fixed length only where the length is the meaning,
@@ -13,9 +15,12 @@
 //!  and those arrays hold no text,
 //!  so the ban names text rather than picking over every array.
 //! Gotcha:
-//!  The scan reads code only, so the refused shape may be named in a comment.
-//!  It reads one declaration at a time, and a declaration written across lines is
-//!  still one piece: the mask keeps every byte in its place,
+//!  The scan reads code only,
+//! so the refused shape may be named in a comment.
+//!  It reads one declaration at a time,
+//! and a declaration written across lines is
+//!  still one piece:
+//! the mask keeps every byte in its place,
 //!  so the scan steps over whitespace rather than expecting one space.
 //!
 //! In TS you'd write (pseudocode):
@@ -48,7 +53,10 @@ const A_STATIC_TEXT_REFERENCE: &str = "&'staticstr";
 /// What:
 ///  `fn is_name_character(character: char) -> bool` answers whether `character`
 ///  may stand in a constant's name.
-///  `char` is one Unicode scalar value (siblings: `u8`, one byte, which cannot
+///  `char` is one Unicode scalar value (siblings:
+/// `u8`,
+/// one byte,
+/// which cannot
 ///  hold a character of several bytes).
 /// Why:
 ///  The scan reads a whole name and then expects the colon after it,
@@ -65,8 +73,12 @@ fn is_name_character(character: char) -> bool {
 /// What:
 ///  `fn code_only(text: &str) -> String` is the file's text with every byte that
 ///  sits in a comment or a text literal replaced by a space.
-///  `String` is a growable, owned text (siblings: `&str`, a borrowed view;
-///  `Vec<u8>`, the same bytes without the promise that they are UTF-8).
+///  `String` is a growable,
+/// owned text (siblings:
+/// `&str`,
+/// a borrowed view;
+///  `Vec<u8>`,
+/// the same bytes without the promise that they are UTF-8).
 /// Why:
 ///  A file that names the refused shape in a comment or in a planted text is not
 ///  declaring one,
@@ -109,8 +121,12 @@ fn code_only(text: &str) -> String {
 ///  `fn hand_counted_text_lists(text: &str) -> Vec<usize>` lists the one-based line
 ///  numbers of the declarations in `text` that write a text list as an array with
 ///  a number after its type.
-///  `Vec<usize>` is a growable list of indexes (siblings: `&[usize]`, a borrowed
-///  view; `[usize; N]`, a fixed array).
+///  `Vec<usize>` is a growable list of indexes (siblings:
+/// `&[usize]`,
+/// a borrowed
+///  view;
+/// `[usize; N]`,
+/// a fixed array).
 /// Why:
 ///  A finding names a line a person opens,
 ///  and one control reports every finding of a tree at once.
@@ -161,10 +177,13 @@ fn hand_counted_text_lists(text: &str) -> Vec<usize> {
 /// What:
 ///  `fn begins_a_list_initializer(after_the_type: &str) -> bool` answers whether the text
 ///  that follows an array's closing bracket writes `= [` next,
-///  with any amount of whitespace on either side of the `=`, a line break included.
+///  with any amount of whitespace on either side of the `=`,
+/// a line break included.
 /// Why:
-///  A declaration written across lines, as `const NAMES: [&str; 2] =` and the list on the
-///  line below, is still one declaration whose length is a hand count,
+///  A declaration written across lines,
+/// as `const NAMES: [&str; 2] =` and the list on the
+///  line below,
+/// is still one declaration whose length is a hand count,
 ///  and the count of the one written on a single line is no different.
 ///
 /// In TS you'd write (pseudocode):
@@ -182,8 +201,11 @@ fn begins_a_list_initializer(after_the_type: &str) -> bool {
 
 /// What:
 ///  `fn brackets_end(text: &str) -> Option<usize>` is the offset of the `]` that
-///  closes the bracket the text opens inside, or `None` when no bracket closes.
-///  `Option<usize>` is "an offset or nothing" (sibling: `usize`, which would need
+///  closes the bracket the text opens inside,
+/// or `None` when no bracket closes.
+///  `Option<usize>` is "an offset or nothing" (sibling:
+/// `usize`,
+/// which would need
 ///  a second value to say "none").
 /// Why:
 ///  An element type may hold brackets of its own,
@@ -209,10 +231,12 @@ fn brackets_end(text: &str) -> Option<usize> {
 /// What:
 ///  `fn names_a_text_type(type_inside_brackets: &str) -> bool` answers whether an
 ///  element type written inside a type's brackets names a reference to a text,
-///  as `&str`, `&'static str` and `Option<&str>` all do.
+///  as `&str`,
+/// `&'static str` and `Option<&str>` all do.
 /// Why:
 ///  A text list is the shape whose length is a hand count of content;
-///  a number, a mode or a signal is often a table whose length is its meaning,
+///  a number,
+/// a mode or a signal is often a table whose length is its meaning,
 ///  and no table can be mistaken for text here.
 fn names_a_text_type(type_inside_brackets: &str) -> bool {
     let squeezed: String = type_inside_brackets
@@ -250,7 +274,9 @@ fn names_a_text_type(type_inside_brackets: &str) -> bool {
 ///  `fn findings_in(root, roots) -> Result<Vec<String>, String>` is every
 ///  `path:line` of the sources under `root` that writes a text list with a
 ///  hand-counted length.
-///  `Result` is "an answer or the reason there is none" (sibling: a panic, which
+///  `Result` is "an answer or the reason there is none" (sibling:
+/// a panic,
+/// which
 ///  would not say which file could not be read).
 /// Why:
 ///  A file the scan cannot read stops the check rather than passing as a file

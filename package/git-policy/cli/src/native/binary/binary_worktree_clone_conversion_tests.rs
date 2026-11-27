@@ -16,7 +16,8 @@
 //! and a filter the design already declines).
 //! The fixture root these controls need is one on which a file can be reflinked,
 //! which is the mechanism the rung itself needs:
-//! a btrfs host, a ZFS host and an XFS host with reflink answer it,
+//! a btrfs host,
+//! a ZFS host and an XFS host with reflink answer it,
 //! and the gate image's tmpfs fixture root does not,
 //! so the controls that need no dataset run on every host that can serve the rung
 //! (the release pass over alpha.45's finding M4 kept them to a ZFS root alone).

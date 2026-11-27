@@ -97,7 +97,8 @@ const NAMES_THE_CALLS_WITHOUT_MAKING_THEM: &[(&str, &str)] = &[(
 ///  `GitHandlers::review` and `GitHandlers::review_awaiting` reach the runner without naming any call above,
 ///  so this scan could not see that route and two controls of
 ///  `landing/service_work_tests.rs` reviewed in the shared runner (issue 6500,
-///  measured there: two of them in one process answered `1 passed; 1 failed` in each of three runs).
+///  measured there:
+/// two of them in one process answered `1 passed; 1 failed` in each of three runs).
 ///  Pointing the review's gateway call at a mock is what says a control reviews through these handlers.
 /// Gotcha:
 ///  The check is per file:

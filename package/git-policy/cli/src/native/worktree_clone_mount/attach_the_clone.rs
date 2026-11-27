@@ -107,7 +107,11 @@ pub fn attach_the_clone(
 ///  while a dataset mounted at its own mountpoint carries whatever its own
 ///  properties resolve to,
 ///  so the attribute set is the caller's and the four calls are the same one
-///  sequence: `fsopen`, `fsconfig` twice, `fsmount`, `move_mount`.
+///  sequence:
+/// `fsopen`,
+/// `fsconfig` twice,
+/// `fsmount`,
+/// `move_mount`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

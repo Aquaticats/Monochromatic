@@ -149,7 +149,8 @@ fn an_external_build_directory_is_filled_by_the_service() {
 }
 
 /// Under the default layout the build directory is inside the worktree and arrived with `target/`:
-/// the add moves that state aside and the service cleans it, so no build can trust the copy's artifacts.
+/// the add moves that state aside and the service cleans it,
+/// so no build can trust the copy's artifacts.
 #[test]
 fn an_in_tree_build_directory_the_copy_carried_is_moved_aside() {
     let destination: Workspace = workspace("/w/new/ws", "/w/new/ws/target", &["app"]);
@@ -246,7 +247,8 @@ fn a_new_workspace_and_existing_state_are_left_alone() {
 /// and a worktree with a copied target is still not cleaned.
 ///
 /// What:
-///  The worktree's build directory is absent, so Cargo has no fingerprint of its own crates to trust:
+///  The worktree's build directory is absent,
+/// so Cargo has no fingerprint of its own crates to trust:
 /// it rebuilds them,
 /// and a clean would delete nothing a build could reuse.
 /// Why:
@@ -428,7 +430,8 @@ fn a_worktree_with_no_build_directory_of_its_own_runs_no_clean() {
 ///   This is the positive control of the test above:
 /// the same stand-in records a Cargo run for the worktree whose build directory is absent,
 /// and records none at all where the copy carried state a build could trust.
-/// Cargo would treat that state as fresh, so it must be out of the way before the add returns,
+/// Cargo would treat that state as fresh,
+/// so it must be out of the way before the add returns,
 /// and the rename is what puts it there without a `cargo clean` the add would have to wait for.
 ///
 /// In TS you'd write (pseudocode):
@@ -531,7 +534,8 @@ fn a_build_directory_the_copy_carried_is_moved_aside_before_the_add_answers() {
 ///   The audit of 2026-11-11 (`kimi-audit-alpha-12-package-repair-on-add-and-commit`) found the external layout
 /// skipped the linked-target guard:
 /// a copied `target` link plus a source with no build directory chose `CleanOnly`,
-/// and the clean deleted the artifact the link names (`README.md`, "the target is left alone").
+/// and the clean deleted the artifact the link names (`README.md`,
+/// "the target is left alone").
 /// The workspace holds no build directory of its own here,
 /// so nothing a build could reuse is in the worktree and no clean runs at all.
 ///

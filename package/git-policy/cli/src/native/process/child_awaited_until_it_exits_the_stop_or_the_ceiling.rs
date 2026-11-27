@@ -234,7 +234,9 @@ pub struct Ceilings {
 pub struct WhatTheCeilingIsTold<'a> {
     /// The one decision this ceiling shares with the notice's thread,
     /// and nothing when this ceiling is the only enforcer of its bound:
-    /// it then makes the decision itself, once, exactly as a shared one is made.
+    /// it then makes the decision itself,
+    /// once,
+    /// exactly as a shared one is made.
     pub stall: Option<&'a TheStallDecidedOnce>,
     /// Where the command's lines go,
     /// and nothing when it has no writer to hand one to.
@@ -432,7 +434,8 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
 
 /// What:
 ///  What the ceiling does now that it has come:
-///  stands aside for this step, or ends it at the usual ceiling.
+///  stands aside for this step,
+/// or ends it at the usual ceiling.
 /// Why:
 ///   The stand-aside is one decision shared with the notice's thread,
 ///  so a step the other enforcer found held is waited for here even when this look found nothing.
@@ -532,7 +535,8 @@ async fn what_the_ceiling_decides(
 enum HowTheCeilingWasDecided {
     /// The usual ceiling ends the step here.
     TheUsualCeiling,
-    /// The ceiling stood aside, and the step is waited for to the bound this names.
+    /// The ceiling stood aside,
+    /// and the step is waited for to the bound this names.
     StoodAside(TheStallItWaitsThrough),
     /// The step ended by itself while nothing could be learned about it.
     ItEnded(std::process::ExitStatus),

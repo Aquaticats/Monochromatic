@@ -292,7 +292,8 @@ fn a_permission_given_to_everyone_is_a_finding() {
 
 /// A route permission the account holds through a named set leaves the
 /// effective delegation unproved,
-/// and the reason names the set, the permission and the command that takes the
+/// and the reason names the set,
+/// the permission and the command that takes the
 /// permission out of the set.
 #[test]
 fn a_named_set_the_account_holds_leaves_the_delegation_unknown() {
@@ -382,7 +383,8 @@ fn a_creation_time_grant_of_a_forbidden_permission_is_a_finding() {
 
 /// A named set's members are in the reply under the set's own who key,
 /// so a forbidden permission inside a set the account can hold is a finding
-/// naming the set, the permission and the command that takes the permission
+/// naming the set,
+/// the permission and the command that takes the permission
 /// out of the set,
 /// whichever holder hands the set over.
 #[test]
@@ -478,8 +480,10 @@ fn a_forbidden_permission_reached_through_a_nested_set_is_a_finding() {
     );
 }
 
-/// A grant both replies carry, because it stands on an ancestor of both
-/// datasets, is reported and counted once.
+/// A grant both replies carry,
+/// because it stands on an ancestor of both
+/// datasets,
+/// is reported and counted once.
 #[test]
 fn a_grant_both_replies_carry_is_a_finding_once() {
     let mut facts: DelegationFacts = healthy_delegation();

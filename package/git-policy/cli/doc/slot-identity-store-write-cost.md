@@ -1,6 +1,7 @@
 # The slot identity store's write cost
 
-**Note, 2026-11-25:**
+**Note,
+2026-11-25:**
 the program this record measured as `mount-git-worktree-clone-datasets` is a
 mode of `monochromatic-git-policy-cli` now,
 reached as `monochromatic-git-policy-cli zfs-root <mode>` or through one

@@ -6,7 +6,8 @@
 //!  The library's unit tests and the `native_binary` target each kept a copy of these helpers,
 //!  and the copies drifted apart,
 //!  so a fix landed in one target and not the other
-//!  (`doc/debt-ledger-2026-11-25.md`, item 11).
+//!  (`doc/debt-ledger-2026-11-25.md`,
+//! item 11).
 //!  Both targets include this one file by `#[path]`,
 //!  as they already include `test_alive.rs`:
 //!  `testing/test_support.rs` for the library's unit tests,
@@ -27,10 +28,12 @@
 
 /// What:
 ///  `Path` is a borrowed file-system path (think TS's `string` when it names a file),
-///  and `PathBuf` is the owned, growable form of one (think a `string` this code built and keeps).
+///  and `PathBuf` is the owned,
+/// growable form of one (think a `string` this code built and keeps).
 /// Why:
 ///  A folder this file makes is handed back as the owned form the caller stores,
-///  while the paths it is given are only looked at, so they stay borrowed.
+///  while the paths it is given are only looked at,
+/// so they stay borrowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -219,7 +222,8 @@ pub(crate) fn run_fixture_root() -> PathBuf {
 
 /// What:
 ///  The directory this process's fixtures are created in:
-///  `process-<pid>` under the run's own fixture root (`run_fixture_root`), never `/tmp`.
+///  `process-<pid>` under the run's own fixture root (`run_fixture_root`),
+/// never `/tmp`.
 /// Why:
 ///   The build output is shared by every checkout that builds into the same target directory,
 ///  so a bare `test-fixtures` itself is shared by every checkout and every test process of this host.
@@ -367,7 +371,8 @@ pub(crate) fn system_temporary_directories() -> Vec<PathBuf> {
 static FIXTURES_MADE: AtomicU64 = AtomicU64::new(0);
 
 /// The number this call's folder is named with:
-/// one number for every call, in the order the process makes them.
+/// one number for every call,
+/// in the order the process makes them.
 /// Why:
 ///  The folder carries the process's number and this call's number,
 ///  so two calls of one process never name the same folder even when they pass the same name.
@@ -494,7 +499,8 @@ pub(crate) fn made_fixture_folder(
 
 /// How many entries of a folder the report below names before it says there are more.
 /// Why:
-///  A gate's fixture root once held thousands of entries, and a report that listed all of them would bury its first
+///  A gate's fixture root once held thousands of entries,
+/// and a report that listed all of them would bury its first
 ///  line.
 ///
 /// In TS you'd write (pseudocode):
@@ -562,7 +568,8 @@ pub(crate) fn missing_fixture_root_report(root: &Path) -> String {
 ///  or that it does not exist,
 ///  or why it cannot be listed.
 /// Why:
-///  The report above reads as one sentence per folder, so a person sees the first folder that went.
+///  The report above reads as one sentence per folder,
+/// so a person sees the first folder that went.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -833,7 +840,8 @@ pub(crate) fn restore_owner_access(_root: &Path) {}
 
 /// How many times a removal that finds the directory still gaining entries is tried.
 /// Why:
-///  A child that a landed commit or a stopped service left finishing keeps adding entries for a moment; five seconds
+///  A child that a landed commit or a stopped service left finishing keeps adding entries for a moment;
+/// five seconds
 ///  of tries is far longer than that moment and still ends a wait that will never succeed.
 ///
 /// In TS you'd write (pseudocode):
@@ -844,7 +852,8 @@ pub(crate) const REMOVAL_TRIES: usize = 50;
 
 /// The pause between two tries of a removal.
 /// Why:
-///  The entries a finishing child adds arrive within milliseconds, so a pause this short spends the five seconds on
+///  The entries a finishing child adds arrive within milliseconds,
+/// so a pause this short spends the five seconds on
 ///  tries rather than on one sleep.
 ///
 /// In TS you'd write (pseudocode):

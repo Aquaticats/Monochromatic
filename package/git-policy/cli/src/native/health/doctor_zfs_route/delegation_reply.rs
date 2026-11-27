@@ -57,7 +57,8 @@ pub enum Inheritance {
 ///  Who a grant names.
 /// Why:
 ///  The route cares about the account's own user and groups,
-///  and a grant to everyone, to a named set or to whoever creates a dataset
+///  and a grant to everyone,
+/// to a named set or to whoever creates a dataset
 ///  below the grant's dataset reaches the account while being wider than the
 ///  decided shape.
 ///
@@ -351,7 +352,8 @@ fn reaches_the_account(
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub(super) struct HeldSet<'a> {
-    /// The set's name, with the kernel's `@`.
+    /// The set's name,
+    /// with the kernel's `@`.
     pub name: &'a str,
     /// The reply entry that grants the set to its holder.
     pub source: &'a Grant,

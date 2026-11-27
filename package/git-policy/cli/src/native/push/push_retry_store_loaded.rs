@@ -106,13 +106,16 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
 /// so a name holding a pipe is answered at once instead of waiting inside `open(2)`
 /// for a writer that may never come,
 /// and a link at a plan's name is refused rather than read through.
-/// A name that holds a pipe, a link, a directory or a file larger than a plan can be
+/// A name that holds a pipe,
+/// a link,
+/// a directory or a file larger than a plan can be
 /// is no plan this store wrote:
 /// it stays,
 /// and it is not read again after a pause,
 /// because a second read of it answers the same.
 /// The listing itself answers twice:
-/// the entries it names, and an error that ended it before it named them all.
+/// the entries it names,
+/// and an error that ended it before it named them all.
 /// An error part way through is what a directory read on a mount that stopped answering does,
 /// and a plan it never named would otherwise wait for the life of the service,
 /// so that error leaves the journal unread and it is listed again after a pause.
@@ -156,8 +159,10 @@ pub fn load_reporting(directory: &Path) -> LoadedPlans {
 /// One file a listing named,
 /// and when it was written.
 /// Why:
-///   A listing answers two things apart: the entries it names and the error that ended it.
-///   Holding them apart is what lets a reader judge each, and what a control can hand to one.
+///   A listing answers two things apart:
+/// the entries it names and the error that ended it.
+///   Holding them apart is what lets a reader judge each,
+/// and what a control can hand to one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -103,7 +103,8 @@ fn an_unfinished_adds_evidence_names_its_phase() {
     );
 }
 
-/// A slot left at `phase=settling` names the add again, Git's removal and the
+/// A slot left at `phase=settling` names the add again,
+/// Git's removal and the
 /// settling command,
 /// and says the settling command cannot be run in this release,
 /// so a person is not sent to one that answers with the usage text.

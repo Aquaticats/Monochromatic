@@ -61,12 +61,15 @@ pub struct ManagedLockFacts {
     /// which is the store's key for it and the name every sentence prints.
     pub slot: String,
     /// What step 13's classification answered for that slot,
-    /// with the slot's pointer, which its own sentence prints when absent.
+    /// with the slot's pointer,
+    /// which its own sentence prints when absent.
     pub classification: Classification,
 }
 
 /// What:
-///  The sentence, or sentences, one slot's managed lock prints,
+///  The sentence,
+/// or sentences,
+/// one slot's managed lock prints,
 ///  as a pass where the lock is the one the add wrote
 ///  and as a finding naming what a person must look at everywhere else.
 /// Why:

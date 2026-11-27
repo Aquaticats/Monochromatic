@@ -3499,12 +3499,11 @@ and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
 One plain form of it is read,
 only so the guard can decide:
-a value whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
 whose own words name no global option,
 and whose first word after the `!` and any blanks is `git`.
 A blank there is a space or a TAB,

@@ -72,7 +72,8 @@ pub enum ManagedMoveRefusalCause {
         /// Why the record was not read.
         reason: String,
     },
-    /// A record is filed under the slot's name, names another path,
+    /// A record is filed under the slot's name,
+    /// names another path,
     /// and Git's own list names no worktree at the move's source.
     NamesAnotherPath {
         /// The slot path the record names.
@@ -185,9 +186,11 @@ fn another_path_sentence(
 ///  source and Git's own list names no worktree at the source:
 ///  the record's key is the slot's last name,
 ///  so a plain worktree that shares that name holds the same record without
-///  being the slot, and moving it renames nothing this route binds.
+///  being the slot,
+/// and moving it renames nothing this route binds.
 ///  A record that names this very slot through another spelling is that slot's
-///  record, so the two paths are compared by the file they name and not only
+///  record,
+/// so the two paths are compared by the file they name and not only
 ///  by the bytes the record holds.
 ///
 /// # Errors
@@ -291,7 +294,8 @@ fn names_the_recorded_slot(
 ///  The typed operand is not asked here again:
 ///  `parse_move_source` already resolved it into `source` through the one operand
 ///  reading the removal shares,
-///  and Git's suffix match answers nothing for a path spelling, which is exactly
+///  and Git's suffix match answers nothing for a path spelling,
+/// which is exactly
 ///  the spelling this allowance exists for.
 ///
 /// In TS you'd write (pseudocode):

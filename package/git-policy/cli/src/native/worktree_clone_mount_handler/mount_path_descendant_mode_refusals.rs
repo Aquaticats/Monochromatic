@@ -28,7 +28,8 @@ use std::path::PathBuf;
 /// What:
 ///  Why the mode mounted nothing.
 /// Why:
-///  Each refusal names the property, name or path a person must look at,
+///  Each refusal names the property,
+/// name or path a person must look at,
 ///  and no refusal is answered after a mount has been placed.
 ///
 /// In TS you'd write (pseudocode):

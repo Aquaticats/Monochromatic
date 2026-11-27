@@ -3,11 +3,16 @@
 //!  or over a key nobody could unlock,
 //!  and the record that says one such sentence was printed for this command.
 //! Why:
-//!  A person at a new host key, or with a key no agent holds, reads OpenSSH's line and Git's `fatal:` with no next step;
-//!  the wrapper owns the child, so it is the process that can name one
+//!  A person at a new host key,
+//! or with a key no agent holds,
+//! reads OpenSSH's line and Git's `fatal:` with no next step;
+//!  the wrapper owns the child,
+//! so it is the process that can name one
 //!  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
-//!  The three texts are the proposal's kept files byte for byte, filled with the host the person's remote names
-//!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "The words").
+//!  The three texts are the proposal's kept files byte for byte,
+//! filled with the host the person's remote names
+//!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+//! "The words").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,10 +32,14 @@ use std::sync::atomic::{
 };
 
 /// What:
-///  The words the reading needs, which the three refusals share: OpenSSH's last line for any host-key refusal, and its line for
+///  The words the reading needs,
+/// which the three refusals share:
+/// OpenSSH's last line for any host-key refusal,
+/// and its line for
 ///  a key the server did not accept or could not ask a passphrase for.
 /// Why:
-///  The reading is the shipped detector's, so one refusal cannot be read two ways by two faces of the wrapper
+///  The reading is the shipped detector's,
+/// so one refusal cannot be read two ways by two faces of the wrapper
 ///  (`lfs/lfs_pre_push.rs`).
 ///
 /// In TS you'd write (pseudocode):
@@ -41,19 +50,23 @@ use std::sync::atomic::{
 pub enum Refusal {
     /// The host key is unknown and the person's settings refuse to ask about a new one.
     StrictChecking,
-    /// The host key is unknown, or one this machine holds changed.
+    /// The host key is unknown,
+    /// or one this machine holds changed.
     HostKey,
-    /// The key the connection offered was refused, or its passphrase could not be asked for.
+    /// The key the connection offered was refused,
+    /// or its passphrase could not be asked for.
     KeyNotUsable,
 }
 
 /// What:
-///  Whether a sentence was printed for this command, so a second face of it stays silent instead of saying it twice.
+///  Whether a sentence was printed for this command,
+/// so a second face of it stays silent instead of saying it twice.
 /// Why:
 ///  A typed push that uploads Git LFS objects runs the upload's own child before the push,
 ///  and that upload explains a refused key from the same transcript;
 ///  one refusal must be told once
-///  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`, the limit naming the double sentence).
+///  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
+/// the limit naming the double sentence).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,7 +77,8 @@ static PRINTED: AtomicBool = AtomicBool::new(false);
 /// What:
 ///  Whether a sentence about a refused key was printed for this command already.
 /// Why:
-///  The upload's explanation asks this before adding its own, so the person reads one paragraph and not two.
+///  The upload's explanation asks this before adding its own,
+/// so the person reads one paragraph and not two.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +91,8 @@ pub fn printed_for_this_command() -> bool {
 /// What:
 ///  Record that a sentence about a refused key was printed for this command.
 /// Why:
-///  A face that prints the sentence itself (the probe of a typed push) must leave the record set, so the upload's own explanation
+///  A face that prints the sentence itself (the probe of a typed push) must leave the record set,
+/// so the upload's own explanation
 ///  stays silent rather than saying it twice.
 ///
 /// In TS you'd write (pseudocode):
@@ -89,10 +104,13 @@ pub fn remember_printed() {
 }
 
 /// What:
-///  The refusal a refusal's transcript reads as, or nothing when it reads as no refusal at all.
+///  The refusal a refusal's transcript reads as,
+/// or nothing when it reads as no refusal at all.
 /// Why:
-///  Three sentences are printed for three refusals, and each is chosen from what OpenSSH printed;
-///  a transcript of a missing repository, a refused connection or a changed key at the default log level reads as none.
+///  Three sentences are printed for three refusals,
+/// and each is chosen from what OpenSSH printed;
+///  a transcript of a missing repository,
+/// a refused connection or a changed key at the default log level reads as none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,11 +133,14 @@ pub fn refusal_in(tail: &str) -> Option<Refusal> {
 }
 
 /// What:
-///  The sentence for this refusal, filled with the host the person's remote names.
+///  The sentence for this refusal,
+/// filled with the host the person's remote names.
 /// Why:
-///  The host is the one the person typed, because a `known_hosts` line is recorded under the name the connection asked about;
+///  The host is the one the person typed,
+/// because a `known_hosts` line is recorded under the name the connection asked about;
 ///  advice naming the address instead would ask them to accept a second key for the same machine
-///  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "Where the host comes from").
+///  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+/// "Where the host comes from").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -152,9 +173,12 @@ pub fn sentence_for(
 }
 
 /// What:
-///  Print the sentence this transcript calls for, when the child ended non-zero, and record that one was printed.
+///  Print the sentence this transcript calls for,
+/// when the child ended non-zero,
+/// and record that one was printed.
 /// Why:
-///  Nothing is printed on a command that succeeded: a server's hook can write the refusal's words into a push that then lands,
+///  Nothing is printed on a command that succeeded:
+/// a server's hook can write the refusal's words into a push that then lands,
 ///  and a message about a key that refused nothing misleads.
 ///  The record lets the LFS upload stay silent afterwards.
 ///

@@ -165,7 +165,8 @@ pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::fr
 /// and a readiness poll
 ///  that connects to it reports a service that is not the new one.
 /// An abstract name is gone with the process that held it,
-/// so a service that ended there is answered at once (measured: the name is not in the table of unix sockets once its
+/// so a service that ended there is answered at once (measured:
+/// the name is not in the table of unix sockets once its
 ///  listener is dropped).
 ///
 /// # Panics

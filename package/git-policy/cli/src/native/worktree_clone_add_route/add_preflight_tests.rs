@@ -5,7 +5,8 @@
 //!  device opens,
 //!  in the stop's own words and with the command that ends the plan,
 //!  a checkout whose source the fill's own restore would refuse makes the
-//!  preflight decline, so the add takes the ladder and nothing of the route's is
+//!  preflight decline,
+//! so the add takes the ladder and nothing of the route's is
 //!  written,
 //!  the clone container is refused before any write for each property the design
 //!  does not serve,
@@ -27,8 +28,11 @@
 //!  so its sentence is controlled in `add_plan_stop_tests.rs`,
 //!  and what only the preflight can show is the source read below.
 //!  The route's entry point reads this host's mount table and answers no route on
-//!  any machine before plan step 19's migration, so the controls start at the
-//!  preflight and, in `add_route_run_tests.rs`, at the runner that entry point
+//!  any machine before plan step 19's migration,
+//! so the controls start at the
+//!  preflight and,
+//! in `add_route_run_tests.rs`,
+//! at the runner that entry point
 //!  calls.
 //!
 //! Why a source scan for the delegation read:
@@ -193,7 +197,8 @@ fn the_preflight_refuses_through_the_grant_read() {
 ///  The refusal is the whole of what the person gets,
 ///  so a `Debug` value there would name types instead of the removal that ends
 ///  the plan (issue 6450),
-///  and the stop's return type is the sentence itself, which is what makes that
+///  and the stop's return type is the sentence itself,
+/// which is what makes that
 ///  unreachable rather than merely absent today.
 ///
 /// In TS you'd write (pseudocode):
@@ -370,10 +375,14 @@ fn no_device() -> NoDevice {
 ///  which stands after the source check,
 ///  and nothing of the route's own was written.
 /// Why:
-///  This is the sentence plan step 11 replaces the interim with: until the
-///  verified dirty restore landed, an add from a dirty main checkout took rung 3
-///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, lines 1858 to
-///  1862), and the route now restores the copy instead of declining it.
+///  This is the sentence plan step 11 replaces the interim with:
+/// until the
+///  verified dirty restore landed,
+/// an add from a dirty main checkout took rung 3
+///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+/// lines 1858 to
+///  1862),
+/// and the route now restores the copy instead of declining it.
 ///  The refusal is the seam's own sentence rather than this machine's,
 ///  so the control holds the same answer on a host whose `/dev/zfs` opens and on the
 ///  gate's container,
@@ -448,7 +457,8 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
 ///  which is a rule of that route:
 ///  the ladder hands the person's words to Git,
 ///  whose `worktree add` takes the lock and the reason by itself
-///  (`SPEC.md`, the ladder's forms).
+///  (`SPEC.md`,
+/// the ladder's forms).
 ///  So a source the fill's own restore cannot prove declines before the route's own
 ///  invocation rules are judged (issue 6453).
 ///  Every word the constant names stands once on this side,
@@ -551,14 +561,16 @@ fn a_lock_word_from_a_served_source_keeps_the_routes_own_sentence() {
 
 /// What:
 ///  A checkout holding an untracked Git repository of its own makes the preflight
-///  decline the whole route, before the claim,
+///  decline the whole route,
+/// before the claim,
 ///  so nothing of the route's own is written.
 /// Why:
 ///  The fill's `git clean --force -d` keeps such a repository and the restore's
 ///  proof then names it as still untracked,
 ///  so the restore would end after the clone and the origin snapshot were made,
 ///  and nothing of this release settles a failed restore at a slot
-///  (`SPEC.md`, "What this release does not yet do").
+///  (`SPEC.md`,
+/// "What this release does not yet do").
 ///  The ladder settles the same refusal in its own stage and finishes with Git's
 ///  own checkout.
 ///  On this machine the pool's read is what stops a served source,
@@ -606,7 +618,8 @@ fn an_untracked_repository_declines_the_preflight() {
 
 /// What:
 ///  A checkout whose tracked file has become a directory makes the preflight
-///  decline the whole route, before the claim.
+///  decline the whole route,
+/// before the claim.
 /// Why:
 ///  The restore removes the files its reset cannot see as files or links,
 ///  and a directory cannot be removed that way,
@@ -665,7 +678,8 @@ fn a_directory_where_the_index_records_a_file_declines_the_preflight() {
 /// Why:
 ///  Only a refusal about uncommitted changes makes the route decline;
 ///  a decline here would send the add to the ladder for a reason the ladder cannot
-///  serve either, and the person would read Git's failure instead of the reason.
+///  serve either,
+/// and the person would read Git's failure instead of the reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -754,7 +768,8 @@ fn a_worktree_scope_configuration_still_refuses_the_add() {
 ///  The code's own line between dirt and every other refusal is
 ///  `CleanRefusalKind::restorable`,
 ///  and this control sits on its refused side:
-///  without it, a decline for an unfinished merge would leave the person reading
+///  without it,
+/// a decline for an unfinished merge would leave the person reading
 ///  Git's own refusal instead of the route's sentence.
 ///
 /// In TS you'd write (pseudocode):
@@ -799,11 +814,13 @@ fn an_unfinished_merge_still_refuses_the_add() {
 ///  for each of the four properties the design names,
 ///  before any write.
 /// Why:
-///  A clone inherits the container's `mountpoint`, `setuid` and `devices`,
+///  A clone inherits the container's `mountpoint`,
+/// `setuid` and `devices`,
 ///  so a container set wrongly gives every clone below it the same fault,
 ///  and the design refuses it here rather than after the clone exists
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
-///  The sentence must name the container, the property and the value it needs,
+///  The sentence must name the container,
+/// the property and the value it needs,
 ///  because that is the whole of what a person acts on.
 ///
 /// In TS you'd write (pseudocode):

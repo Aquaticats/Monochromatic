@@ -80,7 +80,8 @@ pub enum Check {
     RootModes,
     /// The handler's root-owned configuration.
     HandlerConfiguration,
-    /// The readiness, state and result folders.
+    /// The readiness,
+    /// state and result folders.
     HandlerFolders,
     /// ZED and the boot unit the route needs.
     ZedWiring,

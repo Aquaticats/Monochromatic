@@ -10,7 +10,8 @@
 //!  an `https` or `file` remote keeps the process replacement it has today,
 //!  the child is published to the existing signal relay,
 //!  and the person reads one sentence after OpenSSH's refusal at a new host key or a key no agent holds.
-//!  The four readers are Git's own answers, so `insteadOf` and a push URL are applied exactly as the command applies them.
+//!  The four readers are Git's own answers,
+//! so `insteadOf` and a push URL are applied exactly as the command applies them.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -53,19 +54,27 @@
 /// whether a number after it is a port,
 /// and the bytes a host name or a user name may hold.
 pub mod a_remote_url_s_words_a_sentence_may_print;
-/// The host a remote names as the person typed it, and the words an `ssh` command needs to connect there.
+/// The host a remote names as the person typed it,
+/// and the words an `ssh` command needs to connect there.
 pub mod a_target_the_sentence_may_name;
 /// The pseudo-terminal a child writes its error stream to when this process's standard error is a terminal.
 pub mod a_terminal_the_child_writes_its_error_stream_to;
-/// The child started with its error stream on a terminal or a pipe, and the wait that reads it to the child's end.
+/// The child started with its error stream on a terminal or a pipe,
+/// and the wait that reads it to the child's end.
 pub mod git_error_stream_relayed_as_it_arrives;
-/// The four commands a typed network command covers, and the first of one's words that is not an option.
+/// The four commands a typed network command covers,
+/// and the first of one's words that is not an option.
 pub mod the_options_before_the_remote;
-/// The relayed bytes: read as they arrive, written on, and kept as a bounded tail of the size the file holds.
+/// The relayed bytes:
+/// read as they arrive,
+/// written on,
+/// and kept as a bounded tail of the size the file holds.
 pub mod the_relayed_bytes;
-/// The remote URL Git would use for the command the person wrote, and whether ssh carries it.
+/// The remote URL Git would use for the command the person wrote,
+/// and whether ssh carries it.
 pub mod the_remote_a_typed_command_names;
-/// The sentence printed after a refusal, and the record that one was printed.
+/// The sentence printed after a refusal,
+/// and the record that one was printed.
 pub mod the_sentence_after_the_refusal;
 
 // What: `OsString` is owned operating-system text of raw bytes (its sibling `String` must be UTF-8).
@@ -119,7 +128,8 @@ use a_target_the_sentence_may_name::{
 /// What:
 ///  How a typed network command ended when the wrapper kept Git as its child.
 /// Why:
-///   A code passes through, and a signal is this process's to end by,
+///   A code passes through,
+/// and a signal is this process's to end by,
 ///   exactly as the process replacement let Git's caller see it
 ///   (`forwarding::end_as_git_ended`).
 ///
@@ -129,17 +139,22 @@ use a_target_the_sentence_may_name::{
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TypedNetworkCommandEnding {
-    /// Git exited with this code, and the wrapper's exit is the same code.
+    /// Git exited with this code,
+    /// and the wrapper's exit is the same code.
     Ran(i32),
-    /// A signal ended Git; the wrapper ends by that signal, and this number is the fallback code.
+    /// A signal ended Git;
+    /// the wrapper ends by that signal,
+    /// and this number is the fallback code.
     Signalled(i32),
 }
 
 impl TypedNetworkCommandEnding {
     /// What:
-    ///  The code this process ends with, after ending by Git's own signal when a signal ended Git.
+    ///  The code this process ends with,
+    /// after ending by Git's own signal when a signal ended Git.
     /// Why:
-    ///   The plain forward replaced this process with Git, so its caller saw `WIFSIGNALED` when Git was signalled;
+    ///   The plain forward replaced this process with Git,
+    /// so its caller saw `WIFSIGNALED` when Git was signalled;
     ///   a route that keeps a process around Git has to end the same way or a script takes the wrong branch
     ///   (`forwarding::end_as_git_ended`).
     ///
@@ -159,13 +174,19 @@ impl TypedNetworkCommandEnding {
 }
 
 /// What:
-///  The relay for a typed network command whose remote ssh carries, or nothing when this command keeps its process
+///  The relay for a typed network command whose remote ssh carries,
+/// or nothing when this command keeps its process
 ///  replacement.
 /// Why:
 ///  Every caller asks this before it replaces the process or starts a child,
-///  so one decision serves the plain forward, the coordinated run, the settled copy and the wrapper's own steps:
-///  a command ssh does not carry, a remote Git cannot name, or a URL this wrapper cannot word all keep today's behaviour.
-///  An `Err` says Git could not be started, which each caller reports in its own words.
+///  so one decision serves the plain forward,
+/// the coordinated run,
+/// the settled copy and the wrapper's own steps:
+///  a command ssh does not carry,
+/// a remote Git cannot name,
+/// or a URL this wrapper cannot word all keep today's behaviour.
+///  An `Err` says Git could not be started,
+/// which each caller reports in its own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -356,11 +377,16 @@ pub fn relay_when_ssh_carries(
 /// What:
 ///  Print the sentence when the wrapper's own probe of a typed push stopped at a refusal of ssh's.
 /// Why:
-///  A typed `push` is probed before it runs: the wrapper's own `push --dry-run --porcelain` reads the updates, and at a new host
-///  key or a key no agent holds that probe is the process that meets the refusal, so Git's own push never starts.
+///  A typed `push` is probed before it runs:
+/// the wrapper's own `push --dry-run --porcelain` reads the updates,
+/// and at a new host
+///  key or a key no agent holds that probe is the process that meets the refusal,
+/// so Git's own push never starts.
 ///  The person then reads OpenSSH's line in the wrapper's words and no next step;
-///  the parent that owned the child is this process still, so it is the one to name it
-///  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`, and the reading `lfs/lfs_pre_push.rs`).
+///  the parent that owned the child is this process still,
+/// so it is the one to name it
+///  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
+/// and the reading `lfs/lfs_pre_push.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

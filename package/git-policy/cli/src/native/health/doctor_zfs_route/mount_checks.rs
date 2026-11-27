@@ -202,7 +202,8 @@ fn sharing_fields(row: &MountFacts) -> Vec<&str> {
 ///  A shared checkout delivers a mount made on it to another namespace,
 ///  which is what the guest measured as the shared arm's preserved delivery
 ///  and its cost,
-///  and propagation belongs to the mount instance, so the live row decides.
+///  and propagation belongs to the mount instance,
+/// so the live row decides.
 ///  The finding prints the one command that changes it and never runs it.
 ///
 /// In TS you'd write (pseudocode):

@@ -35,7 +35,8 @@ use std::time::{
 /// Why:
 ///   A file is the control's own hand:
 /// it says when the answer has been computed,
-/// so the control does its own work (a kill, a start) in the instant between the look and the connection,
+/// so the control does its own work (a kill,
+/// a start) in the instant between the look and the connection,
 /// and nothing is decided by a sleep.
 pub const PARK_VARIABLE: &str = "CLI_GIT_TEST_ONLY_WARM_SCAN_PARK";
 
@@ -50,7 +51,8 @@ const CONTROL_PARK_CEILING: Duration = Duration::from_secs(60);
 /// so a parked request costs no processor time.
 const RELEASE_POLL: Duration = Duration::from_millis(2);
 
-/// The file a control leaves or waits for, beside the path it named.
+/// The file a control leaves or waits for,
+/// beside the path it named.
 fn marker(
     where_the_control_holds_it: &Path,
     what: &str,

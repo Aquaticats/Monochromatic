@@ -114,7 +114,8 @@ fn holds_the_path_column(
 ///  The path column of one line of `/proc/net/unix` and whether that socket listens,
 ///  or nothing when the line has fewer columns than a socket with a name.
 /// Why:
-///   Two questions read this table — whether one named socket listens, and which names a prefix holds that listen — and both
+///   Two questions read this table — whether one named socket listens,
+/// and which names a prefix holds that listen — and both
 /// have to read a line the same way,
 ///  a flags column that is not hexadecimal counting as listening so a line the reader cannot understand never hides one.
 /// The columns are walked where they are and nothing is allocated per line,

@@ -42,7 +42,8 @@ use std::ffi::OsString;
 
 /// What:
 ///  The two installed halves of one build:
-///  the root-owned wrapper executable a caller and the boot unit start, and the
+///  the root-owned wrapper executable a caller and the boot unit start,
+/// and the
 ///  ZED history event that starts its sweep mode.
 /// Why:
 ///  ZED runs the event file as an executable,
@@ -193,7 +194,8 @@ pub fn check_modes(words: &[&str]) -> CheckOutcome {
 
 /// The arguments one required mode word is read as.
 /// The words `monochromatic-git-policy-cli zfs-root` are stripped by the
-/// dispatch before this grammar sees them, so a mode word and its options are
+/// dispatch before this grammar sees them,
+/// so a mode word and its options are
 /// what the grammar is asked for.
 fn mode_arguments(word: &str) -> Vec<OsString> {
     if word != "adopt-worktree-parent" {

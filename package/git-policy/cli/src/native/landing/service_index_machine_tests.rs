@@ -215,7 +215,8 @@ fn marker_naming(
 /// The birth `linux:8423337` with a leading zero on its start tick,
 /// which is the same tick written the way a program that pads numbers writes it.
 /// Why:
-///   A start tick is a number, and one number has one value however many zeros lead it.
+///   A start tick is a number,
+/// and one number has one value however many zeros lead it.
 fn birth_with_a_leading_zero(birth: &str) -> String {
     let Some((prefix, tick)) = birth.split_once(':') else {
         panic!("the birth {birth} is no start tick this control can pad");
@@ -268,7 +269,8 @@ fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
 ///  and a padded number is the same number,
 ///  so a reader that cannot compare them like for like answers unknown or running,
 ///  never gone.
-///  Read as another boot or another process, the lock of a Git that runs is removed.
+///  Read as another boot or another process,
+/// the lock of a Git that runs is removed.
 #[test]
 fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let identity: String = own_identity().expect("this process has an identity");

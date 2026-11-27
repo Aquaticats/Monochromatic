@@ -146,7 +146,8 @@ fn facts_with(entry: Option<NvList>) -> CloneObjectFacts {
 }
 
 /// A clone that reads `legacy` inherited from the container is the state the
-/// design serves, so the add reports nothing.
+/// design serves,
+/// so the add reports nothing.
 #[test]
 fn a_clone_inheriting_legacy_from_the_container_is_not_reported() {
     let facts: CloneObjectFacts = facts_with(Some(mountpoint_pair("legacy", CONTAINER)));
@@ -176,7 +177,8 @@ fn a_clone_inheriting_another_value_is_reported_with_its_value_and_source() {
 }
 
 /// A clone whose value came from another dataset is reported even when the
-/// value is `legacy`, because the source is what the design requires.
+/// value is `legacy`,
+/// because the source is what the design requires.
 #[test]
 fn a_clone_inheriting_the_right_value_from_another_dataset_is_reported() {
     let facts: CloneObjectFacts = facts_with(Some(mountpoint_pair("legacy", "tank/other")));
@@ -192,7 +194,8 @@ fn a_clone_inheriting_the_right_value_from_another_dataset_is_reported() {
     );
 }
 
-/// A clone that carries its own value is reported, because a local value is
+/// A clone that carries its own value is reported,
+/// because a local value is
 /// one the add cannot prove the container gave it.
 #[test]
 fn a_clone_setting_its_own_value_is_reported() {
@@ -213,7 +216,8 @@ fn a_clone_answering_no_mountpoint_is_reported() {
 }
 
 /// A reply whose entry is not the `value`/`source` pair is reported as
-/// unreadable, naming why this route cannot tell a local value from an
+/// unreadable,
+/// naming why this route cannot tell a local value from an
 /// inherited one.
 #[test]
 fn a_clone_whose_mountpoint_is_not_the_pair_is_reported() {
@@ -316,7 +320,8 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
     "no release file of the pool route makes the clone any more, so this ban reaches nothing",
 )];
 
-/// The clone request carries no property, which is the delegation the design
+/// The clone request carries no property,
+/// which is the delegation the design
 /// forbids this account,
 /// in every file the split made of the route.
 #[test]

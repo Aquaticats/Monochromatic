@@ -237,7 +237,9 @@ fn a_failure_text_drops_wait_notices() {
 }
 
 /// A path of the shape pnpm printed:
-/// the worktree, the package, and the store entry,
+/// the worktree,
+/// the package,
+/// and the store entry,
 /// long enough that the kept tail of a one-line failure begins inside one.
 fn a_path_of_the_shape_pnpm_printed(package: &str) -> String {
     return format!(
@@ -1145,10 +1147,14 @@ fn a_start_that_gives_no_answer_ends_the_run_at_its_bound_and_stops_the_child_it
 ///  A start that gives no answer never lets the tool run.
 /// Why:
 ///  The run that gives up on a start tells the person that nothing of the tool ran and names the command to run by hand
-///  (`wait_ceilings.rs`, `REPAIR_TOOL_START_CEILING`).
-///  A tool that runs anyway has already opened, truncated or replaced its files in the new worktree by the time any kill
-///  reaches it, and a kill after its first write cannot restore a truncated lockfile or a half-written install.
-///  The fixture's first action is that write, which is the moment the promise is broken.
+///  (`wait_ceilings.rs`,
+/// `REPAIR_TOOL_START_CEILING`).
+///  A tool that runs anyway has already opened,
+/// truncated or replaced its files in the new worktree by the time any kill
+///  reaches it,
+/// and a kill after its first write cannot restore a truncated lockfile or a half-written install.
+///  The fixture's first action is that write,
+/// which is the moment the promise is broken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1220,7 +1226,8 @@ fn a_start_that_gives_no_answer_never_lets_the_tool_run() {
 /// well past the start bound and well inside this control's own deadline.
 const HELD_AFTER_THE_LET_GO: Duration = Duration::from_secs(4);
 
-/// The number a fixture wrote to `path`, once it is there:
+/// The number a fixture wrote to `path`,
+/// once it is there:
 /// a control's own look at a process it started.
 fn read_a_pid_within(path: &Path) -> i32 {
     let waiting_since: Instant = Instant::now();
@@ -1383,7 +1390,8 @@ const AUDIT_START_BOUND: Duration = Duration::from_millis(50);
 const AUDIT_HOLD_AFTER_THE_START: Duration = Duration::from_millis(250);
 
 /// Whether the kernel has released this number:
-/// a child that was collected leaves no entry, while a zombie still has one.
+/// a child that was collected leaves no entry,
+/// while a zombie still has one.
 fn is_collected_soon(pid: i32) -> bool {
     let waiting_since: Instant = Instant::now();
     let listed: PathBuf = PathBuf::from(format!("/proc/{pid}/stat"));

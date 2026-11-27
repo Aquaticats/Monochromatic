@@ -199,7 +199,8 @@ pub fn is_a_drawn_tree(
 ///  because the repository can change between the draw and the claim.
 ///  A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
 ///  every member of theirs would be refused,
-///  so a draw makes none (`shadow_pool.rs`, `fill`).
+///  so a draw makes none (`shadow_pool.rs`,
+/// `fill`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -441,7 +442,8 @@ fn nothing_holds_after() -> Duration {
 ///  and a killed client cannot be asked:
 ///  the renewal is what says a command still runs,
 ///  with no lock and no record of a process (`service_scratch_renewal.rs`).
-///  A commit that is answered as not landed, or whose request the service never took,
+///  A commit that is answered as not landed,
+/// or whose request the service never took,
 ///  removes the tree itself in the background,
 ///  as it removes a scratch tree the service handed back,
 ///  and one whose request landed leaves the removal to the service,
@@ -483,7 +485,8 @@ impl HandedShadow {
     }
 
     /// What:
-    ///  `hold`, with the pace the tree is renewed at given,
+    ///  `hold`,
+    /// with the pace the tree is renewed at given,
     ///  so a control can watch one renewal happen without waiting five minutes for it.
     /// Why:
     ///  The pace a commit uses is `SCRATCH_REFRESH_EVERY`,
@@ -538,7 +541,8 @@ impl Drop for HandedShadow {
     }
 }
 
-/// The draw, the sweep and the value a commit holds are controlled in the test module.
+/// The draw,
+/// the sweep and the value a commit holds are controlled in the test module.
 #[cfg(test)]
 #[path = "shadow_drawn_tests.rs"]
 mod tests;

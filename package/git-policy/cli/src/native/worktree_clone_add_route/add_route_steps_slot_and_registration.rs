@@ -77,7 +77,10 @@ pub fn step_slot(
     return Ok(());
 }
 
-/// Verify one existing slot: a directory of this account, empty, on the
+/// Verify one existing slot:
+/// a directory of this account,
+/// empty,
+/// on the
 /// checkout's own dataset.
 fn verify_the_slot(
     metadata: &std::fs::Metadata,
@@ -250,7 +253,8 @@ fn adopt(
     return Ok(());
 }
 
-/// Run Git's own add with the managed lock, keeping Git's status.
+/// Run Git's own add with the managed lock,
+/// keeping Git's status.
 fn run_the_git_add(
     steps: &Steps<'_>,
     nonce: &crate::worktree_clone_mount_protocol::RequestNonce,

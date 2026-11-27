@@ -4,7 +4,8 @@
 //!  The finder's rows are the binding design's,
 //!  and this route calls them rather than restating them
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-//!  "The finder, and the lock's part in it").
+//!  "The finder,
+//! and the lock's part in it").
 //!  The finder needs one entry's lock bytes,
 //!  its `gitdir` target,
 //!  whether `commondir` and `HEAD` stand,

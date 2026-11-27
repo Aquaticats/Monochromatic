@@ -232,7 +232,8 @@ impl MountedDatasets for ScriptedTable {
 ///  table;
 ///  a fixture that names its own folder asks nothing of the system.
 struct Fixture {
-    /// The folder the record, the configuration and the checkout live in.
+    /// The folder the record,
+    /// the configuration and the checkout live in.
     folder: PathBuf,
 }
 
