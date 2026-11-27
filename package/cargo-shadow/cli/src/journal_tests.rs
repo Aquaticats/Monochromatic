@@ -61,6 +61,46 @@ fn lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("read");
 }
 
+/// What:
+/// `fn names_in(directory: &Path) -> Vec<String>` lists the names a directory holds,
+/// in name order.
+/// Why:
+/// A control asks which names a directory holds,
+/// and the file system answers `read_dir` in an order of its own:
+/// a directory holding `Cargo.lock` and `Cargo.lock.displaced` comes back in name order or in the other (issue 6553),
+/// so a listing compared with a stated order passes or fails by chance.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesIn = (directory: string): string[] => readdirSync(directory).sort();
+/// ```
+fn names_in(directory: &Path) -> Vec<String> {
+    // Closure `|entry|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // `let mut`: a binding that may change.
+    // Typed binding: `names: Vec<String>`.
+    let mut names: Vec<String> = fs::read_dir(directory)
+        .expect("list")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().to_string();
+        })
+        .collect();
+    // What:     `.sort()` puts the names in their own order, so the caller compares names and not the order the file system
+    //           happened to answer in.
+    // Why:      The file system's order is its own business and differs between machines and between directories (issue 6553).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // names.sort();
+    // ```
+    names.sort();
+    return names;
+}
+
 /// The warnings of a restore that must not have failed.
 fn restored(result: (Vec<String>, Option<std::io::Error>)) -> Vec<String> {
     assert!(result.1.is_none(), "the restore failed: {:?}", result.1);
@@ -632,31 +672,16 @@ fn a_compare_and_replace_that_finds_the_expected_text_replaces_it_and_leaves_no_
     );
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "new text");
-    // Closure `|entry|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
-    // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+    // What:     `names_in` lists the names a directory holds in name order, which is what the comparison below needs.
+    // Why:      The control asks which names exist and that no temporary file is left; the order `read_dir` answers in is the file
+    //           system's own and differs between machines (issue 6553).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // Array.from(iterable)  // or [...iterable]
-    // ```
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      They express one step of a pipeline without an index loop.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // list.map(f).filter(g)
+    // const names: string[] = namesIn(crateDir);
     // ```
     // Typed binding: `names: Vec<String>`.
-    let names: Vec<String> = fs::read_dir(root.path().join(CRATE_DIR))
-        .expect("list")
-        .flatten()
-        .map(|entry| {
-            return entry.file_name().to_string_lossy().to_string();
-        })
-        .collect();
+    let names: Vec<String> = names_in(&root.path().join(CRATE_DIR));
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(
@@ -925,25 +950,6 @@ fn a_second_displaced_file_gets_its_own_name() {
 }
 
 // ---- the replacement protocol, second review (2b)
-
-fn names_in(directory: &Path) -> Vec<String> {
-    // Closure `|entry|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // `let mut`: a binding that may change.
-    // Typed binding: `names: Vec<String>`.
-    let mut names: Vec<String> = fs::read_dir(directory)
-        .expect("list")
-        .flatten()
-        .map(|entry| {
-            return entry.file_name().to_string_lossy().to_string();
-        })
-        .collect();
-    names.sort();
-    return names;
-}
 
 /// Review finding (2b 3):
 /// a filesystem that cannot exchange must make the restore fail visibly.
@@ -1306,6 +1312,16 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
 fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     use crate::manifest_edit::ManifestEdit;
     use std::os::unix::ffi::OsStringExt;
+    // What:    `in_a_fixture_root_taking_any_name` answers whether this half may make the odd name here, and where the
+    //  file system refuses it, starts this same test again inside a user and mount namespace with a tmpfs at the
+    //  scratch root.
+    // Why: the dataset behind this build folder refuses a name that is not UTF-8 (issue 6550), and a control that
+    //  skipped there would pass a run in which the recovery was never exercised.
+    if !crate::test_scratch::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
+        crate::test_scratch::scratch_root().as_path(),
+    ) {
+        return;
+    }
     let root = repository("unchecked output of the killed run");
     // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
     // Why:      The result can be stored or modified independently of the slice it came from.

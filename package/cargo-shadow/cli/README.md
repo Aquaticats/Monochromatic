@@ -1421,6 +1421,13 @@ recorded in the log line of every removal:
   and refusing every removal while another user's system daemon exists would stop the sweep wherever the build base is
   world-searchable (the host base here is on a `0777` mount with a `uid 70` daemon running,
   measured 2026-11-08).
+  On this host that count is always zero:
+  the account's home folder is mode `700`,
+  so every build base below it denies another user the way in,
+  whatever the base's own mode is
+  (measured 2026-11-27 with `/home/user` at `700` and `/home/user/.cargo/build` at `755`,
+  issue 6551;
+  the reading is `other_uids_can_reach` in `src/lean_proc_scan.rs`).
   The limit is therefore narrowed and named,
   not closed:
   the proof line says how many processes it could not judge and which kind,
@@ -1589,6 +1596,24 @@ A run that fails that check exits non-zero rather than reporting a pass nobody e
 `cargo nextest list` cannot be asked which tests need a scope,
 so there is nothing cheaper than the first run,
 and the cost is one more pass over the suite on a host that cannot delegate.
+
+The same line is used by a control that needs more than a scope.
+`journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
+and the test fixture root (three levels above the test binary,
+so `test-scratch` in the crate's build folder) may sit on a dataset that refuses such a name under `utf8only=on`,
+answering `EILSEQ`;
+this host's `zpcachyos/nosnap/cargo-build` does,
+which is where cargo writes artifacts here (`~/.cargo/config.toml`).
+`src/test_scratch/fixture_root_taking_any_name.rs` asks that root whether it takes the name and,
+where it does not,
+runs the same test again for that one test inside a user and mount namespace of its own with a tmpfs at the root,
+so the control runs here instead of failing for the file system's refusal.
+Where a host refuses both the name and an unprivileged user namespace,
+the control prints `cargo-shadow tests: not run [<name>]: ...` and a degraded run leaves it out rather than counting it as passed.
+Why it is not simply skipped is the same reason as above:
+a control that returns green without making the name proves nothing about the recovery it guards.
+The record is `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md` (issue 6550).
+
 The tests run where this account has a user manager on a cgroup v2 mount:
 
 ```sh
@@ -1603,6 +1628,19 @@ exit status 0,
 and no per-test line naming any of them.
 Before this change that host reported `872 tests run: 872 passed` with the same 67 tests never executed.
 
+Two controls of the `/proc` scan (`lean_proc_scan_tests`) build a tree that a process of another user must be able to
+walk to,
+and the answer they check is read from every folder between `/` and that tree.
+On this host the account's home folder is mode `700`
+(measured 2026-11-27,
+issue 6551),
+so no tree below the build folder can be reached by another user whatever the fixture does to its own bits.
+The fixtures therefore stand in a temporary folder of their own below a folder every user can walk to
+(`/dev/shm` first,
+then `/var/tmp`),
+and where the host has neither,
+each control prints the `not run` line above with its reason and the `test` task leaves it out of its totals.
+
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store
 [pnpm-resolution]: https://pnpm.io/settings/dependency-resolution
@@ -1611,6 +1649,10 @@ Before this change that host reported `872 tests run: 872 passed` with the same 
 
 ## Owner answers of 2026-11-10
 
-- Asked whether `cargo-shadow lean` may remove a run record another user's process might hold, when that
-  process cannot be inspected, the owner answered at 2026-11-10T08:24:33-05:00: "Keep removing and
-  logging (Recommended)". So the sweep keeps removing and logs each record it removes.
+- Asked whether `cargo-shadow lean` may remove a run record another user's process might hold,
+  when that
+  process cannot be inspected,
+  the owner answered at 2026-11-10T08:24:33-05:00:
+  "Keep removing and
+  logging (Recommended)".
+  So the sweep keeps removing and logs each record it removes.

@@ -133,9 +133,12 @@ use crate::policy::VersionRecord;
 /// ```
 use crate::time_text::parse_rfc3339_millis;
 
+/// Reads one table of the crates.io database dump.
+mod table_reading;
+
 /// Imports the table reading of the dump,
 /// which lives in its own file (split out of this module).
-use crate::dump_table_reading::{
+use self::table_reading::{
     CrateNameRows,
     VersionRows,
     read_table,

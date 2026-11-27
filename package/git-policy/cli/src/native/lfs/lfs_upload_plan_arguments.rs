@@ -35,14 +35,15 @@ use crate::lfs_pre_push::{
     hook_switched_off,
     skip_requested,
 };
-/// The plan itself,
-/// and the decisions a destination is made of.
-use crate::lfs_upload_plan::{
-    UploadPlan,
+/// What the destination of an upload is,
+/// and which remotes the configuration defines.
+use crate::lfs_upload_plan_destination::{
     configured_remotes,
     has_push_rewrite,
     lfs_destination,
 };
+/// What an upload sends.
+use crate::lfs_upload_plan_itself::UploadPlan;
 /// The configuration the plan reads.
 use crate::lfs_upload_settings::{
     default_remote,

@@ -68,6 +68,7 @@
 //!   the dataset-name rule and the fixed snapshot.
 //! - `probe_configuration_refusal.rs`:
 //!   why the source or the checkout could not be told,
+//!   the keys the configuration names them under,
 //!   and the closed word the record carries for each cause.
 //! - `probe_configuration.rs`:
 //!   the two names the configuration supplies,

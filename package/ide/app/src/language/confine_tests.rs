@@ -154,11 +154,24 @@ fn typescript_server_runs_without_a_pid_namespace_and_without_type_acquisition()
     )
     .expect("recipe");
     assert!(
-        !launch.args.contains(&"--unshare-pid".to_string()),
+        !launch
+            .args
+            .iter()
+            .any(|argument| return argument == "--unshare-pid"),
         "the TypeScript server would exit inside a process-id namespace"
     );
-    assert!(launch.args.contains(&"--unshare-net".to_string()));
-    assert!(!launch.args.contains(&"CARGO_TARGET_DIR".to_string()));
+    assert!(
+        launch
+            .args
+            .iter()
+            .any(|argument| return argument == "--unshare-net")
+    );
+    assert!(
+        !launch
+            .args
+            .iter()
+            .any(|argument| return argument == "CARGO_TARGET_DIR")
+    );
     assert_eq!(
         launch.settings,
         Some(json!({
@@ -179,11 +192,17 @@ fn node_servers_that_watch_the_client_run_without_a_pid_namespace_but_without_ne
         let state = PathBuf::from(format!("/state/project-0/{name}"));
         let launch = recipe(&request(name, &[]), &state, "/usr/bin/bwrap", &[]).expect("recipe");
         assert!(
-            !launch.args.contains(&"--unshare-pid".to_string()),
+            !launch
+                .args
+                .iter()
+                .any(|argument| return argument == "--unshare-pid"),
             "{name} exits about 3 s after start when the client's process id is invisible"
         );
         assert!(
-            launch.args.contains(&"--unshare-net".to_string()),
+            launch
+                .args
+                .iter()
+                .any(|argument| return argument == "--unshare-net"),
             "{name} kept network access"
         );
     }
@@ -195,7 +214,10 @@ fn node_servers_that_watch_the_client_run_without_a_pid_namespace_but_without_ne
     )
     .expect("recipe");
     assert!(
-        other.args.contains(&"--unshare-pid".to_string()),
+        other
+            .args
+            .iter()
+            .any(|argument| return argument == "--unshare-pid"),
         "a server that does not watch the client lost its process-id namespace"
     );
 }

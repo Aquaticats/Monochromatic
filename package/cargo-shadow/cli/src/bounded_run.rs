@@ -207,23 +207,28 @@ pub(crate) use crate::bounded_run_route_cache::{
     use_route_settings_for_test,
 };
 
+/// The bound one call must finish within and the error that says which it did not meet.
+mod bound_and_error;
+/// The open scope of one run as this process remembers it.
+mod scope;
+
 /// What one bounded call is allowed and how it fails (split out of this module).
-pub use crate::bounded_run_bound_and_error::{
+pub use self::bound_and_error::{
     Bound,
     RunError,
 };
 /// The mark that a run's writers may remain,
 /// set by a test (split out of this module).
 #[cfg(test)]
-pub use crate::bounded_run_scope::mark_scope_lost_for_test;
+pub use self::scope::mark_scope_lost_for_test;
 /// The open scope of one run and the command a timed-out run repeats (split out of this module).
-pub use crate::bounded_run_scope::{
+pub use self::scope::{
     RunScope,
     rerun_text,
     set_rerun,
 };
 /// The innermost open scope of this thread and the state it remembers (split out of this module).
-pub(crate) use crate::bounded_run_scope::{
+pub(crate) use self::scope::{
     ScopeState,
     current_scope,
 };
