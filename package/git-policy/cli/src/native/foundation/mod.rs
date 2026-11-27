@@ -139,6 +139,10 @@
 //! - `test_only_switches.rs`:
 //!   the one read of every test-only switch,
 //!   which a build the release ships holds not at all.
+//! - `session_runtime_directory_and_bus_address.rs`:
+//!   the one place this crate reads this session's runtime directory and its session-bus address,
+//!   which a build made for tests takes from what a control handed in and never from the environment
+//!   the test process inherited.
 //! - `what_a_built_runtime_is.rs`:
 //!   the runtime a build made,
 //!   how its build came out,
@@ -348,7 +352,9 @@ pub mod handler_configuration_keys;
 
 /// Reading a file only the account this program runs as may write.
 ///
-/// Linux only, like the handler whose configuration it reads: the flags and the owner check are the
+/// Linux only,
+/// like the handler whose configuration it reads:
+/// the flags and the owner check are the
 /// Linux kernel's own.
 #[cfg(target_os = "linux")]
 pub mod file_only_root_may_write;
@@ -579,6 +585,11 @@ pub mod runtime_probe;
 /// which a build the release ships holds not at all.
 pub mod test_only_switches;
 
+/// The one place this crate reads this session's runtime directory and its session-bus address,
+/// which a build made for tests takes from what a control handed in and never from the environment
+/// the test process inherited.
+pub mod session_runtime_directory_and_bus_address;
+
 /// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
 pub mod name_held_while_one_thread_publishes_it;
 
@@ -608,7 +619,8 @@ pub mod standard_error_descriptor;
 /// so a reader that stopped draining never holds the command.
 pub mod notice_stream_that_does_not_hold_its_writer;
 /// This process's standard error as a stream whose every whole line is handed to the thread that
-/// writes it, so the thread that says a line never waits for the reader.
+/// writes it,
+/// so the thread that says a line never waits for the reader.
 pub mod standard_error_off_the_calling_thread;
 
 /// A connection to a unix socket that is made within one deadline,

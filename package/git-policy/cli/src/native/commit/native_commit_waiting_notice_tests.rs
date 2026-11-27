@@ -331,6 +331,37 @@ fn kept_below<'kept>(
 }
 
 /// What:
+///  The stretch a host under load put between two looks of the notice,
+///  which this control states so its figures are asked for under the schedule that failed a gate.
+/// Why:
+///  The gate run of 2026-11-27 that failed this control held `looks: 4, looks_found: 3`
+///  and credited the `sleep` with 639.46873 ms,
+///  which is two intervals of 319.734 ms each (issue 6592).
+///  A look interval the host stretched to 319.7 ms is the one this control means.
+///  Measured on 2026-11-27:
+///  with the gate's own 69.7 ms planted,
+///  the body this control had before the fix failed two of three runs,
+///  which credited 640.68 ms and 640.58 ms where the control asserted 750 ms,
+///  and passed the third,
+///  because whether the notice's first look comes before the step's number is published
+///  is a race the stretch does not decide.
+///  The figures that body asserted needed a look
+///  the 1,200 ms window held only while the notice waited exactly `LOOK_INTERVAL`,
+///  so a stretch above 350 ms loses it whichever thread wakes first up to 500 ms,
+///  and this control states one inside that band so it is never wrong for the race.
+const A_STRETCH_A_LOADED_HOST_PUT_BETWEEN_TWO_LOOKS: Duration = Duration::from_millis(450);
+
+/// What:
+///  The looks that found the step before this control ends it.
+/// Why:
+///  The record credits a program below the step with the interval between two looks that both found it,
+///  so the figure it proves is one interval for each look after the first,
+///  and a control that waited for a clock had nothing to rest on when a loaded host held one look fewer (issue 6592).
+///  The count is one more than the intervals this control asserts on,
+///  so the assertion rests on a count the control waited for.
+const LOOKS_THE_CONTROL_WAITS_FOR: u32 = 5;
+
+/// What:
 ///  The notice reports which programs ran below the step and for how long.
 /// Why:
 ///   Git starts the signing program below itself and the record held no figure for it,
@@ -338,46 +369,75 @@ fn kept_below<'kept>(
 /// and the owner asked for the logging that tells them apart (2026-11-08,
 /// "About 16 seconds").
 ///  The child here is a `sleep` below this process,
-/// named as the kernel names it.
+/// named as the kernel names it,
+/// and only this control ends it.
 #[test]
 fn the_notice_reports_the_programs_that_ran_below_the_step() {
     let _windows: (
         std::sync::MutexGuard<'static, ()>,
         std::sync::MutexGuard<'static, ()>,
     ) = take_the_windows_a_notice_control_reads();
-    let mut step: std::process::Child =
-        crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("2"))
-            .expect("a long-running child");
+    // What: The step, a `sleep` only this control ends.
+    // Why:  A step that ended by itself took the looks this assertion rests on with it (issue 6592),
+    //       so the program outlives every wait here and the control kills it once the looks are made.
+    let mut step: std::process::Child = sleeping_step();
     let cadence: Cadence = Cadence {
         grace: Duration::from_secs(60),
         interval: Duration::from_secs(60),
     };
+    let began: Instant = Instant::now();
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
         commit_arguments: &words(&["-m", "x"]),
         cadence,
-        ceiling: Duration::from_secs(120),
+        ceiling: A_CEILING_NO_SETUP_CAN_REACH,
         sink: Box::new(Buffer::default()),
     });
     notice.step_started(step_number(&step));
-    std::thread::sleep(Duration::from_millis(1200));
+    // What: The stretch a loaded host put between this notice's looks, planted for the step it watches.
+    // Why:  The gate's own figures show each look interval stretched to 319.7 ms (issue 6592),
+    //       and this control states that schedule instead of waiting for a load to happen.
+    the_controls_window::a_look_of_this_step_waits(
+        step_number(&step),
+        A_STRETCH_A_LOADED_HOST_PUT_BETWEEN_TWO_LOOKS,
+    );
+    // What: The looks the assertion rests on, waited for rather than slept out.
+    // Why:  A loaded host fits fewer looks into a fixed window,
+    //       and the count the record itself proves is what its figure must hold,
+    //       so the control waits for that count.
+    let enough_looks: bool =
+        the_controls_window::until_looks_find_the_step(LOOKS_THE_CONTROL_WAITS_FOR, A_STATE_BOUND);
     let seen: ScratchStepFacts = notice.finish();
+    let watched_for: Duration = began.elapsed();
     step.kill().expect("cleanup");
     step.wait().expect("reaped");
     assert!(
-        seen.armed && seen.looks_found >= 1,
-        "the notice looked and found the step: {seen:?}"
+        enough_looks,
+        "the notice made fewer than {LOOKS_THE_CONTROL_WAITS_FOR} looks that found the step within \
+         {A_STATE_BOUND:?}: {seen:?}"
     );
     assert_eq!(seen.stopped_after, None, "the ceiling never came: {seen:?}");
     let found: &crate::scratch_commit_step::SeenProgram =
         kept_below(seen.below.as_slice(), "sleep");
+    // What: The intervals the record's own counts prove it watched the sleep for.
+    // Why:  Every interval between two looks is at least `LOOK_INTERVAL` and the stretch planted above,
+    //       and a look that found nothing is credited with neither interval beside it,
+    //       which the record's own `looks` minus `looks_found` counts.
+    let missed_looks: u32 = seen.looks.saturating_sub(seen.looks_found);
+    let intervals_proved: u32 = seen
+        .looks_found
+        .saturating_sub(1)
+        .saturating_sub(missed_looks.saturating_mul(2));
+    let proved: Duration = (LOOK_INTERVAL + A_STRETCH_A_LOADED_HOST_PUT_BETWEEN_TWO_LOOKS)
+        .saturating_mul(intervals_proved);
     assert!(
-        found.seen >= Duration::from_millis(750),
-        "the sleep ran while the notice looked: {seen:?}"
+        found.seen >= proved,
+        "the sleep ran while the notice looked, and the record proved {proved:?} of it, which is one interval \
+         of `LOOK_INTERVAL` plus the stretch this control planted for every look that found the step: {seen:?}"
     );
     assert!(
-        found.seen <= Duration::from_millis(1200),
-        "a program cannot be seen longer than it ran: {seen:?}"
+        found.seen <= watched_for,
+        "a program cannot be seen for longer than the notice watched for it: {seen:?} was watched {watched_for:?}"
     );
 }
 

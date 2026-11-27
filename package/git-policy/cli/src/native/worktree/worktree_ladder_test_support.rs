@@ -223,21 +223,45 @@ pub(crate) fn plan_naming_a_commit(
 pub(crate) const HIDDEN_EDIT_SECONDS: u64 = 1_577_934_245;
 
 /// What:
-///  Give `path` the modification time `seconds`.
+///  The nanosecond part of that modification time the index records,
+/// and the one the edit gives the file.
+/// Why:
+///   The difference between the recorded state and the edited one is the fixture's own,
+/// stated instead of left to
+///  the clock:
+/// this file system stamps a write from the kernel's coarse clock,
+/// which advances in steps of
+///  about a millisecond,
+/// so two writes of a control's own land on one stamp whenever they fall in one step
+///  (`doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`).
+/// Git's stat check compares
+///  the second of the modification time and not its nanoseconds,
+/// so an edit that keeps the second is still one
+///  that check cannot see.
+pub(crate) const HIDDEN_EDIT_RECORDED_NANOS: u32 = 250_000_000;
+pub(crate) const HIDDEN_EDIT_EDITED_NANOS: u32 = 750_000_000;
+
+/// What:
+///  Give `path` the modification time `seconds` and `nanos`.
 /// Why:
 ///   A fixture that hides an edit puts the file's times back after writing it,
 /// so nothing about the file's
-///  length or modification time says it changed.
+///  length or modification time says it changed;
+/// the nanosecond part is the one fact such a fixture states
+///  itself,
+/// so a control can tell the recorded state from the edited one without the clock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const seconds = 1_577_934_245; const when = new Date(seconds * 1000); utimesSync(path, when, when);
+/// const seconds = 1_577_934_245; const when = new Date(seconds * 1000 + nanos / 1e6); utimesSync(path, when, when);
 /// ```
 fn set_modified(
     path: &Path,
     seconds: u64,
+    nanos: u32,
 ) {
-    let when: SystemTime = UNIX_EPOCH + Duration::from_secs(seconds);
+    let when: SystemTime =
+        UNIX_EPOCH + Duration::from_secs(seconds) + Duration::from_nanos(u64::from(nanos));
     let times: std::fs::FileTimes = std::fs::FileTimes::new().set_modified(when);
     std::fs::File::open(path)
         .expect("the file whose times are put back")
@@ -271,12 +295,20 @@ pub(crate) fn wait_for_a_new_second() {
 ///  change time.
 /// A file written at the start of a whole second,
 /// recorded in the index and then replaced with bytes
-///  of the same length and the same modification time keeps all three,
+///  of the same length and the same second of modification time keeps all three,
 /// so `git status`,
 /// `git diff-files`,
 ///  `read-tree --reset -u` and `reset --hard` all take it for the entry's content.
-/// The write and the
-///  index record are retried when the second rolled over between them.
+/// The two states also differ in the
+///  nanosecond part of the modification time,
+/// which the fixture states:
+/// `HIDDEN_EDIT_RECORDED_NANOS` in the
+///  entry it records,
+/// `HIDDEN_EDIT_EDITED_NANOS` in the file it leaves,
+/// so a control that asserts the two states
+///  differ never waits for a clock to move.
+/// The write and the index record are retried when the second rolled over
+///  between them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,12 +329,20 @@ pub(crate) fn hide_an_edit(
     for _attempt in 0..5 {
         std::fs::write(path.as_path(), original).expect("the file before the edit");
         wait_for_a_new_second();
-        set_modified(path.as_path(), HIDDEN_EDIT_SECONDS);
+        set_modified(
+            path.as_path(),
+            HIDDEN_EDIT_SECONDS,
+            HIDDEN_EDIT_RECORDED_NANOS,
+        );
         git(repo, &["add", "--", relative]);
         let recorded: std::fs::Metadata =
             std::fs::metadata(path.as_path()).expect("the file's stat when the index recorded it");
         std::fs::write(path.as_path(), edited).expect("the edit");
-        set_modified(path.as_path(), HIDDEN_EDIT_SECONDS);
+        set_modified(
+            path.as_path(),
+            HIDDEN_EDIT_SECONDS,
+            HIDDEN_EDIT_EDITED_NANOS,
+        );
         let hidden: bool = git_output(repo, &["diff-files", "--quiet"])
             .status
             .success();

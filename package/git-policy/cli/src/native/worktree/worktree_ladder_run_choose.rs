@@ -62,8 +62,8 @@ use crate::worktree_snapshot_source::{
 };
 use crate::worktree_subvolume::prepare_subvolume_destination;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// Import the tag every line of this folder's ladder work carries.
+use crate::worktree::worktree_ladder_finish_binding::TAG;
 
 /// What:
 ///  Choose the rung for one invocation and prepare it:

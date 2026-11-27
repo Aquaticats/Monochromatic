@@ -39,6 +39,13 @@ const LOOK_PAUSE: Duration = Duration::from_millis(5);
 
 /// Take the window for the control that is about to use it,
 /// with no hold planted.
+///  A control that needs this window and `scratch_step_look_below`'s or the notice's takes theirs first,
+///  in the order look,
+///  notice,
+///  reap,
+///  as every control that needs them does,
+///  because two orders in one process hold each other for ever in a threaded run
+/// (`doc/troubleshooting/git-policy-cli-control-windows-taken-in-two-orders.md`).
 pub(crate) fn take_the_window() -> MutexGuard<'static, ()> {
     let taken: MutexGuard<'static, ()> = WINDOW
         .lock()

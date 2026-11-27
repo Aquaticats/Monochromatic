@@ -79,7 +79,10 @@ use crate::service_prepare::{
     Ready,
 };
 /// Standard error as a stream whose lines a thread of their own writes.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 /// The Git the short name of a held commit is asked for.
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
@@ -308,7 +311,7 @@ pub(crate) fn the_held_ending(
     // What: The held commit's words go to the thread that writes standard error.
     // Why:  The exit status already says the result, and a reader that stopped draining must not
     //       keep the commit's own answer from returning.
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     let _written = writeln!(
         notes,

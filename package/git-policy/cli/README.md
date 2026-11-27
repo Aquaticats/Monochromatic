@@ -2409,7 +2409,10 @@ so the clone and its record stay until it does.
 
 `git worktree remove` is refused for a slot the binding record proves is a whole worktree,
 whatever options the command carries (`-f -f` and every other spelling Git accepts,
-and the global options before `worktree` read by Git's own table: `-c`, `--no-optional-locks`, `--git-dir` and `-C <a Git directory>` skip none of them),
+and the global options before `worktree` read by Git's own table:
+`-c`,
+`--no-optional-locks`,
+`--git-dir` and `-C <a Git directory>` skip none of them),
 because Git's removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
@@ -4710,9 +4713,18 @@ because it pairs one side's deleted line with the other side's kept line and kee
 (issue 6529;
 the allow list of a merge of 2026-11-27,
 whose record stays deleted in `24f8c1947b`).
-A region whose word merge would write back a line one side deleted while the other side left it
-as it was keeps both sides instead,
-so you resolve it.
+That holds for a region at the end of a file as well,
+whether the file's last line ends with a line end or has none,
+and whether the file's lines end with a line feed or with a carriage return and a line feed:
+the merge writes the lines' own bytes,
+so a file keeps the ending it has,
+and a merge that ends a file writes no line end that file did not hold.
+A region whose word merge would write back more copies of a line one side deleted
+than that side still holds,
+while the other side left it as it was,
+keeps both sides instead,
+so you resolve it;
+a merge that writes only the copies that side still holds is right and resolves.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
@@ -6945,7 +6957,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   as the gate's image does,
   because a control arms its own `CLI_GIT_TEST_ONLY_*` variable and a build without that feature reads none of them;
   `native:clippy:test-only-switches` lints that build,
-  and `native:clippy` lints the release's, which holds no such read
+  and `native:clippy` lints the release's,
+  which holds no such read
   (`doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`).
 - The gate's tests keep their fixtures on a tmpfs the test container makes:
   `--tmpfs /work/package/git-policy/cli/target/gate-fixtures:rw,size=768m,mode=1777` and
@@ -7379,6 +7392,14 @@ mise run //package/git-policy/cli:test:service-manager:install -- --image <tag> 
   and the arm from `main` has to end the stand-in while the other keeps it,
   so `--harm-seed-wrapper <path>` names an older release,
   which is what makes the arm from `main` meet a template that release did not write.
+  That arm needs a release from before the remedy of 2026-11-12 (`ef1bbc27b6`,
+  first released in `0.6.1-alpha.20`) to pass at all:
+  a release from `0.6.1-alpha.20` onwards never asks the manager to read every unit,
+  so no seed makes the arm reproduce the harm,
+  and a run with such a release ends in
+  `THE PROOF FAILED: the release from main asked for no reload, so this fixture would prove nothing about it`.
+  The choices for that arm are in
+  `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`.
 - `test:service-manager:install` (`bin/service-manager-install-proof.ts`)
   proves that an install of one release over the one before it leaves no wrapper unit failing a start,
   and that two commits of one worktree made at once across the upgrade each land once.
@@ -7486,9 +7507,16 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   and `--unit-cpu-quota`,
   `--unit-memory-max`,
   `--unit-tasks-max`,
-  `--unit-io-weight`
-  and `--container-pids-limit` override the caps every recorded gate ran with,
+  `--unit-io-weight`,
+  `--container-pids-limit`
+  and `--container-memory` override the caps every recorded gate ran with,
   which are documented with what sized each one in `bin/native-gate-caps.ts`.
+  `--container-memory <size>` is what a host that cannot spare the containers' own measured bounds passes:
+  it becomes the task's `--memory`,
+  which bounds the suite's container,
+  the image build and Clippy together,
+  and it is the only way a gate started as a unit can lower them,
+  because the unit's own command line is the one this command builds.
   A worktree that holds no `package/git-policy/cli` is refused before the unit starts,
   because systemd would otherwise fail at `CHDIR` with an empty log.
 - `native:gate:main-tip` detaches the gate worktree
@@ -7635,16 +7663,20 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   (otherwise the nearest folder above the caller whose `.git` is a folder)
   and `--dry-run` prints the same plan and changes nothing.
   The install also refuses unless `git monochromatic-git-policy-cli zfs-root --version` prints the release's line,
-  from `0.6.1-alpha.46` on, which is the first release whose build answers those words:
+  from `0.6.1-alpha.46` on,
+  which is the first release whose build answers those words:
   the ZFS route's root modes are modes of the one executable since that release.
   A build of a release before it cannot answer the words at all,
   so an install of one skips that check and keeps the checks that release can answer,
-  and a rollback to `0.6.1-alpha.45` installs, commits the lock under that release's name and prints its line.
+  and a rollback to `0.6.1-alpha.45` installs,
+  commits the lock under that release's name and prints its line.
   The floor is `rootModesFirstRelease` in `bin/native-install-steps.ts`,
   kept beside the release list that names the releases whose builds answer the words,
   and `bin/native-install.unit.test.ts` fails when the floor and that list disagree.
-  A release at or after the floor that answers nothing has lost the dispatch, or the wrapper on `PATH` is another
-  release, and the refusal says so.
+  A release at or after the floor that answers nothing has lost the dispatch,
+  or the wrapper on `PATH` is another
+  release,
+  and the refusal says so.
 
 ### Lint
 
@@ -7817,7 +7849,8 @@ a port is written only after a host in a URL that has a scheme,
 a bracketed address is unwrapped because ssh reads the bare address,
 and a password a URL carries is never printed.
 
-A transport ssh does not carry, an `https` or `file` remote for example,
+A transport ssh does not carry,
+an `https` or `file` remote for example,
 keeps the process replacement it always had,
 with its bytes and its signals.
 
@@ -8102,15 +8135,49 @@ because a release waits on that gate and its suite is what the CPUs shorten
   the 512 the repository default allows in another,
   which failed three tests on `fork` with `Resource temporarily unavailable`.
   The same four tests at 1024 processes passed all 7,192.
-- The 2 GiB memory bound is the repository default,
-  because four tests at once peaked at 978 MiB of it.
-  With the suite's fixture root on a tmpfs,
-  whose pages count against the same bound,
-  a whole suite on a ZFS
-  host peaked at 1123.8 MiB of it
-  (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
-  read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`),
-  and the same container peaked at 1149.3 MiB in the measurement of 2026-11-27 below.
+- The suite's container has a bound of its own,
+  4 GiB from `bin/native-gate-container-limits.ts` (`gateSuiteMemory`),
+  because it runs the crate's whole test run rather than compiling it.
+  It took the repository default of 2 GiB until issue 6583 read the gates of 2026-11-27 at
+  1,149.3 to 1,516.5 MiB of it,
+  with `memory.events` `max` 0 and `oom_kill` 0 every time.
+  Measured in the gate's own image and settings with a bound no step of the run met,
+  the container peaked at 1,486.0 MiB,
+  and `memory.stat` at that peak says what it is made of:
+  976.7 MiB of anonymous memory,
+  469.3 MiB of page cache,
+  25.0 MiB of kernel memory and 21.7 MiB of slab,
+  and 0 MiB of shared memory,
+  so the fixture root's tmpfs held nothing at the peak.
+  Of that anonymous memory,
+  892.2 MiB was one control,
+  `service::service_main::tests::the_service_setup_and_its_words_are_used_only_by_the_service_mode`,
+  holding it for 25.4 s beside three `source_guard::` controls of 28.2 to 29.1 MiB each
+  and nextest's own 82.2 MiB,
+  which is why the peak is not nextest's concurrency.
+  `doc/planning/git-policy-cli-cachyos-test-containers.md`
+  ("The suite container's own memory bound,
+  measured 2026-11-27") holds the arm and the arithmetic.
+  Four GiB is 2.76 times that reading and 2,610 MiB above it:
+  two more controls holding what the largest one holds still fit,
+  at 3,270 MiB.
+  A gate at its bounds therefore holds 12 GiB of the host at once,
+  where it held 10 GiB while the suite shared the repository default.
+  `--memory` after the task name,
+  or `--container-memory` on `native:gate`,
+  lowers every container of the gate for a host that cannot spare the bound.
+- A container the kernel kills inside its bound says so.
+  Each of the gate's containers has its own `memory.events` read every 100 ms while it runs
+  (`bin/native-gate-container-memory.ts`),
+  because `--rm` takes a container's cgroup with it,
+  and a container whose events count a kill is named by one line of its own
+  beside whatever the check said:
+  the container,
+  the number of kills,
+  the `memory.max` bound the kernel held it at,
+  the peak it reached,
+  and the two options that raise it.
+  A run that met no kill prints nothing.
 - The Clippy container has a bound of its own,
   8 GiB from `bin/native-gate-container-limits.ts` (`gateClippyMemory`),
   because it compiles every target of the crate,
@@ -8121,13 +8188,19 @@ because a release waits on that gate and its suite is what the CPUs shorten
   and the 4 GiB the planning record had named would not have held it either.
   Measured in the gate's own image and settings with a bound no step of the run met,
   the Clippy container peaked at 4,574.4 MiB
-  (`memory.peak`, `memory.events` `max` 0, `oom_kill` 0),
-  and five gates at the bound that followed read 4,790.0, 4,835.4, 5,062.8, 5,273.4 and 5,278.7 MiB,
+  (`memory.peak`,
+  `memory.events` `max` 0,
+  `oom_kill` 0),
+  and five gates at the bound that followed read 4,790.0,
+  4,835.4,
+  5,062.8,
+  5,273.4 and 5,278.7 MiB,
   every one with `memory.events` `max` 0 and `oom_kill` 0;
   the suite's container read 1,149.3 MiB in that arm and up to 1,516.5 MiB in the gates.
   `doc/planning/git-policy-cli-cachyos-test-containers.md`
   ("The Clippy container's own memory bound,
-  measured 2026-11-27") holds the arm, the gates and the arithmetic.
+  measured 2026-11-27") holds the arm,
+  the gates and the arithmetic.
   Eight GiB is 1.55 times that highest reading and 2,913 MiB above it.
 - The image build has a bound of its own,
   8 GiB from `bin/native-gate-container-limits.ts` (`gateBuildMemory`),
@@ -8156,8 +8229,11 @@ A bound a person passes after the `--` still wins,
 with one exception:
 the process bound is a floor that follows the test count,
 so a `--pids-limit` below it is raised and the gate prints the line that says so.
-A `--memory` bounds the image build, Clippy and the suite's container together,
-so a host with less memory than the build's own 8 GiB, or Clippy's, is served by lowering that one value;
+A `--memory` bounds the image build,
+Clippy and the suite's container together,
+so a host with less memory than the build's own 8 GiB,
+or Clippy's,
+is served by lowering that one value;
 the gate prints which bound each container got before it builds.
 Every task accepts overrides after the `--` of `mise run`,
 with these exact option names:
@@ -8620,25 +8696,38 @@ The repository's layout rules are on for this crate since 2026-11-25
 The crate does not satisfy them yet,
 so today's findings stand in the two allow lists beside this file:
 
-- `layout-allow-list/folder-rule.txt`:
-  524 `uses <folder> -> <folder>` lines for the uses of today's folder and entry loops,
-  49 lines for the `pub use folder::*` re-exports,
-  which keep the crate's flat module paths,
-  20 lines for the findings that `health/` is a group folder
-  with module files beside its child folder,
-  and 421 lines for the `uses` links the crate does not hold.
-- `layout-allow-list/file-rule.txt`:
-  544 `file-uses <folder> <file> -> <file>` lines for the uses of today's file loops,
-  59 lines for the folders whose top doc has no file list or misses a name,
-  and one for the function that `main.rs` holds beside `fn main`.
+- `layout-allow-list/folder-rule.txt` holds what `rust/folder-uses-links` still reports:
+  a `uses <folder> -> <folder>` line for the uses inside a folder or an entry loop,
+  a `glob <file> <module>` line for a `pub use folder::*` re-export,
+  which keeps the crate's flat module paths,
+  a `missing-link <folder> -> <folder>` line for a `uses` link the crate does not hold,
+  and the lines of the rule's other findings,
+  among them the module files a group folder holds beside its child folders.
+- `layout-allow-list/file-rule.txt` holds what `rust/file-order-in-folder` still reports:
+  a `file-uses <folder> <file> -> <file>` line for the uses inside a file loop,
+  and an `index-item <index file> <kind>-<name>` line for an item an index file holds
+  beside its top doc,
+  its `mod` lines and its re-exports,
+  such as the function `main.rs` holds beside `fn main`.
 
-The 421 links are recorded rather than written,
+Each round deletes the lines of the findings it untangles,
+so a list only shrinks and no number of lines on this page can stay true:
+count each kind of line from the list itself.
+
+```sh
+# Run from the repository top level: one line per kind of line, with its count.
+cut --delimiter=' ' --fields=1 package/git-policy/cli/layout-allow-list/folder-rule.txt | sort | uniq --count
+cut --delimiter=' ' --fields=1 package/git-policy/cli/layout-allow-list/file-rule.txt | sort | uniq --count
+```
+
+The `missing-link` lines are recorded rather than written,
 because a link set that holds mutual uses makes `cargo package --list` walk without end:
 cargo follows every `uses` link,
 and the crate's loops make those paths multiply.
-Measured on 2026-11-25:
-1.9 s for the whole list with the 109 links the crate had,
-and no answer after 120 s with the 421 added ones.
+Measured on 2026-11-25 in the round whose commit `457a1f6142` wrote it into
+`doc/planning/cli-git-source-layout.md`:
+`cargo package --list` answered in 1.9 s with the 109 links the crate had then,
+and gave no answer after 120 s with the 421 links it owed then.
 The crate's own control `source_guard::packaged_uses_links_tests` reads that list,
 and a release runs `cargo publish --dry-run`.
 So a round writes a folder's links when that folder's uses no longer loop,

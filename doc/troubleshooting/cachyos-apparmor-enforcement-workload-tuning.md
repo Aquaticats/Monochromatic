@@ -2098,9 +2098,54 @@ owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-@{int}{,
 ```
 
 and `apparmor_parser --replace /etc/apparmor.d/git` exited 0.
-`@{HOME}` covers `/root` as well as the account's home.
-Not yet exercised:
-the next run of the proof shows whether its landings pass.
+
+That rule matched nothing.
+`@{int}` is one to ten digits
+(`/etc/apparmor.d/tunables/system`,
+line 27),
+and the service numbers its marks with sixteen
+(`marks-1795789803456142.lock`),
+which the summary that masked the digits hid from the session that wrote the rule.
+Two more records of the same name followed,
+at 09:30:03 and 09:32:08,
+from the proof's next runs.
+The rule was corrected at 2026-11-27T09:32:43-05:00 to
+
+```text
+owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-[0-9]*{,.lock} rwlk,
+```
+
+`@{HOME}` covers `/root`:
+`/etc/apparmor.d/tunables/home`,
+line 21,
+reads `@{HOME}=@{HOMEDIRS}/*/ /root/`.
+
+Exercised after the correction,
+in one container of the gate image
+(`localhost/git-policy-native-test:gpc-gate-wrapper-next-alpha-on-1c8acd5bfb-20261127T075019-0500`),
+as its root,
+with `/work` handed to that user:
+
+```text
+printf "done\n" | /usr/bin/git fast-import --quiet --done --export-marks=/root/.local/state/monochromatic-git-policy-cli/service/<hash>/marks-1795788270296498
+exit 0; file present
+printf "done\n" | /usr/bin/git fast-import --quiet --done --export-marks=/root/.local/state/monochromatic-git-policy-cli/service/<hash>/other-1795788270296498
+error: unable to write marks file /root/.local/state/monochromatic-git-policy-cli/service/<hash>/other-1795788270296498: Permission denied
+exit 1; file absent
+```
+
+The second command is the control:
+a name the rule does not cover is still refused,
+and the audit log holds one record for it and none for the first.
+
+Not located:
+the same proof runs left `capable` records for `dac_override` under the `git` profile
+(seven at 09:30,
+five at 09:32).
+That capability stays refused on purpose
+("Sixteenth batch"),
+a `capable` record names no path,
+and the round that reruns the proofs reports the owner and mode of any path a Git step is still refused.
 
 ## Sixteenth batch: the harness's diff folder, the gate fixture's relay, and a proof that runs Git as root, 2026-11-27T08:38:28-05:00
 

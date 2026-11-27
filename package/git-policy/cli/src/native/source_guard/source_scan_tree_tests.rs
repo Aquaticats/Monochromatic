@@ -128,7 +128,8 @@ fn stem_of(file: &str) -> &str {
 }
 
 /// What:
-///  `fn locate(root: &Path, file: &str, owns_directory: bool, declaration: &Declaration)` finds the file a `mod`
+///  `pub(crate) fn locate(root: &Path, file: &str, owns_directory: bool, declaration: &Declaration)` finds the file a
+///  `mod`
 ///  declaration names,
 /// and whether that file keeps its own children beside it (`true`,
 /// like `mod.rs` or a file
@@ -145,7 +146,7 @@ fn stem_of(file: &str) -> &str {
 /// ```ts
 /// function locate(root: string, file: string, ownsDirectory: boolean, d: Declaration): { path: string; ownsDirectory: boolean }
 /// ```
-fn locate(
+pub(crate) fn locate(
     root: &Path,
     file: &str,
     owns_directory: bool,

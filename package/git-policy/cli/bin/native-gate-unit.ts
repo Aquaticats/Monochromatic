@@ -34,7 +34,7 @@ export const gateExitStatusMarker = 'gate-exit-status=';
  The status is captured and written into the log before the same status ends the unit, so the log holds the verdict even
  though the collected unit is gone by the time anyone asks.
 
- @param caps - the caps of this gate, whose container process limit is passed to the task
+ @param caps - the caps of this gate, whose container process limit and container memory bound are passed to the task
 
  @returns the text a shell runs inside the unit
 
@@ -44,7 +44,11 @@ export const gateExitStatusMarker = 'gate-exit-status=';
  ```
  */
 export function gateUnitShellCommand({ caps }: { readonly caps: GateCaps; }): string {
-  return `${taskRunnerProgram} run ${gateTask} -- --pids-limit ${String(caps.containerPidsLimit)}; status=$?; printf "\\n${gateExitStatusMarker}%s\\n" "$status"; exit "$status"`;
+  /**
+   The memory bound the task is told, empty when the gate runs its own measured bounds.
+   */
+  const memory = caps.containerMemory === undefined ? '' : ` --memory ${caps.containerMemory}`;
+  return `${taskRunnerProgram} run ${gateTask} -- --pids-limit ${String(caps.containerPidsLimit)}${memory}; status=$?; printf "\\n${gateExitStatusMarker}%s\\n" "$status"; exit "$status"`;
 }
 
 /**
