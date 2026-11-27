@@ -282,7 +282,7 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
     );
     for expected in [
         &format!("could not start {}:", tree.real().display()),
-        "the interpreter named on the program's first line",
+        "the program itself, or the interpreter it names",
         "cannot tell which process holds that file",
         "run the same command again",
     ] {
@@ -361,7 +361,7 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
         &format!("could not start {}:", tree.real().display()),
         "Text file busy",
         "is open for writing by some other process",
-        "the interpreter named on the program's first line",
+        "the program itself, or the interpreter it names",
         "cannot tell which process holds that file",
         "run the same command again",
         "the start succeeds as soon as the file is free and whole",
