@@ -1877,7 +1877,10 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
   imports `finish` from it,
   so a build for another target names an item the modules of that target do not provide.
   `rustup target list --installed` answers `x86_64-unknown-linux-gnu` alone on the machine this was written on,
-  so no run here compiles the crate for another target.
+  so no run here compiles the crate for another target:
+  `native:clippy:windows` is the one task that type-checks another target,
+  and its own comment says it needs `rustup target add x86_64-pc-windows-gnu` on the host,
+  which this machine does not have, so that task was not run.
   The crate therefore does not compile for Windows,
   and the Windows-specific branches in the sources have never run;
   each is marked `UNTESTED ON WINDOWS` in the source.
