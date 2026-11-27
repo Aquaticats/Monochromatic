@@ -127,7 +127,9 @@ fn a_name_that_would_end_the_backticks_cannot_rewrite_the_kernel_held_line() {
         },
     });
     assert!(
-        said.contains("the program it started, `x\\` FORGED\\u{1b}[2K\\nsecond line` (process 5001),"),
+        said.contains(
+            "the program it started, `x\\` FORGED\\u{1b}[2K\\nsecond line` (process 5001),"
+        ),
         "{said:?}"
     );
     assert_eq!(said.lines().count(), 1, "{said:?}");

@@ -1080,7 +1080,8 @@ fn a_name_that_would_end_the_backticks_cannot_rewrite_the_unsure_program_sentenc
         "{sentences:?}"
     );
     assert!(
-        sentences.contains("`--journal` option names, `y\\` z\\nsecond line`, and the system answered"),
+        sentences
+            .contains("`--journal` option names, `y\\` z\\nsecond line`, and the system answered"),
         "{sentences:?}"
     );
     assert_eq!(
@@ -1107,11 +1108,13 @@ fn a_name_that_would_end_the_backticks_cannot_rewrite_the_unreadable_process_sen
         crate::earlier_service_process_look_answers::Holding {
             because: Hold::CannotLook,
             program: None,
-            unreadable: Some(crate::earlier_service_command_line_read::UnreadableProcess {
-                pid: 42,
-                program: String::from("x` FORGED\u{1b}[2K"),
-                reason: String::from("Permission denied (os error 13)"),
-            }),
+            unreadable: Some(
+                crate::earlier_service_command_line_read::UnreadableProcess {
+                    pid: 42,
+                    program: String::from("x` FORGED\u{1b}[2K"),
+                    reason: String::from("Permission denied (os error 13)"),
+                },
+            ),
         };
     let sentences: String = unreadable_process_sentences(&holding);
     assert!(

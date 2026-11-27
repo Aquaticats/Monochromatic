@@ -18,9 +18,6 @@ use crate::process_use::{
     UseTarget,
     processes_using,
 };
-use crate::subvolume_error::MigrateError;
-use crate::subvolume_platform::Platform;
-use crate::subvolume_remove::remove_tree;
 /// A name another program chose,
 /// shown so no byte of it can act on the line it lands in,
 /// and the parentheses that line puts around it.
@@ -28,6 +25,9 @@ use crate::shown_so_it_cannot_rewrite_the_line::{
     TheWrappingAroundTheName,
     shown_so_it_cannot_rewrite_the_line,
 };
+use crate::subvolume_error::MigrateError;
+use crate::subvolume_platform::Platform;
+use crate::subvolume_remove::remove_tree;
 use crate::worktree_convert_inspection::{
     Candidate,
     converting_path,

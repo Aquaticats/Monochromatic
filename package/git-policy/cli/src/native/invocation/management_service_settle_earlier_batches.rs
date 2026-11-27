@@ -54,13 +54,6 @@ use crate::earlier_service_process_look::{
     Holding,
 };
 use crate::earlier_service_unsure_program::UnsureProgram;
-/// A name another program chose,
-/// shown so no byte of it can act on the line it lands in,
-/// and the backticks that line puts around it.
-use crate::shown_so_it_cannot_rewrite_the_line::{
-    TheWrappingAroundTheName,
-    shown_so_it_cannot_rewrite_the_line,
-};
 use crate::management_service_repository_selection::{
     Selection,
     status_git_dir,
@@ -71,6 +64,13 @@ use crate::service_instance::{
     instance_of,
 };
 use crate::service_land::Handled;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the backticks that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::SETTLE_LOCK_CEILING;
 use std::ffi::OsString;

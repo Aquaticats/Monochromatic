@@ -20,12 +20,12 @@ use crate::earlier_service_journal_adopted::{
     program_note,
     settle_on_request,
 };
-use crate::earlier_service_unsure_program::UnsureProgram;
 use crate::earlier_service_process_look::{
     ServiceLook,
     effective_user,
     service_of_instance_may_run,
 };
+use crate::earlier_service_unsure_program::UnsureProgram;
 use crate::service_index_lock::try_acquire;
 use crate::service_instance::instance_of;
 use crate::service_journal::{

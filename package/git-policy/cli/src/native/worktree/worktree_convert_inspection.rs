@@ -25,7 +25,6 @@ use crate::process_use::{
     UseTarget,
     processes_using,
 };
-use crate::single_owner_claim::live_owner_of;
 /// A name another program chose,
 /// shown so no byte of it can act on the line it lands in,
 /// and the parentheses that line puts around it.
@@ -33,6 +32,7 @@ use crate::shown_so_it_cannot_rewrite_the_line::{
     TheWrappingAroundTheName,
     shown_so_it_cannot_rewrite_the_line,
 };
+use crate::single_owner_claim::live_owner_of;
 use crate::subvolume_platform::Platform;
 use crate::worktree_clean::check_clean_tracked_by_content;
 /// Import the facts of the worktree this look is taken at,

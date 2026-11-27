@@ -19,9 +19,6 @@ use crate::process_use::{
     UseTarget,
     processes_using,
 };
-use crate::subvolume_index_files::linked_worktrees_inside;
-use crate::subvolume_preflight::Layout;
-use crate::subvolume_run::Run;
 /// A name another program chose,
 /// shown so no byte of it can act on the line it lands in,
 /// and the parentheses that line puts around it.
@@ -29,6 +26,9 @@ use crate::shown_so_it_cannot_rewrite_the_line::{
     TheWrappingAroundTheName,
     shown_so_it_cannot_rewrite_the_line,
 };
+use crate::subvolume_index_files::linked_worktrees_inside;
+use crate::subvolume_preflight::Layout;
+use crate::subvolume_run::Run;
 use std::path::PathBuf;
 
 /// What:

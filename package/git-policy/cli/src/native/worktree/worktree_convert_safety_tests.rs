@@ -1277,10 +1277,11 @@ fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_swap_refusal() {
 /// names that process the same way.
 #[test]
 fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_removal_line() {
-    let line: String = crate::worktree_convert_swap_and_removal::a_process_in_the_converted_tree_line(
-        4242,
-        Some(NAME_A_PROGRAM_CHOSE),
-    );
+    let line: String =
+        crate::worktree_convert_swap_and_removal::a_process_in_the_converted_tree_line(
+            4242,
+            Some(NAME_A_PROGRAM_CHOSE),
+        );
     assert_eq!(line, format!("process 4242 ({SHOWN_NAME})"));
     assert_eq!(line.matches('\n').count(), 0, "{line:?}");
 }
@@ -1289,16 +1290,13 @@ fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_removal_line() {
 /// and the name it got back cannot end the parentheses around it or start a line.
 #[test]
 fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_conversion_refusal() {
-    let line: String =
-        crate::worktree_convert_inspection::a_process_inside_the_tree_refusal(
-            4242,
-            Some(NAME_A_PROGRAM_CHOSE),
-        );
+    let line: String = crate::worktree_convert_inspection::a_process_inside_the_tree_refusal(
+        4242,
+        Some(NAME_A_PROGRAM_CHOSE),
+    );
     assert_eq!(
         line,
-        format!(
-            "process 4242 ({SHOWN_NAME}) has its working directory or an open file inside it"
-        )
+        format!("process 4242 ({SHOWN_NAME}) has its working directory or an open file inside it")
     );
     assert_eq!(line.matches('\n').count(), 0, "{line:?}");
 }

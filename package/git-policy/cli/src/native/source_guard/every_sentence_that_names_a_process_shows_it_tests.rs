@@ -139,17 +139,10 @@ const THE_SENTENCES: &[ASentence] = &[
     },
     ASentence {
         file: "lock/stale_ref_lock_judge.rs",
-        function: "examine",
+        function: "a_held_file_verdict",
         wrapping: "Parentheses",
         names: 1,
-        why: "the verdict that a live process has the judged lock open",
-    },
-    ASentence {
-        file: "lock/stale_ref_lock_judge_staging.rs",
-        function: "examine_staging",
-        wrapping: "Parentheses",
-        names: 1,
-        why: "the verdict that a live process has the judged staging file open",
+        why: "the verdict that a live process has the judged lock, or the judged staging file, open",
     },
     ASentence {
         file: "process/step_output_held_open_by_a_program_the_step_started.rs",
@@ -271,7 +264,7 @@ fn sources_in(
 
 /// What:
 ///  The body of `function` in `text`:
-///  from the line that declares it to the first line that closes the module with `}`.
+///  from the line that declares it to the first line that is one `}` at column 0.
 /// Why:
 ///  Every function of this crate closes at column 0,
 ///  so the body is what the counts below are taken over,
@@ -355,26 +348,39 @@ fn sentences_missing_the_escape(
 }
 
 /// What:
-///  Whether `text` names an accessor of `A_NAME_IS_READ_THROUGH` as a name of its own:
-///  the accessor stands at the start of the expression,
-///  so a longer identifier that ends in the same letters is no such name.
+///  Whether `text` names an accessor of `A_NAME_IS_READ_THROUGH` as a name of its own.
 /// Why:
 ///  `refused.namespace` ends in the letters of `used.name`,
-///  and a scan that read that as a process name would report a sentence that names no process at all.
+///  and a scan that read that as a process name would report a sentence that names no process at all,
+///  so an accessor written without a leading dot must start a word,
+///  which is what tells `used.name` from the tail of `refused.namespace`.
+///  An accessor that starts with its dot already starts at one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const namesAProcess = (text: string): boolean => A_NAME_IS_READ_THROUGH.some((accessor) => { const at = text.indexOf(accessor); return at >= 0 && !/[A-Za-z0-9_]/.test(text[at - 1] ?? ''); });
+/// const namesAProcess = (text: string): boolean => A_NAME_IS_READ_THROUGH.some((accessor) => {
+///   for (let at = text.indexOf(accessor); at >= 0; at = text.indexOf(accessor, at + 1)) {
+///     if (accessor.startsWith('.') || !/[A-Za-z0-9_]/.test(text[at - 1] ?? '')) return true;
+///   }
+///   return false;
+/// });
 /// ```
 fn names_a_process(text: &str) -> bool {
     for accessor in A_NAME_IS_READ_THROUGH {
         let mut from: usize = 0;
-        while let Some(found) = text.get(from..).and_then(|rest| return rest.find(*accessor)) {
+        while let Some(found) = text
+            .get(from..)
+            .and_then(|rest| return rest.find(*accessor))
+        {
             let at: usize = from + found;
-            let before: Option<char> = text.get(..at).and_then(|before| return before.chars().next_back());
-            let stands_alone: bool = before.is_none_or(|character| {
-                return !character.is_alphanumeric() && character != '_';
-            });
+            let before: Option<char> = text
+                .get(..at)
+                .and_then(|before| return before.chars().next_back());
+            let starts_a_word: bool = !accessor.starts_with('.');
+            let stands_alone: bool = !starts_a_word
+                || before.is_none_or(|character| {
+                    return !character.is_alphanumeric() && character != '_';
+                });
             if stands_alone {
                 return true;
             }
@@ -385,47 +391,79 @@ fn names_a_process(text: &str) -> bool {
 }
 
 /// What:
-///  The text of every `format!` call in `code`, with where it starts, each found by its balanced
-///  parentheses.
+///  Every `format!` call in `text`, each as the call's own text and where it starts.
 /// Why:
 ///  A format call may run over many lines,
 ///  and a name is interpolated inside the call,
 ///  so the unit the scan judges is the whole call and not one line of it.
+///  A string literal of the call is skipped whole,
+///  because the parenthesis a sentence writes in its own words is no part of the call's shape.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function formatCalls(code: string): { text: string; line: number }[];
+/// function formatCalls(text: string): { call: string; at: number }[];
 /// ```
-fn format_calls(code: &str) -> Vec<(String, usize)> {
+fn format_calls(text: &str) -> Vec<(String, usize)> {
     let mut calls: Vec<(String, usize)> = Vec::new();
-    let bytes: &[u8] = code.as_bytes();
-
+    let bytes: &[u8] = text.as_bytes();
     let mut at: usize = 0;
-    while let Some(found) = code.get(at..).and_then(|rest| return rest.find("format!(")) {
+    while let Some(found) = text.get(at..).and_then(|rest| return rest.find("format!(")) {
         let start_index: usize = at + found;
         let open: usize = start_index + "format!".len();
-        let mut depth: usize = 0;
-        let mut end: usize = open;
-        for (offset, byte) in bytes.get(open..).unwrap_or_default().iter().enumerate() {
-            match byte {
-                b'(' => depth += 1,
-                b')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = open + offset + 1;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
+        let (end, _closed): (usize, bool) = balanced_end(bytes, open);
         calls.push((
-            code.get(start_index..end).unwrap_or_default().to_owned(),
+            text.get(start_index..end).unwrap_or_default().to_owned(),
             start_index,
         ));
         at = end.max(start_index + 1);
     }
     return calls;
+}
+
+/// What:
+///  Where the parentheses opened at `open` close,
+///  and whether they closed at all before the text ended.
+/// Why:
+///  A call's own string literals hold parentheses of their own,
+///  and a parenthesis inside a literal would end the call early if it were counted:
+///  so a literal is skipped whole,
+///  with the backslash that escapes its quote inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function balancedEnd(bytes: Uint8Array, open: number): [number, boolean];
+/// ```
+fn balanced_end(
+    bytes: &[u8],
+    open: usize,
+) -> (usize, bool) {
+    let mut depth: usize = 0;
+    let mut in_a_literal: bool = false;
+    let mut escaped: bool = false;
+    for (offset, byte) in bytes.get(open..).unwrap_or_default().iter().enumerate() {
+        if in_a_literal {
+            if escaped {
+                escaped = false;
+            } else if *byte == b'\\' {
+                escaped = true;
+            } else if *byte == b'"' {
+                in_a_literal = false;
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_a_literal = true,
+            b'(' => depth += 1,
+            b')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return (open + offset + 1, true);
+                }
+            }
+            _ => {}
+        }
+    }
+    return (bytes.len(), false);
 }
 
 /// What:
@@ -470,7 +508,10 @@ fn findings_in(
 
 /// The sources of this crate's release build,
 /// each read once.
-fn release_texts(root: &Path, roots: &[CrateRoot]) -> Result<Vec<(String, String)>, String> {
+fn release_texts(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<(String, String)>, String> {
     let sources: Vec<SourceFile> = sources_in(root, roots)?;
     let mut texts: Vec<(String, String)> = Vec::new();
     for file in &sources {
@@ -502,7 +543,10 @@ fn every_sentence_that_names_a_process_shows_it_for_the_wrapping_it_uses() {
     let roots: Vec<CrateRoot> = real_roots();
     let texts: Vec<(String, String)> =
         release_texts(root.as_path(), roots.as_slice()).expect("the crate's own sources");
-    let read: Vec<&str> = texts.iter().map(|(path, _text)| return path.as_str()).collect();
+    let read: Vec<&str> = texts
+        .iter()
+        .map(|(path, _text)| return path.as_str())
+        .collect();
     assert!(
         read.contains(&THE_FILE),
         "the scan read {} files of this crate and not `{THE_FILE}`, so it read nothing it is about",
@@ -531,7 +575,8 @@ fn every_sentence_that_names_a_process_shows_it_for_the_wrapping_it_uses() {
 /// ```
 #[test]
 fn no_release_sentence_interpolates_a_name_another_program_chose_without_the_escape() {
-    let found: Vec<String> = findings_in(&source_root(), &real_roots()).expect("the crate's sources");
+    let found: Vec<String> =
+        findings_in(&source_root(), &real_roots()).expect("the crate's sources");
     assert!(
         found.is_empty(),
         "a name another program chose is read through a `format!` without `{THE_ESCAPE}..)`, so the \

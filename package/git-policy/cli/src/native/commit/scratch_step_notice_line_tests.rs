@@ -68,8 +68,8 @@ fn a_name_that_would_end_the_backticks_cannot_rewrite_the_notice() {
         "the only line break of the notice is the one it ends with: {line:?}"
     );
     assert_eq!(
-        line.matches('`').count() % 2,
+        line.matches("x`").count(),
         0,
-        "every backtick the program wrote is one of a pair: {line:?}"
+        "the backtick of the name is shown behind a backslash, not as one: {line:?}"
     );
 }

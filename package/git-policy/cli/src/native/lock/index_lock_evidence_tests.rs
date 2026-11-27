@@ -848,7 +848,10 @@ const NAME_A_PROGRAM_CHOSE: &str = "x) FORGED\u{1b}[2K\nsecond line";
 /// ```
 fn evidence_naming_a_process(started_at_ms: f64) -> Evidence {
     return evidence_with(
-        PidFile::Owner(55, process_of(started_at_ms, 10, Some(NAME_A_PROGRAM_CHOSE))),
+        PidFile::Owner(
+            55,
+            process_of(started_at_ms, 10, Some(NAME_A_PROGRAM_CHOSE)),
+        ),
         Some(HolderEvidence {
             method: "proc-fd",
             holders: Vec::new(),
@@ -910,7 +913,9 @@ fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_running_owner_senten
         end,
     );
     assert!(
-        line.contains("a Git lock PID file naming PID 55 (x\\) FORGED\\u{1b}[2K\\nsecond line), which runs,"),
+        line.contains(
+            "a Git lock PID file naming PID 55 (x\\) FORGED\\u{1b}[2K\\nsecond line), which runs"
+        ),
         "{line:?}"
     );
     assert_eq!(

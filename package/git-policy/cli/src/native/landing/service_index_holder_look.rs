@@ -44,8 +44,21 @@ use crate::shown_so_it_cannot_rewrite_the_line::{
 use std::path::Path;
 use std::time::Duration;
 
-/// The words for the process holding the lock,
-/// from the evidence Git's lock leaves.
+/// What:
+///  The holder a service's answer names,
+///  from the evidence Git's lock leaves:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///  The name is the one the program chose for itself (`/proc/<pid>/comm`),
+///  and a person reads it to find what holds the lock:
+///  an escape in it would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = (pid, command) => `Process ${pid} (${shownSoItCannotRewriteTheLine(command, TheWrappingAroundTheName.Parentheses)})`;
+/// ```
 pub(crate) fn holder_words(
     pid: i64,
     command: Option<&str>,

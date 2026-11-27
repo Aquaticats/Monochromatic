@@ -22,17 +22,17 @@ use crate::index_lock_holders::{
     Holder,
     HolderEvidence,
 };
+use crate::service_index_identity::{
+    HolderState,
+    holder_state,
+    marker_of,
+};
 /// A name another program chose,
 /// shown so no byte of it can act on the line it lands in,
 /// and the parentheses that line puts around it.
 use crate::shown_so_it_cannot_rewrite_the_line::{
     TheWrappingAroundTheName,
     shown_so_it_cannot_rewrite_the_line,
-};
-use crate::service_index_identity::{
-    HolderState,
-    holder_state,
-    marker_of,
 };
 use std::path::Path;
 use std::time::{
@@ -103,7 +103,8 @@ fn state_word(state: HolderState) -> &'static str {
 /// never its arguments or its environment,
 /// which can hold a token;
 /// the scan reads nothing else,
-/// and the description is quoted when it is written into a line.
+/// and each name is escaped for the parentheses and the list it is written into,
+/// so a name cannot end them or add an entry of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

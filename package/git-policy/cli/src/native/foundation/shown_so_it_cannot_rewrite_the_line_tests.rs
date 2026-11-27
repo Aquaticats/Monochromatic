@@ -196,10 +196,8 @@ fn nothing_closes_the_wrapping(
 #[test]
 fn a_parenthesis_inside_a_name_cannot_close_the_parentheses_that_show_it() {
     let name: &str = "x) FORGED\u{1b}[2K";
-    let shown: String = shown_so_it_cannot_rewrite_the_line(
-        name,
-        TheWrappingAroundTheName::Parentheses,
-    );
+    let shown: String =
+        shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Parentheses);
     assert_eq!(shown, "x\\) FORGED\\u{1b}[2K");
     the_shown_text_holds_no_byte_that_can_act(name, shown.as_str(), "parenthesis");
     nothing_closes_the_wrapping(name, shown.as_str(), ')');
@@ -210,7 +208,8 @@ fn a_parenthesis_inside_a_name_cannot_close_the_parentheses_that_show_it() {
 #[test]
 fn a_backtick_inside_a_name_cannot_end_the_backticks_that_show_it() {
     let name: &str = "x` FORGED\u{1b}[2K";
-    let shown: String = shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Backticks);
+    let shown: String =
+        shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Backticks);
     assert_eq!(shown, "x\\` FORGED\\u{1b}[2K");
     the_shown_text_holds_no_byte_that_can_act(name, shown.as_str(), "backtick");
     nothing_closes_the_wrapping(name, shown.as_str(), '`');
@@ -287,7 +286,10 @@ fn the_backslash_is_escaped_in_every_wrapping() {
 #[test]
 fn a_printable_name_is_shown_as_it_is() {
     for wrapping in WRAPPINGS {
-        assert_eq!(shown_so_it_cannot_rewrite_the_line("git-lfs", *wrapping), "git-lfs");
+        assert_eq!(
+            shown_so_it_cannot_rewrite_the_line("git-lfs", *wrapping),
+            "git-lfs"
+        );
         assert_eq!(
             shown_so_it_cannot_rewrite_the_line("Web Content", *wrapping),
             "Web Content"
@@ -308,7 +310,11 @@ fn every_shape_of_the_list_cannot_act_on_the_line() {
         for shape in SHAPES {
             let shown: String = shown_so_it_cannot_rewrite_the_line(shape, *wrapping);
             the_shown_text_holds_no_byte_that_can_act(shape, shown.as_str(), shape);
-            nothing_closes_the_wrapping(shape, shown.as_str(), the_character_that_closes(*wrapping));
+            nothing_closes_the_wrapping(
+                shape,
+                shown.as_str(),
+                the_character_that_closes(*wrapping),
+            );
         }
     }
 }

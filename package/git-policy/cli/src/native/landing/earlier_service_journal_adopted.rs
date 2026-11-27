@@ -101,13 +101,6 @@ use crate::earlier_service_process_look::{
     effective_user,
 };
 use crate::earlier_service_unsure_program::UnsureProgram;
-/// A name another program chose,
-/// shown so no byte of it can act on the line it lands in,
-/// and the backticks that line puts around it.
-use crate::shown_so_it_cannot_rewrite_the_line::{
-    TheWrappingAroundTheName,
-    shown_so_it_cannot_rewrite_the_line,
-};
 /// The log of the service.
 use crate::journald_native::Priority;
 use crate::service_instance::instance_of;
@@ -127,6 +120,13 @@ use crate::service_land::{
     recover_instance_without_drops,
 };
 use crate::service_timing::log_entry;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the backticks that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::transaction_git::GitContext;
 /// How long that look may take.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;

@@ -49,6 +49,10 @@ pub fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
 /// Why:
 ///   The first one adds what to do when the step looks stuck;
 /// the repeats stay short.
+///  A program below the step is named between backticks,
+///  and its name is another program's text (`/proc/<pid>/stat`),
+///  so it is shown escaped for those backticks:
+///  a backtick inside the name could end them and speak the rest of the line as its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

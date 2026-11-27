@@ -31,18 +31,18 @@
 
 use crate::fs_mount_options::read_mount_facts;
 use crate::git_command_name::names_git_command;
+use crate::process_use::{
+    ProcessUser,
+    UseScan,
+    UseTarget,
+    processes_using_through,
+};
 /// A name another program chose,
 /// shown so no byte of it can act on the line it lands in,
 /// and the parentheses that line puts around it.
 use crate::shown_so_it_cannot_rewrite_the_line::{
     TheWrappingAroundTheName,
     shown_so_it_cannot_rewrite_the_line,
-};
-use crate::process_use::{
-    ProcessUser,
-    UseScan,
-    UseTarget,
-    processes_using_through,
 };
 use crate::stale_ref_lock_found::PidFile;
 /// What a judgement concluded and why a lock may be removed,
@@ -162,6 +162,36 @@ pub(crate) fn pid_file_standing(
         (Some(lock_at), Some(pid_at)) if pid_at < lock_at => PidFile::Older(pid),
         _ => PidFile::Unproven(pid),
     };
+}
+
+/// What:
+///  The verdict that a live process has the judged file open,
+///  as the sentence that names it:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///  A program sets its own name to any bytes it likes (`/proc/<pid>/comm`),
+///  and this verdict is how a person finds the program that keeps a lock:
+///  an escape in the name would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///  The staging judgement of a half-written file says the same sentence through this one,
+///  so one process is named one way wherever a person meets it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const verdict = (pid, command) => `process ${pid} (${shownSoItCannotRewriteTheLine(command ?? '', TheWrappingAroundTheName.Parentheses)}) has the file open`;
+/// ```
+pub(crate) fn a_held_file_verdict(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
+    return format!(
+        "process {pid} ({}) has the file open",
+        shown_so_it_cannot_rewrite_the_line(
+            command.unwrap_or(""),
+            TheWrappingAroundTheName::Parentheses
+        )
+    );
 }
 
 impl Judge {
@@ -328,14 +358,7 @@ impl Judge {
         }
         if let Some(user) = scan.users.first() {
             return verdict_with(
-                Verdict::Held(format!(
-                    "process {} ({}) has the file open",
-                    user.pid,
-                    shown_so_it_cannot_rewrite_the_line(
-                        user.command.as_deref().unwrap_or(""),
-                        TheWrappingAroundTheName::Parentheses
-                    )
-                )),
+                Verdict::Held(a_held_file_verdict(user.pid, user.command.as_deref())),
                 pid_file.clone(),
                 identity,
                 born,

@@ -58,7 +58,10 @@ fn a_holder_without_a_name_is_named_by_its_number() {
         partial: Vec::new(),
         unresolvable: Vec::new(),
     };
-    assert_eq!(open_by_text(Some(&seen)), Some(String::from("open_by=[42]")));
+    assert_eq!(
+        open_by_text(Some(&seen)),
+        Some(String::from("open_by=[42]"))
+    );
     let none: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),

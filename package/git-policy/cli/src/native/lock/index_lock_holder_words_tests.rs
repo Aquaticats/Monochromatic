@@ -44,12 +44,12 @@ fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_holders_line() {
 #[test]
 fn a_backtick_and_an_ordinary_name_are_shown_as_they_are() {
     assert!(
-        holder_way_out(A_NUMBER_NO_PROCESS_HAS, Some("a`b"))
-            .contains("(a`b), start time unknown"),
+        holder_way_out(A_NUMBER_NO_PROCESS_HAS, Some("a`b")).contains("(a`b), start time unknown"),
         "the backtick of the name belongs to the name"
     );
     assert!(
-        holder_way_out(A_NUMBER_NO_PROCESS_HAS, Some("git-lfs")).contains("(git-lfs), start time unknown"),
+        holder_way_out(A_NUMBER_NO_PROCESS_HAS, Some("git-lfs"))
+            .contains("(git-lfs), start time unknown"),
         "an ordinary name is shown unchanged"
     );
 }
@@ -60,7 +60,9 @@ fn a_backtick_and_an_ordinary_name_are_shown_as_they_are() {
 fn a_holder_with_no_name_still_gets_the_way_out() {
     let line: String = holder_way_out(A_NUMBER_NO_PROCESS_HAS, None);
     assert!(
-        line.starts_with(format!("The holder is PID {A_NUMBER_NO_PROCESS_HAS} (program unknown), ").as_str()),
+        line.starts_with(
+            format!("The holder is PID {A_NUMBER_NO_PROCESS_HAS} (program unknown), ").as_str()
+        ),
         "{line}"
     );
     assert!(line.contains("`kill "), "{line}");

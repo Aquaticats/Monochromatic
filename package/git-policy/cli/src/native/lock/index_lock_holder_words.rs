@@ -61,6 +61,9 @@ fn program_of(pid: i64) -> Option<String> {
 /// start time and the command that ends the process can decide in
 ///  seconds;
 /// the wrapper itself never ends a process or removes a lock whose holder runs.
+///  The program's name is another program's text,
+///  so it is shown escaped for the parentheses around it,
+///  and a name holding an escape or a line break cannot act on the line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,7 +94,10 @@ pub fn holder_way_out(
     };
     return format!(
         "The holder is PID {pid} ({}), {started}; if it is stuck, `kill {pid}` ends it and Git removes its lock, and a commit still waiting then lands.\n",
-        shown_so_it_cannot_rewrite_the_line(program.as_str(), TheWrappingAroundTheName::Parentheses)
+        shown_so_it_cannot_rewrite_the_line(
+            program.as_str(),
+            TheWrappingAroundTheName::Parentheses
+        )
     );
 }
 

@@ -20,13 +20,6 @@
 
 /// The process table's report of one file's users.
 use crate::process_use::UseScan;
-/// A name another program chose,
-/// shown so no byte of it can act on the line it lands in,
-/// and the parentheses that line puts around it.
-use crate::shown_so_it_cannot_rewrite_the_line::{
-    TheWrappingAroundTheName,
-    shown_so_it_cannot_rewrite_the_line,
-};
 /// What the pid file beside the lock says,
 /// which a staging file never has.
 use crate::stale_ref_lock_found::PidFile;
@@ -47,6 +40,7 @@ use crate::stale_ref_lock_identity::{
 use crate::stale_ref_lock_judge::{
     Examined,
     Judge,
+    a_held_file_verdict,
     verdict_with,
 };
 /// The later of the two times a file carries.
@@ -100,14 +94,7 @@ impl Judge {
         }
         if let Some(user) = scan.users.first() {
             return verdict_with(
-                Verdict::Held(format!(
-                    "process {} ({}) has the file open",
-                    user.pid,
-                    shown_so_it_cannot_rewrite_the_line(
-                        user.command.as_deref().unwrap_or(""),
-                        TheWrappingAroundTheName::Parentheses
-                    )
-                )),
+                Verdict::Held(a_held_file_verdict(user.pid, user.command.as_deref())),
                 PidFile::Absent,
                 identity,
                 born,
