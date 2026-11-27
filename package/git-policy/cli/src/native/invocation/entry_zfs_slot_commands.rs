@@ -164,8 +164,59 @@ fn slot_command_word(bytes: &[u8]) -> Option<SlotCommandWord> {
 }
 
 /// What:
-///  The `git worktree` command one line would run,
-///  with the global option that stopped the wrapper's reading of it,
+///  One `git worktree remove` or `git worktree move` behind a global option this
+///  build does not read,
+///  with that option,
+///  and with the token after it that names the repository when one does.
+/// Why:
+///  The refusal names the option that stopped the reading,
+///  and `-C`,
+///  `--git-dir` or `--work-tree` after it names a repository the
+///  wrapper never read,
+///  so nothing proves which repository the command names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnreadGlobal = { option: string; word: 'remove' | 'move'; repositoryNamedBy?: string };
+/// ```
+struct UnreadGlobal<'a> {
+    /// The global option the boundary scan stopped at.
+    option: &'a OsString,
+    /// The `git worktree` word the words after it name.
+    word: SlotCommandWord,
+    /// The token after the option that names the repository Git runs in,
+    /// when one does.
+    repository_named_by: Option<&'a OsString>,
+}
+
+/// What:
+///  Whether one token of the unread region names the repository Git runs in.
+/// Why:
+///  Git reads these globals before any command,
+///  so one of them after the option the scan could not read names a repository
+///  the wrapper never read,
+///  and the set is the separated spellings `global_arguments::VALUE_OPTIONS`
+///  holds plus their attached `=` forms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesTheRepository = (token) => ['-C', '--git-dir', '--work-tree'].includes(token) || token.startsWith('--git-dir=') || token.startsWith('--work-tree=');
+/// ```
+fn names_the_repository(token: &OsString) -> bool {
+    /// The globals Git reads with their value in the next token.
+    const SEPARATED: &[&[u8]] = &[b"-C", b"--git-dir", b"--work-tree"];
+    /// The same globals spelled with their value in the same token.
+    const ATTACHED: &[&[u8]] = &[b"--git-dir=", b"--work-tree="];
+    let bytes: &[u8] = token.as_encoded_bytes();
+    return SEPARATED.contains(&bytes)
+        || ATTACHED
+            .iter()
+            .any(|prefix| return bytes.starts_with(prefix));
+}
+
+/// What:
+///  The command one line would run behind a global option this build does not
+///  read,
 ///  or nothing when the reading reached the command word.
 /// Why:
 ///  A global option a newer Git adds stops the boundary scan before the
@@ -179,16 +230,15 @@ fn slot_command_word(bytes: &[u8]) -> Option<SlotCommandWord> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function slotCommandBehindAnUnreadGlobal(command): { option, word } | undefined;
+/// function unreadGlobalOf(command): UnreadGlobal | undefined;
 /// ```
-fn slot_command_behind_an_unread_global(
-    command: &ResolvedCommand
-) -> Option<(&OsString, SlotCommandWord)> {
+fn unread_global_of(command: &ResolvedCommand) -> Option<UnreadGlobal<'_>> {
     let layout: GlobalLayout = global_layout(command.arguments.as_slice());
     if layout.outcome != GlobalOutcome::InvalidOption {
         return None;
     }
     let option: &OsString = command.arguments.get(layout.prefix_len)?;
+    let mut repository_named_by: Option<&OsString> = None;
     // Git stops its option loop at the command word, so the first `worktree` after the option it cannot read starts the
     //  command whose words follow it.
     for (index, token) in command
@@ -198,12 +248,19 @@ fn slot_command_behind_an_unread_global(
         .skip(layout.prefix_len + 1)
     {
         if token.as_encoded_bytes() != b"worktree" {
+            // A repository-naming global here names one the reading stopped before, so the wrapper cannot follow it.
+            if repository_named_by.is_none() && names_the_repository(token) {
+                repository_named_by = Some(token);
+            }
             continue;
         }
         let subcommand: &OsString = command.arguments.get(index + 1)?;
-        if let Some(word) = slot_command_word(subcommand.as_encoded_bytes()) {
-            return Some((option, word));
-        }
+        let word: SlotCommandWord = slot_command_word(subcommand.as_encoded_bytes())?;
+        return Some(UnreadGlobal {
+            option,
+            word,
+            repository_named_by,
+        });
     }
     return None;
 }
@@ -221,12 +278,12 @@ fn slot_command_behind_an_unread_global(
 /// const hidden = isASlotCommandBehindAnUnreadGlobal(command);
 /// ```
 pub fn is_a_slot_command_behind_an_unread_global(command: &ResolvedCommand) -> bool {
-    return slot_command_behind_an_unread_global(command).is_some();
+    return unread_global_of(command).is_some();
 }
 
 /// What:
 ///  The sentence one refusal of a removal or a move behind a global option this
-///  build does not read prints.
+///  build does not read prints in a repository that holds slot records.
 /// Why:
 ///  It names the option it could not read and the two spellings the wrapper
 ///  reads,
@@ -245,17 +302,66 @@ fn unread_global_sentence(
 }
 
 /// What:
+///  The sentence one refusal prints where a global option the wrapper does not
+///  read stands before the words that name the repository.
+/// Why:
+///  The reading stops at that option,
+///  so `-C`,
+///  `--git-dir` or `--work-tree` after it names a repository the
+///  wrapper never read,
+///  and nothing proves whether that repository holds slot records:
+///  the owner's answer of 2026-11-26 refuses that spelling too
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+fn unknown_repository_sentence(
+    option: &OsString,
+    naming: &OsString,
+    word: SlotCommandWord,
+) -> String {
+    let typed: std::borrow::Cow<'_, str> = option.to_string_lossy();
+    let naming_typed: std::borrow::Cow<'_, str> = naming.to_string_lossy();
+    return format!(
+        "`git worktree {word}` is refused: `{typed}` is a global option this wrapper does not read, and `{naming_typed}` after it names the repository, so nothing proves which repository the command names, and nothing proves whether that repository holds the records of managed-clone slots. Nothing was {done} and Git did not run. Run the command again without `{typed}`, or write it as `git -C <repository> worktree {word} ...` with no global option this wrapper does not read: the wrapper then reads that repository's records, and a slot a binding record proves is a whole clone is protected.",
+        word = word.word(),
+        done = word.done()
+    );
+}
+
+/// What:
+///  The action one refusal of a slot command behind an unread global option ends
+///  in:
+///  its sentence on standard error and the wrapper's refusal status.
+/// Why:
+///  Both arms are the same shape,
+///  and a second copy of it could report one arm's status as a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const action = refusalAction(sentence);
+/// ```
+fn refusal_action(sentence: String) -> Action {
+    return Action::Exit {
+        code: REFUSAL_STATUS,
+        stdout: String::new(),
+        stderr: format!("{sentence}\n"),
+    };
+}
+
+/// What:
 ///  The refusal of one `git worktree remove` or `git worktree move` behind a
 ///  global option this build does not read,
-///  in a repository that holds slot records.
+///  in a repository that holds slot records or where the words name a repository
+///  the wrapper never read.
 /// Why:
 ///  The owner's answer of 2026-11-26:
 ///  a repository that holds slot records refuses the command rather than leave
 ///  it to Git,
 ///  whose removal would delete a bound slot's registration and underlay pointer
-///  and whose move would leave the record naming the old path.
-///  A repository with no slot record is forwarded as before,
-///  and the decision reads no pool and no mount table.
+///  and whose move would leave the record naming the old path;
+///  and a spelling whose repository the wrapper cannot name is refused as well,
+///  because nothing proves whether it holds such records.
+///  A repository the wrapper can name and that holds no slot record is forwarded
+///  as before,
+///  and every arm here reads neither a pool nor a mount table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -265,18 +371,25 @@ pub fn unread_global_refusal_of(
     command: &ResolvedCommand,
     common_dir: Option<&Path>,
 ) -> Option<Action> {
-    let (option, word): (&OsString, SlotCommandWord) =
-        slot_command_behind_an_unread_global(command)?;
+    let unread: UnreadGlobal<'_> = unread_global_of(command)?;
+    // A repository named after the option the reading stopped at is one the wrapper never read, so no record of it can
+    //  prove the command safe, whatever repository this process stands in.
+    if let Some(naming) = unread.repository_named_by {
+        return Some(refusal_action(unknown_repository_sentence(
+            unread.option,
+            naming,
+            unread.word,
+        )));
+    }
     let common: &Path = common_dir?;
     // A repository with no record folder holds no bound slot, so the command costs no refusal and reaches Git as before.
     if !home_folder(common).is_dir() {
         return None;
     }
-    return Some(Action::Exit {
-        code: REFUSAL_STATUS,
-        stdout: String::new(),
-        stderr: format!("{}\n", unread_global_sentence(option, word)),
-    });
+    return Some(refusal_action(unread_global_sentence(
+        unread.option,
+        unread.word,
+    )));
 }
 
 /// What:
