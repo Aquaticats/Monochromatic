@@ -682,7 +682,7 @@ a tool a later hand-run `pnpm add --global` repaired).
 ### Root cause
 
 Neither task reads the wrong place.
-Both ask the same `pnpm list --global --depth=0 --json` (`package/mpm-shadow/cli/src/toolchain/observe.rs`),
+Both ask the same `pnpm list --global --depth=0 --json` (`package/mpm-shadow/cli/src/toolchain/observe/what_a_program_prints.rs`),
 and `pnpm add --global` (`install_managers.rs`) exited 0.
 The group directories under `~/.local/share/pnpm/global/v11` existed with the right `package.json`,
 but each group's `node_modules/<package>` link was written with ten `..` components
