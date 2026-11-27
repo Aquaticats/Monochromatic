@@ -78,7 +78,8 @@ and successfully returned `startupWired` from its Bash command.
   Live check at 12:50 -05:00:
   in this interactive code-mode session a REPL command with `.timeout(600000)` moved at 2058 ms.
   The Claude Sonnet second pass found two sleep shapes the prefix missed and a narrow disable check;
-  both are fixed on branch `fix/claude-code-plugin-source-bash-sleep-prefix-review-fixes`
+  both are fixed and merged as `14869e9ecc` at 2026-11-27T13:14:31-05:00,
+  live from then on
   ("Second-pass review findings" in the planning record).
   Open:
   re-probe the sleep rule after each Claude Code upgrade as
