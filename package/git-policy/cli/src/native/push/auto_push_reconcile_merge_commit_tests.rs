@@ -2,7 +2,19 @@
 //! the line merge's answer covers a measured answer of many regions,
 //! and every command the pass runs has a ceiling.
 
-use super::*;
+/// The ceilings of the pass's answers,
+///  one stage per object name and a whole `merge-file` answer,
+///  which the commands that print them are bounded by.
+use crate::auto_push_reconcile_merge_commit_answer_ceilings::{
+    CAT_FILE_HEADER_BYTES,
+    MERGE_FILE_ANSWER_BYTES,
+    answer_cap,
+};
+/// The push report's own cap,
+///  which the ceiling this control was written against adds to four stages.
+use crate::bounded_push::MAX_PUSH_OUTPUT;
+/// The largest stage one command of the pass takes.
+use crate::merge_second_pass::LARGEST_STAGE_BYTES;
 
 /// The bytes of the answer Git 2.56.0 printed for the round-198 fixture,
 /// whose three stages are 7,605,777 bytes each and hold 103,000 regions:

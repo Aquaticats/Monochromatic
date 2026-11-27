@@ -1,9 +1,14 @@
 //! What:
-//!  The three dataset names the design fixes,
-//!  and the lookups that find the checkout,
+//!  The lookups that find the checkout,
 //! the container and the probe dataset
-//!  by them when the configuration leaves an entry out.
+//!  by the names the design fixes,
+//!  when the configuration leaves an entry out.
 //! Why:
+//!  Those names sit in `the_dataset_names_the_design_fixes.rs`,
+//!  which this file re-exports,
+//!  so a caller outside the folder still names them here
+//!  and the words of a refusal can name them without this file
+//!  (`AGENTS.md` rule LYF).
 //!  With no configuration file the checkout is the one mounted ZFS dataset whose
 //!  last name component is `monochromatic-git-checkout`,
 //!  the container is the sibling
@@ -43,15 +48,20 @@ use std::path::{
     PathBuf,
 };
 
-/// The leaf name the design gives the checkout dataset.
-pub const DESIGN_CHECKOUT_DATASET_NAME: &str = "monochromatic-git-checkout";
-
-/// The leaf name the design gives the container of managed clones.
-pub const DESIGN_CONTAINER_DATASET_NAME: &str = "monochromatic-git-worktree-clone-datasets";
-
-/// The probe dataset's name inside the pool that holds the checkout,
-/// which the start probe's design fixes.
-pub const DESIGN_PROBE_DATASET_UNDER_THE_POOL: &str = "nosnap/git-worktree-probe";
+// What: `pub use` of the design's three dataset names from the file that holds
+//       them, which also puts them in this file's own scope.
+// Why: every caller outside this folder names the names here, and this file's
+//      lookups match on them, so one line serves both.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// export { DESIGN_CHECKOUT_DATASET_NAME, DESIGN_CONTAINER_DATASET_NAME, DESIGN_PROBE_DATASET_UNDER_THE_POOL } from './the_dataset_names_the_design_fixes.ts';
+// ```
+pub use super::the_dataset_names_the_design_fixes::{
+    DESIGN_CHECKOUT_DATASET_NAME,
+    DESIGN_CONTAINER_DATASET_NAME,
+    DESIGN_PROBE_DATASET_UNDER_THE_POOL,
+};
 
 /// The last `/`-separated component of a dataset name,
 /// which is the leaf name the design fixes.

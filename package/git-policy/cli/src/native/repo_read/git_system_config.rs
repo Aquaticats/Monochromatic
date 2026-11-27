@@ -36,6 +36,7 @@ use crate::git_version_cache::{
     read_cached_text,
     store_cached_text,
 };
+use crate::repo_read::git_system_config_asking::ask_git_var_explaining;
 use std::ffi::OsString;
 use std::path::{
     Path,
@@ -87,65 +88,13 @@ fn ask_git_var(
     real_git: &Path,
     variable: &str,
 ) -> Option<Vec<u8>> {
-    let mut command = std::process::Command::new(real_git);
-    command
-        .args(["var", variable])
-        .env_clear()
-        .env("LC_ALL", "C")
-        .current_dir("/")
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`), and it is a start of
-    //  the wrapper's own reading: nothing of the person's runs under it.
-    crate::started_as_git::mark_real_git_start(
-        &mut command,
-        crate::started_as_git::StartMode::Query,
-    );
-    let ceiling: std::time::Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING;
-    // What:     the finished answer, or the failure that says why the question got none.
-    // Why:      `.ok()?` here erased what ended the wait, so a caller's failure said only that no answer came
-    //           (issue 6540); the two causes it names are a start the system refused and a reached ceiling.
-    let output: std::process::Output =
-        match crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, ceiling) {
-            Ok(finished) => finished,
-            Err(error) => {
-                crate::diagnostic_log::warn(
-                    "ask_git_var",
-                    no_answer_text(real_git, variable, &error).as_str(),
-                );
-                return None;
-            }
-        };
-    return if output.status.success() {
-        Some(output.stdout)
-    } else {
-        None
-    };
-}
-
-/// What:
-///  The words for a question the real Git did not answer:
-///  the executable,
-///  the question,
-///  and what ended the wait.
-/// Why:
-///  The question answers `None` and every in-process reader then declines,
-/// so without this line a caller reports only that no answer came,
-/// and the person cannot tell a refused start from a wait the ceiling ended.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `the answer of ${realGit} to "var ${variable}" was not read, so the in-process readers leave this request to Git: ${error}`;
-/// ```
-fn no_answer_text(
-    real_git: &Path,
-    variable: &str,
-    error: &std::io::Error,
-) -> String {
-    return format!(
-        "the answer of {} to `var {variable}` was not read, so the in-process readers leave this request to Git: {error}",
-        real_git.display()
-    );
+    // What:     the answer, or nothing with the reason it gave nothing said in the wrapper's diagnostics.
+    // Why:      `Option` cannot carry a reason, and issue 6540's failure could name no cause at all.
+    let asked: Result<Vec<u8>, String> = ask_git_var_explaining(real_git, variable);
+    if let Err(reason) = asked.as_ref() {
+        crate::diagnostic_log::warn("ask_git_var", reason.as_str());
+    }
+    return asked.ok();
 }
 
 /// What:

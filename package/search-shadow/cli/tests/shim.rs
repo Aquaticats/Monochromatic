@@ -14,6 +14,11 @@
 //! const result = spawnSync(path.join(shadowDirectory, 'rg'), ['foo'], { env: { PATH } });
 //! ```
 
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
+
 /// What:
 /// `use std::fs;` imports the file-system module (write scripts / make links).
 /// Why:
@@ -38,9 +43,6 @@ use std::fs;
 /// ```
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
-
-/// Imports the trait that adds `from_mode` to permissions (marks a script executable).
-use std::os::unix::fs::PermissionsExt;
 
 /// Imports the borrowed path type.
 use std::path::Path;
@@ -97,10 +99,14 @@ fn write_script(
     name: &str,
     body: &str,
 ) {
-    // `.expect("...")` unwraps a `Result` and stops the test with that message on error.
-    fs::write(directory.join(name), format!("#!/bin/sh\n{body}\n")).expect("write the script");
-    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755))
-        .expect("make the script executable");
+    // What:     The shadow starts this script as the real tool.
+    // Why:      A write descriptor this process held on it would be inherited by a child of
+    //           another test thread, and the start would be refused with `ETXTBSY`
+    //           (issue 6527), so a child process writes it.
+    crate::through_a_child_process::write_program(
+        directory.join(name).as_path(),
+        format!("#!/bin/sh\n{body}\n").as_bytes(),
+    );
 }
 
 /// A fake real `rg` that prints its arguments and the disk priority it runs with.
