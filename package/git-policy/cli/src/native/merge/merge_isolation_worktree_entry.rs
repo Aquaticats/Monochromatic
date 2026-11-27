@@ -11,17 +11,17 @@
 //!  owner's rule "nothing should ever wait forever or indefinitely").
 //!  This lives beside the capture it serves,
 //! in a file of its own because the capture's file is at the package's line limit.
+//!  The mode Git records for an entry and the bits a person set on it are read here and owned by
+//! `merge_isolation_carry_place_write.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const entry = worktreeEntryAt(location); // { kind: 'holds'; bytes; mode } | { kind: 'absent' } | { kind: 'no-bytes'; kind }
 //! ```
 
-/// The words for a failed read,
-/// and the mode Git records,
-/// both owned by the capture.
-use crate::merge_isolation_carry::{
-    could_not_be_read,
+/// The mode Git records for what stands at a path,
+/// and every permission bit a person set on it.
+use crate::merge_isolation_carry_place_write::{
     mode_of,
     the_permissions,
 };
@@ -115,6 +115,18 @@ pub(crate) fn not_one_edit_a_merge_can_carry(
             )
         }
     };
+}
+
+/// What:
+///  The words for a path of the person's work that could not be read.
+/// Why:
+///   Two reads of one path answer with the same sentence,
+///  and the path is the one the person names.
+pub(crate) fn could_not_be_read(
+    location: &Path,
+    error: std::io::Error,
+) -> String {
+    return format!("{} could not be read: {error}", location.display());
 }
 
 /// What:

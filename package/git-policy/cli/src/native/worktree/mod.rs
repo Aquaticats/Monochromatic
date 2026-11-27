@@ -635,11 +635,25 @@
 //! - `worktree_trash_entries.rs`:
 //!   the removal of the entries a snapshot's leave-out moved into its trash,
 //!   side by side.
+//! - `worktree_trash_dispose_the_reason_a_trash_stays.rs`:
+//!   the reason a trash the emptying leaves gives for every step it would not take,
+//!   which every step and the service's own line are worded from.
+//! - `worktree_trash_dispose_the_worktree_is_the_recorded_one.rs`:
+//!   the checks that the worktree's `.git` file points into the directory the record was read from,
+//!   before anything below it is opened.
+//! - `worktree_trash_dispose_the_trash_held_open.rs`:
+//!   the directories one emptying holds open from the worktree down to the trash,
+//!   and the proof that the trash is the directory the snapshot made.
+//! - `worktree_trash_dispose_after_the_entries.rs`:
+//!   what the emptying does once a trash's entries are gone:
+//!   the manifest the wrapper wrote inside it,
+//!   the trash directory itself,
+//!   and the parent above it.
 //! - `worktree_trash_dispose.rs`:
 //!   emptying a snapshot's trash:
-//!   what a trash is,
-//!   the service's handler,
-//!   and the trashes nothing will empty.
+//!   the two faces the commit service and an awaiting caller use,
+//!   the request both of them make of the entries' removal,
+//!   and the re-exports every caller names the moved parts by.
 //! - `worktree_trash_dispose_awaiting.rs`:
 //!   the service's handler for a trash work item,
 //!   awaited by a caller that is itself a task of the runtime.
@@ -1569,10 +1583,32 @@ pub mod worktree_trash_hand_over;
 #[cfg(target_os = "linux")]
 pub mod idle_io_priority;
 
+/// The reason a trash the emptying leaves gives for every step it would not take,
+/// which every step and the service's own line are worded from.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose_the_reason_a_trash_stays;
+
+/// The checks that the worktree whose trash is about to be emptied is the one
+/// whose administrative directory the record names.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose_the_worktree_is_the_recorded_one;
+
+/// The directories one emptying holds open from the worktree down to the trash,
+/// and the proof that the trash is the directory the snapshot made.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose_the_trash_held_open;
+
+/// What the emptying does once a trash's entries are gone:
+/// the manifest the wrapper wrote inside it,
+/// the trash directory itself,
+/// and the parent above it.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose_after_the_entries;
+
 /// Emptying a snapshot's trash:
-/// what a trash is,
-/// the service's handler,
-/// and the trashes nothing will empty.
+/// the two faces the commit service and an awaiting caller use,
+/// the request both of them make of the entries' removal,
+/// and the re-exports every caller names the moved parts by.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
 

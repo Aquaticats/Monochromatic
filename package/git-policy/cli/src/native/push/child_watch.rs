@@ -62,15 +62,6 @@ pub use crate::child_watch_clock_marks_and_stopping::{
     WatchTerms,
     grace_for,
 };
-/// The one-shot run of a watched step,
-/// which is where a caller starts a command under a watch.
-pub use crate::child_watch_one_shot_run::{
-    output_watched,
-    output_watched_stopping,
-    output_watched_within,
-    output_watched_within_for_a_stop,
-    reader_subject,
-};
 /// The refusal a control arms,
 /// which only a control build can reach.
 #[cfg(test)]

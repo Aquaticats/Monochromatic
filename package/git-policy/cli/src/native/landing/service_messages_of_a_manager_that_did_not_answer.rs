@@ -30,7 +30,7 @@
 //! export const didNotAnswer = (waited: Duration): string => ...;
 //! ```
 
-use crate::service_messages::{
+use crate::service_messages_what_a_failure_gives_a_person::{
     NOTHING_CHANGED,
     STATUS_COMMAND,
 };

@@ -16,8 +16,6 @@
 //! function stopProcess(pid: number, locks: LockLedger, incoming: Receiver<Mark>): Promise<void>; // ask, wait the grace, kill, sweep
 //! ```
 
-use crate::bounded_push::Patience;
-use crate::bounded_push::STOP_GRACE;
 use crate::child_class::ChildClass;
 use crate::member_signalled_through_its_pidfd::{
     Delivered,
@@ -30,6 +28,8 @@ use crate::process_tree::{
     member_read,
     still_running,
 };
+use crate::push_deadline_and_patience_settings::Patience;
+use crate::push_deadline_and_patience_settings::STOP_GRACE;
 use crate::push_progress::Clock;
 use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
 use crate::stopped_git_locks::LockLedger;

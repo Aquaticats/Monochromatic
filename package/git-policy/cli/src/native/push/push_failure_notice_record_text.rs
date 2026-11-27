@@ -19,7 +19,10 @@
 
 /// Import the reversible key a branch name becomes in a file name,
 /// and the reader that finds a kept name under a Git directory.
-use crate::auto_push_branch_key::encode_branch_key;
+use crate::auto_push_branch_key::{
+    encode_branch_key,
+    fnv_hex,
+};
 use crate::kept_names_in_the_git_directories::path_for_reading;
 /// Import the rule that masks the credentials of every URL in a remote's words.
 use crate::lfs_output_mask::mask_url_secrets_text;
@@ -113,17 +116,6 @@ pub(crate) const NO_REASON: &str = "Git gave no reason.";
 /// The directory that holds the records of a repository.
 pub fn notice_directory(git_dir: &Path) -> PathBuf {
     return path_for_reading(git_dir, NOTICE_DIRECTORY);
-}
-
-/// A 64-bit FNV-1a hash of the text,
-/// in hexadecimal.
-pub fn fnv_hex(text: &str) -> String {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in text.bytes() {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
-    }
-    return format!("{hash:016x}");
 }
 
 /// The part of every record name that belongs to one branch.

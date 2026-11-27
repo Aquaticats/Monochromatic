@@ -10,13 +10,13 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `the_file_a_descriptor_holds_open.rs`:
+//!   the device and the inode of the file an open descriptor refers to,
+//!   which two readers answer with and a third compares with a lock's own numbers.
 //! - `descriptor_record.rs`:
 //!   one descriptor's own record,
 //!   opened only when the text of its link says it can be the file a scan looks for,
 //!   and never past a bound.
-//! - `open_file_of_a_descriptor.rs`:
-//!   the device and the inode of the file an open descriptor refers to,
-//!   read from the kernel's own copy of the descriptor.
 //! - `output_capture.rs`:
 //!   output of a child captured into anonymous files,
 //!   so that the child outlives the command that started it.
@@ -44,10 +44,6 @@
 //! - `process_use_targets_and_answers.rs`:
 //!   what a scan of this host's processes is asked for,
 //!   and what it answers with.
-//! - `descriptor_of_a_process_that_may_hold_the_file.rs`:
-//!   whether one descriptor of one process is the file a scan looks for.
-//! - `process_use.rs`:
-//!   the processes of this host that use a directory or a file.
 //! - `quiet_ledger.rs`:
 //!   the longest quiet gap of every Git step and tool this process ran,
 //!   kept until a timing record takes it.
@@ -103,6 +99,13 @@
 //!   the same attributes of the file of another process's descriptor,
 //!   read in a child that the caller stops waiting for at a ceiling,
 //!   for a mount whose file system this process cannot ask in its own name.
+//! - `open_file_of_a_descriptor.rs`:
+//!   the device and the inode of the file an open descriptor refers to,
+//!   read from the kernel's own copy of the descriptor.
+//! - `descriptor_of_a_process_that_may_hold_the_file.rs`:
+//!   whether one descriptor of one process is the file a scan looks for.
+//! - `process_use.rs`:
+//!   the processes of this host that use a directory or a file.
 //! - `step_output_pipes_attached_before_the_child_starts.rs`:
 //!   the read ends of a child's standard output and standard error,
 //!   made as pipes and registered with the runtime before the child starts.
@@ -213,6 +216,10 @@ pub mod signal_relay_without_relay;
 /// pointed at the child being waited for,
 /// and the pidfd that names that child.
 pub mod signal_relay_descriptor;
+
+/// The device and the inode of the file an open descriptor refers to,
+/// which two readers answer with and a third compares with a lock's own numbers.
+pub mod the_file_a_descriptor_holds_open;
 
 /// One descriptor's own record,
 /// opened only when the text of its link says it can be the file a scan looks for,

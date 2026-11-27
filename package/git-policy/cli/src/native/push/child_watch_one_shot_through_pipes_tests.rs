@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::child_class::ChildClass;
+use crate::child_watch_one_shot_run::output_watched;
 use crate::output_capture::STEP_OUTPUT_LIMIT;
 use std::process::{
     Command,

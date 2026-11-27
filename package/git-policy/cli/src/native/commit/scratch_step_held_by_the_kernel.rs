@@ -31,9 +31,13 @@
 //! aStallIsWaitedFor({ step, waited, until, held }); heldByTheKernelLine({ step, waited, held })
 //! ```
 
-/// Why a ceiling stood aside for a step,
-/// which the line about a waiting stall says.
-use crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor;
+/// The process the kernel is holding,
+/// and why a ceiling stood aside for a step,
+/// which the lines of this file say.
+use crate::scratch_step_stall_decided_once::{
+    HeldProgram,
+    WhyTheStepWasWaitedFor,
+};
 /// Time spans,
 /// for the figures each line names.
 use std::time::Duration;
@@ -61,28 +65,6 @@ pub struct HeldByTheKernel {
     /// The process the kernel is holding,
     /// which is the step itself or a program it started.
     pub held: HeldProgram,
-}
-
-/// What:
-///  One process the kernel is holding in a call a signal cannot end:
-///  its number and the kernel's name of it.
-/// Why:
-///   The person reads the line with `ps` in hand,
-///  so the process it names must be the one `ps` shows in state `D`,
-///  and the name says what that process is
-///  (`process/scratch_step_look_below.rs`,
-///  `the_process_the_kernel_holds`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type HeldProgram = { number: number; name: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct HeldProgram {
-    /// The process number the look found in uninterruptible sleep.
-    pub number: i32,
-    /// The name the kernel gives that process.
-    pub name: String,
 }
 
 /// What:

@@ -1,10 +1,8 @@
 //! What:
 //!  Private,
 //!  crash-safe file primitives shared by every durable record of the wrapper:
-//!       exclusive no-follow creation with private modes,
-//!  file and directory sync,
-//!  and
-//!       no-follow reads that refuse links and non-regular files.
+//!       exclusive creation under a staging name with private modes,
+//!  and the publish that makes a record appear whole.
 //! Why:
 //!  Lock records,
 //!  transaction journals and capture records must survive a crash in a
@@ -15,9 +13,18 @@
 //!  Each primitive is the one place that rule is written,
 //!  so every record of the wrapper is created,
 //!      synced and read the same way.
-//!  The publish that replaces the record a name already holds is
-//!      `private_storage_replacing_a_record.rs`,
-//!  a file of its own because this one reached the repository's line limit.
+//!  This file holds writing a record whole:
+//!  the staging file beside it,
+//!  the exclusive publish,
+//!  the rename that never replaces a name,
+//!  and the four writers a caller chooses between.
+//!  The rest of the primitives are files of their own,
+//!  because this one reached the repository's line limit,
+//!  and this file re-exports the names their callers reach:
+//!  `a_record_or_folder_the_account_alone_may_read_and_write.rs` holds the permission bits and the folders,
+//!  `a_record_made_durable_with_a_sync.rs` holds the flush of a file and the sync of a folder,
+//!  `a_record_read_with_the_reason_it_was_refused.rs` holds the reads and their refusals,
+//!  and `private_storage_replacing_a_record.rs` holds the publish over a name already taken.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -47,13 +54,51 @@ use std::fs::{
     File,
     OpenOptions,
 };
-/// The trait that gives files `.read_to_end` and `.take`.
-use std::io::Read;
 /// The trait that gives files `.write_all`.
 use std::io::Write;
 /// `Path` is a borrowed filesystem path of raw bytes.
 use std::path::Path;
 use std::time::Duration;
+
+/// The sync of a folder that makes a new or renamed entry durable.
+pub use crate::a_record_made_durable_with_a_sync::sync_directory;
+/// The flush of the staging file when the write must be durable,
+/// which the other file of this folder reaches this module for.
+pub(super) use crate::a_record_made_durable_with_a_sync::sync_when_durable;
+/// Whether this process's syncs must reach the disk,
+/// as the readers of a durable routine ask it.
+pub(crate) use crate::a_record_made_durable_with_a_sync::syncing_is_faithful;
+/// What this process's durability syncs left,
+/// which a control of a durable routine reads and empties,
+/// and the switch that makes them no-ops.
+#[cfg(test)]
+pub(crate) use crate::a_record_made_durable_with_a_sync::{
+    skip_the_durability_syncs_here,
+    take_directory_syncs,
+    take_file_syncs,
+};
+/// The change that makes the staging file's permission bits exact,
+/// which every write of this file applies before the record appears.
+use crate::a_record_or_folder_the_account_alone_may_read_and_write::protect_when_asked;
+/// The permission bits a private file and a private folder are made with,
+/// the change that makes them exact whatever the caller's `umask` is,
+/// the folders the wrapper creates with them,
+/// and the removal of a tree it retires.
+pub use crate::a_record_or_folder_the_account_alone_may_read_and_write::{
+    PRIVATE_DIRECTORY_MODE,
+    PRIVATE_FILE_MODE,
+    create_private_directory,
+    create_private_directory_all,
+    protect_path,
+    remove_tree,
+};
+/// The record a read refuses,
+/// and the two reads that name the reason.
+pub use crate::a_record_read_with_the_reason_it_was_refused::{
+    ReadRefusal,
+    open_regular_file,
+    read_regular_file,
+};
 
 /// How long the checked rename waits for another thread of this process that is publishing the same name:
 /// the bound of "nothing
@@ -86,44 +131,6 @@ use std::time::Duration;
 /// and none was available to measure (an S3
 ///  bucket through `s3fs-fuse`).
 const HELD_NAME_WAIT: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
-
-/// Mode of every private directory the wrapper creates:
-///  owner only.
-pub const PRIVATE_DIRECTORY_MODE: u32 = 0o700;
-
-/// Mode of every private file the wrapper creates:
-///  owner read and write only.
-pub const PRIVATE_FILE_MODE: u32 = 0o600;
-
-/// What:
-///  Why a no-follow read refused a path.
-///  An `enum` is a closed set of alternatives.
-/// Why:
-///   A missing file is an expected answer for optional records;
-///  a link,
-///  a directory or an
-///       over-long file is unsafe or corrupt state that recovery must name,
-///  never follow.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ReadRefusal = { kind: 'missing' } | { kind: 'not-regular' } | { kind: 'too-large' } | { kind: 'io'; error: Error };
-/// ```
-#[derive(Debug)]
-pub enum ReadRefusal {
-    /// Nothing exists at the path.
-    Missing,
-    /// The path names a link,
-    ///  directory or other non-regular file.
-    NotRegular,
-    /// The file holds more bytes than the caller allows.
-    TooLarge,
-    /// The operating system refused the read for another reason.
-    Io(
-        /// The operating-system error that refused the read.
-        std::io::Error,
-    ),
-}
 
 /// What:
 ///  Open options for an exclusive,
@@ -161,43 +168,6 @@ fn exclusive_options() -> OpenOptions {
 /// the file-making call the staging-file builder takes by name.
 fn open_exclusively(staged: &std::path::Path) -> std::io::Result<std::fs::File> {
     return exclusive_options().open(staged);
-}
-
-/// What:
-///  Set a path's permission bits to `mode`,
-///  on Unix only.
-///       `std::io::Result<()>` is "nothing,
-///  or an operating-system error".
-/// Why:
-///   The creation mode is filtered by the process `umask`;
-///  an explicit change makes the
-///       mode exactly private whatever the caller's `umask` is,
-///  as the incumbent's
-///       `protectPath` does.
-///  Windows keeps its inherited access rules (recorded under
-///       "Choices open to veto" in `doc/handover/cli-git-native-transactions.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (process.platform !== 'win32') await chmod(path, mode);
-/// ```
-pub fn protect_path(
-    path: &Path,
-    mode: u32,
-) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        // The trait adds `.from_mode` to permissions on Unix.
-        /// The Unix permission extensions,
-        ///  for the mode.
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
-    }
-    // `let _ = mode;` marks the argument as used where no mode exists.
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    let _ = (path, mode);
-    return Ok(());
 }
 
 /// What:
@@ -387,109 +357,6 @@ fn settle_exclusive_publish(
     return renamed;
 }
 
-#[cfg(test)]
-#[path = "private_storage_syncs_test_support.rs"]
-mod syncs_test_support;
-
-#[cfg(test)]
-pub(crate) use syncs_test_support::skip_the_durability_syncs_here;
-#[cfg(test)]
-pub(crate) use syncs_test_support::{
-    record_directory_sync,
-    record_file_sync,
-    take_directory_syncs,
-    take_file_syncs,
-};
-
-/// Whether this process's syncs must reach the disk;
-/// always,
-/// in the release executable.
-#[cfg(test)]
-pub(crate) fn syncing_is_faithful() -> bool {
-    return syncs_test_support::syncing_is_faithful();
-}
-
-/// Always,
-/// in the release executable.
-#[cfg(not(test))]
-pub(crate) fn syncing_is_faithful() -> bool {
-    return true;
-}
-
-/// What:
-///  Flushes a file this module did not open to disk,
-/// when this process's syncs must reach the disk,
-/// and records the sync either way.
-/// Why:
-///  A writer with a handle of its own (a worktree-copy install log,
-/// a registration's owner file) is durability work of the same kind as the records published here,
-/// so it obeys the same answer a control gives with `skip_the_durability_syncs_here`;
-/// otherwise that control still waits for a filesystem commit it never checks.
-/// The record is made whatever the answer,
-/// so the order of a routine's flushes stays observable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const flushFileWhenFaithful = async (handle: FileHandle, path: string) => { recordFileSync(path); if (isFaithful()) await handle.sync(); };
-/// ```
-pub(crate) fn flush_file_when_faithful(
-    file: &File,
-    path: &Path,
-) -> std::io::Result<()> {
-    // The path is read only by the test-only record; a release build leaves it unused.
-    #[cfg(not(test))]
-    let _path_for_tests: &Path = path;
-    #[cfg(test)]
-    record_file_sync(path);
-    if !syncing_is_faithful() {
-        return Ok(());
-    }
-    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
-    return file.sync_all();
-}
-
-/// What:
-///  Flushes the staging file to disk when the write is durable,
-/// and does nothing otherwise.
-/// Why:
-///  `write_then_publish` runs it only after the bytes were written;
-/// a record that tolerates a torn write skips the sync.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (durable) { await handle.sync(); }
-/// ```
-pub(super) fn sync_when_durable(
-    file: &File,
-    path: &Path,
-    durable: bool,
-) -> std::io::Result<()> {
-    if !durable {
-        return Ok(());
-    }
-    return flush_file_when_faithful(file, path);
-}
-
-/// What:
-///  Sets the permission bits of the staging file when a mode was asked for,
-/// and does nothing otherwise.
-/// Why:
-///  `write_then_publish` applies the mode before the file appears at its final name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (mode !== undefined) { await chmod(staged, mode); }
-/// ```
-fn protect_when_asked(
-    staged: &Path,
-    mode: Option<u32>,
-) -> std::io::Result<()> {
-    return match mode {
-        Some(bits) => protect_path(staged, bits),
-        None => Ok(()),
-    };
-}
-
 /// What:
 ///  Write `bytes` to a staging file beside `path`,
 /// sync it when `durable`,
@@ -644,181 +511,6 @@ pub fn write_exclusive_scratch(
     return Ok(());
 }
 
-/// What:
-///  Create one directory with mode `0700`;
-///  its parent must exist.
-/// Why:
-///   Lock candidates,
-///  transaction directories and stores are private to the account.
-///       Only the creation mode is applied,
-///  as the incumbent's `mkdir(path, { mode })`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await mkdir(path, { mode: 0o700 });
-/// ```
-pub fn create_private_directory(path: &Path) -> std::io::Result<()> {
-    return private_directory_builder().create(path);
-}
-
-/// What:
-///  Create a directory and every missing parent with mode `0700`;
-///  an existing directory is accepted.
-/// Why:
-///   The per-user state directory may not exist yet,
-///  and the XDG rules ask for `0700` when a program creates one.
-///  Only the directories this call creates get the mode;
-///  existing parents keep theirs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await mkdir(path, { recursive: true, mode: 0o700 });
-/// ```
-pub fn create_private_directory_all(path: &Path) -> std::io::Result<()> {
-    // `mut` allows the builder to be switched to recursive creation.
-    let mut builder: std::fs::DirBuilder = private_directory_builder();
-    builder.recursive(true);
-    return builder.create(path);
-}
-
-/// What:
-///  The directory builder that creates private directories on this platform.
-/// Why:
-///   Only Unix configures a mode;
-///  a separate function per platform keeps each body free of
-///       a `mut` the other platform would leave unused.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const builder = { mode: 0o700 };
-/// ```
-#[cfg(unix)]
-fn private_directory_builder() -> std::fs::DirBuilder {
-    // The trait adds `.mode` to directory builders on Unix.
-    /// The Unix directory-builder extensions,
-    ///  for the mode.
-    use std::os::unix::fs::DirBuilderExt;
-    // `mut` allows the builder to be configured before it is returned.
-    let mut builder: std::fs::DirBuilder = std::fs::DirBuilder::new();
-    builder.mode(PRIVATE_DIRECTORY_MODE);
-    return builder;
-}
-
-/// What:
-///  The directory builder that creates private directories on this platform.
-/// Why:
-///   Windows has no mode to configure,
-///  as `private_directory_builder` on Unix explains.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const builder = {};
-/// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-fn private_directory_builder() -> std::fs::DirBuilder {
-    return std::fs::DirBuilder::new();
-}
-
-/// What:
-///  Whether a failed directory sync means the filesystem has no such operation,
-/// not that the flush failed.
-/// Why:
-///   `EINVAL`,
-/// `ENOTSUP` and `ENOSYS` are what a filesystem without the operation returns;
-/// `EIO`,
-/// `ENOSPC` and
-///  `EDQUOT` mean the flush itself failed and stay errors.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ['EINVAL', 'ENOTSUP', 'ENOSYS'].includes(error.code)
-/// ```
-#[cfg(unix)]
-fn directory_sync_is_unsupported(error: &std::io::Error) -> bool {
-    return matches!(
-        error.raw_os_error(),
-        Some(libc::EINVAL | libc::ENOTSUP | libc::ENOSYS)
-    );
-}
-
-/// What:
-///  The outcome of syncing the directory at `path`:
-/// a filesystem without the operation counts as synced,
-/// any other
-///  failure stays an error.
-/// Why:
-///   A filesystem with no directory flush (procfs,
-/// some network and userspace filesystems) answers with one of the
-///  unsupported codes;
-/// the entry cannot be made durable there by any means,
-/// and failing would stop every commit.
-/// A
-///  function of the sync result lets a test feed the flush failures (`EIO`,
-/// `ENOSPC`,
-/// `EDQUOT`) that no
-///  unprivileged filesystem produces.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (error !== undefined && !['EINVAL', 'ENOTSUP', 'ENOSYS'].includes(error.code)) throw error;
-/// ```
-#[cfg(unix)]
-fn settle_directory_sync(
-    path: &Path,
-    outcome: std::io::Result<()>,
-) -> std::io::Result<()> {
-    return match outcome {
-        Ok(()) => Ok(()),
-        Err(error) if directory_sync_is_unsupported(&error) => {
-            debug(
-                "syncDirectory",
-                format!(
-                    "the filesystem of {} cannot sync a directory ({error}); skipped",
-                    path.display()
-                )
-                .as_str(),
-            );
-            Ok(())
-        }
-        Err(error) => Err(error),
-    };
-}
-
-/// What:
-///  Make a directory's entries durable,
-///  where the platform supports directory handles.
-/// Why:
-///   A new or renamed entry survives a crash only after its directory is synced;
-///  Windows
-///       has no directory handle for this,
-///  as the incumbent's `syncDirectory` notes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function syncDirectory(path: string): Promise<void>;
-/// ```
-pub fn sync_directory(path: &Path) -> std::io::Result<()> {
-    #[cfg(test)]
-    record_directory_sync(path);
-    if !syncing_is_faithful() {
-        return Ok(());
-    }
-    #[cfg(unix)]
-    {
-        // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
-        let directory: File = File::open(path)?;
-        settle_directory_sync(
-            path,
-            rustix::fs::fsync(&directory).map_err(std::io::Error::from),
-        )?;
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    let _ = path;
-    return Ok(());
-}
-
 #[cfg(test)]
 thread_local! {
     /// A control may fail a publish on this thread after the staging file was made and written,
@@ -837,166 +529,6 @@ thread_local! {
     /// where a second publisher of the
     ///  same name can slip in.
     pub(crate) static BETWEEN_THE_CHECK_AND_THE_RENAME: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
-}
-
-/// What:
-///  Remove a directory tree,
-///  treating an already absent tree as removed.
-/// Why:
-///   Retired locks and transactions are removed by name after a rename;
-///  another process
-///       may have removed them first,
-///  which is the same end state (`rm -rf` with `force`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await rm(path, { recursive: true, force: true });
-/// ```
-pub fn remove_tree(path: &Path) -> std::io::Result<()> {
-    match std::fs::remove_dir_all(path) {
-        Ok(()) => return Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    }
-}
-
-/// What:
-///  Open a file for reading without following a final link,
-///  and without waiting for a writer when the name holds a named pipe.
-/// Why:
-///   Records are always files the wrappers created;
-///  a link planted at a record path must
-///       be refused,
-///  never read through.
-///  `O_NONBLOCK` makes the open answer whatever the name holds,
-///  so the type check that follows refuses a pipe at once instead of waiting inside `open(2)`
-///  for a writer that may never come
-///  (`SPEC.md`,
-///  "Every wait has a bound";
-///  a trial reviewer's finding).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
-/// ```
-fn open_no_follow(path: &Path) -> std::io::Result<File> {
-    // `mut` allows the builder to be configured step by step.
-    let mut options: OpenOptions = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        // The trait adds `.custom_flags` to open options on Unix.
-        /// The Unix open-option extensions,
-        ///  for the no-follow flag and the non-blocking open.
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-    }
-    return options.open(path);
-}
-
-/// What:
-///  Open a record for reading:
-///  a regular file,
-///  never through a final link,
-///  and without waiting for a writer when the name holds a named pipe.
-/// Why:
-///   Some readers answer a waiting client,
-/// so an open that waited for a writer would hold back the proof of life
-///  and no timer could end it;
-///  a link planted at a record path must be refused,
-///  never read through;
-///  and the type of the handle's own metadata is the only answer a swap between the open and the check cannot
-///  change.
-///  A caller that also bounds how much it reads is `read_regular_file`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const file = await open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); if (!(await file.stat()).isFile()) throw 'not regular';
-/// ```
-pub fn open_regular_file(path: &Path) -> Result<File, ReadRefusal> {
-    let file: File = match open_no_follow(path) {
-        Ok(opened) => opened,
-        Err(error) => return Err(open_refusal(error)),
-    };
-    // The handle's own metadata, so a swap between the check and the read is impossible.
-    let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;
-    if !metadata.is_file() {
-        return Err(ReadRefusal::NotRegular);
-    }
-    return Ok(file);
-}
-
-/// What:
-///  Read a whole regular file without following links,
-///  up to `limit` bytes.
-///       `u64` is an unsigned 64-bit size;
-///  `Result<Vec<u8>, ReadRefusal>` is "the bytes,
-///  or why
-///       not".
-/// Why:
-///   Recovery reads untrusted state:
-///  a link or a directory must be named as unsafe,
-///  and a
-///       runaway file must not be read into memory.
-///  The open is `open_regular_file`'s,
-/// so a named pipe at the record's name is refused instead of waited on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function readPrivateFile(path: string, limit: number): Promise<Uint8Array>; // throws ReadRefusal
-/// ```
-pub fn read_regular_file(
-    path: &Path,
-    limit: u64,
-) -> Result<Vec<u8>, ReadRefusal> {
-    let file: File = open_regular_file(path)?;
-    // The handle's own metadata, so a swap between the check and the read is impossible.
-    let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;
-    if metadata.len() > limit {
-        return Err(ReadRefusal::TooLarge);
-    }
-    // `.take(limit + 1)` caps the read even if the file grows after the size check.
-    let mut bytes: Vec<u8> = Vec::new();
-    file.take(limit + 1)
-        .read_to_end(&mut bytes)
-        .map_err(ReadRefusal::Io)?;
-    if bytes.len() as u64 > limit {
-        return Err(ReadRefusal::TooLarge);
-    }
-    return Ok(bytes);
-}
-
-/// What:
-///  Classify an open failure as missing,
-///  a refused link,
-///  or another error.
-/// Why:
-///   `O_NOFOLLOW` on a link fails with `ELOOP` on Linux and macOS;
-///  that is the unsafe-link
-///       answer,
-///  not an input-output failure.
-///  A path through a non-directory (`ENOTDIR`) names
-///       no file,
-///  which the incumbent treats like a missing one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function openRefusal(error: NodeJS.ErrnoException): ReadRefusal;
-/// ```
-fn open_refusal(error: std::io::Error) -> ReadRefusal {
-    if error.kind() == std::io::ErrorKind::NotFound {
-        return ReadRefusal::Missing;
-    }
-    #[cfg(unix)]
-    {
-        if error.raw_os_error() == Some(libc::ENOTDIR) {
-            return ReadRefusal::Missing;
-        }
-        if error.raw_os_error() == Some(libc::ELOOP) {
-            return ReadRefusal::NotRegular;
-        }
-    }
-    return ReadRefusal::Io(error);
 }
 
 /// Disposable-directory controls stay out of the release executable.

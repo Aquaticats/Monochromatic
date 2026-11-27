@@ -27,9 +27,10 @@
 //! const candidates = refLockCandidates(roots); // packed-refs.lock, HEAD.lock, refs/**/*.lock, reftable/tables.list.lock
 //! ```
 
-use crate::stopped_git_locks::{
+use crate::stale_ref_lock_names::{
     LOCK_SUFFIX,
     PID_LOCK_SUFFIX,
+    pid_file_beside,
 };
 use std::path::{
     Path,
@@ -290,18 +291,6 @@ pub fn in_path_order(mut found: Vec<Candidate>) -> Vec<Candidate> {
     found.sort_by(by_lock);
     found.dedup_by(same_lock);
     return found;
-}
-
-/// The pid file Git writes beside a lock:
-/// the lock's name without `.lock`,
-/// then `~pid.lock`.
-pub fn pid_file_beside(lock: &Path) -> PathBuf {
-    let name: String = match lock.file_name() {
-        Some(file_name) => file_name.to_string_lossy().into_owned(),
-        None => String::new(),
-    };
-    let stem: &str = name.strip_suffix(LOCK_SUFFIX).unwrap_or(name.as_str());
-    return lock.with_file_name(format!("{stem}{PID_LOCK_SUFFIX}"));
 }
 
 /// The files that go with a lock and exist now:

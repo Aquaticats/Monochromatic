@@ -5,6 +5,7 @@
 //! and which commands show it.
 
 use super::*;
+use crate::push_failure_notice_record_text::NO_REASON;
 use std::ffi::OsString;
 
 /// A function-like value with the right shape is a namer in these controls:

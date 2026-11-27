@@ -31,7 +31,7 @@
 use crate::merge_isolation_carry_parts::CapturedPath;
 /// The index records one step writes,
 /// whose entry the line about a deleted path reads.
-use crate::merge_isolation_carry_writes::IndexWrite;
+use crate::merge_isolation_carry_write_forms::IndexWrite;
 use crate::merge_isolation_changes::Change;
 use crate::path_bytes::path_message_text;
 /// The one owner of a path spelled for a shell,
