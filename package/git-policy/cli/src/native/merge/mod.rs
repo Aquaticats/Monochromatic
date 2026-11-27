@@ -191,6 +191,9 @@
 //!   and the word pass over the regions it leaves.
 //! - `merge_second_pass_report.rs`:
 //!   the words that list a merged part and the journal entry for a merged file.
+//! - `merge_second_pass_tree_attributes.rs`:
+//!   the tree a merge computed from objects reads its `merge` attribute from,
+//!   and the attribute source that merge names.
 //! - `merge_second_pass_tree.rs`:
 //!   the word-level second pass for merges computed from objects,
 //!   and the attribute tree those merges read.
@@ -259,6 +262,10 @@ pub mod merge_second_pass_conflicts;
 
 /// How the word-level second pass starts Git.
 pub mod merge_second_pass_git_runner;
+
+/// The tree a merge computed from objects reads its `merge` attribute from,
+/// and the attribute source that merge names.
+pub mod merge_second_pass_tree_attributes;
 
 /// The word-level second pass for merges computed from objects,
 /// and the attribute tree those merges read.
