@@ -42,6 +42,16 @@
 //!   found by device and inode.
 //! - `index_lock_evidence.rs`:
 //!   evidence about a foreign `index.lock` and the verdict it supports.
+//! - `index_wait_outcome.rs`:
+//!   what came of one wait:
+//!   not held,
+//!   released,
+//!   a gone owner,
+//!   the ceiling,
+//!   or another command's holder.
+//! - `index_lock_looks.rs`:
+//!   the looks at `index.lock` that do not wait and what each proves,
+//!   with the sentences their lines are written in.
 //! - `index_holder_wait.rs`:
 //!   the wait for any program's hold on `index.lock` before a command changes the checkout.
 //! - `index_lock_wait.rs`:
@@ -168,6 +178,18 @@ pub mod index_lock_evidence_words;
 
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
+
+/// What came of one wait:
+///  not held,
+///  released,
+///  a gone owner,
+///  the ceiling,
+///  or another command's holder.
+pub mod index_wait_outcome;
+
+/// The looks at `index.lock` that do not wait and what each proves,
+///  with the sentences their lines are written in.
+pub mod index_lock_looks;
 
 /// The wait for any program's hold on `index.lock` before a command changes the checkout.
 pub mod index_holder_wait;
