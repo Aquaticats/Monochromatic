@@ -52,7 +52,39 @@ Threads share the process, so a test never changes the current directory, the en
 a signal's disposition or a resource limit of its own process.
 Give them to the child it starts instead (`Command::current_dir`, `env`, `env_clear`, a `pre_exec` that only calls
 async-signal-safe functions).
-Issue 6454 removed the current-directory changes; keep them out.
+Issue 6454 removed the current-directory changes;
+keep them out.
+
+A signal's disposition is one of those facts,
+and the standard library hands the test process its first one:
+it sets `SIGPIPE` to its ignore at the start of every Rust program
+(`library/std/src/sys/pal/unix/mod.rs:181`),
+so a write to a pipe nobody reads only answers `EPIPE`.
+A start that cannot run its program puts that default back in the process that tried it:
+`Command::exec` runs the standard library's `do_exec` in the caller,
+not in a child
+(`library/std/src/sys/process/unix/unix.rs:374`),
+so `forwarding::replace_process_with_real_git` and `push::start_retry::exec_retrying`
+leave `SIGPIPE` at its default when the program is missing or the start is refused,
+and every later write to a broken pipe ends every thread of the run
+(issue 6604:
+a threaded run of ten library modules ended with `signal: 13` after 2,985 of its 7,764 tests,
+and the two controls that ran such a start were
+`invocation/forwarding_tests.rs`'s `unstartable_program_is_an_error`
+and `push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`;
+the measurement is in
+`doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`).
+So a control that runs one of those starts,
+or a body that ends the process by a signal
+(`forwarding::end_as_git_ended`,
+`landing/service_commit_input_notes_and_embedded_commit.rs`'s `print_summary`,
+`process/stop_of_the_service_noticed_by_its_children.rs`'s `end_by_the_signal`),
+runs its body in a child of its own (`testing/process_wide_state_child_test_support.rs`),
+reads the action in place before and after with `sigaction` and a null new action
+(`testing/signal_disposition_of_the_process.rs`),
+and `source_guard/no_control_leaves_sigpipe_at_its_default_tests.rs` refuses a control that does not.
+A control that only reads an action changes nothing,
+so it may run in the run's own process.
 
 The same holds for what a test reads:
 `crate::run_progress::look` and `look_now` add up every task of this process,
