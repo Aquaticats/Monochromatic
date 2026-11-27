@@ -182,3 +182,8 @@ fn the_holders(holders: &[Holder]) -> String {
         .collect();
     return named.join(", ");
 }
+
+/// Controls of these sentences stay out of the release executable.
+#[cfg(test)]
+#[path = "merge_isolation_kept_copies_words_tests.rs"]
+mod tests;

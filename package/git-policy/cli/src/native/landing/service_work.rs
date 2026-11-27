@@ -41,7 +41,7 @@
 /// whose settings and review are `service_work_git_handlers.rs`.
 pub use super::service_work_git_handlers::GitHandlers;
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::push_retry::Retrying;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_drains_awaiting::{
@@ -197,9 +197,6 @@ pub fn drain_planned_with(
     renewal: Renewal<'_>,
     retrying: &Retrying,
 ) -> Drained {
-    // What: the CPUs and memory every batch of this drain is sized by, read once for the drain.
-    // Why:  a drain outside the round has no caller stating a host, and its batches must not each read the machine.
-    let host: HostResources = HostResources::read();
     return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(
         git_dir,
         handlers,
@@ -208,7 +205,7 @@ pub fn drain_planned_with(
         renewal,
         retrying,
         SERVICE_KINDS,
-        &host,
+        TheHostOfABatch::TheMachinesOwn,
     )) {
         Ok(drained) => drained,
         Err(refusal) => {
@@ -293,9 +290,6 @@ pub fn drain_common_records_planned(
     lease: Duration,
     retrying: &Retrying,
 ) -> Drained {
-    // What: the CPUs and memory every batch of this drain is sized by, read once for the drain.
-    // Why:  a drain outside the round has no caller stating a host, and its batches must not each read the machine.
-    let host: HostResources = HostResources::read();
     return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(
         git_dir,
         handlers,
@@ -303,7 +297,7 @@ pub fn drain_common_records_planned(
         lease,
         retrying,
         SERVICE_KINDS,
-        &host,
+        TheHostOfABatch::TheMachinesOwn,
     )) {
         Ok(drained) => drained,
         Err(refusal) => {

@@ -68,7 +68,7 @@ use crate::housekeeping_of_one_round::{
     HousekeepingOfOneRound,
     LOOK_AGAIN_AFTER_DEFERRING,
 };
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::service_claim_renewal::{
     HeldClaims,
     held_claims,
@@ -143,7 +143,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     replanning: &mut Replanning,
     kinds: &'static [WorkKind],
     housekeeping: Duration,
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     // What this look's caller must look at this directory again for, gathered as the look goes.

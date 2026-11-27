@@ -207,7 +207,7 @@ fn gate_for_identity(
 /// ```
 fn say_identity_unreadable(why: &str) {
     let _noted = std::io::stderr().write_all(
-        format!("monochromatic-git-policy-cli: the repository link identity cannot be used ({why}), so the link to the 860 is not checked for this command\n").as_bytes(),
+        format!("monochromatic-git-policy-cli: the repository link identity cannot be used ({why}), so the repository link is not checked for this command\n").as_bytes(),
     );
 }
 
