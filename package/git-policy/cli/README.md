@@ -4733,7 +4733,7 @@ or hold its lines in an order one side does not hold them in,
 which no union of the two deletions does.
 That is the shape a file of one record per line reaches when it writes one record more than once:
 the words are merged rather than the records,
-and an answer that writes a record back lands with no marker for you to read.
+so an answer that writes a record back would land with no marker for you to read.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every

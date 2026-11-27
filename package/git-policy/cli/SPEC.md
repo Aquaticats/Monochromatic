@@ -21381,7 +21381,7 @@ A region one side also wrote a line into is read by word without that second rul
 because a line one side added is a line the other side does not hold,
 and the bounds over the two parts say nothing about a merge that is right.
 The measurements above were taken on 2026-11-10,
-before these two rules,
+before these rules,
 and were not run again.
 
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
