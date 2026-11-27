@@ -2450,6 +2450,19 @@ because the mutation scopes in `bin/mutation-scopes.ts` select files by
 A module inside a folder named after the origin keeps those fields private,
 and is the other way to split such a type.
 
+A constructor stays beside the type it builds,
+even when the file that reads its input moves out.
+`parse_allow_list` fills the private indexes of `AllowList`,
+so it lives in `src/layout_allow_list.rs` while `read_allow_list` moved to
+`src/layout_allow_list_reading.rs`,
+and every field of the type stays private to the module that declares it.
+
+A re-export is what the callers name,
+so what only the test sidecar names is re-exported under `#[cfg(test)]`:
+`src/layout_allow_list.rs` re-exports `MAX_BYTES` and `read_at_most` that way,
+because a release build imports neither and a plain re-export would be an unused import there.
+A work counter that the sidecar names (`super::counted_work`) stays in the origin file for the same reason.
+
 ## Script linting
 
 The verification scripts in `bin` are TypeScript.
