@@ -11,19 +11,27 @@
 //! and nothing is left when the service ends.
 //!
 //! Every control here runs its body in a child of this test binary
-//! (`run_the_body_in_a_child_of_its_own`, `testing/process_wide_state_child_test_support.rs`),
+//! (`run_the_body_in_a_child_of_its_own`,
+//! `testing/process_wide_state_child_test_support.rs`),
 //! where it is the only test that process runs.
 //! What each control waits for is a job of the process's blocking pool,
-//! and what it counts are the process's own counters (`FLUSHES`, `HELD_FLUSHES_ENDED`, `COMMIT_WAITING`,
-//! `SERVICE_ENDS` and the list of the files made ahead).
+//! and what it counts are the process's own counters:
+//! `FLUSHES`,
+//! `HELD_FLUSHES_ENDED`,
+//! `COMMIT_WAITING`,
+//! `SERVICE_ENDS`,
+//! and the list of the files made ahead.
 //! Both belong to the whole process,
 //! so beside the other tests of a threaded run
 //! a control's making queued behind their jobs and its counters moved under other controls' hands:
 //! in a run of `landing::` with 24 threads the first control's making never reached its file within its ten-second
 //! witness,
 //! and a control that counts the flushes its own landing made counted another's end
-//! (`doc/troubleshooting/git-policy-cli-prestage-controls-share-one-lock-and-one-pool.md`, issue 6565).
-//! A child owns both, and no serial lock is needed: the counters are that child's alone.
+//! (`doc/troubleshooting/git-policy-cli-prestage-controls-share-one-lock-and-one-pool.md`,
+//! issue 6565).
+//! A child owns both,
+//! and no serial lock is needed:
+//! the counters are that child's alone.
 
 use super::*;
 use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
