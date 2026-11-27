@@ -169,10 +169,9 @@ read its `starter.log`.
 `0.5.2-alpha.17` is released (`66569e28a0`,
 the alpha.16 release pass's fixes,
 merged as `4e258a388d`).
-`toolchain.lock.json` still locks `0.5.2-alpha.16` (`0fb64d8c9e`);
-the row moves with `mise run toolchain:update cargo:monochromatic-lint` on a branch of its own,
-as `f5021793db` did for alpha.16,
-and the alpha.17 release pass follows.
+`toolchain.lock.json` locks it (`d413a71714`),
+and the main checkout's tool link runs it.
+The alpha.17 release pass is owed.
 
 ### What the split rounds left
 
@@ -313,6 +312,12 @@ removes them.
 The session link stays on the reviewed build:
 the AppArmor rules name that exact path,
 and pointing them at a newer build takes the fresh review that waits in `doc/handover/questions-for-the-owner.md`.
+`mise run toolchain:install <tool>` in the main checkout re-points that link at the toolchain's launcher,
+whichever tool it names:
+on 2026-11-27 at 01:47 an install of `cargo:monochromatic-lint` did,
+and the coordinator put the link back on the reviewed build about a minute later.
+After any toolchain install in the main checkout,
+read the link (`ls -l .cache/monochromatic-git-policy-cli-bin/`) and put it back if it moved.
 
 ### Threaded-only test failures
 
@@ -497,7 +502,7 @@ by the owner's answer "Everything now,
 untangle over time."
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`,
 "What the list holds").
-`toolchain.lock.json` locks `monochromatic-lint` `0.5.2-alpha.16` (`0fb64d8c9e`).
+`toolchain.lock.json` locks `monochromatic-lint` `0.5.2-alpha.17` (`d413a71714`).
 
 Every crate outside this one is formatted by the root `rustfmt.toml`,
 which the owner set on 2026-11-25.
