@@ -459,11 +459,12 @@ fn a_copy_a_program_still_holds_open_is_not_removed() {
             );
             holder.kill().expect("the holder ends");
             // The end of a killed child is the kernel's and the scheduler's to make, so the control waits for it
-            //  for as long as the run keeps working and names what it waited for when it gives up. The child sits in a
-            //  cell because every look at it needs a borrow of it and the wait takes a closure that only reads.
-            let holder: std::cell::RefCell<std::process::Child> = std::cell::RefCell::new(holder);
+            //  for as long as the run keeps working and names what it waited for when it gives up. The program sits in
+            //  a cell because every look at it needs a borrow of it and the wait takes a closure that only reads.
+            let the_program: std::cell::RefCell<std::process::Child> =
+                std::cell::RefCell::new(holder);
             let ended: bool = crate::test_support::wait_until(&|| {
-                return holder
+                return the_program
                     .borrow_mut()
                     .try_wait()
                     .is_ok_and(|status| return status.is_some());

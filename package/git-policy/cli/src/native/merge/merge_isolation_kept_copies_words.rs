@@ -16,7 +16,8 @@
 //! sayTheCopyStays({ out, copy, named }); sayTheCopyStaysBecause({ out, copy, why }); sayTheCopyStaysHeldOpen({ out, copy, whatHoldsTheCopy });
 //! ```
 
-/// `PID <n> (<command>)`, the one shape a process is named in.
+/// `PID <n> (<command>)`,
+/// the one shape a process is named in.
 use crate::index_lock_evidence_words::holder_name;
 /// One process a scan found holding a file open.
 use crate::index_lock_holders::Holder;
@@ -100,7 +101,8 @@ pub(crate) fn say_the_copy_stays_because<W: Write + ?Sized>(
 /// Why:
 ///   A refusal that says only that some program holds the copy leaves the person with no way
 ///   to find it:
-/// the copy goes once that program ends, and only the program's own name says which one that is
+/// the copy goes once that program ends,
+/// and only the program's own name says which one that is
 /// (issue 6542,
 /// whose failure named no process at all).
 ///  The line keeps what ends a copy that is held:
@@ -136,7 +138,8 @@ pub(crate) fn say_the_copy_stays_held_open<W: Write + ?Sized>(
 /// Why:
 ///   The two lines that say a copy stays where the file at its path holds its bytes differ in the
 ///  reason alone,
-/// so the sentences a person reads that name the copy, its path and the two commands that end it
+/// so the sentences a person reads that name the copy,
+/// its path and the two commands that end it
 /// are written once here.
 ///
 /// In TS you'd write (pseudocode):
