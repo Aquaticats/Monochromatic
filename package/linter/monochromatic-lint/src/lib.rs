@@ -138,6 +138,15 @@ mod layout_crate_roots;
 ///  no loops between the files of a folder,
 ///  and a top doc that lists them in dependency order.
 mod layout_file_order;
+/// The uses between a folder's files,
+///  with the reference that proves each,
+///  and the loops those uses make.
+mod layout_file_order_file_loops;
+/// What the allow list tolerates of a folder's file uses,
+///  and the uses a tolerated loop holds.
+mod layout_file_order_tolerated_uses;
+/// The findings about how a folder's top doc lists its files.
+mod layout_file_order_top_doc_list;
 /// The shape of a finding of a layout rule.
 mod layout_finding;
 /// The files of each folder,
