@@ -103,6 +103,9 @@
 //!   repository and worktree identity as reported by real Git.
 //! - `worktree_command_facts.rs`:
 //!   the plain facts of one worktree command that several folders pass around.
+//! - `worktree_add_plan_copy_destination.rs`:
+//!   the destination of a `git worktree add` whose worktree Git's checkout fills,
+//!   read from the command line by the grammar of Git's option parser.
 //! - `worktree_add_plan.rs`:
 //!   the plan for one `git worktree add` that the cheap-worktree ladder serves:
 //!   its destination and insertion point.
@@ -574,10 +577,15 @@ pub mod worktree_removal_held_commits;
 /// The option table of `git worktree add`,
 /// and the rules that read a long word,
 /// a bundled short word and a value.
-// Its only user is `worktree_add_plan`, which is `#[cfg(unix)]`, so a non-Unix build would hold this table's
-// `pub(crate)` items unused and the Windows lint denies that warning.
+// Its only users are `worktree_add_plan` and `worktree_add_plan_copy_destination`, which are both `#[cfg(unix)]`, so a
+// non-Unix build would hold this table's `pub(crate)` items unused and the Windows lint denies that warning.
 #[cfg(unix)]
 pub mod worktree_add_option_table;
+
+/// The destination of a `git worktree add` whose worktree Git's checkout fills,
+/// read from the command line by the grammar of Git's option parser.
+#[cfg(unix)]
+pub mod worktree_add_plan_copy_destination;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
