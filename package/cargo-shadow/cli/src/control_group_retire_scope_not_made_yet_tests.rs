@@ -35,9 +35,9 @@ use std::process::Command;
 /// the proof that this host can give it,
 /// and the launcher's own handshake.
 use crate::cgroup_test_support::{
+    TestScope,
     start_in_scope,
     this_test_needs_a_delegated_scope,
-    TestScope,
 };
 /// The look at the scope and its bound.
 use crate::control_group::retire::{
@@ -135,10 +135,10 @@ fn a_scope_whose_directory_was_never_made_is_read_as_collected_and_the_run_says_
     //           exited before the manager made its group.
     // Why:      The look reads the scope's directory to tell a collected group from one that is not there, and this is the
     //           second of the two.
-    let never_made: PathBuf = scope
-        .group
-        .parent
-        .join(format!("cargo-shadow-test-{}-never-made.scope", std::process::id()));
+    let never_made: PathBuf = scope.group.parent.join(format!(
+        "cargo-shadow-test-{}-never-made.scope",
+        std::process::id()
+    ));
     assert!(
         !never_made.exists(),
         "the directory this control calls never made is there: {}",

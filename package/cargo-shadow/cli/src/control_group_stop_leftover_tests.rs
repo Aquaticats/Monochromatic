@@ -802,7 +802,9 @@ fn the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greates
         .unwrap_or_else(|| panic!("the refusal does not name the lower number in beta: {refusal}"));
     let higher_in_beta_at: usize = refusal
         .find(&format!("{} in beta (", higher_in_beta.pid()))
-        .unwrap_or_else(|| panic!("the refusal does not name the higher number in beta: {refusal}"));
+        .unwrap_or_else(|| {
+            panic!("the refusal does not name the higher number in beta: {refusal}")
+        });
     let in_gamma_at: usize = refusal
         .find(&format!("{} in beta/gamma (", in_gamma.pid()))
         .unwrap_or_else(|| panic!("the refusal does not name the member in beta/gamma: {refusal}"));

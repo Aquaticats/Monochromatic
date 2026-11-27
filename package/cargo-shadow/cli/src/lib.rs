@@ -535,9 +535,6 @@ mod containment_record_tests;
 /// which is the state a launcher that exits before the manager makes the group leaves.
 #[cfg(test)]
 mod control_group_retire_scope_not_made_yet_tests;
-/// The journals a refusal keeps, and what each kind of next run of the same workspace does with one.
-#[cfg(test)]
-mod refusal_journal_next_runs_tests;
 /// Round 7 tests of the three phases of finishing a transaction and how an update joins them with its own outcome.
 #[cfg(test)]
 mod finish_phase_tests;
@@ -545,6 +542,9 @@ mod finish_phase_tests;
 /// and of the bounds on the waits.
 #[cfg(test)]
 mod quiescence_failure_tests;
+/// The journals a refusal keeps, and what each kind of next run of the same workspace does with one.
+#[cfg(test)]
+mod refusal_journal_next_runs_tests;
 /// Round 11 tests:
 /// the launcher record that lets a killed wrapper be recognized.
 #[cfg(test)]

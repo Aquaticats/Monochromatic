@@ -22,6 +22,14 @@
 //! // describe('the next run after a refusal', () => { it('a pass-through leaves the journal', ...) })
 //! ```
 
+/// Holds the count of started runs the helper watches, and the callback that reads it.
+use std::cell::Cell;
+/// Holds the counters the fakes of the update leg keep, and the count of the starts the helper watches.
+use std::cell::RefCell;
+/// Holds the versions the fake registry answers with.
+use std::collections::BTreeMap;
+/// Copies text into an owned `String`.
+use std::ffi::OsString;
 /// Reads and writes the fixture's files, the stand-ins, and the child's exit code.
 use std::fs;
 /// Makes the stand-in cargo executable.
@@ -36,46 +44,34 @@ use std::process::{
     Command,
     Output,
 };
-/// Copies text into an owned `String`.
-use std::ffi::OsString;
-/// Holds the counters the fakes of the update leg keep, and the count of the starts the helper watches.
-use std::cell::RefCell;
-/// Holds the count of started runs the helper watches, and the callback that reads it.
-use std::cell::Cell;
 /// Shares one counter between the helper and the hook that reads it.
 use std::rc::Rc;
-/// Holds the versions the fake registry answers with.
-use std::collections::BTreeMap;
 
-/// What a fake cargo answers and how it is asked, for the install step and the update.
-use monochromatic_dependency_catalog::Settings;
-/// The trust policy the fixture's catalog states.
-use monochromatic_dependency_catalog::TrustPolicy;
 /// The cargo runner the install step and the update call.
 use crate::cargo_run::{
     CargoOutcome,
     CargoRunner,
+};
+/// The waits the control-group tests share.
+use crate::cgroup_test_support::{
+    scope_directory_of,
+    wait_until,
 };
 /// The one decision the refuse-on test arms: the stop's report and the listing of a scope that went away.
 use crate::failpoints::{
     Point,
     arm,
 };
-/// The registry the update asks about versions.
-use crate::registry::Registry;
 /// The error a registry answers with.
 use crate::http::RegistryError;
-/// One release of one crate, as a registry answers it.
-use crate::policy::VersionRecord;
 /// The journal directories of a fixture.
 use crate::journal_support::journal_dirs;
+/// One release of one crate, as a registry answers it.
+use crate::policy::VersionRecord;
+/// The registry the update asks about versions.
+use crate::registry::Registry;
 /// The tests' own scratch directory, beside the build output.
 use crate::test_scratch::scratch;
-/// The waits the control-group tests share.
-use crate::cgroup_test_support::{
-    scope_directory_of,
-    wait_until,
-};
 /// Renders the catalog into the manifests, which the update calls after it resolves.
 use crate::tighten::Syncer;
 /// The update's own entry point and the two values it is called with.
@@ -84,6 +80,10 @@ use crate::update::{
     UpdateRequest,
     update_rust_lockfiles,
 };
+/// What a fake cargo answers and how it is asked, for the install step and the update.
+use monochromatic_dependency_catalog::Settings;
+/// The trust policy the fixture's catalog states.
+use monochromatic_dependency_catalog::TrustPolicy;
 
 /// The variable that carries the fixture's root to the child.
 const FIXTURE_ROOT: &str = "CARGO_SHADOW_FIXTURE_ROOT";
@@ -171,7 +171,10 @@ impl CargoRunner for FakeCargo {
         }) {
             return Ok(CargoOutcome {
                 ok: true,
-                output: format!("{{\"workspace_root\":\"{}\",\"packages\":[]}}", cwd.display()),
+                output: format!(
+                    "{{\"workspace_root\":\"{}\",\"packages\":[]}}",
+                    cwd.display()
+                ),
                 stdout: String::new(),
             });
         }
@@ -418,8 +421,7 @@ fn run_one(
 ) -> Ran {
     // What:     `current_exe()` is this test executable's own path.
     // Why:      The child re-enters this same binary and runs the one helper below by name.
-    let executable: PathBuf =
-        std::env::current_exe().expect("this test executable's own path");
+    let executable: PathBuf = std::env::current_exe().expect("this test executable's own path");
     // What:     `path` is the child's `PATH`: the stand-in cargo's directory first, then this process's own.
     // Why:      The shadow picks the first `cargo` it finds, and the rest of `PATH` keeps `systemd-run` and `systemctl`.
     let path: String = format!(
@@ -503,10 +505,9 @@ fn one_next_run_fixture() {
         }
         "ordinary" => crate::shim::run_shim(check),
         // A command that resolves nothing: `cargo fmt` never enters the install step.
-        "pass_through" => crate::shim::run_shim(vec![
-            OsString::from("fmt"),
-            OsString::from("--check"),
-        ]),
+        "pass_through" => {
+            crate::shim::run_shim(vec![OsString::from("fmt"), OsString::from("--check")])
+        }
         "frozen" => crate::shim::run_shim(check),
         "update" => {
             let catalog: PathBuf = root.join("rust-catalog.toml");
@@ -567,9 +568,8 @@ fn staged_a_refusal(fixture: &Fixture) -> Ran {
         refused.stderr
     );
     // The writer the stand-in cargo wrote leaves the scope by itself; the next run reads the recorded scope as gone.
-    let scope: PathBuf = scope_directory_of(
-        &fixture.journals()[0].join("groups").display().to_string(),
-    );
+    let scope: PathBuf =
+        scope_directory_of(&fixture.journals()[0].join("groups").display().to_string());
     wait_until("the refusal's scope to be gone", &|| {
         return !scope.exists()
             || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| {
