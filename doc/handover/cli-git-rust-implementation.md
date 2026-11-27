@@ -103,11 +103,11 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T01:43:09-05:00
+## The state at 2026-11-27T02:12:31-05:00
 
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
-Sixteen rounds merged on the evening of 2026-11-26 and forty-seven more by this time on 2026-11-27.
+Sixteen rounds merged on the evening of 2026-11-26 and sixty-three more by this time on 2026-11-27.
 
 ### Rounds running
 
@@ -116,53 +116,82 @@ pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
 under the owner's "Up to 64 rounds at once."
 (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
-Each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
 
-- Six split rounds on a second run that only merges `origin/main` and resolves a conflict:
-  `split-wrapper-worktree-clone-removal-proof-and-plan-files-over-the-line-budget-1`,
-  `split-wrapper-merge-files-over-the-line-budget-1` and `-2`,
-  `split-wrapper-repo-read-files-over-the-line-budget-1`,
-  `split-wrapper-landing-files-over-the-line-budget-2`
-  and `split-wrapper-worktree-files-over-the-line-budget-2`.
-  The conflicts are in `layout-allow-list/file-rule.txt` and in a folder's `mod.rs`,
-  where two rounds of one folder each added their modules.
-- Eight rounds whose first start timed out under the load of 2026-11-26 and were started again on an idle host:
-  the scratch-evidence rounds for the troubleshooting records
-  and for the handover,
+Started through the coordinator's scratch launcher before 2026-11-27T01:55-05:00,
+with the brief at `~/temp/agent/<round>-2026-11-2<6 or 7>/prompt.md`
+and the worktree at `.claude/worktrees/<round>`:
+
+- issues 6524,
+  6525 and 6526 (three landing controls that fail only threaded),
+  one round each;
+- issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy");
+- issue 6513 (the linter reads a near-miss file-list marker as no list);
+- three second-wave split rounds for wrapper files no loop holds
+  (`split-wrapper-foundation-files-over-the-line-budget-2`,
+  `split-wrapper-process-lock-and-push-files-over-the-line-budget-2`,
+  `split-wrapper-commit-worktree-and-worktree-copying-files-over-the-line-budget-2`);
+- `split-wrapper-small-folders-files-over-the-line-budget-1`;
+- the scratch-evidence round for the handover,
   audit,
-  research and package documents;
-  the driver's worktree launcher fix (issue 6339);
-  issue 6491;
-  issue 6398;
-  `split-cargo-shadow-cli-files-over-the-line-budget-part-4-of-4`;
-  `split-mpm-shadow-cli-files-over-the-line-budget-part-3-of-3`;
-  and `split-wrapper-small-folders-files-over-the-line-budget-1`.
-- The music player's split rounds part 1 to 3 of 3,
-  started again after the Slint round merged.
-- `restate-the-scratch-evidence-in-the-five-documents-the-first-rounds-left`
-  (its folder is dated 2026-11-27).
+  research and package documents.
+
+Started through the driver package's launcher,
+with the brief at `~/temp/agent/pi-runs/<round>-prompt.md`,
+the run under `~/temp/agent/pi-runs/<round>-<n>`,
+the unit `pi-<round>` and the worktree `.claude/worktrees/pi-<round>`,
+which the launcher removes when the run ends idle with nothing uncommitted:
+
+- `split-wrapper-merge-files-over-the-line-budget-4`
+  (`merge_isolation.rs` and `merge_isolation_apply.rs`);
+- six loop-break rounds,
+  the plan's round 3
+  (`doc/planning/cli-git-source-layout-target-tree.md`,
+  "Next",
+  item 3,
+  and "Loops between files,
+  and how each is broken (2026-11-26)"):
+  `break-wrapper-file-loops-in-command-conflict-and-dependent-version`,
+  `-in-typed-network-command-relay-and-kept-references`,
+  `-in-lfs-and-policy`,
+  `-in-repair-and-repo-read`,
+  `-in-service-shadow-start-probe-and-transaction`
+  and `-in-two-clone-folders-and-zfs-mounted-dataset`.
+  Each deletes its folders' lines from `layout-allow-list/file-rule.txt`,
+  and the groups keep those deletions apart except `repo_read` beside `service`:
+  the coordinator resolves that meeting by hand as the union of the deletions,
+  never through the wrapper's merge pass (issue 6529).
+
+The loop breaks of `foundation/`,
+`landing/`,
+`lock/`,
+`merge/`,
+`process/`,
+`push/`,
+`worktree/`,
+`worktree_copying/` and `commit/` are not started:
+a split or issue round is open in each,
+and two rounds on one file conflicted on 2026-11-26.
+Each starts when its folder's open round has merged.
 
 Waiting on a named merge:
+the two `truepeak` crates' one file each (`src/bones.rs`,
+and the bench's `src/main.rs`),
+on the branch `refactor/flac-profiler-keeps-the-rust-one`,
+which changes both.
 
-- Issues 6524,
-  6525 and 6526 (three landing controls that fail only threaded),
-  on the merge of `split-wrapper-landing-files-over-the-line-budget-2`.
-- Issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy"),
-  on the merge of the two shadow split rounds still running.
-- The two `truepeak` crates' one file each (`src/bones.rs`,
-  and the bench's `src/main.rs`),
-  on the branch `refactor/flac-profiler-keeps-the-rust-one`,
-  which changes both.
+One whole container gate runs on `main` at `d9ec2443bd`
+(unit `wrapper-gate-on-main-at-d9ec2443bd.service`,
+log `~/temp/agent/wrapper-whole-container-gate-on-main-at-d9ec2443bd-2026-11-27/keep/gate.log`).
 
-Not yet briefed:
-issue 6513 (the linter reads a near-miss file-list marker as no list),
-the linter's own files over the line budget,
-and the files the split rounds left ("What the split rounds left").
-
-A round that has ended is found by listing the round folders whose latest `run-<n>/summary.json` exists
-while `.claude/worktrees/<round>` still does.
-A round whose latest run folder holds no `summary.json` and has no process never started:
-read its `starter.log`.
+A scratch-launched round has ended when its latest `run-<n>/summary.json` exists
+while `.claude/worktrees/<round>` still does;
+a package-launched one when `pi-runs/<round>-<n>/summary.json` exists,
+which the package's `list-runs-that-ended-since` lists,
+and it merges by its branch,
+once `origin/<branch>` equals the local tip.
+A run whose latest run folder holds no `summary.json` and has no process never started:
+read its `starter.log`,
+or for a package run the launch unit's `.out` file.
 
 ### The linter
 
@@ -180,7 +209,8 @@ the wrapper built and linted clean (`cargo check` and `cargo clippy --all-target
 `source_guard::` 173 passed,
 no `rust/folder-uses-links` and no `rust/file-order-in-folder` finding),
 and 93 of its files were still over the budget,
-down from 264.
+down from 264;
+at `d9ec2443bd` 57 were.
 What is left falls in three classes.
 
 - Files in a tolerated loop,
