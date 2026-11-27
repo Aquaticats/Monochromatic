@@ -110,7 +110,10 @@ impl Home {
         fs::write(home.lock_file(), render_lock(&unsigned.lock)).expect("write the global lock");
         home.install_demo_tool();
         // The printed command runs this stand-in, so a child process writes it.
-        crate::through_a_child_process::write_program(&home.bin_dir().join("mpm"), REAL_MPM.as_bytes());
+        crate::through_a_child_process::write_program(
+            &home.bin_dir().join("mpm"),
+            REAL_MPM.as_bytes(),
+        );
         // The printed command starts this build of the shadow, so a child process copies it.
         crate::through_a_child_process::copy_program(
             Path::new(env!("CARGO_BIN_EXE_mpm-shadow")),

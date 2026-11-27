@@ -39,11 +39,11 @@ use std::path::{
 #[path = "written_programs/through_a_child_process.rs"]
 mod through_a_child_process;
 
-use through_a_child_process::write_program;
 use std::process::{
     Command,
     Output,
 };
+use through_a_child_process::write_program;
 
 use mpm_shadow::toolchain::lock::{
     parse_lock,

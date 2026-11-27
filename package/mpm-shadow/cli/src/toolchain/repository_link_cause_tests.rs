@@ -13,7 +13,6 @@ use std::time::{
     Instant,
 };
 
-use crate::toolchain::fixture_programs::write_program;
 use super::{
     CHECK_RELATIVE_PATH,
     IDENTITY_RELATIVE_PATH,
@@ -21,6 +20,7 @@ use super::{
     repository_link_verdict,
     under_repository_link,
 };
+use crate::toolchain::fixture_programs::write_program;
 
 /// A disposable home with the repository's link path inside it.
 struct Home {
@@ -68,10 +68,7 @@ impl Home {
         // Why:      A write descriptor this process held would be inherited by a child
         //           another thread forked, and the start would be refused with `ETXTBSY`
         //           (issue 6527), so a child process writes it.
-        write_program(
-            &program,
-            format!("#!/bin/sh\n{body}\n").as_bytes(),
-        );
+        write_program(&program, format!("#!/bin/sh\n{body}\n").as_bytes());
         return program;
     }
 

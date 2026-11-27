@@ -98,7 +98,10 @@ impl Tree {
         fs::create_dir_all(tree.launcher().parent().expect("a parent"))
             .expect("make the launcher directory");
         // The test starts the launcher, so a child process copies the binary.
-        copy_program(Path::new(env!("CARGO_BIN_EXE_mpm-shadow")), &tree.launcher());
+        copy_program(
+            Path::new(env!("CARGO_BIN_EXE_mpm-shadow")),
+            &tree.launcher(),
+        );
         let record = LaunchRecord {
             tool_id: TOOL_ID.to_string(),
             lock_file: tree.lock_file(),

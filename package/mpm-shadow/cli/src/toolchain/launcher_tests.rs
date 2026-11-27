@@ -655,10 +655,7 @@ fn a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow() {
         // The running copy: this test binary, placed where an older install of the same tool lives.
         let running: PathBuf = shadow_install_program(&own_root, "0.2.0");
         // The test starts it, so a child process copies it.
-        copy_program(
-            &std::env::current_exe().expect("the test binary"),
-            &running,
-        );
+        copy_program(&std::env::current_exe().expect("the test binary"), &running);
         if newest_in_the_other_root {
             std::os::unix::fs::symlink("0.2.0", own_root.join("mpm-shadow").join("current"))
                 .expect("the running copy is what this root's current names");
