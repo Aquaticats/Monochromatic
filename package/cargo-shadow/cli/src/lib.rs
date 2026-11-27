@@ -164,6 +164,9 @@ pub mod dump;
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
+/// How the trust base is chosen, by the repository's files and then by git (split out of the git base module).
+pub mod git_base_resolution;
+
 /// Which system configuration file the selected Git reads (split out of the git base module).
 pub mod git_system_config_lookup;
 
