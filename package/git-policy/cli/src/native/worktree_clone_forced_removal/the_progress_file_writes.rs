@@ -52,12 +52,6 @@ use std::time::Duration;
 /// so no publish ever shares another's sibling.
 static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// The sibling one publish is staged under before its rename.
-/// Why:
-///  The name carries this process's number and a counter of this process's
-///  own attempts,
-///  so two publishes never share a staging name.
-
 impl ProgressFile {
     /// The sibling one publish is staged under before its rename.
     /// Why:
