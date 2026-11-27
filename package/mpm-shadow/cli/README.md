@@ -252,6 +252,11 @@ or a Java major line such as `21`).
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  Every program a row lists therefore comes from a component the row declares
+  or from the profile the channel installs,
+  and a program from neither is named as an unresolved bin on every install;
+  `src/toolchain/the_rust_rows_own_toolchain_holds_every_bin_it_declares_tests.rs`
+  is the control of that against a toolchain holding exactly what this repository's row declares.
 - The example's `rust` row above shortens that list to one bin:
   this repository's own row lists the programs the toolchain holds
   (`cargo`,
@@ -265,6 +270,25 @@ or a Java major line such as `21`).
   `rustdoc`
   and `rustfmt`),
   and none of them is `rustup`.
+  Which component puts each of them there is the same fact the plan records:
+  `cargo` comes from the `cargo` component,
+  `rustc`,
+  `rustdoc`,
+  `rust-gdb`,
+  `rust-gdbgui` and `rust-lldb` from `rustc`,
+  `cargo-clippy` and `clippy-driver` from `clippy`,
+  and `cargo-fmt` and `rustfmt` from `rustfmt`.
+  The profile rustup installs before any declared component is `minimal`:
+  it brings `rustc`,
+  `cargo` and `rust-std`,
+  which is six of those ten programs,
+  and it installs no formatter;
+  this repository's own tasks run both
+  (`cargo fmt`,
+  and `format:processors` in `package/linter/monochromatic-lint/mise.toml` runs a bare `rustfmt`),
+  which is why the row declares `rustfmt` (issue 6630).
+  The row's `rust-src`,
+  `llvm-tools` and `rustc-dev` components put no program in the toolchain's `bin` directory.
 - An unknown field or origin is an error naming its path.
   `version` and `artifacts` are not plan fields:
   only `update` writes them.

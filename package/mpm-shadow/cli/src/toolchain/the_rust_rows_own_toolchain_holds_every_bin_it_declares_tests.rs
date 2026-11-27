@@ -357,13 +357,7 @@ const THE_COMPONENTS: [Component; 8] = [
     Component {
         name: "rustc",
         manifest: "manifest-rustc-x86_64-unknown-linux-gnu",
-        programs: &[
-            "rustc",
-            "rustdoc",
-            "rust-gdb",
-            "rust-gdbgui",
-            "rust-lldb",
-        ],
+        programs: &["rustc", "rustdoc", "rust-gdb", "rust-gdbgui", "rust-lldb"],
     },
     // `clippy` is a component this repository's row declares,
     // and rustup's file for it is `manifest-clippy-preview-<triple>`.
@@ -577,7 +571,12 @@ fn the_components_the_row_declares(row: &LockedTool) -> Vec<String> {
     // ```ts
     // return [...(row.declaration.options.rustComponents ?? [])];
     // ```
-    return row.declaration.options.rust_components.clone().unwrap_or_default();
+    return row
+        .declaration
+        .options
+        .rust_components
+        .clone()
+        .unwrap_or_default();
 }
 
 // What:
@@ -1176,7 +1175,8 @@ fn an_install_asks_the_manager_for_a_declared_component_the_toolchain_lacks() {
     // ```ts
     // const programs = componentNamed(theComponentThisIssueDeclares).programs;
     // ```
-    let programs: &'static [&'static str] = component_named(THE_COMPONENT_THIS_ISSUE_DECLARES).programs;
+    let programs: &'static [&'static str] =
+        component_named(THE_COMPONENT_THIS_ISSUE_DECLARES).programs;
     // What:
     // `rig.runner.on(prefix, Box::new(move |_request: &RunRequest| { ... }))` registers an effect
     // that runs when a request whose line starts with that prefix arrives:
