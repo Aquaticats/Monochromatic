@@ -20,7 +20,6 @@
 use std::fs;
 
 use crate::{
-    fixture,
     scanner,
     stderr_of,
     two_file_fixture,
