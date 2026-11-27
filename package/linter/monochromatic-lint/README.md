@@ -1828,9 +1828,9 @@ and every other line stays as it is.
   `package/git-policy/cli` is such a tree:
   the built executable reports no near-miss finding there,
   while the same rules without the crate's two lists report 558 folder findings
-  and 72 file findings over it,
+  and 71 file findings over it,
   which those lists tolerate
-  (measured on 2026-11-27 with the release build of this branch).
+  (measured on 2026-11-27 with the release build of this branch on the tree of its last merge from `main`).
 
 ### Known limits
 
