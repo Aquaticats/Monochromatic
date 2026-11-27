@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T10:18:06-05:00
+## The state at 2026-11-27T10:22:35-05:00
 
-`main` was `fdd9ce0e83`.
+`main` was `be93c14734`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 197 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 200 more by this time.
 
 ### Rounds running
 
@@ -134,46 +134,47 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the round for the `perf/` and service-manager scripts is merged as `2218beae78`,
   and `lint:oxlint` then reported 594 errors,
   all in those guest scripts);
-- `issue-6598-source-reading-controls-walk-the-tree-without-following-links`
-  and `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
+- `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
   ("What the rounds found");
 - four rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
   each named `wrapper-alpha-48-release-pass-<what>`.
   For the behaviour pass:
-  `a-notice-record-outlives-a-line-that-was-not-written`
-  and `four-small-points-outside-the-slot-route`;
-  its other two are merged
+  `four-small-points-outside-the-slot-route`;
+  its other three are merged
   (the slot refusals read every shell alias the guard can follow,
   `cd62517318`;
   the merge pass reaches a last line with no line end,
   `f583a0d9bf`,
-  where a generated control also found and fixed a correct merge that was refused).
+  where a generated control also found and fixed a correct merge that was refused;
+  a notice's record stays until its line is known written,
+  `be93c14734`,
+  kept in 20 of 20 runs with the reader gone against none of 20 on `main`,
+  at a cost no run could measure with a reader that keeps up).
   For the splits pass:
-  `splits-keep-the-reach-and-the-platform-gates-items-had`
-  and `readme-layout-numbers-and-the-shutdown-unmount-help-row`;
+  `splits-keep-the-reach-and-the-platform-gates-items-had`,
+  `readme-layout-numbers-and-the-shutdown-unmount-help-row`
+  and `list-guards-name-the-files-the-splits-made`,
+  started once issue 6598's walk was on `main` (`da3d1505ef`:
+  the control that held 890 MiB now holds 29 MiB);
 - three rounds for what issue 6586's round met in its threaded runs:
   `issue-6602-moved-log-control-owns-the-claim-it-reads`,
   `issue-6603-size-read-deadline-control-states-the-clock-it-is-judged-by`
   and `issue-6604-no-control-changes-the-test-process-sigpipe-disposition`
   (a threaded run of ten library modules in one process died of `SIGPIPE`);
 - in `cargo-shadow`,
-  `issue-6578-scope-that-no-retire-follows-is-found-and-closed`,
-  the reopened issue's second round,
-  and `issue-6599-recycled-time-namespace-control-builds-its-own-schedule`;
+  `issue-6599-recycled-time-namespace-control-builds-its-own-schedule`
+  and two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
+  `cargo-shadow-alpha-12-release-pass-the-retire-costs-an-ordinary-run-nothing-and-stops-no-live-scope`
+  and `cargo-shadow-alpha-12-release-pass-the-refusals-branches-and-the-listing-bound-are-held-by-controls`.
+  Issue 6578's second round is merged (`6de3eee877`):
+  the units left loaded came from one test that killed its launcher before the manager attached it;
+  the issue stays open for the unit a killed shadow leaves,
+  whose choices are `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
 - in `mpm-shadow`,
   two rounds for its alpha.13 release pass,
   `mpm-shadow-alpha-13-release-pass-a-refused-or-vanished-start-says-only-what-is-known`
   and `mpm-shadow-alpha-13-release-pass-the-no-retry-record-claims-only-what-was-traced`,
   and `issue-6600-republish-killed-between-its-two-renames-leaves-a-working-version`.
-
-Waiting on a named merge:
-the round for the splits pass's third Medium finding
-(source guards that name a file code left without naming the files that received it,
-71 pairs)
-starts when issue 6598's branch is on `main`,
-because it uses the walk that round builds:
-`git merge-base --is-ancestor origin/fix/git-policy-cli-issue-6598-source-reading-controls-walk-the-tree-without-following-links main`.
-Its brief is `~/temp/agent/pi-runs/wrapper-alpha-48-release-pass-list-guards-name-the-files-the-splits-made-prompt.md`.
 
 Issue 6586 is merged (`7d6bd90c92`).
 A build made for tests now reads the session's runtime directory and bus address only from two switches a control sets,
@@ -184,23 +185,31 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
-each a Claude Sonnet read
+One read runs as a background agent of the coordinating session,
+a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
 that writes `keep/review.md` under its scratch folder:
 the linter's `0.5.2-alpha.19`
-(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`)
-and `cargo-shadow`'s `0.1.5-alpha.12`
-(`~/temp/agent/cargo-shadow-alpha-12-release-review-2026-11-27/`).
-The coordinator rewrites what lasts from each into this file before scratch expires.
+(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`).
+The coordinator rewrites what lasts from it into this file before scratch expires.
 
-A whole gate on `main` at `ff1ae3e5c7` was started at 2026-11-27T09:50:35-05:00
+The whole gate on `main` at `ff1ae3e5c7` passed
 (unit `gpc-gate-wrapper-next-alpha-on-ff1ae3e5c7-20261127T095035-0500`,
-log under `~/temp/agent/gate/` by the same name),
-the first since the suite's container got a bound of its own (4 GiB,
+started 2026-11-27T09:50:35-05:00,
+`gate-exit-status=0`):
+`Summary [1143.818s] 12125 tests run: 12125 passed (8 slow), 51 skipped`
+and "Clippy passed beside the test run.".
+It is the first since the suite's container got a bound of its own (4 GiB,
 issue 6583)
 and since issue 6586 changed release code.
+It does not hold the merges after that commit:
+the slot refusals behind a shell alias,
+the merge pass's last line,
+the notice record,
+the shared source walk,
+and what the rounds still running will bring.
+One more whole gate runs before `0.6.1-alpha.49` is released.
 Beside it,
 on the same tip:
 `lint:types` exited 0;
@@ -567,6 +576,35 @@ with no High finding:
 - Right as claimed:
   43 commands compared between the two binaries,
   41 identical and two differing only in the version string.
+
+What `cargo-shadow`'s alpha.12 pass found,
+with no High finding:
+
+- "Never what is decided" holds by reading:
+  both releases refuse exactly when the direct child was not reaped or the report is not empty,
+  and nothing in release code reads the report's words.
+- The retire of a run's unit makes the release slower.
+  A trivial shadow call took 1.52 times alpha.11's time at the median
+  (range 0.89 to 2.17 over 18 interleaved rounds,
+  against 1.00 and 0.68 to 1.25 for a same-binary control),
+  about 15 to 27 ms more per scoped run:
+  in ten of ten logged retires the manager had already collected the unit,
+  so both questions to it bought nothing.
+  With a manager that does not answer,
+  each run's end waits two five-second bounds.
+- The retire's gate reads a missing scope directory as empty without the proof the stop itself requires,
+  so it could stop a unit the same run refused as possibly still writing.
+  Read from the source,
+  not reproduced.
+- No control reaches the decision for two of the leftovers a stop can report,
+  so an edit that accepted such a run would stay green;
+  the listing's bound is looked at only between reads and has no control.
+- A program that outlives its run is treated alike by both releases:
+  killed on the scope path,
+  left alive on the process-group fallback.
+- Right as claimed:
+  41 commands compared between the two binaries,
+  identical but for the version line.
 
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
