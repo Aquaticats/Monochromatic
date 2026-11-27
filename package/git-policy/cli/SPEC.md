@@ -15294,6 +15294,20 @@ names with a control character or a byte that is not UTF-8 as `$'...'`),
 so the command can be
 pasted and a terminal escape in a file name is never printed raw.
 
+A process's name is not this program's text either:
+another program sets it (`/proc/<pid>/comm`,
+and the `comm` field of `/proc/<pid>/stat`),
+and so is a command line.
+Every line that names one shows it as text that can act on nothing:
+the parentheses or the backticks that line puts around the name are escaped inside it,
+the backslash is escaped,
+and every control character,
+every character outside printable ASCII and every line separator
+is written as an escape.
+So one name is shown the same way wherever a person meets it,
+and no name can end the sentence's own punctuation,
+erase the line or start a second one.
+
 ```text
 # A lock whose pid file names a process that has ended: said, and nothing removed.
 monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: a pid file beside it names process 2629996, which has ended, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around.
@@ -21360,14 +21374,28 @@ merge `b928c5fa6999`,
 whose resolution `24f8c1947b` corrected by hand).
 A base line written twice in the region is read by word:
 which copy a side deleted cannot be told there.
+Two rules refuse a word merge there rather than write a copy a side deleted.
 A region whose word merge would write more copies of a line the base held
 than the side that holds it fewer times than the base did still holds,
 while the other side's part holds it as often as the base did,
 is refused rather than merged,
 and keeps both sides
 (`keeps_a_deleted_line` in the same file).
+And a region whose two parts each hold only lines of the base's part,
+in the base's order,
+is one where both sides only deleted lines,
+so the union of the two deletions is the only right answer there:
+a word merge of such a region that would write more copies of a line
+than both parts hold of it,
+or write the lines in an order one part does not hold them in,
+is refused rather than merged,
+and keeps both sides
+(`writes_past_the_union_of_two_deletions` in the same file).
+A region one side also wrote a line into is read by word without that second rule,
+because a line one side added is a line the other side does not hold,
+and the bounds over the two parts say nothing about a merge that is right.
 The measurements above were taken on 2026-11-10,
-before these two rules,
+before these rules,
 and were not run again.
 
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),

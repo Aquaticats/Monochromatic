@@ -42,7 +42,7 @@
 //! and an unfinished `.replaced` sibling after the rename,
 //! which the next install of that tool removes.
 //! `leftovers_of_a_killed_install` holds that list with its reasoning,
-//! and tells a dead installer's sibling from a running one's by the pair in its name.
+//! and tells a dead installer's sibling from a running one's by the four facts in its name.
 //!
 //! A publish that fails costs neither copy:
 //! the finished copy stays under the name this run holds it at,
@@ -55,10 +55,10 @@
 //! // archive-staging.ts
 //! export function stagingDirOf(versionDir: string): string
 //! export function hasCompleteMarker(dir: string): boolean
-//! export function writeCompleteMarker(dir: string, toolId: string, version: string): void
+//! export function writeCompleteMarker(dir: string, toolId: string, version: string, archiveSha256: string): void
 //! export function publishStaged(staging: string, finalDir: string, firstBin: string): 'here' | 'already-there'
 //! export function discardStaging(staging: string): void
-//! export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion): Recovered
+//! export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered
 //! ```
 
 /// Imports `fs` from `std`.
@@ -79,9 +79,28 @@ mod exchanging_the_two_names;
 /// The hidden siblings a killed install leaves,
 /// and what a later install does with them.
 mod leftovers_of_a_killed_install;
+/// The completion marker,
+/// the facts it records and the lock that vouches for them.
+mod the_completion_marker;
 /// The process that made a hidden sibling,
-/// as the pair that no reuse repeats.
+/// as the facts that no reuse repeats.
 mod the_owner_of_a_hidden_sibling;
+
+/// Re-exports the marker file's name,
+/// the question whether a directory carries it,
+/// and the write an install makes last.
+pub use self::the_completion_marker::{
+    COMPLETE_MARKER,
+    has_complete_marker,
+    write_complete_marker,
+};
+/// Re-exports what the lock verified about a copy,
+/// and the questions a publish and a cleanup ask of the marker it holds.
+pub(crate) use self::the_completion_marker::{
+    CopyRecord,
+    has_vouched_marker,
+    marker_vouches,
+};
 
 /// Imports the renames a control can refuse,
 /// which the rename below names whether or not a control is planted.
@@ -113,17 +132,24 @@ pub(crate) use self::leftovers_of_a_killed_install::{
     AnOlderVersion,
     FinishedCopy,
     Recovered,
+    hidden_siblings,
     recover_leftovers,
 };
-/// Imports the owner of a hidden sibling,
-/// and re-exports it and the two reads of a process's record for a caller that builds one of these names itself.
-pub(crate) use self::the_owner_of_a_hidden_sibling::Owner;
 /// Re-exports what a process's record answers,
 /// and the reader a control uses to name a process of its own choosing.
 #[cfg(test)]
 pub(crate) use self::the_owner_of_a_hidden_sibling::{
+    ForcedStart,
+    ReaderView,
     moment_in,
+    read_as,
     start_time_of_a_process,
+};
+/// Imports the owner of a hidden sibling,
+/// and re-exports it and the two reads of a process's record for a caller that builds one of these names itself.
+pub(crate) use self::the_owner_of_a_hidden_sibling::{
+    Liveness,
+    Owner,
 };
 
 /// Imports `ToolchainError` from `super::error`.
@@ -132,10 +158,6 @@ use super::error::ToolchainError;
 use super::published_archive::is_finished;
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
-
-/// The file whose presence shows an install finished;
-/// it is the last file written before the version directory takes its name.
-pub const COMPLETE_MARKER: &str = ".mpm-shadow-installed";
 
 /// The purpose in a hidden sibling's name that holds an install being unpacked.
 pub(crate) const STAGING_PURPOSE: &str = "staging";
@@ -148,22 +170,29 @@ pub(crate) const REPLACED_PURPOSE: &str = "replaced";
 /// so no other install publishes from the same directory.
 pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
 
-/// `<parent>/.<name>.<purpose>.<process id>.<start time>`,
+/// `<parent>/.<name>.<purpose>.<process id>.<start time>.<namespace>.<boot>`,
 /// a hidden sibling of `version_dir` that no version scan lists.
-/// The two last fields name the installer that made it,
+/// The last four fields name the installer that made it,
 /// so a later install can tell one that no longer runs from one that does
 /// (`the_owner_of_a_hidden_sibling`).
+/// A name whose owner could not read its boot or namespace
+/// falls back to the earlier shape that carries only the process id and its start time,
+/// which no later install can judge.
 pub(crate) fn hidden_sibling(
     version_dir: &Path,
     purpose: &str,
     owner: Owner,
 ) -> PathBuf {
-    let name: String = format!(
-        ".{}.{purpose}.{}.{}",
-        file_name_text(version_dir),
-        owner.pid,
-        owner.started
-    );
+    let version: String = file_name_text(version_dir);
+    let name: String = match (owner.boot.as_deref(), owner.namespace) {
+        (Some(boot), Some(namespace)) => {
+            format!(
+                ".{version}.{purpose}.{}.{}.{namespace}.{boot}",
+                owner.pid, owner.started
+            )
+        }
+        _ => format!(".{version}.{purpose}.{}.{}", owner.pid, owner.started),
+    };
     return version_dir.with_file_name(name);
 }
 
@@ -176,32 +205,6 @@ pub fn staging_dir_of(version_dir: &Path) -> PathBuf {
 /// where the file system cannot exchange the two names.
 fn replaced_dir_of(version_dir: &Path) -> PathBuf {
     return hidden_sibling(version_dir, REPLACED_PURPOSE, Owner::here());
-}
-
-/// Whether `dir` holds the completion marker as a regular file
-/// (a link of that name does not count).
-pub fn has_complete_marker(dir: &Path) -> bool {
-    return match fs::symlink_metadata(dir.join(COMPLETE_MARKER)) {
-        Ok(metadata) => metadata.is_file(),
-        Err(_) => false,
-    };
-}
-
-/// Writes the completion marker into `dir`;
-/// call it after everything else in the install has been checked.
-pub fn write_complete_marker(
-    dir: &Path,
-    tool_id: &str,
-    version: &str,
-) -> Result<(), ToolchainError> {
-    let marker: PathBuf = dir.join(COMPLETE_MARKER);
-    if let Err(error) = fs::write(&marker, format!("{tool_id} {version}\n")) {
-        return Err(ToolchainError::failure(format!(
-            "cannot write {}: {error}",
-            marker.display()
-        )));
-    }
-    return Ok(());
 }
 
 /// Removes a path the installer made and no longer needs,

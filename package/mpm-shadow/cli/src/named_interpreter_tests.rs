@@ -13,7 +13,9 @@
 
 /// Imports the reader and its answers from the module under test.
 use crate::named_interpreter::{
+    MissingInterpreter,
     NamedInterpreter,
+    missing_interpreter,
     named_interpreter,
 };
 /// Imports the hand-built compiled program's bytes and their two layouts.
@@ -166,4 +168,99 @@ fn a_real_compiled_program_answers_as_a_compiled_program() {
         ),
         "a compiled program names a linker or none, never a first line"
     );
+}
+
+/// A script whose own first line names an interpreter that is not there is the case the message has to
+/// name,
+/// so the answer carries that interpreter.
+#[test]
+fn a_script_whose_interpreter_is_not_there_answers_with_that_interpreter() {
+    let directory = scratch();
+    let program: std::path::PathBuf = directory.path().join("mpm");
+    fs::write(&program, "#!/nonexistent/interpreter\nexit 0\n").expect("write the fixture script");
+    match missing_interpreter(&program) {
+        MissingInterpreter::Script {
+            interpreter,
+        } => assert_eq!(interpreter, Path::new("/nonexistent/interpreter")),
+        other => panic!("the interpreter the first line names is missing: {other:?}"),
+    }
+}
+
+/// A script whose interpreter is there leaves nothing for the message to name.
+#[test]
+fn a_script_whose_interpreter_is_there_says_nothing() {
+    let directory = scratch();
+    let program: std::path::PathBuf = directory.path().join("mpm");
+    fs::write(&program, "#!/bin/sh\nexit 0\n").expect("write the fixture script");
+    assert!(matches!(
+        missing_interpreter(&program),
+        MissingInterpreter::SaysNothing
+    ));
+}
+
+/// A compiled program whose dynamic linker is not there is the other case the message names.
+#[test]
+fn a_compiled_program_whose_linker_is_not_there_answers_with_that_linker() {
+    let directory = scratch();
+    let program: std::path::PathBuf = directory.path().join("mpm");
+    fs::write(
+        &program,
+        elf(&WIDE, false, Some("/nowhere/ld-fixture.so\0")),
+    )
+    .expect("write the fixture program");
+    match missing_interpreter(&program) {
+        MissingInterpreter::DynamicLinker {
+            linker,
+        } => assert_eq!(linker, Path::new("/nowhere/ld-fixture.so")),
+        other => panic!("the linker the program's own file names is missing: {other:?}"),
+    }
+}
+
+/// A compiled program whose linker is there leaves nothing for the message to name either.
+#[test]
+fn a_compiled_program_whose_linker_is_there_says_nothing() {
+    let directory = scratch();
+    let program: std::path::PathBuf = directory.path().join("mpm");
+    fs::write(&program, elf(&WIDE, false, Some("/bin/sh\0"))).expect("write the fixture program");
+    assert!(matches!(
+        missing_interpreter(&program),
+        MissingInterpreter::SaysNothing
+    ));
+}
+
+/// A program that is gone says nothing,
+/// which is the case that keeps both kinds of interpreter in the message.
+#[test]
+fn a_program_that_is_gone_says_nothing() {
+    let directory = scratch();
+    assert!(matches!(
+        missing_interpreter(&directory.path().join("gone")),
+        MissingInterpreter::SaysNothing
+    ));
+}
+
+/// What:
+/// An interpreter whose path the system cannot look at says nothing,
+/// because only the system's own "no file exists there" lets a message say a file is not there.
+/// Why:
+/// `Path::exists` answers `false` for a path whose metadata cannot be read as well;
+/// here a part of the interpreter's path is a regular file (the loop,
+/// per `ENOTDIR`),
+/// so the answer is an error and not an absence.
+#[test]
+fn an_interpreter_the_system_cannot_look_at_says_nothing() {
+    let directory = scratch();
+    let program: std::path::PathBuf = directory.path().join("mpm");
+    let first_line: String = format!("#!{}/interpreter\nexit 0\n", program.display());
+    fs::write(&program, first_line).expect("write the fixture script");
+    assert!(
+        std::path::Path::new(&format!("{}/interpreter", program.display()))
+            .try_exists()
+            .is_err(),
+        "a part of the path is a regular file, so the system answers an error"
+    );
+    assert!(matches!(
+        missing_interpreter(&program),
+        MissingInterpreter::SaysNothing
+    ));
 }
