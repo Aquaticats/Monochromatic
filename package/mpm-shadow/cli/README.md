@@ -2271,7 +2271,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   (`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
   byte-identical copies in each crate,
   and `tests/shadow_identity_copies.rs` is one of the copies,
-  so the test task of any of the four packages fails when the copies differ).
+  so a change to the copy in `cargo-shadow`,
+  `mpm-shadow` or `pnpm-shadow` fails all four suites,
+  and a change to `search-shadow`'s copy alone fails `search-shadow`'s suite and no other).
   The lookup skips a candidate that carries it,
   or a launcher whose record leads to one,
   without starting it,
