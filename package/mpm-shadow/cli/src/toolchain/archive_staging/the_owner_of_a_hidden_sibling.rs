@@ -646,7 +646,9 @@ impl Owner {
     /// Whether this name carries the identifier of the boot that is running now.
     /// Why:
     /// A name of this boot may belong to an installer that runs now and that this reader cannot see
-    /// (another process namespace, a hidden record), so a copy another install may have to replace waits for it;
+    /// (another process namespace,
+    /// a hidden record),
+    /// so a copy another install may have to replace waits for it;
     /// a name with no boot at all was written by an earlier build whose shape carries no such fact,
     /// and nothing ever removes such a name,
     /// so waiting for it would keep that copy aside for ever.

@@ -942,7 +942,8 @@ fn a_finished_copy_at_the_version_as_another_install(
 
 /// What:
 /// This process's hidden sibling under the name it would carry once this process ended:
-/// the purpose it was made for, with the four facts of an installer that no longer runs.
+/// the purpose it was made for,
+/// with the four facts of an installer that no longer runs.
 /// Why:
 /// A later install claims only a name whose installer the system reports as ended,
 /// and a control cannot end its own test process,

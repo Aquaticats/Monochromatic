@@ -159,7 +159,8 @@ fn older_version_rule(
 /// so the version gets its name back without the archive being downloaded again,
 /// which is what an offline machine needs to start that version at all
 /// (`archive_staging`).
-/// Only a copy whose completion marker records the lock's own tool, version and archive SHA-256 is published,
+/// Only a copy whose completion marker records the lock's own tool,
+/// version and archive SHA-256 is published,
 /// so this path keeps the check the download makes.
 ///
 /// In TS you'd write (pseudocode):
