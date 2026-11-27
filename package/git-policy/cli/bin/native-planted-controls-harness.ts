@@ -19,7 +19,7 @@ import { join } from 'node:path';
  Identity of the runner and judge: the digest of the sources in {@link plantedHarnessFiles} (see
  {@link plantedHarnessDigest}). After changing one of them, replace this literal with the digest the unit test prints.
  */
-export const plantedHarnessId = '29458fe496121902b3473e33ea39b24889521dc6937a215fa3b28c63ebb11ee0';
+export const plantedHarnessId = 'f4e251255abff559e003786ddf5152a80a2c32909368b8dc59f94d2eba2776f6';
 
 /**
  Sources, beside this file, that run the controls (`native-planted-controls.ts`: containers, nextest invocation, evidence),
