@@ -271,6 +271,7 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
         "the interpreter named on the program's first line",
         "cannot tell which process holds that file",
         "run the same command again",
+        "the start succeeds as soon as the file is free and whole",
         "writes a whole new copy into place",
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");

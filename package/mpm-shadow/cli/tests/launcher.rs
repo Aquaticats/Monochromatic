@@ -282,13 +282,16 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
     );
     for expected in [
         &format!("could not start {}:", tree.real().display()),
-        "is open for writing by some other process",
         "the interpreter named on the program's first line",
         "cannot tell which process holds that file",
         "run the same command again",
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
+    assert!(
+        stderr.contains("what to do:"),
+        "the remedy carries its label in launcher mode too: {stderr}"
+    );
     assert!(
         !stderr.contains("usual cause"),
         "no measurement shows a usual cause, so the message names none: {stderr}"
@@ -361,10 +364,15 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
         "the interpreter named on the program's first line",
         "cannot tell which process holds that file",
         "run the same command again",
+        "the start succeeds as soon as the file is free and whole",
         "writes a whole new copy into place",
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
+    assert!(
+        stderr.contains("what to do:"),
+        "the remedy carries its label in launcher mode too: {stderr}"
+    );
     assert!(
         !stderr.contains("usual cause"),
         "no measurement shows a usual cause, so the message names none: {stderr}"

@@ -122,6 +122,7 @@ fn a_refusal_because_the_program_is_being_written_says_what_the_refusal_proves_a
         "the interpreter named on the program's first line",
         "cannot tell which process holds that file",
         "run the same command again",
+        "the start succeeds as soon as the file is free and whole",
         "writes a whole new copy into place",
     ] {
         assert!(text.contains(expected), "{expected}: {text}");
