@@ -948,6 +948,9 @@ fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
         i32::try_from(numbers[4]).expect("a pid"),
     );
     let _stop_launcher: StopOnDrop = StopOnDrop(pid);
+    // The writer is the only process the writer's time namespace has once the launcher has moved on, so a failed assertion that leaves
+    // it running would leave that namespace and its processes behind for the five minutes it sleeps.
+    let _stop_writer: StopOnDrop = StopOnDrop(writer);
 
     // The reader is armed before the writer's namespace loses its processes: it holds that namespace, so no other session can take the
     // number while this test ends them and plants the journal.
