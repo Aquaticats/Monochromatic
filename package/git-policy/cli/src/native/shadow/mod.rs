@@ -61,10 +61,6 @@
 //!   where a worktree's pool folder is named from,
 //!   what proves a name on its path is this wrapper's own,
 //!   and the two sweeps of pools and half-made members nothing can claim.
-//! - `shadow_drawn.rs`:
-//!   the finished shadows the service draws out of the pool ahead of the commits that ask for one.
-//! - `shadow_pool.rs`:
-//!   the pool of finished shadows a commit can take instead of making one.
 //! - `shadow_refs.rs`:
 //!   the real refs the shadow's ref store is written from:
 //!   the ref files when they can be read,
@@ -77,6 +73,17 @@
 //! - `shadow_skeleton.rs`:
 //!   the entries of an empty bare repository,
 //!   created in-process instead of by `git init`.
+//! - `shadow_create_the_commit_free_parts.rs`:
+//!   everything of a shadow that no commit decides:
+//!   the skeleton,
+//!   the config,
+//!   the alternates and the links.
+//! - `shadow_pool_member.rs`:
+//!   what a member of that pool must be for one invocation to take it.
+//! - `shadow_pool.rs`:
+//!   the pool of finished shadows a commit can take instead of making one.
+//! - `shadow_drawn.rs`:
+//!   the finished shadows the service draws out of the pool ahead of the commits that ask for one.
 //! - `shadow_create_for_one_commit.rs`:
 //!   the tree one commit was handed and the hold that keeps it,
 //!   whether a finished tree may be handed to it,
@@ -84,8 +91,6 @@
 //!   and the parts the commit adds to its shadow.
 //! - `shadow_create.rs`:
 //!   creation of the shadow repository of one transaction.
-//! - `shadow_pool_member.rs`:
-//!   what a member of that pool must be for one invocation to take it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -196,3 +201,9 @@ pub mod shadow_drawn;
 /// The entries of an empty bare repository,
 /// created in-process instead of by `git init`.
 pub mod shadow_skeleton;
+
+/// Everything of a shadow that no commit decides:
+/// the skeleton,
+/// the config,
+/// the alternates and the links.
+pub mod shadow_create_the_commit_free_parts;
