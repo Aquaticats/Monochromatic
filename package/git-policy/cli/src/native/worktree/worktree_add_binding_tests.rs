@@ -6,6 +6,7 @@
 //! replaced or edited object stops the step.
 
 use super::*;
+use crate::fs_beneath::ObjectId;
 use crate::private_storage::take_file_syncs;
 use crate::test_support::{
     fixture,

@@ -115,9 +115,18 @@
 //! - `worktree_path_failure_message.rs`:
 //!   the one message shape of a failed step on a path:
 //!   `<path> <what> (<error>)`.
+//! - `worktree_add_binding_record.rs`:
+//!   the record that carries an add's binding:
+//!   the binding itself,
+//!   the text it is written as,
+//!   and the ignored-state copy the add still owes.
+//! - `worktree_add_binding_registration_path.rs`:
+//!   the places a registration's `gitdir` and a destination's `.git` pointer name,
+//!   resolved by their text.
+//! - `worktree_add_binding_registration_owner.rs`:
+//!   the proof that this command made one registration.
 //! - `worktree_add_binding.rs`:
 //!   the binding of a `git worktree add` to the directories Git made for it,
-//!   its record,
 //!   and the check that the binding holds.
 //! - `worktree_clean_content.rs`:
 //!   the decision,
@@ -880,8 +889,22 @@ pub mod worktree_snapshot_ahead_job;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_placeholders;
 
+/// The record that carries an add's binding,
+/// the text it is written as,
+/// and the ignored-state copy the add still owes.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding_record;
+
+/// The places a registration's `gitdir` and a destination's `.git` pointer name,
+/// resolved by their text.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding_registration_path;
+
+/// The proof that this command made one registration.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding_registration_owner;
+
 /// The binding of a `git worktree add` to the directories Git made for it,
-/// its record,
 /// and the check that the binding holds.
 #[cfg(target_os = "linux")]
 pub mod worktree_add_binding;
