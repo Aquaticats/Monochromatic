@@ -128,11 +128,6 @@ file-uses src/native/landing work_item.rs -> work_item_queued_ids.rs
 file-uses src/native/landing work_item_enqueue.rs -> work_item.rs
 file-uses src/native/landing work_item_holding.rs -> work_item.rs
 file-uses src/native/landing work_item_queued_ids.rs -> work_item.rs
-file-uses src/native/lfs lfs_upload_plan.rs -> lfs_upload_plan_arguments.rs
-file-uses src/native/lfs lfs_upload_plan.rs -> lfs_upload_plan_awaiting.rs
-file-uses src/native/lfs lfs_upload_plan_arguments.rs -> lfs_upload_plan.rs
-file-uses src/native/lfs lfs_upload_plan_awaiting.rs -> lfs_upload_plan.rs
-file-uses src/native/lfs lfs_upload_plan_awaiting.rs -> lfs_upload_plan_arguments.rs
 file-uses src/native/lock index_lock_evidence.rs -> index_lock_evidence_words.rs
 file-uses src/native/lock index_lock_evidence_words.rs -> index_lock_evidence.rs
 file-uses src/native/lock index_lock_holder_parsers.rs -> index_lock_holders.rs
