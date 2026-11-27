@@ -30,8 +30,10 @@
 
 /// The names of the scopes the sweep may touch,
 /// and the manager's listing of them.
+#[path = "leftover_sweep_scope_names_and_listing.rs"]
 mod scope_names_and_listing;
 /// The runs of the sweep and the manager calls they make.
+#[path = "leftover_sweep_runs.rs"]
 mod sweep_runs;
 
 /// The test for a unit name of the earlier design,

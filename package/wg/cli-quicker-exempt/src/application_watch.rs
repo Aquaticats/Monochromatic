@@ -1,10 +1,13 @@
 //! Watches user application cgroups and retains marker links for selected named and executable-owned targets.
 
 /// The mark each cgroup holds.
+#[path = "application_watch_mark_reconciliation.rs"]
 mod mark_reconciliation;
 /// The process events and the rescans that follow them.
+#[path = "application_watch_process_events_and_rescans.rs"]
 mod process_events_and_rescans;
 /// The watcher run and its poll loop.
+#[path = "application_watch_run_and_poll.rs"]
 mod watch_run_and_poll;
 
 /// Whether a full process scan is due,

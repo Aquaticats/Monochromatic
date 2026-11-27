@@ -3,8 +3,10 @@
 //!  and stops detached application-cgroup watcher processes.
 
 /// The watcher child itself.
+#[path = "application_watch_service_child_run.rs"]
 mod watch_child_run;
 /// Starting and stopping the detached watcher.
+#[path = "application_watch_service_start.rs"]
 mod watch_start;
 
 /// The watcher child itself.

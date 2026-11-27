@@ -11,11 +11,14 @@
 //! never forgotten and never repeated in a tight loop.
 
 /// Building the engine and the short questions it answers.
+#[path = "update_routing_engine_construction_and_marks.rs"]
 mod engine_construction_and_marks;
 /// The decision about one process,
 /// and what a refused move is tried again after.
+#[path = "update_routing_one_process_decision.rs"]
 mod one_process_decision;
 /// One pass over the process list.
+#[path = "update_routing_policy_pass.rs"]
 mod policy_pass;
 
 /// Collecting and checking the group of a matched process.

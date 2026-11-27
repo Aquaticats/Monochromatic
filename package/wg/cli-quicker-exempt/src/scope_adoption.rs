@@ -15,10 +15,13 @@
 
 /// The checks that prove a move,
 /// and the stop of a scope it left empty.
+#[path = "scope_adoption_confirmation.rs"]
 mod adoption_confirmation;
 /// The records and the words of one adoption.
+#[path = "scope_adoption_words.rs"]
 mod adoption_words;
 /// The adopter that reaches the user's manager over its own private socket.
+#[path = "scope_adoption_production_adopter.rs"]
 mod production_adopter;
 
 /// Why a move that met another watcher's origin-scope sweep is left for the next scan,

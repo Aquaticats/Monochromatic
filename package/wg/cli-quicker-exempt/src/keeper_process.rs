@@ -1,10 +1,13 @@
 //! Validates descriptor-keeper process identity before lifecycle signals.
 
 /// The bounded waits and the signals of a stop.
+#[path = "keeper_process_bounded_signals.rs"]
 mod bounded_signals;
 /// The identity a lifecycle signal rests on.
+#[path = "keeper_process_identity.rs"]
 mod process_identity;
 /// Stopping one command and the group it left.
+#[path = "keeper_process_stopping.rs"]
 mod stopping_a_process;
 
 /// Reports whether exact command remains live and rejects PID reuse or command mismatch.

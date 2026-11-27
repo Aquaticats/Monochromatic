@@ -11,8 +11,10 @@
 //! keyed by device.
 
 /// Reading the limit files of the cgroups a process leaves.
+#[path = "inherited_limits_reading.rs"]
 mod cgroup_limit_reading;
 /// Reading the text of one cgroup limit file.
+#[path = "inherited_limits_file_parsing.rs"]
 mod limit_file_parsing;
 
 /// Reading the limits of every cgroup the process leaves.

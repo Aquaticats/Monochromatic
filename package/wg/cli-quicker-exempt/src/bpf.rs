@@ -10,10 +10,13 @@
 //! Big-endian targets fail at compile time instead of loading a misencoded program.
 
 /// The `bpf(2)` calls one attach is made of.
+#[path = "bpf_syscalls.rs"]
 mod bpf_syscalls;
 /// The socket-marking program itself.
+#[path = "bpf_mark_program.rs"]
 mod mark_program;
 /// Attaching the program to a cgroup.
+#[path = "bpf_marker_attachment.rs"]
 mod marker_attachment;
 
 /// Returns stable opcode,
