@@ -306,3 +306,8 @@ mod tests;
 #[cfg(test)]
 #[path = "policy_final_newline_attribute_tests.rs"]
 mod attribute_tests;
+
+/// Controls for the hint each lifecycle's finding gives stay out of the release executable.
+#[cfg(test)]
+#[path = "policy_final_newline_hint_of_each_lifecycle_tests.rs"]
+mod hint_of_each_lifecycle_tests;
