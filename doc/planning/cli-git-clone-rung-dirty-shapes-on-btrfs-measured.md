@@ -214,13 +214,13 @@ what this record uses from it is stated here):
 - `log-<shape>.txt`, the harness's own console output for each run,
   including its summary lines and the file system's facts.
 
-The instruments themselves are kept so the round can be repeated:
-`keep/measure-btrfs.ts` (the harness),
-`keep/guest-drive.ts` (the guest's steps),
-`keep/pool.ts` and `keep/analyze.ts` (the figures below)
+The instruments themselves are kept so the round can be repeated
 (scratch,
 deleted on 2026-11-27;
-not kept).
+not kept):
+`keep/measure-btrfs.ts` (the harness),
+`keep/guest-drive.ts` (the guest's steps),
+`keep/pool.ts` and `keep/analyze.ts` (the figures below).
 
 Elsewhere in the round folder's `keep/`:
 `guest-drive.ts`'s step logs (`guest-prepare.log`, `guest-node.log`, `guest-btrfs.log`,
