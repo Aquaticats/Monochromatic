@@ -45,10 +45,31 @@ use crate::fixture_inputs::{
     MARKER_FREE_WORKFLOW,
 };
 use crate::scan_step_command::{
+    LEFT_OUT_STEP_NAME,
     SCAN_STEP_NAME,
     SCOPE_STEP_NAME,
+    declared_step_body,
     step_body,
 };
+
+// What:     `const SCOPE_SCRIPT` is the fixture file holding the extracted
+//           scope-step body.
+// Why:      The fixture writes each extracted body once and runs it by name,
+//           so a failing case points at the step that failed.
+const SCOPE_SCRIPT: &str = "list-changed-files.sh";
+
+// What:     `const SCAN_SCRIPT` is the fixture file holding the extracted
+//           file-scan step body.
+// Why:      Same reason as `SCOPE_SCRIPT`; this is the body that filters the
+//           changed entries.
+const SCAN_SCRIPT: &str = "scan-changed-files.sh";
+
+// What:     `const LEFT_OUT_SCRIPT` is the fixture file holding the extracted
+//           body of the step that scans the entries the file scan leaves out.
+// Why:      This body is written only when the workflow declares that step, so
+//           a workflow without it runs its other steps and reports what they
+//           hand over.
+const LEFT_OUT_SCRIPT: &str = "scan-left-out.sh";
 
 // What:     `struct RunRow` is one workflow run listed by the stub.
 // Why:      The candidate baseline must come from a run that proved its head
@@ -85,6 +106,7 @@ struct Fixture {
     runner_temp: PathBuf,
     runs_tsv: PathBuf,
     cache_dir: PathBuf,
+    left_out_step: bool,
     shas: Vec<(String, String)>,
 }
 
@@ -125,18 +147,25 @@ impl Fixture {
             FIXTURE_RULES,
         )
         .expect("write fixture rules file");
-        // The workflow runs its selection and its scan as two steps; the
-        // fixture runs both bodies, in order, the way the runner does.
-        fs::write(
-            root.join("list-changed-files.sh"),
-            step_body(SCOPE_STEP_NAME),
-        )
-        .expect("write extracted scope body");
-        fs::write(
-            root.join("scan-changed-files.sh"),
-            step_body(SCAN_STEP_NAME),
-        )
-        .expect("write extracted scan body");
+        // The workflow runs its selection and its scan as separate steps; the
+        // fixture runs every body the workflow declares, in order, the way the
+        // runner does.
+        fs::write(root.join(SCOPE_SCRIPT), step_body(SCOPE_STEP_NAME))
+            .expect("write extracted scope body");
+        fs::write(root.join(SCAN_SCRIPT), step_body(SCAN_STEP_NAME))
+            .expect("write extracted scan body");
+        // What:     `left_out_step_body` is the extracted body of the step that
+        //           scans the entries the file scan leaves out, when the
+        //           workflow declares one.
+        // Why:      A workflow without that step still runs its other bodies,
+        //           so a case about left-out entries reports the behaviour it
+        //           found instead of a harness panic.
+        let left_out_step_body: Option<String> = declared_step_body(LEFT_OUT_STEP_NAME);
+        let mut left_out_step = false;
+        if let Some(body) = left_out_step_body {
+            fs::write(root.join(LEFT_OUT_SCRIPT), body).expect("write extracted left-out body");
+            left_out_step = true;
+        }
         let runs_tsv = root.join("runs.tsv");
         let fixture = Fixture {
             root,
@@ -145,6 +174,7 @@ impl Fixture {
             runner_temp,
             runs_tsv,
             cache_dir,
+            left_out_step,
             shas: Vec::new(),
         };
         fixture.git(&["init", "--initial-branch=main"]);
@@ -330,7 +360,7 @@ impl Fixture {
     }
 
     // What:     `fn run_scan(&self, event, head_label, branch, before_label)`
-    //           executes both extracted step bodies, in workflow order, with
+    //           executes the extracted step bodies, in workflow order, with
     //           the environment the workflow steps receive, including the
     //           push event's `before` commit when the event carries one.
     // Why:      The contract under test is the workflow's own shell behavior,
@@ -346,39 +376,43 @@ impl Fixture {
         before_label: &str,
     ) -> ScanResult {
         // A CI job starts with an empty `RUNNER_TEMP`; clearing the state the
-        // two steps pass to each other keeps a second call in one fixture
-        // from reading a previous call's decision.
+        // steps pass to each other keeps a second call in one fixture from
+        // reading a previous call's decision.
         for state_file in [
             "forbidden-strings.comparison",
             "forbidden-strings.changed-raw",
             "forbidden-strings.whole-tree",
+            "forbidden-strings.left-out-raw",
         ] {
             let _ = fs::remove_file(self.runner_temp.join(state_file));
         }
-        let scope = self.run_step(
-            "list-changed-files.sh",
-            event,
-            head_label,
-            branch,
-            before_label,
-        );
+        let scope = self.run_step(SCOPE_SCRIPT, event, head_label, branch, before_label);
         if scope.status != 0 {
             return scope;
         }
-        let scan = self.run_step(
-            "scan-changed-files.sh",
-            event,
-            head_label,
-            branch,
-            before_label,
-        );
+        let scan = self.run_step(SCAN_SCRIPT, event, head_label, branch, before_label);
+        // What:     `stops_at_the_file_scan` is true when the runner would stop
+        //           before the body that scans the left-out entries: either the
+        //           file scan failed, or the workflow declares no such body.
+        // Why:      The runner stops the job at the first failing step, so a
+        //           later body never runs after a finding; a case that expects
+        //           a left-out entry's finding needs the file scan to pass.
+        let stops_at_the_file_scan: bool = (scan.status != 0) || (!self.left_out_step);
+        if stops_at_the_file_scan {
+            return ScanResult {
+                status: scan.status,
+                stdout: format!("{}{}", scope.stdout, scan.stdout),
+                stderr: format!("{}{}", scope.stderr, scan.stderr),
+            };
+        }
+        let left_out = self.run_step(LEFT_OUT_SCRIPT, event, head_label, branch, before_label);
         return ScanResult {
-            status: scan.status,
+            status: left_out.status,
             // `format!` builds one owned `String` (the sibling `str` is just
             // the borrowed view of it) so the caller can read one joined
-            // stream of both steps' stdout.
-            stdout: format!("{}{}", scope.stdout, scan.stdout),
-            stderr: format!("{}{}", scope.stderr, scan.stderr),
+            // stream of every step's stdout.
+            stdout: format!("{}{}{}", scope.stdout, scan.stdout, left_out.stdout),
+            stderr: format!("{}{}{}", scope.stderr, scan.stderr, left_out.stderr),
         };
     }
 
@@ -460,6 +494,18 @@ mod fixture_inputs;
 ///  handed tracked links to folders to the scanner.
 #[path = "ci_scan_scope/folder_link_entry_tests.rs"]
 mod folder_link_entry_tests;
+/// What:
+///  `#[path = "ci_scan_scope/left_out_entry_tests.rs"]
+///  mod left_out_entry_tests;` registers the cases for what the step hands the
+///  scanner for each entry it leaves out of the file scan.
+/// Why:
+///  Issue #6633:
+///  leaving a folder link and a submodule gitlink out of the positional list
+///  left their own names,
+///  and every link's stored target text,
+///  inspected by nothing.
+#[path = "ci_scan_scope/left_out_entry_tests.rs"]
+mod left_out_entry_tests;
 /// What:
 ///  `#[path = "ci_scan_scope/pull_request_scope_tests.rs"]
 ///  mod pull_request_scope_tests;` registers the case that keeps the
