@@ -30,6 +30,9 @@
 //! - `lfs_pointer_scan.rs`:
 //!   the LFS objects a push introduces,
 //!   found in process from the commits to be pushed.
+//! - `lfs_pre_push_host_key_refusal.rs`:
+//!   what a transcript says about an SSH host key this machine does not know,
+//!   and the lines of it the started program wrote itself.
 //! - `lfs_pre_push.rs`:
 //!   when a push needs the Git LFS upload,
 //!   and the texts the parent prints around it.
@@ -94,6 +97,10 @@
 /// The configuration a push carries on its command line,
 /// read by the upload child and by the switch that turns the upload off.
 pub mod lfs_command_line_configuration;
+
+/// What a transcript says about an SSH host key this machine does not know,
+/// and the lines of it the started program wrote itself.
+pub mod lfs_pre_push_host_key_refusal;
 
 /// When a push needs the Git LFS upload,
 /// and the texts the parent prints around it.
