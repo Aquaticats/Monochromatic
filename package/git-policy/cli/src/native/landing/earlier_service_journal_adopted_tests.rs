@@ -17,6 +17,7 @@ use crate::earlier_service_journal_adopted::{
     RequestedSettlement,
     earlier_commits_landed,
     earlier_journals_of,
+    program_note,
     settle_on_request,
 };
 use crate::earlier_service_process_look::{
@@ -24,6 +25,7 @@ use crate::earlier_service_process_look::{
     effective_user,
     service_of_instance_may_run,
 };
+use crate::earlier_service_unsure_program::UnsureProgram;
 use crate::service_index_lock::try_acquire;
 use crate::service_instance::instance_of;
 use crate::service_journal::{
@@ -1435,4 +1437,41 @@ fn a_batch_the_earlier_service_kept_behind_a_lock_is_reported_as_held() {
         "the line says what stands in the way: {line}"
     );
     remove(world.root.as_path());
+}
+
+/// What:
+///  The log note that names the program behind a hold:
+///  its process,
+///  the program,
+///  and the `--journal` folder it names,
+///  the two names another program chose shown between backticks.
+/// Why:
+///  A program's command line is its own text,
+///  so a backtick inside the program or the folder would end the backticks that show it,
+///  and an escape or a line break would move the cursor or start a line of the log.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// programNote({ pid: 42, program: 'x` FORGED\u001b[2K', journalWord: 'y` z\nsecond', reason: 'no such folder' });
+/// ```
+#[test]
+fn a_name_that_would_end_the_backticks_cannot_rewrite_the_program_note() {
+    let program: UnsureProgram = UnsureProgram {
+        pid: 42,
+        program: String::from("x` FORGED\u{1b}[2K"),
+        journal_word: String::from("y` z\nsecond line"),
+        journal_word_is_relative: false,
+        reason: String::from("No such file or directory (os error 2)"),
+    };
+    let note: String = program_note(&program);
+    assert_eq!(
+        note,
+        " (process 42, program `x\\` FORGED\\u{1b}[2K`, journal folder `y\\` z\\nsecond line`: \
+         No such file or directory (os error 2); its other arguments are not logged)"
+    );
+    assert_eq!(
+        note.matches('\n').count(),
+        0,
+        "the note is one log line: {note:?}"
+    );
 }

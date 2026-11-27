@@ -33,6 +33,13 @@ use crate::process_use::{
     UseTarget,
     processes_using,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::subvolume_error::{
     Interrupt,
     MigrateError,
@@ -178,6 +185,34 @@ pub fn swap_phase(
     return Ok(());
 }
 
+/// What:
+///  One process the scan saw inside the worktree,
+///  as the refusal that names it:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///   The scan reports the name a program chose for itself (`/proc/<pid>/comm`),
+///  and this refusal is how a person finds the program to close:
+///  an escape in the name would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (pid, command) => `process ${pid} (${shownSoItCannotRewriteTheLine(command ?? 'unknown', TheWrappingAroundTheName.Parentheses)}) is using the worktree`;
+/// ```
+pub(crate) fn a_process_using_the_worktree_line(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
+    return format!(
+        "process {pid} ({}) is using the worktree",
+        shown_so_it_cannot_rewrite_the_line(
+            command.unwrap_or("unknown"),
+            TheWrappingAroundTheName::Parentheses
+        )
+    );
+}
+
 /// The reasons that still bind just before the swap:
 /// a process that appeared,
 /// a lock that was taken,
@@ -190,10 +225,9 @@ pub fn refusals_after_lock(
     let mut reasons: Vec<String> = Vec::new();
     let scan = processes_using(&UseTarget::Inside(candidate.path.as_path()));
     for user in &scan.users {
-        reasons.push(format!(
-            "process {} ({}) is using the worktree",
+        reasons.push(a_process_using_the_worktree_line(
             user.pid,
-            user.command.as_deref().unwrap_or("unknown")
+            user.command.as_deref(),
         ));
     }
     if let Some(why) = scan.unavailable.as_ref() {
@@ -287,6 +321,34 @@ pub fn index_phase(
 }
 
 /// What:
+///  One process the removal phase found inside the converted tree,
+///  as the line naming it:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///   A program names itself to any bytes it likes (`/proc/<pid>/comm`),
+///  and this line is how the person finds what still stands in the tree:
+///  an escape in the name would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (pid, command) => `process ${pid} (${shownSoItCannotRewriteTheLine(command ?? 'unknown', TheWrappingAroundTheName.Parentheses)})`;
+/// ```
+pub(crate) fn a_process_in_the_converted_tree_line(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
+    return format!(
+        "process {pid} ({})",
+        shown_so_it_cannot_rewrite_the_line(
+            command.unwrap_or("unknown"),
+            TheWrappingAroundTheName::Parentheses
+        )
+    );
+}
+
+/// What:
 ///  The removal phase:
 /// keep the old tree when a process still holds it,
 /// when another command is still filling a stage container below it,
@@ -325,10 +387,9 @@ pub fn removal_phase(
     let scan = processes_using(&UseTarget::Inside(job.converting.as_path()));
     let mut holders: Vec<String> = Vec::new();
     for user in &scan.users {
-        holders.push(format!(
-            "process {} ({})",
+        holders.push(a_process_in_the_converted_tree_line(
             user.pid,
-            user.command.as_deref().unwrap_or("unknown")
+            user.command.as_deref(),
         ));
     }
     if let Some(why) = scan.unavailable.as_ref() {

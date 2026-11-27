@@ -3554,7 +3554,6 @@ landing::earlier_service_unsure_program field UnsureProgram::journal_word_is_rel
 landing::earlier_service_unsure_program field UnsureProgram::pid
 landing::earlier_service_unsure_program field UnsureProgram::program
 landing::earlier_service_unsure_program field UnsureProgram::reason
-landing::earlier_service_unsure_program fn printable
 landing::earlier_service_unsure_program fn program_of
 landing::earlier_service_unsure_program struct UnsureProgram
 landing::held_commit_record const FOLDER

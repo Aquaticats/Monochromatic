@@ -22,7 +22,7 @@
 //! ```
 
 #[cfg(unix)]
-use crate::earlier_service_unsure_program::printable;
+use crate::earlier_service_unsure_program::masked_words;
 #[cfg(unix)]
 use std::path::Path;
 
@@ -111,7 +111,9 @@ fn process_is_gone(error: &std::io::Error) -> bool {
 
 /// What:
 ///  The name the kernel keeps for a process's program,
-/// escaped so a program that set a name with a control character cannot carry it into a message.
+/// masked so no URL userinfo of it is shown,
+/// and left unescaped for the sentence that shows it,
+/// which escapes it for its own wrapping.
 /// Why:
 ///   A person blocked by a process has to recognise it,
 /// and the name is all such a process shows
@@ -119,7 +121,7 @@ fn process_is_gone(error: &std::io::Error) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const name = kernelNameOf(`${procRoot}/${pid}`); // escaped, or what to say when it cannot be read
+/// const name = kernelNameOf(`${procRoot}/${pid}`); // masked, or what to say when it cannot be read
 /// ```
 #[cfg(unix)]
 fn kernel_name_of(process: &Path) -> String {
@@ -131,7 +133,7 @@ fn kernel_name_of(process: &Path) -> String {
     if trimmed.is_empty() {
         return String::from(UNREADABLE);
     }
-    return printable(trimmed);
+    return masked_words(trimmed);
 }
 
 /// What:
