@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-26T17:27:22-05:00
+## Status at 2026-11-26T18:40:10-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -235,6 +235,17 @@ Unprofiled development processes remain a residual risk.
   `intent.cache` destination/temporary shapes.
   The real update exits 0, both caches were replaced, and `palemoon.desktop` is registered.
   See `doc/troubleshooting/update-desktop-database-user-cache-tempfiles.md`.
+- Later on 2026-11-26, `/etc/apparmor.d/local/systemd-tmpfiles` gained recursive `rw` access only
+  beneath `/home/user/temp`, the configured tmpfiles cleanup root.
+  The real dry-run traversed nested directories with zero permission errors in its collected partial
+  output. The owner asked to stop the long run, so complete traversal is not claimed.
+  No non-dry cleanup ran.
+  The same local profile now also permits the user-owned `.cargo/build` tree.
+  Its exact directory-read probe passes after failing before the rule.
+  `temp.conf` moved to `~/.config/user-tmpfiles.d/temp.conf` with `e %h/temp - - - 24h -`;
+  the system copy is removed and create-only user dry-runs pass.
+  The old user-service failure remains recorded for the next scheduled timer.
+  See `doc/troubleshooting/systemd-tmpfiles-home-temp-recursive-clean.md`.
 
 ## Current-boot evidence
 
@@ -444,14 +455,14 @@ checked every expected profile artifact and the live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-desktop-database-user-cache-fix-2026-11-26T17-26-15-0500.json`.
+The latest such report is `verified-selected-user-tmpfiles-migration-2026-11-26T18-37-50-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T17-26-15-0500`.
-All 26
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T18-37-50-0500`.
+All 29
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.

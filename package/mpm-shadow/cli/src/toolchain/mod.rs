@@ -58,7 +58,11 @@ pub mod exposure;
 /// SHA-256 helpers.
 pub mod hash;
 
-/// The network seam and its real client.
+/// The network seam:
+/// the trait and its bounds,
+/// the real client over `hyper`,
+/// and the clients that refuse.
+/// Each client lives in a file of its own under `src/toolchain/http/`.
 pub mod http;
 
 /// The switch from a tool's route to its installer.
@@ -80,6 +84,12 @@ pub mod install_argument;
 
 /// Appending entries to the plan's text with its comments, trailing commas and order kept.
 pub mod plan_insert;
+
+/// Where in a plan's text the new entry goes, read from the parser's positions.
+mod plan_insert_place;
+
+/// Reading the parser's positions of a plan's values and keys in the order it reported them.
+mod plan_insert_spans;
 
 /// Where `cargo-binstall` tools live,
 /// and which version of a repository-published one runs.
