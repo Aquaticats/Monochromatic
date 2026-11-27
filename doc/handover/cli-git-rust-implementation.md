@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:51:01-05:00
+## The state at 2026-11-27T17:54:50-05:00
 
-`main` was `aa7b4eb927`.
+`main` was `b7414d5939`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 279 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 280 more by this time.
 
 ### Rounds running
 
@@ -166,10 +166,12 @@ issue 6631,
 whose round,
 `issue-6631-the-watch-control-that-delivers-a-message-to-a-later-turn-holds-in-a-whole-run`,
 started 2026-11-27T17:31:49-05:00.
-That round is the first started on the rebuilt copy:
-its session selects the virtual writer and Qwen's member answers it.
-The window a new run records is in its `summary.json` when it ends,
-which the coordinator reads for the first such run.
+The rounds started at that minute are the first on the rebuilt copy.
+The first of them to end,
+the round of issue 6630,
+recorded a context window of 1,000,000 tokens in its `summary.json`,
+with no retry and no rate-limit error,
+which closes the check of the owner's change at a real run.
 The owner also wrote,
 of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
 "nw-large is advisor,
@@ -659,7 +661,13 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   a host whose manager died and left its socket file or its directory behind is still asked five times.
   Its commit's `Closes` line closed issue 6629 at the merge,
   and the coordinator reopened the issue for that residue.
-  `0.1.5-alpha.16` is released next.
+  The release run of `0.1.5-alpha.16` was started by 2026-11-27T17:51:43-05:00
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079151776>);
+  its release commit is `4338272860`,
+  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
+  and `main` is fast-forwarded to it.
+  The lock,
+  the install and a Claude Sonnet second pass follow its publish.
   Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
   saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
   Issue 6619's round is merged (`1ef6287246`).
@@ -838,9 +846,18 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which no component the plan declares installs:
   issue 6630,
   with the pick in `doc/handover/questions-for-the-owner.md`,
-  and its round,
-  `issue-6630-the-rust-rows-bins-are-the-programs-its-declared-components-install`,
-  started 2026-11-27T17:31:49-05:00.
+  and its round is merged (`b7414d5939`).
+  The row declares the `rustfmt` component,
+  the only one that installs those two programs,
+  as the installed toolchain's own component manifests show.
+  A control builds a toolchain from exactly what the row declares and the profile installs,
+  and names no unresolved bin;
+  it named the two before the change.
+  Two more hold that an install asks the manager for a declared component the toolchain lacks,
+  and for nothing where the toolchain holds them all.
+  The lock followed through the offline rewrite,
+  with the row's components and the digest as its whole diff.
+  Its whole test task passed 910 of 910 on its merged tree.
   The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
   saying what issue 6626's merge changed and which files that round has.
   Its Claude Sonnet read returned,
@@ -889,8 +906,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   a move of `current` that fails once ends the run 1 and leaves the older version until `prune --toolchain`,
   and a recovery that puts an unfinished copy back points `current` at the newest finished version.
   Its whole test task passed 906 of 906 on its merged tree.
-  The round of issue 6630 got notes at 2026-11-27T17:35:16-05:00 and after this merge on what both rounds changed.
-  `0.2.7-alpha.17` follows the merge of issue 6630's round.
+  Every round of the package has merged,
+  so `0.2.7-alpha.17` is released next,
+  after `cargo-shadow`'s publish has ended,
+  one release at a time.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -2547,8 +2566,8 @@ and the two `truepeak` files wait on their branch.
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
 - When a tool's fix rounds have merged and `main` equals `origin/main`:
-  release `cargo-shadow` `0.1.5-alpha.16` now,
-  and `mpm-shadow` `0.2.7-alpha.17` once the round of issue 6630 has merged,
+  lock and install `cargo-shadow` `0.1.5-alpha.16` once it is published,
+  then release `mpm-shadow` `0.2.7-alpha.17`,
   lock each on a branch worktree,
   install,
   put the session's `git` link back,
