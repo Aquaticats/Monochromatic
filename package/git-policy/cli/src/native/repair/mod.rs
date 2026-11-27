@@ -37,8 +37,6 @@
 //!   saying how it ended.
 //! - `package_repair_cargo_workspaces.rs`:
 //!   the Cargo workspaces of a new worktree and the manifests that lead to them.
-//! - `package_repair_cargo_jobs.rs`:
-//!   the answers package repair cargo jobs holds.
 //! - `package_repair_report.rs`:
 //!   what a worktree repair prints:
 //!   one line for success,
@@ -51,6 +49,15 @@
 //! - `package_repair_cargo_hand_over.rs`:
 //!   the hand-over of the filling of a new worktree's build directories to the commit service,
 //!   and the one line the add answers for it.
+//! - `package_repair_cargo_clean_arguments.rs`:
+//!   the arguments of the clean,
+//!   and the command a person can run instead.
+//! - `package_repair_tree_clone.rs`:
+//!   cloning one directory tree with its modes,
+//!   times and links,
+//!   for the build state Cargo keeps outside a worktree.
+//! - `package_repair_prewarm_job_filling.rs`:
+//!   the answers package repair prewarm job filling holds.
 //! - `package_repair_prewarm_job.rs`:
 //!   the service's filling of those build directories:
 //!   clone into a staging directory,
@@ -76,6 +83,16 @@
 //! - `package_repair_touches_only_its_own_worktree.rs`:
 //!   whether a directory a repair deletes from or writes in is inside the worktree it serves,
 //!   once its links are followed.
+//! - `package_repair_cargo_build_state_plan.rs`:
+//!   what one workspace's build state needs in the new worktree,
+//!   decided from what the disk holds.
+//! - `package_repair_cargo_one_workspace.rs`:
+//!   the repair of one Cargo workspace:
+//!   plan,
+//!   hand the filling over,
+//!   clean what is already here.
+//! - `package_repair_cargo_jobs.rs`:
+//!   the answers package repair cargo jobs holds.
 //! - `package_repair_cargo.rs`:
 //!   the Cargo repair of a new worktree:
 //!   clone external build state,
@@ -92,12 +109,6 @@
 //! - `package_repair_relink_notice.rs`:
 //!   the notice a relink given up on leaves for the person,
 //!   and the lines a later command in that worktree shows of it.
-//! - `package_repair_tree_clone.rs`:
-//!   cloning one directory tree with its modes,
-//!   times and links,
-//!   for the build state Cargo keeps outside a worktree.
-//! - `package_repair_prewarm_job_filling.rs`:
-//!   the answers package repair prewarm job filling holds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -133,6 +144,23 @@ pub mod package_repair_tree_clone;
 /// relink the copied `node_modules` offline against the frozen lockfile.
 #[cfg(target_os = "linux")]
 pub mod package_repair_pnpm;
+
+/// What one workspace's build state needs in the new worktree,
+/// decided from what the disk holds.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_build_state_plan;
+
+/// The arguments of the clean the Cargo repair runs,
+/// and the command a person can run instead of one that failed.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_clean_arguments;
+
+/// The repair of one Cargo workspace:
+/// plan,
+/// hand the filling over,
+/// clean what is already here.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_one_workspace;
 
 /// The Cargo repair of a new worktree:
 /// clone external build state,
