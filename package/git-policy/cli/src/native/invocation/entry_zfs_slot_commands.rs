@@ -669,7 +669,8 @@ fn names_a_place_of_its_own(command: &ResolvedCommand) -> bool {
 
 /// What:
 ///  The sentence a refusal prints for a slot command the wrapper read and could not place:
-///  the command stands behind a `!` alias, and Git could not be asked where that alias's shell runs.
+///  the command stands behind a `!` alias,
+/// and Git could not be asked where that alias's shell runs.
 /// Why:
 ///  The owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe
 ///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`),
@@ -692,7 +693,8 @@ fn the_unread_place_sentence(word: ACommandThatReadsASlot) -> String {
 
 /// What:
 ///  The refusal of a slot command the wrapper read and could not place:
-///  its words are the command Git runs, and the directory Git runs that command in could not be read.
+///  its words are the command Git runs,
+/// and the directory Git runs that command in could not be read.
 /// Why:
 ///  A slot command behind a `!` alias is read from the top of the working tree Git changes to before it starts the
 ///  shell

@@ -2524,7 +2524,8 @@ fn below_the_top_behind_a_shell_alias_a_move_is_refused_behind_the_wrappers_flag
 ///  so a person told by the rule at `warn` read the prune's own report alone;
 ///  the pass writes those lines into the same standard error the refusal ends in now
 ///  (#6624).
-///  A link stands where the pointer was, so the pass refuses instead of writing it back,
+///  A link stands where the pointer was,
+/// so the pass refuses instead of writing it back,
 ///  which is the arm that has something to print.
 fn a_prunes_refusal_is_reached_below_the_top(
     name: &str,
@@ -2693,7 +2694,8 @@ fn a_removal_behind_a_chain_past_the_reading_is_left_to_git() {
 }
 
 /// What:
-///  A bare `!git worktree remove`, `move` and `prune` whose caller's words name another
+///  A bare `!git worktree remove`,
+/// `move` and `prune` whose caller's words name another
 ///  repository read that repository's records,
 ///  not the ones beside the caller.
 /// Why:
@@ -2823,7 +2825,9 @@ fn a_slot_command_behind_a_shell_alias_reads_the_records_of_the_repository_its_w
 ///  and a step that outlasts its bound is one way to reach that state from a control:
 ///  the stand-in hangs on that one question,
 ///  and the bound the control hands its body makes the wrapper end it and answer nothing.
-///  Every other question, the alias's own configuration read included, reaches the real Git,
+///  Every other question,
+/// the alias's own configuration read included,
+/// reaches the real Git,
 ///  so the alias is read and only the directory is missing.
 fn a_git_that_never_answers_where_an_alias_runs(root: &Path) {
     let shim: PathBuf = root.join("git");
@@ -2845,9 +2849,12 @@ fn a_git_that_never_answers_where_an_alias_runs(root: &Path) {
 ///  so a bound slot's registration goes.
 ///  The owner's answers of 2026-11-26 refuse every slot command the wrapper cannot prove safe
 ///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`),
-///  and this pick is the coordinating session's reading of them, open to the owner's veto.
-///  The child bound is a fact of the whole process, so this control runs its body in a child whose
-///  environment sets it, and the stand-in's own sleep ends by itself if the wrapper ever fails to.
+///  and this pick is the coordinating session's reading of them,
+/// open to the owner's veto.
+///  The child bound is a fact of the whole process,
+/// so this control runs its body in a child whose
+///  environment sets it,
+/// and the stand-in's own sleep ends by itself if the wrapper ever fails to.
 #[test]
 fn a_slot_command_the_wrapper_could_not_place_is_refused_at_the_command() {
     let control: &str = "a_slot_command_the_wrapper_could_not_place_is_refused_at_the_command";

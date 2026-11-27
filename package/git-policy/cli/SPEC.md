@@ -24354,8 +24354,8 @@ Those caller's words may begin with a global option,
 because that same Git reads them there and the reading keeps them,
 and the worktree or repository such an option names is the one the guard
 judges:
-`-C`, `--git-dir` and `--work-tree` are read from the directory Git runs the
-shell in,
+`-C`,
+`--git-dir` and `--work-tree` are read from the directory Git runs the shell in,
 and every repository fact the decision reads is asked through them,
 so the worktree a command changes is the one measured and the one refused;
 a global option among the value's own words is left unread,

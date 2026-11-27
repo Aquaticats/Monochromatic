@@ -55,7 +55,8 @@ use std::path::{
 /// ```
 #[derive(Debug, Eq, PartialEq)]
 enum Verdict {
-    /// The planning stopped the command, with the report a person reads.
+    /// The planning stopped the command,
+    /// with the report a person reads.
     Refused {
         /// The status the wrapper exits with.
         code: i32,
@@ -88,16 +89,20 @@ fn verdict(action: Action) -> Verdict {
 ///  The two directions of the finding are exactly those two worktrees,
 ///  and a row that named one of them for the wrong reason would read as right if both were clean.
 struct TwoWorktrees {
-    /// The fixture folder, which is where every control is started.
+    /// The fixture folder,
+    /// which is where every control is started.
     root: PathBuf,
-    /// The main checkout, which holds the edit.
+    /// The main checkout,
+    /// which holds the edit.
     main: PathBuf,
-    /// The linked worktree, which is clean.
+    /// The linked worktree,
+    /// which is clean.
     linked: PathBuf,
 }
 
 impl TwoWorktrees {
-    /// The Git directory of the linked worktree, which `--git-dir` names for it.
+    /// The Git directory of the linked worktree,
+    /// which `--git-dir` names for it.
     fn linked_git_directory(&self) -> PathBuf {
         return self.main.join(".git").join("worktrees").join("linked");
     }

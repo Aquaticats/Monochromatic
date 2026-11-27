@@ -53,7 +53,8 @@ use crate::global_arguments::{
     GlobalOutcome,
     global_layout,
 };
-/// The command Git will run, and where that command acts.
+/// The command Git will run,
+/// and where that command acts.
 use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::management::{
     host_filesystem_section,

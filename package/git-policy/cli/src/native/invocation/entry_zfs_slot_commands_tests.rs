@@ -21,7 +21,8 @@ use crate::testing::fixture_zfs_binding_record::{
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use std::ffi::OsString;
 
-/// One real registration of one slot, which Git writes.
+/// One real registration of one slot,
+/// which Git writes.
 fn slot(name: &str) -> RegisteredSlot {
     return a_registered_slot(name);
 }
@@ -74,7 +75,8 @@ fn command_after_globals(
 ///  (the alpha.50 review's L2).
 ///  A prune reads no operand and no directory,
 ///  so the caller's own repository is the one its records belong to unless the command
-///  names another with `-C`, `--git-dir` or `--work-tree`.
+///  names another with `-C`,
+/// `--git-dir` or `--work-tree`.
 #[test]
 fn a_slot_command_the_wrapper_could_not_place_is_refused() {
     for (globals, values) in [
@@ -480,7 +482,9 @@ fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
     remove(bound.root.as_path());
 }
 
-/// The slot's pointer gone, as an account that deleted it leaves it, whatever an earlier arm of a control wrote.
+/// The slot's pointer gone,
+/// as an account that deleted it leaves it,
+/// whatever an earlier arm of a control wrote.
 fn leave_the_pointer_gone(pointer: &Path) {
     if pointer.exists() {
         std::fs::remove_file(pointer).expect("the pointer goes");
@@ -495,8 +499,10 @@ fn leave_the_pointer_gone(pointer: &Path) {
 ///  Every spelling Git's own parser reads as a dry run writes nothing,
 ///  and the spelling that turns the dry run back off writes the pointer.
 /// Why:
-///  A dry run must not write, and Git accepts abbreviations of `--dry-run` and
-///  `--no-dry-run` (its `parse-options.c` matches any unique prefix), so a pass
+///  A dry run must not write,
+/// and Git accepts abbreviations of `--dry-run` and
+///  `--no-dry-run` (its `parse-options.c` matches any unique prefix),
+/// so a pass
 ///  that read only the exact words wrote the pointer on a command Git pruned
 ///  nothing for.
 #[test]

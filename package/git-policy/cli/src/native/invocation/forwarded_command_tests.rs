@@ -690,17 +690,25 @@ fn a_git_value_holding(byte: u8) -> Vec<u8> {
 
 /// What:
 ///  Every byte of the alphabet is read or left unread as the shell would read it:
-///  the letters, digits and the ten bytes of ordinary arguments are read,
+///  the letters,
+/// digits and the ten bytes of ordinary arguments are read,
 ///  and every other byte leaves the value unread.
 /// Why:
 ///  `is_plain_shell_byte` is the one list of bytes the shell-alias reading trusts,
 ///  so a widening by any byte decides about a command nobody runs:
-///  a quote, a backslash, a brace, a parenthesis, `~`, `#`, a carriage return or a line feed
+///  a quote,
+/// a backslash,
+/// a brace,
+/// a parenthesis,
+/// `~`,
+/// `#`,
+/// a carriage return or a line feed
 ///  left the old controls green (the alpha.50 review's L3).
 ///  This table names every byte,
 ///  so a widening shows as the rows whose byte is now read and a narrowing as the row that is
 ///  no longer read:
-///  with one byte widened into the list, that byte's row fails and no other row does.
+///  with one byte widened into the list,
+/// that byte's row fails and no other row does.
 ///  A blank byte splits the value into two words rather than standing in one,
 ///  and the value is read either way,
 ///  which `a_shell_alias_is_read_in_every_form_the_shell_passes_through` holds for the two
