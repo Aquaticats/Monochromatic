@@ -165,9 +165,18 @@
 //!   the untracked files a pull's branch move would overwrite,
 //!   kept before the failure is worded,
 //!   and the words that name every copy.
+//! - `pull_isolation_options.rs`:
+//!   the options of a pull's command line,
+//!   cut into the words its fetch takes and the words its merge takes.
+//! - `pull_isolation_merge_stated.rs`:
+//!   whether a pull is stated to merge,
+//!   read from its command line and from Git's own reading of the rebase settings.
 //! - `pull_isolation.rs`:
 //!   a pull that merges,
-//!   read as its fetch and its merge of `FETCH_HEAD`.
+//!   read as its fetch and its merge of `FETCH_HEAD`:
+//!   the repository state it is read from,
+//!   the fetch it runs,
+//!   and the merge it hands on.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
 //! - `merge_second_pass.rs`:
@@ -374,8 +383,19 @@ pub mod merge_isolation_kept_copies_words;
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
+/// The options of a pull's command line,
+/// cut into the words its fetch takes and the words its merge takes.
+pub mod pull_isolation_options;
+
+/// Whether a pull is stated to merge,
+/// read from its command line and from Git's own reading of the rebase settings.
+pub mod pull_isolation_merge_stated;
+
 /// A pull that merges,
-/// read as its fetch and its merge of `FETCH_HEAD`.
+/// read as its fetch and its merge of `FETCH_HEAD`:
+/// the repository state it is read from,
+/// the fetch it runs,
+/// and the merge it hands on.
 pub mod pull_isolation;
 
 /// The untracked files a pull's branch move would overwrite,
