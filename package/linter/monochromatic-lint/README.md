@@ -2106,6 +2106,11 @@ and what the messages say.
   is refused as the shape it misspells,
   where alpha.19 told its reader to rename a folder that holds no space and is fine;
   a six-word line whose words do name such a folder is refused as before.
+- A refusal says what renaming must give and says what the name is:
+  a folder holding ` -> ` between two names is told to keep no `->` set off by whitespace,
+  where alpha.19 told it to keep none at its beginning or its end and left the middle one in place,
+  and an entry of a `uses` folder is named as that entry of a `uses` folder,
+  where alpha.19 called it a file.
 
 ### Known limits
 

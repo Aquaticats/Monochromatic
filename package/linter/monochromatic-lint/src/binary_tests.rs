@@ -3870,6 +3870,9 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
         "The layout rules stop at the folder src/a -> b,",
         "its name holds ` -> `,",
         "would read as another pair of folders",
+        // What: the half that says what renaming must give, which has to cover a name holding the arrow words inside it.
+        // Why: a name told to hold no arrow word at its beginning or its end would keep the one in the middle and stop again.
+        "so rename the folder so its name holds no `->` set off by whitespace on both sides,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -4445,8 +4448,11 @@ fn layout_a_uses_entry_name_that_ends_in_a_space_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/a/uses/b\\u{20},",
+        "The layout rules stop at the entry src/a/uses/b\\u{20} of a `uses` folder,",
         "its name ends in whitespace that an allow-list reader trims away",
+        // What: what the name is, which is an entry of a `uses` folder and not a module file.
+        // Why: a reader told to rename "the file" looks for a module file that is not there.
+        "so rename that entry so its name ends in a visible character,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
