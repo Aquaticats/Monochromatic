@@ -62,7 +62,8 @@ the scope's own group first,
 then each group below it depth first,
 with the greatest name first at each group,
 and the processes of one group in ascending process id order.
-Both orders are the tool's own: `sub_groups` sorts the names of the groups below a group,
+Both orders are the tool's own:
+`sub_groups` sorts the names of the groups below a group,
 and the walk pushes them in that order onto a stack and takes the last one off,
 while each group's processes are sorted before they are named.
 The control is

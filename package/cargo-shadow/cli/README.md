@@ -1112,7 +1112,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   so a reader can tell a member that has exited and only waits to be reaped (it can write nothing)
   from one that is alive,
   and from a leader that exited behind a live thread (which can still write).
-  The members are named in one order, which the walk gives and the file system does not:
+  The members are named in one order,
+  which the walk gives and the file system does not:
   the scope's own group first,
   then each group below it depth first with the greatest name first,
   and the processes of one group in ascending process id order
