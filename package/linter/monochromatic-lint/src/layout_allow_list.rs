@@ -34,7 +34,7 @@
 //! type AllowKind = { kind: 'folder-use'; from: Path; to: Path }
 //!   | { kind: 'file-use'; folder: Path; from: string; to: string }
 //!   | { kind: 'key'; key: string };
-//! function readAllowList(path: Path): AllowList;
+//! function readAllowList(path: Path, base: Path): AllowList;
 //! ```
 
 /// Import the entry shapes and the line reader the list is built from,

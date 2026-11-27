@@ -20,7 +20,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type AllowEntry = { line: number; text: string; kind: AllowKind };
-//! function parseEntries(text: string): AllowEntry[];
+//! function parseEntries(text: string, base: Path): AllowEntry[];
 //! ```
 
 /// Import the spelling every listed path is read into,
