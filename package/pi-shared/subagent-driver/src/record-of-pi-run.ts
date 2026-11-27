@@ -339,6 +339,7 @@ export function startRecordOfPiRun({
       piStartFailures,
       piStartStoppedBy,
       sessionAtRest,
+      startThatEndedWithoutARun,
     },) {
       return {
         endReason,
@@ -357,6 +358,7 @@ export function startRecordOfPiRun({
         ...(piStartFailures === undefined ? {} : { piStartFailures, }),
         ...(piStartStoppedBy === undefined ? {} : { piStartStoppedBy, }),
         ...(sessionAtRest === undefined ? {} : { sessionAtRest, }),
+        ...(startThatEndedWithoutARun === undefined ? {} : { startThatEndedWithoutARun, }),
         ...modelErrorOf({
           run: observed,
           retries: state.retriesSinceAnswer,
