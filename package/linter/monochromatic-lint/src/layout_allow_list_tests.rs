@@ -255,12 +255,8 @@ fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
         .iter()
         .map(|name| return base.join(name))
         .collect::<BTreeSet<PathBuf>>();
-    let findings: Vec<LayoutFinding> = dead_entry_findings(
-        &list,
-        &BTreeSet::<usize>::new(),
-        &folders,
-        base,
-    );
+    let findings: Vec<LayoutFinding> =
+        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
     assert_eq!(findings.len(), 3, "{findings:#?}");
     assert!(
         findings[0]

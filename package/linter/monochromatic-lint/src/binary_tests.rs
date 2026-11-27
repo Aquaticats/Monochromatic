@@ -4041,11 +4041,7 @@ fn layout_a_use_line_whose_name_before_the_arrow_ends_in_whitespace_is_refused()
     let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
-    for part in [
-        "Line 1",
-        "ends in whitespace",
-        "uses <folder> -> <folder>",
-    ] {
+    for part in ["Line 1", "ends in whitespace", "uses <folder> -> <folder>"] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
