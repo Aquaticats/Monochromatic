@@ -497,8 +497,12 @@ the gate,
 and the service-manager install proof,
 which issue 6587's second round ran to its end (`fdd9ce0e83`):
 alpha.48 installed over alpha.47 in a container of the gate image,
-"THE PROOF PASSED: the instance the older release loaded started as this release,
-and the pair of commits each landed once".
+and the proof printed
+
+```text
+THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once
+```
+
 
 - Medium:
   at least 31 definitions became nameable from outside the crate,
