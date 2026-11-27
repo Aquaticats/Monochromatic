@@ -447,6 +447,13 @@
 //!   prove the copy against the source's index,
 //!   settle an entry by content where the stat data cannot vouch for it,
 //!   and keep the snapshot's own index when the source changed under the copy.
+//! - `worktree_snapshot_ahead_names.rs`:
+//!   the names a snapshot made ahead of an add carries,
+//!   the pool folder it stands in,
+//!   and which entries a source keeps.
+//! - `worktree_snapshot_ahead_asks.rs`:
+//!   the seams through which an add reaches the commit service,
+//!   and the records that ask it for a snapshot ahead.
 //! - `worktree_snapshot_ahead.rs`:
 //!   the snapshots the wrapper makes ahead of an add,
 //!   and the add's claim of one instead of a snapshot of its own.
@@ -804,8 +811,19 @@ pub mod worktree_snapshot;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_index_step;
 
-/// The snapshots the wrapper makes ahead of an add,
-/// and the add's claim of one instead of a snapshot of its own.
+/// The names a snapshot made ahead of an add carries,
+/// the pool folder it stands in,
+/// and which entries a source keeps.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_names;
+
+/// The seams through which an add reaches the commit service,
+/// and the records that ask it for a snapshot ahead.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_asks;
+
+/// The answer one add's look for a snapshot came to,
+/// and the hand-over of the copies it proved stale.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead;
 
