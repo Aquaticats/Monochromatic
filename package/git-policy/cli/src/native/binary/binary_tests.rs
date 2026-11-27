@@ -138,6 +138,13 @@ mod support_observation;
 #[path = "binary_support_installed_name.rs"]
 mod support_installed_name;
 
+/// What a wait under a bound answers with:
+/// the two bounds a command's own line gives it,
+/// who ended it,
+/// and the sentence a refused answer prints.
+#[path = "binary_support_observation_bound_what_the_wait_answers_with.rs"]
+mod support_observation_bound_what_the_wait_answers_with;
+
 /// The bound one observed command is given,
 /// who ended it,
 /// and the two pipes its output came through.
