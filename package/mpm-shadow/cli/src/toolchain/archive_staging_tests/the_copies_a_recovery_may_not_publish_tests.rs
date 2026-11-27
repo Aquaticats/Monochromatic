@@ -36,19 +36,6 @@ use super::super::layout::tool_directory;
 use super::super::published_archive::is_finished;
 /// Imports the install itself.
 use super::super::sync::sync_tools;
-/// Imports the question whether a finished copy of the version is still on disk,
-/// the pair of a process that no longer runs, and the record a lock holds for one copy.
-use super::{
-    a_finished_copy_is_on_disk,
-    an_installer_that_no_longer_runs,
-    the_locks_record,
-};
-/// Imports the rig, the names a tool directory holds, and the writer of an executable stand-in.
-use super::{
-    Rig,
-    names_of,
-    write_executable,
-};
 /// Imports the fixture's tool id, its program, the lock of one version, its archive digest,
 /// and the finished copy of one version written by hand.
 use super::{
@@ -57,6 +44,19 @@ use super::{
     finish_archive,
     lock_at,
     release_digest,
+};
+/// Imports the rig, the names a tool directory holds, and the writer of an executable stand-in.
+use super::{
+    Rig,
+    names_of,
+    write_executable,
+};
+/// Imports the question whether a finished copy of the version is still on disk,
+/// the pair of a process that no longer runs, and the record a lock holds for one copy.
+use super::{
+    a_finished_copy_is_on_disk,
+    an_installer_that_no_longer_runs,
+    the_locks_record,
 };
 /// Imports the state a kill between the two renames leaves, and the context one tree's sync reads.
 use super::{

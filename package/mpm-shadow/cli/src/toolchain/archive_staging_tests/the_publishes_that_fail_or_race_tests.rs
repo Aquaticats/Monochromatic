@@ -38,18 +38,14 @@ use super::super::layout::tool_directory;
 use super::super::published_archive::is_finished;
 /// Imports the install itself.
 use super::super::sync::sync_tools;
+/// Imports the context one tree's sync reads.
+use super::context_of;
 /// Imports the error one rename of a publish is answered with, and the question whether a finished copy of the
 /// version is still on disk.
 use super::{
     AN_INPUT_OUTPUT_ERROR,
     a_finished_copy_at_the_version_as_another_install,
     a_finished_copy_is_on_disk,
-};
-/// Imports the rig, the names a tool directory holds, and the writer of an executable stand-in.
-use super::{
-    Rig,
-    names_of,
-    write_executable,
 };
 /// Imports the fixture's tool id, its program, the lock of one version, its archive digest,
 /// the archive that was there without its marker, and the releases the fake network serves.
@@ -61,8 +57,12 @@ use super::{
     serve_releases,
     unmarked_archive,
 };
-/// Imports the context one tree's sync reads.
-use super::context_of;
+/// Imports the rig, the names a tool directory holds, and the writer of an executable stand-in.
+use super::{
+    Rig,
+    names_of,
+    write_executable,
+};
 
 /// What:
 /// A second install that publishes the version in the instant between this publish's two renames,

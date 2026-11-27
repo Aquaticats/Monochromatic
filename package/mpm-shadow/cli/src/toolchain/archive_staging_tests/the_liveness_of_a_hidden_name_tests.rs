@@ -37,18 +37,24 @@ use super::super::archive_staging::{
     staging_dir_of,
     write_complete_marker,
 };
-/// Imports the tool directory of a tool id.
-use super::super::layout::tool_directory;
-/// Imports the question that tells a finished install from an unfinished one.
-use super::super::published_archive::is_finished;
-/// Imports the text of a path's own last name.
-use super::super::util::file_name_text;
 /// Imports the reader facts a control forces, and the two seams that force them.
 use super::super::archive_staging::{
     ReaderView,
     read_as,
     read_as_a_proc_that_hides_records,
     start_time_of_a_process,
+};
+/// Imports the tool directory of a tool id.
+use super::super::layout::tool_directory;
+/// Imports the question that tells a finished install from an unfinished one.
+use super::super::published_archive::is_finished;
+/// Imports the text of a path's own last name.
+use super::super::util::file_name_text;
+/// Imports the fixture's tool id, its program, and the archive digest a marker records.
+use super::{
+    BIN,
+    ID,
+    release_digest,
 };
 /// Imports the rig, the names a tool directory holds, the writer of an executable stand-in,
 /// and a program a control keeps running while it judges which installer still runs.
@@ -63,12 +69,6 @@ use super::{
 use super::{
     WHAT_WAS_BEING_UNPACKED,
     the_locks_record,
-};
-/// Imports the fixture's tool id, its program, and the archive digest a marker records.
-use super::{
-    BIN,
-    ID,
-    release_digest,
 };
 
 /// What:
@@ -163,10 +163,7 @@ fn a_run_that_cannot_read_its_boot_writes_a_name_no_later_run_reclaims() {
     // The name such a run writes: the purpose, the process id and its start time, and no namespace or boot.
     let started: u64 = start_time_of_a_process(std::process::id())
         .expect("the system reports this process's start");
-    let expected: String = format!(
-        ".0.2.1.{STAGING_PURPOSE}.{}.{started}",
-        std::process::id()
-    );
+    let expected: String = format!(".0.2.1.{STAGING_PURPOSE}.{}.{started}", std::process::id());
     assert_eq!(
         file_name_text(&staging),
         expected,
