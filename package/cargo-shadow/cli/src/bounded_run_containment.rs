@@ -8,35 +8,11 @@
 //! to keep that file under the code-line limit.
 //! The items are re-exported from `bounded_run`,
 //! so their paths there are unchanged.
-//! The start of the child inside the containment is `bounded_run_start.rs`.
+//! The start of the child inside the containment is `bounded_run_start.rs`,
+//! and the end of the run,
+//! with the stop of its scope unit after it,
+//! is `bounded_run_end.rs`.
 
-/// What:
-/// `use crate::bounded_run::{Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route};`
-/// imports the bounds of a run,
-/// its error and journal state,
-/// the flag that says the weaker notice was printed,
-/// the one record write and the route search.
-/// Why:
-/// Every wait here is bounded by one of those values,
-/// the stop writes the record that settles the run,
-/// and the containment is planned on the route the search finds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route } from 'crate/bounded_run';
-/// ```
-use crate::bounded_run::{
-    Bound,
-    POLL_INTERVAL,
-    QUIESCE_BOUND,
-    READER_GRACE,
-    REAP_BOUND,
-    RunError,
-    ScopeState,
-    WEAKER_NOTICE_GIVEN,
-    append_record,
-    find_route,
-};
 /// What:
 /// `use crate::bounded_run::{NOTICE_ENTERED, NOTICE_GATE, trace_text};` imports the flag and the gate that let a test hold the weaker notice,
 /// and the one way a test build turns a trace event into text.
@@ -53,6 +29,32 @@ use crate::bounded_run::{
     NOTICE_ENTERED,
     NOTICE_GATE,
     trace_text,
+};
+/// What:
+/// `use crate::bounded_run::{Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route};`
+/// imports the bounds of a run,
+/// its error and journal state,
+/// the flag that says the weaker notice was printed,
+/// the one record write and the route search.
+/// Why:
+/// Every wait here is bounded by one of those values,
+/// the stop writes the record that settles the run,
+/// and the containment is planned on the route the search finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route } from 'crate/bounded_run';
+/// ```
+use crate::bounded_run::{
+    POLL_INTERVAL,
+    QUIESCE_BOUND,
+    READER_GRACE,
+    REAP_BOUND,
+    RunError,
+    ScopeState,
+    WEAKER_NOTICE_GIVEN,
+    append_record,
+    find_route,
 };
 /// What:
 /// `use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route};` imports the scope itself,
@@ -72,20 +74,6 @@ use crate::control_group::{
     GroupUnavailable,
     Record,
     Route,
-};
-/// What:
-/// `use crate::control_group_retire::{RETIRE_BOUND, retire_unit};` imports the end of a run's scope unit and its bound.
-/// Why:
-/// A run shows its control group empty and then asks the manager to stop the unit it started,
-/// so a unit the manager never noticed becoming empty is not left `active (running)` (issue 6578).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group_retire';
-/// ```
-use crate::control_group_retire::{
-    RETIRE_BOUND,
-    retire_unit,
 };
 /// What:
 /// `use crate::control_group_stop::report::StopReport;` imports what the stop of a scope answers.
@@ -328,7 +316,10 @@ pub(crate) enum Containment {
     /// quiescence is shown by the kernel.
     Scope {
         /// The scope of this run.
-        group: ControlGroup,
+        /// Shared behind an `Rc` (the sibling of `Box`, which owns its value, and of `Arc`, which shares across threads) so this
+        /// variant stays small enough for `clippy::large_enum_variant` now that a route names two programs; the count is cheap
+        /// because one thread uses it.
+        group: Rc<ControlGroup>,
         /// The route it was planned on.
         route: Route,
     },
@@ -368,7 +359,7 @@ pub(crate) fn contain() -> Containment {
     return match find_route() {
         Ok(route) => match ControlGroup::plan(&route) {
             Ok(group) => Containment::Scope {
-                group,
+                group: Rc::new(group),
                 route,
             },
             Err(error) => weaker(GroupUnavailable {
@@ -433,40 +424,6 @@ pub(crate) fn stop_process_group(
 }
 
 /// What:
-/// `fn retire(group: &ControlGroup, route: &Route)` asks the manager to stop the scope unit of a run that has ended,
-/// and warns when the manager may still load it.
-/// Why:
-/// The scope is already shown empty,
-/// so this is housekeeping for the unit and never a claim about a writer;
-/// a manager that cannot be asked does not turn the run into "not quiescent",
-/// but a person has to be told that the unit may stay.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function retire(group: ControlGroup, route: Route): void
-/// ```
-fn retire(
-    group: &ControlGroup,
-    route: &Route,
-) {
-    let unit: String = group.unit();
-    // What:     `if let Err(reason) = retire_unit(...)` runs the warning only when the retire answered a failure; `&route.systemctl`
-    //           and `&unit` lend the two names to the call.
-    // Why:      A retired unit needs nothing said, and a warning on every run would be noise.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const reason = retireUnit(route.systemctl, unit, RETIRE_BOUND).error
-    // if (reason) console.error(`... ${unit} ... ${reason}`)
-    // ```
-    if let Err(reason) = retire_unit(&route.systemctl, &unit, RETIRE_BOUND) {
-        eprintln!(
-            "cargo-shadow: warning: the scope unit {unit} of the run that just ended may still be loaded ({reason})"
-        );
-    }
-}
-
-/// What:
 /// `fn stop_containment(containment, child) -> Result<(), String>` kills and reaps the direct child,
 /// stops what the containment holds,
 /// and answers `Ok` only if all of it is shown gone,
@@ -480,7 +437,7 @@ fn retire(
 /// ```ts
 /// function stopContainment(containment: Containment, child: ChildProcess): string | undefined
 /// ```
-fn stop_containment(
+pub(crate) fn stop_containment(
     containment: &Containment,
     child: &mut Child,
 ) -> Result<(), String> {
@@ -537,63 +494,6 @@ fn stop_containment(
 }
 
 /// What:
-/// `fn stop_everything(containment, child) -> Result<(), String>` ends the run early or at its normal exit:
-/// it stops what the containment holds,
-/// asks the manager to stop the run's scope unit,
-/// and answers `Ok` only if all of the containment is shown gone,
-/// or the words a refusal carries saying what was not shown and why.
-/// Why:
-/// This is the one way a run is ended,
-/// on timeout,
-/// on a normal exit and on every error path.
-/// The unit is asked to stop on every one of those paths,
-/// because a scope whose process was already exiting when the manager attached it never becomes populated,
-/// so the manager never gets the kernel's empty notification and would leave the unit `active (running)` (issue 6578).
-/// The direct child goes first:
-/// it is the process that becomes the program,
-/// so once it is reaped nothing of this program's can
-/// still start the program in a scope that is not there yet.
-/// A scope that cannot be stopped,
-/// and any failure to inspect or stop it,
-/// is "not shown gone",
-/// and the text says how long the stop waited and what it was waiting for (issue 6528).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stopEverything(containment: Containment, child: ChildProcess): string | undefined
-/// ```
-pub(crate) fn stop_everything(
-    containment: &Containment,
-    child: &mut Child,
-) -> Result<(), String> {
-    // What:     `let outcome: Result<(), String> = stop_containment(...)` keeps the proof (or the shortfall) while the scope unit is
-    //           ended; `Result<(), String>` is the success-or-reason pair of the whole stop.
-    // Why:      The unit has to be ended whatever the proof says, and the caller must still receive the proof itself.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const outcome = stopContainment(containment, child)
-    // ```
-    let outcome: Result<(), String> = stop_containment(containment, child);
-    // What:     `if let Containment::Scope { group, route } = containment` runs the retirement only for a delegated scope; the process
-    //           group path has no unit. `group` and `route` are borrowed views into the containment.
-    // Why:      Only a scope leaves a unit behind; the weaker path leaves nothing in the manager.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (containment.kind === 'scope') retire(containment.group, containment.route)
-    // ```
-    if let Containment::Scope {
-        group,
-        route,
-    } = containment
-    {
-        retire(group, route);
-    }
-    return outcome;
-}
-
-/// What:
 /// `fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>)` records that the run's launcher is reaped and its scope
 /// stopped,
 /// so a recovery may read an absent scope as one that ended.
@@ -631,38 +531,6 @@ pub(crate) fn settle(
             group.directory().display()
         );
     }
-}
-
-/// What:
-/// `fn fail_started(containment, child, scope, bound, error) -> RunError` ends a run that failed after its program started.
-/// Why:
-/// Any failure on the containment path after the start is "not quiescent" unless everything is shown gone (contract A2):
-/// it must not become an ordinary failure that lets the caller roll back or accept under a writer that may remain (7a F3).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function failStarted(containment: Containment, child: ChildProcess, scope: ScopeState | undefined, bound: Bound, error: RunError): RunError
-/// ```
-pub(crate) fn fail_started(
-    containment: &Containment,
-    child: &mut Child,
-    scope: &Option<Rc<ScopeState>>,
-    bound: &Bound,
-    error: RunError,
-) -> RunError {
-    return match stop_everything(containment, child) {
-        Ok(()) => {
-            settle(containment, scope);
-            error
-        }
-        Err(shortfall) => {
-            lose(scope, shortfall.clone());
-            RunError::NotQuiescent {
-                what: bound.what.clone(),
-                shortfall,
-            }
-        }
-    };
 }
 
 /// What:
@@ -750,8 +618,3 @@ pub(crate) fn reason_of(unavailable: &GroupUnavailable) -> String {
 pub(crate) fn open_pidfd(pid: Pid) -> Option<OwnedFd> {
     return pidfd_open(pid, PidfdFlags::empty()).ok();
 }
-
-/// The controls that every path a run controls retires its scope unit (issue 6578).
-#[cfg(test)]
-#[path = "bounded_run_retire_tests.rs"]
-mod retire_tests;

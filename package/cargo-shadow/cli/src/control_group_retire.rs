@@ -11,10 +11,11 @@
 //! and the unit stays `active (running)` with `populated 0` and no member.
 //! A run cannot make the manager re-read that state,
 //! but it can ask the manager to stop the unit it started:
-//! the stop job ends the unit, and `CollectMode=inactive-or-failed` (the `--collect` of the launcher)
+//! the stop job ends the unit,
+//! and `CollectMode=inactive-or-failed` (the `--collect` of the launcher)
 //! then frees it.
-//! Split out of `bounded_run_containment.rs`,
-//! which decides how a run is contained and stops it.
+//! The end of a run calls it after the stop of the containment,
+//! in `bounded_run_end.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,7 +27,8 @@
 /// `use crate::control_group_route_child_runs::run_plain;` imports the short program runner of the route discovery.
 /// Why:
 /// Asking the manager to stop a unit is the same kind of bounded question as asking it where the slice is,
-/// and that question already has one implementation with a deadline around the reading, the killing and the reaping.
+/// and that question already has one implementation with a deadline around the reading,
+/// the killing and the reaping.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,7 +53,9 @@ use std::time::Duration;
 /// veto open;
 /// measurement beside it:
 /// on 2026-11-27 a `systemctl --user stop` of an empty `cargo-shadow-*.scope` answered in 4 ms to 5 ms
-/// (three runs, this host, systemd 262.2-1-arch),
+/// (three runs,
+/// this host,
+/// systemd 262.2-1-arch),
 /// so five seconds only ends a manager that does not answer.
 pub(crate) const RETIRE_BOUND: Duration = Duration::from_secs(5);
 
@@ -65,7 +69,8 @@ pub(crate) const RETIRE_BOUND: Duration = Duration::from_secs(5);
 /// so this is housekeeping and never a claim about a writer;
 /// the caller reports a failure as a warning and does not turn it into "not quiescent".
 /// A unit the manager collected before the request is not a failure:
-/// its stop request is refused as "not loaded", and the question afterwards (`LoadState`) says `not-found`.
+/// its stop request is refused as "not loaded",
+/// and the question afterwards (`LoadState`) says `not-found`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

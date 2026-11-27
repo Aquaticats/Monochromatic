@@ -8,7 +8,9 @@
 //! The leftover unit is rare in nature (a process that is already exiting when the manager writes its id into the scope,
 //! 12 of 11360 starts on this host on 2026-11-27),
 //! so the controls do not wait for that race:
-//! they plant the state it leaves, deterministically, by adopting a zombie process into a scope of their own,
+//! they plant the state it leaves,
+//! deterministically,
+//! by adopting a zombie process into a scope of their own,
 //! which the user manager accepts as attached without moving it.
 //!
 //! In TS you'd write (pseudocode):
@@ -57,7 +59,8 @@ use std::process::{
 /// What:
 /// `use std::sync::atomic::{AtomicUsize, Ordering};` imports a counter that the parallel tests may share safely.
 /// Why:
-/// Every planted unit needs its own name, and two tests run at the same time on this suite.
+/// Every planted unit needs its own name,
+/// and two tests run at the same time on this suite.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,11 +71,25 @@ use std::sync::atomic::{
     Ordering,
 };
 
-/// The shared fixtures of a delegated scope (the route, the waits and the not-run line).
+/// The shared fixtures of a delegated scope (the route,
+/// the waits and the not-run line).
 use crate::cgroup_test_support::{
     NOT_RUN_PREFIX,
     delegated_route,
     wait_up_to,
+};
+/// What:
+/// `use crate::control_group::retire::{RETIRE_BOUND, retire_unit};` imports the step under test and its bound.
+/// Why:
+/// Every control here exercises the same step the run takes at its end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group/retire';
+/// ```
+use crate::control_group::retire::{
+    RETIRE_BOUND,
+    retire_unit,
 };
 /// What:
 /// `use crate::control_group::{Membership, Record, Route, View, namespace_id, query, view_of};` imports the record of a scope,
@@ -102,19 +119,6 @@ use crate::control_group::{
 /// import { parseStat } from 'crate/control_group_process_identity';
 /// ```
 use crate::control_group_process_identity::parse_stat;
-/// What:
-/// `use crate::control_group_retire::{RETIRE_BOUND, retire_unit};` imports the step under test and its bound.
-/// Why:
-/// Every control here exercises the same step the run takes at its end.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group_retire';
-/// ```
-use crate::control_group_retire::{
-    RETIRE_BOUND,
-    retire_unit,
-};
 
 /// How long a planted unit is given to appear in the manager.
 const PLANT_BOUND: std::time::Duration = std::time::Duration::from_secs(10);
@@ -158,7 +162,8 @@ fn not_run(reason: &str) -> ! {
 /// `fn show_property(unit: &str, property: &str) -> String` asks the manager for one property of a unit,
 /// trimmed.
 /// Why:
-/// The controls judge the unit's real state, not a stand-in's idea of it.
+/// The controls judge the unit's real state,
+/// not a stand-in's idea of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,7 +365,8 @@ fn retiring_a_loaded_empty_scope_unit_removes_it() {
 }
 
 /// A second control:
-/// a unit the manager already collected is not a refusal, because the stop of an unknown unit fails and the state question
+/// a unit the manager already collected is not a refusal,
+/// because the stop of an unknown unit fails and the state question
 /// answers `not-found`.
 #[test]
 fn retiring_a_unit_the_manager_already_collected_is_not_a_refusal() {

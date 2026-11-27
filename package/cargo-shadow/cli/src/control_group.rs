@@ -129,6 +129,10 @@ pub(crate) use crate::control_group_records::{
     query,
 };
 
+/// The end of a run's scope unit after its control group is shown empty (split out of this module).
+#[path = "control_group_retire.rs"]
+pub(crate) mod retire;
+
 /// The reads of `cgroup.events` for the stop of a scope (split out of the control group module).
 pub(crate) use crate::control_group_stop::populated_at;
 
@@ -236,7 +240,8 @@ impl ControlGroup {
     }
 
     /// What:
-    /// `pub(crate) fn unit(&self) -> String` is the scope's unit name as the manager knows it: the token and the `.scope` suffix.
+    /// `pub(crate) fn unit(&self) -> String` is the scope's unit name as the manager knows it:
+    /// the token and the `.scope` suffix.
     /// Why:
     /// The stop of a unit after its run ended names it to `systemctl`,
     /// and only this type holds the name.

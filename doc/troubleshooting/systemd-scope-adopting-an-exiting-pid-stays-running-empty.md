@@ -792,7 +792,8 @@ by variant:
 ### The 2026-11-27 census: cargo-shadow's own scopes on this host
 
 The round of issue 6576 first saw this state in `cargo-shadow`'s test scopes,
-and issue 6578 asked for a census, a reproduction and a count.
+and issue 6578 asked for a census,
+a reproduction and a count.
 Census taken at 2026-11-27T07:43:26-05:00:
 
 ```sh
@@ -800,8 +801,12 @@ systemctl --user list-units 'cargo-shadow-*.scope'
 ```
 
 listed 12 units,
-all `LoadState=loaded`, `ActiveState=active`, `SubState=running`, `Result=success`,
-`TasksCurrent=0`, `CollectMode=inactive-or-failed`,
+all `LoadState=loaded`,
+`ActiveState=active`,
+`SubState=running`,
+`Result=success`,
+`TasksCurrent=0`,
+`CollectMode=inactive-or-failed`,
 activated between 03:03:54 and 07:31:23 the same day.
 Each one's `cgroup.events` read `populated 0` and its `cgroup.procs` was empty,
 and each one's only journal line was `Started [systemd-run] <command>.`
@@ -815,7 +820,8 @@ That is the "reaped before the start job" case below:
 the launcher was gone when the manager ran the start job,
 the scope failed,
 and `CollectMode=inactive-or-failed` freed it.
-So those lines are a different matter, not this leak.
+So those lines are a different matter,
+not this leak.
 
 The count comes from the same journal:
 between 2026-11-27T00:00 and 07:45 the user manager started 11360 distinct
@@ -836,7 +842,8 @@ So a program that ends at once does not reach the race by itself:
 0 units before the caller-side fix,
 because the launcher was alive when the manager wrote its id.
 What reaches it is the runner killing that launcher while the start job is still running
-(a bound that passes, or a test that kills its wrapper):
+(a bound that passes,
+or a test that kills its wrapper):
 the launcher is a zombie at the manager's write,
 `cg_attach` returns success without moving it,
 the group never becomes populated,
@@ -857,8 +864,12 @@ busctl --user call org.freedesktop.systemd1 /org/freedesktop/systemd1 \
   CollectMode s inactive-or-failed 0
 ```
 
-The unit answered `LoadState=loaded`, `ActiveState=active`, `SubState=running`, `Result=success`,
-`TasksCurrent=0`, `CollectMode=inactive-or-failed`,
+The unit answered `LoadState=loaded`,
+`ActiveState=active`,
+`SubState=running`,
+`Result=success`,
+`TasksCurrent=0`,
+`CollectMode=inactive-or-failed`,
 and its `cgroup.events` read `populated 0`:
 the same state as the 12,
 made on purpose in a unit of the test's own.
@@ -886,13 +897,13 @@ because the launcher is then never killed.
 
 The run asks the manager to stop the unit it started,
 after the control group is shown empty,
-on every path that ends a run:
+on every path that ends a run that way:
 a normal end,
 a bound that passes,
 a refusal after the program started,
 and a launcher that is gone
 (`retire_unit` in `package/cargo-shadow/cli/src/control_group_retire.rs`,
-called from `stop_everything` in `bounded_run_containment.rs`):
+called from `stop_everything` in `bounded_run_end.rs`):
 
 ```sh
 systemctl --user --no-ask-password stop <name>.scope
@@ -903,7 +914,13 @@ that stop fails with "Unit <name>.scope not loaded.",
 and the question after it (`show <name>.scope --property=LoadState --value`) reads `not-found`.
 A stop the manager refuses for another reason is a warning naming the unit and the state,
 because the run already proved that no writer is left;
-the unit is housekeeping after the proof, not part of it.
+the unit is housekeeping after the proof,
+not part of it.
+A run whose stop could not show the scope empty does not ask for the unit to be stopped:
+a member may still write,
+the refusal's report names it,
+and a manager stop would kill it behind that report.
+Such a unit is populated, not the loaded-and-empty leftover this step exists for.
 The cost is one `systemctl` call per scoped run:
 `systemctl --user stop` of such an empty scope took 4 ms to 5 ms in three probes on 2026-11-27,
 and the manager showed the unit `not-found` as soon as the stop returned in all three.
@@ -923,8 +940,11 @@ and one per run-ending path
 `a_run_whose_launcher_is_gone_retires_its_scope_unit`)
 hold this;
 each was run with its guard taken out and each failed
-(the retirement removed: the four path controls found no stop request,
-and the unit stayed loaded; the stop itself removed: the planted unit stayed `loaded`).
+(the retirement removed:
+the four path controls found no stop request,
+and the unit stayed loaded;
+the stop itself removed:
+the planted unit stayed `loaded`).
 
 #### What was tried and did not work, or was not chosen
 

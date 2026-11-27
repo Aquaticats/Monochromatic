@@ -1,5 +1,6 @@
 //! What:
-//! Controls that every path a bounded run controls asks the manager to stop the run's scope unit, and leaves it unloaded
+//! Controls that every path a bounded run controls asks the manager to stop the run's scope unit,
+//! and leaves it unloaded
 //! (issue 6578):
 //! a normal end,
 //! a bound that passes,
@@ -11,7 +12,8 @@
 //! so a control that waited for that race could not tell a fixed run from a lucky one.
 //! These controls read the request the run made instead:
 //! the `systemctl` they give the route records every call and then runs the real one,
-//! so the manager's state after the run is real, and the request is the guard.
+//! so the manager's state after the run is real,
+//! and the request is the guard.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -54,7 +56,8 @@ use std::path::{
 /// What:
 /// `use std::process::{Command, Output};` imports the command builder and the collected output of a run.
 /// Why:
-/// The run under test is a command, and its output is what a normal end returns.
+/// The run under test is a command,
+/// and its output is what a normal end returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +80,8 @@ use std::rc::Rc;
 /// What:
 /// `use std::time::Duration;` imports a span of time.
 /// Why:
-/// Each run gets a bound, and the guard that waits for the unit to be gone gets one too.
+/// Each run gets a bound,
+/// and the guard that waits for the unit to be gone gets one too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -92,7 +96,10 @@ const GONE_BOUND: Duration = Duration::from_secs(10);
 
 /// What:
 /// `use crate::bounded_run::{Bound, RunError, after_launch_for_test, on_startup_for_test, output_within, take_trace_for_test, use_route_settings_for_test};`
-/// imports the run under test, its bound and error, the hooks that make its later paths, and the trace that names its scope.
+/// imports the run under test,
+/// its bound and error,
+/// the hooks that make its later paths,
+/// and the trace that names its scope.
 /// Why:
 /// Every control here ends a real run and reads the unit it made.
 ///
@@ -112,7 +119,8 @@ use crate::bounded_run::{
 /// What:
 /// `use crate::cgroup_test_support::wait_up_to;` imports the bounded wait of the scope controls.
 /// Why:
-/// The unit is collected by the manager's next pass, which this control waits for instead of sleeping.
+/// The unit is collected by the manager's next pass,
+/// which this control waits for instead of sleeping.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,7 +141,8 @@ use crate::control_group::RouteSettings;
 /// What:
 /// `use crate::round_sixteen_tests::launched_scope;` imports the reader of the scope name from a run's own trace.
 /// Why:
-/// The unit the run made is the name its own trace carries, not a name a control guessed.
+/// The unit the run made is the name its own trace carries,
+/// not a name a control guessed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,7 +163,8 @@ use crate::test_scratch::scratch;
 /// What:
 /// `fn bound(limit: Duration) -> Bound` is the bound of a run in these controls.
 /// Why:
-/// `Bound` carries what the caller was doing and how to repeat it, which the refusal text names.
+/// `Bound` carries what the caller was doing and how to repeat it,
+/// which the refusal text names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,7 +230,8 @@ fn recording_systemctl(directory: &Path) -> (PathBuf, PathBuf) {
 /// `fn load_state(unit: &str) -> String` asks the real manager whether a unit is loaded,
 /// trimmed.
 /// Why:
-/// The control's claim is about the manager's own state, not the trace.
+/// The control's claim is about the manager's own state,
+/// not the trace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -242,11 +253,14 @@ fn load_state(unit: &str) -> String {
 }
 
 /// What:
-/// `struct Observed` is what one control's run made: its own answer, its unit and the log of its calls.
+/// `struct Observed` is what one control's run made:
+/// its own answer,
+/// its unit and the log of its calls.
 struct Observed {
     /// The run's answer.
     result: Result<Output, RunError>,
-    /// The unit the run made, from its own trace.
+    /// The unit the run made,
+    /// from its own trace.
     unit: String,
     /// The file the recording program wrote every call into.
     log: PathBuf,
@@ -255,9 +269,11 @@ struct Observed {
 /// What:
 /// `fn run_recording(directory: &Path, command: &mut Command, limit: Duration) -> Observed` runs one bounded run whose route asks
 /// the recording program,
-/// and answers the run, its unit and its call log.
+/// and answers the run,
+/// its unit and its call log.
 /// Why:
-/// All four path controls differ only in the command and the hook, so this is the one place a run is made.
+/// All four path controls differ only in the command and the hook,
+/// so this is the one place a run is made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -383,7 +399,7 @@ fn a_run_whose_launcher_is_gone_retires_its_scope_unit() {
     })));
     let observed = run_recording(
         directory.path(),
-        &mut Command::new("sleep").arg("600"),
+        Command::new("sleep").arg("600"),
         RUN_BOUND,
     );
     after_launch_for_test(None);

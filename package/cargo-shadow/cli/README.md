@@ -838,7 +838,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   After that proof the run asks the manager to stop the unit it started
   (`systemctl --user --no-ask-password stop <name>.scope`,
   `src/control_group_retire.rs`),
-  on every path that ends a run,
+  on every path that ends a run with its scope shown empty,
   because a scope whose process was already exiting when the manager wrote its id into the scope's
   `cgroup.procs` never becomes populated,
   so the kernel sends no empty notification and the unit would stay `active (running)` with no member
@@ -847,6 +847,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   A unit the manager already collected is read as `not-found` and is not a refusal;
   a stop it refuses for another reason is a warning that names the unit,
   because the run's own proof that no writer is left has already held.
+  A run whose stop could not show the scope empty keeps its unit,
+  so the member its refusal names stays inspectable and is not killed behind the report.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
