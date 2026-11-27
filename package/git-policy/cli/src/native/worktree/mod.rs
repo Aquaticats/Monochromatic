@@ -12,6 +12,9 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `add_standing_notice_step_words.rs`:
+//!   every step an add enters,
+//!   and the words a person reads for it.
 //! - `add_standing_notice.rs`:
 //!   the line a `git worktree add` prints while it is still running,
 //!   naming the step it is in.
@@ -532,6 +535,10 @@ pub mod worktree_command_facts;
 /// The folder a taken worktree folder is kept in when the name it came from is taken,
 /// and the cleanup that must leave it alone.
 pub mod worktree_kept_folders;
+
+/// Every step an add enters,
+/// and the words a person reads for it.
+pub mod add_standing_notice_step_words;
 
 /// The line a `git worktree add` prints while it is still running,
 /// naming the step it is in.
