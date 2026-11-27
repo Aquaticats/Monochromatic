@@ -13,6 +13,10 @@
 //!  the last control starts a child of this test binary with the variable set,
 //!  which is the only way a build without the feature is asked the question,
 //!  and a plant that removes the gating `cfg` lines makes it fail.
+//!  That control,
+//!  and the two names only it reads,
+//!  are declared for the builds that compile it and for no other,
+//!  so a build with the feature on declares no name nothing names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +24,6 @@
 //! ```
 
 use super::{
-    DEADLINE_SWITCH_VARIABLE,
     PROBE_DEADLINE,
     PROBE_DEADLINE_MARGIN,
     deadline_from_words,
@@ -33,12 +36,32 @@ use std::time::{
     Instant,
 };
 
+// What:
+//  The test-only variable the child is given,
+//  imported only for the builds that compile the control reading it.
+// Why:
+//  The one control that reads it is `the_shipped_bound_holds_with_the_test_variable_set`,
+//  which a build with `start-probe-raised-deadline` compiles out,
+//  and that build would otherwise import this name and name it nowhere,
+//  which is a warning `native:clippy:start-probe-raised-deadline` fails on.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { DEADLINE_SWITCH_VARIABLE } from "./probe_deadline"; // only in a build that has the control
+// ```
+#[cfg(not(feature = "start-probe-raised-deadline"))]
+use super::DEADLINE_SWITCH_VARIABLE;
+
 /// The variable that tells the child it is the child,
 /// set beside the deadline variable the child reads.
 /// Why:
 ///  The control runs the same test name in a child,
 ///  and the child must do the child's one assertion rather than start another
 ///  child.
+///  It is declared for that control's builds alone,
+///  as the import above is,
+///  so a build with the feature on declares no constant nothing reads.
+#[cfg(not(feature = "start-probe-raised-deadline"))]
 const THE_DEADLINE_CHILD: &str = "CLI_GIT_TEST_ONLY_PROBE_DEADLINE_CHILD";
 
 /// A just-started run has time left,
