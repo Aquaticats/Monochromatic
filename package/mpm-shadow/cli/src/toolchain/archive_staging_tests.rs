@@ -32,6 +32,7 @@ use super::archive_staging::{
     COMPLETE_MARKER,
     Owner,
     Plant,
+    RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     Recovered,
     STAGING_PURPOSE,
@@ -611,4 +612,34 @@ fn a_record_the_kernel_did_not_finish_is_never_read_as_a_dead_installer() {
         None,
         "a start field that is not a number says nothing"
     );
+}
+
+#[test]
+fn a_copy_a_killed_recovery_had_claimed_is_published_by_the_next_install() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join("0.2.1");
+    // A kill during a recovery, after the finished copy was claimed and before it was published.
+    let claimed: PathBuf = hidden_sibling(
+        &version_dir,
+        RECOVERED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(claimed.join("release-folder")).expect("make the claimed copy");
+    write_executable(&claimed.join("release-folder").join(BIN));
+    write_complete_marker(&claimed, ID, "0.2.1").expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert!(
+        rig.http.requests().is_empty(),
+        "nothing was downloaded: {:?}",
+        rig.http.requests()
+    );
+    assert!(
+        is_finished(&version_dir, BIN),
+        "the claimed copy became the version: {report:?}"
+    );
+    assert!(!claimed.exists(), "and the claimed name is gone");
 }
