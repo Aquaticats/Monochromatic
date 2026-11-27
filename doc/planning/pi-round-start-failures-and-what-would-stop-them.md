@@ -10,7 +10,8 @@ How do we prevent them from ever happening again?"
 Unapproved and non-final:
 nothing in "Proposed prevention" is built,
 and the owner decides each item.
-A Claude Sonnet read of the first version (a same-vendor second pass, not an independent review)
+A Claude Sonnet read of the first version (a same-vendor second pass,
+not an independent review)
 found it not ready:
 its merge-on-end item reversed the owner's merge bar,
 its start command already exists in the driver package,
@@ -32,14 +33,18 @@ I believe there is also a launcher already as a proper workspace package.
 I don't wanna see you edit pi-runs outside the workspace again.
 Please pick that up."
 (`doc/decision/pi-driver-and-provider-owner-answers-2026-11-09-to-2026-11-11.md`,
-"Pi tooling lives in the workspace, and alphas run no extra release work").
+"Pi tooling lives in the workspace,
+and alphas run no extra release work").
 The launcher meant is the driver package's `start-pi-run-in-a-worktree`.
-Every launcher, starter, chain and start loop the coordinator wrote under `~/temp/agent` after that broke it,
+Every launcher,
+starter,
+chain and start loop the coordinator wrote under `~/temp/agent` after that broke it,
 and each failure below started in one of them.
 On 2026-11-26 the owner set `/home/user/temp` to expire after a day
 and wrote:
 "Don't promote anything in ~/temp that breaks repo rules or plain broken into the repo.
-If you can't move everything before the scheduled cleanup, too bad.
+If you can't move everything before the scheduled cleanup,
+too bad.
 That is for you to learn."
 
 ## What has gone wrong, by cause
@@ -54,8 +59,10 @@ The owner:
 and
 "I didn't tell you to apply the 3 minutes apart and memory test rules."
 The spacing and the memory test came from a session's own reading under the owner's "Up to 64 rounds at once."
-(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`, "What it means")
-and from the coordinator's handover section "Memory, and how many rounds build at once"
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
+"What it means")
+and from the coordinator's handover section "Memory,
+and how many rounds build at once"
 (`doc/handover/cli-git-rust-implementation.md`).
 The coordinator's compaction summary then listed both among the owner's standing directions,
 and the next context applied them as the owner's.
@@ -84,7 +91,9 @@ because nothing marks an agent's choice as an agent's once it is written down.
   `.claude/skills/pi-as-subagent/SKILL.md`).
 - 2026-11-26 about 02:35:
   three rounds pinned to opencode-go ended on its spent monthly quota while Qwen and the virtual writer sat unused
-  ("What? Don't you have a virtual writer model in Pi? And what of my Qwen quota?",
+  ("What?
+  Don't you have a virtual writer model in Pi?
+  And what of my Qwen quota?",
   `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`).
 - 2026-11-26 about 17:31:
   two rounds the coordinator pinned to opencode-go as overflow each died on their first request with
@@ -122,10 +131,34 @@ so the driver's own count never applied to these rounds.
 - A finished round merges only when the coordinator reads it and runs the merge check,
   so a busy or blocked coordinator delays every merge.
 
+### Worktree adds that overlap until every one times out
+
+On 2026-11-27 at 02:38 the coordinator started thirty rounds through the driver package's `start-a-batch-in-its-own-unit`,
+as three batch lists at once.
+Each list starts an entry every twenty seconds,
+so the three together started three `git worktree add` every twenty seconds,
+three times what one list would.
+At 02:44 there were 27 adds in flight and the disk stall read `some avg10=75.07`;
+at 03:03,
+24 of 26 adds sat in one ZFS wait.
+Every first attempt passed the launcher's fifteen-minute bound and was killed,
+the second attempts began at about 02:56,
+and by 03:11 fourteen runs had started and sixteen had failed after two attempts (issue 6563).
+The same morning,
+seven adds started together had a run going within about 80 seconds each.
+The sixteen were started again from one list,
+which needed no add because their worktrees were already there.
+
+The evening of 2026-11-26 was the same shape with the scratch launcher:
+58 adds copied at once and eight starts died.
+So the package launcher does not prevent it by itself:
+nothing bounds how many adds are in flight across lists or launchers.
+
 ### What rounds do inside
 
 Rounds repeat their test runs to show a failure or a fix:
-issue 6518's round ran one module 60, 30 and 20 times,
+issue 6518's round ran one module 60,
+30 and 20 times,
 and issue 6520's round ran 30-run loops,
 although each brief quoted the synthetic-load ban.
 
@@ -143,7 +176,9 @@ which the brief states as the requirement.
 
 ### Bookkeeping
 
-The session task list showed rounds as pending while they ran (6521, 6522, the follow-up refusals round).
+The session task list showed rounds as pending while they ran (6521,
+6522,
+the follow-up refusals round).
 
 ## What to expect next if nothing changes
 
@@ -157,6 +192,9 @@ The session task list showed rounds as pending while they ran (6521, 6522, the f
   the briefs tell a round to leave a file another branch changes,
   so these are a cost of running them together,
   not a failure.
+- Starts that fail whenever many adds overlap,
+  from any launcher,
+  until something orders the adds (issue 6563).
 - Memory:
   64 rounds compiling at once on 61.7 GiB;
   the desktop freezes in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
@@ -183,7 +221,8 @@ and its pool gate counts a virtual-writer run as a slot in every member,
 which stops at Qwen's 5 ("Open question for the owner").
 The rounds' other start rules stay where the package keeps them
 (its free-space floor and the wrapper preflight),
-and a start that must follow another round's merge waits on that merge, named in the brief.
+and a start that must follow another round's merge waits on that merge,
+named in the brief.
 
 ### Merges stay after the report is read
 
@@ -204,9 +243,11 @@ the exact text goes to the owner.
 
 ### No new prose rule for made-up limits
 
-The first version proposed new rules for agent-chosen limits, dialogs and briefs.
+The first version proposed new rules for agent-chosen limits,
+dialogs and briefs.
 `AGENTS.md` already has each
-(a wait names the failure it prevents; a brief carries only what the owner decided;
+(a wait names the failure it prevents;
+a brief carries only what the owner decided;
 work is started before a question),
 so the change is to the places that carried the limits:
 the skill's start example,
@@ -234,7 +275,8 @@ for starts that pass through it:
   a slot in every member,
   which stops at Qwen's 5.
 
-Ranking: no count > combined room > as now.
+Ranking:
+no count > combined room > as now.
 No count beats combined room because the router already answers a full member by moving on,
 and a combined count caps runs below the owner's 64 on room a spent member does not have.
 Combined room beats as now because as now holds every virtual run to the smallest member,
