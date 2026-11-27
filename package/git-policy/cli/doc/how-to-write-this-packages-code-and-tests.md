@@ -257,6 +257,22 @@ The binary test target's own helper names its folders the same way
 `binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
+A fixture is removed through `test_support::remove`,
+which waits `REMOVAL_TRIES` pauses of `REMOVAL_PAUSE` while the tree still gains entries
+and,
+when the tries run out,
+fails with every name the fixture still holds,
+each with what it is.
+A landing does not write on its own thread alone:
+`land_group` starts the shadow pool's fill,
+the scratch sweep and a shadow drawn ahead on threads of their own,
+and the blocking pool makes the markers the next batches' locks are made from,
+each of them after the landing has answered.
+Measured 2026-11-27 (issue 6568):
+the draw made `monochromatic-git-policy-cli-shadow-drawn/main/drawn-<uuid>` inside a control's fixture `.git`
+5 ms after the landing returned,
+and a teardown that met it mid-write failed with `DirectoryNotEmpty` beside no entry at all,
+so the round that met it could not name the writer.
 A folder that has to be short,
 because a socket's path must fit one socket address,
 comes from `runtime_directory_folders.rs`'s `runtime_directory_parent`:

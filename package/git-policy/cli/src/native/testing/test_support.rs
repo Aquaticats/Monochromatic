@@ -264,10 +264,11 @@ pub(crate) fn age(path: &Path) {
 }
 
 /// Remove only the fixture directory a test created,
-/// giving this user back the permission on any directory of it that a test closed.
+/// giving this user back the permission on any directory of it that a test closed,
+/// waiting within a bound while it still gains entries,
+/// and saying what it still held when the wait ran out.
 pub(crate) fn remove(root: &Path) {
-    restore_owner_access(root);
-    std::fs::remove_dir_all(root).expect("remove only the fixture");
+    self::fixture_support_shared_by_both_test_targets::remove_the_fixture(root);
 }
 
 /// What:
