@@ -951,9 +951,10 @@ so a finding is never reported twice.
   which cost 14 to 16 times alpha.15's time on a package of 2,000 folders whose one group's own file uses all of them
   (measured on 2026-11-26 in interleaved rounds, on the run's own CPU time,
   because the host's wall time for one run swung from 27 to 547 seconds while its CPU time stayed near 27):
-  this release spends 0.07 to 0.16 of alpha.16's CPU time there (median 0.09, three rounds),
-  0.13 to 0.15 on the same shape with 1,000 folders and thirty uses each,
-  and 0.90 to 1.11 on the shape above with its loop open, where nothing is walked.
+  this release spends 0.07 of alpha.16's CPU time there in each of three rounds,
+  0.14 to 0.16 on the same shape with 1,000 folders and thirty uses each,
+  and 0.98 to 1.00 on the shape above with its loop open, where nothing is walked,
+  against 0.94 to 1.11 between two runs of one binary.
   Measured on 2026-11-26,
   one process per binary per round in its own capped scope,
   with only ratios a finding and every ratio taken between runs of one shape:
@@ -982,10 +983,10 @@ so a finding is never reported twice.
   and every binary's output on both packages is byte-identical.
   Both shapes were measured again between the alpha.16 and this release's binaries on 2026-11-26,
   and no difference beyond the host's own noise appeared:
-  0.88 to 1.52 times alpha.16's CPU time on the 250-group package,
-  against 1.00 to 1.23 between two runs of one binary,
-  and 0.85 to 1.85 on the three-layer package,
-  against 0.65 to 1.25 between two runs of one binary.
+  0.98 to 1.10 times alpha.16's CPU time on the 250-group package,
+  against 1.00 to 1.02 between two runs of one binary,
+  and 1.01 to 1.04 on the three-layer package,
+  where the walk costs both binaries the same 0.90 to 1.05 of the run with empty own files.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
   which uses a child folder of every group,
@@ -1322,10 +1323,11 @@ and is reported as tolerating nothing any more when no finding prints it.
 The uses and the keys of a list are indexed once when it is read,
 so a rule answers each finding from that index and never walks the entries again:
 on a package whose 62,750 keys a run prints back as the list,
-alpha.16 spent 2.7 to 3.0 times its own CPU time on that tree with an empty list,
-and this release 0.6 to 1.3 times over four rounds,
-ranges that do not overlap (measured on 2026-11-26; the list is read either way,
-and the empty arm's own spread is what fills the low end of the second range).
+alpha.16 spent 2.3 to 2.7 times its own CPU time on that tree with an empty list,
+and this release 0.8 to 1.0 times over four rounds,
+ranges that do not overlap (measured on 2026-11-26).
+The ratio sits below one because a run whose findings the list tolerates prints none of them,
+so once the scan is gone the listed run is the cheaper one.
 
 A rule reports the key of each finding it makes in `--debug`,
 as a note that reads `allow-list key: <key>`,
