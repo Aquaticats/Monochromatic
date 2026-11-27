@@ -16,17 +16,23 @@
 //! type SourceRefusal = { kind: 'configuration-unreadable' | 'name-refused' | 'no-mounted-checkout' | ... };
 //! ```
 
-use super::probe_configuration::{
-    CHECKOUT_KEY,
-    DATASET_KEY,
-    START_PROBE_KEY,
-};
 use super::probe_source_name::NameRefusal;
 use crate::zfs_mounted_dataset::mounted_dataset_refusal::MountedDatasetRefusal;
 use std::path::{
     Path,
     PathBuf,
 };
+
+/// The one object the project answered holds both names.
+pub const START_PROBE_KEY: &str = crate::handler_configuration_keys::START_PROBE_KEY;
+
+/// The key inside `startProbe` that names the probe dataset,
+/// beside the pool and dataset names the configuration pins.
+pub const DATASET_KEY: &str = crate::handler_configuration_keys::PROBE_DATASET_KEY;
+
+/// The key inside `startProbe` that names the checkout the walk opens
+/// read-only.
+pub const CHECKOUT_KEY: &str = crate::handler_configuration_keys::PROBE_CHECKOUT_KEY;
 
 /// What:
 ///  Why the source name could not be told,

@@ -26,11 +26,20 @@
 //!   names and paths.
 //! - `transaction_git_step_rerun_and_end_rules.rs`:
 //!   which Git steps may be run again after a refused process and which may be ended at a ceiling.
+//! - `transaction_step_durations.rs`:
+//!   the Git steps a command ran,
+//!   each with its name,
+//!   start and duration,
+//!   for the timing records.
+//! - `transaction_git_step_bounds.rs`:
+//!   how long a Git step is waited for and what happens at the bound.
+//! - `transaction_git_step_about_to_start.rs`:
+//!   one Git step of a transaction at the moment before it starts,
+//!   the child command and input file it is started from,
+//!   and what the wrapper answers once it ended.
 //! - `transaction_git.rs`:
 //!   running real Git for transaction,
 //!   recovery and landing work.
-//! - `transaction_git_step_bounds.rs`:
-//!   how long a Git step is waited for and what happens at the bound.
 //! - `transaction_journal.rs`:
 //!   the schema-version-2 journal records of one commit transaction and their filenames.
 //! - `transaction_owner.rs`:
@@ -38,14 +47,6 @@
 //! - `transaction_phase.rs`:
 //!   test-only transaction phase markers,
 //!   compiled into the release executable and armed only by an environment variable.
-//! - `transaction_step_durations.rs`:
-//!   the Git steps a command ran,
-//!   each with its name,
-//!   start and duration,
-//!   for the timing records.
-//! - `transaction_git_step_about_to_start.rs`:
-//!   one Git step of a transaction at the moment before it starts,
-//!   and what the wrapper answers once it ended.
 //! - `transaction_git_awaiting.rs`:
 //!   running real Git for a caller that is itself a task of the runtime.
 //!

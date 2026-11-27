@@ -5,6 +5,7 @@
  */
 
 import type { ModelErrorKind, } from './retries-of-a-model-error.ts';
+import type { StartThatEndedWithoutARun, } from './a-start-that-ended-without-a-run.ts';
 
 /**
  One JSON object of Pi's RPC protocol, in either direction.
@@ -217,6 +218,12 @@ export type PiStartFailure = {
  What `summary.json` holds.
  */
 export type RunSummary = {
+  /**
+   What a start that ended without a run has to say: the waits that ended it, the bound each is given, how long each had waited,
+   and what to do next. It is here only for a run that never took a prompt, so a reader of a summary never has to infer from the
+   end reason which ask or which exit ended the start.
+   */
+  readonly startThatEndedWithoutARun?: StartThatEndedWithoutARun;
   readonly endReason: EndReason;
 
   /**
@@ -396,6 +403,12 @@ export type RunEnding = {
    value is.
    */
   readonly sessionAtRest?: string;
+
+  /**
+   What a start that ended without a run has to say, when this run's end is one: the waits, their bounds, how long they had waited,
+   and what to do next.
+   */
+  readonly startThatEndedWithoutARun?: StartThatEndedWithoutARun;
 };
 
 /**

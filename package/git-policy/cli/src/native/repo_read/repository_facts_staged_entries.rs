@@ -27,7 +27,7 @@ use crate::git_metadata::{
 };
 /// The provider whose Git,
 ///  global options and environment answer the two listings.
-use crate::repository_facts::GitFacts;
+use crate::repository_facts_git_provider::GitFacts;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 

@@ -295,6 +295,10 @@ mod status_tests;
 #[cfg(test)]
 mod fakes;
 
+/// The one writer of the program files the unit tests start.
+#[cfg(test)]
+mod fixture_programs;
+
 /// The unit tests of the plan reader.
 #[cfg(test)]
 mod plan_tests;

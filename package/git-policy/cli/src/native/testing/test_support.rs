@@ -322,6 +322,7 @@ pub(crate) mod fixture_git_commands;
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) use fixture_git_commands::{
     FIXTURE_GIT_BOUND,
+    PIPE_GRACE,
     QueryAnswer,
     QueryEnding,
     git,

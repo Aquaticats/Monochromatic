@@ -11,8 +11,6 @@
 //! // auditLine(record) === '{"schemaVersion":1,"time":"...","level":"info",...}\n'
 //! ```
 
-/// The outcome word an audit record carries.
-use crate::discard_audit::AuditOutcome;
 /// The release and the quoting helpers every field uses.
 use crate::discard_audit_facts::{
     AuditFact,
@@ -106,6 +104,63 @@ impl From<GuardedCommand> for DecidedForm {
 impl From<AuditedCommand> for DecidedForm {
     fn from(command: AuditedCommand) -> Self {
         return DecidedForm::Audited(command);
+    }
+}
+
+/// What:
+///  What the policy decided for a guarded form.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///   A rejection,
+/// a run in a clean worktree and a run under the hatch are the three things a later reader asks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AuditOutcome = 'rejected' | 'allowed' | 'exempt' | 'hatch';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuditOutcome {
+    /// The wrapper refused the command.
+    Rejected,
+    /// The worktree was clean,
+    /// the form only reads,
+    /// or the only changes are those of the operation a discarded command undoes,
+    /// so the command ran.
+    Allowed,
+    /// The repository lies under an allowlisted tool cache.
+    Exempt,
+    /// The person or agent passed `--no-enforce-worktree`.
+    Hatch,
+    /// The command took one side of conflicted files after a release before 0.6.1-alpha.14 had copied each file.
+    /// No command writes this word now,
+    /// and a repository an earlier release ran still holds the lines:
+    ///  `discard_audit_pins.rs` keeps a generation whose copy is still on disk.
+    SavedConflict,
+    /// The command would have deleted a nested Git repository,
+    ///  and the wrapper moved it whole beside the audit log first.
+    SavedNestedRepository,
+
+    /// The form is recorded and was never refused:
+    ///  it runs as Git runs it,
+    ///  by the owner's decision,
+    ///  and this
+    ///       line says what it took.
+    Logged,
+}
+
+impl AuditOutcome {
+    /// The word written to the record.
+    pub fn word(self) -> &'static str {
+        match self {
+            AuditOutcome::Rejected => return "rejected",
+            AuditOutcome::Allowed => return "allowed",
+            AuditOutcome::Exempt => return "exempt",
+            AuditOutcome::Hatch => return "hatch",
+            AuditOutcome::SavedConflict => return "saved-conflict",
+            AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
+
+            AuditOutcome::Logged => return "logged",
+        }
     }
 }
 

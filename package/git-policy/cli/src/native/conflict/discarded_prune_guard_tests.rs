@@ -3,6 +3,7 @@
 //! a link where the folder
 //!  should be,
 //! a directory replaced between the listing and the removal,
+//! a directory that gained a file without its change time moving,
 //! a second pass,
 //! names that are no date,
 //! the edge of
@@ -27,6 +28,7 @@
 
 use super::{
     Limits,
+    Listing,
     ProblemKind,
     Reason,
     Stamped,
@@ -43,9 +45,18 @@ use crate::command_test_support::{
     fixture,
     remove,
 };
-use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::discard_audit::AUDIT_FILE;
+/// The removal one directory of a pass goes through,
+/// which the control of a directory whose change time did not move calls directly.
+use crate::discarded_prune_removal::{
+    Removal,
+    remove_entry,
+};
+/// The folder of saved copies,
+/// opened once without following a link.
+use crate::discarded_store::Store;
 use crate::iso_time::format_iso_milliseconds;
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
@@ -426,10 +437,11 @@ fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
 /// with the new
 /// file,
 /// and the pass says why.
-/// (Its change time moves when a file is added,
-/// as when another pass removes files,
-/// so the
-/// pass compares what the directory holds now with what it held when listed.)
+/// (A change time that moved says nothing by itself:
+/// another pass removing files moves it,
+/// and a file added inside the tick the listing's stamp came from leaves it where it was on a file system whose
+/// times advance in one-millisecond steps,
+/// so the pass compares what the directory holds now with what it held when listed.)
 #[test]
 fn a_file_added_after_the_listing_keeps_the_directory() {
     let root: PathBuf = fixture("prune-file-added");
@@ -445,6 +457,100 @@ fn a_file_added_after_the_listing_keeps_the_directory() {
             std::fs::write(chosen.join("added.txt"), "written after the listing")
                 .expect("a new file");
         },
+    );
+    assert_eq!(
+        std::fs::read_to_string(chosen.join("added.txt")).expect("kept"),
+        "written after the listing"
+    );
+    assert!(
+        chosen.join("old.txt").exists(),
+        "nothing of the directory was removed"
+    );
+    assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
+    assert_eq!(
+        outcome
+            .problems
+            .iter()
+            .map(|problem| {
+                return problem.kind;
+            })
+            .collect::<Vec<_>>(),
+        vec![ProblemKind::EntryChanged]
+    );
+    assert!(audit_records(common.as_path()).is_empty());
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory that gained a file while its change time stayed exactly where the listing's stamp left it
+/// is not the directory the pass judged:
+///  it stays with the file,
+///  and the pass says why.
+/// Why:
+///   The pass must never lean on the change time for this:
+/// a file system whose times advance in one-millisecond steps
+///  leaves that time where it was when a file lands inside the tick the listing's stamp came from
+///  (`doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`).
+/// This control hands the removal the identity the
+///  directory has now,
+/// change time included,
+/// and a listing that does not name the file,
+///  so its verdict cannot come from a clock moving between two reads (issue 6544;
+/// `a_file_added_after_the_listing_keeps_the_directory` races the tick instead).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listing = await listStamped(common);          // the directory's identity as it is now
+/// listing.listedFiles[name].delete('added.txt');      // the listing never saw the file
+/// await removeEntry(context, listing.entries[0], path, 'age', outcome);
+/// expect(await readFile(join(chosen, 'added.txt'), 'utf8')).toBe('written after the listing');
+/// ```
+#[test]
+fn a_directory_whose_change_time_did_not_move_is_judged_by_what_it_holds() {
+    let root: PathBuf = fixture("prune-same-tick-add");
+    let common: PathBuf = root.join("repo.git");
+    let saved_root: PathBuf = saved_root_of(common.as_path());
+    let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
+    std::fs::write(chosen.join("added.txt"), "written after the listing").expect("a new file");
+    // The folder as the pass knows it once the step has written:
+    // the directory's own identity, taken now, and a listing that never named the file.
+    let mut listing: Listing = list_stamped(common.as_path());
+    let name: String = chosen
+        .file_name()
+        .expect("the directory has a name")
+        .to_string_lossy()
+        .into_owned();
+    let listed: &mut std::collections::HashSet<String> = listing
+        .listed_files
+        .get_mut(&name)
+        .expect("the listing holds the directory");
+    assert!(listed.remove("added.txt"), "the listing named the file");
+    let entry: &Stamped = listing
+        .entries
+        .iter()
+        .find(|each| {
+            return each.name == name;
+        })
+        .expect("the listing holds the entry");
+    let store: Store = Store::open(common.as_path(), SAVED_DIRECTORY)
+        .expect("the folder opens")
+        .expect("the folder is there");
+    let audit_path: PathBuf = common.join(AUDIT_FILE);
+    let mut context: Removal = Removal {
+        store: &store,
+        audit_path: audit_path.as_path(),
+        limits: age_only(),
+        folder_bytes: entry.bytes,
+        now_millis: NOW,
+        listed_files: &listing.listed_files,
+    };
+    let mut outcome: super::PruneOutcome = super::PruneOutcome::default();
+    remove_entry(
+        &mut context,
+        entry,
+        chosen.clone(),
+        Reason::Age,
+        &mut outcome,
     );
     assert_eq!(
         std::fs::read_to_string(chosen.join("added.txt")).expect("kept"),
