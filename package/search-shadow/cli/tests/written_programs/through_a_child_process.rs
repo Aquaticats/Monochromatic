@@ -9,7 +9,8 @@
 //! so a program file this process holds open for writing is inherited by that child
 //! and stays open in it until the child reaches its own start,
 //! and `execve` refuses a file that any process holds open for writing:
-//! `Text file busy` (issue 6527, measured 2026-11-27).
+//! `Text file busy` (issue 6527,
+//! measured 2026-11-27).
 //! A file only ever opened for writing by `tee` or `cp` cannot be inherited by another
 //! thread's child.
 //! The file lives in a folder of its own because several test binaries include it and it
@@ -25,7 +26,8 @@
 
 /// Imports the writer that hands a program's bytes to a child through a pipe.
 use std::io::Write;
-/// Imports the trait that adds `from_mode` to permissions, which marks a program
+/// Imports the trait that adds `from_mode` to permissions,
+/// which marks a program
 /// executable without opening it.
 use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type both writers take.
@@ -42,11 +44,14 @@ use std::process::{
 };
 
 /// What:
-///     `fn write_program(path, content)` creates the file at `path`, writes `content` into
+///     `fn write_program(path, content)` creates the file at `path`,
+/// writes `content` into
 ///     it and marks it executable,
 ///     and the writing is done by a child `tee` process.
 /// Why:
-///     The descriptor that writes the program belongs to `tee`, not to this process, so no
+///     The descriptor that writes the program belongs to `tee`,
+/// not to this process,
+/// so no
 ///     child another thread forks can inherit it.
 ///
 /// In TS you'd write (pseudocode):
@@ -89,7 +94,8 @@ pub fn write_program(
 ///     executable,
 ///     and the copy is made by a child `cp` process.
 /// Why:
-///     A copy this process made would be open for writing here, with the window
+///     A copy this process made would be open for writing here,
+/// with the window
 ///     `write_program` describes,
 ///     and the tests copy a built binary that they then start.
 ///
@@ -128,7 +134,8 @@ pub fn copy_program(
 /// What:
 ///     `fn mark_executable(path)` sets the file's mode to `0o755`.
 /// Why:
-///     `chmod` names the file by path and never opens it, so it cannot leave a write
+///     `chmod` names the file by path and never opens it,
+/// so it cannot leave a write
 ///     descriptor behind.
 ///
 /// In TS you'd write (pseudocode):

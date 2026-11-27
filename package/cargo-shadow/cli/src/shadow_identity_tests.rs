@@ -54,7 +54,8 @@ fn test_program() -> PathBuf {
 /// The writing belongs to a child `tee` process:
 /// a descriptor this process held on the program would be inherited by a child another
 /// thread forked while it was open,
-/// and `execve` refuses a file open for writing anywhere (`ETXTBSY`, issue 6527).
+/// and `execve` refuses a file open for writing anywhere (`ETXTBSY`,
+/// issue 6527).
 fn write_a_program(
     path: &Path,
     content: &[u8],

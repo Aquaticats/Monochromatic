@@ -2,7 +2,8 @@
 
 `package/mpm-shadow/cli` and `package/search-shadow/cli` run most of their tests as threads of one process
 under `cargo test`,
-while their own tasks (`mise run //package/mpm-shadow/cli:test`, `mise run //package/search-shadow/cli:test`)
+while their own tasks (`mise run //package/mpm-shadow/cli:test`,
+`mise run //package/search-shadow/cli:test`)
 run `cargo nextest run --release`,
 which starts one process per test.
 A test that writes a program file and then starts it can meet
@@ -35,9 +36,12 @@ and a `fork` copies the whole descriptor table of the process that forks.
 So a descriptor this process opened for writing on a program
 is inherited by every child another thread forks while it is open,
 and that child keeps it until its own start closes the close-on-exec descriptors.
-That child, not the test, is the holder the refusal names.
+That child,
+not the test,
+is the holder the refusal names.
 
-Measured on 2026-11-27, three probes (`keep/` holds each one and the lines it printed):
+Measured on 2026-11-27,
+three probes (`keep/` holds each one and the lines it printed):
 
 - Arms of one program,
   each writing a program and then starting it (`probe-etxtbsy-arms.c`):
@@ -50,7 +54,9 @@ Measured on 2026-11-27, three probes (`keep/` holds each one and the lines it pr
   arm 3 (nothing holds it): start succeeded
   ```
 
-  Arm 1 is the shape the tests meet: the parent only forked, and the child held the descriptor.
+  Arm 1 is the shape the tests meet:
+  the parent only forked,
+  and the child held the descriptor.
 - A threaded program (`probe-etxtbsy-across-threads.c`) whose main thread opens a program for writing
   while a second thread starts `/bin/true` through the same `posix_spawn` a Rust `Command` uses,
   and whose next child starts the program just after the close:
@@ -60,7 +66,8 @@ Measured on 2026-11-27, three probes (`keep/` holds each one and the lines it pr
   attempts=20 started=19 refused-with-ETXTBSY=1
   ```
 
-  Two runs of it, so one attempt in five and one in twenty were refused:
+  Two runs of it,
+  so one attempt in five and one in twenty were refused:
   a threaded run meets this rarely,
   which is why the issue saw a different test fail once in a while.
 
@@ -90,7 +97,8 @@ and both are recorded because neither does:
 
 A scan of every process's descriptors at the end of a 100 ms window found only the test process's own
 descriptor,
-for the same reason issue 6517 gives: the holder lives from a child's fork to its start.
+for the same reason issue 6517 gives:
+the holder lives from a child's fork to its start.
 
 ## Verified fix
 
@@ -99,10 +107,12 @@ so no descriptor of the test process ever refers to that program:
 
 - `package/mpm-shadow/cli/src/toolchain/fixture_programs.rs` writes through a child `tee`
   and copies through a child `cp --reflink=never`,
-  and the unit tests reach it through `fakes::write_executable`, `launcher_tests`' fixtures and
+  and the unit tests reach it through `fakes::write_executable`,
+  `launcher_tests`' fixtures and
   `repository_link_cause_tests`' check program.
 - `package/mpm-shadow/cli/tests/written_programs/through_a_child_process.rs` is the same two functions
-  for the binary tests, included by each test binary.
+  for the binary tests,
+  included by each test binary.
 - `package/search-shadow/cli/tests/written_programs/through_a_child_process.rs` is the same for that crate.
 - `src/shadow_identity_tests.rs` carries its own copy,
   because the four shadow crates keep that file byte-identical.
@@ -110,7 +120,8 @@ so no descriptor of the test process ever refers to that program:
 The measurement that shows each change is a preloaded library
 (`keep/a-planted-window-on-close-for-a-written-program.c`) that plants the holder the real failure needs:
 when a threaded process is about to close a descriptor open for writing on a file that starts with `#!` or
-the ELF magic, it forks a child that holds everything it inherits for 300 ms and then leaves.
+the ELF magic,
+it forks a child that holds everything it inherits for 300 ms and then leaves.
 The test process holds no such descriptor after the change,
 so nothing is planted and the same runs pass.
 Each binary was run once with default threads before and once after,
@@ -135,12 +146,14 @@ raised where the test starts the program.
 
 `tests/copied_checkout_record.rs` (1 test),
 `tests/toolchain.rs` (24 tests) and `tests/shadow_identity_copies.rs` wrote no program they start and
-passed in the shape before the change, so nothing in them changed.
+passed in the shape before the change,
+so nothing in them changed.
 
 ## What a future test of either crate must do
 
 A test that starts a program it wrote goes through `fixture_programs::write_program`,
-`fixture_programs::copy_program`, or the `tests/written_programs/through_a_child_process.rs` copy of them.
+`fixture_programs::copy_program`,
+or the `tests/written_programs/through_a_child_process.rs` copy of them.
 A new test binary includes that file with
 
 ```rust
@@ -149,15 +162,22 @@ A new test binary includes that file with
 mod through_a_child_process;
 ```
 
-The other shape issue 6517 uses, running the whole body in a child of its own
+The other shape issue 6517 uses,
+running the whole body in a child of its own
 (`run_the_body_in_a_child_of_its_own` in `package/git-policy/cli`),
-was not needed here: none of these fixtures depends on sharing a process with the test.
+was not needed here:
+none of these fixtures depends on sharing a process with the test.
 
 ## What this record rests on
 
-- The mechanism: the three probes above, run on this host.
-- The exposure of each test: the planted-holder run of each test binary, before and after.
-- The green runs: the same shape on the changed tree.
+- The mechanism:
+  the three probes above,
+  run on this host.
+- The exposure of each test:
+  the planted-holder run of each test binary,
+  before and after.
+- The green runs:
+  the same shape on the changed tree.
 
 This record is unapproved and non-final.
 What was done is recorded here and in the commits;

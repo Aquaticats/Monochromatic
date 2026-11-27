@@ -505,7 +505,8 @@ impl Rig {
 
 /// Writes a small executable file,
 /// creating its directory.
-/// The write belongs to a child process: `fixture_programs` says why.
+/// The write belongs to a child process:
+/// `fixture_programs` says why.
 pub(crate) fn write_executable(path: &std::path::Path) {
     super::fixture_programs::write_program(path, b"#!/bin/sh\n");
 }
