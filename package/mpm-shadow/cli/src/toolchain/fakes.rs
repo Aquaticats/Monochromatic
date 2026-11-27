@@ -505,13 +505,8 @@ impl Rig {
 
 /// Writes a small executable file,
 /// creating its directory.
+/// The write belongs to a child process:
+/// `fixture_programs` says why.
 pub(crate) fn write_executable(path: &std::path::Path) {
-    std::fs::create_dir_all(path.parent().expect("a parent")).expect("make the directory");
-    std::fs::write(path, "#!/bin/sh\n").expect("write");
-    #[cfg(unix)]
-    {
-        /// Imports `PermissionsExt` from `std::os::unix::fs`.
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
-    }
+    super::fixture_programs::write_program(path, b"#!/bin/sh\n");
 }
