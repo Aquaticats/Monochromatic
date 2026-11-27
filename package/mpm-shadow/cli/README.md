@@ -1049,7 +1049,8 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   not only the ones this repository publishes,
   is unpacked into a hidden staging directory,
   marked complete,
-  and renamed to the version's name (see "Repository-published tools keep only the newest version");
+  and given the version's name in one exchange where the file system can do that,
+  or in two renames where it cannot (see "Repository-published tools keep only the newest version");
   only a release archive of this repository is also checked for its first program,
   and only for it does the marker decide whether a version counts as installed.
 - `bin-sourced` tools go through the `bin` CLI.
@@ -1192,10 +1193,10 @@ whichever route installed them.
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
 - An archive is unpacked into a hidden staging directory beside the version directory
-  (`.<version>.staging.<process id>`),
+  (`.<version>.staging.<process id>.<process start time>`),
   the first bin of a release archive is looked for in it,
   the marker is written last,
-  and only then is the staging directory renamed to the version's name.
+  and only then is the version's name given the finished copy.
   `tar` creates a file with its final mode before it writes the content,
   so without this a truncated archive would leave an executable of the right name and the wrong bytes
   at the version's name,
@@ -1206,8 +1207,19 @@ whichever route installed them.
   it is never the newest,
   so it never causes a deletion or moves `current`,
   and the next install of that version replaces it.
-  A run killed without cleanup leaves its staging directory behind;
-  nothing reads it and it can be deleted by hand.
+- Giving the version's name the finished copy is one step where the file system can exchange two names
+  (`renameat2` with `RENAME_EXCHANGE`):
+  the staged copy and the copy at the version's name change places in that call,
+  so no reader ever finds the name absent,
+  and the copy that was there is removed under the hidden name afterwards.
+  Where the file system cannot exchange them
+  (the kernel answers `EINVAL` or `EOPNOTSUPP` for a flag the file system does not support,
+  `EPERM` or `EACCES` for a rename of the type it does not allow,
+  and `ENOSYS` on a kernel without the call),
+  the copy that is there is moved aside first
+  (`.<version>.replaced.<process id>.<process start time>`)
+  and the finished one renamed in after it,
+  which leaves one instant in which the version's name holds nothing.
 - A release archive of this repository gets one link per declared program before the marker is written:
   `<version directory>/<program name>`,
   pointing at the program inside the folder the archive unpacked into
@@ -1259,6 +1271,80 @@ whichever route installed them.
   `outdated` and `bin` print the same line on standard error
   (`bin` writes JSON on standard output);
   the shim path (`mpm`) resolves no tool versions and prints none.
+
+### What a kill leaves and what the next install does about it
+
+A process killed at any instruction is normal on this host,
+so each step of an archive install either leaves nothing that a start reads
+or leaves what a later install finishes.
+The three hidden names carry the installer that made them,
+its process id and the moment that process started,
+which no reuse of a process id repeats within one boot.
+
+- During the download:
+  the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
+  which the next download of that version writes over,
+  and no hidden directory.
+- During the unpacking,
+  before the marker:
+  `.staging` holds an unfinished copy.
+  The next install of that tool removes it and unpacks the archive again.
+- After the marker and before the version's name is given the copy:
+  `.staging` holds a finished copy,
+  and the next install of that version publishes it,
+  downloading nothing.
+- Between the two renames a file system without the exchange needs:
+  the version's name holds nothing,
+  `.replaced` holds the copy that was there,
+  and `.staging` holds the finished copy.
+  The next install of that version publishes the finished copy,
+  downloading nothing;
+  when that copy is gone,
+  it puts the `.replaced` one back instead.
+- During a recovery,
+  after a dead install's finished copy was claimed:
+  `.recovered` holds it,
+  and the next install of that version publishes it,
+  downloading nothing.
+- After the rename and before the `.replaced` name is removed:
+  the version is finished,
+  and `.replaced` holds the unfinished copy it replaced,
+  which the next install of that tool removes.
+
+The finished copy is what a later install publishes rather than the copy that was there,
+because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
+while the copy at the version's name was unfinished,
+which is why it was being replaced at all.
+
+A dead install's copy is claimed before anything is published from it:
+one rename to a `.recovered` name of this process's own,
+so two installs recovering the same copy cannot both take it,
+and the one that loses finds the name gone and publishes nothing.
+Without the claim both would replace the copy at the version's name in turn,
+and the second would leave the unfinished copy there and delete the finished one.
+
+A hidden directory is removed only when the installer that made it is known to have ended,
+and that question is answered by the pair in its name:
+the system reports a process's start time,
+and a process id handed out again belongs to a process that started at another moment,
+so a reused number is never read as the installer.
+The answer has three values and only one of them allows a removal:
+running,
+ended,
+and the system did not say.
+A record that cannot be read is the third,
+because an unreadable record is not a dead process.
+A hidden directory whose name carries no start time was written by an earlier release,
+so it cannot be judged and is left where it is.
+Nothing is read of that other process except its own `/proc/<pid>/stat` record.
+The pair is read in this process's own process namespace and from this boot,
+so two installs in two namespaces that share one toolchain root are not told apart,
+and a directory whose installer it cannot judge is left alone.
+A finished copy under another version's name may be the only copy of that version,
+so it is left for that version's own install to publish.
+
+`install` prints one line for each version it finished this way,
+for example `toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed the 2 hidden directories killed installs left behind`.
 
 ### One set across both toolchain roots
 
@@ -2039,7 +2125,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   which the record's threaded arm refused in 5 to 12 of 20 starts
   and in none of 20 with the forking thread off.
   A start that meets one of those renames instead of a write finds the program absent,
-  which the archive install and `uv` both show,
+  which `uv` shows,
+  and which the archive install showed before it replaced a version in one exchange
+  (see "What a kill leaves and what the next install does about it"),
   and that is reported as a program that is not there:
   one cause and one remedy,
   whichever step found nothing:

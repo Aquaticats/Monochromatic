@@ -41,7 +41,7 @@ use super::service_message_the_text_steps::{
     strip_comment_lines,
     with_final_line_break,
 };
-pub use super::service_message_what_a_commit_says::{
+use super::service_message_what_a_commit_says::{
     reused_commit,
     reused_commit_awaiting,
     subject_of,

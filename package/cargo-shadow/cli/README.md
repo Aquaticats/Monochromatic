@@ -836,21 +836,45 @@ and an HTTP 429 is retried after its `Retry-After`.
   and every failure on
   this path after the program started is "not quiescent".
   After a last read of the scope's `populated` line shows no member,
-  the run asks the manager to stop the unit it started
-  (`systemctl --user --no-ask-password stop <name>.scope`,
-  `src/control_group_retire.rs`),
+  the run ends the unit it started
+  (`src/control_group_retire.rs`),
   on every path that ends a run,
   because a scope whose process was already exiting when the manager wrote its id into the scope's
   `cgroup.procs` never becomes populated,
   so the kernel sends no empty notification and the unit would stay `active (running)` with no member
   (issue 6578;
   [the census, the reproduction and the count](../../../doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md)).
-  A unit the manager already collected is read as `not-found` and is not a refusal;
-  a stop it refuses for another reason is a warning that names the unit,
+  The last look at the scope is answered from the kernel,
+  and it is what keeps the ordinary run free:
+  a member keeps the unit,
+  and the run says so;
+  an absence counts only when `absence_is_verified` holds,
+  and a `populated` read that failed is reported;
+  and `pids.peak` says whether any process was ever counted in the group.
+  A group that held one changed its `populated` line,
+  which is the change the manager watches and ends the unit on,
+  so that run asks the manager nothing;
+  a group that is gone was collected,
+  and asks nothing either.
+  Only a group that never held a process is the leftover this step exists for,
+  and only that run asks the manager,
+  once:
+  `systemctl --user --no-ask-password stop <name>.scope`.
+  The answer is the manager's exit status,
+  and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
+  which is a collected unit and not a refusal,
+  so the second question the alpha.12 release asked (`show <name>.scope --property=LoadState --value`) is gone.
+  A stop the manager refuses for another reason is a warning that names the exact command that ran,
   because the run's own proof that no writer is left has already held.
-  A run whose scope still has a member keeps its unit,
-  so the member its refusal names stays inspectable and is not killed behind the report;
-  a stop that failed to read the scope while it was already empty still retires the unit.
+  The question keeps one bound (`RETIRE_BOUND`,
+  five seconds),
+  and a request the bound kills is given a measured grace to be reaped before the warning is built.
+  Measured 2026-11-27 on this host:
+  before this change a trivial shadow call asked four stop questions and up to one `LoadState` question,
+  one per scoped run;
+  after it,
+  none,
+  and the call's ratio to alpha.11's release binary is the control's own.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
@@ -1088,12 +1112,26 @@ and an HTTP 429 is retried after its `Retry-After`.
   from one that is alive,
   and from a leader that exited behind a live thread (which can still write).
   The listing has a bound of its own (`LISTING_BOUND`),
+  and it is looked at between reads,
+  at the top of each group and before each member of it,
   so a scope with many threads delays a refusal by that much and no
   more;
-  a listing that hit it,
-  or one that could not be read at all,
-  is said to have done so rather than read as a scope whose
-  members can write nothing.
+  a single read is not bounded by it:
+  `cgroup.procs`,
+  a group's directory,
+  `/proc/<pid>/task`
+  and one thread's `stat`
+  are blocking calls of the operating system with no bound of their own,
+  and the kept measurement beside the constant
+  (`control_group_stop::measure_tests::the_listing_of_a_scope_with_this_many_threads_takes`)
+  times a whole walk of such reads,
+  never one of them.
+  A listing that hit its bound,
+  one that could not be read at all,
+  and one that stopped at a group below the scope it could not read
+  are said to have done so,
+  and the members read before that are still named,
+  rather than read as a scope whose members can write nothing.
   A member that has exited is never what refuses a command:
   the `populated` line of a group's `cgroup.events` counts no process whose last thread has ended,
   and `cgroup.procs` does not list one (measured on this host 2026-11-27,
@@ -1673,12 +1711,38 @@ the trash sweep and the unit removal in `lean_removal`,
 the run-record sweep and its steps,
 and the rustup toolchain removal.
 
+The library's visible surface was counted by paths,
+not by members and signatures.
+`0.1.5-alpha.12`'s commits quote 663 paths at `0.1.5-alpha.10`,
+710 at `0.1.5-alpha.11`,
+and 663 again after the twenty split modules went `pub(crate)` (`c2bb0fd6e8`,
+`c361bd9212`),
+read over `pub` items and `pub use` leaves.
+That count says which paths a consumer can name.
+It does not see a member or a signature that changed while its path stayed,
+and between alpha.10 and alpha.12 these did,
+all of them with `0.1.5-alpha.11`'s seam of issue 6552:
+the field `SizeCap::count_bytes`,
+`writers_may_remain_reason` on `RunScope` and on `Transaction`,
+and a `count_bytes: ByteCount` parameter on `add_tree_bytes`,
+`delete_claimed`,
+`sweep_run_records`,
+and `tree_bytes`.
+`tests/shim.rs` is the only consumer in the repository,
+and it reads `cargo_run::CARGO_CALL_SECONDS` and three names from `journal`,
+none of which changed.
+
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
 its bound plus twice `QUIESCE_BOUND` (5 s).
 A stop that has to refuse then lists the members it found,
 inside the listing's own bound (`LISTING_BOUND` in
 `src/control_group_stop.rs`),
 so a refusal answers within its bound plus twice `QUIESCE_BOUND` and that listing bound.
+The end of a run adds the retirement's own bound only where the scope is the leftover of issue 6578:
+the manager is asked once there (`RETIRE_BOUND`,
+five seconds,
+in `src/control_group_retire.rs`),
+and the ordinary run asks nothing and waits for nothing.
 On this host under a load average near 100,
 two of them failed that window once (`the judged run ended after 15.294850135s, not at its bound of 1.6s` and
 `the call answered after 12.513946534s, not within its bound 10s`),
@@ -1774,6 +1838,21 @@ the control prints `cargo-shadow tests: not run [<name>]: ...` and a degraded ru
 Why it is not simply skipped is the same reason as above:
 a control that returns green without making the name proves nothing about the recovery it guards.
 The record is `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md` (issue 6550).
+
+The recycled time-namespace control (`round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`)
+needs a namespace number the kernel hands back:
+the writer's time namespace must be destroyed and the recovery's must be handed
+the number it had.
+It used to free that number and only then plant its journal and start its reader,
+which is the window in which another session on this host takes it (issue 6599).
+An armed reader now holds the writer's namespace by an open descriptor while the test ends its processes,
+and then gives the number back and takes the numbers the kernel hands it,
+holding each,
+until the writer's number is the one it is handed.
+`CARGO_SHADOW_ROUND_FOURTEEN_PLANT_FOREIGN_NAMESPACE=1` plants the allocation that other session makes,
+and the control must pass
+with it.
+The record is `doc/the-recycled-time-namespace-control-builds-its-own-schedule.md`.
 
 The tests run where this account has a user manager on a cgroup v2 mount:
 

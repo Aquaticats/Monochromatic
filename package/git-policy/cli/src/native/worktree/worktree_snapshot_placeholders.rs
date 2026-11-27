@@ -82,8 +82,8 @@ use std::path::{
     PathBuf,
 };
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeSnapshotPlaceholders";
+/// Import the tag this module's diagnostics carry.
+use crate::worktree::worktree_snapshot_placeholders_hand_over::TAG;
 
 /// What:
 ///  The folders the worktrees of this repository are made in:

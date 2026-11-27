@@ -36,7 +36,9 @@ use crate::service_server_queue_types_and_send::Queued;
 /// ```ts
 /// queued.map((q) => [q.id, scratchTreeOf(q) ?? drawnTreeOf(q)]).filter(Boolean)
 /// ```
-pub fn the_trees_a_group_names(queued_group: &[Queued]) -> Vec<(String, std::path::PathBuf)> {
+pub(super) fn the_trees_a_group_names(
+    queued_group: &[Queued]
+) -> Vec<(String, std::path::PathBuf)> {
     // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
     //  landing that reads it, and which the service removes once that landing is over.
     //  A request the service did not land keeps its tree in its client's hands instead (see `remove_the_trees`).
@@ -106,7 +108,7 @@ pub fn the_trees_a_group_names(queued_group: &[Queued]) -> Vec<(String, std::pat
 /// ```ts
 /// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
 /// ```
-pub fn remove_the_trees(
+pub(super) fn remove_the_trees(
     trees: &[(String, std::path::PathBuf)],
     handed_back: &std::collections::HashSet<String>,
 ) {
@@ -130,7 +132,7 @@ pub fn remove_the_trees(
 /// ```ts
 /// releasedTrees(trees, handedBack) // the trees no client still reads
 /// ```
-pub fn released_trees<'a>(
+pub(super) fn released_trees<'a>(
     trees: &'a [(String, std::path::PathBuf)],
     handed_back: &std::collections::HashSet<String>,
 ) -> Vec<&'a std::path::PathBuf> {

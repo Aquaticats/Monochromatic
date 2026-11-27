@@ -542,6 +542,7 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "monochromatic-jsonc-edit",
+ "rustix",
  "serde_json",
  "sha2",
  "tempfile",

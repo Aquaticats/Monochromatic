@@ -50,10 +50,12 @@ use crate::repo_read_layout::RepoLayout;
 use std::collections::BTreeMap;
 use std::io::Write;
 
-/// Tag used for the diagnostics of this part of the pass:
-/// the same words the rest of the second pass logs under,
-/// so one search finds every line about it.
-const TAG: &str = "wordMergeWorktree";
+/// The tag every line about this part of the second pass is tagged with.
+/// Why:
+///  The subject is one,
+/// so every file it was split into carries the same word,
+///  and a person's search of the log keeps finding all of it.
+pub(super) const TAG: &str = "wordMergeWorktree";
 /// What the awaited part of a forwarded pass came to.
 /// Why:
 ///   The files it installed and the paths it left are what the report names,
