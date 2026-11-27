@@ -83,6 +83,15 @@ pub(super) const BIN: &str = "mpm-shadow-release";
 /// The tag prefix that names this program's releases.
 pub(super) const PREFIX: &str = "monochromatic-mpm-shadow-v";
 
+/// A digest a test writes into a marker that no lock has to vouch for.
+pub(super) const A_TEST_SHA256: &str =
+    "0000000000000000000000000000000000000000000000000000000000000000";
+
+/// The SHA-256 the lock records for the release archive of `version`.
+pub(super) fn release_digest(version: &str) -> String {
+    return sha256_hex(&release_body(version));
+}
+
 /// Where a release of the tool is downloaded from.
 pub(super) fn release_url(version: &str) -> String {
     return format!(
@@ -260,6 +269,7 @@ pub(super) fn finish_archive(
             .join(version),
         ID,
         version,
+        A_TEST_SHA256,
     )
     .expect("write the marker");
     return program;
@@ -483,7 +493,8 @@ fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
 
     // The install of 0.2.0, in the folder a release archive of this repository unpacks into.
     write_executable(&tool_dir.join("0.2.0").join(folder("0.2.0")).join(BIN));
-    write_complete_marker(&tool_dir.join("0.2.0"), ID, "0.2.0").expect("write the marker");
+    write_complete_marker(&tool_dir.join("0.2.0"), ID, "0.2.0", A_TEST_SHA256)
+        .expect("write the marker");
     std::os::unix::fs::symlink("0.2.0", &link).expect("link current");
     let named = find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[]).expect("a program");
     assert_eq!(
@@ -494,7 +505,8 @@ fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
 
     // Installing 0.2.1 moves `current` and deletes the folder of 0.2.0; no other tree's record is rewritten.
     write_executable(&tool_dir.join("0.2.1").join(folder("0.2.1")).join(BIN));
-    write_complete_marker(&tool_dir.join("0.2.1"), ID, "0.2.1").expect("write the marker");
+    write_complete_marker(&tool_dir.join("0.2.1"), ID, "0.2.1", A_TEST_SHA256)
+        .expect("write the marker");
     fs::remove_file(&link).expect("replace current");
     std::os::unix::fs::symlink("0.2.1", &link).expect("link current");
     fs::remove_dir_all(tool_dir.join("0.2.0")).expect("remove the older version");
