@@ -107,6 +107,7 @@ use crate::real_binary::find_in_path;
 use crate::shadow_identity::{
     ARRIVAL_EXIT_CODE,
     StartMode,
+    VetRefusal,
     Vetted,
     arrival_at_this_process,
     arrival_line,
@@ -121,9 +122,11 @@ use crate::shadow_notice::{
     top_level_request,
     version_line,
 };
-/// Imports the messages for a start that did not happen.
+/// Imports the messages for a start that did not happen,
+/// and the two reasons one does not happen.
 use crate::start_failure::{
     StartFailure,
+    StartRefusal,
     command_line,
     describe_nesting_refusal,
     describe_start_failure,
@@ -187,10 +190,10 @@ pub fn run_program(
             ..
         } => Ok(code),
         ProgramRun::NotStarted {
-            error,
+            refusal,
             ..
-        }
-        | ProgramRun::WaitFailed {
+        } => Err(refusal.into_error()),
+        ProgramRun::WaitFailed {
             error,
         } => Err(error),
     };
@@ -209,7 +212,7 @@ pub fn run_program(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ProgramRun = { kind: 'finished'; code: number; retry: RetryReport } | { kind: 'not-started'; error: Error; retry: RetryReport } | { kind: 'wait-failed'; error: Error };
+/// type ProgramRun = { kind: 'finished'; code: number; retry: RetryReport } | { kind: 'not-started'; refusal: StartRefusal; retry: RetryReport } | { kind: 'wait-failed'; error: Error };
 /// ```
 #[derive(Debug)]
 pub enum ProgramRun {
@@ -223,7 +226,7 @@ pub enum ProgramRun {
     /// The program could not be started.
     NotStarted {
         /// Why.
-        error: std::io::Error,
+        refusal: StartRefusal,
         /// What the retrying of the start did before giving up.
         retry: RetryReport,
     },
@@ -278,9 +281,29 @@ pub fn start_and_wait(
     // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
     let vetted: Vetted = match vet(program) {
         Ok(checked) => checked,
-        Err(reason) => {
+        // What:     The system's own error is handed on with its kind, so the message is chosen by what happened.
+        // Why:      A program that is no longer there has to reach the missing-program arm: wrapped in a
+        //           text it reached the catch-all, which told the reader to run the missing program by hand.
+        Err(VetRefusal::NotOpened {
+            error,
+        }) => {
             return ProgramRun::NotStarted {
-                error: std::io::Error::other(reason),
+                refusal: StartRefusal::System {
+                    error,
+                },
+                retry: RetryReport::default(),
+            };
+        }
+        // What:     A shadow (or a launcher that leads to one) found at the moment of the start.
+        // Why:      Starting it would start a shadow, so the start is reported as refused, and the
+        //           refusal keeps its own reason: the message for it is not the one for a program fault.
+        Err(VetRefusal::LeadsToShadow {
+            sentence,
+        }) => {
+            return ProgramRun::NotStarted {
+                refusal: StartRefusal::Shadow {
+                    sentence,
+                },
                 retry: RetryReport::default(),
             };
         }
@@ -295,7 +318,9 @@ pub fn start_and_wait(
         Ok(child) => child,
         Err(error) => {
             return ProgramRun::NotStarted {
-                error,
+                refusal: StartRefusal::System {
+                    error,
+                },
                 retry,
             };
         }
@@ -449,7 +474,14 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     let program: PathBuf = match find_in_path(SHADOWED_NAME, &path_variable, &own_path) {
         Some(found) => found,
         None => {
-            eprintln!("mpm-shadow: no real {SHADOWED_NAME} found on PATH");
+            // What:     The cause names every way the lookup can find nothing, and the next line names the remedy.
+            // Why:      A person who sees only one line and no remedy has to guess whether mpm is missing or out of order on PATH.
+            eprintln!(
+                "mpm-shadow: no real {SHADOWED_NAME} found on PATH: {SHADOWED_NAME} is not installed, every `{SHADOWED_NAME}` on PATH is this shadow or a launcher of one, or an install had moved the real `{SHADOWED_NAME}` aside at the moment of the lookup"
+            );
+            eprintln!(
+                "mpm-shadow: what to do: install the real `{SHADOWED_NAME}` (this shadow starts it and never provides it), or put its directory on PATH after this shadow's, then run the command again"
+            );
             return NOT_FOUND_EXIT_CODE;
         }
     };
@@ -474,13 +506,13 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             return code;
         }
         ProgramRun::NotStarted {
-            error,
+            refusal,
             retry,
         } => {
             let failure = StartFailure {
                 outer: &arguments,
                 program: &program,
-                error: &error,
+                refusal: &refusal,
                 retry,
                 depth,
             };

@@ -41,8 +41,8 @@ use crate::entries_of_one_open_folder::open_folder;
 use std::path::Path;
 use std::path::PathBuf;
 
-/// Module tag for diagnostics.
-const TAG: &str = "slotIdentityStore";
+/// Import the tag this module's diagnostics carry.
+use crate::worktree_clone_mount::slot_identity_store_reading::TAG;
 
 /// Where the route keeps the identities it recorded,
 /// under root control:

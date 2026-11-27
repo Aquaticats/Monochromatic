@@ -6,7 +6,10 @@
 //! and the host budget bounds the overlap.
 
 use super::*;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::{
+    HostResources,
+    TheHostOfABatch,
+};
 use crate::parallel_test_support::{
     PATIENCE,
     Rendezvous,
@@ -198,7 +201,7 @@ impl WorkHandlers for Handlers {
 /// Drain `repositories` on `host` with `handlers` and return the retry list.
 fn round(
     repositories: &[Repository],
-    host: &HostResources,
+    host: HostResources,
     handlers: Arc<Handlers>,
 ) -> Vec<(PathBuf, Duration)> {
     let directories: Vec<Assignment> = repositories
@@ -211,7 +214,7 @@ fn round(
         directories: directories.as_slice(),
         handlers,
         now: &ClaimTime::read(),
-        host,
+        host: TheHostOfABatch::Stated(host),
     })
     .waits;
 }
@@ -281,7 +284,7 @@ fn repositories_are_drained_side_by_side() {
             directories: assignments.as_slice(),
             handlers: shared,
             now: &ClaimTime::read(),
-            host: &LARGE_HOST,
+            host: TheHostOfABatch::Stated(LARGE_HOST),
         });
     });
     assert!(
@@ -336,7 +339,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
         began: Arc::new(Mutex::new(Vec::new())),
         gate: None,
     };
-    round(made.as_slice(), &host, Arc::new(handlers));
+    round(made.as_slice(), host, Arc::new(handlers));
     assert_eq!(busiest.load(Ordering::SeqCst), allowed);
     remove(root.as_path());
 }
@@ -392,7 +395,7 @@ fn the_retry_list_keeps_the_order_the_directories_were_named() {
         began: Arc::new(Mutex::new(Vec::new())),
         gate: None,
     };
-    let retries = round(made.as_slice(), &LARGE_HOST, Arc::new(handlers));
+    let retries = round(made.as_slice(), LARGE_HOST, Arc::new(handlers));
     let named: Vec<&PathBuf> = retries
         .iter()
         .map(|(directory, _wait)| {
@@ -467,7 +470,7 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
         directories: directories.as_slice(),
         handlers: Arc::new(handlers),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: TheHostOfABatch::Stated(LARGE_HOST),
     });
     assert_eq!(
         began.lock().expect("pushes").len(),
@@ -688,7 +691,7 @@ fn drain_one_after_another(
                 handlers,
                 now,
                 assignment,
-                &HostResources::read(),
+                TheHostOfABatch::TheMachinesOwn,
             ));
         if let Some(lease_wait) = wait {
             answer
@@ -730,7 +733,7 @@ fn the_answer_of_a_round_is_the_one_a_drain_of_one_directory_after_another_gives
         directories: assignments.as_slice(),
         handlers: Arc::new(round_handlers),
         now: &now,
-        host: &LARGE_HOST,
+        host: TheHostOfABatch::Stated(LARGE_HOST),
     });
     let serial: RoundAnswer =
         drain_one_after_another(serial_assignments.as_slice(), &serial_handlers, &now);
@@ -813,7 +816,7 @@ fn a_lane_drains_its_directories_in_the_order_they_were_named() {
         directories: directories.as_slice(),
         handlers: Arc::new(handlers),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: TheHostOfABatch::Stated(LARGE_HOST),
     });
     let began: Vec<PathBuf> = began_log.lock().expect("the order of the pushes").clone();
     assert_eq!(
@@ -882,7 +885,7 @@ fn a_panicking_push_fails_its_record_alone_and_its_lane_goes_on() {
             directories: directories.as_slice(),
             handlers: Arc::new(handlers),
             now: &ClaimTime::read(),
-            host: &LARGE_HOST,
+            host: TheHostOfABatch::Stated(LARGE_HOST),
         }));
     assert!(
         stopped.is_none(),

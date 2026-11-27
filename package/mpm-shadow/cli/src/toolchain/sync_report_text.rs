@@ -2,6 +2,7 @@
 //! The text `install` prints for a sync:
 //! the line for a tool it locked,
 //! the line for a plan change it wrote into the lock,
+//! the sentence for a version a killed install left unfinished,
 //! and the whole report.
 //! Why:
 //! `sync.rs` holds the sync itself and stays under the file-size limit by keeping the wording in a file of its own;
@@ -54,6 +55,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         report.failed.len()
     ));
     for line in &report.reconciled {
+        text.push_str(&format!("toolchain install: {line}\n"));
+    }
+    for line in &report.recovered {
         text.push_str(&format!("toolchain install: {line}\n"));
     }
     text.push_str(&old_copy_lines_text(report));

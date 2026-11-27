@@ -27,7 +27,7 @@
 
 use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::push_retry::Retrying;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_common_directory::{
@@ -86,7 +86,7 @@ pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     lease: Duration,
     retrying: &Retrying,
     kinds: &'static [WorkKind],
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> Drained {
     return drain_planned_with_awaiting(
         git_dir,
@@ -119,7 +119,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
     renewal: Renewal<'_>,
     retrying: &Retrying,
     kinds: &'static [WorkKind],
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> Drained {
     // A directory that cannot be reached runs nothing,
     // and what becomes of its push plans is what the filesystem still proves about it:
@@ -218,7 +218,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
     lease: Duration,
     retrying: &Retrying,
     kinds: &'static [WorkKind],
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> Drained {
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();

@@ -37,10 +37,12 @@ use crate::repo_read_layout::read_layout_after_success_with;
 use std::ffi::OsString;
 use std::path::Path;
 
-/// Tag used for the diagnostics of this part of the pass:
-/// the same words `merge_second_pass_tree.rs` logs under,
-/// so one search finds every line about a merge from objects.
-const TAG: &str = "wordMergeTree";
+/// The tag every line about this part of the second pass is tagged with.
+/// Why:
+///  The subject is one,
+/// so every file it was split into carries the same word,
+///  and a person's search of the log keeps finding all of it.
+pub(super) const TAG: &str = "wordMergeTree";
 
 /// The variable that names the tree Git reads `.gitattributes` from when there is no worktree.
 pub const ATTRIBUTE_SOURCE_VARIABLE: &str = "GIT_ATTR_SOURCE";

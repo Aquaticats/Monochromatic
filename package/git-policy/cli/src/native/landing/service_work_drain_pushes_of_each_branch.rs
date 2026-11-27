@@ -20,7 +20,7 @@
 //! ```
 
 use crate::journald_native::Priority;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_timing::log_entry;
 use crate::service_work_handlers_replanning_and_acceptance::{
@@ -88,7 +88,7 @@ pub(super) async fn push_the_branches_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     pushes: Vec<Claimed>,
-    host: &HostResources,
+    host: TheHostOfABatch,
     replanning: &mut Replanning,
 ) -> Option<HeldClaims> {
     let mut groups: Vec<((PathBuf, String), Vec<Claimed>)> = Vec::new();

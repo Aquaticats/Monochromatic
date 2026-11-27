@@ -16,7 +16,10 @@
 
 use super::*;
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::{
+    HostResources,
+    TheHostOfABatch,
+};
 use crate::push_retry::{
     PLAN_DIRECTORY,
     PushRetries,
@@ -283,7 +286,7 @@ fn the_round_that_serves_the_person_takes_the_push_and_leaves_the_slow_kinds() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&counted),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: TheHostOfABatch::Stated(LARGE_HOST),
     })
     .waits;
     assert_eq!(
@@ -352,7 +355,7 @@ fn the_lane_runs_the_slow_kinds_the_round_left() {
         &counted,
         HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     assert_eq!(
         counted.trashes.load(Ordering::SeqCst),
@@ -957,7 +960,7 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     let waited: Duration = answered.unwrap_or_else(|| {
         panic!("the look that keeps a claim answers when it runs out, or nothing looks at it again")
@@ -982,7 +985,7 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     assert_eq!(
         asked.load(Ordering::SeqCst),
@@ -1038,7 +1041,7 @@ fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_o
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     let waited: Duration = answered.unwrap_or_else(|| {
         panic!("the look that could not settle a claim answers when it runs out")
@@ -1063,7 +1066,7 @@ fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_o
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     assert_eq!(
         asked.load(Ordering::SeqCst),
@@ -1115,7 +1118,7 @@ fn the_lanes_look_at_a_bare_repositorys_common_records_answers_the_end_of_a_clai
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     let waited: Duration = answered.unwrap_or_else(|| {
         panic!("the look at a bare repository's common records answers when its claim runs out")
@@ -1171,7 +1174,7 @@ fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
             Renewal::Timed,
             &Retrying::none(),
             SERVICE_KINDS,
-            &HostResources::read(),
+            TheHostOfABatch::TheMachinesOwn,
         ),
     );
     let waited: Duration = drained
@@ -1279,7 +1282,7 @@ fn a_slow_item_that_stops_unexpectedly_ends_its_own_record_and_not_the_look() {
         &StoppingOnOne,
         HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ));
     assert!(
         record_of(&world, FAILED, WorkKind::Trash, THE_STOPPING_TRASH),
@@ -1464,7 +1467,7 @@ fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
             },
             HOUSEKEEPING_OF_ONE_ROUND,
             crate::service_work::CLAIM_LEASE,
-            &HostResources::read(),
+            TheHostOfABatch::TheMachinesOwn,
         )),
     );
     assert_eq!(

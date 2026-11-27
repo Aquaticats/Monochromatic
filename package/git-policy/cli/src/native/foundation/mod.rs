@@ -27,6 +27,10 @@
 //! - `collected_elements_looked_at.rs`:
 //!   the collected elements a pass over unbounded input has looked at,
 //!   counted for the controls of the passes that must stay linear.
+//! - `shown_so_it_cannot_rewrite_the_line.rs`:
+//!   a name another program chose,
+//!   shown so that no byte of it can move a terminal's cursor,
+//!   end the line or speak as this program.
 //! - `file_only_root_may_write.rs`:
 //!   reading a file only the account this program runs as may write.
 //!   Linux only,
@@ -135,6 +139,10 @@
 //! - `test_only_switches.rs`:
 //!   the one read of every test-only switch,
 //!   which a build the release ships holds not at all.
+//! - `session_runtime_directory_and_bus_address.rs`:
+//!   the one place this crate reads this session's runtime directory and its session-bus address,
+//!   which a build made for tests takes from what a control handed in and never from the environment
+//!   the test process inherited.
 //! - `what_a_built_runtime_is.rs`:
 //!   the runtime a build made,
 //!   how its build came out,
@@ -344,7 +352,9 @@ pub mod handler_configuration_keys;
 
 /// Reading a file only the account this program runs as may write.
 ///
-/// Linux only, like the handler whose configuration it reads: the flags and the owner check are the
+/// Linux only,
+/// like the handler whose configuration it reads:
+/// the flags and the owner check are the
 /// Linux kernel's own.
 #[cfg(target_os = "linux")]
 pub mod file_only_root_may_write;
@@ -575,6 +585,11 @@ pub mod runtime_probe;
 /// which a build the release ships holds not at all.
 pub mod test_only_switches;
 
+/// The one place this crate reads this session's runtime directory and its session-bus address,
+/// which a build made for tests takes from what a control handed in and never from the environment
+/// the test process inherited.
+pub mod session_runtime_directory_and_bus_address;
+
 /// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
 pub mod name_held_while_one_thread_publishes_it;
 
@@ -585,6 +600,11 @@ pub mod worst_delay_seen_on_this_host;
 /// The collected elements a pass over unbounded input has looked at,
 /// counted for the controls of the passes that must stay linear.
 pub mod collected_elements_looked_at;
+
+/// A name another program chose,
+/// shown so that no byte of it can move a terminal's cursor,
+/// end the line or speak as this program.
+pub mod shown_so_it_cannot_rewrite_the_line;
 
 /// A blocking job on a thread of its own,
 /// awaited no longer than a ceiling,
@@ -599,7 +619,8 @@ pub mod standard_error_descriptor;
 /// so a reader that stopped draining never holds the command.
 pub mod notice_stream_that_does_not_hold_its_writer;
 /// This process's standard error as a stream whose every whole line is handed to the thread that
-/// writes it, so the thread that says a line never waits for the reader.
+/// writes it,
+/// so the thread that says a line never waits for the reader.
 pub mod standard_error_off_the_calling_thread;
 
 /// A connection to a unix socket that is made within one deadline,

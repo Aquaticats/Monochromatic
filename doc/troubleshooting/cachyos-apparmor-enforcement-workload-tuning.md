@@ -2066,6 +2066,165 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Seventeenth batch: the commit service's marks file in a container's root home, 2026-11-27T09:14:59-05:00
+
+Met when the service-manager install proof,
+with its Git now writing as the owner of `/work` (issue 6587),
+stopped at its next step:
+the commit service answered `outcome=failed:repository-permission-denied` for a landing in a folder its own user owns.
+`/var/log/audit/audit.log` held 18 records in the hour before:
+
+```text
+apparmor="DENIED" operation="mknod" class="file" profile="git" name="/root/.local/state/monochromatic-git-policy-cli/service/<hash>/marks-<n>.lock" comm="git" requested_mask="c" denied_mask="c"
+```
+
+The service hands `git fast-import` an unnamed scratch file where it can,
+which is what happens on this host
+(`local/git` already grants `scratch/#<n>` in that state folder).
+Where it cannot,
+as in the proof's container,
+`package/git-policy/cli/src/native/landing/service_land_objects_of_batch.rs` passes
+`--export-marks=<journal>/marks-<seq>`,
+and Git makes `marks-<seq>.lock` beside the journal.
+No rule covered that name,
+so Git was refused,
+the service read "permission denied",
+and the landing failed.
+Under the owner's rule recorded under "Eleventh batch",
+`/etc/apparmor.d/local/git` gained
+
+```text
+owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-@{int}{,.lock} rwlk,
+```
+
+and `apparmor_parser --replace /etc/apparmor.d/git` exited 0.
+
+That rule matched nothing.
+`@{int}` is one to ten digits
+(`/etc/apparmor.d/tunables/system`,
+line 27),
+and the service numbers its marks with sixteen
+(`marks-1795789803456142.lock`),
+which the summary that masked the digits hid from the session that wrote the rule.
+Two more records of the same name followed,
+at 09:30:03 and 09:32:08,
+from the proof's next runs.
+The rule was corrected at 2026-11-27T09:32:43-05:00 to
+
+```text
+owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-[0-9]*{,.lock} rwlk,
+```
+
+`@{HOME}` covers `/root`:
+`/etc/apparmor.d/tunables/home`,
+line 21,
+reads `@{HOME}=@{HOMEDIRS}/*/ /root/`.
+
+Exercised after the correction,
+in one container of the gate image
+(`localhost/git-policy-native-test:gpc-gate-wrapper-next-alpha-on-1c8acd5bfb-20261127T075019-0500`),
+as its root,
+with `/work` handed to that user:
+
+```text
+printf "done\n" | /usr/bin/git fast-import --quiet --done --export-marks=/root/.local/state/monochromatic-git-policy-cli/service/<hash>/marks-1795788270296498
+exit 0; file present
+printf "done\n" | /usr/bin/git fast-import --quiet --done --export-marks=/root/.local/state/monochromatic-git-policy-cli/service/<hash>/other-1795788270296498
+error: unable to write marks file /root/.local/state/monochromatic-git-policy-cli/service/<hash>/other-1795788270296498: Permission denied
+exit 1; file absent
+```
+
+The second command is the control:
+a name the rule does not cover is still refused,
+and the audit log holds one record for it and none for the first.
+
+Not located:
+the same proof runs left `capable` records for `dac_override` under the `git` profile
+(seven at 09:30,
+five at 09:32).
+That capability stays refused on purpose
+("Sixteenth batch"),
+a `capable` record names no path,
+and the round that reruns the proofs reports the owner and mode of any path a Git step is still refused.
+
+## Sixteenth batch: the harness's diff folder, the gate fixture's relay, and a proof that runs Git as root, 2026-11-27T08:38:28-05:00
+
+Met while reading why `package/git-policy/cli/bin/service-manager-install-proof.ts` could not make a worktree in its container
+(`doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
+`/var/log/audit/audit.log` held four families for the `git` profile in the six hours before
+(the kernel journal held none):
+
+1.  17 `capable` records,
+    `capname="dac_override"`,
+    `comm="git"`,
+    at 08:26 and 08:27:
+    the proof runs Git as the container's root in `/work`,
+    which the image leaves owned by the container's user,
+    so every directory Git makes there asks for that capability.
+    It stays refused,
+    for the reason recorded under "The `git` `dac_override` records are the any-name fixture's Git (issue 6459)":
+    a grant would let a root Git on this host pass every file permission check.
+    The proof is what changes (issue 6587):
+    it runs Git as the owner of the directory it writes.
+2.  Six `mkdir` records for `/tmp/zz/`,
+    `/tmp/zz2/`,
+    `/tmp/wt-one/` and `/work2/wt/`,
+    `requested_mask="c"`:
+    the probes of the round that met the first family.
+    The profile holds no rule for those places and none was added:
+    nothing but a probe writes there.
+3.  Four `mknod` records for `/tmp/claude-1000/bash-edit-diff/<id>/index.lock`,
+    `requested_mask="c"`,
+    at 07:34 and 07:46:
+    Claude Code's own diff of a Bash edit runs Git in a repository it makes there,
+    and the profile let Git read that folder and not write it.
+    `/etc/apparmor.d/local/git` gained
+
+    ```text
+    owner /tmp/claude-@{uid}/bash-edit-diff/** rwlk -> /tmp/claude-@{uid}/bash-edit-diff/**,
+    ```
+
+4.  Six `exec` records in `git//ssh` for
+    `/work/package/git-policy/cli/target/gate-fixtures/process-<pid>/.../relay`,
+    `requested_mask="x"`,
+    in the gate of 2026-11-27:
+    the program the ssh terminal test's `ProxyCommand` names,
+    which the fourteenth batch granted on the host and not in the gate.
+    `/etc/apparmor.d/local/git_ssh` gained
+
+    ```text
+    owner /work/**/gate-fixtures/**/relay rix,
+    ```
+
+`apparmor_parser --replace /etc/apparmor.d/git` exited 0 and `aa-status` lists `git` and `git//ssh`.
+Neither new rule has been exercised since:
+the next gate shows whether the relay's records are gone,
+and the next Bash edit whether the diff folder's are.
+
+## Fifteenth batch: gh downloading a wrapper release into the repository's cache, 2026-11-27T08:28:28-05:00
+
+Met while unpacking the wrapper's `0.6.1-alpha.48` beside alpha.47's for its release passes:
+`gh release download ... --dir .cache/wrapper-release-0.6.1-alpha.48/download` ended with
+`open .../download: permission denied`,
+while the same download into `~/temp/agent` worked.
+`/var/log/audit/audit.log` held one record
+(the kernel journal held none):
+
+```text
+apparmor="DENIED" operation="open" class="file" profile="gh" name="/home/user/Monochromatic/.cache/wrapper-release-0.6.1-alpha.48/download/" comm="gh" requested_mask="r" denied_mask="r"
+```
+
+Under the owner's rule recorded under "Eleventh batch",
+`/etc/apparmor.d/local/gh` gained one rule and the profile was reloaded with `apparmor_parser --replace`:
+
+```text
+owner @{HOME}/Monochromatic/.cache/wrapper-release-*/{,**} rw,
+```
+
+The same download then wrote the archive there,
+byte for byte the one downloaded into scratch (`cmp`),
+and the audit log gained no further record for that folder.
+
 ## Fourteenth batch: the ssh terminal tests on the host, and a round's preloaded shim, 2026-11-26T17:05:00-05:00
 
 Met while checking the alpha.47 host-key round before its merge:

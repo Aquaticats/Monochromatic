@@ -16,6 +16,15 @@ import { randomUUID } from 'node:crypto';
 import { systemdRunProgram } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
 
 import {
+  SCOPE_NOT_READ,
+  type ScopeAccountingRead,
+  checkScopeCgroupPath,
+  checkScopePollMilliseconds,
+  checkScopeSlice,
+  readScopeAccounting,
+  watchScopeAccounting,
+} from './native-check-scope-accounting.ts';
+import {
   maximumUnitIoWeight,
   textCapProblem,
   wholeCapProblem,
@@ -64,16 +73,37 @@ export type ScopeCaps = {
 };
 
 /**
- The caps every recorded run of the coordinator's TypeScript check script used, kept so a log of an earlier run and one of
- the next are comparable.
+ The caps every check's scope carries: what its control group may use, sized from the checks' own readings.
 
- The first three are that script's own values (`CPUQuota=200%`, `MemoryMax=4G`, `TasksMax=400`). Its disk weight was
- thirty, which is above the ten a per-command control group may carry (rule `RXS`), so it is one here.
+ Measured on 2026-11-27 on this host, one scope per run with a task bound of 8192 and a memory bound of 16G that no run
+ met, reading that scope's `pids.peak`, `memory.peak`, `cpu.stat` and its events before it ended, with the host's load
+ average beside each run (12.7 to 25.5, other sessions building): `//package/git-policy/cli:test:unit` peaked at 434 to
+ 463 tasks and 1,820.6 to 2,218.8 MiB, using 70.4 to 76.9 s of CPU time; `lint:types` at 33 to 39 tasks and 401.4 to
+ 416.7 MiB; `lint:oxlint` at 62 to 89 tasks and 810.3 to 1,016.0 MiB. A suite run at the 200% below read 382 to 445
+ tasks and 1,842.1 to 2,158.5 MiB, and met no task or memory bound either.
+
+ `TasksMax` 1024 is 2.2 times the highest task peak measured (463) and 561 tasks above it. The value every earlier run
+ carried was 400, below the peak the suite reaches, so a loaded host turned the bound into six test failures (issue
+ 6605).
+
+ `MemoryMax` 4G is 4,096 MiB, 1.85 times the highest peak charged (2,218.8 MiB) and 1,877 MiB above it, which is what the
+ gate's own suite container carries against the peak it measured (`bin/native-gate-container-limits.ts`).
+
+ `CPUQuota` 800% is the quota at which these checks finish in the time their work takes. At the 200% every earlier run
+ carried, the same round measured the unit suite at 2.66 to 2.79 times the wall time of its 800% runs (37.81, 39.06 and
+ 38.27 s against 14.23, 14.46 and 13.72 s), the type check at 2.6 to 3.4 times (3.46 to 4.42 s against 1.31 to 1.35 s)
+ and the lint at 1.4 to 2.4 times; the suite's tasks waited 8.77 to 9.19 times as long for the 200% quota as they ran,
+ against 1.35 to 1.59 at 800%. The gate these checks run beside caps its own unit at 1000% and its suite container at four
+ CPUs, and 800% is a ceiling these checks reach in bursts rather than a reservation: their measured average use at 800%
+ was 4.98 to 5.13 threads.
+
+ `IOWeight` 1 is the lowest disk weight every other capped unit of the repository uses (rule `RXS`); the scratch script's
+ 30 is above what a per-command control group may carry.
  */
 export const defaultCheckScopeCaps: ScopeCaps = {
-  unitCpuQuota: '200%',
+  unitCpuQuota: '800%',
   unitMemoryMax: '4G',
-  unitTasksMax: 400,
+  unitTasksMax: 1_024,
   unitIoWeight: 1,
 };
 
@@ -195,7 +225,9 @@ export function checkScopeName({
  The arguments after the `systemd-run` program name that start one capped scope.
 
  `--quiet` keeps systemd's own "Running scope as unit" line out of the check's output, which a person reads as the check's
- own answer.
+ own answer. The slice is named rather than left to systemd's default, so the path this runner reads the scope's
+ counters from (`bin/native-check-scope-accounting.ts`) is the path the scope is put in; measured on this host on
+ 2026-11-27, a scope that named no slice landed in `app.slice`, which is what {@link checkScopeSlice} states.
 
  @param name - the scope's name
 
@@ -227,6 +259,7 @@ export function scopeArguments({
     '--user',
     '--scope',
     '--quiet',
+    `--slice=${checkScopeSlice}`,
     `--unit=${name}`,
     `--property=CPUQuota=${caps.unitCpuQuota}`,
     `--property=MemoryMax=${caps.unitMemoryMax}`,
@@ -239,7 +272,7 @@ export function scopeArguments({
 }
 
 /**
- How one command in its own scope ended.
+ How one command in its own scope ended, and what that scope counted while it ran.
  */
 export type ScopeOutcome = {
   /**
@@ -258,6 +291,15 @@ export type ScopeOutcome = {
    Whether its deadline ended it instead of it ending by itself.
    */
   readonly timedOut: boolean;
+  /**
+   How long the scope ran the command, from the moment `systemd-run` was started to the moment it answered.
+   */
+  readonly elapsedMilliseconds: number;
+  /**
+   The last figures read from the scope while it ran, or {@link SCOPE_NOT_READ} when its control group was never there to
+   read.
+   */
+  readonly accounting: ScopeAccountingRead;
 };
 
 /**
@@ -335,7 +377,13 @@ export async function endCappedScope({
 }
 
 /**
- Runs one command in its own capped scope and reports how it ended, ending the scope when its deadline passes.
+ Runs one command in its own capped scope and reports how it ended and what that scope counted, ending the scope when its
+ deadline passes.
+
+ The scope's counters are read while it runs (`bin/native-check-scope-accounting.ts`), because a scope takes its control
+ group with it: what a caller reads after the command ended is the last sample taken before that. A check refused a fork
+ or killed for memory therefore answers with the reading that names it, and `bin/native-ts-checks.ts` says so beside the
+ check's own result.
 
  @param name - the scope's name
 
@@ -355,7 +403,11 @@ export async function endCappedScope({
 
  @param stopProgram - the `systemctl` that ends the scope, which a test replaces with a stand-in
 
- @returns its status, its output and whether the deadline ended it
+ @param scopeRoot - the cgroup hierarchy's root, which a test points at a fixture tree
+
+ @param pollMilliseconds - how long between two reads of the scope, which a test shortens
+
+ @returns its status, its output, whether the deadline ended it, how long it ran and what its scope counted
 
  @example
  ```ts
@@ -372,6 +424,8 @@ export async function runInCappedScope({
   environment = process.env,
   scopeProgram = systemdRunProgram,
   stopProgram = systemctlProgram,
+  scopeRoot,
+  pollMilliseconds = checkScopePollMilliseconds,
 }: {
   readonly name: string;
   readonly caps: ScopeCaps;
@@ -382,7 +436,27 @@ export async function runInCappedScope({
   readonly environment?: NodeJS.ProcessEnv;
   readonly scopeProgram?: string;
   readonly stopProgram?: string;
+  readonly scopeRoot?: string;
+  readonly pollMilliseconds?: number;
 }): Promise<ScopeOutcome> {
+  /**
+   The control group this check's scope takes, which its counters are read from while it runs.
+   */
+  const cgroupPath = checkScopeCgroupPath({
+    name,
+    ...(scopeRoot === undefined ? {} : { root: scopeRoot, }),
+  });
+  /**
+   The watch of this check's scope, which reads its counters once an interval while it runs.
+   */
+  await using watch = watchScopeAccounting({
+    cgroupPath,
+    intervalMilliseconds: pollMilliseconds,
+  });
+  /**
+   When the scope was asked for, which is what the check's wall time is counted from.
+   */
+  const startedAt = performance.now();
   /**
    What the scope's command printed and how it ended.
    */
@@ -398,29 +472,43 @@ export async function runInCappedScope({
     environment,
     workingDirectory,
   });
-  if (!outcome.timedOut)
-    return {
-      status: outcome.status,
-      stdout: outcome.stdout,
-      stderr: outcome.stderr,
-      timedOut: false,
-    };
-  // The client is gone but the command it started is still in the scope, so the scope is ended by the name it carries.
   /**
-   What ending the scope found.
+   How long the scope held the command, which a check held at its CPU quota is reported by.
    */
-  const stop = await endCappedScope({
-    name,
-    program: stopProgram,
-    environment,
-  });
-  if (!stop.ended)
-    throw new NativeGateError(`the check ${name} ran past its deadline and its scope could not be ended, so what it started may still run: ${stop.detail === '' ? 'the manager printed nothing' : stop.detail}`);
+  const elapsedMilliseconds = performance.now() - startedAt;
+  if (outcome.timedOut) {
+    // The client is gone but the command it started is still in the scope, so the scope is ended by the name it carries,
+    // before anything else waits, which is what keeps a check that ignores its deadline from outliving it.
+    /**
+     What ending the scope found.
+     */
+    const stop = await endCappedScope({
+      name,
+      program: stopProgram,
+      environment,
+    });
+    if (!stop.ended)
+      throw new NativeGateError(`the check ${name} ran past its deadline and its scope could not be ended, so what it started may still run: ${stop.detail === '' ? 'the manager printed nothing' : stop.detail}`);
+  }
+  await watch.stop();
+  // A scope still exists for a moment after its command ends, so this last look keeps the final counters when it is
+  // there and leaves the last sample taken while it ran when it is not.
+  /**
+   What the scope's control group answered once its command had ended.
+   */
+  const lastLook = await readScopeAccounting({ cgroupPath, });
+  /**
+   The reading this outcome carries: the last look when the scope was still there, and the last sample taken while it
+   ran otherwise.
+   */
+  const accounting = lastLook === SCOPE_NOT_READ ? watch.lastRead() : lastLook;
   return {
     status: outcome.status,
     stdout: outcome.stdout,
     stderr: outcome.stderr,
-    timedOut: true,
+    timedOut: outcome.timedOut,
+    elapsedMilliseconds,
+    accounting,
   };
 }
 

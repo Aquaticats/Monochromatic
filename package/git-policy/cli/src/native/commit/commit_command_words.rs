@@ -40,7 +40,10 @@ use crate::policy_trigger::Trigger;
 use crate::service_messages::render;
 /// Standard error as a stream whose whole lines a thread of their own writes,
 /// and the writer that counts the time they took.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 /// `Write` is the trait whose `write_all` and `flush` the counted stream answers.
 use std::io::Write;
@@ -62,7 +65,7 @@ use std::io::Write;
 /// process.stderr.write(text); // handed to the thread that writes it, waited for at most one bound
 /// ```
 pub(crate) fn write_stderr(text: &str) {
-    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> =
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<StandardErrorHand>> =
         MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(text.as_bytes());
     let _ = stream.flush();
@@ -83,7 +86,7 @@ pub(crate) fn write_stderr(text: &str) {
 /// process.stderr.write(bytes); // handed to the thread that writes it
 /// ```
 pub(crate) fn write_stderr_bytes(bytes: &[u8]) {
-    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> =
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<StandardErrorHand>> =
         MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(bytes);
     let _ = stream.flush();

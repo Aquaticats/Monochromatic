@@ -51,7 +51,10 @@ use crate::service_prepare::{
     Ready,
 };
 use crate::service_protocol::CommitRequest;
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 use std::io::Write;
 use std::time::Instant;
 
@@ -188,7 +191,7 @@ pub(crate) fn the_answer_of_the_service(
             // What: The held commit's words go to the thread that writes standard error.
             // Why:  The exit status already says the result, and a reader that stopped draining must
             //       not keep this command from returning.
-            let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+            let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
                 StandardErrorOffTheCallingThread::new();
             let _written = writeln!(
                 notes,

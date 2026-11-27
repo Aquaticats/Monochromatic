@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.47"
+version = "0.6.1-alpha.48"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -16,6 +16,8 @@ include = [
   # The child-start ledger the source guard reads: `include_str!` embeds it, so a `cargo test` of the
   # packaged crate needs it in the archive as much as the sidecar that reads it.
   "src/native/source_guard/test_children_not_yet_owned.txt",
+  # The published-surface list the same guard reads, for the same reason: the packaged crate's own tests need it.
+  "src/native/source_guard/items_nameable_from_outside_release.txt",
   "src/native/dependent_version/dependent_version_fixtures/*.json",
   "src/native/service/service_units/*",
   "src/native/lock/index_lock_restart_manager.ps1",

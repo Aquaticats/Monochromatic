@@ -17,6 +17,7 @@ import {
   gateContainerCpus,
   gateContainerLimitOptions,
   gateLimitsFrom,
+  gateSuiteMemory,
   processesForTestThreads,
 } from './native-gate-container-limits.ts';
 
@@ -109,17 +110,19 @@ await describe({
       timeout: 10_000,
     }),
     it({
-      name: 'leave a container the repository default already suits unchanged, which is two test threads',
+      name: 'raise no process bound for a container the repository default already suits, which is two test threads',
       fn: async () => {
         /**
-         The limits and the line the gate runs and prints for a two-CPU container, as the mutation campaigns and the
-         planted controls still start.
+         The limits and the line the gate runs and prints for a two-CPU container.
          */
         const { limits, raised } = gateLimitsFrom({
           given: defaultContainerLimits,
           givenFlags: [],
         });
-        expect(limits).toEqual(defaultContainerLimits);
+        expect(limits).toEqual({
+          ...defaultContainerLimits,
+          memory: gateSuiteMemory,
+        });
         expect(raised).toBeUndefined();
       },
       timeout: 10_000,
@@ -148,7 +151,7 @@ await describe({
       timeout: 10_000,
     }),
     it({
-      name: 'give the image build its own measured memory bound, and leave the suite\'s containers at the repository default',
+      name: 'give the image build its own measured memory bound beside the suite\'s own',
       fn: async () => {
         /**
          The limits the suite's containers and the image build run under when a person names no memory.
@@ -160,7 +163,7 @@ await describe({
           },
           givenFlags: [],
         });
-        expect(limits.memory).toBe(defaultContainerLimits.memory);
+        expect(limits.memory).toBe(gateSuiteMemory);
         expect(buildLimits.memory).toBe(gateBuildMemory);
         expect(buildLimits.cpus).toBe(limits.cpus);
         expect(buildLimits.pidsLimit).toBe(limits.pidsLimit);
@@ -263,7 +266,55 @@ await describe({
       timeout: 10_000,
     }),
     it({
-      name: 'give the Clippy container a measured memory bound of its own, and leave the suite\'s where its own measurement left it',
+      name: 'give the suite\'s container a measured memory bound of its own, not the repository default',
+      fn: async () => {
+        /**
+         The limits the suite's, Clippy's and the image build's containers run under when a person names no memory.
+         */
+        const { limits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: [],
+        });
+        expect(limits.memory).toBe(gateSuiteMemory);
+        expect(gateSuiteMemory).not.toBe(defaultContainerLimits.memory);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'bound the suite\'s container at its own memory, apart from Clippy\'s and the image build\'s, and name each in one line',
+      fn: async () => {
+        /**
+         The limits the suite's, Clippy's and the image build's containers run under when a person names no memory.
+         */
+        const { limits, clippyLimits, buildLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: [],
+        });
+        expect(limits.memory,).not.toBe(clippyLimits.memory,);
+        expect(limits.memory,).not.toBe(buildLimits.memory,);
+        /**
+         The line the gate prints before it builds.
+         */
+        const line = buildMemoryLine({
+          limits,
+          clippyLimits,
+          buildLimits,
+        });
+        expect(line,).toContain(`the suite's container at ${gateSuiteMemory}`,);
+        expect(line,).toContain(`The image build is bounded at ${gateBuildMemory}`,);
+        expect(line,).toContain(`Clippy's at ${gateClippyMemory}`,);
+        expect(line,).toContain('--memory',);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'give the Clippy container a measured memory bound of its own, and keep the suite\'s apart from it',
       fn: async () => {
         /**
          The limits the suite's, Clippy's and the image build's containers run under when a person names no memory.
@@ -275,7 +326,7 @@ await describe({
           },
           givenFlags: [],
         });
-        expect(limits.memory).toBe(defaultContainerLimits.memory);
+        expect(limits.memory).toBe(gateSuiteMemory);
         expect(clippyLimits.memory).toBe(gateClippyMemory);
         expect(clippyLimits.memory).not.toBe(limits.memory);
         expect(clippyLimits.cpus).toBe(limits.cpus);

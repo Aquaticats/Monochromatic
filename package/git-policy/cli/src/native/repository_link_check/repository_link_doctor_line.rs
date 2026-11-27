@@ -54,7 +54,7 @@ pub fn doctor_link_line_with_probe(
     return match read_identity(directory) {
         IdentityRead::Absent => String::new(),
         IdentityRead::Unreadable(why) => format!(
-            "repository link: the identity file cannot be used ({why}), so the link to the 860 is not checked\n"
+            "repository link: the identity file cannot be used ({why}), so the repository link is not checked\n"
         ),
         IdentityRead::Found(identity) => format!(
             "repository link: {}\n",

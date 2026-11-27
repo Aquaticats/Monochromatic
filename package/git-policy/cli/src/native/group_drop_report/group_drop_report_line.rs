@@ -186,7 +186,7 @@ pub fn report_of(
 ///  The cause and the remedy that turns it off are the troubleshooting record's
 ///  measured ones for that setting,
 ///  so both are printed only where the setting the report prints reads this.
-const RESTRICTION_ON: &str = "1";
+pub(super) const RESTRICTION_ON: &str = "1";
 
 /// The cause a host whose restriction reads on prints.
 /// Why:

@@ -24,9 +24,21 @@ import {
 const commandCeilingMilliseconds = 900_000;
 
 /**
+ The user every command inside a machine runs as, which is the container's own root.
+
+ The machine's init is a system manager, and only root can be it and start the user manager whose runtime directory the
+ steps below reach; the gate image's own user is the tester (1000), so a folder Git writes inside the machine is handed to
+ this user before Git touches it (`makeWorktrees` in `service-manager-worktrees.ts`). That hand-over is what keeps every
+ Git call off the capability this host's `git` AppArmor profile refuses: the profile grants `/work` to its owner alone, so
+ a process of another user writing there asks for `dac_override` and is refused
+ (`doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
+ */
+export const containerUser: string = '0';
+
+/**
  The account's runtime directory inside every container, which is the only manager this file can reach.
  */
-export const containerRuntimeDirectory: string = '/run/user/0';
+export const containerRuntimeDirectory: string = `/run/user/${containerUser}`;
 
 /**
  The log the fixture's user manager writes its own reload records to, because it is started with one of its own.
@@ -142,16 +154,19 @@ const kept: {
  ```
  */
 export async function removeKeptMachines(): Promise<void> {
-  for (const held of kept) {
+  // Every machine is removed in the same step: they are independent containers this run started, and the removal of one
+  // says nothing about the next, so none of them waits for another. A run that asked to keep its machines prints one
+  // line each and removes none.
+  await Promise.all(kept.map(async function removeOneMachine(held) {
     if (process.env
       .GPC_KEEP_CONTAINER
       !== undefined) {
       console.log(`machine ${held.machine
         .container} was kept for diagnosis`);
-      continue;
+      return;
     }
     await stopMachine(held,);
-  }
+  },));
   kept.length = 0;
 }
 
@@ -255,9 +270,11 @@ export function inside({
   readonly script: string;
 }): Promise<string> {
   /**
-   The environment the script runs with, which names this container's manager and no other.
+   The environment the script runs with, which names this container's manager and no other, and the user it runs as,
+   which is the owner of everything inside the machine that a program here writes.
    */
   const environment = [
+    `--user=${containerUser}`,
     `--env=XDG_RUNTIME_DIR=${containerRuntimeDirectory}`,
     '--env=HOME=/root',
     `--env=DBUS_SESSION_BUS_ADDRESS=unix:path=${containerRuntimeDirectory}/bus`,
@@ -462,7 +479,7 @@ export async function startMachine({
       '--detach',
       '--name',
       container,
-      '--user=0',
+      `--user=${containerUser}`,
       '--cpus=2',
       `--memory=${memoryLimit}`,
       '--pids-limit=1024',

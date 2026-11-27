@@ -75,7 +75,10 @@ use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// ```ts
 /// const notices = new StandardErrorOffTheCallingThread();
 /// ```
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 use crate::transaction_git::GitContext;
 use crate::worktree_identity::{
     WorktreeIdentity,
@@ -245,7 +248,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     // What: One stream for every notice this step says, and each line is handed to the thread that writes it.
     // Why:  A notice shown here is shown on the command's own thread, so a reader that stopped draining would hold the
     //       command; the stream costs it one bound and nothing more.
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
     //  for the person is said here, each time, until it can be.
@@ -509,7 +512,7 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(
     // What: One stream for every line this step says, and each line is handed to the thread that writes it.
     // Why:  These lines are said on the command's own thread too, and a reader that stopped draining must cost the command
     //       one bound rather than the command itself.
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     for line in lines {
         let _written = writeln!(
@@ -634,7 +637,7 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(
         // What: One stream for the words this step says before Git runs, and each line is handed to the thread that writes it.
         // Why:  A record that could not be saved is the person's to know before Git deletes the worktree, and a reader that
         //       stopped draining must not keep the removal from running.
-        let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
             StandardErrorOffTheCallingThread::new();
         // A record that could not be saved is lost with the worktree, so the person is told before Git runs.
         for problem in snapshot_linked_worktrees(common_dir.as_path()) {

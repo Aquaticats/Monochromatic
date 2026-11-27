@@ -41,6 +41,7 @@ use crate::forwarded_command::{
     ResolvedCommand,
     Route,
     resolve_forwarded_command,
+    the_command_git_runs,
 };
 use crate::git_builtins::is_git_builtin;
 use crate::global_arguments::{
@@ -145,27 +146,22 @@ pub fn decide_guarded_forwarded(
     // The word names no built-in, so Git looks it up as an alias, and an undefined name is left to Git.
     let resolved: ResolvedCommand =
         resolve_forwarded_command(context, environment, arguments, start);
-    // A value that starts with `!` runs a shell, and Git puts its own executable directory first on that shell's
-    //  `PATH`, so the `git` such an alias names is the real Git and never this wrapper. The one plain `git` command
-    //  the resolver read from the value is what the shell runs, and the guard decides on it while the caller's own
-    //  arguments stay untouched: Git runs the shell with an environment a substituted argument vector would lose.
-    if resolved.route == Route::ShellAlias {
-        let Some(shell_command) = &resolved.shell_command else {
-            return GuardedForwarded {
-                decision: LinkedWorktreeDecision::Pass,
-                arguments: arguments.to_vec(),
-                shell_directory: None,
-            };
-        };
-        let Some((shell_word, shell_region)) = command_tokens(shell_command.as_slice()) else {
-            return GuardedForwarded {
-                decision: LinkedWorktreeDecision::Pass,
-                arguments: arguments.to_vec(),
-                shell_directory: None,
-            };
-        };
+    // What the guard decides about, and the same value the slot refusals read: for a shell alias that is the one
+    //  plain `git` command the resolver read from its value, and for every other route it is the resolved command.
+    //  A shell alias the wrapper cannot read has no reading here, so Git runs it as Git runs any shell alias.
+    let Some(command_git_runs) = the_command_git_runs(&resolved) else {
         return GuardedForwarded {
-            decision: decide_guarded_word(shell_word.as_encoded_bytes(), shell_region),
+            decision: LinkedWorktreeDecision::Pass,
+            arguments: arguments.to_vec(),
+            shell_directory: None,
+        };
+    };
+    // A value that starts with `!` runs a shell, and Git puts its own executable directory first on that shell's
+    //  `PATH`, so the `git` such an alias names is the real Git and never this wrapper. The caller's own arguments stay
+    //  untouched: Git runs the shell with an environment a substituted argument vector would lose.
+    if resolved.route == Route::ShellAlias {
+        return GuardedForwarded {
+            decision: decide_guarded_word(command_git_runs.word(), command_git_runs.region()),
             arguments: arguments.to_vec(),
             // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
             shell_directory: shell_run_directory(context, arguments, start),
@@ -179,8 +175,8 @@ pub fn decide_guarded_forwarded(
         };
     }
     return GuardedForwarded {
-        decision: decide_guarded_word(resolved.word(), resolved.region()),
-        arguments: resolved.arguments,
+        decision: decide_guarded_word(command_git_runs.word(), command_git_runs.region()),
+        arguments: command_git_runs.arguments,
         shell_directory: None,
     };
 }

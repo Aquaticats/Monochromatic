@@ -1,5 +1,4 @@
 import {
-  readdir,
   readFile,
 } from 'node:fs/promises';
 import {
@@ -15,6 +14,7 @@ import {
 import { plantedCommitControls, } from './native-planted-controls-commit.ts';
 import { plantedEntryControls, } from './native-planted-controls-entry.ts';
 import { plantedLandingControls, } from './native-planted-controls-landing.ts';
+import { sourceTreeFiles, } from './source-tree-files.ts';
 
 /**
  Package directory, one level above this script; every control's `file` is relative to it.
@@ -28,14 +28,23 @@ await describe({
       name: 'every control replaces text that occurs exactly once and names a test that exists',
       fn: async () => {
         /**
-         Every Rust source of the native wrapper, joined, to look test functions up in.
+         Every Rust source of the native wrapper, joined, to look test functions up in. The sources are walked rather
+         than read through a recursive listing, which follows the tree's `uses/` links and reaches each module once per
+         chain of them (issue 6580).
          */
-        const sources = (await Promise.all((await readdir(join(packageDirectory, 'src', 'native'), { recursive: true }))
-          .filter(function isRust(name) {
-            return name.endsWith('.rs');
+        const sources = (await Promise.all((await sourceTreeFiles({ root: join(
+          packageDirectory,
+          'src',
+          'native',
+        ), }))
+          .filter(function isRust(path) {
+            return path.endsWith('.rs');
           })
-          .map(async function readSource(name) {
-            return await readFile(join(packageDirectory, 'src', 'native', name), 'utf8');
+          .map(async function readSource(path) {
+            return await readFile(
+              path,
+              'utf8',
+            );
           })))
           .join('\n');
         /**

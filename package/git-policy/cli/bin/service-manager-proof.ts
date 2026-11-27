@@ -362,6 +362,19 @@ async function main_(): Promise<void> {
       'debug',
       'monochromatic-git-policy-cli',
     );
+  // What: Every machine this run started is removed however this function ends.
+  // Why:  The two arms' containers are kept until both have run, because removing one keeps this host's container storage
+  //       busy long enough that the next machine's sessions are refused; a step that throws before the verdict is reached
+  //       used to skip the removal, and a container whose init is a system manager then kept a manager holding thousands of
+  //       units on this host for as long as nobody noticed it.
+  /**
+   The removal of this run's containers, made when this function ends by `await using`.
+   */
+  await using removal = {
+    async [Symbol.asyncDispose](): Promise<void> {
+      await removeKeptMachines();
+    },
+  };
   /**
    The arm that runs the release the account has installed from `main`, on a fresh machine.
    */
@@ -418,10 +431,6 @@ async function main_(): Promise<void> {
   if (onMain.deaths
     .length
     === 0) problems.push('the release from main did not end the unrelated desktop, so this fixture does not reproduce the harm');
-  // What: Every machine this run started is removed here, whatever the judgement below says.
-  // Why:  The two arms' containers are kept until both have run, because removing one keeps this host's container storage
-  //       busy long enough that the next machine's sessions are refused; they are ended before the verdict is reported.
-  await removeKeptMachines();
   if (problems.length > 0) throw new NativeVerificationError(`THE PROOF FAILED: ${problems.join('; ')}`);
 }
 

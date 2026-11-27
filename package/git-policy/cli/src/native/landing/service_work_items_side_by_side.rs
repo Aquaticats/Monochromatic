@@ -44,6 +44,7 @@ use crate::landing::service_work_handlers_replanning_and_acceptance::{
 use crate::parallel_budget::{
     BudgetRequest,
     HostResources,
+    TheHostOfABatch,
     worker_budget,
 };
 use crate::service_claim_renewal::HeldClaims;
@@ -133,7 +134,7 @@ const SLOW_ITEM_MEMORY: u64 = crate::the_memory_one_round_keeps::REPOSITORY_MEMO
 /// ```
 pub(crate) fn slow_items_side_by_side(
     items: usize,
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> usize {
     #[cfg(test)]
     {
@@ -142,12 +143,30 @@ pub(crate) fn slow_items_side_by_side(
             return items.min(asked).max(1);
         }
     }
+    // What: a batch with nothing in it asks the host nothing, because it runs nothing.
+    // Why:  a reading taken for a batch that starts no item is a reading of the machine this work did not need.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (items === 0) return 1;
+    // ```
+    if items == 0 {
+        return 1;
+    }
+    // What: the host this batch is sized by: the one a caller stated, or this machine read now.
+    // Why:  the reading belongs to the decision, so a round cannot carry a figure from before its earlier work ran.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const sizedBy = host.now();
+    // ```
+    let sized_by: HostResources = host.now();
     return worker_budget(&BudgetRequest {
         items,
         per_item_memory: SLOW_ITEM_MEMORY,
         ceiling: Some(SLOW_ITEMS_CEILING),
         cap: None,
-        host,
+        host: &sized_by,
     });
 }
 
@@ -244,14 +263,32 @@ pub(crate) fn take_the_hosts_width() {
 /// ```
 pub(crate) fn pushes_side_by_side(
     branches: usize,
-    host: &HostResources,
+    host: TheHostOfABatch,
 ) -> usize {
+    // What: a batch of no branch asks the host nothing.
+    // Why:  nothing is pushed, so no room is needed for it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (branches === 0) return 1;
+    // ```
+    if branches == 0 {
+        return 1;
+    }
+    // What: the host these pushes are sized by, read here when the caller named the machine.
+    // Why:  the same reason as the slow items': the reading belongs to the batch.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const sizedBy = host.now();
+    // ```
+    let sized_by: HostResources = host.now();
     return worker_budget(&BudgetRequest {
         items: branches,
         per_item_memory: SLOW_ITEM_MEMORY,
         ceiling: None,
         cap: None,
-        host,
+        host: &sized_by,
     });
 }
 
