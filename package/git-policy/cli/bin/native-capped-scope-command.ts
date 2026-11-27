@@ -75,23 +75,24 @@ export type ScopeCaps = {
 /**
  The caps every check's scope carries: what its control group may use, sized from the checks' own readings.
 
- Measured on 2026-11-27 on this host, one scope per run whose own bounds did not bind, reading that scope's `pids.peak`,
- `memory.peak`, `cpu.stat` and its events before it ended, with the host's load average beside each run (12.7 to 25.5,
- other sessions and a container gate running): `//package/git-policy/cli:test:unit` peaked at 400 to 463 tasks and
- 1,842.1 to 2,218.8 MiB, using 70.4 to 73.3 s of CPU time; `lint:types` at 33 to 39 tasks and 401.4 to 416.7 MiB;
- `lint:oxlint` at 62 to 88 tasks and 810.3 to 1,016.0 MiB.
+ Measured on 2026-11-27 on this host, one scope per run with a task bound of 8192 and a memory bound of 16G that no run
+ met, reading that scope's `pids.peak`, `memory.peak`, `cpu.stat` and its events before it ended, with the host's load
+ average beside each run (12.7 to 25.5, other sessions building): `//package/git-policy/cli:test:unit` peaked at 434 to
+ 463 tasks and 1,820.6 to 2,218.8 MiB, using 70.4 to 76.9 s of CPU time; `lint:types` at 33 to 39 tasks and 401.4 to
+ 416.7 MiB; `lint:oxlint` at 62 to 89 tasks and 810.3 to 1,016.0 MiB. A suite run at the 200% below read 382 to 445
+ tasks and 1,842.1 to 2,158.5 MiB, and met no task or memory bound either.
 
  `TasksMax` 1024 is 2.2 times the highest task peak measured (463) and 561 tasks above it. The value every earlier run
  carried was 400, below the peak the suite reaches, so a loaded host turned the bound into six test failures (issue
  6605).
 
- `MemoryMax` 4G is 4,096 MiB, 1.8 times the highest peak charged (2,218.8 MiB) and 1,877 MiB above it, which is what the
+ `MemoryMax` 4G is 4,096 MiB, 1.85 times the highest peak charged (2,218.8 MiB) and 1,877 MiB above it, which is what the
  gate's own suite container carries against the peak it measured (`bin/native-gate-container-limits.ts`).
 
  `CPUQuota` 800% is the quota at which these checks finish in the time their work takes. At the 200% every earlier run
  carried, the same round measured the unit suite at 2.66 to 2.79 times the wall time of its 800% runs (37.81, 39.06 and
- 38.27 s against 14.23, 14.46 and 13.72 s), the type check at 2.6 to 3.3 times (3.46 to 4.42 s against 1.31 to 1.35 s)
- and the lint at 1.5 to 2.4 times; the suite's tasks waited 8.77 to 9.19 times as long for the 200% quota as they ran,
+ 38.27 s against 14.23, 14.46 and 13.72 s), the type check at 2.6 to 3.4 times (3.46 to 4.42 s against 1.31 to 1.35 s)
+ and the lint at 1.4 to 2.4 times; the suite's tasks waited 8.77 to 9.19 times as long for the 200% quota as they ran,
  against 1.35 to 1.59 at 800%. The gate these checks run beside caps its own unit at 1000% and its suite container at four
  CPUs, and 800% is a ceiling these checks reach in bursts rather than a reservation: their measured average use at 800%
  was 4.98 to 5.13 threads.

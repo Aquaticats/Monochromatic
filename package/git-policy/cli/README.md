@@ -7652,14 +7652,14 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   `TasksMax=1024`
   and `IOWeight=1`.
   `TasksMax` was 400 until this round,
-  below the 400 to 463 tasks the unit suite peaks at,
+  below the 434 to 463 tasks the unit suite peaks at,
   so a loaded host turned that bound into six test failures (issue 6605);
   1024 is 2.2 times the highest peak measured.
-  `MemoryMax=4G` is 1.8 times the highest charge those runs reached (2,218.8 MiB).
+  `MemoryMax=4G` is 1.85 times the highest charge those runs reached (2,218.8 MiB).
   At the 200% every earlier run carried,
   the same round took 2.66 to 2.79 times the wall time for the unit suite
   (37.81 to 39.06 s against 13.72 to 14.46 s at 800%),
-  2.6 to 3.3 times for the type check and 1.5 to 2.4 times for the lint,
+  2.6 to 3.4 times for the type check and 1.4 to 2.4 times for the lint,
   and the suite's tasks waited 8.77 to 9.19 times as long for the quota as they ran;
   at 800% they waited 1.35 to 1.59 times.
   The disk weight is 1 rather than the scratch script's 30,
