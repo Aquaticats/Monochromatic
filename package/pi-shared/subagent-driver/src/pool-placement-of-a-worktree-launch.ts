@@ -8,9 +8,9 @@
  provider and model name.
 
  A command line that names Pi's virtual writer or reviewer keeps that pair: the plugin's router moves a refused request on by
- itself, so rewriting the pair would pin the run to one member. Such a run is counted once against the room those members have
- together (`place-a-run-on-a-virtual-selection.ts`), and starts while the runs on them are fewer than that room: a run on a
- virtual selection holds no member's own room, so the smallest member bounds nothing here.
+ itself, so rewriting the pair would pin the run to one member. Such a run holds no slot in any pool: the owner, 2026-11-26,
+ answered "No count (Recommended)" to how the pool gate counts one, so
+ `place-a-run-on-a-virtual-selection.ts` starts it whatever the members' counts read.
 
  The counts are the pool gate's own (`goingRunsNow`, `talliesOf`), so a slot this command takes is a slot the gate reads as taken
  once the unit exists: the unit's command line names the pool. No second counting mechanism exists beside that one.

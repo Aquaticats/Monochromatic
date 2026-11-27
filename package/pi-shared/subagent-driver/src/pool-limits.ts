@@ -296,8 +296,9 @@ export type VirtualPool = {
   readonly model: string;
 
   /**
-   The pools the router may send its requests to, in the order it tries them, which is every pool those members belong to. A
-   member outside every pool of {@link PROVIDER_POOLS}, such as Synthetic, adds no room and is not listed.
+   The pools the router may send its requests to, in the order it tries them, which is every pool those members belong to. A run
+   on the selection holds no slot in any of them, so the list says what a refusal moves the request on to, and what the launcher
+   names on its line; a member outside every pool of {@link PROVIDER_POOLS}, such as Synthetic, is not listed.
    */
   readonly memberPools: readonly ProviderPool[];
 };
@@ -339,7 +340,7 @@ export const VIRTUAL_REVIEWER: VirtualPool = {
 };
 
 /**
- Every virtual selection this driver counts, so a run started on one is counted once against the room its members have together.
+ Every virtual selection this driver knows, so a run started on one keeps the pair it named and is counted in no pool.
  */
 export const VIRTUAL_POOLS: readonly VirtualPool[] = [
   VIRTUAL_WRITER,
@@ -553,14 +554,15 @@ export const AUDIT_RUN_PREFIX = 'sol-';
 export const KIMI_RUN_PREFIX = 'kimi-';
 
 /**
- What a run's pool membership is: the pool it holds a slot in, one slot against the room a virtual selection's members have
- together, every pool it could be running on when nothing could be read about it, or the fact that no shared pool holds it.
+ What a run's pool membership is: the pool it holds a slot in, the virtual selection whose router it names, every pool it could
+ be running on when nothing could be read about it, or the fact that no shared pool holds it.
 
- A run on a virtual selection is one run, not one run per member: its router starts every request at the first member and moves
- the request on when a member refuses before any output, so the run takes whatever room the members have between them rather than
- a slot of each member's own. A run whose pool is unknown holds a slot in each pool it could be running on, never in one guessed
- pool: the scratch launcher answered `opencode-go` for every unit whose launcher had gone, which is how runs sat on standard
- Neuralwatt while its count read empty until 2026-11-11.
+ A run on a virtual selection holds no slot at all: its router starts every request at the first member and moves the request on
+ when a member refuses before any output, so the run takes no member's room and the gate counts it in no pool. The owner,
+ 2026-11-26, asked how the pool gate counts such a run: "No count (Recommended)", because the router moves a refused request on
+ by itself. A run whose pool is unknown holds a slot in each pool it could be running on, never in one guessed pool: the scratch
+ launcher answered `opencode-go` for every unit whose launcher had gone, which is how runs sat on standard Neuralwatt while its
+ count read empty until 2026-11-11.
  */
 export type PoolMembership =
   | {
@@ -777,15 +779,12 @@ export function virtualPoolNamed({
 }
 
 /**
- Reads what a run's own provider and model hold: one pool, one slot against a virtual selection's members together, or nothing
- at all when the pair belongs to no pool.
+ Reads what a run's own provider and model hold: one pool, the virtual selection its router names, or nothing at all when the
+ pair belongs to no pool.
 
- This is the reading every counter takes, because a run on a virtual selection has no single pool to hold, and no slot in each of
- them either: its router starts every request at the first member and moves the request on when a member refuses, so the run
- takes whatever room the members have between them. Counting it once against that room is what lets more of these runs go than
- the smallest member takes, and keeps a member from taking more pinned runs than its own room beside them
- (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The virtual writer is not capped at its smallest
- member").
+ This is the reading every counter takes, because a run on a virtual selection holds no slot in any pool: its router starts every
+ request at the first member and moves the request on when a member refuses, so nothing about the members' room decides whether
+ the run may start. The owner, 2026-11-26, asked how the pool gate counts such a run: "No count (Recommended)".
 
  @param provider - the provider the run names
 
@@ -829,14 +828,14 @@ export function membershipOfSelection({
 }
 
 /**
- Reads the membership of a run on a virtual selection: one slot against the room its members have together, with those members
- read from the table being counted so that a limit a caller set applies to them.
+ Reads the membership of a run on a virtual selection: the selection and the members its router may take, with those members read
+ from the table being counted so a caller's limits reach whatever names them, and no slot in any of them.
 
  @param virtual - the selection the run names
 
  @param pools - the pools its members are read from, which carry any limit a caller set
 
- @returns the membership, which is one run and no slot in any single member
+ @returns the membership, which holds no pool
 
  @example
  ```ts
@@ -864,7 +863,7 @@ export function membershipOfAVirtualSelection({
 }
 
 /**
- Reads the text a virtual selection is named by in a count or a refusal: the provider and model a run names to take it.
+ Reads the text a virtual selection is named by on a line or in a refusal: the provider and model a run names to take it.
 
  @param virtual - the selection to name
 

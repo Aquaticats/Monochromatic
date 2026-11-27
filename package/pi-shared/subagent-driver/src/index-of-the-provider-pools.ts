@@ -43,16 +43,12 @@ export {
 export {
   NO_POOL_HAS_ROOM,
   type PoolTallies,
-  type VirtualRoom,
   firstDefaultPoolWithRoom,
   poolHasRoom,
-  poolsARunMayTake,
   poolsHeldBy,
   roomIn,
   summaryTextOf,
   talliesOf,
-  virtualRoomOf,
-  virtualSelectionHasRoom,
 } from './pool-tallies.ts';
 export {
   BUILD_VOLUME,

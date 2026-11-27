@@ -166,10 +166,9 @@ function noPoolTakesItTextOf({ tallies, }: { readonly tallies: PoolTallies },): 
 }
 
 /**
- Says why one pool takes no run now: the owner's or the caller's closing of it, the runs already going filling it, or the runs on
-the members of a virtual selection it belongs to having filled the room they have together.
+ Says why one pool takes no run now: the owner's or the caller's closing of it, or the runs already going filling it.
 
- @param tallies - how many runs each pool holds, and how full each selection's members are together
+ @param tallies - how many runs each pool holds, and the pools that were counted
 
  @param pool - the pool to read, as the table with the caller's limits holds it
 
@@ -187,19 +186,12 @@ export function whyItTakesNoRun({
   readonly tallies: PoolTallies;
   readonly pool: ProviderPool;
 },): string {
-  /**
-   The pool as the counted table holds it, so a limit a caller set decides its room here too.
-   */
-  const counted = poolOfThatNameIn({
-    pool,
-    pools: tallies.pools,
-  },);
-  if (poolTakesNoNewRun({ pool: counted, },)) {
+  if (poolTakesNoNewRun({ pool, },)) {
     /**
      The closing of the pool, when the owner set it aside: the caller's zero says the pool is closed now, and the owner's words
      say why it was set aside before that.
      */
-    const { closed, } = counted;
+    const { closed, } = pool;
     /**
      Why the pool takes no new run: the reason its `closed` field gives, or its limit when nothing else was said.
      */
@@ -210,32 +202,6 @@ export function whyItTakesNoRun({
    How many of this pool's runs are going now.
    */
   const going = tallies.counts
-    .get(counted.name,);
-  /**
-   How many runs the pool takes at once.
-   */
-  const room = roomIn(counted,);
-  /**
-   What the pool's own room says, which is the whole reason unless a selection it belongs to has filled its members' room.
-   */
-  const own = ((going ?? 0) < room)
-    ? `its own room is free: ${String(going ?? 0,)} going of the ${String(room,)} it takes`
-    : `full: ${String(going ?? 0,)} going of the ${String(room,)} it takes`;
-  /**
-   The selections this pool belongs to whose members together are full.
-   */
-  const together = tallies.virtualRooms
-    .filter(function takesThisPool(selection,) {
-      return selection.pools
-        .some(function isThisPool(member,) {
-          return member.name === counted.name;
-        },);
-    },)
-    .filter(function isFullTogether(selection,) {
-      return selection.going >= selection.room;
-    },)
-    .map(function fullTogether(selection,) {
-      return `${virtualTextOf({ virtual: selection.virtual, },)} members together: ${String(selection.going,)} going of the ${String(selection.room,)} they take`;
-    },);
-  return (together.length === 0) ? own : `${own}, but ${together.join(', and ',)}`;
+    .get(pool.name,);
+  return `full: ${String(going ?? 0,)} going of the ${String(roomIn(pool,),)} it takes`;
 }

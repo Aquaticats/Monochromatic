@@ -39,7 +39,6 @@ import {
   firstDefaultPoolWithRoom,
   poolHasRoom,
   summaryTextOf,
-  virtualSelectionHasRoom,
 } from './pool-tallies.ts';
 
 /**
@@ -65,8 +64,8 @@ export type PoolChoice =
   }
     | {
     /**
-     A virtual selection whose members have room together, which keeps the provider and model the run named and takes its
-     router's order.
+     A virtual selection, which keeps the provider and model the run named: a run on it holds no slot in any pool, and its router
+     may take these members, of which the largest wall factor gives the run its wall clock.
      */
       readonly destination: 'a-virtual-pool';
 
@@ -115,11 +114,12 @@ export function poolChoiceFor({
   readonly resumes: boolean;
 },): PoolChoice {
   // A run on a virtual selection keeps the provider and model it named, because that pair is what lets its router move the
-  // request on: rewriting it into one member's pair would pin the run to that member. It is counted once against the room its
-  // members have together, so it may start while they have room between them, however full any one member's own room reads.
+  // request on: rewriting it into one member's pair would pin the run to that member. It holds no slot in any pool, so no pool's
+  // room decides whether it may start; the members are named for the launcher's line and its wall clock, and for the router.
   if (requested.holds === 'a-virtual-selection') {
     /**
-     The pools the selection's router may take, as the table being counted holds them, so a limit a caller set applies here too.
+     The pools the selection's router may take, as the table being counted holds them, so a limit a caller set reaches a line
+     that names them.
      */
     const members = requested.pools
       .map(function asTheCountedTableHoldsIt(pool,) {
@@ -128,12 +128,6 @@ export function poolChoiceFor({
           pools: tallies.pools,
         },);
       },);
-    if (!virtualSelectionHasRoom({
-      tallies,
-      virtual: requested.virtual,
-    },)) {
-      return { destination: 'no-room', };
-    }
     return {
       destination: 'a-virtual-pool',
       pools: members,
