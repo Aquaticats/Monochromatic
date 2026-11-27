@@ -612,25 +612,33 @@ pub(crate) fn recover_leftovers(
         //  and, when it holds none, why this run did not publish it.
         // Why: the report has to tell a second copy from the version's only copy here, and the directory is gone
         //  after this loop, so both questions are read first.
+        //  Only this version's copies reach the question: the test above leaves every other version's finished copy
+        //  where it is, so a finished copy removed here belongs to `version_dir`.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const finishedCopy = isFinished(sibling.path, firstBin)
-        //   ? isFinished(join(directory, sibling.version), firstBin)
-        //     ? { secondCopy: sibling.version }
-        //     : { notAtItsName: sibling.version, whyNotPublished: theRuleThatKeptItOut() }
+        //   ? isFinished(versionDir, firstBin)
+        //     ? { secondCopy: version }
+        //     : { notAtItsName: version, whyNotPublished: theRuleThatKeptItOut() }
         //   : 'no-finished-copy';
         // ```
         let finished_copy: RemovedFinishedCopy = if is_finished(&sibling.path, first_bin) {
-            let version_is_finished: bool =
-                is_finished(&directory.join(&sibling.version), first_bin);
+            // What: `isFinished` asks the version's own name, which `version_dir` is.
+            // Why: another version's finished copy never reaches this point, so no other directory is read.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const versionIsFinished = isFinished(versionDir, firstBin);
+            // ```
+            let version_is_finished: bool = is_finished(version_dir, first_bin);
             if version_is_finished {
                 RemovedFinishedCopy::SecondCopy {
-                    version: sibling.version.clone(),
+                    version: version.clone(),
                 }
             } else {
                 RemovedFinishedCopy::NotAtItsName {
-                    version: sibling.version.clone(),
+                    version: version.clone(),
                     why_not_published: why_this_run_did_not_publish_it(&older_version),
                 }
             }
