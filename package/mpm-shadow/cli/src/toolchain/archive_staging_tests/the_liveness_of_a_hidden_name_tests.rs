@@ -27,6 +27,7 @@ use std::path::PathBuf;
 /// the hidden names of a version directory, and the step that reads them.
 use super::super::archive_staging::{
     AnOlderVersion,
+    FinishedCopy,
     Liveness,
     Owner,
     STAGING_PURPOSE,
@@ -34,9 +35,12 @@ use super::super::archive_staging::{
     hidden_siblings,
     recover_leftovers,
     staging_dir_of,
+    write_complete_marker,
 };
 /// Imports the tool directory of a tool id.
 use super::super::layout::tool_directory;
+/// Imports the question that tells a finished install from an unfinished one.
+use super::super::published_archive::is_finished;
 /// Imports the text of a path's own last name.
 use super::super::util::file_name_text;
 /// Imports the reader facts a control forces, and the two seams that force them.
@@ -60,10 +64,11 @@ use super::{
     WHAT_WAS_BEING_UNPACKED,
     the_locks_record,
 };
-/// Imports the fixture's tool id and its program.
+/// Imports the fixture's tool id, its program, and the archive digest a marker records.
 use super::{
     BIN,
     ID,
+    release_digest,
 };
 
 /// What:
@@ -199,6 +204,32 @@ fn a_run_that_cannot_read_its_boot_writes_a_name_no_later_run_reclaims() {
         leftover.liveness(),
         Liveness::Unknown,
         "the shorter name carries no boot, so the reader cannot place the installer in any boot"
+    );
+
+    // What: the marker an install writes last, which makes the copy under that name a finished one.
+    // Why: a finished copy under a name no run may judge must not become the version either, or the README's sentence
+    //  would hold for the unfinished copy alone.
+    write_complete_marker(&staging, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+    let again = recover_leftovers(
+        &version_dir,
+        BIN,
+        AnOlderVersion::MayStay,
+        Some(&the_locks_record("0.2.1")),
+    )
+    .expect("the leftovers are read");
+    assert!(
+        again.finished_copy == FinishedCopy::NothingToPublish,
+        "a finished copy under a name no run may judge is never published: {again:?}"
+    );
+    assert!(
+        !is_finished(&version_dir, BIN),
+        "the version's name stays empty"
+    );
+    assert!(
+        staging.is_dir(),
+        "and the finished copy waits where it is: {:?}",
+        names_of(&tool_dir)
     );
 }
 

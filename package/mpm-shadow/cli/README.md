@@ -1297,6 +1297,13 @@ so the same number and the same moment can come back after a reboot;
 the boot's identifier separates one boot from the next.
 A process id means one thing only inside its own namespace;
 the namespace's identifier separates one namespace from the next.
+A run that cannot read its own boot's identifier,
+or its own process namespace,
+writes the shorter name an earlier build wrote,
+which carries the process id and the start time alone:
+the facts it could not read are left out rather than made up,
+and no later install judges such a name,
+so a copy a kill leaves under it is never published and never removed.
 
 - During the download:
   the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
