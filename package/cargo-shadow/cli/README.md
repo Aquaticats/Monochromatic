@@ -1594,6 +1594,28 @@ Unit tests sit beside the modules as `*_tests.rs`;
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
 
+Two guards read this crate's own sources:
+the ban on a lean tool starting cargo or itself (`src/lean_no_recursion_tests.rs`),
+and the guard of the lazy trace (`src/bounded_run_trace_guard_tests.rs`).
+Both read them through `src/test_scratch/source_tree_files.rs`,
+which visits each file once and never enters a symbolic link,
+because `AGENTS.md` rules `LYD`,
+`LYL` and `LYF` put a `uses/` folder of links in a crate's source folders.
+Both compare what they read with what the tree holds:
+a `.rs` file that is not a test and whose own name or a folder above it starts `lean_`,
+at any depth,
+fails the lean guard when it was not read,
+and a production source that writes a trace event and is not one of the trace guard's files fails that guard.
+The comparison is what closed the blindness the release read of 0.1.5-alpha.11 found (Medium 4, 2026-11-27):
+the splits moved lean code into `lean_idle_trees`,
+`lean_podman_cleanup`,
+`lean_removal` and `lean_run`,
+and a guard that listed `src` itself kept reading 30 files while 18 more,
+2,174 lines,
+estood beside it unread.
+A control that lists a fixture folder it made itself is not a source walk and may list it directly,
+saying what it does about a link it meets there.
+
 A control that sizes a fixture it wrote a moment earlier counts by the fixture's length
 (`length_bytes` in `src/lean_test_support.rs`),
 not by the disk blocks it holds (`allocated_bytes_of`),
