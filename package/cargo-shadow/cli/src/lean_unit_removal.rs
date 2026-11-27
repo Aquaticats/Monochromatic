@@ -48,6 +48,7 @@ use crate::lean_removal::{
     Item,
     Refusal,
     TRASH_DIRECTORY_NAME,
+    allocated_bytes_of,
     claim_into_trash,
     delete_claimed,
     empty_trash,
@@ -149,11 +150,11 @@ fn bytes_of_removals(
     let mut bytes: u64 = 0;
     for unit in &removals.units {
         for path in &unit.paths {
-            bytes += add_tree_bytes(path, &mut seen, deadline).bytes;
+            bytes += add_tree_bytes(path, &mut seen, deadline, allocated_bytes_of).bytes;
         }
     }
     for directory in &removals.incremental {
-        bytes += add_tree_bytes(&directory.path, &mut seen, deadline).bytes;
+        bytes += add_tree_bytes(&directory.path, &mut seen, deadline, allocated_bytes_of).bytes;
     }
     return bytes;
 }
@@ -377,7 +378,7 @@ pub fn apply_removals(
     let claimed: Vec<Claimed> = claim_all(&guarded, &second, &trash, &mut outcome, log);
     drop(guarded);
     for entry in claimed {
-        match delete_claimed(&entry.target, entry.identity) {
+        match delete_claimed(&entry.target, entry.identity, allocated_bytes_of) {
             Ok(deleted) => {
                 outcome.bytes += deleted.bytes;
                 if let Some(line) = entry.line {

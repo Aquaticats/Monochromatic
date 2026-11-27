@@ -133,7 +133,11 @@ fn server_starts_on_demand_and_is_opened_once_after_initialized() {
         1,
         "the server did not receive exactly one didOpen: {received:?}"
     );
-    assert!(received.contains(&"workspace/didChangeConfiguration".to_string()));
+    assert!(
+        received
+            .iter()
+            .any(|method| return method == "workspace/didChangeConfiguration")
+    );
     let initialize = support::first_received(&lines, "initialize").expect("initialize");
     let root_uri = format!("file://{}", root.display());
     assert_eq!(initialize["params"]["rootUri"], root_uri.as_str());

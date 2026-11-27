@@ -168,10 +168,9 @@ fn a_failed_start_and_a_refused_launch_each_give_their_cause() {
         )]),
         &[],
     );
+    let expected = "typescript-native was not started: bubblewrap is not installed.";
     assert!(
-        refused.contains(
-            &"typescript-native was not started: bubblewrap is not installed.".to_string()
-        ),
+        refused.iter().any(|line| return line == expected),
         "{refused:?}"
     );
     // A refused launch is not retried by displaying the file again, so no such advice is given.

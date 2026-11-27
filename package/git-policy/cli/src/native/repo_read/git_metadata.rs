@@ -38,6 +38,10 @@ use crate::step_output_read_whole_through_pipes::{
     carried_by,
     release_write_ends,
 };
+/// The answer type this runner hands back,
+/// which the hook that tries an answer first also names,
+/// and which lives in a file of its own so that those two do not use each other.
+pub use crate::the_output_a_captured_query_gives::MetadataOutput;
 /// The longest a read of a check runs.
 use crate::wait_ceilings::PLUMBING_STEP_CEILING;
 /// What:
@@ -60,37 +64,6 @@ use std::path::{
 use std::process::Stdio;
 /// The ceiling value and the sentence a failed read is reported with.
 use std::time::Duration;
-
-/// What:
-///  What one metadata query produced.
-///       `Vec<u8>` is an owned byte list (`u8` is one byte);
-///  sibling `String` would
-///       require UTF-8.
-/// Why:
-///   Git prints paths as raw bytes,
-///  and a failed query is an ordinary answer
-///       ("not a repository"),
-///  not an error.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type MetadataOutput = { success: boolean; code: number | null; stdout: Buffer; stderr: Buffer };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MetadataOutput {
-    /// Whether Git exited with status zero.
-    pub success: bool,
-    /// Git's exit code,
-    ///  or nothing when a signal ended it.
-    ///  Some queries answer through
-    /// their exit code alone (`git diff-index --quiet` exits 1 for "differs").
-    pub code: Option<i32>,
-    /// Exact bytes Git wrote to standard output,
-    ///  including what it printed before failing.
-    pub stdout: Vec<u8>,
-    /// Exact bytes Git wrote to standard error.
-    pub stderr: Vec<u8>,
-}
 
 /// The longest one read-only Git query of the check path runs,
 ///  whatever it shows,

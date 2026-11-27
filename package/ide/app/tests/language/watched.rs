@@ -235,7 +235,9 @@ fn a_server_without_watchers_hears_nothing() {
     );
     let lines: Vec<Value> = support::report(&root);
     assert!(
-        !support::received(&lines).contains(&"workspace/didChangeWatchedFiles".to_string()),
+        !support::received(&lines)
+            .iter()
+            .any(|method| return method == "workspace/didChangeWatchedFiles"),
         "a server that registered nothing was sent file changes"
     );
 }

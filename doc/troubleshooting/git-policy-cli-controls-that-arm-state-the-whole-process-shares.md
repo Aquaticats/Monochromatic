@@ -676,7 +676,119 @@ and in 41.41 s with one test thread;
   This round's runs never met it,
   and no control of this crate produces it on purpose.
 
-## A control's copy of a file was held open by another thread's child (issue 6542)
+## Third round, 2026-11-27T03:16:37-05:00: the add timing record's own controls (issue 6532)
+
+### Symptom
+
+`package/git-policy/cli`,
+two threaded runs of the record's own module,
+default threads,
+`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1 cargo test --locked --offline --lib --features test-only-switches worktree::add_timing::tests -- --skip guest --skip _arm_tests`:
+
+- both runs answered `test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 10758 filtered out`,
+  failing `worktree::add_timing::tests::work_on_other_threads_is_summed_by_name`
+  at `src/native/worktree/add_timing_tests.rs:235`
+  with `left: Null`,
+  `right: 2`,
+  which is issue 6532's line.
+
+The module alone had been reported passing by the round that first saw the failure in a whole `worktree::` run,
+where the control failed once in 14 runs.
+
+### Root cause
+
+`WORK` (`src/native/worktree/add_timing_steps.rs`) is one `Mutex<Option<Vec<(String, Duration)>>>` for the whole process,
+which `begin` replaces with an empty list and `finish` takes.
+Six controls of the module's own tests begin a recording,
+so the one that sums the work of other threads reads the list its two worker threads pushed into,
+and any recording another control begins or ends between its `begin` and its `finish`
+leaves its line without that work:
+the other's `begin` replaces the control's list and the other's `finish` takes the replacement.
+
+### The evidence
+
+A window planted between that control's `begin` and its `finish`
+(test-only and uncommitted,
+reverted before the change),
+with one line printed where a recording begins,
+one where `finish` names the work it took,
+and two around the window:
+
+```text
+PROBE begin by "worktree::add_timing::tests::work_on_other_threads_is_summed_by_name"
+PROBE window opens for "worktree::add_timing::tests::work_on_other_threads_is_summed_by_name"
+PROBE begin by "worktree::add_timing::tests::work_without_a_recording_is_forgotten"
+PROBE finish by "worktree::add_timing::tests::work_without_a_recording_is_forgotten" took 0 work entries: Some([])
+PROBE window closes for "worktree::add_timing::tests::work_on_other_threads_is_summed_by_name"
+PROBE finish by "worktree::add_timing::tests::work_on_other_threads_is_summed_by_name" took 0 work entries: None
+thread 'worktree::add_timing::tests::work_on_other_threads_is_summed_by_name' panicked at src/native/worktree/add_timing_tests.rs:244:5:
+assertion `left == right` failed
+  left: Null
+ right: 2
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 10758 filtered out
+```
+
+So the control that moved the record is named:
+`work_without_a_recording_is_forgotten`.
+Before the window was planted the same control failed twice in two runs,
+so the failure did not need the window;
+the window only made the interleaving visible and named the other control.
+
+### The change
+
+Six controls of `src/native/worktree/add_timing_tests.rs` now run their body in a child of their own
+(`run_the_body_in_a_child_of_its_own`,
+which is in `src/native/testing/process_wide_state_child_test_support.rs`):
+every one that begins a recording,
+which is `steps_nest_through_the_thread_recorder`,
+`a_missing_common_directory_is_not_created`,
+`records_append_as_lines`,
+`work_on_other_threads_is_summed_by_name`,
+`work_without_a_recording_is_forgotten` and
+`an_add_the_ladder_does_not_serve_records_the_route_it_took`.
+The three controls that only drive a `Recorder` by hand,
+and `a_step_without_a_recorder_returns_its_body`,
+set nothing that belongs to the process,
+so they stay beside the module's other threads.
+
+That the child really runs the body is measured and not assumed:
+`strace --follow-forks --trace=execve` on one of them shows this test binary started twice,
+and the second start carries `--exact` with the control's path in this module
+and `--nocapture` beside `--test-threads=1`.
+
+No release code changed:
+`WORK` is still one list for the process,
+and `begin` and `finish` still replace and take it.
+The notice and the record are as they were,
+and one process still runs one add's record,
+which is what the shipped wrapper does.
+
+After the change the same filter answered
+`test result: ok. 13 passed; 0 failed`
+in each of three runs,
+taking 0.04 s then 0.09 s then 0.07 s.
+
+### Not covered
+
+- No `source_guard` ban covers this record yet.
+  The scan every such ban is built on reads each test-only source of the crate,
+  and seven controls of four other files still begin a recording in the run's own process:
+  three in `worktree/add_standing_notice_tests.rs` (issue 6533),
+  two in `worktree/worktree_clone_tests.rs`,
+  one in `worktree/worktree_ladder_finish_tests.rs`
+  and one in `worktree/worktree_ladder_target_tree_skip_tests.rs`.
+  A ban is worth adding when those own their processes,
+  and until then the guide states the rule for a new control
+  (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+- The container gate was not run:
+  this round ran the module on this host and the whole `source_guard` module,
+  and a whole-library threaded run is not run here
+  (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+- A whole `worktree::` threaded run was not made either:
+  the module's own filter shows the failure and its fix,
+  and four split rounds' 14 kept runs of that filter are what the issue reports from.
+
+## Fourth round, 2026-11-27T05:24:15-05:00: a control's copy of a file was held open by another thread's child (issue 6542)
 
 ### Symptom
 

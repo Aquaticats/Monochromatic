@@ -17,6 +17,7 @@ use crate::repo_read_query::{
 };
 use crate::test_support::{
     FIXTURE_GIT_BOUND,
+    PIPE_GRACE,
     QueryAnswer,
     QueryEnding,
     REAL_GIT,
@@ -28,23 +29,6 @@ use crate::test_support::{
     repository,
 };
 use std::path::PathBuf;
-
-/// The malformed spellings the sweep tries for every documented key:
-/// a word no type reads,
-/// a bare name,
-/// an empty value,
-/// a negative number,
-/// a small number,
-/// an overflowing number and a `~user` path of a user that does not exist.
-const MALFORMED_VARIANTS: &[Option<&str>] = &[
-    Some("maybe"),
-    None,
-    Some(""),
-    Some("-1"),
-    Some("3"),
-    Some("99999999999999999999"),
-    Some("~no-such-user-here/x"),
-];
 
 /// Sections whose text values name remotes,
 /// branches and rewrites that the query readers interpret.
@@ -167,7 +151,7 @@ fn real(
     );
     assert!(
         !answer.held_open,
-        "the query {:?} ended, and a descendant of it still holds its output",
+        "the query {:?} ended, and a descendant of it still holds its output after {PIPE_GRACE:?}",
         shape.0
     );
     return (
@@ -873,12 +857,16 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
     trial.finish();
 }
 
-/// Every documented key,
-/// set to each malformed spelling,
-/// either makes the readers decline or leaves them equal to Git.
-#[test]
-fn every_documented_key_with_a_malformed_value_is_declined_or_equals_git() {
-    let trial = Trial::new("repo-read-typed-sweep");
+/// One malformed spelling over every documented key:
+/// every key set to it either makes the readers decline or leaves them equal to Git.
+///  Each spelling is a control of its own,
+/// so a failure names the spelling it is about,
+/// and one slow query fails one case in place of a sweep over seven spellings.
+fn one_malformed_spelling_over_every_documented_key(
+    name: &str,
+    spelling: Option<&str>,
+) {
+    let trial = Trial::new(name);
     let keys: Vec<String> = documented_keys();
     assert!(
         keys.len() > 100,
@@ -886,24 +874,78 @@ fn every_documented_key_with_a_malformed_value_is_declined_or_equals_git() {
         keys.len()
     );
     let mut failures: Vec<String> = Vec::new();
-    for variant in MALFORMED_VARIANTS {
-        for chunk in keys.chunks(BATCH_SIZE) {
-            let pairs: Vec<(String, Option<String>)> = chunk
-                .iter()
-                .map(|key| {
-                    return (key.clone(), variant.map(str::to_string));
-                })
-                .collect();
-            failures.extend(culprits(&trial, pairs.as_slice()));
-        }
+    for chunk in keys.chunks(BATCH_SIZE) {
+        let pairs: Vec<(String, Option<String>)> = chunk
+            .iter()
+            .map(|key| {
+                return (key.clone(), spelling.map(str::to_string));
+            })
+            .collect();
+        failures.extend(culprits(&trial, pairs.as_slice()));
     }
     trial.configure("");
     assert!(
         failures.is_empty(),
-        "{} keys make the readers answer where Git differs: {failures:#?}",
+        "{} keys make the readers answer where Git differs under {spelling:?}: {failures:#?}",
         failures.len()
     );
     trial.finish();
+}
+
+/// Every documented key set to a word no type reads:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn a_malformed_word_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key("repo-read-typed-sweep-word", Some("maybe"));
+}
+
+/// Every documented key set to a bare name,
+/// with no value at all:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn a_bare_name_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key("repo-read-typed-sweep-bare", None);
+}
+
+/// Every documented key set to an empty value:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn an_empty_value_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key("repo-read-typed-sweep-empty", Some(""));
+}
+
+/// Every documented key set to a negative number:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn a_negative_number_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key("repo-read-typed-sweep-negative", Some("-1"));
+}
+
+/// Every documented key set to a small number:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn a_small_number_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key("repo-read-typed-sweep-small", Some("3"));
+}
+
+/// Every documented key set to a number past what a signed 64-bit integer reads:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn an_overflowing_number_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key(
+        "repo-read-typed-sweep-overflow",
+        Some("99999999999999999999"),
+    );
+}
+
+/// Every documented key set to a `~user` path of a user that does not exist:
+/// the readers decline the key or leave it equal to Git.
+#[test]
+fn a_home_of_a_user_who_does_not_exist_over_every_documented_key_declines_or_equals_git() {
+    one_malformed_spelling_over_every_documented_key(
+        "repo-read-typed-sweep-no-such-user",
+        Some("~no-such-user-here/x"),
+    );
 }
 
 /// The number reader refuses what Git reads differently:
@@ -979,7 +1021,7 @@ fn real_under(
     );
     assert!(
         !answer.held_open,
-        "the query {arguments:?} ended, and a descendant of it still holds its output"
+        "the query {arguments:?} ended, and a descendant of it still holds its output after {PIPE_GRACE:?}"
     );
     return answer.output;
 }

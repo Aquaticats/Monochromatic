@@ -40,6 +40,7 @@ const CLOSED_MODES: [u32; 3] = [0o500, 0o555, 0o000];
 /// one case per depth.
 const DEPTHS: [usize; 3] = [1, 2, 3];
 
+use crate::lean_test_support::length_bytes;
 use crate::test_scratch::scratch;
 
 #[test]
@@ -51,7 +52,7 @@ fn an_item_is_claimed_and_deleted_and_its_bytes_are_reported() {
     let item: Item = item_of(&path).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     assert!(!path.exists());
-    let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
+    let deleted: Deleted = delete_claimed(&claimed, item.identity, length_bytes).expect("delete");
     assert!(deleted.bytes >= 8192, "{}", deleted.bytes);
     assert!(
         deleted.modes_added.is_empty(),
@@ -90,7 +91,7 @@ fn a_claimed_entry_that_changed_before_the_unlink_is_not_deleted() {
     fs::remove_dir(&claimed).expect("another owner removes it");
     fs::create_dir_all(&claimed).expect("and a different entry takes the name");
     fs::write(claimed.join("precious"), b"user data").expect("data");
-    let outcome = delete_claimed(&claimed, item.identity);
+    let outcome = delete_claimed(&claimed, item.identity, length_bytes);
     assert!(
         matches!(outcome, Err(Refusal::Changed { .. })),
         "{outcome:?}"
@@ -121,7 +122,7 @@ fn a_symbolic_link_is_removed_as_a_link_and_its_target_stays() {
     std::os::unix::fs::symlink(&target, &link).expect("link");
     let item: Item = item_of(&link).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    delete_claimed(&claimed, item.identity).expect("delete");
+    delete_claimed(&claimed, item.identity, length_bytes).expect("delete");
     assert!(
         target.join("data").exists(),
         "the link's target is untouched"
@@ -172,7 +173,7 @@ fn a_claimed_tree_whose_directory_this_user_may_not_write_is_still_removed_whole
             let item: Item = item_of(&tree).expect("identity");
             let claimed: PathBuf =
                 claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-            let deleted: Deleted = match delete_claimed(&claimed, item.identity) {
+            let deleted: Deleted = match delete_claimed(&claimed, item.identity, length_bytes) {
                 Ok(deleted) => deleted,
                 Err(refusal) => panic!("mode {mode:04o} at depth {depth}: {refusal}"),
             };
@@ -208,7 +209,7 @@ fn a_symbolic_link_inside_a_claimed_tree_that_names_a_closed_directory_outside_i
     std::os::unix::fs::symlink(&outside, &link).expect("link");
     let item: Item = item_of(&tree).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
+    let deleted: Deleted = delete_claimed(&claimed, item.identity, length_bytes).expect("delete");
     assert!(!claimed.exists(), "the claimed tree is gone");
     assert_eq!(
         fs::symlink_metadata(&outside)
@@ -243,13 +244,14 @@ fn a_closed_directory_of_another_user_stays_and_the_removal_says_so() {
     fs::set_permissions(&theirs, fs::Permissions::from_mode(0o500)).expect("mode");
     let item: Item = item_of(&tree).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    let deleted: Deleted = match delete_claimed_as(&claimed, item.identity, somebody_else) {
-        Err(Refusal::PartlyRemoved {
-            deleted,
-            ..
-        }) => deleted,
-        other => panic!("a directory of another user is a partial removal: {other:?}"),
-    };
+    let deleted: Deleted =
+        match delete_claimed_as(&claimed, item.identity, somebody_else, length_bytes) {
+            Err(Refusal::PartlyRemoved {
+                deleted,
+                ..
+            }) => deleted,
+            other => panic!("a directory of another user is a partial removal: {other:?}"),
+        };
     assert_eq!(
         fs::symlink_metadata(claimed.join("theirs"))
             .expect("their directory")
