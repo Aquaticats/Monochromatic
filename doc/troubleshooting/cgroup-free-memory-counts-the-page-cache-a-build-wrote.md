@@ -31,19 +31,22 @@ by_memory = (memory_available / 2) / per_item_memory
 and the free bytes of this process's control group,
 which the `sysinfo` crate answers as `memory.max - memory.current` at each level of the hierarchy and
 then the least of those
-(`sysinfo-0.40.3/src/unix/linux/cgroup.rs`, `memory_limits`).
+(`sysinfo-0.40.3/src/unix/linux/cgroup.rs`,
+`memory_limits`).
 
 The page cache a process wrote while it lived inside the group is charged to that group's `memory.current`.
 So a build run inside a memory-capped scope pushes the group's own cap,
 `memory.current` reaches `memory.max`,
 and `HostResources::read` answers **no free bytes at all** even though the machine has gigabytes free.
 `worker_budget` then returns its floor of one item
-(by design: "a starved host still makes progress"),
+(by design:
+"a starved host still makes progress"),
 so a round runs its batches one item at a time.
 
 ## What was measured
 
-On 2026-11-27, in
+On 2026-11-27,
+in
 `/home/user/Monochromatic/.claude/worktrees/pi-issue-6567-side-by-side-work-item-controls-hold-threaded/package/git-policy/cli`,
 each `cargo test --locked --offline --lib --features test-only-switches landing:: -- --skip guest --skip _arm_tests`
 run in its own
@@ -52,7 +55,10 @@ run in its own
 - The run whose scope also compiled the crate from scratch read
   `memory_available: Some(0)` with `parallelism: 7`,
   and the two controls above failed with `left: 1`.
-- The same control alone, in the same caps, with a warm build, read
+- The same control alone,
+  in the same caps,
+  with a warm build,
+  read
   `memory_available: Some(23564271616)` (23.5 GB) and passed with two items inside the handler.
 - A fresh scope under the same caps answered
   `memory.max=10737418240 current=2486272`,
@@ -71,7 +77,8 @@ letting the machine answer:
 the shipped round reads the machine once for the round,
 and the controls use `A_HOST_THAT_BOUNDS_NO_BATCH` or `A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`
 (`package/git-policy/cli/src/native/landing/service_work_items_side_by_side.rs`).
-The rule is written down in the package guide, "Nothing a test changes may be process-wide".
+The rule is written down in the package guide,
+"Nothing a test changes may be process-wide".
 
 To tell this from a control that looked before its second item arrived,
 print what the host answered where the width is taken:
