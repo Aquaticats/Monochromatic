@@ -1,0 +1,14 @@
+# The guest's own memory at the kernel's kill of the four-job build (issue 6611), read inside guest git-policy-lock
+# MemTotal and the kill line from dmesg, then the sampler's samples around the kill, one each 2 seconds:
+1795798790 MemTotal:=8131780 MemFree:=262796 MemAvailable:=799740 Cached:=698204 SwapTotal:=0 SwapFree:=0 AnonPages:=6822448 rustc_rss_kb=6955780 cargo_rss_kb=119580
+1795798792 MemTotal:=8131780 MemFree:=142284 MemAvailable:=647568 Cached:=666824 SwapTotal:=0 SwapFree:=0 AnonPages:=7015560 rustc_rss_kb=7155020 cargo_rss_kb=119580
+1795798794 MemTotal:=8131780 MemFree:=116952 MemAvailable:=466532 Cached:=516324 SwapTotal:=0 SwapFree:=0 AnonPages:=7195620 rustc_rss_kb=7361184 cargo_rss_kb=119580
+1795798796 MemTotal:=8131780 MemFree:=171104 MemAvailable:=107864 Cached:=45380 SwapTotal:=0 SwapFree:=0 AnonPages:=7637108 rustc_rss_kb=7520504 cargo_rss_kb=116792
+1795798798 MemTotal:=8131780 MemFree:=141500 MemAvailable:=63928 Cached:=18272 SwapTotal:=0 SwapFree:=0 AnonPages:=7701208 rustc_rss_kb=960704 cargo_rss_kb=116792
+1795798801 MemTotal:=8131780 MemFree:=6477000 MemAvailable:=6473872 Cached:=165884 SwapTotal:=0 SwapFree:=0 AnonPages:=1178984 rustc_rss_kb=1122132 cargo_rss_kb=120036
+1795798803 MemTotal:=8131780 MemFree:=6455224 MemAvailable:=6454380 Cached:=170004 SwapTotal:=0 SwapFree:=0 AnonPages:=1229384 rustc_rss_kb=1175104 cargo_rss_kb=120036
+1795798805 MemTotal:=8131780 MemFree:=6451408 MemAvailable:=6451572 Cached:=172016 SwapTotal:=0 SwapFree:=0 AnonPages:=1240000 rustc_rss_kb=1187152 cargo_rss_kb=120036
+
+[Fri Nov 27 16:59:59 2026] Out of memory: Killed process 149027 (rustc) total-vm:8964104kB, anon-rss:6668028kB, file-rss:2292kB, shmem-rss:0kB, UID:0 pgtables:15928kB oom_score_adj:0
+
+# MemTotal 8131780 kB, SwapTotal 0 kB: the guest had no swap.

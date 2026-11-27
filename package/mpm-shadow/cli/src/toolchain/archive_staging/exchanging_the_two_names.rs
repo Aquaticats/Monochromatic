@@ -26,6 +26,7 @@
 //! // exchanging-the-two-names.ts
 //! export function exchangeTheTwoNames(left: string, right: string): void;  // throws
 //! export function cannotExchange(error: NodeJS.ErrnoException): boolean;
+//! export function aPermissionDenial(error: NodeJS.ErrnoException): boolean;
 //! ```
 
 /// Imports the input and output types a refused call answers with.
@@ -108,5 +109,34 @@ pub(super) fn cannot_exchange(error: &io::Error) -> bool {
     return matches!(
         code,
         Errno::INVAL | Errno::NOSYS | Errno::NOTSUP | Errno::PERM | Errno::ACCESS
+    );
+}
+
+/// What:
+/// Whether an error is a denial of permission,
+/// `EPERM` or `EACCES`,
+/// rather than a file system that cannot exchange two names at all.
+/// Why:
+/// The fallback treats both the same,
+/// so a policy that refuses only the exchange is hidden by it;
+/// the two denials are the ones that can mean such a policy,
+/// and the caller says on standard error when one of them is taken as "this file system cannot".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aPermissionDenial(error: NodeJS.ErrnoException): boolean { return error.code === 'EPERM' || error.code === 'EACCES'; }
+/// ```
+pub(super) fn a_permission_denial(error: &io::Error) -> bool {
+    // What: `Errno::from_io_error` reads the operating system's own code out of the error, or nothing for an error this
+    //  crate made up. `matches!` with `Some(Errno::PERM | Errno::ACCESS)` is true for either denial.
+    // Why: only a denial of permission can also be a policy that refuses the exchange alone.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return ['EPERM', 'EACCES'].includes(error.code);
+    // ```
+    return matches!(
+        Errno::from_io_error(error),
+        Some(Errno::PERM | Errno::ACCESS)
     );
 }

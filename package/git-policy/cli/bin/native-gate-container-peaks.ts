@@ -10,6 +10,11 @@
  `libpod-*.scope` until the scope goes, which it marks with one last line holding the figures the scope last gave. The
  tests are named from the processes themselves, by `bin/native-gate-container-processes.ts`.
 
+ A dying group gives its files up one at a time, so a reading taken while it goes answers a part of it
+ (`doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`). Such a reading is no
+ sample of this container and never becomes a line: what the record says is the last whole reading, and the end line that
+ marks a role's scope gone repeats that reading.
+
  Usage:
    node bin/native-gate-container-peaks.ts --log <gate log> --out <jsonl> [--interval-ms 100]
      [--process-interval-ms 1000] [--deadline-seconds 5400]
@@ -24,6 +29,7 @@ import {
   type ContainerMemoryRead,
   type ContainerMemorySample,
   CGROUP_NOT_THERE,
+  READING_NOT_WHOLE,
   containerCgroupPathOf,
   readContainerMemory,
 } from './native-gate-container-cgroup-memory.ts';
@@ -302,10 +308,19 @@ async function readRoleOnce({
     ...(recording.userId === undefined ? {} : { userId: recording.userId, }),
   },);
   /**
-   What that scope holds now.
+   What that scope holds now, or the statement that this reading is no whole reading of it.
+
+   A reading that answered less than the one kept loses a part of the group the kernel is removing, so it is no sample of
+   this container: what the lines say is the last whole reading. It says nothing about whether the cgroup is gone, so the
+   poll after it asks again, and a group whose directory really went answers that.
    */
-  const sample: ContainerMemoryRead = await readContainerMemory({ cgroupPath, },);
-  if (sample !== CGROUP_NOT_THERE) {
+  const sample: ContainerMemoryRead = await readContainerMemory({
+    cgroupPath,
+    replaces: state.lastSamples
+      .get(role,)
+      ?? CGROUP_NOT_THERE,
+  },);
+  if ((sample !== CGROUP_NOT_THERE) && (sample !== READING_NOT_WHOLE)) {
     state.lastSamples
       .set(
       role,
@@ -321,6 +336,8 @@ async function readRoleOnce({
     state.samples += 1;
     return;
   }
+  if (sample === READING_NOT_WHOLE)
+    return;
   /**
    The last figures this role's scope gave, if it ever did.
    */
@@ -328,8 +345,8 @@ async function readRoleOnce({
     .get(role,);
   if (last === undefined)
     return;
-  // The scope is gone, so the sample above is the last moment the kernel could be asked; the end line repeats it, so a
-  // reader needs no search for a role's final figures.
+  // The scope's directory is gone, so the last whole reading this run kept is what the end line repeats, and a reader
+  // needs no search for a role's final figures.
   await writeLine({
     state,
     recording,

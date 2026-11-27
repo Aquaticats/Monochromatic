@@ -18,9 +18,9 @@
  files with `css_clear_dir` and only then calls `kernfs_remove` on the directory (`kernel/cgroup/cgroup.c`). A reading
  taken while a scope ends therefore answers some of the group's files and not the others, and a file the kernel is
  removing answers `ENODEV` while it is deactivated (`fs/kernfs/file.c`). Such a reading never replaces one that answered
- more (`{@link answersEveryPartOf}`): a figure or a counter this host's kernel wrote a moment ago is not one it omits, so
- what a reading lost is what the group took with it, and a check judged on that reading would be told no bound of its own
- failed it (`bin/native-check-scope-bound-lines.ts`).
+ more (`{@link answersEveryPartOf}` in `bin/cgroup-whole-readings.ts`): a figure or a counter this host's kernel wrote a
+ moment ago is not one it omits, so what a reading lost is what the group took with it, and a check judged on that
+ reading would be told no bound of its own failed it (`bin/native-check-scope-bound-lines.ts`).
  */
 import {
   readFile,
@@ -29,6 +29,10 @@ import {
 import { join, } from 'node:path';
 import { isMissing, } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/fs-guards.ts';
 
+import {
+  answersEveryPartOf,
+  isRemoved,
+} from './cgroup-whole-readings.ts';
 import { isWholeNumberText, } from './native-gate-arguments.ts';
 import {
   cgroupRoot,
@@ -160,32 +164,6 @@ export type ScopeAccountingSample = {
  One check scope's own accounting, or the statement that its control group is not there to read.
  */
 export type ScopeAccountingRead = ScopeAccountingSample | typeof SCOPE_NOT_READ;
-
-/**
- Tells whether an error is the kernel's answer for a file of a control group it is removing.
-
- A kernfs node the kernel has deactivated and not yet unlinked answers `ENODEV` to an open and to a read of it
- (`fs/kernfs/file.c`), which is what a control group's files do one at a time as the group goes. Such a file answers no
- figure here, exactly as a file this host's kernel does not write does, and the reading it was read for is refused for the
- parts it lost.
-
- Exported so a control can hand it the shape the kernel answers, which no fixture on an ordinary filesystem can make: a
- directory there answers `ENOENT` for a file it does not hold, and only a control group being removed answers `ENODEV`.
-
- @param error - the caught value
-
- @returns true when it carries the code `ENODEV`
-
- @example
- ```ts
- isRemoved(Object.assign(new Error('ENODEV: no such device, read \'/sys/fs/cgroup/a.scope/pids.max\''), { code: 'ENODEV' }));
- ```
- */
-export function isRemoved(error: unknown,): boolean {
-  return (Error.isError(error,))
-    && ('code' in error)
-    && (error.code === 'ENODEV');
-}
 
 /**
  Read one file of a cgroup as trimmed text.
@@ -374,80 +352,6 @@ function holdsACounter(counters: Readonly<Record<string, number>>,): boolean {
     > 0)
     return true;
   return false;
-}
-
-/**
- Every part of one reading, by name: each figure it answered and each counter of each counter file.
-
- @param sample - one reading of a scope
-
- @returns the names of the figures and counters it answered
-
- @example
- ```ts
- partsOf({ sample }); // new Set(['pidsPeak', 'pidsEvents.max', 'cpuStat.nr_periods'])
- ```
- */
-function partsOf({ sample }: { readonly sample: ScopeAccountingSample; },): ReadonlySet<string> {
-  /**
-   The parts answered so far.
-   */
-  const parts = new Set<string>();
-  for (const [name, part] of Object.entries(sample,)) {
-    if (part === undefined)
-      continue;
-    if ((typeof part) === 'number')
-      parts.add(name,);
-    else if ((typeof part) !== 'string') {
-      for (const counter of Object.keys(part,))
-        parts.add(`${name}.${counter}`,);
-    }
-  }
-  return parts;
-}
-
-/**
- Tells whether one reading answers every part of the reading it would replace.
-
- A control group gains its files as the kernel makes it and loses them as it goes, and it does not come back: what a
- reading answers and the one before it did not is a group still being made, and what it does not answer and the one
- before it did is a group that went. So a reading of the moment a group went is never a reading a check is judged by.
-
- @param read - the reading just taken
-
- @param kept - the reading it would replace, or {@link SCOPE_NOT_READ} when nothing was read before it
-
- @returns true when this reading answers every figure and counter the kept one answered
-
- @example
- ```ts
- answersEveryPartOf({ read, kept: watch.lastRead() });
- ```
- */
-export function answersEveryPartOf({
-  read,
-  kept,
-}: {
-  readonly read: ScopeAccountingRead;
-  readonly kept: ScopeAccountingRead;
-},): boolean {
-  if (kept === SCOPE_NOT_READ)
-    return true;
-  if (read === SCOPE_NOT_READ)
-    return false;
-  /**
-   Every part the kept reading answered.
-   */
-  const keptParts = partsOf({ sample: kept, },);
-  /**
-   Every part this reading answers.
-   */
-  const answered = partsOf({ sample: read, },);
-  for (const part of keptParts) {
-    if (!answered.has(part,))
-      return false;
-  }
-  return true;
 }
 
 /**

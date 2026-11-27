@@ -1,6 +1,7 @@
 # bash-output-filter
 
-Claude Code plugin whose PreToolUse hook filters Bash output and applies a one-second foreground timeout,
+Claude Code plugin whose PreToolUse hook filters Bash output,
+holds main-session Bash calls to a one-second foreground timeout,
 and whose SessionStart hook warns when native background tasks are disabled.
 
 ## Problem
@@ -111,16 +112,20 @@ No manual configuration is needed beyond installing the plugin.
 
 ## Blocking timeout
 
-The hook supplies `timeout: 1000` for eligible main-agent Bash calls that have no caller-supplied timeout.
+The hook gives every eligible main-agent Bash call a foreground timeout of at most `1000` milliseconds.
 It no longer forces `run_in_background: true`.
 A quick command returns synchronously.
-A longer command uses Claude Code's native auto-background result with a task ID and output path.
+A longer command uses Claude Code's native auto-background result with a task ID and output path,
+and keeps running in the background.
 
 ### Accepted decision
 
 The 2026-11-25 decision in
 [`doc/decision/claude-code-bash-blocking-timeout.md`](../../../doc/decision/claude-code-bash-blocking-timeout.md)
 supersedes the blanket forced-background decision of 2026-10-21.
+Its amendment of 2026-11-27 clamps caller timeouts and prefixes a leading `sleep`,
+after main sessions were measured waiting in front for up to 58 minutes on timeouts they passed themselves
+([`doc/planning/claude-code-bash-caller-timeout-cap.md`](../../../doc/planning/claude-code-bash-caller-timeout-cap.md)).
 The value comes from the owner's request,
 not a workload measurement.
 
@@ -132,26 +137,48 @@ The owner accepted that behavior.
 
 ### Eligibility and caller intent
 
-The default applies only when every condition holds:
+The policy changes a call only when every condition holds:
 
 - The event has no `agent_id`.
 - `run_in_background` is not `true`.
-- The caller did not supply `timeout`.
-- The command is not a bare numeric sleep under the existing production predicate.
 - The policy is enabled.
 
-A bare numeric sleep still passes through output filtering,
-so the executed command begins with the filter wrapper rather than `sleep`.
-It keeps the exemption from the default timeout.
+Such a call keeps a caller timeout above 0 and at most `1000`;
+every other value,
+absent and `0` included,
+becomes `1000`.
+`run_in_background: false` counts as a foreground call.
+A bare numeric sleep has no exemption:
+it receives `1000` and,
+being filter-wrapped,
+moves to the background like any other command.
 
-Explicit background calls preserve their flag and their present or absent timeout.
-Every caller-supplied timeout is preserved,
-including `0`,
-`500`,
-and `600000`.
-`run_in_background: false` receives the default only when timeout is absent.
+Explicit background calls preserve their flag and their present or absent timeout,
+because that timeout is how long the command may run in the background.
+With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a caller timeout stays as given,
+because a timeout there stops the command instead of moving it;
+only an absent timeout becomes `1000`.
 
-Native subagent execution fields remain untouched,
+### Leading sleep prefix
+
+Claude Code moves a foreground command to the background at its timeout,
+unless the command starts with `sleep`,
+which it stops instead (exit 143,
+"Command timed out after 1s").
+A filter-wrapped command starts with `set -o pipefail`,
+so it always moves.
+For a policy call the filter leaves unwrapped,
+the hook adds `true && ` in front when the first command word,
+after blank and whole comment lines,
+is `sleep`:
+`sleep 300 && check > out` runs as `true && sleep 300 && check > out`
+and moves instead of being stopped.
+The rule follows Claude Code 2.1.332's own check,
+traced in
+[`doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`](../../../doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md);
+re-probe it after a Claude Code upgrade.
+
+Native subagent execution fields and command text remain untouched,
 but output filtering still applies to subagents.
 A main session started with `--agent` has `agent_type` without `agent_id`
 and remains in scope.
@@ -202,6 +229,12 @@ not a claim that every output surface displays the message.
 ### Results and working directory
 
 A moved command returns a task ID and output path.
+In an unattended session (`-p`,
+SDK,
+CI or cloud),
+Claude Code stops a moved command 30 minutes after the move,
+or 10 in a `-p` run with a text prompt;
+start a longer run there with `run_in_background: true` and its own `timeout`.
 The agent reads output with `Read` after the exit notification arrives.
 Claude Code's native result is sufficient;
 the hook adds no second completion notice.
@@ -220,6 +253,15 @@ Backgrounding does not finish the work:
  Resource containment and successful follow-through cannot be inferred from background execution alone.
 
 ### Verification
+
+On 2026-11-27 a real Claude Code 2.1.332 session using the rebuilt bundle moved every main-session case
+(a filtered command with `timeout: 3480000`,
+unwrapped `sleep`-first commands with a long timeout,
+none,
+or a comment line first,
+and a bare `sleep 5`) at about 2.1 s,
+and left an explicit background call and a native subagent's calls untouched;
+`doc/planning/claude-code-bash-caller-timeout-cap.md` records the rows.
 
 Real Claude Code 2.1.332 probes verified quick and moved commands,
 caller values,

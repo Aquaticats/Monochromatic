@@ -3,6 +3,12 @@
  Run the TypeScript checks of the packages a change touched, each in its own capped systemd scope, all at once, and print
  one line per check with its status and, when it failed, the lines that say why.
 
+ A check that passed prints one line more, which only a real run can earn (`bin/native-check-ran-what-it-says.ts`): how
+ many unit test files the package holds and how many suites reported `[PASS]`, or what the type checker reports about the
+ files it read. A passing unit test run whose output reports no suite, or fewer suites than its package holds unit test
+ files, is refused and the command exits 2, because a suite that is never awaited exits 0 having run nothing
+ (`AGENTS.md`, rule `TRV`).
+
  This is what `native:ts-checks` runs, and it folds the coordinator's scratch script `~/temp/agent/gate/ts-checks.ts` into
  the package. That script named two packages, the wrapper and the mutation runner, because it was written for one
  integration branch; this command names the checks of this package by default and takes any other task name as a
@@ -37,18 +43,14 @@ import {
   runTokenOfScopes,
   type ScopeOutcome,
 } from './native-capped-scope-command.ts';
+import { commitLinesOf, } from './native-check-commit-line.ts';
 import { boundLinesOf, } from './native-check-scope-bound-lines.ts';
+import { ranWhatItSaysOf, } from './native-check-ran-what-it-says.ts';
 import { NativeGateError } from './native-gate-error.ts';
 import {
   printLine,
   runGateMain,
 } from './native-gate-main.ts';
-import {
-  gitDeadlineMilliseconds,
-  gitProgram,
-  promptlessGitSettings,
-} from './native-gate-paths.ts';
-import { runGateCommand } from './native-gate-run.ts';
 import { localStamp } from './native-gate-unit-name.ts';
 
 /**
@@ -291,22 +293,53 @@ type CheckRun = {
 };
 
 /**
- The lines one check's result prints.
+ One check's result: the lines it prints, and whether the run counts it as passed.
 
- A check's own failure lines are followed by the lines its scope's bounds earn (`bin/native-check-scope-bound-lines.ts`),
- so a person reads a bound and not a test as the cause of what went wrong, and never instead of the check's own account of
- it.
+ A check that exited zero can still be one this run does not count: its own output has to say what it ran, because a
+ suite that is never awaited exits 0 having run nothing (`AGENTS.md`, rule `TRV`), and what that line is belongs to
+ `bin/native-check-ran-what-it-says.ts`.
+ */
+export type CheckResult = {
+  /**
+   The lines the check prints, in order.
+   */
+  readonly lines: readonly string[];
+  /**
+   Whether the run counts this check as passed.
+   */
+  readonly passed: boolean;
+};
+
+/**
+ The lines one check's result prints, and whether the run counts it as passed.
+
+ A check's own failure lines are followed by the lines its scope's bounds earn
+ (`bin/native-check-scope-bound-lines.ts`), so a person reads a bound and not a test as the cause of what went wrong,
+ and never instead of the check's own account of it. A check that passed prints the line its own output earns: how many
+ unit test files it covered and how many suites reported `[PASS]`, or the type checker's silence about what it read
+ (`bin/native-check-ran-what-it-says.ts`). When that line cannot be earned the run does not count the check as passed,
+ whatever its status was.
 
  @param check - the check and its outcome
 
- @returns the status line, for a check that did not pass the lines that say why, and the bound lines its scope earned
+ @param worktree - the folder the checks ran in, in or above which a task's own path and so its unit test file count is
+ looked for
+
+ @returns the status line, for a check that did not pass the lines that say why, the bound lines its scope earned, and
+ whether the run counts the check as passed
 
  @example
  ```ts
- resultLinesOf({ check });
+ const result = await resultLinesOf({ check, worktree });
  ```
  */
-export function resultLinesOf({ check }: { readonly check: CheckRun; }): readonly string[] {
+export async function resultLinesOf({
+  check,
+  worktree,
+}: {
+  readonly check: CheckRun;
+  readonly worktree: string;
+},): Promise<CheckResult> {
   /**
    Whether the check passed, which a bound is reported beside and never for.
    */
@@ -325,26 +358,46 @@ export function resultLinesOf({ check }: { readonly check: CheckRun; }): readonl
   });
   if (check.outcome
     .timedOut)
-    return [
-      `${check.task}: stopped at its deadline, so the scope ${check.scope} was ended`,
-      ...failureLinesOf({ output: `${check.outcome
-        .stdout}\n${check.outcome
-          .stderr}`, }),
-      ...boundLines,
-    ];
-  if (passed)
-    return [
-      `${check.task}: exit 0`,
-      ...boundLines
-    ];
-  return [
-    `${check.task}: exit ${String(check.outcome
-      .status)}`,
-    ...failureLinesOf({ output: `${check.outcome
+    return {
+      lines: [
+        `${check.task}: stopped at its deadline, so the scope ${check.scope} was ended`,
+        ...failureLinesOf({ output: `${check.outcome
+          .stdout}\n${check.outcome
+            .stderr}`, }),
+        ...boundLines,
+      ],
+      passed: false,
+    };
+  if (!passed)
+    return {
+      lines: [
+        `${check.task}: exit ${String(check.outcome
+          .status)}`,
+        ...failureLinesOf({ output: `${check.outcome
+          .stdout}\n${check.outcome
+            .stderr}`, }),
+        ...boundLines,
+      ],
+      passed: false,
+    };
+  /**
+   What the passing check's own output says it ran.
+   */
+  const ran = await ranWhatItSaysOf({
+    task: check.task,
+    output: `${check.outcome
       .stdout}\n${check.outcome
-        .stderr}`, }),
-    ...boundLines,
-  ];
+        .stderr}`,
+    worktree,
+  });
+  return {
+    lines: [
+      `${check.task}: exit 0`,
+      ...ran.lines,
+      ...boundLines,
+    ],
+    passed: !ran.refused,
+  };
 }
 
 /**
@@ -386,44 +439,6 @@ function checkCapsFromOptions({ options }: { readonly options: ReturnType<typeof
       }),
     },
   });
-}
-
-/**
- The commit the checkout the checks run in points at, or empty text when it has none.
-
- A throwaway checkout of a test is not a commit, and neither is a folder outside every checkout; the answer is printed
- beside the checks so a log says what was checked when the folder name does not.
-
- @param worktree - the checkout the checks run in
-
- @returns the short commit, or empty text
-
- @example
- ```ts
- await commitOf({ worktree: '/repo/.claude/worktrees/a' });
- ```
- */
-async function commitOf({ worktree }: { readonly worktree: string; }): Promise<string> {
-  /**
-   What `git rev-parse` answered.
-   */
-  const answered = await runGateCommand({
-    program: gitProgram,
-    args: [
-      '-C',
-      worktree,
-      'rev-parse',
-      '--short=10',
-      'HEAD',
-    ],
-    deadlineMilliseconds: gitDeadlineMilliseconds,
-    environment: {
-      ...process.env,
-      ...promptlessGitSettings,
-    },
-  });
-  return answered.status === 0 ? answered.stdout
-    .trim() : '';
 }
 
 /**
@@ -522,18 +537,26 @@ async function main(): Promise<number> {
     };
   }));
   /**
-   The commit the checkout points at, printed so a log says what was checked.
+   What each check prints and whether the run counts it as passed, in the order the caller named them.
    */
-  const commit = await commitOf({ worktree, });
-  printLine(`${worktree}${commit === '' ? '' : ` at ${commit}`}`);
-  for (const check of checks)
-    for (const line of resultLinesOf({ check, }))
+  const results = await Promise.all(checks.map(async function resultOf(check): Promise<CheckResult> {
+    return await resultLinesOf({
+      check,
+      worktree,
+    },);
+  }));
+  /**
+   The line naming the checkout and the commit it points at, or why no commit could be read, printed so a log says what
+   was checked.
+   */
+  const commitLines = await commitLinesOf({ worktree, });
+  for (const line of commitLines)
+    printLine(line);
+  for (const result of results)
+    for (const line of result.lines)
       printLine(line);
-  return checks.every(function passed(check) {
-    return (check.outcome
-      .status
-      === 0) && (!check.outcome
-        .timedOut);
+  return results.every(function passed(result) {
+    return result.passed;
   })
     ? 0
     : checkFailedExitCode;

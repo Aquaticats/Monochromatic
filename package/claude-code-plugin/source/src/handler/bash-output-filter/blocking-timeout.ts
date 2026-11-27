@@ -1,16 +1,21 @@
 /**
- Default-on one-second foreground timeout and startup-warning policy for main-agent Bash calls.
+ One-second foreground timeout, caller-timeout clamp, sleep prefix, and startup-warning policy
+ for main-agent Bash calls.
+
+ Claude Code moves a foreground command to the background when it reaches its timeout,
+ unless the command starts with `sleep`, which it stops instead.
+ This module decides which calls get the one-second timeout
+ and which command text needs a no-op prefix so that Claude Code moves it rather than stopping it.
+ Decision: `doc/decision/claude-code-bash-blocking-timeout.md`.
 
  @module
  */
-
-import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 //region Timeout and startup-warning policy
 // Owns environment switches, the fixed timeout, and the warning text.
 
 /**
- Environment variable that enables or disables the default foreground timeout.
+ Environment variable that enables or disables the timeout policy.
  */
 const BLOCKING_TIMEOUT_ENABLED_ENV = 'MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED' as const;
 
@@ -20,7 +25,8 @@ const BLOCKING_TIMEOUT_ENABLED_ENV = 'MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLE
 const DISABLE_BACKGROUND_TASKS_ENV = 'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS' as const;
 
 /**
- Default foreground timeout in milliseconds, chosen by the owner's request.
+ Foreground timeout in milliseconds, chosen by the owner's request;
+ also the largest caller timeout the policy leaves in place.
  */
 const BLOCKING_TIMEOUT_MS = 1_000;
 
@@ -34,12 +40,7 @@ const DISABLED_VALUES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- Command word of the one invocation shape that stays exempt from the default timeout.
- */
-const SLEEP_WORD = 'sleep' as const;
-
-/**
- Warning shown once at startup when native background tasks and the default timeout conflict.
+ Warning shown once at startup when native background tasks and the timeout policy conflict.
  */
 const disabledBackgroundTasksWarning: string =
   'Claude Code background tasks are disabled while Monochromatic\'s one-second Bash timeout is enabled. '
@@ -49,7 +50,7 @@ const disabledBackgroundTasksWarning: string =
     + 'Bare mode has the same termination risk without this warning.';
 
 /**
- Whether the default timeout policy is enabled.
+ Whether the timeout policy is enabled.
 
  @param env - process environment holding {@link BLOCKING_TIMEOUT_ENABLED_ENV}
 
@@ -71,132 +72,258 @@ function isBlockingTimeoutEnabled(env: Readonly<NodeJS.ProcessEnv>,): boolean {
 
 //endregion
 
-//region Bare numeric sleep predicate
-// Recognizes only the exact invocation shape exempted by the accepted policy.
+//region Policy eligibility and timeout clamp
+// Decides which calls the policy changes and what timeout they carry.
 
 /**
- Whether `text` is a plain decimal number: digits with at most one dot, and at least one digit.
-
- @param text - candidate sleep duration
-
- @returns whether `text` is digits with an optional single dot
-
- @example
- ```ts
- isPlainNumber('0.5'); // true
- isPlainNumber('.5'); // true
- isPlainNumber('5.'); // true
- isPlainNumber('.'); // false
- isPlainNumber('1.2.3'); // false
- ```
- */
-function isPlainNumber(text: string,): boolean {
-  /**
-   Dot-separated runs; a plain number has one or two.
-   */
-  const parts = text.split('.',);
-  if (parts.length > 2)
-    return false;
-
-  /**
-   Characters left after removing the optional dot; all must be digits.
-   */
-  const digits = parts.join('',);
-  if (digits.length === 0)
-    return false;
-
-  for (const character of digits) {
-    if (!isDigit(character,))
-      return false;
-  }
-  return true;
-}
-
-/**
- Whether `command` is exactly `sleep <number>`, with no chaining, redirects, or extra arguments.
-
- @param command - Bash command text as sent by the model
-
- @returns whether the whole command is a bare numeric sleep
-
- @example
- ```ts
- isPlainSleep('sleep 30'); // true
- isPlainSleep('sleep 30 && ls'); // false
- ```
- */
-function isPlainSleep(command: string,): boolean {
-  /**
-   Command text without surrounding whitespace.
-   */
-  const trimmed = command.trim();
-  if (!trimmed.startsWith(SLEEP_WORD,))
-    return false;
-
-  /**
-   Text after the command word; whitespace here excludes lookalike words.
-   */
-  const rest = trimmed.slice(SLEEP_WORD.length,);
-  if (rest.trim() === rest)
-    return false;
-
-  return isPlainNumber(rest.trim(),);
-}
-
-//endregion
-
-//region Timeout eligibility
-// Combines environment, event ownership, caller intent, and the sleep exemption.
-
-/**
- Whether a Bash call should receive the default foreground timeout.
+ Whether the timeout policy changes this Bash call's execution.
 
  Native subagent calls are excluded because the policy is main-agent only.
- Explicit background calls preserve their mode and timeout semantics.
- Caller-supplied timeouts and bare numeric sleeps preserve native handling.
+ Explicit background calls are excluded because their `timeout` is a background lifetime,
+ not a foreground wait.
 
  @param agentId - `agent_id` from the hook input, absent on the main thread
-
- @param command - Bash command text as sent by the model
 
  @param env - process environment holding the policy variable
 
  @param runInBackground - caller's requested background mode
 
- @param timeout - caller's timeout, with `undefined` meaning absent
-
- @returns `true` when the hook should supply {@link BLOCKING_TIMEOUT_MS}
+ @returns `true` when the hook should clamp the timeout and prefix a leading `sleep`
 
  @example
  ```ts
- shouldApplyBlockingTimeout({ command: 'ls', env: {} }); // true
- shouldApplyBlockingTimeout({ command: 'ls', env: {}, timeout: 500 }); // false
+ isTimeoutPolicyCall({ env: {} }); // true
+ isTimeoutPolicyCall({ agentId: 'agent-1', env: {} }); // false
  ```
  */
-function shouldApplyBlockingTimeout(
+function isTimeoutPolicyCall(
   {
     agentId,
-    command,
     env,
     runInBackground,
-    timeout,
   }: Readonly<{
     agentId?: string;
-    command: string;
     env: Readonly<NodeJS.ProcessEnv>;
     runInBackground?: boolean;
-    timeout?: number;
   }>,
 ): boolean {
   if (!isBlockingTimeoutEnabled(env,))
     return false;
   if (agentId !== undefined)
     return false;
-  if (runInBackground === true)
+  return runInBackground !== true;
+}
+
+/**
+ Whether Claude Code can move a timed-out command to the background in this session.
+
+ With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a timeout stops the command instead,
+ so clamping a caller's timeout there would only stop it sooner.
+ Bare mode has the same effect but sets no variable the hook can read.
+
+ @param env - process environment holding {@link DISABLE_BACKGROUND_TASKS_ENV}
+
+ @returns `false` only when the variable is exactly `1`
+
+ @example
+ ```ts
+ canMoveToBackground({}); // true
+ canMoveToBackground({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' }); // false
+ ```
+ */
+function canMoveToBackground(env: Readonly<NodeJS.ProcessEnv>,): boolean {
+  return env[DISABLE_BACKGROUND_TASKS_ENV] !== '1';
+}
+
+/**
+ Foreground timeout a policy call carries after the clamp.
+
+ A caller value from just above zero up to {@link BLOCKING_TIMEOUT_MS} survives,
+ since such a call already moves no later than the default.
+ Every other value becomes the default:
+ an absent timeout,
+ a longer one,
+ and zero,
+ which Claude Code 2.1.332 treated as no early move (an 8-second command with `timeout: 0` waited in front).
+ When {@link canMoveToBackground} is `false`,
+ a caller's value stays as given,
+ because the clamp exists to move commands and there it could only stop them.
+
+ @param env - process environment holding {@link DISABLE_BACKGROUND_TASKS_ENV}
+
+ @param timeout - caller's timeout, with `undefined` meaning absent
+
+ @returns timeout in milliseconds to send to Claude Code
+
+ @example
+ ```ts
+ clampedTimeout({ env: {} }); // 1000
+ clampedTimeout({ env: {}, timeout: 3_480_000 }); // 1000
+ clampedTimeout({ env: {}, timeout: 500 }); // 500
+ ```
+ */
+function clampedTimeout(
+  {
+    env,
+    timeout,
+  }: Readonly<{
+    env: Readonly<NodeJS.ProcessEnv>;
+    timeout?: number;
+  }>,
+): number {
+  if (timeout === undefined)
+    return BLOCKING_TIMEOUT_MS;
+  if (!canMoveToBackground(env,))
+    return timeout;
+  if ((timeout > 0) && (timeout <= BLOCKING_TIMEOUT_MS))
+    return timeout;
+  return BLOCKING_TIMEOUT_MS;
+}
+
+//endregion
+
+//region Leading-sleep prefix
+// Mirrors Claude Code's own leading-sleep check so a timed-out sleep moves instead of stopping.
+
+/**
+ Command word Claude Code stops instead of moving to the background.
+ */
+const SLEEP_WORD = 'sleep' as const;
+
+/**
+ No-op prefix that makes the first command `true`,
+ so Claude Code moves the command to the background at its timeout.
+ Each operator keeps its meaning:
+ `true && a; b`,
+ `true && a & b`,
+ and `true && a | b` run as the unprefixed forms do.
+ */
+const SLEEP_PREFIX = 'true && ' as const;
+
+/**
+ Characters that end a command word in Claude Code's subcommand split
+ or in shell syntax next to it.
+ */
+const WORD_END_CHARACTERS: ReadonlySet<string> = new Set([
+  ' ',
+  '\t',
+  '\n',
+  '\r',
+  ';',
+  '&',
+  '|',
+  '<',
+  '>',
+  '(',
+  ')',
+]);
+
+/**
+ Characters skipped before the first command word.
+ */
+const LEADING_SPACE_CHARACTERS: ReadonlySet<string> = new Set([
+  ' ',
+  '\t',
+  '\n',
+  '\r',
+]);
+
+/**
+ Index of the first character after leading blanks and whole comment lines.
+
+ Claude Code 2.1.332 stopped `# note\nsleep 5 && ...` at its timeout,
+ so a comment line does not hide a leading `sleep` from it.
+
+ @param command - Bash command text as sent by the model
+
+ @returns index of the first command character, or `command.length` when none remains
+ */
+function firstCommandIndex(command: string,): number {
+  /**
+   Scan position; advances over blanks and comment lines only.
+   */
+  let index = 0;
+  while (index < command.length) {
+    /**
+     Character at the scan position.
+     */
+    const character = command.charAt(index,);
+    if (LEADING_SPACE_CHARACTERS.has(character,)) {
+      index += 1;
+      continue;
+    }
+    if (character !== '#')
+      return index;
+    /**
+     End of the comment line, or -1 when the comment runs to the end.
+     */
+    const lineEnd = command.indexOf(
+      '\n',
+      index,
+    );
+    if (lineEnd === (-1))
+      return command.length;
+    index = lineEnd + 1;
+  }
+  return index;
+}
+
+/**
+ Whether Claude Code would see `command` as starting with `sleep`.
+
+ Claude Code 2.1.332 takes the first word of the first subcommand
+ and stops the command at its timeout when that word is `sleep`.
+ Probes stopped `sleep 5 && x`,
+ `sleep 5;x`,
+ and a `sleep` after a comment line,
+ and moved `X=1 sleep 5`,
+ `{ sleep 5; }`,
+ and `(sleep 5)`.
+ This check also matches a few shapes Claude Code would move anyway;
+ prefixing those changes nothing.
+
+ @param command - Bash command text as sent by the model
+
+ @returns whether the first command word is `sleep`
+
+ @example
+ ```ts
+ startsWithSleepWord('sleep 5 && make'); // true
+ startsWithSleepWord('sleeper 5'); // false
+ ```
+ */
+function startsWithSleepWord(command: string,): boolean {
+  /**
+   Index where the first command word begins.
+   */
+  const start = firstCommandIndex(command,);
+  if (!command.startsWith(
+    SLEEP_WORD,
+    start,
+  ))
     return false;
-  if (timeout !== undefined)
-    return false;
-  return !isPlainSleep(command,);
+  /**
+   Character after the candidate word; empty at the end of the text.
+   */
+  const next = command.charAt(start + SLEEP_WORD.length,);
+  return (next === '') || WORD_END_CHARACTERS.has(next,);
+}
+
+/**
+ Command text with {@link SLEEP_PREFIX} added when Claude Code would see a leading `sleep`.
+
+ @param command - Bash command text that Claude Code will run as given
+
+ @returns command unchanged, or prefixed so a timeout moves it instead of stopping it
+
+ @example
+ ```ts
+ withSleepPrefix('sleep 300 && check > out'); // 'true && sleep 300 && check > out'
+ withSleepPrefix('make test'); // 'make test'
+ ```
+ */
+function withSleepPrefix(command: string,): string {
+  return startsWithSleepWord(command,) ? `${SLEEP_PREFIX}${command}` : command;
 }
 
 //endregion
@@ -204,9 +331,13 @@ function shouldApplyBlockingTimeout(
 export {
   BLOCKING_TIMEOUT_ENABLED_ENV,
   BLOCKING_TIMEOUT_MS,
+  canMoveToBackground,
+  clampedTimeout,
   DISABLE_BACKGROUND_TASKS_ENV,
   disabledBackgroundTasksWarning,
   isBlockingTimeoutEnabled,
-  isPlainSleep,
-  shouldApplyBlockingTimeout,
+  isTimeoutPolicyCall,
+  SLEEP_PREFIX,
+  startsWithSleepWord,
+  withSleepPrefix,
 };
