@@ -1161,3 +1161,540 @@ fn the_move_refusal_reads_the_slot_behind_a_global_option() {
     }
     remove(bound.root.as_path());
 }
+
+/// What:
+///  A record folder the route made and left holding no record refuses nothing,
+///  and the same command is refused once one record is filed in it.
+/// Why:
+///  The unknown-global refusal protects a slot that has a record,
+/// and `SPEC.md`
+///  says it applies "while the repository holds slot records":
+///  a folder that holds none endangers no slot,
+/// so the command is Git's own
+///  there,
+/// and the second arm proves the folder alone was not what refused it.
+#[test]
+fn a_record_folder_that_holds_no_record_refuses_nothing_behind_an_unread_global() {
+    let unrecorded: RegisteredSlot =
+        a_registered_slot("entry-slot-unread-global-empty-record-folder");
+    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(
+        unrecorded.common.as_path(),
+    );
+    std::fs::create_dir_all(home.as_path()).expect("the fixture home");
+    let words: Vec<OsString> = started_in(
+        unrecorded.repository.as_path(),
+        &[
+            A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ,
+            "worktree",
+            "remove",
+            "-f",
+            "-f",
+            "one",
+        ],
+    );
+    let action: Action = plan_invocation(words.as_slice(), &[], &inputs(unrecorded.root.as_path()));
+    assert!(
+        matches!(action, Action::Forward { .. }),
+        "a record folder holding no record forwards the removal as before: {action:?}"
+    );
+    publish_under(
+        unrecorded.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            unrecorded.slot.as_path(),
+            unrecorded.registration.as_path(),
+            Some(unrecorded.pointer.clone()),
+        ),
+        "one",
+    );
+    let (code, stderr): (i32, String) = stopped(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(unrecorded.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the same folder with one record refuses the removal: {stderr}"
+    );
+    assert!(
+        stderr.contains(A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ),
+        "the refusal names the option it could not read: {stderr}"
+    );
+    assert!(unrecorded.slot.is_dir(), "nothing was removed");
+    remove(unrecorded.root.as_path());
+}
+
+/// What:
+///  A `--` before the command word is refused in words that say what it is,
+///  not as a global option this wrapper does not read.
+/// Why:
+///  `--` is the separator a command's own options use before their operands,
+///  and Git 2.56.1 answers it with `unknown option: --` before its command
+///  word (`/usr/bin/git -- worktree list`,
+/// exit 129),
+/// so calling it a global
+///  option named something else.
+#[test]
+fn a_double_dash_before_the_command_word_is_refused_as_the_separator_git_refuses() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-double-dash");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &["--", "worktree", "remove", "-f", "-f", "one"],
+    );
+    let (code, stderr): (i32, String) = stopped(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the removal is refused: {stderr}"
+    );
+    assert!(
+        stderr.contains("not a global option"),
+        "the sentence says what `--` is: {stderr}"
+    );
+    assert!(
+        stderr.contains("unknown option: --"),
+        "and what Git answers it with: {stderr}"
+    );
+    assert!(
+        !stderr.contains("`--` is a global option this wrapper does not read"),
+        "and no longer calls it an unread global: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    remove(bound.root.as_path());
+}
+
+/// One fixture repository with a bound slot whose record is readable,
+/// the record every shell-alias control below is refused for.
+fn a_bound_slot_for_a_shell_alias(name: &str) -> RegisteredSlot {
+    let bound: RegisteredSlot = a_registered_slot(name);
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    return bound;
+}
+
+/// What:
+///  A bound slot's removal is refused behind every shell-alias spelling the
+///  release pass named:
+///  on the command line,
+/// in a configuration file,
+/// with a bare `!git`,
+/// and
+///  through a plain alias that chains to a shell alias.
+/// Why:
+///  The pass's Medium 1:
+///  `git -c 'alias.x=!git worktree remove' x -f -f <slot>` deleted the
+///  registration in alpha.47 and alpha.48 while the plain-alias spelling was
+///  refused,
+/// because the planner read the alias's own name as the command word.
+///  The direct spelling's refusal is beside the alias spellings as the control
+///  that the refusal itself is what the fixture produces.
+#[test]
+fn a_bound_slots_removal_is_refused_behind_every_shell_alias() {
+    let bound: RegisteredSlot = a_bound_slot_for_a_shell_alias("entry-slot-removal-shell-aliases");
+    crate::test_support::git(
+        bound.repository.as_path(),
+        &["config", "alias.filed", "!git worktree remove"],
+    );
+    let spellings: Vec<(PathBuf, Vec<OsString>)> = vec![
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.cmdline=!git worktree remove",
+                    "cmdline",
+                    "-f",
+                    "-f",
+                    "one",
+                ],
+            ),
+        ),
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.bare=!git",
+                    "bare",
+                    "worktree",
+                    "remove",
+                    "-f",
+                    "-f",
+                    "one",
+                ],
+            ),
+        ),
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.outer=inner",
+                    "-c",
+                    "alias.inner=!git worktree remove",
+                    "outer",
+                    "-f",
+                    "-f",
+                    "one",
+                ],
+            ),
+        ),
+        // The alias in a configuration file, which the lookup reads with the command started in the
+        //  repository; `-C` puts the policy's effective working directory at that same repository.
+        (
+            bound.repository.clone(),
+            started_in(bound.repository.as_path(), &["filed", "-f", "-f", "one"]),
+        ),
+        // The direct spelling, whose refusal the alias spellings must reach.
+        (
+            bound.repository.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &["worktree", "remove", "-f", "-f", "one"],
+            ),
+        ),
+    ];
+    for (start, words) in &spellings {
+        let facts: CopyFacts = settled_facts(plan_invocation(
+            words.as_slice(),
+            &[],
+            &inputs(start.as_path()),
+        ));
+        assert_eq!(
+            facts.common_dir.as_deref(),
+            Some(bound.common.as_path()),
+            "the refusal reads this repository's records for {words:?}"
+        );
+        let stderr: String = the_refusals_report(run_the_removal(&facts, words.as_slice()));
+        assert!(
+            stderr.contains("a whole managed clone is bound to this slot"),
+            "{words:?}: {stderr}"
+        );
+        assert!(bound.slot.is_dir(), "{words:?}: nothing was removed");
+    }
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A bound slot's move is refused behind every shell-alias spelling,
+///  and the direct spelling is refused beside them.
+/// Why:
+///  The move is the other command the owner's answer names,
+/// and a shell alias
+///  that read its own name left the slot to Git,
+/// which renamed it while the
+///  record kept the old path.
+#[test]
+fn a_bound_slots_move_is_refused_behind_every_shell_alias() {
+    let bound: RegisteredSlot = a_bound_slot_for_a_shell_alias("entry-slot-move-shell-aliases");
+    crate::test_support::git(
+        bound.repository.as_path(),
+        &["config", "alias.filed", "!git worktree move"],
+    );
+    let spellings: Vec<(PathBuf, Vec<OsString>)> = vec![
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.cmdline=!git worktree move",
+                    "cmdline",
+                    "one",
+                    "../moved",
+                ],
+            ),
+        ),
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.bare=!git",
+                    "bare",
+                    "worktree",
+                    "move",
+                    "one",
+                    "../moved",
+                ],
+            ),
+        ),
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.outer=inner",
+                    "-c",
+                    "alias.inner=!git worktree move",
+                    "outer",
+                    "one",
+                    "../moved",
+                ],
+            ),
+        ),
+        (
+            bound.repository.clone(),
+            started_in(bound.repository.as_path(), &["filed", "one", "../moved"]),
+        ),
+        (
+            bound.repository.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &["worktree", "move", "one", "../moved"],
+            ),
+        ),
+    ];
+    for (start, words) in &spellings {
+        let (code, stderr): (i32, String) = stopped(plan_invocation(
+            words.as_slice(),
+            &[],
+            &inputs(start.as_path()),
+        ));
+        assert_eq!(
+            code,
+            crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+            "the move is refused for {words:?}: {stderr}"
+        );
+        assert!(
+            stderr.contains("`git worktree move` is refused"),
+            "{words:?}: {stderr}"
+        );
+        assert!(bound.slot.is_dir(), "{words:?}: nothing was moved");
+    }
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A prune behind every shell-alias spelling restores the deleted pointer
+///  before Git runs,
+/// as the direct spelling does,
+///  so Git keeps the registration.
+/// Why:
+///  The prune pass reads the command word to run at all,
+///  and reading the alias's own name left the pointer gone,
+///  after which Git dropped the registration the record is the only key to.
+#[test]
+fn a_prune_behind_every_shell_alias_restores_the_pointer() {
+    let bound: RegisteredSlot = a_bound_slot_for_a_shell_alias("entry-slot-prune-shell-aliases");
+    crate::test_support::git(
+        bound.repository.as_path(),
+        &["config", "alias.filed", "!git worktree prune"],
+    );
+    let spellings: Vec<(PathBuf, Vec<OsString>)> = vec![
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &["-c", "alias.cmdline=!git worktree prune", "cmdline"],
+            ),
+        ),
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &["-c", "alias.bare=!git", "bare", "worktree", "prune"],
+            ),
+        ),
+        (
+            bound.root.clone(),
+            started_in(
+                bound.repository.as_path(),
+                &[
+                    "-c",
+                    "alias.outer=inner",
+                    "-c",
+                    "alias.inner=!git worktree prune",
+                    "outer",
+                ],
+            ),
+        ),
+        (
+            bound.repository.clone(),
+            started_in(bound.repository.as_path(), &["filed"]),
+        ),
+        (
+            bound.repository.clone(),
+            started_in(bound.repository.as_path(), &["worktree", "prune"]),
+        ),
+    ];
+    for (start, words) in &spellings {
+        std::fs::remove_file(bound.slot.join(".git")).expect("the pointer goes");
+        let action: Action = plan_invocation(words.as_slice(), &[], &inputs(start.as_path()));
+        assert!(
+            matches!(action, Action::Forward { .. }),
+            "the pass lets the prune run for {words:?}: {action:?}"
+        );
+        assert_eq!(
+            std::fs::read(bound.slot.join(".git")).expect("the pointer the pass wrote back"),
+            bound.pointer,
+            "{words:?}: the pointer stands again before Git runs"
+        );
+    }
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  The three slot commands behind a shell alias held in `GIT_CONFIG_*`
+///  reach the same refusal and the same pass as the direct spellings.
+/// Why:
+///  The release pass's `alias-env-shell` deleted the registration while
+///  `alias-env-plain` was refused;
+///  `GIT_CONFIG_*` is one environment of the whole process,
+///  so this control runs its body in a child whose environment holds the three
+///  aliases and nothing of this run's other tests.
+#[test]
+fn a_bound_slots_slot_commands_behind_an_alias_in_the_environment_are_refused() {
+    let control: &str =
+        "a_bound_slots_slot_commands_behind_an_alias_in_the_environment_are_refused";
+    let environment: [(&str, &std::ffi::OsStr); 7] = [
+        ("GIT_CONFIG_COUNT", std::ffi::OsStr::new("3")),
+        ("GIT_CONFIG_KEY_0", std::ffi::OsStr::new("alias.envremove")),
+        (
+            "GIT_CONFIG_VALUE_0",
+            std::ffi::OsStr::new("!git worktree remove"),
+        ),
+        ("GIT_CONFIG_KEY_1", std::ffi::OsStr::new("alias.envmove")),
+        (
+            "GIT_CONFIG_VALUE_1",
+            std::ffi::OsStr::new("!git worktree move"),
+        ),
+        ("GIT_CONFIG_KEY_2", std::ffi::OsStr::new("alias.envprune")),
+        (
+            "GIT_CONFIG_VALUE_2",
+            std::ffi::OsStr::new("!git worktree prune"),
+        ),
+    ];
+    crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        control,
+        environment.as_slice(),
+        &[],
+        || {
+            // What: The child holds the aliases in its process environment for the Git it starts, and the
+            //  planning is handed the same list so the wrapper's lock-pid overlay counts them and adds its own
+            //  entry after them.
+            // Why: An overlay built from an empty list sets `GIT_CONFIG_COUNT` to one, and the aliases the
+            //  process environment holds are then past the count Git reads.
+            let aliases: Vec<(OsString, OsString)> = environment
+                .iter()
+                .map(|(name, value)| {
+                    return (OsString::from(name), value.to_os_string());
+                })
+                .collect();
+            let bound: RegisteredSlot = a_bound_slot_for_a_shell_alias(
+                "entry-slot-shell-alias-environment",
+            );
+            let removal: Vec<OsString> = started_in(
+                bound.repository.as_path(),
+                &["envremove", "-f", "-f", "one"],
+            );
+            let facts: CopyFacts = settled_facts(plan_invocation(
+                removal.as_slice(),
+                aliases.as_slice(),
+                &inputs(bound.root.as_path()),
+            ));
+            let stderr: String = the_refusals_report(run_the_removal(&facts, removal.as_slice()));
+            assert!(
+                stderr.contains("a whole managed clone is bound to this slot"),
+                "the environment alias's removal is refused: {stderr}"
+            );
+            let moved: Vec<OsString> = started_in(
+                bound.repository.as_path(),
+                &["envmove", "one", "../moved"],
+            );
+            let (code, move_stderr): (i32, String) = stopped(plan_invocation(
+                moved.as_slice(),
+                aliases.as_slice(),
+                &inputs(bound.root.as_path()),
+            ));
+            assert_eq!(
+                code,
+                crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+                "the environment alias's move is refused: {move_stderr}"
+            );
+            assert!(
+                move_stderr.contains("`git worktree move` is refused"),
+                "{move_stderr}"
+            );
+            std::fs::remove_file(bound.slot.join(".git")).expect("the pointer goes");
+            let pruned: Vec<OsString> =
+                started_in(bound.repository.as_path(), &["envprune"]);
+            let action: Action = plan_invocation(
+                pruned.as_slice(),
+                aliases.as_slice(),
+                &inputs(bound.root.as_path()),
+            );
+            assert!(
+                matches!(action, Action::Forward { .. }),
+                "the environment alias's prune pass runs: {action:?}"
+            );
+            assert_eq!(
+                std::fs::read(bound.slot.join(".git")).expect("the pointer the pass wrote back"),
+                bound.pointer
+            );
+            assert!(bound.slot.is_dir(), "nothing was removed");
+            remove(bound.root.as_path());
+        },
+    );
+}
+
+/// What:
+///  A shell alias the wrapper cannot read is left to Git,
+///  as the guard and `SPEC.md` leave it.
+/// Why:
+///  `!sh -c '...'` quotes the command,
+/// so no reading of the alias value can
+///  know what the shell runs;
+///  the release pass measured that it deletes the slot,
+/// and the proposal under
+///  `doc/planning/` asks the owner whether that should change.
+///  This control pins the boundary the release keeps so a later change is a
+///  decision and not an accident.
+#[test]
+fn a_shell_alias_the_wrapper_cannot_read_is_left_to_git() {
+    let bound: RegisteredSlot = a_bound_slot_for_a_shell_alias("entry-slot-shell-alias-unread");
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &[
+            "-c",
+            "alias.quoted=!sh -c 'git worktree remove -f -f one'",
+            "quoted",
+        ],
+    );
+    let action: Action = plan_invocation(words.as_slice(), &[], &inputs(bound.root.as_path()));
+    assert!(
+        matches!(action, Action::Forward { .. }),
+        "a shell alias the wrapper cannot read reaches Git unchanged: {action:?}"
+    );
+    assert!(bound.slot.is_dir(), "the planning removed nothing");
+    remove(bound.root.as_path());
+}
