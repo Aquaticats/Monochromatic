@@ -108,7 +108,7 @@ use crate::earlier_service_process_start_arguments::{
 #[cfg(unix)]
 use crate::earlier_service_unsure_program::{
     UnsureProgram,
-    printable,
+    masked_words,
     program_of,
 };
 use crate::earlier_unix_sockets_that_listen::{
@@ -300,7 +300,7 @@ fn scan_processes(
                 let program: UnsureProgram = UnsureProgram {
                     pid,
                     program: program_of(words.first().copied()),
-                    journal_word: printable(word.as_slice()),
+                    journal_word: masked_words(word.as_slice()),
                     journal_word_is_relative: relative,
                     reason,
                 };

@@ -15294,6 +15294,20 @@ names with a control character or a byte that is not UTF-8 as `$'...'`),
 so the command can be
 pasted and a terminal escape in a file name is never printed raw.
 
+A process's name is not this program's text either:
+another program sets it (`/proc/<pid>/comm`,
+and the `comm` field of `/proc/<pid>/stat`),
+and so is a command line.
+Every line that names one shows it as text that can act on nothing:
+the parentheses or the backticks that line puts around the name are escaped inside it,
+the backslash is escaped,
+and every control character,
+every character outside printable ASCII and every line separator
+is written as an escape.
+So one name is shown the same way wherever a person meets it,
+and no name can end the sentence's own punctuation,
+erase the line or start a second one.
+
 ```text
 # A lock whose pid file names a process that has ended: said, and nothing removed.
 monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: a pid file beside it names process 2629996, which has ended, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around.
