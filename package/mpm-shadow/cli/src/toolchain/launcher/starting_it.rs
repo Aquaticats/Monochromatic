@@ -67,6 +67,8 @@ use crate::constants::{
     EXEC_FAILED_EXIT_CODE,
     NOT_FOUND_EXIT_CODE,
 };
+/// Imports the shared words for a start refused because the program's file is being written.
+use crate::start_failure::being_written_cause_and_remedy;
 
 /// Replaces this process with `program`,
 /// keeping `arguments` (argv[0] included) as they were;
@@ -225,6 +227,19 @@ pub fn run_launcher(
         );
     }
     let error: std::io::Error = exec_program(&launch.program, arguments);
+    // What:     A refusal because another program holds the program's file open for writing is explained as a
+    //           replacement in progress, in the same words the shadow mode uses.
+    // Why:      `execve` cannot start a file that is being written either, and the bare operating-system text read
+    //           as a permanent fault when the same command works a moment later.
+    if error.kind() == std::io::ErrorKind::ExecutableFileBusy {
+        let (cause, remedy) = being_written_cause_and_remedy(&error);
+        eprintln!(
+            "mpm-shadow: could not start {}: {cause}",
+            launch.program.display()
+        );
+        eprintln!("mpm-shadow: what to do: {remedy}");
+        return EXEC_FAILED_EXIT_CODE;
+    }
     eprintln!(
         "mpm-shadow: could not start {}: {error}",
         launch.program.display()
