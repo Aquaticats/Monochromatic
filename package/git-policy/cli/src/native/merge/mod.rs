@@ -194,6 +194,10 @@
 //! - `merge_isolation_apply_stops.rs`:
 //!   what a step of an isolated merge that stopped means for the command's ending,
 //!   and what a clear that met newer bytes does about them.
+//! - `merge_isolation_carry_layer_sides.rs`:
+//!   the three sides of one layer of one path:
+//!   the mode and the object each side holds,
+//!   and the mode the layer ends with.
 //! - `merge_isolation_carry_layers.rs`:
 //!   what one layer of one path ends as once the person's work is merged with the merge.
 //! - `merge_isolation_carry_plans.rs`:
@@ -446,6 +450,11 @@ pub mod merge_isolation_carry_writes;
 /// What one captured path's writes are,
 /// once the merge's change is known.
 pub mod merge_isolation_carry_plans;
+
+/// The three sides of one layer of one path:
+/// the mode and the object each side holds,
+/// and the mode the layer ends with.
+pub mod merge_isolation_carry_layer_sides;
 
 /// What one layer of one path ends as once the person's work is merged with the merge.
 pub mod merge_isolation_carry_layers;

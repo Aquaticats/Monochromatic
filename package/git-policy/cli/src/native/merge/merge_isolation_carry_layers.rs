@@ -6,6 +6,7 @@
 //!  a word-level merge of the two,
 //!  both sides between conflict markers,
 //!  or one side kept whole with the reason it could not be merged.
+//!  The three sides of a layer and the mode it ends with are `merge_isolation_carry_layer_sides.rs`.
 //! Why:
 //!  A person's unsaved and staged work are two layers of the same path,
 //! and each is merged with the merge on its
@@ -29,6 +30,21 @@
 //! const end = decide(runner, path, { base, ours, theirs }); // { outcome: 'merges' | 'ours' | 'merged' | 'kept' | 'gone', mode }
 //! ```
 
+/// The kind of entry a side holds,
+/// and the mode one layer ends with.
+use crate::merge_isolation_carry_layer_sides::{
+    Kind,
+    end_mode,
+    mode_of,
+    the_kind_of,
+    the_same_entry,
+};
+/// The two sides of one layer,
+/// named here so a caller of the decision keeps one path.
+pub use crate::merge_isolation_carry_layer_sides::{
+    Layer,
+    Side,
+};
 use crate::merge_second_pass::AttributeSource;
 use crate::merge_second_pass::{
     Conflict,
@@ -70,46 +86,6 @@ pub const DELETE_MODIFY: &str =
 
 /// The reason a path is named when both sides hold a kind of entry the text merge cannot take.
 pub const NOT_TEXT: &str = "its changes cannot be merged as text";
-
-/// The Git mode of a symbolic link,
-/// which is not a kind of entry the text merge reads.
-const SYMBOLIC_LINK_MODE: &str = "120000";
-
-/// The Git mode of a submodule,
-/// whose entry is a commit rather than text.
-const SUBMODULE_MODE: &str = "160000";
-
-/// One side of one layer:
-/// the mode Git records and the object it holds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Side = { mode: string; oid: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Side {
-    /// `100644`,
-    /// `100755` or `120000`.
-    pub mode: String,
-    /// The object name.
-    pub oid: String,
-}
-
-/// The three sides of one layer of one path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Layer = { base: Side | null; ours: Side | null; theirs: Side | null };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Layer {
-    /// What the path held before the merge.
-    pub base: Option<Side>,
-    /// What the person's layer held.
-    pub ours: Option<Side>,
-    /// What the merge makes of the path.
-    pub theirs: Option<Side>,
-}
 
 /// What becomes of one layer.
 ///
@@ -156,135 +132,6 @@ pub struct Decision {
     /// or nothing when the path ends absent.
     pub mode: Option<String>,
 }
-
-/// The kind of entry one side holds,
-/// which its mode records.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const kindOf = (mode) => mode === '120000' ? 'link' : mode === '160000' ? 'submodule' : 'file';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Kind {
-    /// A regular file,
-    /// whose executable bit is a mode of its own but a kind of the same entry.
-    File,
-    /// A symbolic link,
-    /// whose object is its target's text.
-    Link,
-    /// A submodule,
-    /// whose object is a commit.
-    Submodule,
-}
-
-/// The kind of entry a mode records.
-fn the_kind_of(mode: &str) -> Kind {
-    return match mode {
-        SYMBOLIC_LINK_MODE => Kind::Link,
-        SUBMODULE_MODE => Kind::Submodule,
-        _ => Kind::File,
-    };
-}
-
-/// What:
-///  Whether one side holds what the other does,
-/// as the merge reads a side that changed nothing.
-/// Why:
-///   An object id says what bytes an entry holds,
-/// and a mode says what kind of entry holds them;
-///  a link
-/// to `keep.txt` and a file whose bytes are `keep.txt` share an object id,
-/// so comparing ids alone read a
-///  person's link as the branch's own file and wrote the merge's bytes into the link's target
-/// (a cross-vendor
-///  review,
-/// round 133,
-/// its third finding).
-///  An executable bit changed alone is the same kind,
-/// so a mode the person set is still read as unchanged
-///  bytes and stays theirs;
-/// a path the merge keeps is left as Git's own update wrote it,
-///  with Git's mode,
-/// and a path the merge deletes goes with the merge
-///  (`SPEC.md`,
-///  "Carry edits forward").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const equal = (a, b) => (a === null && b === null) || (a !== null && b !== null && a.oid === b.oid && kindOf(a.mode) === kindOf(b.mode));
-/// ```
-fn the_same_entry(
-    left: &Option<Side>,
-    right: &Option<Side>,
-) -> bool {
-    return match (left, right) {
-        (None, None) => true,
-        (Some(one), Some(other)) => {
-            one.oid == other.oid
-                && the_kind_of(one.mode.as_str()) == the_kind_of(other.mode.as_str())
-        }
-        _ => false,
-    };
-}
-
-/// What:
-///  The mode a side holds.
-/// Why:
-///   The mode is one field of a side,
-///  and both the layer's end and its stage read it.
-fn the_mode_of(found: &Side) -> String {
-    return found.mode.clone();
-}
-
-/// The mode of one side,
-/// or nothing when the side holds no entry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const modeOf = (side) => side === null ? null : side.mode;
-/// ```
-fn mode_of(side: &Option<Side>) -> Option<String> {
-    return side.as_ref().map(the_mode_of);
-}
-
-/// What:
-///  The mode a side records,
-/// for the base's own mode.
-/// Why:
-///   The base is compared with each side by mode alone,
-///  so only the mode is read from it.
-fn base_mode(side: &Side) -> &str {
-    return side.mode.as_str();
-}
-
-/// What:
-///  The mode one layer ends with,
-/// as a three-way choice over the three modes.
-/// Why:
-///  A mode is one bit,
-/// so a side equal to the base changed nothing,
-/// and the side that did change it wins;
-/// two sides that changed it agree,
-/// and the person's is the one left.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function endMode(layer): string | null; // base === ours ? theirs : base === theirs ? ours : ours
-/// ```
-fn end_mode(layer: &Layer) -> Option<String> {
-    let (Some(ours), Some(theirs)) = (&layer.ours, &layer.theirs) else {
-        return match mode_of(&layer.ours) {
-            Some(mode) => Some(mode),
-            None => mode_of(&layer.theirs),
-        };
-    };
-    let base: Option<&str> = layer.base.as_ref().map(base_mode);
-    if base == Some(ours.mode.as_str()) {
-        return Some(theirs.mode.clone());
-    }
-    return Some(ours.mode.clone());
-}
-
 /// What:
 ///  Whether the word pass can read both sides as two texts.
 /// Why:
