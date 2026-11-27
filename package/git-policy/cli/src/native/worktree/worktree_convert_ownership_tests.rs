@@ -5,6 +5,7 @@
 //! and the index lock held only from the proving pass to the end of the index rewrite.
 
 use super::*;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::subvolume_lock::acquire;
 use crate::subvolume_test_support::{
     PlainPlatform,
@@ -253,62 +254,87 @@ fn a_conversion_an_older_release_left_unfinished_is_finished() {
 /// this release starts nothing and writes
 ///  nothing,
 /// and converts once the older command has ended.
+/// The body runs in a child of its own,
+/// because the lock it takes is a fact of the whole process:
+/// a fork copies every open descriptor,
+/// and `flock` lasts until every copy of the open file description is closed,
+/// so a child another thread of the run started between this control's `open` and its `close`
+/// keeps the lock after the control dropped its own (issue 6536).
 #[test]
 fn a_conversion_held_by_an_older_release_is_not_started_twice() {
-    let (parent, _root, worktree) = quiet_worktree("ownership-older-release-running");
-    let platform: PlainPlatform = PlainPlatform::new();
-    let admin: PathBuf = admin_of(worktree.as_path());
-    let older: std::fs::File = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(admin.join(RETIRED_KERNEL_LOCK_NAME))
-        .expect("the older release's lock file");
-    // SAFETY: `flock` takes an open descriptor, which `older` keeps open for the call.
-    let taken: libc::c_int = unsafe {
-        libc::flock(
-            std::os::unix::io::AsRawFd::as_raw_fd(&older),
-            libc::LOCK_EX | libc::LOCK_NB,
-        )
-    };
-    assert_eq!(
-        taken, 0,
-        "the stand-in for the older command holds the lock"
+    // What:     `run_the_body_in_a_child_of_its_own` starts this same test in a child process of this test binary,
+    //  which holds that one test and no other, and runs the body given to it there; the parent never runs it, and the
+    //  child's one passing test is the whole assertion. `module_path!()` is this module's path and the second argument
+    //  this test's name in it.
+    //  Its sibling is the body run here, beside every other test of the module, which is what it replaces.
+    // Why:      every descriptor this process holds is copied into every child any of its threads forks, and a `flock`
+    //  lasts until every copy of its open file description is closed, so beside other tests this control's lock
+    //  outlived the control's own descriptor and the second call skipped a conversion that was nobody's (issue 6536).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(import.meta.url, 'a_conversion_held_by_an_older_release_is_not_started_twice', () => {
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_conversion_held_by_an_older_release_is_not_started_twice",
+        || {
+            let (parent, _root, worktree) = quiet_worktree("ownership-older-release-running");
+            let platform: PlainPlatform = PlainPlatform::new();
+            let admin: PathBuf = admin_of(worktree.as_path());
+            let older: std::fs::File = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(admin.join(RETIRED_KERNEL_LOCK_NAME))
+                .expect("the older release's lock file");
+            // SAFETY: `flock` takes an open descriptor, which `older` keeps open for the call.
+            let taken: libc::c_int = unsafe {
+                libc::flock(
+                    std::os::unix::io::AsRawFd::as_raw_fd(&older),
+                    libc::LOCK_EX | libc::LOCK_NB,
+                )
+            };
+            assert_eq!(
+                taken, 0,
+                "the stand-in for the older command holds the lock"
+            );
+            match convert_worktree(
+                &platform,
+                worktree.as_path(),
+                RUN,
+                &Interrupt::never(),
+                &mut |_text: &str| {},
+            )
+            .expect("no failure")
+            {
+                Verdict::Skipped(reasons) => assert!(
+                    reasons.join("\n").contains("another conversion"),
+                    "{reasons:?}"
+                ),
+                other => panic!("expected a skip, got {other:?}"),
+            }
+            assert!(
+                !admin.join(JOURNAL_NAME).exists() && !admin.join("index.lock").exists(),
+                "nothing was written"
+            );
+            drop(older);
+            let converted = convert_worktree(
+                &platform,
+                worktree.as_path(),
+                RUN,
+                &Interrupt::never(),
+                &mut |_text: &str| {},
+            );
+            assert_eq!(converted.expect("converted"), Verdict::Converted);
+            assert!(
+                !admin.join(RETIRED_KERNEL_LOCK_NAME).exists(),
+                "the leftover kernel lock file was retired"
+            );
+            remove(parent.as_path());
+        },
     );
-    match convert_worktree(
-        &platform,
-        worktree.as_path(),
-        RUN,
-        &Interrupt::never(),
-        &mut |_text: &str| {},
-    )
-    .expect("no failure")
-    {
-        Verdict::Skipped(reasons) => assert!(
-            reasons.join("\n").contains("another conversion"),
-            "{reasons:?}"
-        ),
-        other => panic!("expected a skip, got {other:?}"),
-    }
-    assert!(
-        !admin.join(JOURNAL_NAME).exists() && !admin.join("index.lock").exists(),
-        "nothing was written"
-    );
-    drop(older);
-    let converted = convert_worktree(
-        &platform,
-        worktree.as_path(),
-        RUN,
-        &Interrupt::never(),
-        &mut |_text: &str| {},
-    );
-    assert_eq!(converted.expect("converted"), Verdict::Converted);
-    assert!(
-        !admin.join(RETIRED_KERNEL_LOCK_NAME).exists(),
-        "the leftover kernel lock file was retired"
-    );
-    remove(parent.as_path());
 }
 
 /// A killed command's claim file (its process is gone) does not stop the next command,

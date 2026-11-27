@@ -29,7 +29,7 @@
 //! ```
 
 /// The facts a creation is made from.
-use crate::shadow_create::ShadowTemplate;
+use crate::shadow_create_template::ShadowTemplate;
 /// The entries a creation links,
 /// the names a member may hold as links,
 /// and the per-worktree file it copies.
