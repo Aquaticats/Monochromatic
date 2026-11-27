@@ -8215,6 +8215,11 @@ because a release waits on that gate and its suite is what the CPUs shorten
   the peak it reached,
   and the two options that raise it.
   A run that met no kill prints nothing.
+  A dying cgroup gives its files up one at a time,
+  so a reading taken while a container's cgroup goes answers only part of it;
+  such a reading never replaces the whole one before it
+  (`bin/cgroup-whole-readings.ts`),
+  which is why the line rests on the last reading that answered every part of the one before it.
 - The Clippy container has a bound of its own,
   8 GiB from `bin/native-gate-container-limits.ts` (`gateClippyMemory`),
   because it compiles every target of the crate,

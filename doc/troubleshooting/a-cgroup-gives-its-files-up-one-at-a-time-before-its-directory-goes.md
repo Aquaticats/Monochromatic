@@ -89,15 +89,21 @@ in capped scopes of their own.
 
 ## The rule
 
-A check scope's figures are read while the check runs,
+A reader of a control group's figures reads them while the work runs,
 and a reading that answers less than the whole reading before it is a reading of the moment the group went,
 never a figure this host's kernel does not write:
-`answersEveryPartOf` in `package/git-policy/cli/bin/native-check-scope-accounting.ts` refuses such a reading,
-and both callers pass the reading it would replace
-(`bin/native-check-scope-watch-accounting.ts` for the watch,
-`bin/native-capped-scope-command.ts` for its look after the check has ended).
+`answersEveryPartOf` in `package/git-policy/cli/bin/cgroup-whole-readings.ts` refuses such a reading,
+and every caller passes the reading it would replace.
 A file the kernel is removing answers no figure at all (`isRemoved` in the same file),
 so the removal ends a reading instead of throwing out of it.
+
+Two readers share that rule and neither knows the other's files:
+`bin/native-check-scope-accounting.ts` reads a check scope's own accounting,
+and `bin/native-gate-container-cgroup-memory.ts` reads a gate container's.
+The check scope's callers are `bin/native-check-scope-watch-accounting.ts` for the watch and
+`bin/native-capped-scope-command.ts` for its look after the check has ended;
+the container's are `bin/native-gate-container-memory.ts` for the watch the gate reports a kill from and
+`bin/native-gate-container-peaks.ts` for the recorder that writes one line per sample.
 
 What `native:ts-checks` prints for a scope whose group loses `pids.events` and `cpu.stat` before the runner looks again,
 before and after that rule:
@@ -106,19 +112,116 @@ its line about the scope's refused forks was absent and the scope's `cpu.stat` w
 after,
 the reading taken while the whole group was there is what the line is made of.
 
-## What this leaves
+## Every order a reading of a gate container's group can take
 
-- `bin/native-gate-container-cgroup-memory.ts` reads a gate container's cgroup the same way and has neither the rule
-  nor the removal's answer:
-  it keeps a partial sample,
-  and a removal throws out of the read.
-  Its watchers (`bin/native-gate-container-memory.ts`,
-  `bin/native-gate-container-peaks.ts`) keep that sample as the
-  last figures,
-  so a container killed for memory whose `memory.events` went with its scope is reported as one that met no kill.
-  A container's cgroup goes the same way a check scope's does,
-  so the same rule belongs there;
-  issue 6610 changed the check scope's reader only.
-- A check whose first reading is taken while its group goes still under-reports it:
+A gate container's reader asks whether the scope's directory is there (`stat`),
+then reads `memory.current`,
+`memory.peak`,
+`memory.max`,
+`memory.swap.current`,
+`memory.swap.max`,
+`pids.current`,
+`pids.peak`,
+`memory.stat` and
+`memory.events`,
+one after the other.
+The kernel removes a dying group's files one at a time in each controller's own order
+(the pids controller's is `max`,
+`current`,
+`peak`,
+`events`,
+`events.local`;
+the memory controller's order is not recorded here),
+and the directory only after every file.
+So a reading meets one of these,
+and each answers as follows
+(before is the reader at `07f9232af0`,
+after is issue 6614's round):
+
+1. Every file answers.
+   Both answer the whole group,
+   the watch keeps it,
+   and the gate names a kill its `memory.events` counted.
+2. The directory is gone before the first read.
+   Both answer that the cgroup is not there,
+   the watch keeps the whole reading before it,
+   and the gate prints what that reading says.
+3. The directory is there and every file is gone,
+   which is the moment between `css_clear_dir` and `kernfs_remove`.
+   Before,
+   the sample held no figure and an empty `stat` and `events`,
+   the watch kept it,
+   and the gate printed nothing for a container that met no kill.
+   After,
+   a reading that answered no file of its own is refused,
+   so the whole reading before it is what the gate reports.
+4. Some files answer and `memory.events` is one of those that did not,
+   whichever point of the read the file went at.
+   Before,
+   the sample's `events` was empty,
+   the watch kept it,
+   and a container killed inside its bound was reported as one that met no kill.
+   After,
+   the reading is refused and the whole reading before it is what the gate reports,
+   with the kill in it.
+5. A file the kernel has deactivated and not yet unlinked answers `ENODEV`.
+   Before,
+   the reader rethrew it,
+   the watch's reading loop rejected,
+   and the gate's container run ended on the reader instead of on its check.
+   After,
+   that file answers no figure,
+   the reading is refused for the part it lost,
+   and nothing throws.
+6. A reading answers a part the one before it did not,
+   which is a group still being made.
+   Both keep it:
+   a control group gains its files as it is made and never regains one it lost.
+7. The group goes between two readings.
+   Both answer that the cgroup is not there,
+   and the last whole reading is what a caller is judged on.
+
+A recorder writes one line per sample (`bin/native-gate-container-peaks.ts`):
+before,
+every order that answered a part of the group wrote a sample line,
+and the end line repeated the last one;
+after,
+a reading that lost a part writes no line,
+and the end line holds the last whole reading.
+
+## What the gate prints for such a container, before and after
+
+The fixture is a control group with a whole reading that counted one kill,
+held at `pids.peak` by a named pipe while the group loses `memory.events`
+(`holdStandInCgroupReading` in `package/git-policy/cli/bin/stand-in-cgroup-files-for-tests.ts`),
+so the loss happens at a chosen point of a reading and no pause decides it.
+The control that holds the fixture is the one in `package/git-policy/cli/bin/native-gate-container-memory.unit.test.ts`
+whose name says it keeps the whole reading a killed container gave when its group loses `memory.events` part way through
+the next,
+and it asks the printer the gate's own container run prints with,
+`containerMemoryKilledLine` in `bin/native-gate-container-memory.ts`.
+
+- Before,
+  the watch kept `{}` as the container's events,
+  so the printer answered that no kill is to be named and the gate printed nothing.
+- After,
+  the watch keeps the whole reading,
+  `{"low":0,"high":0,"max":1,"oom":1,"oom_kill":1,"oom_group_kill":0}`,
+  and the gate prints:
+
+  ```text
+  The suite's container was killed for memory: its cgroup counted 1 out-of-memory kill at the 3.0 GiB memory.max bound it
+  was given, with a peak of 1,516.0 MiB. That is the bound and not a failing test: raise it with --memory after the task
+  name, or with --container-memory when native:gate starts the run.
+  ```
+
+## What still limits it
+
+- A first reading taken while a group goes still under-reports it:
   a reading with nothing before it replaces nothing,
   and no better reading of that group exists.
+  What changed is that a directory answering no file of its own is no reading at all,
+  so a recorder starts its end line from a whole reading or writes none.
+- A kill that lands after the last whole reading and before the group starts going is still lost:
+  the 100 ms interval between two readings decides whether a reading is still there to take,
+  and nothing can read a cgroup that is already gone.
