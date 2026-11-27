@@ -24,6 +24,11 @@
 //! - `worktree_copy_ceiling.rs`:
 //!   the bound one command holds when it finishes a copy it did not start,
 //!   and the words a copy stopped at that bound is reported with.
+//! - `worktree_copy_interrupted_add_settlement_checkout_proof.rs`:
+//!   what proves the checkout of an interrupted `git worktree add` whole or gone:
+//!   Git's index,
+//!   the lock a killed Git left beside it,
+//!   and what the destination holds beside its pointer.
 //! - `worktree_copy_interrupted_add_settlement.rs`:
 //!   what an interrupted `git worktree add` settles to,
 //!   with the proof its checkout is whole or gone.
@@ -41,6 +46,16 @@
 //!   the process that owns one item of a copy transaction,
 //!   written into the item's name,
 //!   and the proof that it still runs.
+//! - `worktree_copy_publish_file_temporary_name.rs`:
+//!   the stable name a fallback's temporary is filled under,
+//!   computed from the stage token and the entry's path.
+//! - `worktree_copy_publish_file_making_the_file.rs`:
+//!   the calls that make one file in a directory held open:
+//!   an unnamed file where the filesystem has one,
+//!   and a file under a name this copy chose otherwise.
+//! - `worktree_copy_publish_file_giving_it_its_name.rs`:
+//!   the calls that give the filled file its destination name in one step,
+//!   and the removal of a name an interrupted fallback left.
 //! - `worktree_copy_publish_file.rs`:
 //!   the publication of one staged regular file at its destination name in one step:
 //!   unnamed while it is filled,
@@ -70,6 +85,9 @@
 //!   kept beside the reaping so that file stays under the line limit.
 //! - `worktree_copy_stage_claim_pointer_presence.rs`:
 //!   the answers worktree copy stage claim pointer presence holds.
+//! - `worktree_copy_stage_claim_owner_verdicts.rs`:
+//!   which claim owners were found dead,
+//!   decided before anything is removed.
 //! - `worktree_copy_stage_claim_swept_files.rs`:
 //!   the two sweeps of the journal root that remove files rather than stages,
 //!   kept beside the reaping so that file stays under the line limit.
@@ -106,6 +124,10 @@
 //! - `worktree_copy_install_entry.rs`:
 //!   the exclusive creation of one destination entry from the stage,
 //!   and the identity captured after it.
+//! - `worktree_copy_journal_names_and_shapes.rs`:
+//!   the names a copy journal lives under,
+//!   the phase a copy reached,
+//!   and the shape of one journal record.
 //! - `worktree_copy_journal_encoding_and_validation.rs`:
 //!   the exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
 //! - `worktree_copy_install_log.rs`:
@@ -151,6 +173,12 @@
 //! - `worktree_copy_rollback.rs`:
 //!   removal of the paths a failed installation created,
 //!   only where their identity and content still prove them monochromatic-git-policy-cli's own.
+//! - `worktree_copy_stage_claim_record.rs`:
+//!   the words one stage claim file holds:
+//!   the container it names,
+//!   its bytes,
+//!   and the owner,
+//!   read back as the fields the sweeps act on.
 //! - `worktree_copy_stage_claim.rs`:
 //!   the durable claim on a stage container's name,
 //!   and the removal of stages an interrupted copy left behind.
@@ -168,6 +196,10 @@
 //! - `worktree_copy_settling.rs`:
 //!   settling a staged copy against its source:
 //!   the passes that copy a changed entry again and leave a vanished one out.
+//! - `worktree_copy_stage_left_out_paths.rs`:
+//!   which roots and paths a stage leaves out:
+//!   the registered worktrees nested under the source,
+//!   and any path through a private stage.
 //! - `worktree_copy_stage.rs`:
 //!   the private,
 //!   validated stage of one source's ignored state beside a destination worktree.
@@ -182,9 +214,19 @@
 //!   the staging,
 //!   journaling and installation of one created worktree's ignored state,
 //!   bound to the registration real Git made.
+//! - `worktree_copy_synchronize_after_git.rs`:
+//!   what one command does around the copy once real Git returned:
+//!   whose destination the worktree is,
+//!   which registration Git made for it,
+//!   and the summary line of a copy that ran.
 //! - `worktree_copy_transaction.rs`:
 //!   one journaled installation to an end,
 //!   and resumption from the log.
+//! - `worktree_copy_unfilled_record_words.rs`:
+//!   the words one unfilled-copy record holds:
+//!   its suffix,
+//!   its five fields,
+//!   and the name the record of one journal takes.
 //! - `worktree_copy_unfilled_record.rs`:
 //!   the durable record of a worktree left without part of its source's ignored state,
 //!   reported by every later command until the worktree is gone or replaced.
@@ -272,6 +314,9 @@ pub mod worktree_copy_manifest;
 /// and the source stability check after staging.
 pub mod worktree_copy_compare;
 
+/// Which roots and paths a stage leaves out.
+pub mod worktree_copy_stage_left_out_paths;
+
 /// The private,
 /// validated stage of one source's ignored state beside a destination worktree.
 pub mod worktree_copy_stage;
@@ -290,6 +335,17 @@ pub mod worktree_copy_settling;
 /// and the identity captured after it.
 #[cfg(unix)]
 pub mod worktree_copy_install_entry;
+
+/// The stable name a fallback's temporary is filled under.
+pub mod worktree_copy_publish_file_temporary_name;
+
+/// The calls that make one file in a directory this module holds open.
+#[cfg(unix)]
+pub mod worktree_copy_publish_file_making_the_file;
+
+/// The calls that give a filled file its destination name in one step.
+#[cfg(unix)]
+pub mod worktree_copy_publish_file_giving_it_its_name;
 
 /// The publication of one staged regular file at its destination name in one step:
 /// unnamed while it is filled,
@@ -315,6 +371,10 @@ pub mod worktree_copy_rollback;
 #[cfg(unix)]
 pub mod worktree_copy_journal;
 
+/// The names a copy journal lives under and the shapes it is written as.
+#[cfg(unix)]
+pub mod worktree_copy_journal_names_and_shapes;
+
 /// The exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
 #[cfg(unix)]
 pub mod worktree_copy_journal_encoding_and_validation;
@@ -322,6 +382,10 @@ pub mod worktree_copy_journal_encoding_and_validation;
 /// The removal of a finished or abandoned copy transaction's stage and journal.
 #[cfg(unix)]
 pub mod worktree_copy_journal_removal;
+
+/// The words one stage claim file holds.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_record;
 
 /// The durable claim on a stage container's name,
 /// and the removal of stages an interrupted copy left behind.
@@ -331,6 +395,11 @@ pub mod worktree_copy_stage_claim;
 /// The judging of stage claims and the removal of the stages that interrupted copies left behind.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
+
+/// Which claim owners were found dead,
+/// decided before anything is removed.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_owner_verdicts;
 
 /// The two sweeps of the journal root that remove files rather than stages,
 /// kept beside the reaping so that file stays under the line limit.
@@ -368,6 +437,10 @@ pub mod worktree_copy_stage_snapshot_origin;
 #[cfg(unix)]
 pub mod worktree_copy_stage_reaping_proof_and_words;
 
+/// What proves the checkout of an interrupted `git worktree add` whole or gone.
+#[cfg(unix)]
+pub mod worktree_copy_interrupted_add_settlement_checkout_proof;
+
 /// What an interrupted `git worktree add` settles to,
 /// with the proof its checkout is whole or gone.
 #[cfg(unix)]
@@ -383,6 +456,10 @@ pub mod worktree_copy_swapped_add_settlement;
 /// recorded beside its payload and checked before every write into a worktree.
 #[cfg(unix)]
 pub mod worktree_copy_stage_binding;
+
+/// The words one unfilled-copy record holds.
+#[cfg(unix)]
+pub mod worktree_copy_unfilled_record_words;
 
 /// The durable record of a worktree left without part of its source's ignored state,
 /// reported by every later command until the worktree is gone or replaced.
@@ -417,6 +494,13 @@ pub mod worktree_copy_notices;
 /// bound to the registration real Git made.
 #[cfg(unix)]
 pub mod worktree_copy_synchronize;
+
+/// What one command does around the copy once real Git returned:
+/// whose destination the worktree is,
+/// which registration Git made for it,
+/// and the summary line of a copy that ran.
+#[cfg(unix)]
+pub mod worktree_copy_synchronize_after_git;
 
 /// What becomes of the destination a refused `git worktree add` left:
 /// the empty folder this command made is removed,

@@ -514,8 +514,6 @@ file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs ->
 file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_made_object.rs
 file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_reaping_proof_and_words.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_journal.rs
-file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_registry.rs
-file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_source_still_being_filled.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_stage.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_stage_binding.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_stage_claim.rs

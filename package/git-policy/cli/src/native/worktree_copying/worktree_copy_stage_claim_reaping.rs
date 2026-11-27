@@ -50,9 +50,7 @@ use crate::worktree_copy_selection::{
 };
 use crate::worktree_copy_stage_claim::{
     COMPLETE_SUFFIX,
-    CONTAINER_HEX_PREFIX,
     DESTINATION_SUFFIX,
-    OWNER_LINE_PREFIX,
     claim_names,
 };
 use crate::worktree_copy_stage_claim_owed_copy_elsewhere::copy_owed_to_another_worktree;
@@ -83,124 +81,16 @@ use std::path::{
 ///  branch's proof of the destination's pointer now is too.
 pub use crate::worktree_copy_interrupted_add_settlement::*;
 
-/// What:
-///  The container and the owner a claim names.
-/// Why:
-///   `read_claim` acts on these values,
-/// so the shape of a record is decided in one place.
-struct ClaimFields<'a> {
-    /// The container as text,
-    /// when the record spells it on one line.
-    text: Option<&'a str>,
-    /// The container's bytes,
-    /// when the record holds them.
-    bytes: Option<&'a str>,
-    /// The owner token,
-    /// when the record names one.
-    owner: Option<String>,
-}
-
-/// What:
-///  Whether a line of a claim holds the container's bytes.
-/// Why:
-///   A reader must place the bytes line and count it,
-/// so both questions are asked in one way of one name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const holdsBytes = (line: string) => line.startsWith('containerHex=')
-/// ```
-fn holds_bytes(line: &str) -> bool {
-    return line.starts_with(CONTAINER_HEX_PREFIX);
-}
-
-/// What:
-///  The lines of a claim as this release and the one before it write them:
-/// the container as text,
-/// its bytes on the line after it,
-/// then the owner.
-/// Why:
-///   The container is removed recursively,
-/// so a line of bytes is believed only in the two places a writer puts one,
-/// and a claim with any other line is refused:
-/// the earlier release wrote a container path verbatim,
-/// so a path holding a line break put lines of its own in the record,
-/// and one of them could name any private directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const claimFields = (text: string) => { const lines = text.split('\n'); const textLine = lines[0]?.startsWith('containerHex=') ? undefined : lines[0]; ... }
-/// ```
-fn claim_fields(text: &str) -> Result<ClaimFields<'_>, String> {
-    let lines: Vec<&str> = text.lines().collect();
-    // The first line is the container's bytes or the container's text; its bytes then sit where this release puts them.
-    let named_text: Option<&str> = match lines.first() {
-        Some(line) if holds_bytes(line) => None,
-        first => first.copied(),
-    };
-    let named_bytes: Option<&str> = match lines.get(usize::from(named_text.is_some())) {
-        Some(line) => line.strip_prefix(CONTAINER_HEX_PREFIX),
-        None => None,
-    };
-    let read: usize = usize::from(named_text.is_some()) + usize::from(named_bytes.is_some());
-    // A line of container bytes past those is a path that ended early, not a line a writer put there.
-    if lines.iter().skip(read).copied().any(holds_bytes) {
-        return Err(String::from(
-            "its line of container bytes is not where this release writes one",
-        ));
-    }
-    // The owner, when the record names one, is the last line.
-    let mut following = lines.iter().skip(read);
-    let Some(first) = following.next() else {
-        return Ok(ClaimFields {
-            text: named_text,
-            bytes: named_bytes,
-            owner: None,
-        });
-    };
-    let Some(token) = first.strip_prefix(OWNER_LINE_PREFIX) else {
-        return Err(String::from(
-            "a line this release does not write follows its container",
-        ));
-    };
-    if following.next().is_some() {
-        return Err(String::from("more lines follow its owner"));
-    }
-    return Ok(ClaimFields {
-        text: named_text,
-        bytes: named_bytes,
-        owner: Some(token.to_string()),
-    });
-}
-
-/// What:
-///  One stage claim as read:
-/// the container it names and its owner token,
-/// or the reason its bytes are not a record this release writes.
-/// Why:
-///   The sweep that settles an unreadable claim needs that reason for its one line,
-/// and every other reader needs only the claims it may act on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ClaimFile = { kind: 'named'; container: string; owner?: string } | { kind: 'unreadable'; reason: string };
-/// ```
-pub enum ClaimFile {
-    /// A claim this release reads.
-    Named {
-        /// The stage container it names,
-        /// absolute and under a name this wrapper reserves.
-        container: PathBuf,
-        /// The owner token,
-        /// when the record names one.
-        owner: Option<String>,
-    },
-    /// A file at a claim's name whose bytes are not the record this release writes.
-    Unreadable {
-        /// What one line says about why it does not read.
-        reason: String,
-    },
-}
+/// Which claim owners were found dead,
+/// decided before anything is removed:
+/// the type lives in a file of its own (`worktree_copy_stage_claim_owner_verdicts.rs`),
+/// and this file re-exports it so its readers keep one path.
+pub use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
+pub use crate::worktree_copy_stage_claim_record::ClaimFile;
+use crate::worktree_copy_stage_claim_record::{
+    ClaimFields,
+    claim_fields,
+};
 
 /// What:
 ///  One claim file as read,
@@ -321,70 +211,6 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     };
 }
 
-/// Which owners were found dead,
-/// decided before anything is removed.
-#[derive(Debug, Default)]
-pub struct StageVerdicts {
-    /// The names of the claims whose owner is dead.
-    dead_claims: BTreeSet<String>,
-    /// The names of the temporaries whose writer is dead.
-    dead_temporaries: BTreeSet<String>,
-}
-
-impl StageVerdicts {
-    /// What:
-    ///  Whether the claim of this name has a dead owner.
-    /// Why:
-    ///   The pass that finishes an owed copy and the sweep that settles the claim act on one judgement,
-    /// taken before
-    ///  anything is changed,
-    /// so neither acts on a claim whose owner still runs or cannot be judged.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// verdicts.namesDeadClaim(name)
-    /// ```
-    pub fn names_dead_claim(
-        &self,
-        name: &str,
-    ) -> bool {
-        return self.dead_claims.contains(name);
-    }
-
-    /// What:
-    ///  Judges one claim that was written again during this pass dead,
-    /// because it names no owner.
-    /// Why:
-    ///   A claim this release could not read is settled by the command that found it,
-    /// which writes it again from the records beside it;
-    /// that claim names no owner,
-    /// so the sweeps of the same pass must act on it as they would on any dead owner's claim.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// verdicts.recordDeadClaim(name)
-    /// ```
-    pub fn record_dead_claim(
-        &mut self,
-        name: &str,
-    ) {
-        let _inserted: bool = self.dead_claims.insert(name.to_string());
-    }
-
-    ///  The names of the temporaries whose writer is dead.
-    /// Why:
-    ///   The sweep that removes them lives beside this file,
-    /// and a dead writer's names are the one thing it needs from here.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// verdicts.deadTemporaryNames() // the names of a dead writer's temporaries
-    /// ```
-    pub(crate) fn dead_temporary_names(&self) -> &BTreeSet<String> {
-        return &self.dead_temporaries;
-    }
-}
-
 /// The suffix of the file one write is made in before its own temporary takes its name:
 /// a write cut off inside it leaves this rather than a temporary the sweep already knows.
 pub(crate) const SCRATCH_SUFFIX: &str = ".partial";
@@ -452,7 +278,7 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
         };
         // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
         if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
-            verdicts.dead_claims.insert(name);
+            verdicts.record_dead_claim(name.as_str());
         }
     }
     // `match` treats an absent root as having nothing to remove.
@@ -478,7 +304,7 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
             None => temporary_writer_token(name.as_str()).map(str::to_string),
         };
         if token_owner_is_dead(writer.as_deref(), path.as_path())? {
-            verdicts.dead_temporaries.insert(name);
+            verdicts.record_dead_temporary(name.as_str());
         }
     }
     return Ok(verdicts);
@@ -567,7 +393,7 @@ pub fn reap_judged_stages(
                 continue;
             };
             // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
-            if !verdicts.dead_claims.contains(name.as_str()) {
+            if !verdicts.names_dead_claim(name.as_str()) {
                 continue;
             }
             let present: bool = still_there(container.as_path())?;
