@@ -196,6 +196,19 @@
 //! - `commit_timing_record_writing.rs`:
 //!   the one append that writes a timing record to its file,
 //!   best effort.
+//! - `commit_command_input.rs`:
+//!   what one commit command is handed,
+//!   and how it ended.
+//! - `commit_command_directory.rs`:
+//!   the directory one commit command runs in:
+//!   the effective invocation directory after every `-C`,
+//!   and the real Git the commit's own starts run.
+//! - `commit_command_words.rs`:
+//!   the words one commit command says when it stops,
+//!   each handed to the thread that writes standard error.
+//! - `commit_command_form_refusal.rs`:
+//!   the refusal of a `git commit` whose options are a form real Git refuses,
+//!   with Git's own status and bytes.
 //! - `commit_command.rs`:
 //!   the `git commit` command:
 //!   the transaction,
@@ -284,6 +297,23 @@ pub mod commit_staged_deletions;
 /// the settled events,
 /// the post-commit gate and the backup.
 pub mod commit_command;
+
+/// What one commit command is handed,
+/// and how it ended.
+pub mod commit_command_input;
+
+/// The directory one commit command runs in:
+/// the effective invocation directory after every `-C`,
+/// and the real Git the commit's own starts run.
+pub mod commit_command_directory;
+
+/// The words one commit command says when it stops,
+/// each handed to the thread that writes standard error.
+pub mod commit_command_words;
+
+/// The refusal of a `git commit` whose options are a form real Git refuses,
+/// with Git's own status and bytes.
+pub mod commit_command_form_refusal;
 
 /// Rule facts from the real repository with candidates read from the private index.
 pub mod commit_facts;
