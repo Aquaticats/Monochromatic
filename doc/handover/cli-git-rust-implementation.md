@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:27:32-05:00
+## The state at 2026-11-27T12:32:43-05:00
 
-`main` was `0f33063f26`.
+`main` was `cf3210724e`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 226 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 227 more by this time.
 
 ### Rounds running
 
@@ -177,11 +177,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  two rounds started 2026-11-27T12:00:02-05:00,
-  each named `cargo-shadow-alpha-13-release-pass-` and then:
-  `the-retire-gates-fallback-and-its-words-are-held-by-controls`
-  and `the-refusals-listing-and-its-records-say-what-the-code-does`.
-  The third of that list is merged (`17a5efdf9a`):
+  one round started 2026-11-27T12:00:02-05:00,
+  `cargo-shadow-alpha-13-release-pass-the-retire-gates-fallback-and-its-words-are-held-by-controls`;
+  `0.1.5-alpha.14` follows its merge.
+  The round on the refusal's listing is merged (`cf3210724e`):
+  the last leftover a stop can report reaches the refusal's decision in a control that rests on no race;
+  a branch no input could reach is gone;
+  the listing's order is stated as the code gives it,
+  the scope's own group first,
+  and pinned across two groups;
+  and the refusal for a scope the manager collected says what becomes of the kept journal.
+  The proposal round of that list is merged too (`17a5efdf9a`):
   in a guest on systemd 262.2,
   with the account's inotify watches used up,
   a scope started the way `cargo-shadow` starts one stayed `loaded active running` with no member after its program ended,
