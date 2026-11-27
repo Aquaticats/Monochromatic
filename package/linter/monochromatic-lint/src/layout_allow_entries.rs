@@ -280,20 +280,21 @@ fn entry_of(
 }
 
 /// What:
-///  Whether a line sets four words off with exactly one whitespace character each.
+///  Whether a line holds no two whitespace characters side by side.
 /// Why:
 ///  That spelling is the one the rule prints,
 ///  and it is the only one that leaves the two names in doubt at neither end:
 ///  a run of two whitespace characters is what a name that starts or ends with one leaves behind,
 ///  and a name with a space inside makes a fourth run.
-///  Any other line is read from the two sides of its arrow instead.
+///  The caller reads four words from the line and no more,
+///  so the three runs between them are one per gap whenever no two characters stand together;
+///  any other line is read from the two sides of its arrow instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function setsWordsOffWithOneWhitespace(text: string): boolean;
 /// ```
 fn sets_words_off_with_one_whitespace(text: &str) -> bool {
-    let mut runs: usize = 0;
     let mut inside_a_run: bool = false;
     for letter in text.chars() {
         if !letter.is_whitespace() {
@@ -306,9 +307,8 @@ fn sets_words_off_with_one_whitespace(text: &str) -> bool {
             return false;
         }
         inside_a_run = true;
-        runs += 1;
     }
-    return runs == 3;
+    return true;
 }
 
 /// What:
