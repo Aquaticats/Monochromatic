@@ -12,33 +12,32 @@
 //! its settings files or the base Harper server
 //! are absent,
 //! and says so in a warning.
+//!  The rewriting of the settings text lives in `kind_jetbrains_harper_settings.rs`,
+//! and the rule here decides when it runs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function jetbrainsHarperRule(settings: HarperPolicy): Rule
 //! ```
 
-/// Imports the JSON helpers from `crate::harper_json`.
-use crate::harper_json::{
-    disable_linters,
-    format_object,
-    parse_object,
-    scoped_config,
-    union_excludes,
-    with_schema_defaults,
-};
+/// What:
+///  How the policy rewrites the two settings files of one IDE product.
+/// Why:
+///  Reading them through the view,
+/// patching the base server's entries and writing the scoped ones is one role,
+/// and it lives in its own file so this one holds the rule itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { readSettings, updatedLanguage, updatedUser } from './kind_jetbrains_harper_settings'
+/// ```
+#[path = "kind_jetbrains_harper_settings.rs"]
+mod settings;
+
 /// Imports the XML helpers from `crate::harper_xml`.
 use crate::harper_xml::{
     find_base_entry,
-    find_entry,
-    option_value,
     parse,
-};
-/// Imports the entry edits from `crate::harper_xml_edit`.
-use crate::harper_xml_edit::{
-    ScopedUserEntry,
-    upsert_language_entry,
-    upsert_user_entry,
 };
 /// Imports `LANGUAGE_FILE`,
 /// `USER_FILE`,
@@ -68,12 +67,6 @@ use monochromatic_file_enforcer::rule::{
 };
 /// Imports `View` from `monochromatic_file_enforcer::view`.
 use monochromatic_file_enforcer::view::View;
-/// Imports `Map`,
-/// `Value` from `serde_json`.
-use serde_json::{
-    Map,
-    Value,
-};
 /// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
 
@@ -225,144 +218,6 @@ impl JetbrainsHarperRule {
             ids.push(server.id.clone());
         }
         return ids;
-    }
-
-    /// What:
-    ///  Read both settings files of a product through the view.
-    /// Why:
-    ///  A product without both files is not a managed setup,
-    /// like a machine without the IDE.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// readSettings(view: View, optionsDirectory: string): SettingsFiles | undefined
-    /// ```
-    fn read_settings(
-        &self,
-        view: &mut View,
-        options_directory: &str,
-    ) -> Result<Option<SettingsFiles>, Diagnostic> {
-        let language_path = format!("{options_directory}/{LANGUAGE_FILE}");
-        let user_path = format!("{options_directory}/{USER_FILE}");
-        let language_text = view.read_text(&language_path)?;
-        let user_text = view.read_text(&user_path)?;
-        match (language_text, user_text) {
-            (Some(language), Some(user)) => {
-                return Ok(Some(SettingsFiles {
-                    language_path,
-                    language_text: language,
-                    user_path,
-                    user_text: user,
-                }));
-            }
-            _ => return Ok(None),
-        }
-    }
-
-    /// The base server's patched configuration,
-    /// from the configuration the language settings file holds for it.
-    fn base_config(
-        &self,
-        settings: &SettingsFiles,
-        key: &str,
-    ) -> Result<Map<String, Value>, Diagnostic> {
-        let document = parse(&settings.language_path, &settings.language_text)?;
-        let Some(entry) = find_entry(&document, key) else {
-            let message = format!(
-                "{}: no language server settings entry for the base server {key}",
-                settings.language_path
-            );
-            return Err(Diagnostic::new("harper-xml-invalid", &message)
-                .with_path(&settings.language_path)
-                .with_rule(&self.id));
-        };
-        let existing = match option_value(&document, entry, "configurationContent") {
-            Some(text) => text,
-            None => "{}".to_string(),
-        };
-        let mut config = parse_object(&existing, "configurationContent", &settings.language_path)?;
-        disable_linters(&mut config, &self.disabled_linters);
-        union_excludes(&mut config, &self.exclude_patterns);
-        return Ok(config);
-    }
-
-    /// The schema text shared by the base and scoped entries.
-    fn schema_text(
-        &self,
-        settings: &SettingsFiles,
-        key: &str,
-    ) -> Result<String, Diagnostic> {
-        let document = parse(&settings.language_path, &settings.language_text)?;
-        let schema_text = match find_entry(&document, key) {
-            Some(entry) => option_value(&document, entry, "configurationSchemaContent"),
-            None => None,
-        };
-        let existing = match schema_text {
-            Some(text) => text,
-            None => "{\"properties\":{}}".to_string(),
-        };
-        let schema = parse_object(
-            &existing,
-            "configurationSchemaContent",
-            &settings.language_path,
-        )?;
-        return Ok(format_object(with_schema_defaults(schema)));
-    }
-
-    /// The language settings file after the policy:
-    /// the base entry patched,
-    /// each scoped entry written.
-    fn updated_language(
-        &self,
-        settings: &SettingsFiles,
-        key: &str,
-    ) -> Result<String, Diagnostic> {
-        let base = self.base_config(settings, key)?;
-        let schema = self.schema_text(settings, key)?;
-        let path = settings.language_path.as_str();
-        let mut text = upsert_language_entry(
-            path,
-            &settings.language_text,
-            key,
-            &format_object(base.clone()),
-            &schema,
-        )?;
-        for server in &self.scoped_servers {
-            let config = format_object(scoped_config(&base, &server.disabled_linters));
-            text = upsert_language_entry(path, &text, &server.id, &config, &schema)?;
-        }
-        return Ok(text);
-    }
-
-    /// The user-defined settings file after the policy:
-    /// each scoped entry written,
-    /// with options copied from the base server's entry.
-    fn updated_user(
-        &self,
-        settings: &SettingsFiles,
-        key: &str,
-    ) -> Result<String, Diagnostic> {
-        let document = parse(&settings.user_path, &settings.user_text)?;
-        let mut copied: Vec<(String, String)> = Vec::new();
-        if let Some(base) = find_entry(&document, key) {
-            for name in COPIED_OPTIONS {
-                if let Some(value) = option_value(&document, base, name) {
-                    copied.push((name.to_string(), value));
-                }
-            }
-        }
-        let mut text = settings.user_text.clone();
-        for server in &self.scoped_servers {
-            let entry = ScopedUserEntry {
-                key: &server.id,
-                name: &server.name,
-                language_id: &server.language_id,
-                file_names: &server.file_names,
-                copied: &copied,
-            };
-            text = upsert_user_entry(&settings.user_path, &text, &entry)?;
-        }
-        return Ok(text);
     }
 }
 
