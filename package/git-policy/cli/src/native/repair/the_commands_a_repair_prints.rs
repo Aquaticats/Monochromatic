@@ -16,17 +16,18 @@
 //! ```
 
 /// What:
-///  `pub const MANUAL_COMMAND: &str` is a name bound to a borrowed string
-///  literal: `&str` is a read-only view of UTF-8 bytes baked into the
-///  binary, and its sibling `String` would be an owned buffer on the heap.
+///  A name bound to a borrowed string literal:
+///  `&str` is a read-only view of UTF-8 bytes baked into the binary,
+///  and its sibling `String` would be an owned buffer on the heap.
 /// Why:
 ///  The command is a fixed word this release prints,
 ///  so nothing here needs to grow or be freed,
 ///  and every finder and notice that names it copies the same constant.
 /// Gotcha:
-///  `&str` is not a character list: it is a byte view that must be valid
-///  UTF-8, and the `'static` lifetime this literal has means it lives for
-///  the whole program, which the type as written does not spell out.
+///  `&str` is not a character list:
+///  it is a byte view that must be valid UTF-8,
+///  and the `'static` lifetime this literal has means it lives for the whole program,
+///  which the type as written does not spell out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

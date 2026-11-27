@@ -108,7 +108,7 @@ pub use crate::package_repair_cargo_build_state_plan::{
     plan_build_state,
 };
 /// Import the program the person's environment resolves.
-pub(super) use crate::package_repair_cargo_clean_arguments::PROGRAM;
+use crate::package_repair_cargo_clean_arguments::PROGRAM;
 /// Import the clean's arguments and the command a person runs instead,
 /// so the paths their callers already name are unchanged.
 pub use crate::package_repair_cargo_clean_arguments::{
