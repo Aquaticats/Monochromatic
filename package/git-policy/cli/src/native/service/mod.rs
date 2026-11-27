@@ -177,6 +177,19 @@
 //! - `service_runtime_build_report.rs`:
 //!   how the service's own runtime was built,
 //!   and the words a task that cannot get a worker ends the service with.
+//! - `service_server_connection_handling_what_every_connection_shares.rs`:
+//!   the queues,
+//!   the board and the drawn shadows one service run hands every connection.
+//! - `service_server_connection_handling_the_note_of_a_stuck_landing.rs`:
+//!   the note a beat sends about what the landing is stuck in.
+//! - `service_server_connection_handling_whose_message_it_is.rs`:
+//!   whether a message is this instance's own,
+//!   and the words for the ones it is not.
+//! - `service_server_connection_handling_the_wait_of_a_commit.rs`:
+//!   a queued commit answered with beats,
+//!   and a withdrawal answered the same way.
+//! - `service_server_connection_handling_one_message.rs`:
+//!   what one decoded line of a connection comes to.
 //! - `service_server_connection_handling.rs`:
 //!   handles one client connection of the commit service.
 //! - `service_server_accept_connections_as_tasks.rs`:
@@ -489,6 +502,25 @@ pub mod service_server_land_group_answer_log;
 pub mod service_server_land_group_owed_pushes;
 
 /// Handles one client connection of the commit service.
+/// What every connection of one service run shares:
+/// the queues,
+/// the board and the drawn shadows.
+pub mod service_server_connection_handling_what_every_connection_shares;
+
+/// The note a beat sends about what the landing is stuck in.
+pub mod service_server_connection_handling_the_note_of_a_stuck_landing;
+
+/// Whether a message is this instance's own,
+/// and the words for the ones it is not.
+pub mod service_server_connection_handling_whose_message_it_is;
+
+/// A queued commit answered with beats,
+/// and a withdrawal answered the same way.
+pub mod service_server_connection_handling_the_wait_of_a_commit;
+
+/// What one decoded line of a connection comes to.
+pub mod service_server_connection_handling_one_message;
+
 pub mod service_server_connection_handling;
 
 /// How the service's own runtime was built,
