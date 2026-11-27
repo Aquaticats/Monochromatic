@@ -1,5 +1,8 @@
 //! Controls for the gateway client against a loopback mock.
 //! No test reaches a real host or sends a real key.
+//! The ban on the library the owner refused reads the crate's name in the sources;
+//! a dependency renamed in the manifest (`http = { package = "ureq" }`) is one it does not see,
+//! so a reader checks the manifest beside it.
 //!
 //! What:
 //!  Every verdict here comes from the order of events:
@@ -52,6 +55,8 @@ use std::time::Instant;
 ///  a file of the client named without that prefix is one this ban would not read,
 ///  so the scope is the folder,
 ///  which covers every name a later split gives a receiver.
+///  A file this ban does not read is one outside `standards_review/`,
+///  which is what a client moved to another folder would be.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
