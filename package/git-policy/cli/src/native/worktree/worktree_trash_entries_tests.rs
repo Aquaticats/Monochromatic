@@ -11,6 +11,7 @@ use crate::fs_beneath::{
     open_root,
 };
 use crate::parallel_test_support::{
+    ONE_PLACE,
     PATIENCE,
     Rendezvous,
     finished_within_at,
@@ -318,39 +319,57 @@ fn the_removals_run_on_the_processs_runtime() {
 /// A removal waits for the one place the process's blocking pool has:
 /// only a job of the pool takes one,
 /// and work that ran on a worker of the runtime instead would start at once.
+/// The bound is made once for the whole process and is never resized
+/// (`foundation/blocking_jobs_within_the_budget.rs`),
+/// and so is the count of jobs waiting for a place,
+/// so this body runs in a child of its own:
+/// in a threaded run another control has already made the bound with the places the CPUs allow,
+/// so the hold leaves a removal a place to start in (issue 6534).
 #[test]
 fn the_removals_take_places_of_the_processs_bound_on_blocking_jobs() {
-    let (root, held, manifest) = trash_with_entries("trash-entries-a-place-of-the-bound");
-    let (given_back, finished) = hold_the_only_place();
-    let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
-        Arc::new(std::sync::Mutex::new(Vec::new()));
-    let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
-    let one_removal: Arc<RemoveOne> = Arc::new(
-        move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
-            began
-                .lock()
-                .expect("lock")
-                .push(given.load(Ordering::SeqCst));
-            return remove_tree_beneath(label, parent, name, expected);
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_removals_take_places_of_the_processs_bound_on_blocking_jobs",
+        || {
+            let (root, held, manifest) = trash_with_entries("trash-entries-a-place-of-the-bound");
+            let (given_back, finished) = hold_the_only_place();
+            // The hold reaches a bound only this process has yet to make, so the child is the process whose place it is.
+            let allowed: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs();
+            assert_eq!(
+                allowed, ONE_PLACE,
+                "this process's bound on blocking jobs has {allowed} places, and the control holds one of them, so a removal takes another and starts at once: the body needs a process of its own, whose bound is the one place it holds"
+            );
+            let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
+                Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
+            let one_removal: Arc<RemoveOne> = Arc::new(
+                move |label: &Path, parent: &File, name: &std::ffi::OsStr, expected| {
+                    began
+                        .lock()
+                        .expect("lock")
+                        .push(given.load(Ordering::SeqCst));
+                    return remove_tree_beneath(label, parent, name, expected);
+                },
+            );
+            let left = remove_with(&held, root.as_path(), &manifest, &LARGE_HOST, &one_removal);
+            assert!(left.is_empty(), "{left:?}");
+            let seen: Vec<bool> = started_after.lock().expect("lock").clone();
+            assert_eq!(
+                seen,
+                vec![true; ENTRIES],
+                "a removal started while another job held the only place of the process's bound, so it did not take one"
+            );
+            // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
+            //  reached the process's bound instead of starting at once.
+            assert!(
+                finished
+                    .recv_timeout(PATIENCE)
+                    .expect("the job that holds the place never returned"),
+                "no job of the work under test asked for a place of the process's bound, so it did not take one"
+            );
+            remove(root.as_path());
         },
     );
-    let left = remove_with(&held, root.as_path(), &manifest, &LARGE_HOST, &one_removal);
-    assert!(left.is_empty(), "{left:?}");
-    let seen: Vec<bool> = started_after.lock().expect("lock").clone();
-    assert_eq!(
-        seen,
-        vec![true; ENTRIES],
-        "a removal started while another job held the only place of the process's bound, so it did not take one"
-    );
-    // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
-    //  reached the process's bound instead of starting at once.
-    assert!(
-        finished
-            .recv_timeout(PATIENCE)
-            .expect("the job that holds the place never returned"),
-        "no job of the work under test asked for a place of the process's bound, so it did not take one"
-    );
-    remove(root.as_path());
 }
 
 /// The estimate covers the measured peak of removing a flat directory of a million names.

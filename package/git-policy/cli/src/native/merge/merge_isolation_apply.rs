@@ -52,7 +52,6 @@ use crate::merge_isolation_apply_stops::{
     the_end_of_a_failed_step,
 };
 use crate::merge_isolation_carry_apply::{
-    CarryFailure,
     LockWait,
     changes_between,
     clear,
@@ -69,6 +68,7 @@ use crate::merge_isolation_carry_landed::{
 /// the carry after it,
 /// and the ref that keeps their bytes.
 use crate::merge_isolation_carry_ref::drop_capture_ref;
+use crate::merge_isolation_carry_write_failures::CarryFailure;
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// The questions an isolated merge asks Git.
