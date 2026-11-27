@@ -403,36 +403,37 @@ and this round did not measure it again):
 
 After the change,
 measured again with the same harness,
+against the final binary (`132472627c89846bfb70dfbcdf6359b32e4f78f0d7a4b247aec8c2b5996c7508`)
+and the released one (`f84d5708e4397c2c17e76ce8724ae02a130e4aa78d6c8aec8c15ffa4aa84a82d`),
 nine rounds of all four arms for each of the two ways a host has no manager:
 
 - neither variable set:
-  the released binary 67.47 ms median (46.57 ms to 84.71 ms),
-  this branch's 72.00 ms median (46.56 ms to 90.61 ms),
+  the released binary 38.43 ms median (37.49 ms to 43.11 ms),
+  this branch's 43.78 ms median (38.25 ms to 48.12 ms),
   **one ask per call for all 36 calls**;
-  ratio per round 0.63 to 1.56,
-  median 1.07;
+  ratio per round 1.01 to 1.28,
+  median 1.11;
 - `XDG_RUNTIME_DIR` naming a directory that holds nothing,
   and no bus address:
-  the released binary 73.95 ms median (67.21 ms to 240.47 ms),
-  this branch's 69.79 ms median (47.95 ms to 85.76 ms),
+  the released binary 43.98 ms median (38.20 ms to 44.91 ms),
+  this branch's 40.12 ms median (38.66 ms to 45.24 ms),
   **one ask per call for all 36 calls**;
-  ratio per round 0.29 to 1.11,
-  median 0.96;
-- the copies against their own originals moved as much as the two binaries did
-  (0.60 to 1.51 where neither variable is set,
-  and 0.71 to 1.49 the other way round;
-  0.30 to 1.07 and 0.67 to 1.61 in the second pair),
+  ratio per round 0.87 to 1.05,
+  median 1.00;
+- the copies against their own originals moved by as much as the two binaries did
+  (0.83 to 1.43 for the branch's pair and 0.90 to 1.21 for the released pair where neither variable is set,
+  0.87 to 1.15 and 0.88 to 1.15 in the second),
   so the spread of the ratio is the rounds' own noise and not the two binaries;
 - every one of the 72 calls printed the weaker path's notice and exited 0.
 
 So a call where no manager can be reached makes one ask and spends no wait,
 which is what the released binary does,
-and the two binaries' calls are the same cost within what this host's own rounds vary by.
-The absolute figures are about 70 ms here where the earlier round measured about 43 ms for the same
-released binary:
-that is the machine on the day,
-and the comparison that holds is each round's own,
-which is why the ratio is what is reported.
+and no difference between the two binaries' calls was seen there that is larger than the rounds' own spread:
+the branch's median ratio is 1.11 in the first case and 1.00 in the second,
+and a byte-identical copy of each binary moved as far as that on its own.
+The absolute figures are about 40 ms here,
+which is what the earlier round measured for the released binary (43.2 ms),
+so the two rounds agree on the scale and only the per-round ratio is the finding.
 Where a manager answers,
 the asking again costs nothing unless an ask fails.
 
@@ -494,39 +495,74 @@ What the read answers:
 
 ### A manager that reexecutes must not read as no manager
 
-A reexec of the manager unlinks and rebinds its sockets,
+A reexec of the manager unlinks and rebinds its own sockets,
 so a socket can be absent for a moment.
 Sampled 2026-11-27 in the container below,
 whose own user manager held 600 units and was reexecuted three times,
-while the read above was made in one loop of 553,220 samples over 7 s,
-and a manager ask was made in a second loop over the same 7 s:
+in two runs.
 
-- the manager's own socket was absent in two of those samples,
-  for 0.283 ms and 0.172 ms,
-  both at the tail of a reexec of 0.369 s and one of 0.286 s;
+The first run took one sample in a loop with no fork in it and wrote a line only where a sample differed from
+the one before it,
+so its interval between two samples is 12.65 us and its file holds the moments of change and not a count of
+each state:
+553,220 samples over 7 s,
+and three reexecs of 0.390 s,
+0.369 s and 0.286 s beginning 1.50 s,
+3.39 s and 5.26 s after the first sample.
+
+- The manager's own socket was absent in **two intervals**,
+  0.283 ms and 0.172 ms long,
+  at the tail of the reexec of 0.369 s and the one of 0.286 s;
 - `$XDG_RUNTIME_DIR/bus` was there in every sample,
-  and so was the manager's own directory `$XDG_RUNTIME_DIR/systemd`;
+  and so was `$XDG_RUNTIME_DIR/systemd`;
 - 1,010 manager asks were made in that time,
-  148 of them refused,
-  every one of the 148 inside one of the three reexec windows
-  (0.390 s,
-  0.369 s and 0.286 s);
-- the refusals were `Failed to connect to user scope bus via local transport: Connection refused` (145),
-  `Failed to get properties: Transport endpoint is not connected` (2)
-  and `Failed to get properties: Connection reset by peer` (1);
-- not one ask answered with the words of the no-manager case,
-  which is the case the measurement must be able to see:
-  the same asks with no manager to reach refuse every time with
-  `Failed to connect to user scope bus via local transport: No such file or directory`
-  or with the sentence that neither variable is defined.
+  148 refused,
+  **every one of the 148 inside one of the three windows**
+  (145 `Failed to connect to user scope bus via local transport: Connection refused`,
+  2 `Failed to get properties: Transport endpoint is not connected`,
+  1 `Failed to get properties: Connection reset by peer`);
+- no ask answered with the words of the no-manager case.
 
-So the instant in which the two cases cannot be told apart is 0.17 ms to 0.28 ms of a reexec,
-while the manager's own socket is unlinked and rebound,
-and the answer there is that a manager may be there:
-the manager's directory is read as well as its socket,
+The second run declared its count before it started:
+500,000 samples,
+each written as a line of its own so the count in each state is exact,
+and three reexecs of 0.374 s,
+0.412 s and 0.412 s beginning 1.00 s,
+2.38 s and 3.79 s after the first sample.
+
+- **every one of the 500,000 samples found the manager's own socket present**,
+  as the bus socket and the manager's directory were;
+- 6,133 manager asks were made in that time,
+  251 refused,
+  **every one of the 251 inside one of the three windows**
+  (248 `Connection refused`,
+  3 `Transport endpoint is not connected`);
+- no ask answered with the words of the no-manager case.
+
+So the socket's absence in a reexec is intermittent:
+two intervals of it in one run,
+and none in the other.
+The two runs are not the same instrument:
+the first samples every 12.65 us and keeps only the changes,
+which is why an absence of 0.17 ms could be seen at all,
+while the second samples every 104 us (52 s over 500,000 samples) and keeps every sample,
+so an absence shorter than about 0.1 ms can pass between two of its samples.
+Each sampler asks a `-S` and a `-d` question of the path,
+which is what the read itself now asks,
+so neither of them reads a plain file at a socket's name as a transport.
+
+The instant in which the two cases cannot be told apart is one of those intervals,
+0.17 ms to 0.28 ms while the manager's own socket is unlinked and rebound,
+and the read's answer there is that a manager may be there:
+the manager's own directory is read as well as its socket,
 and a host that never had a manager has neither.
 Going the other way at that instant would refuse a call across a reexec,
 which is the failure issue 6619 was about.
+That is also why a host whose manager died leaving a socket file behind,
+with the manager's directory still there,
+is still asked five times:
+at the instant an ask fails the two look the same,
+and refusing a reexec is the worse of the two mistakes.
 
 ### The container the reexec control is run in, with this change
 
@@ -545,6 +581,15 @@ with a test binary rebuilt from the merged tree:
 
 ```text
 267 discoveries in 4s, 5 of them inside 3 real reexecs of 810.655757ms together, every one answered
+test control_group_route_discovery::reexec_tests::the_question_answers_across_a_real_reexec_of_a_containers_manager ... ok
+```
+
+And once more with the read in its final form,
+which asks each socket path whether it is a socket and the manager's path whether it is a directory,
+and leaves a bus address whose path holds a `%` unjudged:
+
+```text
+266 discoveries in 4s, 5 of them inside 3 real reexecs of 963.98263ms together, every one answered
 test control_group_route_discovery::reexec_tests::the_question_answers_across_a_real_reexec_of_a_containers_manager ... ok
 ```
 
@@ -567,6 +612,16 @@ outside a container it prints what it did not do and ends.
 
 - `a_host_with_no_runtime_directory_and_no_bus_address_is_asked_once`;
 - `a_host_whose_runtime_directory_holds_no_manager_socket_is_asked_once`.
+
+They cover the two ways a host has no manager that a container,
+a CI job or a session without a manager gives.
+Three more were probed in the container and have no control:
+a runtime directory that does not exist,
+a bus address naming a socket that is not there,
+and a socket file with nothing listening.
+The first two refuse like the two controls do and the read ends the asking at one ask there;
+the third is the case the Open list names,
+where the read keeps the asking again.
 
 Each plants a host with no manager through the settings an ask is made with,
 so the host under the fixture keeps its own manager,
@@ -627,11 +682,16 @@ the panic's message and the summary.
   The span sized here rides through the longest reexec measured;
   it is not shown to cover the event,
   and the next red run's kept messages are what would show what does.
-- A manager that died and left its own directory behind.
-  The read keeps the asking again where `$XDG_RUNTIME_DIR/systemd` is there,
-  so a host whose manager is gone but whose runtime directory was not removed is still asked five times.
-  That is the safe direction,
-  and no measurement here covers how often a runtime directory outlives its manager.
+- A manager that died and left its files behind.
+  The read keeps the asking again where a socket is there or `$XDG_RUNTIME_DIR/systemd` is,
+  so a host whose manager is gone and whose socket file or runtime directory was not removed is still asked
+  five times.
+  That is the safe direction:
+  at the instant an ask fails,
+  a socket file with nothing behind it and a socket file inside a reexec look the same,
+  and refusing a reexec is the worse of the two mistakes.
+  No measurement here covers how often a runtime directory outlives its manager,
+  and this is the one way of having no manager that issue 6629's first request does not cover.
 - The words of the ten refusals of 2026-11-27 stay unknown (issue 6628),
   so nothing here shows whether any of them was the no-manager case the read now stops at.
 - Which of the discovery's answers refused in the ten:

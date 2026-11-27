@@ -400,9 +400,8 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
 /// both ways of having none,
 /// nine rounds of this branch's binary beside the released `0.1.5-alpha.15` one and a byte-identical copy of each:
 /// one ask per call for all 72 calls,
-/// and this branch's call as long as the released one
-/// (0.63 to 1.56 times per round where neither variable is set,
-/// 0.29 to 1.11 times where the runtime directory holds no socket),
+/// and this branch's call 1.01 to 1.28 times the released one per round where neither variable is set (median 1.11),
+/// and 0.87 to 1.05 times it where the runtime directory holds no socket (median 1.00),
 /// where the same harness measured 12.90 to 29.68 times before this change (README,
 /// "Development").
 const ASKING_AGAIN_ATTEMPTS: u32 = 5;

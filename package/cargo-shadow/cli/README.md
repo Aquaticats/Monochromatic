@@ -1971,11 +1971,11 @@ Measured 2026-11-27 in a container with no user manager,
 in both ways of having none,
 nine rounds of this branch's binary beside `0.1.5-alpha.15` and a byte-identical copy of each:
 every call made one ask,
-and this branch's call was as long as the released binary's,
-per round 0.63 to 1.56 times it where neither variable is set
-and 0.29 to 1.11 times it where the runtime directory holds no socket,
-about 70 ms a call in this round where the round before this one measured about 43 ms,
-which is the machine rather than either binary because a byte-identical copy of each moved by as much,
+and this branch's call no longer than the released binary's by more than the rounds themselves vary,
+**1.01 to 1.28 times it per round where neither variable is set (median 1.11)**
+and **0.87 to 1.05 times it where the runtime directory holds no socket (median 1.00)**,
+with a byte-identical copy of each moving by as much (0.83 to 1.43 and 0.87 to 1.15),
+about 40 ms a call for both binaries where the round before this one measured about 43 ms,
 and every call took the weaker path and exited 0.
 Before this change the same harness measured 12.9 to 29.7 times as long (median 20.6),
 which is what five asks cost a call there.
