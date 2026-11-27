@@ -56,12 +56,13 @@ use crate::merge_isolation_carry_plans::{
 /// The Git read of one path,
 /// which this file judges and never spells for Git itself.
 use crate::merge_isolation_carry_reads::index_entry_awaiting;
-/// The write plan of one path,
-/// and the one step that lands it.
+/// The write plan of one path.
 use crate::merge_isolation_carry_write_forms::{
     FileWrite,
     IndexWrite,
 };
+/// The one step that lands a batch of writes,
+/// and what it came to.
 use crate::merge_isolation_carry_writes::{
     Batch,
     Step,
