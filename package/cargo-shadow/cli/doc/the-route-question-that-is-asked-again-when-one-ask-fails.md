@@ -5,17 +5,25 @@ what it measured,
 and what the package now does about it (issue 6619),
 and then how long an ask fails while a user manager reexecutes,
 the span the asking again is now sized from,
-and what that costs where no manager answers (issue 6623).
+and what that costs where no manager answers (issue 6623),
+and then what the discovery reads to tell a host with no manager from a manager that is not answering for a moment,
+so that a call there asks once again (issue 6629).
 
 Status:
 **unapproved and non-final**.
-Written by two Pi runs:
+Written by three Pi runs:
 one on branch
 `fix/cargo-shadow-cli-issue-6619-ten-scope-tests-failed-together-once-and-passed-in-the-next-two-runs`,
-and one on branch
+one on branch
 `fix/cargo-shadow-cli-issue-6623-the-route-questions-asking-again-is-sized-from-a-measured-manager-reexec`,
 which added the measurement,
-the sized constants and the two controls of the span.
+the sized constants and the two controls of the span,
+and one on branch
+`fix/cargo-shadow-cli-issue-6629-a-call-with-no-user-manager-to-reach-asks-once-and-a-reexec-is-still-ridden-through`,
+which added the read of the transports an ask could be carried over,
+its two controls,
+the sampling of what that read sees across a real reexec,
+and the cost measured again.
 Every claim about behaviour here names what it rests on:
 a command a round ran,
 a line of this package,
@@ -156,6 +164,14 @@ name which ask failed and what it said.
 The five attempts span 0.800 s,
 which is the figure the measurement below gives them;
 they were three attempts fifty milliseconds apart (0.100 s) until 2026-11-27.
+Since issue 6629 the asking again is kept for one case only:
+a manager that can be reached and did not answer for a moment.
+Where no user manager can be reached at all,
+the discovery reads that in its own process at the first failed ask
+(`src/control_group_route_manager_reach.rs`,
+"What the discovery reads where no user manager can be reached" below),
+and that ask is the refusal,
+so a call there makes one ask and spends no wait.
 
 Measured 2026-11-27 on this host,
 with a `systemctl` on `PATH` that refuses the first ask of every process that calls it,
@@ -358,43 +374,205 @@ which its own `systemd-run` started,
 so the host's manager,
 bus and journal are not touched at all.
 
-### What the asking again costs where no manager answers
+### What a call costs where no manager answers, before and after issue 6629's change
 
 Measured 2026-11-27 in a container of the same image with no user manager at all,
-as root with no `XDG_RUNTIME_DIR`,
+as root,
 so `systemctl --user` refuses at once and the run takes the weaker path:
 a small catalog repository whose lockfile is stale,
 `cargo-shadow install --dry-run`,
-the released `0.1.5-alpha.15` binary (one ask,
-the code before the asking again)
-and this branch's (five asks),
+the released `0.1.5-alpha.15` binary and the branch's,
 each beside a byte-identical copy of itself as a control arm,
-nine rounds of all four arms interleaved:
-
-- the released binary:
-  43.2 ms median (29.8 ms to 68.5 ms),
-  one ask;
-- this branch's:
-  883.1 ms median (880.3 ms to 889.3 ms),
-  five asks;
-- ratio per round 12.90 to 29.68,
-  median 20.55;
-- the copies:
-  0.49 to 1.79 of their original for the released pair,
-  and 0.97 to 1.00 for this branch's pair,
-  so the ratio's spread is the baseline's own noise and not the arms' names or folders;
-- every one of the 36 calls printed the weaker path's notice and exited 0.
-
-So a call where no manager answers spends about 0.88 s before it settles on process-group containment,
-where the released binary spent about 0.04 s.
+nine rounds of all four arms interleaved.
 The cargo behind the call is the package's own test stand-in (`tests/shim.rs`,
 `FAKE_CARGO`),
-so the figure is the shadow's own work and not cargo's.
-That cost is the price of asking five times instead of once,
-and it is paid on every call in a container,
-a CI job or a session with no user manager;
-where a manager answers,
+so each figure is the shadow's own work and not cargo's.
+
+Before the change,
+which is what put the five asks into every call where no manager answers
+(the round for issue 6623 measured this,
+and this round did not measure it again):
+
+- the released binary (one ask):
+  43.2 ms median (29.8 ms to 68.5 ms);
+- the branch as it was (five asks):
+  883.1 ms median (880.3 ms to 889.3 ms);
+- ratio per round 12.90 to 29.68,
+  median 20.55;
+- every one of the 36 calls printed the weaker path's notice and exited 0.
+
+After the change,
+measured again with the same harness,
+nine rounds of all four arms for each of the two ways a host has no manager:
+
+- neither variable set:
+  the released binary 67.47 ms median (46.57 ms to 84.71 ms),
+  this branch's 72.00 ms median (46.56 ms to 90.61 ms),
+  **one ask per call for all 36 calls**;
+  ratio per round 0.63 to 1.56,
+  median 1.07;
+- `XDG_RUNTIME_DIR` naming a directory that holds nothing,
+  and no bus address:
+  the released binary 73.95 ms median (67.21 ms to 240.47 ms),
+  this branch's 69.79 ms median (47.95 ms to 85.76 ms),
+  **one ask per call for all 36 calls**;
+  ratio per round 0.29 to 1.11,
+  median 0.96;
+- the copies against their own originals moved as much as the two binaries did
+  (0.60 to 1.51 where neither variable is set,
+  and 0.71 to 1.49 the other way round;
+  0.30 to 1.07 and 0.67 to 1.61 in the second pair),
+  so the spread of the ratio is the rounds' own noise and not the two binaries;
+- every one of the 72 calls printed the weaker path's notice and exited 0.
+
+So a call where no manager can be reached makes one ask and spends no wait,
+which is what the released binary does,
+and the two binaries' calls are the same cost within what this host's own rounds vary by.
+The absolute figures are about 70 ms here where the earlier round measured about 43 ms for the same
+released binary:
+that is the machine on the day,
+and the comparison that holds is each round's own,
+which is why the ratio is what is reported.
+Where a manager answers,
 the asking again costs nothing unless an ask fails.
+
+## What the discovery reads where no user manager can be reached
+
+This is the change issue 6629 asked for,
+and it is `src/control_group_route_manager_reach.rs`:
+a read in the discovery's own process,
+at the first failed ask and before any wait,
+of the transports an ask could be carried over.
+It reads:
+
+- `$XDG_RUNTIME_DIR` and `$DBUS_SESSION_BUS_ADDRESS` as the program an ask starts would see them,
+  which is this process's own values changed by the settings a control plants;
+- `$XDG_RUNTIME_DIR/systemd/private`,
+  the manager's own socket;
+- `$XDG_RUNTIME_DIR/bus`,
+  the socket of the user bus;
+- `$XDG_RUNTIME_DIR/systemd`,
+  the directory the manager keeps its own files in;
+- every `unix:path=` entry of `$DBUS_SESSION_BUS_ADDRESS`.
+
+No words are matched,
+so no message catalogue and no locale can change the answer.
+This machine and the container below have only `C`,
+`C.utf8` and `POSIX` locales,
+so a match under another locale could not have been shown here;
+what can be shown is that the words never enter the decision:
+the control `a_question_that_keeps_failing_is_still_a_missing_capability_and_names_its_last_words` refuses every
+ask with `the stand-in never answers a slice`,
+which is no program's own words at all,
+and the discovery still puts the question five times,
+because a manager can be reached there.
+
+What the read answers:
+
+- Both variables unset or empty:
+  nothing names a transport,
+  so no manager can be reached.
+  `systemctl --user` says the same case in its own words
+  (`Failed to connect to user scope bus via local transport: $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined ...`).
+- A name is set and none of the paths is there,
+  nor the manager's directory:
+  no manager can be reached.
+  `systemctl --user` answers `Failed to connect to user scope bus via local transport: No such file or directory`
+  for a runtime directory that holds nothing and for one that does not exist,
+  and for a bus address whose socket is not there.
+- One of the paths is there,
+  or the address names something this process cannot look for
+  (an abstract socket,
+  another transport):
+  a manager may be there and the asking again is kept.
+  That is the safe direction for the cost:
+  a socket file left behind with nothing listening answers `Connection refused`,
+  and a call there spends the span rather than being refused early.
+
+### A manager that reexecutes must not read as no manager
+
+A reexec of the manager unlinks and rebinds its sockets,
+so a socket can be absent for a moment.
+Sampled 2026-11-27 in the container below,
+whose own user manager held 600 units and was reexecuted three times,
+while the read above was made in one loop of 553,220 samples over 7 s,
+and a manager ask was made in a second loop over the same 7 s:
+
+- the manager's own socket was absent in two of those samples,
+  for 0.283 ms and 0.167 ms,
+  both at the tail of a reexec of 0.369 s and one of 0.286 s;
+- `$XDG_RUNTIME_DIR/bus` was there in every sample,
+  and so was the manager's own directory `$XDG_RUNTIME_DIR/systemd`;
+- 1,010 manager asks were made in that time,
+  148 of them refused,
+  every one of the 148 inside one of the three reexec windows
+  (0.390 s,
+  0.369 s and 0.286 s);
+- the refusals were `Failed to connect to user scope bus via local transport: Connection refused` (145),
+  `Failed to get properties: Transport endpoint is not connected` (2)
+  and `Failed to get properties: Connection reset by peer` (1);
+- not one ask answered with the words of the no-manager case,
+  which is the case the measurement must be able to see:
+  the same asks with no manager to reach refuse every time with
+  `Failed to connect to user scope bus via local transport: No such file or directory`
+  or with the sentence that neither variable is defined.
+
+So the instant in which the two cases cannot be told apart is 0.17 ms to 0.28 ms of a reexec,
+while the manager's own socket is unlinked and rebound,
+and the answer there is that a manager may be there:
+the manager's directory is read as well as its socket,
+and a host that never had a manager has neither.
+Going the other way at that instant would refuse a call across a reexec,
+which is the failure issue 6619 was about.
+
+### The container the reexec control is run in, with this change
+
+The recipe is in `## The two controls of the span` above;
+run there 2026-11-27 with this change,
+the test binary built from this branch and copied in,
+as root with a user manager of its own:
+
+```text
+261 discoveries in 4s, 3 of them inside 3 real reexecs of 834.752787ms together, every one answered
+test control_group_route_discovery::reexec_tests::the_question_answers_across_a_real_reexec_of_a_containers_manager ... ok
+```
+
+And with the asking again taken out,
+which is `ASKING_AGAIN_ATTEMPTS` set to one and nothing else changed,
+the same binary's control in the same container:
+
+```text
+the discovery refused 36.734257ms after it began, inside a container whose manager was reexecuting: the user manager cannot be asked where app.slice is (systemctl failed (Failed to get properties: Transport endpoint is not connected))
+```
+
+So the control is able to fail there,
+and it fails in the shape of the ten controls of 2026-11-27.
+Its host run is green either way:
+outside a container it prints what it did not do and ends.
+
+### The two controls of the read
+
+`control_group_route_manager_reach::manager_reach_tests`:
+
+- `a_host_with_no_runtime_directory_and_no_bus_address_is_asked_once`;
+- `a_host_whose_runtime_directory_holds_no_manager_socket_is_asked_once`.
+
+Each plants a host with no manager through the settings an ask is made with,
+so the host under the fixture keeps its own manager,
+and asks through a stand-in that writes down the ask and hands it to the real `systemctl`,
+so the refusal in the message is the system's own words about the host the control built.
+Each requires one ask and less than two waits,
+and that the refusal names what the read found.
+
+Measured 2026-11-27 on this host:
+
+- with the change,
+  both passed in 0.020 s and 0.027 s,
+  each with one ask;
+- with the read's refusal taken out of `ask_where_the_slice_is`,
+  which is the code before this change,
+  both failed in 0.85 s each with
+  `the question was put again where no manager can be reached: "--user start app.slice"` five times.
 
 ## A failing run leaves its messages
 
@@ -438,6 +616,13 @@ the panic's message and the summary.
   The span sized here rides through the longest reexec measured;
   it is not shown to cover the event,
   and the next red run's kept messages are what would show what does.
+- A manager that died and left its own directory behind.
+  The read keeps the asking again where `$XDG_RUNTIME_DIR/systemd` is there,
+  so a host whose manager is gone but whose runtime directory was not removed is still asked five times.
+  That is the safe direction,
+  and no measurement here covers how often a runtime directory outlives its manager.
+- The words of the ten refusals of 2026-11-27 stay unknown (issue 6628),
+  so nothing here shows whether any of them was the no-manager case the read now stops at.
 - Which of the discovery's answers refused in the ten:
   the asks across a reexec refused at the manager (`systemctl`),
   and never at the read of the caller's limits,
@@ -448,8 +633,10 @@ the panic's message and the summary.
 - A control for the other answer that can change:
   a caller's limits that cannot be read.
   No control of this package plants a read of `/sys/fs/cgroup` that fails for a moment.
-- The repository linter's `rust/max-lines` finding on `src/lib.rs` (304 code lines,
-  limit 300) is on this branch's base already and is not this round's.
+- The repository linter's `rust/max-lines` finding on `src/lib.rs` (305 code lines,
+  limit 300) is on this branch's base already (304 there),
+  and the one line this round put in it is the declaration of the read's module;
+  the read itself is not this round's to move out of `lib.rs`.
 - A kept run is written when the run ends,
   not as it streams,
   so a task that is killed before its suite ends keeps nothing (above).

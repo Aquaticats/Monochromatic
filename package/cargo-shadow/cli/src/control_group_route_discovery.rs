@@ -395,8 +395,15 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
 /// which is not the case these attempts are for:
 /// the first failed ask is not put again,
 /// because the discovery reads in its own process that nothing here could carry another one
-/// (`control_group_route_manager_reach`),
-/// so a call there makes one ask and spends no wait (README,
+/// (`control_group_route_manager_reach`).
+/// Measured 2026-11-27 in a container with no user manager,
+/// both ways of having none,
+/// nine rounds of this branch's binary beside the released `0.1.5-alpha.15` one and a byte-identical copy of each:
+/// one ask per call for all 72 calls,
+/// and this branch's call as long as the released one
+/// (0.63 to 1.56 times per round where neither variable is set,
+/// 0.29 to 1.11 times where the runtime directory holds no socket),
+/// where the same harness measured 12.90 to 29.68 times before this change (README,
 /// "Development").
 const ASKING_AGAIN_ATTEMPTS: u32 = 5;
 
@@ -411,7 +418,8 @@ const ASKING_AGAIN_ATTEMPTS: u32 = 5;
 /// a manager that can be reached and did not answer for a moment.
 /// An ask that spent its own deadline inside its bound is not made again (see `ask_where_the_slice_is`),
 /// and an ask that failed where no user manager can be reached is not made again either,
-/// because nothing here could carry a second one.
+/// because nothing here could carry a second one (`control_group_route_manager_reach`),
+/// which is what keeps a call there at one ask and no wait.
 pub(crate) const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
 
 /// What one ask of the manager left when it answered nothing:
