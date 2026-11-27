@@ -107,6 +107,17 @@ pub(super) fn guid_of(
         .expect("the dataset's GUID reads");
 }
 
+/// One dataset's creation transaction group,
+/// which is the group a clone's own snapshots stand above.
+pub(super) fn createtxg_of(
+    sbin: &str,
+    dataset: &str,
+) -> u64 {
+    return value_of(sbin, dataset, "createtxg")
+        .parse()
+        .expect("the dataset's createtxg reads");
+}
+
 /// One binding record of one phase,
 /// with every field that phase proves,
 /// read from the guest's own pool.
@@ -129,9 +140,7 @@ fn record_at(
     let clone_guid: Option<DatasetGuid> =
         with_clone.then(|| return guid_of(sbin, place.clone_dataset.as_str()));
     let clone_createtxg: Option<u64> = with_clone.then(|| {
-        return value_of(sbin, place.clone_dataset.as_str(), "createtxg")
-            .parse()
-            .expect("the clone's createtxg reads");
+        return createtxg_of(sbin, place.clone_dataset.as_str());
     });
     return BindingRecord {
         claim: 1,

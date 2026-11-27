@@ -57,6 +57,30 @@ mod umask_child_test_support;
 #[path = "../testing/fixture_support_shared_by_both_test_targets.rs"]
 mod fixture_support_shared_by_both_test_targets;
 
+/// The destruction plan's writer,
+/// named once here for the plan helper both test targets include by `#[path]`:
+/// that helper reaches these names through `super::`,
+/// and the library's unit tests declare the same module over their own paths to them.
+mod the_destruction_plans_writer {
+    pub(crate) use git_policy_cli::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+    pub(crate) use git_policy_cli::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+    pub(crate) use git_policy_cli::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
+    pub(crate) use git_policy_cli::worktree_clone_removal_proof_and_plan::plan_record::{
+        DestructionPlan,
+        PlanAttempt,
+        PlanFacts,
+    };
+    pub(crate) use git_policy_cli::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
+    pub(crate) use git_policy_cli::worktree_clone_removal_proof_and_plan::started_moment::now_with_offset;
+}
+
+/// The destruction plan a control plants,
+/// published by the removal's own writer;
+/// the same file the unit tests use,
+/// which this crate includes because the library's own modules are private to it.
+#[path = "../testing/the_destruction_plan_a_control_plants.rs"]
+mod the_destruction_plan_a_control_plants;
+
 /// The processes still in a helper's process group, and the leaders' own read of this process's ancestry.
 #[path = "binary_support_process_group_members.rs"]
 mod support_process_group_members;

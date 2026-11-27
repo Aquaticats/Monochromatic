@@ -8,6 +8,11 @@
 //!  and an inherited intent that authorizes nothing.
 
 use crate::testing::test_support::fixture;
+use crate::testing::the_destruction_plan_a_control_plants::{
+    ACloneAPlanNames,
+    APlanAControlPlants,
+    plant,
+};
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{
@@ -97,21 +102,15 @@ fn a_record_no_reader_may_act_on_names_why() {
 #[test]
 fn a_plan_under_the_clone_guid_names_it() {
     let root: PathBuf = fixture("slot-state-plan-names");
-    let plans: PathBuf =
-        crate::worktree_clone_binding_record::registration_home::plans_folder(root.as_path());
-    std::fs::create_dir_all(plans.as_path()).expect("the fixture plan folder");
     let guid =
         crate::worktree_clone_slot_state::slot_state_test_records::guid("4821193048571903102");
-    std::fs::write(
-        plans.join(guid.file_name()),
-        format!(
-            "{}\ncloneDataset={}\ncloneGuid={}\nhead=present\nattempts=0\n",
-            crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER,
+    let plan: APlanAControlPlants =
+        APlanAControlPlants::a_removals_first_write(ACloneAPlanNames::a_fixture_clone(
+            root.as_path(),
             crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET,
-            guid.file_name()
-        ),
-    )
-    .expect("the fixture plan writes");
+            guid,
+        ));
+    let planted: PathBuf = plant(&plan);
     let reading: PlanReading = read_plan(
         root.as_path(),
         Some(guid),
@@ -120,10 +119,7 @@ fn a_plan_under_the_clone_guid_names_it() {
     match &reading {
         PlanReading::NamesTheClone {
             plan,
-        } => assert_eq!(
-            plan.file_name().and_then(|name| return name.to_str()),
-            Some(guid.file_name().as_str())
-        ),
+        } => assert_eq!(plan, &planted),
         found => panic!("expected the plan to name the clone, got {found:?}"),
     }
 }

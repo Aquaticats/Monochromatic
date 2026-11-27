@@ -9,16 +9,26 @@
 //!  The name check those controls rest on is controlled here,
 //!  because the removal's plan reader calls this one rather than repeating it.
 
+use crate::testing::a_planted_plans_snapshot_line::a_line_of;
+use crate::testing::the_destruction_plan_a_control_plants::{
+    ACloneAPlanNames,
+    APlanAControlPlants,
+    plant,
+};
 use crate::worktree_clone_binding_record::add_state_commands::PlanHeadWord;
 use crate::worktree_clone_binding_record::plan_folder_read::{
     APlanThatNamesTheClone,
-    PLAN_HEADER,
     PlanUnreadable,
     is_canonical_guid_name,
     the_plan_naming_the_clone,
 };
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
+use crate::worktree_clone_removal_proof_and_plan::plan_record::PlanAttempt;
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
@@ -26,12 +36,12 @@ use std::path::{
 };
 
 /// One fixture's common directory,
-/// with the plan folder made.
+/// and the plan folder a planted plan makes.
 fn with_plans(name: &str) -> (PathBuf, PathBuf) {
     let root: PathBuf = crate::test_support::fixture(name);
     let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the fixture's common directory");
     let folder: PathBuf = plans_folder(common.as_path());
-    std::fs::create_dir_all(folder.as_path()).expect("the plan folder is made");
     return (root, folder);
 }
 
@@ -45,31 +55,66 @@ fn common_of(folder: &Path) -> &Path {
 
 /// The fixture's clone.
 fn clone_guid() -> DatasetGuid {
-    return DatasetGuid::parse("4821193048571903102").expect("the fixture guid reads");
+    return a_guid("4821193048571903102");
 }
 
-/// One planned attempt line,
-/// which is the line a plan's first write records for one snapshot.
-const A_PLANNED_ATTEMPT: &str =
-    "tuple=snapshot 0 planned 9021019283746501 41 - name=tank/clones/add-cache-layer@origin";
+/// One clone's GUID built from the decimal number a fixture names.
+fn a_guid(digits: &str) -> DatasetGuid {
+    return DatasetGuid::parse(digits).expect("the fixture's digits are a canonical GUID");
+}
 
-/// One plan's bytes,
-/// its header and the four fields this reader asks.
-fn plan_text(
-    clone_guid: &str,
+/// The first write's history,
+/// which is one line per snapshot at attempt `0`, saying `planned`.
+const A_PLANS_FIRST_WRITE: &[(u64, SnapshotOutcome)] = &[(0, SnapshotOutcome::Planned)];
+
+/// One snapshot's history where the removal planned it and then proved it gone,
+/// which is what a plan that witnesses a destroy holds.
+const PLANNED_AND_THEN_DESTROYED: &[(u64, SnapshotOutcome)] = &[
+    (0, SnapshotOutcome::Planned),
+    (1, SnapshotOutcome::Destroyed),
+];
+
+/// What:
+///  One plan planted in a fixture's plan folder,
+///  under the name the plan's grammar gives it,
+///  and answer its path.
+/// Why:
+///  The plan is written by the removal's own writer,
+///  so these controls ask the reader about a record a removal could really leave
+///  (issue 6595).
+fn plant_a_plan(
+    folder: &Path,
+    clone_guid: DatasetGuid,
     clone_dataset: &str,
-    head: &str,
-    attempts: &[&str],
-) -> String {
-    let mut text: String = format!(
-        "{PLAN_HEADER}\ncloneDataset={clone_dataset}\ncloneGuid={clone_guid}\nhead={head}\nattempts={}\n",
-        attempts.len()
-    );
-    for attempt in attempts {
-        text.push_str(attempt);
-        text.push('\n');
-    }
-    return text;
+    head: HeadWord,
+    history: &[(u64, SnapshotOutcome)],
+) -> PathBuf {
+    let clone: ACloneAPlanNames =
+        ACloneAPlanNames::a_fixture_clone(common_of(folder), clone_dataset, clone_guid);
+    let first_write: APlanAControlPlants = APlanAControlPlants::a_removals_first_write(clone);
+    let attempts: Vec<PlanAttempt> = history
+        .iter()
+        .map(|(attempt, outcome)| return a_line_of(&first_write, *attempt, *outcome))
+        .collect();
+    let mut plan: APlanAControlPlants = first_write;
+    plan.attempts = attempts;
+    plan.head = head;
+    return plant(&plan);
+}
+
+/// A planted plan filed under a name that is not its own key,
+/// which is what a foreign entry and a plan whose fields disagree with its name
+/// are.
+fn refiled(
+    plan: &Path,
+    name: &str,
+) -> PathBuf {
+    let wanted: PathBuf = plan
+        .parent()
+        .expect("the plan stands in its folder")
+        .join(name);
+    std::fs::rename(plan, wanted.as_path()).expect("the planted plan is filed under another name");
+    return wanted;
 }
 
 /// A missing plan folder holds no plan,
@@ -93,12 +138,13 @@ fn a_missing_folder_holds_no_plan() {
 #[test]
 fn a_plan_naming_this_clone_by_its_field_is_found() {
     let (_root, folder) = with_plans("plans-naming");
-    let other: PathBuf = folder.join("111");
-    std::fs::write(
-        other.as_path(),
-        plan_text("111", "tank/clones/other", "present", &[A_PLANNED_ATTEMPT]).as_bytes(),
-    )
-    .expect("the other plan is written");
+    plant_a_plan(
+        folder.as_path(),
+        a_guid("111"),
+        "tank/clones/other",
+        HeadWord::Present,
+        A_PLANS_FIRST_WRITE,
+    );
     assert_eq!(
         the_plan_naming_the_clone(
             common_of(folder.as_path()),
@@ -107,18 +153,13 @@ fn a_plan_naming_this_clone_by_its_field_is_found() {
         ),
         Ok(None)
     );
-    let ours: PathBuf = folder.join("222");
-    std::fs::write(
-        ours.as_path(),
-        plan_text(
-            clone_guid().file_name().as_str(),
-            "tank/clones/add-cache-layer",
-            "requested",
-            &[A_PLANNED_ATTEMPT],
-        )
-        .as_bytes(),
-    )
-    .expect("the plan is written");
+    let ours: PathBuf = plant_a_plan(
+        folder.as_path(),
+        clone_guid(),
+        "tank/clones/add-cache-layer",
+        HeadWord::Requested,
+        A_PLANS_FIRST_WRITE,
+    );
     let answer: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(
         common_of(folder.as_path()),
         Some(clone_guid()),
@@ -142,18 +183,14 @@ fn a_plan_naming_this_clone_by_its_field_is_found() {
 #[test]
 fn a_plan_under_this_clones_key_is_this_clones() {
     let (_root, folder) = with_plans("plans-key");
-    let ours: PathBuf = folder.join(clone_guid().file_name());
-    std::fs::write(
-        ours.as_path(),
-        plan_text(
-            "999",
-            "tank/clones/another-name",
-            "gone",
-            &[A_PLANNED_ATTEMPT],
-        )
-        .as_bytes(),
-    )
-    .expect("the file under the key is written");
+    let planted: PathBuf = plant_a_plan(
+        folder.as_path(),
+        a_guid("999"),
+        "tank/clones/another-name",
+        HeadWord::Gone,
+        A_PLANS_FIRST_WRITE,
+    );
+    let ours: PathBuf = refiled(planted.as_path(), clone_guid().file_name().as_str());
     let answer: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(
         common_of(folder.as_path()),
         Some(clone_guid()),
@@ -170,17 +207,13 @@ fn a_plan_under_this_clones_key_is_this_clones() {
 #[test]
 fn a_plan_naming_the_clones_dataset_is_found() {
     let (_root, folder) = with_plans("plans-dataset");
-    std::fs::write(
-        folder.join("333"),
-        plan_text(
-            "333",
-            "tank/clones/add-cache-layer",
-            "present",
-            &[A_PLANNED_ATTEMPT],
-        )
-        .as_bytes(),
-    )
-    .expect("the plan is written");
+    plant_a_plan(
+        folder.as_path(),
+        a_guid("333"),
+        "tank/clones/add-cache-layer",
+        HeadWord::Present,
+        A_PLANS_FIRST_WRITE,
+    );
     let found: Option<APlanThatNamesTheClone> = the_plan_naming_the_clone(
         common_of(folder.as_path()),
         None,
@@ -199,19 +232,13 @@ fn a_plan_naming_the_clones_dataset_is_found() {
 #[test]
 fn an_attempt_past_planned_is_not_a_plan_witnessing_nothing() {
     let (_root, folder) = with_plans("plans-destroyed");
-    let destroyed: &str =
-        "tuple=snapshot 1 destroyed 9021019283746501 41 - name=tank/clones/add-cache-layer@origin";
-    std::fs::write(
-        folder.join("555"),
-        plan_text(
-            "555",
-            "tank/clones/add-cache-layer",
-            "present",
-            &[A_PLANNED_ATTEMPT, destroyed],
-        )
-        .as_bytes(),
-    )
-    .expect("the plan is written");
+    plant_a_plan(
+        folder.as_path(),
+        a_guid("555"),
+        "tank/clones/add-cache-layer",
+        HeadWord::Present,
+        PLANNED_AND_THEN_DESTROYED,
+    );
     let found: APlanThatNamesTheClone = the_plan_naming_the_clone(
         common_of(folder.as_path()),
         None,
@@ -230,12 +257,13 @@ fn an_attempt_past_planned_is_not_a_plan_witnessing_nothing() {
 #[test]
 fn an_unreadable_plan_stops_the_add() {
     let (_root, folder) = with_plans("plans-unreadable");
-    let unreadable: PathBuf = folder.join("444");
-    std::fs::write(
-        unreadable.as_path(),
-        plan_text("444", "tank/clones/other", "present", &[]).as_bytes(),
-    )
-    .expect("the plan is written");
+    let unreadable: PathBuf = plant_a_plan(
+        folder.as_path(),
+        a_guid("444"),
+        "tank/clones/other",
+        HeadWord::Present,
+        &[],
+    );
     let mut permissions: std::fs::Permissions = std::fs::metadata(unreadable.as_path())
         .expect("the plan's metadata reads")
         .permissions();
@@ -266,17 +294,14 @@ fn an_unreadable_plan_stops_the_add() {
 #[test]
 fn a_foreign_entry_is_not_read() {
     let (_root, folder) = with_plans("plans-foreign");
-    std::fs::write(
-        folder.join("foreign-entry"),
-        plan_text(
-            clone_guid().file_name().as_str(),
-            "tank/clones/add-cache-layer",
-            "present",
-            &[],
-        )
-        .as_bytes(),
-    )
-    .expect("the foreign entry is written");
+    let planted: PathBuf = plant_a_plan(
+        folder.as_path(),
+        clone_guid(),
+        "tank/clones/add-cache-layer",
+        HeadWord::Present,
+        &[],
+    );
+    refiled(planted.as_path(), "foreign-entry");
     assert_eq!(
         the_plan_naming_the_clone(
             common_of(folder.as_path()),
