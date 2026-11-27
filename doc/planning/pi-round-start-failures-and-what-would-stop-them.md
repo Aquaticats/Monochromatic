@@ -3,14 +3,40 @@
 ## Status
 
 Proposal,
-written 2026-11-26T18:05:00-05:00 by the coordinating Claude Code session,
+written 2026-11-26T17:53:27-05:00 and revised 2026-11-26T19:05:00-05:00 by the coordinating Claude Code session,
 after the owner asked:
 "What more bad things would I expect to see about how you use Pi?
 How do we prevent them from ever happening again?"
 Unapproved and non-final:
 nothing in "Proposed prevention" is built,
 and the owner decides each item.
-A Claude Sonnet read of this proposal is pending.
+A Claude Sonnet read of the first version (a same-vendor second pass, not an independent review)
+found it not ready:
+its merge-on-end item reversed the owner's merge bar,
+its start command already exists in the driver package,
+and live text still carried the retracted limits
+(`~/temp/agent/pi-start-proposal-sonnet-read-2026-11-26/keep/review.md`, which expires with scratch).
+This version takes those findings in.
+
+## The instruction already on record
+
+The owner,
+2026-11-11 at about 17:50,
+after the coordinator had edited scratch scripts:
+"I've said to fold pi-runs set of scripts into a proper workspace package before.
+I believe there is also a launcher already as a proper workspace package.
+I don't wanna see you edit pi-runs outside the workspace again.
+Please pick that up."
+(`doc/decision/pi-driver-and-provider-owner-answers-2026-11-09-to-2026-11-11.md`,
+"Pi tooling lives in the workspace, and alphas run no extra release work").
+The launcher meant is the driver package's `start-pi-run-in-a-worktree`.
+Every launcher, starter, chain and start loop the coordinator wrote under `~/temp/agent` after that broke it,
+and each failure below started in one of them.
+On 2026-11-26 the owner set `/home/user/temp` to expire after a day
+and wrote:
+"Don't promote anything in ~/temp that breaks repo rules or plain broken into the repo.
+If you can't move everything before the scheduled cleanup, too bad.
+That is for you to learn."
 
 ## What has gone wrong, by cause
 
@@ -64,8 +90,9 @@ because nothing marks an agent's choice as an agent's once it is written down.
 
 The launchers live in `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`,
 outside the repository,
-with no tests and no review,
-and other sessions never see them.
+with no tests and no review;
+tracked documents point at them (the skill `pi-as-subagent` and the handover),
+so other sessions found them and their stale text.
 `writer-pool-for-a-round.ts` there still says opencode-go comes first and still offers `WRITER_POOL` pinning.
 Calling the driver directly also skips its pool gate,
 so the driver's own count never applied to these rounds.
@@ -112,7 +139,7 @@ The session task list showed rounds as pending while they ran (6521, 6522, the f
   so these are a cost of running them together,
   not a failure.
 - Memory:
-  64 rounds compiling at once on 63 GiB;
+  64 rounds compiling at once on 61.7 GiB;
   the desktop freezes in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
   came from memory.
   No start waits on memory now,
@@ -121,84 +148,57 @@ The session task list showed rounds as pending while they ran (6521, 6522, the f
 
 ## Proposed prevention
 
-Each item is enforced by code or a hook where it can be,
-because the prose rules already existed and were broken.
-They are complements,
-not alternatives;
-the order is the proposed build order.
+Each item works through what the repository already has,
+because the rules existed and the coordinator broke them.
 
-### One start command in the driver package
+### Start rounds only through the driver package
 
-A command in `package/pi-shared/subagent-driver` that does what the private launchers do:
-make the worktree and round folder,
-start the run as its own capped unit,
-keep its report.
-It starts every writer run on the virtual writer and has no option to pin one,
-starts at once and detached,
-and refuses only past the owner's 64 at once.
-The private launchers are deleted,
-and a Claude Code hook refuses a direct `drive-pi-subagent.ts` call outside the package's own commands.
-This removes the pinning,
-the drifting launcher text
-and the serial chains in one change,
-and puts the start under the package's tests.
+Rounds start through `package/pi-shared/subagent-driver`'s `start-pi-run-in-a-worktree`,
+the launcher the owner named on 2026-11-11,
+and no launcher is written under `~/temp` again.
+Two defects in it are fixed first,
+by rounds in that package:
+it runs `pnpm install` right after `git worktree add`,
+which issue 6339 shows breaks the session wrapper's copy of ignored files;
+and its pool gate counts a virtual-writer run as a slot in every member,
+which stops at Qwen's 5 ("Open question for the owner").
+The rounds' other start rules stay where the package keeps them
+(its free-space floor and the wrapper preflight),
+and a start that must follow another round's merge waits on that merge, named in the brief.
 
-### Merge when a round ends
+### Merges stay after the report is read
 
-The same command,
-when a round ends idle,
-runs the round's merge check and merges a branch whose failures are none of its own,
-the way `check_one` does by hand today,
-and writes what it did beside the round.
-A blocked or busy coordinator then delays no merge.
-The coordinator still reads every report.
+The owner's merge bar reads each report before its branch merges
+(`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`).
+The first version's merge-on-end item is withdrawn.
+The coordinator's merge lanes were scratch and expire;
+a merge runs by hand under that bar until a package task does it.
 
-### The guardrail refuses repeated test runs
+### Durable output lands in the repository by its own rules
 
-`package/pi-plugin/guardrail` already refuses Bash calls inside Pi.
-It would also refuse a loop or repetition around a test command
-(`for`, `while`, `seq`, `--stress-count` around `cargo test`, `cargo nextest` or `mise run`),
-answering with the synthetic-load ban and how to make a rare failure common instead.
+Scratch expires a day after its last change,
+so a round's finding that must outlive it lands in its branch's records,
+and a record cites no scratch path as its evidence.
+This changes `AGENTS.md`'s rule that a run keeps only its `keep/` folder,
+which now lasts a day;
+the exact text goes to the owner.
 
-### Owner words and agent choices kept apart in writing
+### No new prose rule for made-up limits
 
-An `AGENTS.md` change:
-a limit or wait an agent adds is labelled as the agent's wherever it is written,
-beside the failure it prevents,
-and a handover or summary lists the owner's quoted words apart from agent choices;
-a standing direction is only an owner quote with its date.
+The first version proposed new rules for agent-chosen limits, dialogs and briefs.
+`AGENTS.md` already has each
+(a wait names the failure it prevents; a brief carries only what the owner decided;
+work is started before a question),
+so the change is to the places that carried the limits:
+the skill's start example,
+the handover,
+the agent slice's comment
+and the decision records now say what the owner said,
+and nothing the coordinator added stands in them as the owner's.
 
-### No dialog while work is ready
-
-An `AGENTS.md` change:
-before opening a question dialog,
-start every ready run and merge,
-since the dialog blocks the session.
-
-### Briefs keep the coordinator's design as a suggestion
-
-An `AGENTS.md` tightening:
-a brief's requirements quote a decision,
-and the coordinator's own design goes under a heading that names it as a suggestion,
-or is asked first.
-
-### Ranking
-
-One start command > merge when a round ends,
-because the start command is where both the pinning and the serial waits live,
-and merging on end is built inside it.
-Merge when a round ends > guardrail,
-because unmerged rounds cost the whole queue,
-while a test loop costs one round's time and host load.
-Guardrail > owner words apart,
-because the guardrail refuses mechanically,
-while the writing rule depends on every session keeping it.
-Owner words apart > no dialog while work is ready,
-because made-up limits recur across every kind of work,
-while the dialog case is one tool.
-No dialog while work is ready > briefs keep design as suggestion,
-because the dialog delayed every merge for hours,
-while a brief's design reaches one round.
+The guardrail item and the hook item are withdrawn:
+a test loop driven by a Node `spawnSync` shows no shell loop for a guardrail to see,
+and a hook cannot see a direct `node` call of the driver.
 
 ## Open question for the owner
 
@@ -209,7 +209,14 @@ for starts that pass through it:
   the router moves a refused request on by itself,
   so the gate counts only runs pinned to one pool.
 - Once against the open members' combined room
-  (the driver round's current brief).
+  (the driver round's current brief),
+  which is 45 with all three members open and still counts opencode-go's spent month.
 - As now:
   a slot in every member,
   which stops at Qwen's 5.
+
+Ranking: no count > combined room > as now.
+No count beats combined room because the router already answers a full member by moving on,
+and a combined count caps runs below the owner's 64 on room a spent member does not have.
+Combined room beats as now because as now holds every virtual run to the smallest member,
+which the owner rejected on 2026-11-26.

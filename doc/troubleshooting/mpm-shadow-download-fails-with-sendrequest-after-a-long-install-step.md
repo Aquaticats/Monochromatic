@@ -28,7 +28,9 @@ about 30 seconds),
 `age` fails with the `client error (SendRequest)` message of the Symptom section on `mpm-shadow` 0.2.0.
 The same plan with a bare `rust` entry (a gap of about 20 seconds) installs all three.
 
-`HyperClient` (`package/mpm-shadow/cli/src/toolchain/http.rs`) owns a current-thread `tokio` runtime that runs only
+`HyperClient`
+(`package/mpm-shadow/cli/src/toolchain/http/the_real_client_over_hyper.rs`)
+owns a current-thread `tokio` runtime that runs only
 while a call blocks on it,
 and `hyper-util`'s client keeps finished HTTP/1.1 connections in a pool.
 While `cargo binstall`,

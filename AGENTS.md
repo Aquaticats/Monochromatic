@@ -748,6 +748,12 @@ Use `${HOME}/temp/agent` or the build directory.
  keeping only its `keep/` subfolder of reports,
  logs and measurements.
 
+SXD:
+ Scratch under `~/temp` expires a day after its last change;
+ the session that started a run rewrites its lasting reports,
+ logs and measurements into the repository's records,
+ and lets the rest expire.
+
 SFN:
  Name each scratch folder for what it holds and when,
  so a stranger needs no context:
