@@ -116,6 +116,15 @@ pub mod journal_unready_assessment;
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
+/// What one bounded call is allowed and how it fails (split out of the bounded run module).
+pub mod bounded_run_bound_and_error;
+
+/// The open scope of one run as this process remembers it (split out of the bounded run module).
+pub mod bounded_run_scope;
+
+/// The trace of a run and the hooks a test drives inside one (split out of the bounded run module).
+pub mod bounded_run_trace_and_hooks;
+
 /// The cache of the control group route (split out of the bounded run module).
 pub mod bounded_run_route_cache;
 
