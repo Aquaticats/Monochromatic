@@ -10,6 +10,14 @@ changes no code,
 no test and no SPEC for it,
 and declares nothing complete:
 the owner declares completion.
+A second road to the same leftover was added on 2026-11-27
+from the alpha.13 release read,
+by an agent in the worktree of the branch
+`docs/cargo-shadow-cli-cargo-shadow-alpha-13-release-pass-a-scope-whose-empty-notification-the-manager-lost`:
+its section "The second road to the same leftover" is that round's,
+and its claims rest on systemd 262.2's source,
+a guest that ran that version,
+and the released `cargo-shadow` 0.1.5-alpha.13 in that guest.
 Each claim below says what it rests on:
 the source of `package/cargo-shadow/cli` as the branch stands,
 a real invocation of the installed `cargo-shadow` 0.1.5-alpha.12 on this host on 2026-11-27,
@@ -104,6 +112,334 @@ Nothing in `cargo-shadow` does.
 So the unit lives until a person stops it or the manager is reloaded.
 The journal cannot say it exists:
 it reads `Gone`.
+
+## The second road to the same leftover: the manager loses the empty notification
+
+The state is the one the section "The state this is about" ends at,
+reached by another road:
+a transient scope whose control group held a process and then emptied,
+which the manager never ended,
+so the unit stays `ActiveState=active`,
+`SubState=running`,
+with `populated 0`,
+an empty `cgroup.procs`,
+`pids.current` 0 and `pids.peak` at least 1,
+and the run that made it said nothing.
+Here the run ended normally and no thread of it is left;
+what failed is the notification the design rests on.
+
+### The claim the step rests on
+
+`cargo-shadow` 0.1.5-alpha.13 asks the manager nothing about a scope whose group held a process:
+`control_group_retire.rs:213` to `214` reads `pids.peak`,
+and `retire` answers `None` for `Emptiness::EmptiedAfterAProcess` at line 264.
+The sentence that carries it is the package's own README:
+
+> A group that held one changed its `populated` line,
+> which is the change the manager watches and ends the unit on,
+> so that run asks the manager nothing
+
+(`README.md` lines 854 to 858),
+and the troubleshooting file says the same
+(`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md` lines 916 to 921).
+systemd's source states the reliance in one line,
+`/* Unwatch all pids we've just added to cgroup. We rely on empty notifications there. */`
+(`src/core/scope.c:417`,
+in `scope_enter_running`,
+which sets `SCOPE_RUNNING` at line 412).
+
+### The three paths in systemd 262.2's source
+
+The version read here is the one the guest ran,
+`systemd 262 (262.2-1-arch)`,
+so the review's line numbers and these are the same file at the same tag.
+Each of the three was read in `src/core/cgroup.c` or `src/core/manager.c` at `v262.2`.
+
+#### A queue overflow is skipped, and nothing rescans the groups it hid
+
+```c
+/* src/core/cgroup.c:3234-3236 at v262.2, in on_cgroup_inotify_event */
+if (e->wd < 0)
+        /* Queue overflow has no watch descriptor */
+        continue;
+```
+
+The reading holds:
+the kernel's own overflow marker is dropped without a look at any group,
+so a scope that emptied inside the lost range is never queued.
+Only read,
+not shown:
+filling `fs.inotify.max_queued_events` (16384 in the guest) takes generated load,
+which the rules of this machine forbid.
+
+#### A watch that cannot be added is ignored
+
+```c
+/* src/core/cgroup.c:2038-2045 at v262.2, in unit_watch_cgroup */
+crt->cgroup_control_inotify_wd = inotify_add_watch(u->manager->cgroup_inotify_fd, events, IN_MODIFY);
+if (crt->cgroup_control_inotify_wd < 0) {
+
+        if (errno == ENOENT) /* If the directory is already gone we don't need to track it, so this
+                              * is not an error */
+                return 0;
+
+        return log_unit_error_errno(u, errno, "Failed to add control inotify watch descriptor for control group %s: %m", empty_to_root(crt->cgroup_path));
+}
+```
+
+and the call that discards the answer,
+in `unit_update_cgroup`:
+
+```c
+/* src/core/cgroup.c:2161-2162 at v262.2 */
+/* Start watching it */
+(void) unit_watch_cgroup(u);
+(void) unit_watch_cgroup_memory(u);
+```
+
+The reading holds:
+the failed watch is logged once and the answer is thrown away,
+so the unit runs with no notification at all.
+Shown in the guest,
+under "What was shown in the guest".
+
+#### A scope that empties between a re-execution's one read and the watch it re-adds
+
+```c
+/* src/core/cgroup.c:4020-4032 at v262.2 */
+void unit_cgroup_catchup(Unit *u) {
+        assert(u);
+
+        if (!UNIT_HAS_CGROUP_CONTEXT(u))
+                return;
+
+        /* We dropped the inotify watch during reexec/reload, so we need to
+         * check these as they may have changed.
+         * Note that (currently) the kernel doesn't actually update cgroup
+         * file modification times, so we can't just serialize and then check
+         * the mtime for file(s) we are interested in. */
+        (void) unit_check_cgroup_events(u);
+        unit_add_to_cgroup_oom_queue(u);
+}
+```
+
+`manager_catchup` calls that for every unit (`src/core/manager.c:1905`,
+called from `manager_ready` at line 2128),
+and the watch is added later,
+when the realize queue is dispatched and `unit_update_cgroup` reaches line 2161.
+A deserialized unit with a group is invalidated and queued for realization
+(`src/core/unit-serialize.c:378`).
+The only two readers of `cgroup.events` are the event handler and this catch-up,
+both at `(void) unit_check_cgroup_events(u)`,
+so a scope that empties after the catch-up read and before the watch is re-added is never queued.
+The reading holds,
+and it was shown in the guest by racing the two.
+
+### What was shown in the guest
+
+One `mvm` guest of the `cachyos-7.3.5-1-zfs-2.4.4` template:
+kernel `7.3.5-1-cachyos`,
+`systemd 262 (262.2-1-arch)`,
+cgroup v2,
+4 vCPUs,
+`MemTotal` 8,121,404 kB and no swap,
+root's own user manager started with `systemctl start user@0.service`,
+`fs.inotify.max_user_watches` 524288,
+`max_user_instances` 1024,
+`max_queued_events` 16384,
+82 watches held by root before each arm.
+Every launcher command in the arms is byte for byte the shape
+`cargo-shadow` builds (`control_group.rs:303` to `316`):
+
+```sh
+systemd-run --user --scope --quiet --collect --property=Delegate=yes \
+  --unit=cargo-shadow-<token>.scope --slice=app.slice -- <program>
+```
+
+#### The control arms, with the watch quota untouched
+
+`/usr/bin/true` as the program:
+the launcher answered 0,
+and the immediate look read `LoadState=loaded`,
+`ActiveState=active`,
+`SubState=running`,
+`CollectMode=inactive-or-failed`,
+`TasksCurrent=0`,
+which is exactly the state the retire step judges;
+one second later the same look read `not-found`,
+and the group directory was gone.
+
+`/bin/sleep 0.4` as the program,
+looked at while it ran:
+`populated 1`,
+`pids_peak=1`,
+one line in `cgroup.procs`;
+after it ended,
+`not-found` and the directory gone.
+So the ordinary path is created,
+populated,
+ended and collected,
+as the design says.
+
+#### The failed watch, shown
+
+`sysctl --write fs.inotify.max_user_watches=16` in the guest,
+with 82 watches already held by the user,
+then the same launcher with `/usr/bin/true`.
+The manager logged this,
+once per watch:
+
+```text
+cargo-shadow-lost-notification.scope: Failed to add control inotify watch descriptor for control group /user.slice/user-0.slice/user@0.service/app.slice/cargo-shadow-lost-notification.scope: No space left on device
+cargo-shadow-lost-notification.scope: Failed to add memory inotify watch descriptor for control group /user.slice/user-0.slice/user@0.service/app.slice/cargo-shadow-lost-notification.scope: No space left on device
+```
+
+One second after the program ended,
+and again two seconds after the quota had been restored:
+
+```text
+MARK look=1s-after-the-program-ended
+loaded
+active
+running
+Fri 2026-11-27 17:07:59 UTC
+inactive-or-failed
+success
+0
+MARK cgroup_events=populated 0 frozen 0
+MARK pids_peak=1
+MARK pids_current=0
+MARK cgroup_procs_count=0
+```
+
+The eight values are `LoadState`,
+`ActiveState`,
+`SubState`,
+`ActiveEnterTimestamp`,
+`InactiveEnterTimestamp` (empty),
+`CollectMode`,
+`Result` and `TasksCurrent`,
+in the order `systemctl` prints them.
+The last look read `loaded`,
+`active`,
+`running`,
+`0` again:
+restoring the quota adds no watch,
+because nothing asks the manager to realize the group again.
+
+#### The released wrapper, in the same state
+
+The same guest,
+the linux-x64 asset of `cargo-shadow 0.1.5-alpha.13` linked where `cargo` is on `PATH`,
+a stand-in `cargo` behind it that logs its arguments and its own control group,
+and the fixture whose stale `Cargo.lock` makes one call start four scopes,
+run from `package/x/y` of that fixture with the quota at 16:
+
+```text
+MARK wrapper_exit=0
+MARK standin_cargo_log
+args=update --workspace --locked --offline group=/user.slice/user-0.slice/user@0.service/app.slice/cargo-shadow-1cd23325725149a988b687f3f5c92c06.scope pids.peak=3 populated 1
+args=update --workspace --offline group=/user.slice/user-0.slice/user@0.service/app.slice/cargo-shadow-a0d6c7c09bf0689e7a85ea8432f51b22.scope pids.peak=3 populated 1
+args=metadata --locked --offline --format-version 1 group=/user.slice/user-0.slice/user@0.service/app.slice/cargo-shadow-c98f9a30f7fcb9b6c898ce5bea1b9a85.scope pids.peak=3 populated 1
+args=metadata --locked --offline --format-version 1 group=/user.slice/user-0.slice/user@0.service/app.slice/cargo-shadow-433f579a90df7313893fc69b4401411a.scope pids.peak=3 populated 1
+MARK units_of_this_run
+  cargo-shadow-1cd23325725149a988b687f3f5c92c06.scope loaded active running [systemd-run] /root/wrapper-arm/bin/cargo update --workspace --locked --offline
+  cargo-shadow-433f579a90df7313893fc69b4401411a.scope loaded active running [systemd-run] /root/wrapper-arm/bin/cargo metadata --locked --offline --format-version 1
+  cargo-shadow-a0d6c7c09bf0689e7a85ea8432f51b22.scope loaded active running [systemd-run] /root/wrapper-arm/bin/cargo update --workspace --offline
+  cargo-shadow-c98f9a30f7fcb9b6c898ce5bea1b9a85.scope loaded active running [systemd-run] /root/wrapper-arm/bin/cargo metadata --locked --offline --format-version 1
+MARK loaded_count=4
+```
+
+Each of the four read `state=loaded active running 0`,
+`cgroup_events=populated 0 frozen 0`,
+`pids_peak=3` and an empty `cgroup.procs`,
+and each had the manager's `Failed to add control inotify watch descriptor` line.
+The wrapper's own output was its install-step lines and the toolchain warning;
+it said nothing about the four units,
+and its exit status was 0,
+which is what the Medium finding says and what the gate's `pids.peak` branch predicts.
+
+#### The re-execution, which cuts both ways
+
+A leftover is collected by a re-execution,
+because the catch-up reads `cgroup.events` for every unit once:
+one leftover,
+`systemctl --user daemon-reexec`,
+and the same unit read `not-found` two seconds later.
+
+The same read is the window of the third path.
+Forty scopes were started at once,
+each program waiting for an absolute instant so the launcher's own start cost could not move it,
+on a 4 ms grid,
+with one `daemon-reexec` fired into the middle:
+
+```text
+MARK reexec_measured_milliseconds=109
+MARK fire_at_ms=309
+MARK grid_from_ms=349
+MARK grid_to_ms=505
+MARK reexec_fires_at_ms=314
+MARK reexec_returns_at_ms=489
+MARK leftovers_after_the_attempt=2
+MARK unit=cargo-shadow-reexec-2-36.scope state=loaded active running 0
+MARK unit=cargo-shadow-reexec-2-36.scope cgroup_events=populated 0 frozen 0
+MARK unit=cargo-shadow-reexec-2-36.scope pids_peak=2
+MARK unit=cargo-shadow-reexec-2-37.scope state=loaded active running 0
+MARK unit=cargo-shadow-reexec-2-37.scope cgroup_events=populated 0 frozen 0
+MARK unit=cargo-shadow-reexec-2-37.scope pids_peak=2
+```
+
+Those two programs ended at 489 ms and 493 ms on the grid,
+and the re-execution returned at 489 ms:
+every other unit of the forty was collected.
+Two more attempts left nothing,
+one of them because its re-execution returned after the last program had ended.
+So the third path is real,
+and catching it takes an exit inside a window that one attempt in three hit.
+
+### What such a unit costs, and what removes it
+
+Each reading is from the guest,
+after the arm that made it.
+
+- It holds no process and no accounted memory:
+  `TasksCurrent=0`,
+  `MemoryCurrent=0`,
+  an empty `cgroup.procs`,
+  `pids.current` 0.
+  Its group directory holds the standard cgroup files and `du --bytes --summarize` reads 0,
+  which is cgroupfs's answer for every file it holds.
+- What it does cost is the manager's own memory and its unit table:
+  twenty leftovers took the manager's loaded units from 91 to 111,
+  and `MemoryCurrent` of `user@0.service` from 6,004,736 to 8,675,328 bytes,
+  so 2,670,592 bytes more for twenty,
+  about 127 KiB each.
+  These are one reading before and one after,
+  on a manager whose other work did not change meanwhile.
+- No limit counts it:
+  the pids controller counts its processes,
+  and it has none,
+  and no unit-count limit exists on this manager by default.
+- `systemctl --user stop <unit>` ends it:
+  exit status 0 in 4 ms,
+  then `LoadState=not-found` and the group directory gone.
+  That is the same command `retire_unit` would have sent.
+- The user manager stopping ends all of them:
+  `systemctl stop user@0.service`,
+  which is what the last logout does when nothing lingers,
+  left no group directory and no loaded unit;
+  after the restart the nineteen leftovers read 0.
+- A `daemon-reexec` ends them,
+  as "The re-execution,
+  which cuts both ways" shows.
+- A reboot ends them:
+  a leftover read `loaded active running 0` before,
+  the guest's boot id changed from `577ecf20-bf27-4964-8baa-1b68d7610bbf` to `80e9661a-4762-438d-8dbd-a46295c9d0c9`,
+  and after the reboot the count of `cargo-shadow-*` units was 0.
+
+So a person meets it in `systemctl --user list-units` and in nothing else,
+it clears itself on the next re-execution or logout,
+and the road that leaves it longest is the one where the account's watch quota stays used up.
 
 ## Options
 
@@ -232,6 +568,101 @@ runs.
   B is unavailable,
   and its `RuntimeMaxSec` variant would end legitimate builds.
 
+## The options and the ranking, with the second road
+
+The options in the section "Options" were weighed against the killed-run road.
+This part says what each one does with the second road,
+and whether the order the section "Ranking" gives still holds.
+
+### What each option does with this state
+
+- A,
+  a sweep when a run starts:
+  clears it.
+  The unit is a `cargo-shadow-*.scope` with no member,
+  which is what A lists and what its gate reads from the kernel,
+  and it does not need the journal,
+  which matters here because this run's journal is gone.
+  Its cons stand as written,
+  and one of them grows:
+  the grace now also has to be longer than a live run's own scopes,
+  which a sweep that starts another run in the same second could otherwise catch.
+- B,
+  a unit property:
+  does not clear it,
+  for the reason already recorded:
+  no property ends a scope that never becomes inactive,
+  and `RuntimeMaxSec` would end legitimate builds.
+- C,
+  leave it and document it:
+  applies as written,
+  and this state makes the documenting half more valuable,
+  because a person who meets one cannot tell it from the stuck scope of issue 6578 by looking.
+- D,
+  a recovery stops the unit its journal recorded:
+  cannot reach this state.
+  A run that ends normally publishes its completion marker and removes the journal directory
+  (`src/journal_done_marker.rs`,
+  `publish_done` then `remove_done`,
+  `finish_journal` at line 181 to 192),
+  so the next run's recovery has no record to read,
+  and the README's own sentence puts the `settled <scope path>` line in a journal that is then removed
+  (`README.md` lines 741 to 742).
+  D therefore covers the killed-run road,
+  whose journal is still there,
+  and not this one.
+- E,
+  a sweep in the lean service:
+  clears it,
+  with A's identification and A's grace,
+  and only where the service is installed and enabled,
+  which it is not on this host.
+
+### Whether the ranking changes
+
+**D > A > E > C > B,
+unchanged**,
+and each adjacent pair for a stated reason:
+
+- D above A:
+  D names the unit from the run's own record and cannot touch another session's scope,
+  and that is still the only option with that property.
+  What this state changes is the size of A's advantage,
+  not its kind:
+  A now covers two roads where D covers one,
+  and the journal-gone state it alone reaches is not the accident "Ranking" called it,
+  because every normal end removes the journal.
+  The reason D still ranks first is that this road's leftovers clear themselves
+  (a re-execution,
+  a logout or a reboot,
+  all measured in "What such a unit costs,
+  and what removes it")
+  while the killed-run leftover does not,
+  and A pays for its breadth with a listing on every invocation and a grace that can stop
+  a live run's scope.
+- A above E:
+  unchanged and now the stronger pair of the two:
+  both clear this state,
+  and A does it wherever a run is made while E needs a service this host
+  has disabled.
+- E above C:
+  unchanged;
+  both leave the work to something that is not a run,
+  and E clears it.
+- C above B:
+  unchanged;
+  C is a decision the owner can take today and B is unavailable.
+
+One addition would reorder the list,
+and it is not adopted here:
+the run is alive when it leaves this unit,
+so its own last step could look at the unit it just started
+and stop or name it,
+with the name already in its hand and no listing and no grace.
+That is D's step on the live path rather than a sixth option,
+it would sit above D,
+and it is put to the owner as question 5 of "Questions for the owner" rather than taken.
+
 ## Questions for the owner
 
 1. Which option,
@@ -248,6 +679,22 @@ runs.
 4. The manager-side prototype in the troubleshooting doc is a human's filing decision,
    not an agent's;
    does the owner want the fact sheet kept for that?
+5. The second road's leftover is made by a run that is still alive:
+   after each program ends,
+   the run reads that scope's `populated` line and its `pids.peak` anyway.
+   May its last step ask the manager about the unit it just started,
+   and stop it,
+   when the kernel says the group emptied after holding a process?
+   That is D's step on the live path,
+   with the unit's name already in hand,
+   no listing and no grace,
+   and it ranks above D;
+   it also ends the sentence that an ordinary run asks the manager nothing.
+6. The package's README and the troubleshooting file state the notification as a law
+   ("so that run asks the manager nothing").
+   Should the sentence say the manager can lose it,
+   in whichever round holds the crate's README,
+   or is this document enough?
 
 ## What was measured
 
