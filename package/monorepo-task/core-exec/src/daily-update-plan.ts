@@ -413,6 +413,18 @@ export function dailyUpdateGroups({
               ],
               timeoutMs: INSTALL_TIMEOUT_MS,
             },),
+            // The proof that every Cargo.lock satisfies the manifests `sync:files` just rendered: the frozen install the
+            // release workflows run, so a lock left stale after the catalog floor moved fails here and the tail lands
+            // nothing, instead of landing the floor with a lock that refuses it (issue 6398). `sync:files` and
+            // `cargo-shadow install` are the writers; `check:files` and this command are their frozen checks.
+            miseExec({
+              words: [
+                'cargo-shadow',
+                'install',
+                '--frozen-lockfile',
+              ],
+              timeoutMs: INSTALL_TIMEOUT_MS,
+            },),
             miseTask({
               task: 'check:files',
               timeoutMs: INSTALL_TIMEOUT_MS,
