@@ -5,7 +5,6 @@
 //!  the lock file's name and the key that names it in a record,
 //!  the program an install runs and the variable that names its root,
 //!  the worktree's own link to that program,
-//!  the command a person runs,
 //!  the tag every line of this module's diagnostic log carries,
 //!  the two byte bounds a lock and a record are read at,
 //!  and the slots a control stands a concurrent writer or a kill in.
@@ -85,8 +84,3 @@ pub(super) const OWN_LINK: &str = ".cache/toolchain-bin/mpm-shadow";
 
 /// The variable that names the worktree whose toolchain a command acts on.
 pub(super) const ROOT_VARIABLE: &str = "MONOCHROMATIC_WORKTREE_ROOT";
-
-/// The command a person runs to finish the repair:
-/// the repository's own task,
-/// which runs the same installer.
-pub const MANUAL_COMMAND: &str = "mise run toolchain:install";
