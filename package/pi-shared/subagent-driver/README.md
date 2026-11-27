@@ -691,7 +691,8 @@ so the folder goes at the run's end rather than at the next sweep a coordinator 
 A run no sweep ever reached is what left 346 folders under `~/temp/agent` (issue 6618),
 and the daily expiry of `~/temp` took each folder's `keep/` with the rest.
 The readings that command makes about a run's own work are made here too,
-so a folder whose run still works in it is left whole by both.
+so a folder some process still works in is left whole by this step,
+exactly as the worktree of such a run is left by that command.
 
 What is removed,
 and what stays:
@@ -729,7 +730,9 @@ and what stays:
   or the empty run name refuses the step before anything is read or deleted,
   and the line it prints says which of them it was.
 
-Every other answer leaves the folder whole and prints why:
+Every other answer leaves the folder whole,
+or says exactly which entries stayed,
+and prints why:
 the launcher's wait for the unit gave up while the unit may still run,
 the run's own work still runs,
 a process still works in the folder,
