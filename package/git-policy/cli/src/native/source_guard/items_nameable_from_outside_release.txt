@@ -12520,3 +12520,14 @@ worktree_clone_mount_protocol::clone_mount_readiness_file pub use self::clone_mo
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::TheRecordsProof
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::WORKTREES_FOLDER
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::WhatTheRecordsProve
+
+# New code of commit fa29175b9e, published because the commit's own code is, one reason per name:
+#   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
+#   publishes what a commit that takes the bytes a finding names does with them, which its hint says
+policy::event_hints enum CommitCorrection
+#   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
+#   publishes the finding's own answer about that commit, which the stage copies into its event
+policy::policy_engine field PolicyFinding::commit_correction
+#   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
+#   publishes the same answer as the event carries it, for the renderer that chooses the hint
+policy::policy_events_kinds field FindingEvent::commit_correction
