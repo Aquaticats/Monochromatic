@@ -51,6 +51,7 @@ use crate::worktree_clean_content_attribute_sources::{
 pub use crate::worktree_clean_content_attribute_sources::{
     ConversionEnvironment,
     SystemAttributes,
+    for_context,
     system_attributes_from,
 };
 use crate::worktree_clean_stat_verdicts::{
