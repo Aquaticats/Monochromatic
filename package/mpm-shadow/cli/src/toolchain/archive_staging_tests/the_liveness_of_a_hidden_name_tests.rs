@@ -297,7 +297,7 @@ fn a_name_of_another_boot_is_ended_whatever_its_start_time_says() {
         recovered
             .removed
             .iter()
-            .any(|removed| return *removed == leftover),
+            .any(|removed| return removed.path == leftover),
         "the directory of an installer of another boot is removed: {recovered:?}"
     );
     assert!(

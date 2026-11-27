@@ -11,6 +11,7 @@ use mpm_shadow::cli::{
     declared_verbs,
 };
 use mpm_shadow::constants::USAGE_EXIT_CODE;
+use mpm_shadow::toolchain::archive_staging::COMPLETE_MARKER;
 use mpm_shadow::toolchain::lock::{
     parse_lock,
     render_lock,
@@ -654,6 +655,62 @@ fn global_config(fixture: &Fixture) -> PathBuf {
         .join(".config")
         .join("monochromatic-dev")
         .join("toolchain");
+}
+
+/// The machine-global toolchain root under a fixture's disposable home,
+/// where the hidden names of a killed install sit inside each tool's directory.
+fn global_toolchain_root(fixture: &Fixture) -> PathBuf {
+    return fixture
+        .directory
+        .path()
+        .join("home")
+        .join(".local")
+        .join("share")
+        .join("monochromatic-dev")
+        .join("toolchain-global");
+}
+
+#[test]
+fn the_prune_says_which_hidden_directory_it_cannot_judge_holds_a_finished_copy() {
+    let fixture = Fixture::new();
+    let tool_directory = global_toolchain_root(&fixture).join("bin");
+    fs::create_dir_all(&tool_directory).expect("make the tool directory");
+    // The name the release before this one wrote: the purpose, the process id and its start time, and no boot or
+    // namespace, so no run can judge its installer. Its marker records a digest, so the install behind it finished.
+    let finished = tool_directory.join(".0.2.1.staging.42.100");
+    fs::create_dir_all(&finished).expect("make the hidden directory");
+    fs::write(
+        finished.join(COMPLETE_MARKER),
+        "bin 0.2.1 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+    )
+    .expect("write the completion marker");
+    // The same shape with nothing in it: an unpacking that a kill cut short.
+    let unfinished = tool_directory.join(".0.2.2.staging.43.100");
+    fs::create_dir_all(&unfinished).expect("make the hidden directory");
+
+    let output = fixture.run(&["prune", "--toolchain", "--global", "--dry-run"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds a finished copy of bin 0.2.1, and deleting it by hand loses that copy, \
+             which nothing publishes while its installer cannot be judged",
+            finished.display()
+        )),
+        "the line says the directory holds a finished copy and what deleting it costs: {stderr}"
+    );
+    assert!(
+        stderr.contains(&format!(
+            "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; \
+             it holds no finished copy, so deleting it by hand loses no finished copy, \
+             once no install uses it",
+            unfinished.display()
+        )),
+        "the line says there is no finished copy to lose: {stderr}"
+    );
+    assert!(finished.is_dir(), "a dry run removes nothing: {stderr}");
+    assert!(unfinished.is_dir(), "a dry run removes nothing: {stderr}");
 }
 
 #[test]

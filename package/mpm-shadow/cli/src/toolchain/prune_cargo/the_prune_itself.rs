@@ -33,14 +33,6 @@ use std::path::{
 
 /// Imports the check that the other toolchain root runs the version about to be deleted.
 use super::super::across_roots::other_root_forwards_to;
-/// Imports the hidden names this tool leaves,
-/// the question whether their installer ended,
-/// and the marker that says whether a copy can be published.
-use super::super::archive_staging::{
-    Liveness,
-    has_vouched_marker,
-    hidden_siblings,
-};
 /// Imports the cargo namespace,
 /// the link that names the version that runs,
 /// and the writes to it.
@@ -58,7 +50,6 @@ use super::super::layout::tool_install_dir;
 /// their removal plan and their link.
 use super::super::published_archive::{
     NamedArchive,
-    is_finished,
     plan_archive_prune,
     point_current_at_newest_archive,
     present_archive_versions,
@@ -76,6 +67,14 @@ use super::super::segment::RESERVED_TOOL_DIRECTORIES;
 use super::super::worktrees::worktree_lock_files;
 /// Imports the prefix that marks a crate this repository publishes.
 use crate::constants::OWN_CRATE_PREFIX;
+
+/// The hidden installs this prune removes,
+/// and the ones it names and leaves.
+mod the_hidden_installs_it_names;
+
+/// Imports that pass,
+/// which the prune runs after the versions and the release archives.
+use self::the_hidden_installs_it_names::prune_hidden_siblings;
 
 /// Imports the rule that picks the versions to delete.
 use super::the_rule_that_decides_what_goes::{
@@ -130,85 +129,6 @@ fn tool_directories(root: &Path) -> Result<Vec<(String, PathBuf)>, ToolchainErro
         }
     }
     return Ok(found);
-}
-
-/// What:
-/// Removes (or,
-/// with `dry_run`,
-/// lists) every hidden install whose installer has provably ended,
-/// except a finished copy of a version some known lock names,
-/// and names the ones it cannot judge.
-/// Why:
-/// A finished copy of a version a lock names can still be published by that version's own install,
-/// while an unfinished copy,
-/// one no digest vouches for,
-/// or one of a version no lock names will never be used;
-/// leaving it would keep a whole tool's bytes for ever.
-/// A name whose installer cannot be judged is never removed,
-/// and the person is told which path it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function pruneHiddenSiblings(scope: Scope, every: Map<string, NamedArchive>, dryRun: boolean, removed: string[]): void
-/// ```
-fn prune_hidden_siblings(
-    scope: &Scope,
-    every: &BTreeMap<String, NamedArchive>,
-    dry_run: bool,
-    removed: &mut Vec<PathBuf>,
-) -> Result<(), ToolchainError> {
-    for (id, directory) in tool_directories(&scope.toolchain_root)? {
-        let siblings =
-            hidden_siblings(&directory).map_err(|error| return after_removing(error, removed))?;
-        for sibling in siblings {
-            match sibling.liveness() {
-                Liveness::Running => continue,
-                Liveness::Unknown => {
-                    eprintln!(
-                        "mpm-shadow: left {}: the installer that made it cannot be judged, so it is not removed; delete it by hand once no install uses it",
-                        sibling.path.display()
-                    );
-                    continue;
-                }
-                Liveness::Gone => {}
-            }
-            let archive: Option<&NamedArchive> = every.get(&id);
-            let named_version: bool = archive.is_some_and(|named| {
-                return named.versions.contains(&sibling.version);
-            });
-            let first_bin: &str = archive
-                .map(|named| return named.first_bin.as_str())
-                .unwrap_or("");
-            let keep: bool = named_version
-                && is_finished(&sibling.path, first_bin)
-                && has_vouched_marker(&sibling.path);
-            if keep {
-                continue;
-            }
-            if !dry_run {
-                let result: std::io::Result<()> = if sibling.path.is_dir() {
-                    fs::remove_dir_all(&sibling.path)
-                } else {
-                    fs::remove_file(&sibling.path)
-                };
-                match result {
-                    Ok(()) => {}
-                    Err(error) if error.kind() == ErrorKind::NotFound => {}
-                    Err(error) => {
-                        return Err(after_removing(
-                            ToolchainError::failure(format!(
-                                "cannot remove the hidden install at {}: {error}",
-                                sibling.path.display()
-                            )),
-                            removed,
-                        ));
-                    }
-                }
-            }
-            removed.push(sibling.path);
-        }
-    }
-    return Ok(());
 }
 
 /// What:

@@ -464,6 +464,14 @@ mod archive_install_tests;
 #[cfg(test)]
 mod archive_staging_tests;
 
+/// The unit tests of what an install says about the copies a killed install left:
+/// the publish it finished,
+/// the copy it leaves beside a hidden name whose installer may still run,
+/// the hidden directory it removed,
+/// and the copy a failed download leaves on disk.
+#[cfg(test)]
+mod the_sentences_about_a_killed_install_tests;
+
 /// The unit tests of the tool environment fragment.
 #[cfg(test)]
 mod tool_env_tests;
