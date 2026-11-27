@@ -38,14 +38,19 @@ use std::os::fd::OwnedFd;
 use std::io;
 // What: `Write` adds `.write_all(..)` and `.flush()` to a stream.
 use std::io::Write;
-// What: The bound the tail keeps and the chunk one read takes, which the wait above also uses.
-// Why:  One constant decides each, so the two halves cannot disagree about the size.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { KEPT_TAIL_BYTES } from './git-error-stream-relayed-as-it-arrives';
-// ```
-use super::git_error_stream_relayed_as_it_arrives::KEPT_TAIL_BYTES;
+
+/// What:
+///  How much of the child's error stream the relay keeps for the reading after the wait.
+/// Why:
+///   A clone prints megabytes of progress, and the words the reading needs are at the end;
+///   keeping the whole stream would let one command hold all of it.
+///   Sixty-four kilobytes is the bound the design names, and it holds a refusal's lines whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const KEPT_TAIL_BYTES = 65536;
+/// ```
+pub(super) const KEPT_TAIL_BYTES: usize = 65536;
 
 /// What:
 ///  Read everything the child's error stream has now, write it to this process's standard error, and keep its tail.
