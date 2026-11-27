@@ -24,11 +24,13 @@
 //! ```
 
 use crate::diagnostic_log::warn;
-use crate::worktree_trash::{
+use crate::the_names_and_the_manifest_of_the_trash::{
     PendingTrash,
-    Recorded,
     TRASH_PARENT,
-    delete_trash,
+};
+use crate::worktree_trash_dispose::delete_trash;
+use crate::worktree_trash_hand_over::{
+    Recorded,
     record_the_trash,
 };
 use std::path::PathBuf;

@@ -33,17 +33,17 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{
-    ObjectId,
-    open_root,
-    plain_components,
-};
-use crate::fs_beneath_walk_chain::open_directory_beneath;
+use crate::fs_beneath::open_root;
 use crate::fs_kind::{
     is_stand_in,
     is_subvolume_root,
 };
 use crate::path_bytes::path_bytes_of;
+pub use crate::the_names_and_the_manifest_of_the_trash::{
+    PendingTrash,
+    TRASH_PARENT,
+    TRASH_REFERENCE,
+};
 use crate::worktree_clean::stored_stats;
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_path_failure_message::{
@@ -52,8 +52,6 @@ use crate::worktree_path_failure_message::{
 };
 use crate::worktree_snapshot_source::SnapshotSource;
 pub use crate::worktree_trash_dispose::{
-    PendingTrash,
-    TRASH_REFERENCE,
     TrashLeft,
     delete_trash,
     delete_trash_awaiting,
@@ -76,7 +74,6 @@ pub use crate::worktree_trash_manifest::{
     entry_name,
     is_trash_name,
 };
-use crate::worktree_trash_remove::remove_tree_beneath;
 pub use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use std::collections::HashSet;
 use std::ffi::{
@@ -94,21 +91,12 @@ use std::path::{
 mod set_aside_entries;
 
 use set_aside_entries::{
+    Aside,
     inherited_trash_entries,
-    names_the_container,
-    remove_containers_beneath,
 };
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrash";
-
-/// The directory,
-/// relative to a worktree root,
-/// inside which each snapshot's trash directory is made.
-/// It sits below `.claude/`,
-/// which the repository ignores,
-/// so a trash that has not been emptied yet is no untracked file.
-pub const TRASH_PARENT: &str = ".claude/cli-git-trash";
 
 /// The line a snapshot of the main checkout adds to what Git prints,
 /// unless `--quiet` was given.
@@ -144,120 +132,12 @@ pub struct Pruned {
 }
 
 /// The trash a step sets directories aside into,
-/// its two ways of being made or opened again,
+/// the way it is made,
 /// and the moves in and out of it.
-#[path = "worktree_trash_set_aside.rs"]
-mod set_aside;
-
-pub(crate) use set_aside::{
+pub(crate) use crate::worktree_trash_set_aside::{
     Trash,
     make_trash,
-    reopen_trash,
 };
-
-/// Where left-out directories go:
-/// into one trash directory when there is one,
-/// else they are removed in place.
-struct Aside {
-    /// The snapshot,
-    /// held open;
-    /// every directory moved or removed is reached from it by plain names.
-    root: File,
-    /// The path of the snapshot,
-    /// for messages.
-    stage: PathBuf,
-    /// The trash directory,
-    /// absent when the leave-out removes in the foreground.
-    trash: Option<Trash>,
-    /// The identity of each directory moved into the trash,
-    /// in the order moved.
-    entries: Vec<ObjectId>,
-    /// How many directories were set aside.
-    count: usize,
-}
-
-impl Aside {
-    /// The held directory that contains `relative`,
-    /// and the entry's name in it.
-    fn holder(
-        &self,
-        relative: &Path,
-    ) -> Result<(File, OsString), String> {
-        let names: Vec<OsString> = path_failure(
-            plain_components(relative),
-            relative,
-            "is not a plain path inside the snapshot",
-        )?;
-        let Some((name, parents)) = names.split_last() else {
-            return Err(format!("{} names the snapshot itself", relative.display()));
-        };
-        let parent: File = path_failure(
-            open_directory_beneath(&self.root, parents),
-            self.stage.join(relative).as_path(),
-            "is reached through a link or another mount in the snapshot",
-        )?;
-        return Ok((parent, name.clone()));
-    }
-
-    /// Set one directory aside by renaming it into the trash,
-    /// or remove it when there is no trash or when it is another command's stage
-    ///  container;
-    /// `relative` is its path below the snapshot.
-    /// Why:
-    ///   A stage container holds another worktree's ignored state,
-    /// credentials included,
-    /// and it is removed here,
-    ///  before the snapshot is installed,
-    /// because the trash stands inside the new worktree until the emptying runs and a
-    ///  command that runs `git add --all` in that window stages what it holds;
-    /// emptying the trash afterwards does not
-    ///  take those blobs out of the index.
-    /// Everything else still waits for the emptying,
-    /// so the add pays only the
-    ///  container's own removal.
-    fn put(
-        &mut self,
-        relative: &Path,
-    ) -> Result<(), String> {
-        // A container is removed here and never renamed into the trash: the pattern is None for it either way.
-        let direct_container: bool = names_the_container(relative);
-        if !direct_container {
-            // A directory set aside whole can hold one, because a container stands beside the destination of one add and a
-            //  nested worktree is another such place; the sweep removes those before the rename, so a kill before the
-            //  emptying cannot leave another command's credentials in the trash.
-            let (holder, name): (File, OsString) = self.holder(relative)?;
-            remove_containers_beneath(&holder, name.as_os_str(), &self.stage.join(relative))?;
-        }
-        let (parent, name): (File, OsString) = self.holder(relative)?;
-        let shown: PathBuf = self.stage.join(relative);
-        let into_trash: Option<&Trash> = match direct_container {
-            true => None,
-            false => self.trash.as_ref(),
-        };
-        match into_trash {
-            Some(trash) => {
-                let to: String = entry_name(self.entries.len());
-                let moved: ObjectId =
-                    trash.set_aside(&parent, name.as_os_str(), to.as_str(), shown.as_path())?;
-                self.entries.push(moved);
-            }
-            None => {
-                path_failure(
-                    remove_tree_beneath(
-                        shown.parent().unwrap_or(self.stage.as_path()),
-                        &parent,
-                        name.as_os_str(),
-                        None,
-                    ),
-                    shown.as_path(),
-                    "cannot be removed",
-                )?;
-            }
-        }
-        self.count += 1;
-        return Ok(());
-    }
-}
 
 /// What:
 ///  The paths of the snapshot that are never left out,

@@ -48,9 +48,10 @@ use crate::fs_beneath::{
 use crate::idle_io_priority::with_idle_io_priority;
 use crate::parallel_budget::HostResources;
 use crate::service_work::Verdict;
+use crate::the_names_and_the_manifest_of_the_trash::TRASH_PARENT;
+pub use crate::the_names_and_the_manifest_of_the_trash::TRASH_REFERENCE;
 use crate::work_item::WorkItem;
 use crate::worktree_path_failure_message::path_failure;
-use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_entries::{
     EntryRemoval,
     remove_entries,
@@ -73,10 +74,6 @@ const TAG: &str = "worktreeTrashDispose";
 /// which is short;
 /// the scan that names what nothing will empty reads them with this bound.
 pub const RECORD_LIMIT: u64 = 64 * 1024;
-
-/// The reference every trash work item carries;
-/// the service accepts only a reference under `refs/`.
-pub const TRASH_REFERENCE: &str = "refs/cli-git/trash";
 
 /// The most bytes of a worktree's `.git` file that are read.
 const POINTER_LIMIT: u64 = 64 * 1024;
@@ -122,45 +119,6 @@ impl TrashLeft {
             reason,
         };
     }
-}
-
-/// What:
-///  A snapshot's trash waiting for the commit service:
-/// the worktree that holds it,
-/// the repository's common
-///  directory that its record is written under,
-/// what the leave-out moved,
-/// and whether the person asked for silence.
-/// Why:
-///   The add hands it over and returns;
-/// the record is the common directory's,
-/// because one repository's
-///  service drains one work directory after another and empties one worktree's trashes one at a time,
-/// whichever
-///  worktree holds it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type PendingTrash = { destination: string; commonDir: string; manifest: TrashManifest; quiet: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PendingTrash {
-    /// The new worktree that holds the trash.
-    pub destination: PathBuf,
-    /// The repository's common Git directory,
-    /// whose work directory holds the record and whose service empties it.
-    pub common_dir: PathBuf,
-    /// What the leave-out made and moved.
-    pub manifest: TrashManifest,
-    /// How many of the trash's directories came from an earlier add's trash,
-    /// which nothing of this add would ever
-    ///  have emptied;
-    /// the hand-over says so when it is more than none,
-    /// because every add hands over at least the stand-ins and the
-    ///  `.git` copy it made itself.
-    pub taken_over: usize,
-    /// Whether the person's `--quiet` silences the notices of the hand-over.
-    pub quiet: bool,
 }
 
 /// The trash's own name,
@@ -540,7 +498,7 @@ fn remove_the_manifest(
 ) -> Result<(), TrashLeft> {
     return match crate::fs_beneath::remove_if_identical(
         trash,
-        std::ffi::OsStr::new(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME),
+        std::ffi::OsStr::new(crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME),
         expected,
     ) {
         Ok(crate::fs_beneath::Owned::Removed | crate::fs_beneath::Owned::Absent) => Ok(()),
@@ -575,7 +533,7 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
         shown,
         names,
     } = held;
-    let own: Option<crate::worktree_trash_own_manifest::OwnManifest> =
+    let own: Option<crate::the_names_and_the_manifest_of_the_trash::OwnManifest> =
         crate::worktree_trash_own_manifest::its_own(
             &trash,
             trash_name_of(inside.as_path()).as_str(),
@@ -593,7 +551,9 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
         // The manifest the wrapper wrote inside its own trash goes with it, and only while the file at that name is the object the
         //  bytes were read through; a file of that name that is not that manifest keeps the whole directory, as every other thing
         //  the snapshot did not put there does.
-        if own.is_some() && name == crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME {
+        if own.is_some()
+            && name == crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME
+        {
             continue;
         }
         strangers.push(name);
