@@ -17,12 +17,6 @@
 //! // const scalar = readScalar('  - \'@s/a\'  # one');
 //! ```
 
-/// The whitespace test and the indicator test the line reader owns.
-use super::{
-    is_space_or_tab,
-    refused_indicator,
-};
-
 /// What:
 /// The scalar a line holds after its key or its dash.
 /// Why:
@@ -171,4 +165,87 @@ pub(super) fn read_quoted(text: &str) -> Result<(String, &str), String> {
         index += character.len_utf8();
     }
     return Err(String::from("opens a quote that never closes"));
+}
+
+/// What:
+/// Whether a character separates text on a line:
+/// a space or a tab.
+/// Why:
+///  YAML ends a plain scalar at a comment,
+/// and separates a key from its value,
+///       with either;
+/// treating only a space as one would read a comment
+///       as part of a package name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSpaceOrTab = (c: string) => c === ' ' || c === '\t';
+/// ```
+pub(super) fn is_space_or_tab(character: char) -> bool {
+    return character == ' ' || character == '\t';
+}
+
+/// What:
+/// The indicator a plain scalar or key begins with,
+/// when this reader does not follow it.
+/// Why:
+///  A tag (`!`),
+/// anchor (`&`),
+/// alias (`*`),
+/// block scalar (`|`,
+///       `>`),
+/// directive (`%`),
+/// reserved character (`@`,
+/// backtick),
+/// flow collection
+///       (`[`,
+/// `]`,
+/// `{`,
+/// `}`,
+/// `,`),
+/// comment (`#`) or quote makes the line mean something other
+///       than the text this reader would store;
+/// `-`,
+/// `?` and `:` begin a plain
+///       scalar only when a non-space follows,
+/// so an item indicator or an explicit
+///       key is refused too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusedIndicator(text: string): string | undefined;
+/// ```
+pub(super) fn refused_indicator(text: &str) -> Option<char> {
+    let first: char = text.chars().next()?;
+    if matches!(
+        first,
+        '!' | '&'
+            | '*'
+            | '|'
+            | '>'
+            | '%'
+            | '@'
+            | '`'
+            | '['
+            | ']'
+            | '{'
+            | '}'
+            | ','
+            | '#'
+            | '\''
+            | '"'
+    ) {
+        return Some(first);
+    }
+    if matches!(first, '-' | '?' | ':') {
+        let after: &str = &text[first.len_utf8()..];
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if separated {
+            return Some(first);
+        }
+    }
+    return None;
 }

@@ -20,15 +20,15 @@ use crate::command_branch_table::{
     DELETE_FORCE,
     REMOTES,
 };
-use crate::command_options::{
-    DEFAULT_MODE,
-    ParsedOptions,
-    parse_options,
-};
+use crate::command_options::parse_options;
 use crate::command_options_query::{
     is_enabled,
     is_stated,
     positional_tokens,
+};
+use crate::command_options_types::{
+    DEFAULT_MODE,
+    ParsedOptions,
 };
 use std::ffi::OsString;
 
