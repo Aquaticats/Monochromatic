@@ -943,13 +943,17 @@ so a finding is never reported twice.
   and a group whose own file closes no loop is walked not at all,
   so a package of such groups pays that one pass and no walk.
   One walk answers every own-file use of one group:
-  it reads the uses backwards from that group once,
+  it reads the uses backwards from that group,
   breadth first,
+  and stops as soon as every use of that group has its route,
   so each message spells the fewest uses that lead back,
   and each use takes its route from that one table.
   The table every walk reads is built once for the package,
   so a package of many groups whose own files close loops reads its graph once,
   not once per group.
+  A walk stops once every use of its group has its route,
+  so an entry that reaches the group directly costs the uses that reach the group
+  and nothing of the graph behind that entry.
   When several routes are equally short,
   each step takes the entry whose path sorts first,
   so the message spells the smallest route,
@@ -996,23 +1000,42 @@ so a finding is never reported twice.
   against 1.00 to 1.02 between two runs of one binary,
   and 1.01 to 1.04 on the three-layer package,
   where the walk costs alpha.16 0.90 to 1.05 of the run with empty own files and this release 1.00 to 1.05.
-  The shape the release read measured is the one with many groups that each close a loop
+  The alpha.17 pass measured one shape of many closing groups
   (300 folders that each use every later one,
   beside 100 groups whose own files each close one loop,
   about 45,000 uses),
-  and there the closing arm costs 0.80 to 1.10 times the same binary's open arm on this branch,
+  and on it the closing arm cost 0.80 to 1.10 times the same binary's open arm on its branch,
   where alpha.17's costs 3.83 to 5.49 times its own and alpha.16's 0.77 to 0.94;
   on the same shape in miniature (120 folders,
-  40 groups) the three are 1.07 to 1.14,
+  40 groups) the three were 1.07 to 1.14,
   1.94 to 2.06 and 1.03 to 1.06
   (three interleaved rounds,
   each figure inside one binary and its control arm in the same round,
   on the run's own CPU time,
   2026-11-27).
-  No ratio between two of these three binaries is a finding here,
-  because a binary built in this worktree spends 1.02 to 1.54 times the released alpha.16's and alpha.17's time
-  on the same shape with its loop open,
-  where no walk runs.
+  This branch was measured on that shape and on one where each own file's use reaches its group
+  through everything that reaches it:
+  every folder also uses a child of every group,
+  and each own file uses the first folder,
+  which reaches every folder (about 45,000 uses again),
+  so a walk that read every entry reaching the group would cost that whole graph for each of the 100 groups.
+  With 300 folders and 100 groups,
+  three interleaved rounds and the three binaries rotated,
+  on the run's own CPU time (2026-11-27):
+  on the first shape the closing arm costs 0.86 to 1.00 times this branch's own open arm,
+  alpha.18's 1.01 to 1.35 and alpha.16's 1.03 to 1.20,
+  and this branch costs 0.80 to 1.07 times alpha.16's closing arm and 0.72 to 1.04 times alpha.18's;
+  on the second shape the closing arm costs 0.98 to 1.36 times this branch's own open arm,
+  alpha.18's 2.22 to 2.72 and alpha.16's 0.98 to 1.36,
+  and this branch costs 0.92 to 1.13 times alpha.16's closing arm and 0.43 to 0.51 times alpha.18's.
+  The same graph with its loop open costs this branch 0.99 to 1.32 times alpha.16's time
+  and 1.09 to 1.22 times alpha.18's on the first shape,
+  and 1.05 to 1.12 and 0.85 to 1.06 on the second,
+  where no walk runs,
+  so a ratio inside one binary and its control arm in the same round is the finding,
+  never a ratio between two builds.
+  Every binary's output on both shapes is byte-identical,
+  keys and messages included.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
   which uses a child folder of every group,
@@ -1223,6 +1246,9 @@ The words are compared without their capital letters,
 so the same words in another case are a near miss too.
 A text two words away is a different sentence that its author wrote on purpose,
 so no finding asks for it to be changed.
+The search reads each doc line a bounded number of times,
+so a long run of blank or plain-comment lines after the first doc line
+costs its own length and never the square of it.
 Which texts count,
 with one example of each:
 
@@ -1924,10 +1950,21 @@ and every other line stays as it is.
   `uses src/a -> src/b` names:
   that line tolerates its use where alpha.17 kept it alive and tolerated nothing,
   and a folder outside the package keeps the spelling `../outside` its keys print.
-- A group whose own file closes a loop costs the size of the graph once for the package
+- A group whose own file closes a loop reads the reverse index of its graph once for the package
   and not once per group,
-  so a package of many such groups pays for its graph once,
-  as alpha.16 did,
+  and its walk stops as soon as every use of that group has its route,
+  so an entry that reaches the group directly costs what it cost on alpha.16
+  however large the graph behind it is:
+  with 300 folders and 100 groups whose own files each close a loop,
+  the closing arm costs 0.98 to 1.36 times this branch's own open arm
+  where every folder uses a child of every group and each own file uses the first folder,
+  against alpha.18's 2.22 to 2.72 and alpha.16's 0.98 to 1.36,
+  and 0.86 to 1.00 where each own file uses a folder that uses a child of its group back,
+  against alpha.18's 1.01 to 1.35 and alpha.16's 1.03 to 1.20
+  (three interleaved rounds,
+  each figure inside one binary and its control arm in the same round,
+  on the run's own CPU time,
+  2026-11-27),
   and no key changes.
 
 ### Known limits
