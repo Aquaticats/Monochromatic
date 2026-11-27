@@ -76,6 +76,56 @@ fn terms(
     };
 }
 
+/// What:
+///  The longest a wait for a step whose output a program the step started holds open may last.
+/// Why:
+///   Each part of that path has a bound of its own in the release code:
+/// the build of the runtime the read runs on (`BUILD_DEADLINE`),
+///  the drain after the step ended (`OUTPUT_DRAIN_AFTER_EXIT`),
+/// and the scan of the process table that names the program still holding the stream
+///  (`PROCESS_SCAN_CEILING`).
+/// A control's own window is a multiple of what the code owes,
+/// so a host that wakes the
+///  control's own thread late spends its own slack and never the code's promise
+/// (`doc/how-to-write-this-packages-code-and-tests.md`,
+/// "Every wait has a deadline").
+///  Every control that timed this path before issue 6590 gave the wait three seconds of its own,
+/// which is less
+///  than the four the code may spend on it:
+/// `a_step_that_finishes_inside_its_ceiling_is_answered` failed the container gate of
+///  2026-11-27T04:59:28-05:00 after 4.189895897 s at a host load average of 96 to 48,
+/// and that child's own
+///  lines put one second of the wait in the drain the code grants a held stream and the rest in the
+///  scan at its ceiling.
+/// Twice the sum is the window,
+/// so it covers every bound the path owes and the one descriptor read of the
+///  scan that cannot be interrupted and so overruns its deadline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_WAIT_FOR_A_HELD_STREAM_OWES = BUILD_DEADLINE + OUTPUT_DRAIN_AFTER_EXIT + PROCESS_SCAN_CEILING; // 4 s
+/// const A_CONTROLS_WINDOW = THE_WAIT_FOR_A_HELD_STREAM_OWES * 2; // 8 s
+/// ```
+const THE_WAIT_FOR_A_HELD_STREAM_OWES: Duration = crate::lazy_runtime::BUILD_DEADLINE
+    .saturating_add(crate::step_output_read_whole_through_pipes::OUTPUT_DRAIN_AFTER_EXIT)
+    .saturating_add(crate::process_use::PROCESS_SCAN_CEILING);
+
+/// The window a control that times the wait for a step whose output is held open gives it:
+/// twice what the code owes,
+/// as `THE_WAIT_FOR_A_HELD_STREAM_OWES` says.
+const A_CONTROLS_WINDOW: Duration =
+    Duration::from_secs(THE_WAIT_FOR_A_HELD_STREAM_OWES.as_secs() * 2);
+
+/// How long the program a step started holds a stream open in the controls below:
+/// longer than the window,
+/// so an answer inside the window is one the drain gave and not the end of that program,
+/// and the program still ends by itself,
+/// so nothing here is signalled.
+const THE_HOLDERS_LIFE: Duration = Duration::from_secs(
+    A_CONTROLS_WINDOW.as_secs()
+        + 2 * crate::step_output_read_whole_through_pipes::OUTPUT_DRAIN_AFTER_EXIT.as_secs(),
+);
+
 /// The sentence for a stopped wait names it,
 /// the window,
 /// the variable and what to do next.
@@ -700,7 +750,8 @@ fn a_root_pinned_at_its_start_never_follows_the_number() {
 /// past the step's ceiling,
 /// with the command holding its locks and its
 ///  transaction meanwhile.
-/// The holder lives longer than the bound of the control (eight seconds against three),
+/// The holder lives longer than the window the control gives the wait
+/// (`THE_HOLDERS_LIFE` against `A_CONTROLS_WINDOW`),
 ///  so a wait that outlasts the step shows.
 #[test]
 fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
@@ -710,7 +761,11 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg(format!("sleep 8 & echo $! > '{}'", holder_file.display()))
+        .arg(format!(
+            "sleep {} & echo $! > '{}'",
+            THE_HOLDERS_LIFE.as_secs(),
+            holder_file.display()
+        ))
         .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let failure: std::io::Error = output_watched_within(
@@ -729,7 +784,7 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
         .parse()
         .expect("a process ID");
     // The assertions come after the cleanup, so a failure leaves nothing running. Only the helper the step started is signalled.
-    if helper_is_running(holder) && is_the_helper(holder, 8) {
+    if helper_is_running(holder) && is_the_helper(holder, THE_HOLDERS_LIFE.as_secs()) {
         // SAFETY: `kill` takes two integers and touches no memory of this process.
         unsafe { libc::kill(holder, libc::SIGKILL) };
     }
@@ -750,8 +805,13 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
         "the holder is named by its number: {failure}"
     );
     assert!(
-        waited < Duration::from_secs(3),
-        "the wait outlasted the step by {waited:?}, as long as the holder lived"
+        waited < A_CONTROLS_WINDOW,
+        "the wait for a step whose output a program it started held open did not answer inside the window this control \
+         gives it, {A_CONTROLS_WINDOW:?}, made of twice the build of the runtime's {:?}, the drain after the step ended of \
+         {:?} and the scan of the process table that names the holder of {:?}: it took {waited:?}",
+        crate::lazy_runtime::BUILD_DEADLINE,
+        crate::step_output_read_whole_through_pipes::OUTPUT_DRAIN_AFTER_EXIT,
+        crate::process_use::PROCESS_SCAN_CEILING
     );
     crate::test_support::remove(root.as_path());
 }
@@ -766,8 +826,10 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
 /// A program that holds the standard output open still yields no
 ///  answer at all,
 /// which the control above this one checks.
-/// The holder ends by itself (`sleep 4`),
-/// so nothing here is signalled.
+/// The holder ends by itself (`sleep THE_HOLDERS_LIFE`),
+/// so nothing here is signalled,
+/// and it outlives the window the control gives the wait,
+/// so an answer inside that window is one the drain gave and not the holder's end.
 #[test]
 fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
     let sink: SharedSink = SharedSink::default();
@@ -775,7 +837,10 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
     // The helper inherits the step's standard error alone: its standard output is the step's answer and closes with the step.
     command
         .arg("-c")
-        .arg("sleep 4 >/dev/null & printf 'answer\\n'; printf 'warned\\n' >&2")
+        .arg(format!(
+            "sleep {} >/dev/null & printf 'answer\\n'; printf 'warned\\n' >&2",
+            THE_HOLDERS_LIFE.as_secs()
+        ))
         .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let output: std::process::Output = output_watched_within(
@@ -804,8 +869,13 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
         "what the step printed to standard error before the drain ended comes back"
     );
     assert!(
-        waited < Duration::from_secs(3),
-        "the wait outlasted the step by {waited:?}, as long as the holder lived"
+        waited < A_CONTROLS_WINDOW,
+        "the wait for a step whose output a program it started held open did not answer inside the window this control \
+         gives it, {A_CONTROLS_WINDOW:?}, made of twice the build of the runtime's {:?}, the drain after the step ended of \
+         {:?} and the scan of the process table that names the holder of {:?}: it took {waited:?}",
+        crate::lazy_runtime::BUILD_DEADLINE,
+        crate::step_output_read_whole_through_pipes::OUTPUT_DRAIN_AFTER_EXIT,
+        crate::process_use::PROCESS_SCAN_CEILING
     );
 }
 
@@ -885,6 +955,214 @@ fn a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so() {
             assert!(
                 failure.to_string().contains("a step nobody watches"),
                 "the failure names the step: {failure}"
+            );
+        },
+    );
+}
+
+/// What:
+///  The first whole number a line named `name` of a kernel status file holds,
+///  or nothing where the text has no such line.
+/// Why:
+///  A `status` line names its field,
+/// then holds numbers in columns,
+/// so one reader of the kernel's own answer serves both the count and the owner.
+fn number_after(
+    text: &str,
+    name: &str,
+) -> Option<u64> {
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix(name) {
+            return rest.split_whitespace().next()?.parse().ok();
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The real user this process runs as,
+///  from the kernel's own answer in its `status`.
+/// Why:
+///  `ulimit -u` limits the tasks of one real user,
+/// and the kernel's count for each process is what that limit compares against.
+fn real_user_of_this_process() -> u32 {
+    let status: String = std::fs::read_to_string("/proc/self/status")
+        .expect("the kernel answers this process's status");
+    let uid: u64 = number_after(status.as_str(), "Uid:")
+        .expect("the kernel answers the real user of this process");
+    return u32::try_from(uid).expect("a user number this host can name");
+}
+
+/// What:
+///  The tasks this account holds and the tasks this machine holds,
+///  each summed from the kernel's own count in every process's `status`.
+/// Why:
+///  `ulimit -u` limits the tasks of one real user and `threads-max` the tasks of the whole machine,
+///  and only the kernel knows how many tasks each process carries.
+///  A count read here is the state the refusal stood in,
+/// never a figure of the load.
+fn tasks_of_this_account_and_this_machine() -> (u64, u64) {
+    let owner: u32 = real_user_of_this_process();
+    let mut of_this_account: u64 = 0;
+    let mut of_this_machine: u64 = 0;
+    for entry in std::fs::read_dir("/proc")
+        .expect("the kernel lists its process table")
+        .flatten()
+    {
+        let named: Option<i64> = entry.file_name().to_string_lossy().parse().ok();
+        if named.is_none() {
+            continue;
+        }
+        let Ok(status) = std::fs::read_to_string(entry.path().join("status")) else {
+            continue;
+        };
+        let Some(threads) = number_after(status.as_str(), "Threads:") else {
+            continue;
+        };
+        of_this_machine = of_this_machine.saturating_add(threads);
+        if number_after(status.as_str(), "Uid:") == Some(u64::from(owner)) {
+            of_this_account = of_this_account.saturating_add(threads);
+        }
+    }
+    return (of_this_account, of_this_machine);
+}
+
+/// What:
+///  The soft value of the row `name` of `/proc/self/limits`,
+///  or nothing where the kernel says `unlimited`.
+/// Why:
+///  `ulimit -u` is that file's `Max processes` row,
+/// which is the first limit the sentence a refused thread gives a person names.
+fn soft_limit_of(name: &str) -> Option<u64> {
+    let limits: String = std::fs::read_to_string("/proc/self/limits")
+        .expect("the kernel answers this process's limits");
+    for line in limits.lines() {
+        if let Some(rest) = line.strip_prefix(name) {
+            let soft: &str = rest
+                .split_whitespace()
+                .next()
+                .expect("every row of the limits file holds a soft value");
+            return soft.parse().ok();
+        }
+    }
+    panic!("the kernel's limits file has no row named `{name}`");
+}
+
+/// What:
+///  The most tasks this machine may hold,
+///  from the kernel's own answer.
+/// Why:
+///  It is the widest limit a thread's creation can meet,
+/// and a count under it proves that it refused nothing.
+fn tasks_this_machine_may_hold() -> u64 {
+    let most: String = std::fs::read_to_string("/proc/sys/kernel/threads-max")
+        .expect("the kernel answers the most tasks it may hold");
+    return most
+        .trim()
+        .parse()
+        .expect("the most tasks this machine may hold is a number");
+}
+
+/// What:
+///  The tasks this process's own control group holds,
+///  and the most it may hold or nothing where the group has no limit,
+///  each from the kernel's own answer.
+/// Why:
+///  The sentence a refused thread gives a person names the control group's `pids.max`,
+/// so the control reads it in the group where the refusal stood.
+fn processes_of_this_control_group() -> (u64, Option<u64>) {
+    let groups: String = std::fs::read_to_string("/proc/self/cgroup")
+        .expect("the kernel answers this process's control group");
+    let path: &str = groups
+        .lines()
+        .find_map(|line| line.strip_prefix("0::"))
+        .expect("this process is in a cgroup v2 group of its own");
+    let directory: std::path::PathBuf = std::path::PathBuf::from(format!("/sys/fs/cgroup{path}"));
+    let current: u64 = std::fs::read_to_string(directory.join("pids.current"))
+        .expect("the kernel answers the tasks this control group holds")
+        .trim()
+        .parse()
+        .expect("the tasks this control group holds are a number");
+    let most: Option<u64> = std::fs::read_to_string(directory.join("pids.max"))
+        .expect("the kernel answers the most tasks this control group may hold")
+        .trim()
+        .parse()
+        .ok();
+    return (current, most);
+}
+
+/// What:
+///  The thread a watch is refused is no limit this process,
+/// this account or this machine reached:
+///  every limit the kernel reports had room where that refusal stood.
+/// Why:
+///  `a_step_that_finishes_inside_its_ceiling_is_answered` failed the container gate of
+///  2026-11-27T04:59:28-05:00,
+/// and that child's own lines said
+///  `a step with a holder on its standard error has no watcher: the system refused a thread for it`:
+/// the round that ran the gate read that line as the failure's cause and could not tell which limit refused
+///  the thread (issue 6590).
+/// No limit did.
+/// The refusal is `crate::lazy_runtime::a_control_refuses_every_task`,
+/// the stand-in a control
+///  arms for a system that cannot make another thread,
+/// and that gate's own suite container held 504 to 576 of its 1,024 processes
+///  while the line was said.
+/// So a reader who meets the sentence in a log knows a control may have said it,
+/// while a release that a
+///  real limit refuses says the sentence `crate::scoped_start::refused_thread_sentence` words,
+/// with the system's own error beside it (issue 6476).
+///  This control reads the three limits that sentence sends a person to,
+/// in the process the stand-in stands in,
+/// and
+///  fails naming the one that had no room.
+///  The stand-in belongs to the whole process,
+/// so this body runs in a child of its own
+/// (`crate::process_wide_state_child_test_support`).
+#[test]
+fn the_thread_a_watch_is_refused_is_no_limit_this_process_reached() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_thread_a_watch_is_refused_is_no_limit_this_process_reached",
+        || {
+            let refused: crate::lazy_runtime::RefusalForTheControl =
+                crate::lazy_runtime::a_control_refuses_every_task();
+            // What:     every figure below is read while the stand-in stands, which is the state a watch is refused in.
+            // Why:      a limit read after the stand-in was dropped would answer for a state no watch met.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const aTaskCanRun = tasksCanRun(); const tasks = tasksByOwner(); const limits = limitsOfThisProcess();
+            // ```
+            let a_task_can_run: bool = crate::lazy_runtime::tasks_can_run();
+            let (of_this_account, of_this_machine): (u64, u64) =
+                tasks_of_this_account_and_this_machine();
+            let max_processes: Option<u64> = soft_limit_of("Max processes");
+            let threads_max: u64 = tasks_this_machine_may_hold();
+            let (in_this_group, most_in_this_group): (u64, Option<u64>) =
+                processes_of_this_control_group();
+            drop(refused);
+            assert!(
+                !a_task_can_run,
+                "the stand-in let a task run, so nothing here stood in for a system that refused a thread"
+            );
+            assert!(
+                max_processes.is_none_or(|most| of_this_account < most),
+                "the limit `ulimit -u` names refused the thread: this account held {of_this_account} tasks, of the \
+                 {of_this_machine} this machine held, against the `Max processes` row of `/proc/self/limits`, \
+                 {max_processes:?}; the stand-in refused the thread in this process at that moment"
+            );
+            assert!(
+                of_this_machine < threads_max,
+                "the machine's own limit refused the thread: the processes of this machine held {of_this_machine} \
+                 tasks against `/proc/sys/kernel/threads-max`, {threads_max}, and this account held {of_this_account} \
+                 of them while the stand-in refused the thread"
+            );
+            assert!(
+                most_in_this_group.is_none_or(|most| in_this_group < most),
+                "the control group's own limit refused the thread: this group held {in_this_group} processes against \
+                 its `pids.max`, {most_in_this_group:?}, while this account held {of_this_account} tasks of the \
+                 {of_this_machine} this machine held"
             );
         },
     );
@@ -1671,6 +1949,16 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
 ///  (`crate::process_wide_state_child_test_support`),
 /// where no other control's watcher is refused with it
 /// (issue 6511).
+///  What that refusal is,
+/// and what it is not,
+/// is measured by `the_thread_a_watch_is_refused_is_no_limit_this_process_reached`:
+///  no limit of this process is near,
+/// so the sentence the child says is the stand-in's and names no kernel limit.
+/// The window this
+///  control gives the wait is `A_CONTROLS_WINDOW`,
+/// twice the bounds the release code owes the path,
+///  because three seconds of its own was less than the four the code may spend
+/// (issue 6590).
 #[test]
 fn a_step_that_finishes_inside_its_ceiling_is_answered() {
     crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
@@ -1684,7 +1972,10 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
             // The helper holds the standard error alone, and the step finishes at once with its whole answer on the standard output.
             command
                 .arg("-c")
-                .arg("sleep 6 >/dev/null & printf answer; exit 0")
+                .arg(format!(
+                    "sleep {} >/dev/null & printf answer; exit 0",
+                    THE_HOLDERS_LIFE.as_secs()
+                ))
                 .stdin(Stdio::null());
             let began: Instant = Instant::now();
             let output: std::process::Output = output_watched_within(
@@ -1705,8 +1996,14 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
                 "the step's answer comes back"
             );
             assert!(
-                waited < Duration::from_secs(3),
-                "the step was reported at its ceiling after {waited:?}"
+                waited < A_CONTROLS_WINDOW,
+                "the wait for a step whose output a program it started held open did not answer inside the window this \
+                 control gives it, {A_CONTROLS_WINDOW:?}: twice the build of the runtime's {:?}, the drain after the step \
+                 ended of {:?} and the scan of the process table that names the holder of {:?}. It took {waited:?}, and no \
+                 watch ran for it, because this control refused every task as a system that refuses a thread does",
+                crate::lazy_runtime::BUILD_DEADLINE,
+                crate::step_output_read_whole_through_pipes::OUTPUT_DRAIN_AFTER_EXIT,
+                crate::process_use::PROCESS_SCAN_CEILING
             );
         },
     );
@@ -1725,13 +2022,20 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
 /// the pin of the child reports it has ended,
 /// so nothing of the stop
 ///  replaces its answer.
+///  Its window is `A_CONTROLS_WINDOW`,
+/// twice the bounds the release code owes the wait for a held stream,
+/// because a
+///  hand-picked three seconds is less than the four the code may spend on that path (issue 6590).
 #[test]
 fn a_watched_step_that_finished_inside_its_ceiling_is_answered() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg("sleep 6 >/dev/null & printf answer; exit 0")
+        .arg(format!(
+            "sleep {} >/dev/null & printf answer; exit 0",
+            THE_HOLDERS_LIFE.as_secs()
+        ))
         .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let output: std::process::Output = output_watched_within(
@@ -1752,8 +2056,13 @@ fn a_watched_step_that_finished_inside_its_ceiling_is_answered() {
         "the step's answer comes back"
     );
     assert!(
-        waited < Duration::from_secs(3),
-        "the step was reported at its ceiling after {waited:?}"
+        waited < A_CONTROLS_WINDOW,
+        "the wait for a watched step whose output a program it started held open did not answer inside the window this \
+         control gives it, {A_CONTROLS_WINDOW:?}, made of twice the build of the runtime's {:?}, the drain after the step \
+         ended of {:?} and the scan of the process table that names the holder of {:?}: it took {waited:?}",
+        crate::lazy_runtime::BUILD_DEADLINE,
+        crate::step_output_read_whole_through_pipes::OUTPUT_DRAIN_AFTER_EXIT,
+        crate::process_use::PROCESS_SCAN_CEILING
     );
 }
 
