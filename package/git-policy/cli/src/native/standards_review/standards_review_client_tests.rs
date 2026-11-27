@@ -19,6 +19,13 @@
 //! and the figure is their subject.
 
 use super::*;
+use crate::source_guard::{
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_under,
+};
 use crate::standards_review_mock::{
     ANSWER_WINDOW,
     Answer,
@@ -32,6 +39,63 @@ use crate::standards_review_mock::{
     http_reply,
 };
 use std::time::Instant;
+
+/// What:
+///  `THE_CLIENT` names the release sources of the gateway client:
+///  the client,
+///  the words its failures are said in,
+///  and the lookup it does on the blocking pool.
+/// Why:
+///  The ban below is about the client,
+///  and the alpha.48 split moved five of its items into `standards_review_client_failure_words.rs`,
+///  so the scope is stated as a prefix rather than as the one file it used to be
+///  (issue 6599).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_CLIENT = ['standards_review/standards_review_client'];
+/// ```
+const THE_CLIENT: &[&str] = &["standards_review/standards_review_client"];
+
+/// What:
+///  `THE_LIBRARY_THAT_WAS_NOT_ADOPTED` is the HTTP client the owner refused.
+/// Why:
+///  The `hyper` set of libraries is what the client is built on,
+///  so any file of it naming `ureq` is the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_LIBRARY_THAT_WAS_NOT_ADOPTED = ['ureq'];
+/// ```
+const THE_LIBRARY_THAT_WAS_NOT_ADOPTED: &[&str] = &["ureq"];
+
+/// What:
+///  `MAY_HOLD` is empty: no file of the client may name the library the owner refused.
+/// Why:
+///  The ban reaches the whole client,
+///  so a file added here fails until a reader decides whether the library answers,
+///  which is what an entry would record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAY_HOLD: MayHold[] = [];
+/// ```
+const MAY_HOLD: &[MayHold] = &[];
+
+/// What:
+///  `SCOPE_ANCHORS` is the text that proves the scope still reaches the client this ban was written for.
+/// Why:
+///  A prefix that reached nothing would pass every tree,
+///  and `hyper_util::` is the library the client was moved to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SCOPE_ANCHORS = [['hyper_util::', 'no file of the client uses hyper any more']];
+/// ```
+const SCOPE_ANCHORS: &[(&str, &str)] = &[(
+    "hyper_util::",
+    "no release file of the gateway client uses `hyper_util` any more, so this ban reaches nothing",
+)];
 
 /// A stand-in credential;
 /// it names no real key.
@@ -285,21 +349,50 @@ fn a_reply_that_keeps_arriving_is_ended_at_the_ceiling() {
 /// do not adopt ureq,
 /// use the `hyper`
 ///  set of https libs."),
-/// and reads the network on the process's runtime.
+/// and reads the network on the process's runtime,
+/// in every file the split made of it.
 #[test]
 fn the_client_is_built_on_hyper_and_no_longer_on_ureq() {
-    let source: &str = include_str!("standards_review_client.rs");
-    let code: String = source
-        .lines()
-        .filter(|line| {
-            return !line.trim_start().starts_with("//");
-        })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    assert!(!code.contains("ureq"), "the client still names `ureq`");
+    let sources: Vec<(String, String)> =
+        release_sources_under(THE_CLIENT).expect("the crate's release sources");
+    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
-        code.contains("hyper_util::"),
-        "the client does not use `hyper`"
+        abandoned.is_empty(),
+        "the scope reached no file holding what this ban is about:\n{}",
+        abandoned.join("\n")
+    );
+    let holding = lines_holding_one_of(sources.as_slice(), THE_LIBRARY_THAT_WAS_NOT_ADOPTED);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained.is_empty(),
+        "the client is built on the `hyper` set and names the library the owner refused nowhere:\n{}",
+        unexplained.join("\n")
+    );
+}
+
+/// The scan flags the library in a file a split made,
+/// and reads the `hyper` import as no finding.
+#[test]
+fn the_scan_flags_the_refused_library_in_a_receiver_file() {
+    let planted: Vec<(String, String)> = vec![(
+        String::from("standards_review/standards_review_client_planted.rs"),
+        String::from("fn planted() { let _agent = ureq::AgentBuilder::new(); }\n"),
+    )];
+    let holding = lines_holding_one_of(planted.as_slice(), THE_LIBRARY_THAT_WAS_NOT_ADOPTED);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained
+            .iter()
+            .any(|sentence| return sentence.contains("ureq")),
+        "the library in a file the client's split made is a finding: {unexplained:?}"
+    );
+    let adopted: Vec<(String, String)> = vec![(
+        String::from("standards_review/standards_review_client.rs"),
+        String::from("use hyper_util::client::legacy::Client;\n"),
+    )];
+    assert!(
+        lines_holding_one_of(adopted.as_slice(), THE_LIBRARY_THAT_WAS_NOT_ADOPTED).is_empty(),
+        "the library the client was moved to is no finding"
     );
 }
 
