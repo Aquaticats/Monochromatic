@@ -15,12 +15,25 @@
 //! test('a script that starts the other shadow stops on arrival', ...);
 //! ```
 
+use std::ffi::OsString;
 use std::fs;
 use std::path::{
     Path,
     PathBuf,
 };
 use std::process::Command;
+
+/// Imports the retry record and the start check the shim runs on the program it found.
+use mpm_shadow::{
+    shim::{
+        ProgramRun,
+        start_and_wait,
+    },
+    start_failure::{
+        StartFailure,
+        describe_start_failure,
+    },
+};
 
 use super::fixtures_and_bounded_runs::{
     ARRIVAL_VARIABLE,
@@ -268,5 +281,57 @@ fn an_arrival_marker_left_for_the_direct_parent_stops_the_shadow_and_one_left_fo
         passed_again.status.success(),
         "stderr: {}",
         String::from_utf8_lossy(&passed_again.stderr)
+    );
+}
+
+/// What:
+/// The words a refused start of a shadow gets:
+/// which path was found,
+/// which shadow it is or leads to,
+/// why starting it would loop,
+/// and what repairs it.
+/// Why:
+/// The PATH lookup skips every shadow it can see,
+/// so this refusal is what a start meets when the entry it chose changed between the lookup and the start
+/// (an install writing a link or a launcher record in another session).
+/// The words are then the only thing a person has to go on,
+/// and the catch-all arm they used to reach told them to run the shadow by hand,
+/// which shows a shadow answering and never that refusal.
+#[test]
+fn a_start_refused_because_the_program_is_a_shadow_says_what_was_found_and_what_repairs_it() {
+    let root = scratch();
+    let other: PathBuf = root.path().join("other").join(SHADOW_FILE);
+    copy_of_another_version(&other);
+    let arguments: Vec<OsString> = vec![OsString::from("installed")];
+
+    let (error, retry) = match start_and_wait(&other, &arguments, 1) {
+        ProgramRun::NotStarted {
+            error,
+            retry,
+        } => (error, retry),
+        other_run => panic!("a start of a shadow must be refused: {other_run:?}"),
+    };
+    let text: String = describe_start_failure(&StartFailure {
+        outer: &arguments,
+        program: &other,
+        error: &error,
+        retry,
+        depth: 0,
+    });
+
+    for expected in [
+        "mpm installed",
+        &other.display().to_string(),
+        "is or leads to",
+        "a shadow",
+        "a shadow looks for the real",
+        "command -v -a mpm",
+        "126",
+    ] {
+        assert!(text.contains(expected), "{expected}: {text}");
+    }
+    assert!(
+        !text.contains("by hand"),
+        "running a shadow by hand shows a shadow answering, never this refusal: {text}"
     );
 }
