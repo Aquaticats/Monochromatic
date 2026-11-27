@@ -2,7 +2,8 @@
 //! Why:
 //!  The name in that line is the one a program chose for itself (`/proc/<pid>/comm`),
 //!  and the line is the only pointer a person has to which program holds the copy,
-//!  so the name must reach the terminal as text that can act on nothing (`AGENTS.md`, rule `SYB`).
+//!  so the name must reach the terminal as text that can act on nothing (`AGENTS.md`,
+//!  rule `SYB`).
 //!  The body runs in a helper process of its own (`helper_process_test_support`),
 //!  because the name this control judges is that whole process's,
 //!  and a threaded run shares one process between its controls.
@@ -36,7 +37,8 @@ use std::time::{
 /// Why:
 ///  One walk of the process table stops at its own bound,
 ///  so a look may end before it reaches the process that started last;
-///  the wait is stated here, so a host that is slow fails the control with what it waited for.
+///  the wait is stated here,
+///  so a host that is slow fails the control with what it waited for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +76,8 @@ const HELPER: &str = "CLI_GIT_TEST_ONLY_KEPT_COPY_NAME_HELPER";
 const NAME_A_PROGRAM_CHOSE: &str = "\u{1b}[2K\n)\"";
 
 /// What:
-///  The sentences that name this process holding the copy, when it holds it.
+///  The sentences that name this process holding the copy,
+///  when it holds it.
 /// Why:
 ///  The parent's whole assertion is that the one test the helper ran passed,
 ///  and a control that finds no holder must fail rather than judge an empty line.
@@ -264,7 +267,8 @@ fn the_name_never_reaches_the_line(directory: &std::path::Path) -> Vec<String> {
     return failures;
 }
 
-/// A name a program chose cannot end, erase or add to the line that says a kept copy stays,
+/// A name a program chose cannot end,
+/// erase or add to the line that says a kept copy stays,
 /// and the person still reads which program holds it.
 #[test]
 fn a_name_a_program_chose_cannot_rewrite_the_copy_s_line() {

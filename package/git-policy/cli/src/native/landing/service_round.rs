@@ -154,7 +154,8 @@ pub struct RoundDrain<'a, H: WorkHandlers + Sync + Send + 'static> {
     /// The reading of the clock the round started at.
     pub now: &'a ClaimTime,
     /// Where the CPUs and memory the budget and every batch are derived from come from:
-    /// the host the round's caller states, or the machine read as each batch is sized.
+    /// the host the round's caller states,
+    /// or the machine read as each batch is sized.
     pub host: TheHostOfABatch,
 }
 
@@ -335,11 +336,14 @@ struct DrainEachDirectory<H> {
     /// The time the drain judges leases and retries by.
     now: ClaimTime,
     /// Where the CPUs and memory every batch of this round are taken from:
-    /// the host this round's caller stated, or the machine read as each batch is sized.
+    /// the host this round's caller stated,
+    /// or the machine read as each batch is sized.
     /// Why:
-    ///   A shipped round states the machine, so a batch is sized by the room it has when it starts and not by a
+    ///   A shipped round states the machine,
+    ///   so a batch is sized by the room it has when it starts and not by a
     ///  reading taken before the round's earlier work ran;
-    /// a control states a host of its own, so its answer does not depend on what the machine answers (issue 6567).
+    /// a control states a host of its own,
+    /// so its answer does not depend on what the machine answers (issue 6567).
     host: TheHostOfABatch,
 }
 

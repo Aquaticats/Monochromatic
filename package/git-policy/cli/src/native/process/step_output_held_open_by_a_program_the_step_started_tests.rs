@@ -2,7 +2,8 @@
 //! Why:
 //!  The name in those sentences is the one a program chose for itself (`/proc/<pid>/comm`),
 //!  and the sentence is the person's pointer to which program to end,
-//!  so the name must reach the terminal as text that can act on nothing (`AGENTS.md`, rule `SYB`).
+//!  so the name must reach the terminal as text that can act on nothing (`AGENTS.md`,
+//!  rule `SYB`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,7 +13,8 @@
 use super::*;
 
 /// What:
-///  A program's name as a program may set it: a terminal escape that erases the line,
+///  A program's name as a program may set it:
+///  a terminal escape that erases the line,
 ///  a line break that would start a line this program never wrote,
 ///  and a closing parenthesis that would end the parentheses around the name.
 /// Why:
@@ -27,7 +29,8 @@ const NAME_A_PROGRAM_CHOSE: &str = "\u{1b}[2K\n)";
 
 /// What:
 ///  Why a sentence about a held-open stream must read as text a terminal cannot act on:
-///  it is one line, no byte of the name erases or ends it,
+///  it is one line,
+///  no byte of the name erases or ends it,
 ///  and the program is still named by its number and its own words.
 /// Why:
 ///  A line a person reads to find a program is the one thing the name could be used to forge.
@@ -58,7 +61,8 @@ fn the_sentence_cannot_be_rewritten(
     );
 }
 
-/// A program whose name holds an escape, a line break and a closing parenthesis is named by a sentence that stays one
+/// A program whose name holds an escape,
+/// a line break and a closing parenthesis is named by a sentence that stays one
 /// line,
 /// and its number still says which process it is.
 #[test]

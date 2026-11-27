@@ -86,7 +86,8 @@ fn pipe_where_a_record_goes(
 ///  and what a person does about it,
 ///  so a control that matches all of it proves the command told the person what to look at and how to end the stop.
 ///  The last words are the package's rule for a diagnostic
-///  (`AGENTS.md`, rule `DGT`):
+///  (`AGENTS.md`,
+///  rule `DGT`):
 ///  a line that names the file and no way out leaves the person with a repository no command of it can enter.
 ///
 /// In TS you'd write (pseudocode):

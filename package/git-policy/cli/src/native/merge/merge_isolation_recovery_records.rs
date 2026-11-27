@@ -68,9 +68,13 @@ use std::path::{
 ///  (`invocation/startup_gate.rs`),
 ///  so a name no read passes stops every command in that repository;
 ///  a line that named the file and no way out left the person holding a repository nothing of it could enter.
-///  That is the one thing this package's diagnostics never do: each names what failed, what it found and every way out
-///  (`AGENTS.md`, rule `DGT`).
-///  Nothing was changed when this answers, because every record is read before any merge is settled,
+///  That is the one thing this package's diagnostics never do:
+///  each names what failed,
+///  what it found and every way out
+///  (`AGENTS.md`,
+///  rule `DGT`).
+///  Nothing was changed when this answers,
+///  because every record is read before any merge is settled,
 ///  so the line may say so.
 ///
 /// In TS you'd write (pseudocode):

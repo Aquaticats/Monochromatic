@@ -15,7 +15,8 @@
 //! ```
 
 use crate::process_use::ProcessUser;
-/// A name another program chose, shown so no byte of it can act on the line it lands in.
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in.
 use crate::shown_so_it_cannot_rewrite_the_line::shown_so_it_cannot_rewrite_the_line;
 use std::time::Duration;
 
@@ -89,7 +90,8 @@ pub(super) fn error_cut_short_text(
 ///  Both sentences about a held-open stream name the same program,
 /// and a number alone tells the person nothing.
 ///  A program sets its own name to any bytes it likes (`/proc/<pid>/comm`),
-///  and this is a child the step started, so the name is that program's text and never this one's.
+///  and this is a child the step started,
+///  so the name is that program's text and never this one's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

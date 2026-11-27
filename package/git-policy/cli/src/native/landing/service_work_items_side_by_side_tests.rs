@@ -1412,7 +1412,8 @@ fn a_world_holding_two_batches(name: &str) -> World {
 /// Why:
 ///  A round that hands every batch one reading taken before its earlier work ran can size a later batch by room the
 ///  host has since lost.
-///  A reading taken where the batch is sized is the room of that moment, and this is what tells the two apart.
+///  A reading taken where the batch is sized is the room of that moment,
+///  and this is what tells the two apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

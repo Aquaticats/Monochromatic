@@ -40,7 +40,8 @@ const SHAPES: &[&str] = &[
     "é",
 ];
 
-/// A name that holds an escape, a line break or a closing parenthesis comes back as text that can do none of those
+/// A name that holds an escape,
+/// a line break or a closing parenthesis comes back as text that can do none of those
 /// things,
 /// and a name of printable ASCII comes back as it is.
 fn the_shown_text_holds_no_byte_that_can_act(

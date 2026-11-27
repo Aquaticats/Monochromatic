@@ -24,7 +24,8 @@ use crate::index_lock_evidence::{
 };
 /// The summary of what a scan of open descriptors could not read.
 use crate::index_lock_holder_words::partial_summary;
-/// A name another program chose, shown so no byte of it can act on the line it lands in.
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in.
 use crate::shown_so_it_cannot_rewrite_the_line::shown_so_it_cannot_rewrite_the_line;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;

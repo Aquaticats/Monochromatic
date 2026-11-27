@@ -11,9 +11,11 @@
 //!  a line break starts a line this program never wrote,
 //!  and a `)` ends the parentheses that say the name is another program's,
 //!  so the rest of the name then reads as this program's own words.
-//!  The name is shown as text that can do none of those things (`AGENTS.md`, rule `SYB`),
+//!  The name is shown as text that can do none of those things (`AGENTS.md`,
+//!  rule `SYB`),
 //!  and a person can still read which program is named.
-//!  Nothing here decides where the name sits in the sentence: the caller writes that around this text,
+//!  Nothing here decides where the name sits in the sentence:
+//!  the caller writes that around this text,
 //!  and this is the step before the sentence reaches the person.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,13 +26,18 @@
 /// What:
 ///  `text` as characters that cannot act on a terminal line:
 ///  a printable ASCII character stays,
-///  except `(`, `)` and `\`, which carry a backslash before them,
+///  except `(`,
+///  `)` and `\`,
+///  which carry a backslash before them,
 ///  and every other character is written as Rust's own escape for it
-///  (`\n`, `\t`, `\u{1b}`).
+///  (`\n`,
+///  `\t`,
+///  `\u{1b}`).
 /// Why:
 ///  The name of a process or a program is not this program's text,
 ///  and it lands in a line a person reads to find that program:
-///  an escape movement, a line break or a closing parenthesis inside the name would change what the line says.
+///  an escape movement,
+///  a line break or a closing parenthesis inside the name would change what the line says.
 ///  The escaped form reads back by eye,
 ///  so the person still knows which program holds the file.
 ///

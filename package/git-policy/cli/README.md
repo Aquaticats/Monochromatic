@@ -9711,8 +9711,10 @@ moved verbatim on 2026-11-23:
 From lines 37869 to 37893 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23.
-It stood inside the `Commands` code block from that day until 2026-11-27, where a reader met it as part of the
-command listing; the listing is the code block above, and this passage is the record of an open owner question.
+It stood inside the `Commands` code block from that day until 2026-11-27,
+where a reader met it as part of the command listing;
+the listing is the code block above,
+and this passage is the record of an open owner question.
 
 Open:
 the 8 unmapped instances have neither a note nor a journal record that hashes to them
