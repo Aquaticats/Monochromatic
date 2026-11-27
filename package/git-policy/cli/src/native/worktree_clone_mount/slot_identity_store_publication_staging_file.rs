@@ -49,8 +49,8 @@ use std::ffi::{
 };
 use std::path::Path;
 
-/// Module tag for diagnostics.
-const TAG: &str = "slotIdentityStore";
+/// Import the tag this module's diagnostics carry.
+use crate::worktree_clone_mount::slot_identity_store_reading::TAG;
 
 /// How many bytes one staging name's random part is made from:
 /// sixteen,

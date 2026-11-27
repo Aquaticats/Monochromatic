@@ -127,9 +127,13 @@ pub(crate) enum Listing {
     /// so nothing was there to name.
     ScopeGone,
     /// The members could not be read,
-    /// with the reason.
+    /// with the members read before the read that failed,
+    /// and the reason it failed.
     Unreadable(
-        /// Why the members could not be read.
+        /// The members the read reached before it failed,
+        /// in process id order.
+        Vec<MemberListing>,
+        /// Why the rest could not be read.
         String,
     ),
 }
@@ -246,38 +250,39 @@ impl StopReport {
     /// Why:
     /// Every refusal's opening clause is chosen from this one answer,
     /// so a refusal cannot claim a member it never read is harmless
-    /// and cannot stay silent about a member it did read.
+    /// and cannot stay silent about a member it did read,
+    /// whether that read was the whole of the scope or stopped at a group below it or at the listing's bound.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// leftover(): 'writer' | 'no-writer' | 'nothing' | 'scope-gone' | 'unreadable' | 'cut'
     /// ```
     pub(crate) fn leftover(&self) -> Leftover {
+        // What:     `let read: &[MemberListing] = ...` is every member the listing read, whatever stopped it afterwards.
+        // Why:      One member that can still write decides the opening clause, so it is chosen before the kind of ending.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const read = this.listing.members;
+        // ```
+        let read: &[MemberListing] = match &self.listing {
+            Listing::Read(found) => found,
+            Listing::Cut(found) => found,
+            Listing::Unreadable(found, _reason) => found,
+            Listing::ScopeGone => return Leftover::ScopeGone,
+        };
+        if read
+            .iter()
+            .any(|member| return member.standing.can_still_write())
+        {
+            return Leftover::Writer;
+        }
         return match &self.listing {
-            Listing::Read(members) => {
-                if members
-                    .iter()
-                    .any(|member| return member.standing.can_still_write())
-                {
-                    Leftover::Writer
-                } else if members.is_empty() {
-                    Leftover::Nothing
-                } else {
-                    Leftover::NoWriter
-                }
-            }
-            Listing::Cut(members) => {
-                if members
-                    .iter()
-                    .any(|member| return member.standing.can_still_write())
-                {
-                    Leftover::Writer
-                } else {
-                    Leftover::Cut
-                }
-            }
+            Listing::Read(found) if found.is_empty() => Leftover::Nothing,
+            Listing::Read(_found) => Leftover::NoWriter,
+            Listing::Cut(_found) => Leftover::Cut,
+            Listing::Unreadable(_found, _reason) => Leftover::Unreadable,
             Listing::ScopeGone => Leftover::ScopeGone,
-            Listing::Unreadable(_) => Leftover::Unreadable,
         };
     }
 
@@ -306,9 +311,12 @@ impl StopReport {
                 "the scope did not read as empty, and its directory was gone when its members were read"
                     .to_string()
             }
-            Leftover::Unreadable => {
-                "the scope did not read as empty, and its members could not be read".to_string()
-            }
+            Leftover::Unreadable => match &self.listing {
+                Listing::Unreadable(read, _reason) if !read.is_empty() => {
+                    "the scope did not read as empty, and its members could not all be read".to_string()
+                }
+                _other => "the scope did not read as empty, and its members could not be read".to_string(),
+            },
             Leftover::Cut => format!(
                 "the scope did not read as empty, and its members could not all be read within {LISTING_BOUND:?}"
             ),
@@ -382,8 +390,18 @@ impl StopReport {
                 "the listing of its members was cut at its own bound of {LISTING_BOUND:?} after {}",
                 named_members(members)
             ),
-            Listing::ScopeGone => "its directory was gone when its members were read".to_string(),
-            Listing::Unreadable(reason) => format!("its members could not be read ({reason})"),
+            Listing::ScopeGone => {
+                "its directory was gone when its members were read, so none of its members was read (the manager removes the directory of a scope its last member has left)".to_string()
+            }
+            Listing::Unreadable(read, reason) if read.is_empty() => {
+                format!("its members could not be read ({reason})")
+            }
+            // What: the members the read reached before it failed are named, so a live writer it already found is not lost.
+            // Why:  "its members could not be read" with a member it did read would read as a scope that listed nothing.
+            Listing::Unreadable(read, reason) => format!(
+                "its members could not all be read ({reason}), and before that {}",
+                named_members(read)
+            ),
         };
     }
 }

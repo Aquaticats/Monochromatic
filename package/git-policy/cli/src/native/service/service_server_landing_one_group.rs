@@ -62,7 +62,7 @@ use std::time::Duration;
 /// ```ts
 /// type TheGroupLanding = 'landed' | 'the-stop-began';
 /// ```
-pub enum TheGroupLanding {
+pub(super) enum TheGroupLanding {
     /// The group was landed or dropped,
     /// and the loop goes on with the next group.
     Landed,
@@ -85,7 +85,7 @@ pub enum TheGroupLanding {
 /// ```ts
 /// landTheGroup(context, instance, seq, group, landed, captures, placeAfter, noteCeiling, drawn, board) // 'landed' | 'the-stop-began'
 /// ```
-pub fn land_the_group(
+pub(super) fn land_the_group(
     context: &LandContext,
     instance: Option<&str>,
     seq: &mut u64,

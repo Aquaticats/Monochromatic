@@ -27,7 +27,7 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::parallel_runner_on_the_runtime::OrderedRunError;
 use crate::push_retry::{
     PushRetries,
@@ -222,13 +222,19 @@ pub fn run_round(
     retries: &mut PushRetries,
     now: &ClaimTime,
 ) -> Vec<(PathBuf, Duration)> {
-    return run_round_on(&HostResources::read(), wakes, handlers, retries, now);
+    return run_round_on(
+        TheHostOfABatch::TheMachinesOwn,
+        wakes,
+        handlers,
+        retries,
+        now,
+    );
 }
 
-/// `run_round` with the host's resources chosen by the caller,
-/// so a control states a host of any size.
+/// `run_round` with where the host's resources come from chosen by the caller,
+/// so a control states a host of any size and the shipped loop reads the machine as each batch is sized.
 pub fn run_round_on(
-    host: &HostResources,
+    host: TheHostOfABatch,
     wakes: Vec<Wake>,
     handlers: &GitHandlers,
     retries: &mut PushRetries,
@@ -258,13 +264,20 @@ pub async fn run_round_awaiting(
     retries: PushRetries,
     now: &ClaimTime,
 ) -> (PushRetries, Vec<(PathBuf, Duration)>) {
-    return run_round_awaiting_on(&HostResources::read(), wakes, handlers, retries, now).await;
+    return run_round_awaiting_on(
+        TheHostOfABatch::TheMachinesOwn,
+        wakes,
+        handlers,
+        retries,
+        now,
+    )
+    .await;
 }
 
-/// `run_round_awaiting` with the host's resources chosen by the caller,
-/// so a control states a host of any size.
+/// `run_round_awaiting` with where the host's resources come from chosen by the caller,
+/// so a control states a host of any size and the shipped loop reads the machine as each batch is sized.
 pub async fn run_round_awaiting_on(
-    host: &HostResources,
+    host: TheHostOfABatch,
     wakes: Vec<Wake>,
     handlers: &GitHandlers,
     retries: PushRetries,
@@ -296,7 +309,7 @@ pub async fn run_round_awaiting_on(
 /// const due = dirs.map((d) => retries.takeDue(d)); const answers = await Promise.all(dirs.map((d, i) => drain(d, due[i]))); retries.apply(answers.flatMap(changes));
 /// ```
 pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(
-    host: &HostResources,
+    host: TheHostOfABatch,
     directories: &[PathBuf],
     handlers: &Arc<H>,
     retries: &mut PushRetries,
@@ -342,7 +355,7 @@ pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(
 /// const [answer, stopped] = await drainDirectoriesAwaiting(...); retries.apply(answer.changes); return [retries, askedOf(...)];
 /// ```
 pub async fn run_planned_round_awaiting<H: WorkHandlers + Sync + Send + 'static>(
-    host: &HostResources,
+    host: TheHostOfABatch,
     directories: &[PathBuf],
     handlers: &Arc<H>,
     mut retries: PushRetries,

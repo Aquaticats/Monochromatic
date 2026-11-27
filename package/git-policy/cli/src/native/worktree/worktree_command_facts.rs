@@ -93,6 +93,7 @@ pub struct CopyFacts {
 /// ```ts
 /// type AddPlan = { destination: string; insertAt: number; quiet: boolean; target?: string; checksOutABranch: boolean };
 /// ```
+#[cfg(unix)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddPlan {
     /// The destination as Git records it:
@@ -132,6 +133,7 @@ pub struct AddPlan {
 /// ```ts
 /// type RemovePlan = { target: string; operand: string; force: boolean };
 /// ```
+#[cfg(unix)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemovePlan {
     /// The real path of the worktree directory.

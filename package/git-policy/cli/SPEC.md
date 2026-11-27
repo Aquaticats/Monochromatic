@@ -22633,6 +22633,9 @@ opening a pipe for reading waits for a writer that may never come,
 which held every wrapped command in such a repository for ever (issue 6415).
 The merge record folder's first read runs on the start of every wrapped command,
 so a pipe at a record's name stops the command with a line naming that record,
+what stands there,
+the file to remove,
+and that the command then runs,
 and a pipe at the identity file's name is an identity this command cannot use,
 which it says before the command goes on.
 An entry of the queue that is not a plain file is moved to `failed` with a line naming it,

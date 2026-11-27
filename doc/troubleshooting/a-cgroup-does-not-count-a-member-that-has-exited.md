@@ -70,21 +70,41 @@ The listing reads the scope's own group and every group below it,
 because `populated` counts a descendant group's threads too:
 a scope whose own `cgroup.procs` is empty can still hold a live process below it,
 and the refusal names that process with the group it stands in (`1234 in nested`).
-Each member is read through a pidfd, so a number the kernel listed cannot name another process by the time its threads
-are read,
-and a `/proc/<pid>` entry that is missing is told from a hidden one by the pidfd:
+Each member's descriptor is opened before its threads are read,
+so from that open onwards the number cannot name another process,
+though the number was read from the list a moment earlier:
+a number freed and reused inside that window would be named with the threads of whichever process holds it now,
+and the stop's signal pass closes that window by listing the scope again after it opens its descriptors,
+because a signal must name the process it acts on.
+A `/proc/<pid>` entry that is missing is told from a hidden one by the pidfd:
 readable means the process ended,
 not readable means a mount option or another pid namespace hides it,
 and only the first is read as gone.
-The listing has a bound of its own (`LISTING_BOUND` in `src/control_group_stop.rs`, 500 ms from a measured scope of
-3000 threads), so a refusal names what it read and says when the bound cut the rest short,
-never that a member it did not reach can write nothing.
+The listing has a bound of its own (`LISTING_BOUND` in `src/control_group_stop.rs`), and it is looked at between reads,
+at the top of each group and before each member of it, so a refusal names what it read and says when the bound cut the
+rest short,
+never that a member it did not reach can write nothing;
+one read of the walk has no bound of its own.
+The measurement beside the constant is
+`control_group_stop::measure_tests::the_listing_of_a_scope_with_this_many_threads_takes`, ignored by default:
+one member of `N` sleeping threads in a delegated scope, 37.7 microseconds with no thread, 11.6 milliseconds with 1000
+and 29.4 with 3000 (medians of three rounds, measured 2026-11-27).
 
-A refusal whose listing could not be read says so and names no member;
+A refusal whose listing could not be read says so and keeps the members it read before the failure;
 an empty listing is worded as an empty listing;
-a scope whose directory was gone is worded as gone, not as a kernel that reported it empty;
+a scope whose directory was gone is worded as gone, not as a kernel that reported it empty, and says that its members
+were not read and that the manager removes the directory of a scope its last member has left;
 and the process-group reasons state the bound that was waited, or that no stop was tried.
 
 The controls are `control_group_stop::report_tests` (in `src/control_group_stop_report_tests.rs`),
 `bounded_run_containment::refusal_tests` (in `src/bounded_run_containment_refusal_tests.rs`),
-and `install_step_tests::a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_names_it`.
+`install_step_tests::a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_names_it`,
+and `control_group_stop::leftover_tests` (in `src/control_group_stop_leftover_tests.rs`),
+which reaches the decision `refusal_of_scope` makes for a member that ended after the listing read it,
+for a listing cut before it read one member and for one cut after it read the first,
+and for a group below the scope that could not be read.
+The first three carry a failpoint of their own, because neither outcome can be held open from outside: the kernel takes a
+process out of `cgroup.procs` and out of `populated` at its last thread's end, so a member can only be read as one that has
+ended in the microseconds between the read of the list and the read of its threads,
+and the listing's bound is reached with a clock the control arms rather than with a scope of thousands of threads.
+The group that cannot be read needs no failpoint: a mode of `000` on it makes the read answer `EACCES`.

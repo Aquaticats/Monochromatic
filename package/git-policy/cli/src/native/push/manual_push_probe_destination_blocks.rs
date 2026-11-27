@@ -155,14 +155,14 @@ fn confirm_block(
 /// ```ts
 /// class ConfirmEachDestination implements OrderedWork<[Block, string], Result<ConfirmedDestination>> { run(i, destination) { return confirmBlock(git, globalPrefix, remoteName, ...destination); } }
 /// ```
-pub struct ConfirmEachDestination<'a> {
+pub(super) struct ConfirmEachDestination<'a> {
     /// The coordinator's Git,
     /// whose queries are bounded.
-    pub git: &'a PushGit,
+    pub(super) git: &'a PushGit,
     /// The global options that go before every question.
-    pub global_prefix: &'a [OsString],
+    pub(super) global_prefix: &'a [OsString],
     /// The remote the push goes to.
-    pub remote_name: &'a str,
+    pub(super) remote_name: &'a str,
 }
 
 impl OrderedWork<(&PorcelainBlock, &String), Result<ConfirmedDestination, ManualPushProbeError>>
@@ -196,13 +196,13 @@ impl OrderedWork<(&PorcelainBlock, &String), Result<ConfirmedDestination, Manual
 /// ```ts
 /// class KeepConfirmedUntilTheFirstFailure implements OrderedEvents<Result<ConfirmedDestination>> { confirmed: ConfirmedDestination[]; failure?: Error }
 /// ```
-pub struct KeepConfirmedUntilTheFirstFailure<'a> {
+pub(super) struct KeepConfirmedUntilTheFirstFailure<'a> {
     /// The confirmations so far,
     /// in block order.
-    pub confirmed: &'a mut Vec<ConfirmedDestination>,
+    pub(super) confirmed: &'a mut Vec<ConfirmedDestination>,
     /// The first failure,
     /// when a block has failed.
-    pub failure: &'a mut Option<ManualPushProbeError>,
+    pub(super) failure: &'a mut Option<ManualPushProbeError>,
 }
 
 impl OrderedEvents<Result<ConfirmedDestination, ManualPushProbeError>>

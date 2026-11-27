@@ -15,6 +15,8 @@ import {
 import { NativeGateError } from './native-gate-error.ts';
 import { isMissingPathError } from './native-gate-paths.ts';
 import { runGateCommand } from './native-gate-run.ts';
+import { SCOPE_NOT_READ } from './native-check-scope-accounting.ts';
+import type { ScopeOutcome } from './native-capped-scope-command.ts';
 import {
   failureLinesOf,
   namedChecks,
@@ -214,6 +216,38 @@ async function tsChecks({
     deadlineMilliseconds: testDeadlineMilliseconds,
     environment,
   });
+}
+
+/**
+ The figures a check's scope holds after its task bound refused forks.
+
+ These are a stand-in, and no reading of any run stands behind them: the file shapes are the kernel's and the numbers are
+ the ones the refused forks of issue 6605 were reported with, written here so the check's own line is asserted without a
+ run that has to be brought to its bound.
+ */
+const refusedForkAccounting: ScopeOutcome['accounting'] = {
+  cgroupPath: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/gpc-check-a-b.scope',
+  readAt: '2026-11-27T15:23:29.041Z',
+  pidsPeak: 434,
+  pidsMax: 400,
+  pidsEvents: { max: 6 },
+  memoryEvents: {},
+  cpuStat: {},
+};
+
+/**
+ One check's result, as the check command reads it.
+
+ @param outcome - how the check ended and what its scope counted
+
+ @returns the check and its outcome, named as the command names them
+ */
+function checkRun({ outcome }: { readonly outcome: ScopeOutcome; },) {
+  return {
+    task: '//package/a:b',
+    scope: 'gpc-check-a-b-20261127T152200-0500',
+    outcome,
+  };
 }
 
 await describe({
@@ -585,17 +619,48 @@ await describe({
       name: 'prints a passed check as its status alone and never the output of a check that passed',
       fn: async () => {
         expect(resultLinesOf({
-          check: {
-            task: '//a:b',
-            scope: 'gpc-check-a-b-20261111T133700-0500',
+          check: checkRun({
             outcome: {
               status: 0,
               stdout: 'ok 2 tests\n',
               stderr: '',
               timedOut: false,
+              elapsedMilliseconds: 16_097,
+              accounting: SCOPE_NOT_READ,
             },
-          },
-        }),).toEqual(['//a:b: exit 0'],);
+          }),
+        }),).toEqual(['//package/a:b: exit 0'],);
+      },
+    }),
+    it({
+      name: 'says its scope\'s bound and not a failing test refused the fork, beside the lines that say why it failed',
+      fn: async () => {
+        /**
+         The lines the check printed for a scope that counted refused forks.
+         */
+        const lines = resultLinesOf({
+          check: checkRun({
+            outcome: {
+              status: 1,
+              stdout: 'FAIL [   0.4s] (2/3) a test that needed a process\n',
+              stderr: '',
+              timedOut: false,
+              elapsedMilliseconds: 16_097,
+              accounting: refusedForkAccounting,
+            },
+          }),
+        });
+        expect(lines[0],).toBe('//package/a:b: exit 1',);
+        expect(lines.slice(1,),).toContain('FAIL [   0.4s] (2/3) a test that needed a process',);
+        /**
+         Everything the check printed, which the claim about the bound is read from.
+         */
+        const printed = lines.join('\n',);
+        // Six forks were refused at a bound of 400 tasks, which is the bound and not a test's own failure.
+        expect(printed,).toContain('6 refused forks',);
+        expect(printed,).toContain('400-task bound',);
+        expect(printed,).toContain('That is the bound and not a failing test',);
+        expect(printed,).toContain('--unit-tasks-max',);
       },
     }),
   ],

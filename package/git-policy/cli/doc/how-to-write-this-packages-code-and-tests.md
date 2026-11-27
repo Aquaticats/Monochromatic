@@ -198,6 +198,19 @@ and the second call skipped with "a command of release 0.5.20 or older holds" it
 The window is only the fork to the child's exec,
 where the standard library's close-on-exec flag closes the copy,
 and a host under load stretches it.
+The journal's lock of the fold of an earlier log is one more of those,
+and its copy outlives the fork:
+`foundation/earlier_log_lines_added_to_current_log.rs` takes an `flock` on the journal for one fold and drops it as the
+fold answers,
+and a child forked while it was held keeps it without an `exec` to close anything,
+so a control that folds one log twice met `LogFold::Busy` where it asserts `LogFold::Folded`.
+Measured 2026-11-27 by planting that fork in the control of a log that keeps growing:
+`/proc/locks` still named `FLOCK ADVISORY WRITE` for the journal's inode once the control closed its own descriptor,
+the next fold answered `left: Busy` against `right: Folded`,
+and the same fold answered `Folded` once the planted process was ended.
+So every control of that file that folds one log twice runs its body in a child of its own,
+and `source_guard/no_control_folds_a_log_twice_in_the_run_tests.rs` refuses one that does not
+(issue 6602).
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
@@ -277,13 +290,19 @@ handler;
 the same run with a warm build read 23.5 GB free and passed,
 `doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
 So the batches are sized by a host the caller states:
-`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take it,
-the shipped round reads the machine once and hands that one reading to every batch it drains,
+`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take where the host comes from
+(`TheHostOfABatch`,
+`foundation/parallel_budget.rs`),
+the shipped round and the slow lane name the machine itself,
+so each batch reads it where the batch is sized and not before the round's earlier work ran,
 and a control that needs two items beside each other states a host of its own
-(`A_HOST_THAT_BOUNDS_NO_BATCH`),
+(`TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH)`),
 as a control whose subject is a batch that keeps its turn states one that puts a single item at a time
-(`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
-both in `landing/service_work_items_side_by_side.rs`.
+(`TheHostOfABatch::Stated(A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME)`),
+both hosts in `landing/service_work_items_side_by_side.rs`.
+A control counts those readings (`machine_reads_for_a_control`)
+to prove a batch reads where it is sized,
+and a count of the whole process is read in a child of the control's own.
 A width a control states for the whole process
 (`hold_the_width_to`,
 `landing/service_work_items_side_by_side.rs`)

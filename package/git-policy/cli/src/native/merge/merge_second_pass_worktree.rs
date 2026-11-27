@@ -95,8 +95,8 @@ use crate::merge_second_pass_worktree_watch::{
     layout_of,
 };
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "wordMergeWorktree";
+/// Import the tag this module's diagnostics carry.
+use crate::merge::merge_second_pass_worktree_remerge::TAG;
 
 pub(super) use crate::merge_second_pass_worktree_words::LINE_PREFIX;
 

@@ -2036,37 +2036,6 @@ which is the same way out that the paragraph above describes.
 The wrapper adds one namespace to Git.
 
 ```sh
-
-From lines 37869 to 37893 of the old handover
-(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
-moved verbatim on 2026-11-23:
-
-Open:
-the 8 unmapped instances have neither a note nor a journal record that hashes to them
-(units of worktrees that never landed a commit before this release,
-or whose repository was deleted whole),
-so they stay.
-An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
-and neither the unit file nor the running process names that directory,
-so nothing can map one of them back;
-the three answers open to the owner,
-with the coordinator's ranking:
-leave them (`doctor` counts them and names them,
-no live service is ever cut;
-today's answer),
-stop the units of an unmapped instance whose socket file is older than a bound
-(a live but idle worktree's socket is just as old,
-because a socket unit has no idle exit,
-so this is a blind stop that cuts a live worktree's service mid-commit),
-or stop every unmapped instance's units once
-(the same risk,
-now,
-with no age to argue from).
-Ranking:
-leave > age-out > stop once,
-because everything past the first interrupts a commit somebody asked for,
-and 8 leftovers are a small price for never failing one.
-
 # Check or fix the whole repository, or the named pathspecs.
 git monochromatic-git-policy-cli check --all
 git monochromatic-git-policy-cli fix -- docs/ README.md
@@ -7649,18 +7618,43 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   so two runs of one check started in the same second ask the manager for two names:
   one shared name would make the manager refuse the second run's scope while the first was active,
   which ended that check with status 2 without running it.
-  The caps the scopes carry are the ones the scratch script used
-  (`CPUQuota=200%`,
+  The caps the scopes carry are sized from readings of these checks' own control groups
+  (`bin/native-capped-scope-command.ts`),
+  taken on 2026-11-27 on this host:
+  `CPUQuota=800%`,
   `MemoryMax=4G`,
-  `TasksMax=400`)
-  except the disk weight,
-  which is 1 rather than that script's 30,
-  because a per-command control group never carries more than 10 (rule `RXS`);
+  `TasksMax=1024`
+  and `IOWeight=1`.
+  `TasksMax` was 400 until this round,
+  below the 434 to 463 tasks the unit suite peaks at,
+  so a loaded host turned that bound into six test failures (issue 6605);
+  1024 is 2.2 times the highest peak measured.
+  `MemoryMax=4G` is 1.85 times the highest charge those runs reached (2,218.8 MiB).
+  At the 200% every earlier run carried,
+  the same round took 2.66 to 2.79 times the wall time for the unit suite
+  (37.81 to 39.06 s against 13.72 to 14.46 s at 800%),
+  2.6 to 3.4 times for the type check and 1.4 to 2.4 times for the lint,
+  and the suite's tasks waited 8.77 to 9.19 times as long for the quota as they ran;
+  at 800% they waited 1.35 to 1.59 times.
+  The disk weight is 1 rather than the scratch script's 30,
+  because a per-command control group never carries more than 10 (rule `RXS`).
   `--unit-cpu-quota`,
   `--unit-memory-max`,
   `--unit-tasks-max`
   and `--unit-io-weight`
   override them.
+  A check whose scope met one of its bounds says so under its own result and never instead of it
+  (`bin/native-check-scope-bound-lines.ts`),
+  naming the reading:
+  a refused fork at `TasksMax`,
+  a kill for memory at `MemoryMax`,
+  and,
+  for a check that did not pass,
+  a CPU quota its tasks waited more than twice as long for as they ran.
+  Each line names the option that raises that bound and that the bound and not a test is what failed.
+  The counters are read every 50 ms while the check runs
+  (`bin/native-check-scope-accounting.ts`),
+  because a scope takes its control group with it.
   The exit status is 0 when every check passed and 2 when one failed or ran past its deadline,
   so a coordinator can branch on it;
   a command line or a cap that is refused exits 1 and prints the reason.
@@ -9832,3 +9826,37 @@ moved verbatim on 2026-11-23:
   while later answers took 6 to 13 ms at both sizes,
   so a start's read grows with the records and the landing's lookup does not.
   The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.
+
+From lines 37869 to 37893 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23.
+It stood inside the `Commands` code block from that day until 2026-11-27,
+where a reader met it as part of the command listing;
+the listing is the code block above,
+and this passage is the record of an open owner question.
+
+Open:
+the 8 unmapped instances have neither a note nor a journal record that hashes to them
+(units of worktrees that never landed a commit before this release,
+or whose repository was deleted whole),
+so they stay.
+An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
+and neither the unit file nor the running process names that directory,
+so nothing can map one of them back;
+the three answers open to the owner,
+with the coordinator's ranking:
+leave them (`doctor` counts them and names them,
+no live service is ever cut;
+today's answer),
+stop the units of an unmapped instance whose socket file is older than a bound
+(a live but idle worktree's socket is just as old,
+because a socket unit has no idle exit,
+so this is a blind stop that cuts a live worktree's service mid-commit),
+or stop every unmapped instance's units once
+(the same risk,
+now,
+with no age to argue from).
+Ranking:
+leave > age-out > stop once,
+because everything past the first interrupts a commit somebody asked for,
+and 8 leftovers are a small price for never failing one.

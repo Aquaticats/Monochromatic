@@ -54,8 +54,8 @@ use crate::worktree_ladder_target::{
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::path::Path;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// Import the tag every line of this folder's ladder work carries.
+use crate::worktree::worktree_ladder_finish_binding::TAG;
 
 /// What:
 ///  The clone rung:
