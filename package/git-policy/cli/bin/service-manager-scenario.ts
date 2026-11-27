@@ -7,6 +7,7 @@
  */
 import {
   askedOrNothing,
+  containerRuntimeDirectory,
   inside,
   type Machine,
   releasePaths,
@@ -329,7 +330,7 @@ async function prepareArm({
    */
   const left = await inside({
     machine: state.machine,
-    script: 'grep --max-count=1 "^ExecStart=" /run/user/0/systemd/user/monochromatic-git-policy-cli@.service 2>/dev/null || echo none',
+    script: `grep --max-count=1 "^ExecStart=" ${containerRuntimeDirectory}/systemd/user/monochromatic-git-policy-cli@.service 2>/dev/null || echo none`,
   });
   state.steps
     .push(`the template the seeding left: ${left}`);
