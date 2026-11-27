@@ -22,9 +22,10 @@
 //! - `direct_fix_install_journal.rs`:
 //!   the journal an install is recorded in,
 //!   and the sweep that finishes what a kill interrupted.
-//! - `direct_fix_install.rs`:
-//!   installing a direct fix's corrections into the worktree,
-//!   all or none.
+//! - `direct_fix_install_records.rs`:
+//!   the correction an install is given,
+//!   the site it prepared,
+//!   and what it leaves for the person.
 //! - `direct_fix_install_judging.rs`:
 //!   what a name holds,
 //!   and whether it is exactly what an install put there.
@@ -33,6 +34,12 @@
 //!   and its sentences.
 //! - `direct_fix_install_messages.rs`:
 //!   the sentences an install reports.
+//! - `direct_fix_install_preparing.rs`:
+//!   proving every selected file still holds the bytes the fix read,
+//!   and writing the corrected bytes into its journal.
+//! - `direct_fix_install.rs`:
+//!   installing a direct fix's corrections into the worktree,
+//!   all or none.
 //! - `event_hints.rs`:
 //!   the intent-guessing hint that follows a finding,
 //!   an engine failure or a notice.
@@ -218,12 +225,21 @@ pub mod direct_fix_install_writes;
 /// and the sweep that finishes what a kill interrupted.
 pub mod direct_fix_install_journal;
 
+/// The correction an install is given,
+///  the site it prepared,
+///  and what it leaves for the person.
+pub mod direct_fix_install_records;
+
 /// The sweep of the journals an interrupted fix left,
 /// and its sentences.
 pub mod direct_fix_install_journal_sweep;
 
 /// The sentences an install reports.
 pub mod direct_fix_install_messages;
+
+/// Proving every selected file still holds the bytes the fix read,
+///  and writing the corrected bytes into its journal.
+pub mod direct_fix_install_preparing;
 
 /// What a name holds,
 /// and whether it is exactly what an install put there.
