@@ -40,8 +40,19 @@
 //!   the index read the way a merge's recovery needs it.
 //! - `merge_isolation_journal.rs`:
 //!   the durable intent record of an isolated merge.
+//! - `merge_isolation_carry_objects.rs`:
+//!   the Git plumbing a capture runs:
+//!   the bytes of one path written as one object,
+//!   the index's own entries,
+//!   and the directory a Git start runs in.
+//! - `merge_isolation_carry_ref.rs`:
+//!   the ref of its own that keeps a capture's objects from `git gc`,
+//!   and the dropping of that ref once nothing needs it.
 //! - `merge_isolation_carry.rs`:
-//!   reading the person's work and keeping it outside the checkout.
+//!   reading the person's own work in the paths a merge changes:
+//!   what stands at one worktree path,
+//!   the mode and permission bits Git records for it,
+//!   and one capture of every layer.
 //! - `merge_isolation_carry_landed.rs`:
 //!   what Git's own update left at each path of a merge,
 //!   which tells its own file from a save that accepts it.
@@ -388,7 +399,20 @@ pub mod merge_isolation;
 ///  and a ref of its own keep it.
 pub mod merge_isolation_carry_parts;
 
-/// Reading the person's work and keeping it outside the checkout.
+/// The Git plumbing a capture runs:
+/// the bytes of one path written as one object,
+/// the index's own entries,
+/// and the directory a Git start runs in.
+pub mod merge_isolation_carry_objects;
+
+/// The ref of its own that keeps a capture's objects from `git gc`,
+/// and the dropping of that ref once nothing needs it.
+pub mod merge_isolation_carry_ref;
+
+/// Reading the person's own work in the paths a merge changes:
+/// what stands at one worktree path,
+/// the mode and permission bits Git records for it,
+/// and one capture of every layer.
 pub mod merge_isolation_carry;
 /// What stands at one worktree path, as a merge reads it.
 pub mod merge_isolation_worktree_entry;
