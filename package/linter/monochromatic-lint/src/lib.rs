@@ -252,6 +252,9 @@ pub mod markdown_semantic_breaks;
 /// Internal native Markdown/MDX parser interface.
 #[doc(hidden)]
 pub mod markdown_source;
+/// Bounded ancestor and descendant walks over one parsed document,
+///  beside the parse whose fields they read.
+mod markdown_source_walk;
 /// Pipe-table reporting.
 #[doc(hidden)]
 pub mod markdown_tables;
