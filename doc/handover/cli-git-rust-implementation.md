@@ -1725,8 +1725,28 @@ and the two `truepeak` files wait on their branch.
   The launcher removes the worktree of a run that ended idle with nothing uncommitted,
   and a run's whole report is in `~/temp/agent/<round>-scratch/keep/report.md`,
   which each brief asks for.
-  A merge is `git merge --no-ff <branch>` in the main checkout once `git merge-tree` shows no conflict;
-  the coordinator's scratch merge script does both until the cleanup of 2026-11-27T15:26:37-05:00 deletes it.
+  A merge is made by hand in the main checkout,
+  one branch at a time,
+  since the cleanup of 2026-11-27T15:26:37-05:00 deleted the coordinator's scratch merge script:
+  the branch's tip equals its tip on origin and `main` is not behind origin;
+  `git merge-tree --write-tree --name-only main <branch>` shows no conflict;
+  `git merge --no-ff --no-edit <branch>`;
+  then the branch's tip is an ancestor of `HEAD` and `HEAD^2` is that tip,
+  before the merge is called landed.
+  That last check is not ceremony:
+  on 2026-11-25T17:24:39-05:00 `git merge` returned 0 and no merge commit landed,
+  while another session committed to `main` in the same second,
+  and the script of that day printed the other session's commit as the merge.
+  The wrapper removes the worktrees that hold a branch once it has landed
+  (its README,
+  "A merge that lands a branch also removes the worktrees that hold it"),
+  and the merged lock branches of 2026-11-27 were gone from origin before the coordinator asked for it,
+  by a step that was not read.
+  The package's TypeScript checks at `main`'s tip are run as `test:unit` and `lint:types`,
+  each in a scope the coordinator starts,
+  with the session bus unset and a runtime directory whose `bus` path stays under 108 bytes,
+  and not through `native:ts-checks`,
+  until issue 6620 is resolved.
 - The wrapper's gate has tasks of its own,
   which the coordinator's gate of 2026-11-27 did not use and the next one does:
   `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
