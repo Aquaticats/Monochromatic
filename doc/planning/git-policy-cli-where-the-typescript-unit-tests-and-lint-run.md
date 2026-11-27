@@ -73,10 +73,10 @@ which is why the unit tests of that harness are the check that would have shown 
 ## What the gate is for
 
 The project's record says what the batch rests on.
-`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md:62` records the owner's choice,
+`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md:63` records the owner's choice,
 named "A:
-one gate on main per batch" (`:63`),
-and its words are (`:64`):
+one gate on main per batch" (`:64`),
+and its words are (`:65`):
 
 ```text
 After a batch of merges,
@@ -85,7 +85,7 @@ a failure outside main's known baseline starts a fix round.
 ```
 
 The handover states what that gate is for
-(`doc/handover/cli-git-rust-implementation.md:719`):
+(`doc/handover/cli-git-rust-implementation.md:761`):
 
 ```text
 one gate on `main` per batch of merges is the check the batch rest on afterwards,
@@ -247,7 +247,7 @@ unless --all);
 pass file paths to filter",
 and whose body spawns one `node` process per file,
 bounded by `availableParallelism()`
-(`mise.toml:292`).
+(`mise.toml:346`).
 
 So the package's own `lint` runs both TypeScript checks,
 and `test:unit` runs the unit files.
@@ -296,7 +296,7 @@ which this round did not start.
 ### What a round runs before it ends
 
 The package guide settles that
-(`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md:640`):
+(`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md:675`):
 
 ```text
 A branch merges into `main` when its round has ended and its report is read:
@@ -320,7 +320,7 @@ Markdown and MDX.
 ### What the coordinator's batch check runs
 
 The handover records the tip check the coordinator ran after a batch
-(`doc/handover/cli-git-rust-implementation.md:182`):
+(`doc/handover/cli-git-rust-implementation.md:194`):
 
 ```text
 `main`'s tip is checked after a batch of merges and not by each merge:
@@ -534,8 +534,8 @@ which is 07:52:10-05:00).
 
 ### The service-words unit test, issue 6579
 
-The test reads the line `pub const SERVICE_WORDS: [&str; 3] = [`
-(`package/git-policy/cli/e2e/service-mode-words.unit.test.ts:77`),
+The test read the line `pub const SERVICE_WORDS: [&str; 3] = [`,
+which is line 77 of `package/git-policy/cli/e2e/service-mode-words.unit.test.ts` at `1c8acd5bfb`,
 and `14053c4fd5` (2026-11-26T05:10:52-05:00,
 "refactor(git-policy-cli):
 hold every list of names,
@@ -550,6 +550,11 @@ changed the declaration to a slice
 
 The test has compared nothing since,
 and it went red at that commit.
+The fix that landed with `afa9691f87`,
+merged in `9f7d1a04e3`,
+reads the declaration as the tree writes it now
+(`SERVICE_WORDS_DECLARATION` at `package/git-policy/cli/e2e/service-mode-words.unit.test.ts:42`),
+which is why the account above is written of the tree that was red.
 It stayed unseen for 1 day 2 hours 41 minutes,
 across 251 merges
 (`git rev-list --first-parent --merges 14053c4fd5..1c8acd5bfb --count`).
@@ -559,10 +564,12 @@ across 251 merges
 The walk is older than the failure.
 `dc020315a8` (2026-11-03) wrote the recursive read
 (`readdir(join(packageDirectory, 'src', 'native'), { recursive: true })`,
-`package/git-policy/cli/bin/native-planted-controls.unit.test.ts:33`),
+line 33 of `package/git-policy/cli/bin/native-planted-controls.unit.test.ts` at `1c8acd5bfb`),
 which follows the symlinked `uses/` folders the layout rules put in the source tree.
 `583f1af407` (2026-11-19T21:35:02-05:00) added the first `uses/` link under `src/native`,
 and the walk then read the same file once per path that reaches it.
+The merged fix replaced that call with one walk of `bin/source-tree-files.ts`,
+imported at line 17 of the same test file at `64e3eb1a55`.
 The test went red at the first commit whose reachable text passed the runtime's longest string,
 which a probe of the same call fixed at `727721cc5a`
 (2026-11-25T07:43:15-05:00,
@@ -648,7 +655,7 @@ Pros:
   so a red arrives with its own evidence in the gate log and in `native:gate:verdict`,
   beside the suite's summary the same person is reading.
 - The gate's unit already holds ten CPUs and 20 GiB
-  (`defaultGateCaps` in `bin/native-gate-caps.ts:53`,
+  (`defaultGateCaps` in `bin/native-gate-caps.ts:54`,
   whose `unitCpuQuota` is `1000%` and whose `unitMemoryMax` is `20G`),
   which is more room than `test:unit`'s peak needs,
   4.5 GB at `1c8acd5bfb` and 1.8 GB at `64e3eb1a55`,
