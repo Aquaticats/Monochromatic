@@ -1227,6 +1227,88 @@ A > B,
 because a narrower reach lets the compiler find dead code that a `pub` hides,
 and the control already keeps the surface from growing either way.
 
+## Open points of the `cargo-shadow` round that ended at 14:21 on 2026-11-27 (recorded 2026-11-27T14:30:09-05:00)
+
+None holds a round or a release.
+The round on the refusal's sentence is merged as `87399f8462`.
+
+### A run that leaves a kept journal says nothing about it
+
+A refusal keeps the run's journal,
+and only a later run that resolves dependencies,
+or `cargo-shadow update`,
+settles it.
+A pass-through command such as `cargo fmt` and a frozen run under `CI` leave it and print nothing,
+so a journal can stay through any count of such runs unnoticed.
+The round changed no run's output.
+
+- A,
+  a frozen run names each kept journal in one line:
+  it already announces kept files at that place,
+  and the cost is one directory read.
+- B,
+  a pass-through command does too:
+  it has no such place today,
+  so every `cargo fmt` would first walk up to find the catalog.
+- C,
+  as now.
+
+Ranking:
+A > C > B.
+A beats C because a frozen run is where a CI log is read,
+and the line costs one directory read there.
+C beats B because B puts a directory walk and a line in front of commands that today hand straight over to `cargo`.
+
+### A scope whose directory was never made reads as a collected scope
+
+The retire gate reads a missing directory as the manager having collected the scope,
+asks nothing,
+prints nothing and leaves the unit loaded;
+a directory that was never made answers the same.
+A control holds that it happens.
+The one run-level occurrence came from a stand-in's race in the read of `0.1.5-alpha.14`.
+The fix needs one of two facts
+(`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
+"A directory that was never made reads as a collected scope"):
+
+- A,
+  the run records the group it made,
+  so an absent directory afterwards is a collection and one never recorded is not:
+  no question to the manager.
+- B,
+  the `LoadState` question to the manager,
+  which `0.1.5-alpha.12` took out for its cost on every call.
+
+Ranking:
+A > B,
+because A tells the two cases apart without bringing back the cost that was taken out.
+The coordinator means to start a round on A with the findings of the `0.1.5-alpha.15` read,
+veto open.
+
+### What each shadow package's copies test compares
+
+The test file is byte-identical in the four crates and names three of them,
+so `search-shadow`'s suite fails for a changed copy in any of the four,
+and the other three fail only for a change among those three
+(measured:
+with one line added to `search-shadow`'s copy alone,
+three suites passed and its own failed).
+The README says exactly that now.
+
+- A,
+  as now:
+  a copy that changed alone fails the suite of the crate it was changed in,
+  which is what the file's own header promises.
+- B,
+  every suite compares all four:
+  a drift is seen from any package,
+  and a suite then fails for a change it did not cause.
+
+Ranking:
+A > B,
+because the change that drifts a copy is always made in some crate,
+and that crate's suite fails.
+
 ## Picks and open points of the rounds that ended between 14:08 and 14:15 on 2026-11-27 (recorded 2026-11-27T14:24:29-05:00)
 
 None holds a round or a release.

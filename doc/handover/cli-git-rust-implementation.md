@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T14:24:29-05:00
+## The state at 2026-11-27T14:30:09-05:00
 
-`main` was `117514dfd7`.
+`main` was `d9f0c8ea32`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 251 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 253 more by this time.
 
 ### Rounds running
 
@@ -160,10 +160,21 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The reader does not take a byte order mark off by itself,
   which the README's known limits record;
   `test:layout` passed 326 of 326;
-- for the wrapper's `0.6.1-alpha.49` behaviour pass,
-  `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read`,
-  started 2026-11-27T13:02:42-05:00,
-  still runs.
+- nothing for the wrapper's `0.6.1-alpha.49` behaviour pass:
+  all four rounds are merged,
+  and one whole gate runs on `main` at `3aab810dd9`,
+  in the unit `gpc-gate-wrapper-next-alpha-on-3aab810dd9-20261127T142758-0500.service`,
+  started 2026-11-27T14:27:58-05:00,
+  with its log under `~/temp/agent/gate/` by the same name;
+  `0.6.1-alpha.50` follows its verdict.
+  The round on the four small points is merged (`203bd65854`):
+  the four reads of the session's runtime directory and bus address go through the one file,
+  so a test build handed the process's whole environment cannot reach the account's manager;
+  the repository link's sentence is said once a command;
+  a failed start is held by a control at each place that answers it,
+  and the scan of `exec` calls judges each call;
+  and a control holds what a failed memory reading does today,
+  with no change to it.
   The round on shell aliases is merged (`a137924570`):
   a slot removal or move behind a shell alias reads its operand from the top of the working tree,
   where Git runs the alias,
@@ -249,7 +260,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   210 of 210,
   passed on the pinned tree at `a137924570`,
   the five merged rounds together.
-  One whole gate on `main` and then `0.6.1-alpha.50` follow the merge of the one round still out;
+  The whole gate named under the behaviour pass covers these too;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -271,11 +282,26 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
-- for `cargo-shadow`'s `0.1.5-alpha.14` read,
-  `cargo-shadow-alpha-14-release-pass-the-refusal-says-which-next-run-settles-the-journal-and-the-records-are-exact`,
-  started 2026-11-27T13:36:24-05:00,
-  still runs;
-  `0.1.5-alpha.15` follows its merge.
+- nothing for `cargo-shadow`:
+  both rounds of its `0.1.5-alpha.14` read are merged,
+  and `0.1.5-alpha.15` is being released
+  (started 2026-11-27T14:29:03-05:00,
+  release commit `d9f0c8ea32`),
+  to be locked,
+  installed and read by a Claude Sonnet pass once published.
+  The round on the refusal is merged (`87399f8462`).
+  It staged a real refusal and ran each kind of next run:
+  an ordinary resolving run and `cargo-shadow update` settle the kept journal,
+  while a pass-through command and a frozen run leave it and print nothing about it,
+  and the refusal's sentence now says so.
+  A control shows that a scope whose directory was never made is read as collected,
+  with its unit left loaded in silence;
+  the fix belongs to the retire gate and is not made
+  (`doc/handover/questions-for-the-owner.md`).
+  The two rounds met in one sentence of `control_group_stop_report.rs`;
+  the session's wrapper merged it by word when `main` was merged into the branch,
+  the result holds both rounds' clauses word for word,
+  and the package's suite passed 946 of 946 on it.
   The round on the retire gate is merged (`3bf99cd706`).
   The read's finding held:
   with either edit it named,
@@ -289,7 +315,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   each in about ten milliseconds,
   and the next two runs passed 941 of 941;
   the round's own command had cut the messages off,
-  so the cause is not known and an issue holds it.
+  so the cause is not known and issue 6619 holds it.
   `0.1.5-alpha.14` is released
   (release commit `8673ec1309`),
   locked (`c652b74260`) and installed,
