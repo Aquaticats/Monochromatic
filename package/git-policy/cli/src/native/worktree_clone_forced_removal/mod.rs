@@ -106,9 +106,20 @@
 //!   the act's second stage in both halves:
 //!   take the copy out by the handle,
 //!   or move it onto way 7's directory and unmount it there.
+//! - `the_progress_file_lines.rs`:
+//!   the five lines one progress file holds,
+//!   with the writer that makes them and the reader that takes them apart.
 //! - `removal_progress_file.rs`:
-//!   the progress file the handler advances while the act lives,
-//!   and the reads the wrapper makes of it.
+//!   one progress file's folder,
+//!   whose request it answers and how often its counter moves,
+//!   and the proof of the folder every read and write makes first.
+//! - `the_progress_file_reads.rs`:
+//!   what the wrapper reads out of a progress file,
+//!   and whether a counter that stopped reads as a dead handler.
+//! - `the_progress_file_writes.rs`:
+//!   the first stage and the heartbeat that starts with it,
+//!   one word per stage the act reaches,
+//!   and the staging sibling every publish renames over the file.
 //! - `forced_receipt.rs`:
 //!   the receipt the act files for its own answer.
 //! - `the_acts_journal_lines.rs`:
@@ -181,8 +192,17 @@ pub mod the_structural_stage;
 /// The act's second stage, in both halves.
 pub mod the_unmount_stage;
 
-/// The progress file the handler advances while the act lives.
+/// The five lines one progress file holds and the two halves of their grammar.
+pub mod the_progress_file_lines;
+
+/// One progress file, and the proof of the folder every read and write makes first.
 pub mod removal_progress_file;
+
+/// What the wrapper reads out of a progress file.
+pub mod the_progress_file_reads;
+
+/// What the handler writes into a progress file.
+pub mod the_progress_file_writes;
 
 /// The receipt the act files for its own answer.
 pub mod forced_receipt;
@@ -361,17 +381,10 @@ pub use recorded_handle::{
     name_the_handle,
     open_from_the_handle,
 };
-/// The progress file the handler advances while the act lives.
+/// One progress file and its words.
 pub use removal_progress_file::{
-    MAXIMUM_PROGRESS_BYTES,
-    PROGRESS_KIND,
-    PROGRESS_VERSION,
     ProgressFile,
-    ProgressReading,
     ProgressRefusal,
-    ProgressWriting,
-    parse_progress,
-    progress_text,
 };
 /// The refusal of a command the service manager started.
 pub use started_by_the_service_manager::{
@@ -417,6 +430,18 @@ pub use the_mount_table_the_act_reads::{
     rows_of,
     topmost_at,
 };
+/// The five lines one progress file holds.
+pub use the_progress_file_lines::{
+    MAXIMUM_PROGRESS_BYTES,
+    PROGRESS_KIND,
+    PROGRESS_VERSION,
+    parse_progress,
+    progress_text,
+};
+/// What the wrapper reads out of a progress file.
+pub use the_progress_file_reads::ProgressReading;
+/// What the handler writes into a progress file.
+pub use the_progress_file_writes::ProgressWriting;
 /// The sentences a forced removal prints.
 pub use the_refusal_sentences::{
     TheHolder,
