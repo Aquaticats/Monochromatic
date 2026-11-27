@@ -298,10 +298,21 @@ The lock arm this document measures is
 which `managed-git-lock-guest.ts` selects with a nextest filterset for `test(zfs_managed_lock_guest)`:
 
 ```sh
-# package/git-policy/cli/e2e/managed-git-lock-guest.ts:210-212: the arm's own command
+# package/git-policy/cli/e2e/managed-git-lock-guest.ts:366-367: the arm's own command
 cargo nextest run --release --locked --features test-only-switches --test native_binary \
   --no-capture --status-level all --filterset "test(zfs_managed_lock_guest)"
 ```
+
+Every line number this document gives for these four drivers names the state of
+`20f2caa93e` (2026-11-27),
+the round of issue 6581 that rewrote them to a clean oxlint:
+their shared steps moved to `package/git-policy/cli/bin/mvm-guest-*.ts`,
+and the removal arm's two guest scripts moved to
+`e2e/removal-lineage-proof-guest-arm-scripts.ts`.
+Before that commit the same sentences pointed at other lines of the same files.
+The commands those lines hold,
+and the flags the cells differ in,
+did not change.
 
 The measuring cells did not run that command.
 The guest that built the crate ran `cargo nextest` without `--features test-only-switches`,
@@ -327,11 +338,11 @@ runs every arm of that driver run in it,
 and destroys it
 (`deferred-origin-check-guest.ts:252`,
 `doctor-zfs-route-guest.ts:265`,
-`managed-git-lock-guest.ts:239`,
+`managed-git-lock-guest.ts:530`,
 `mount-git-worktree-clone-datasets-guest.ts:931`,
-`removal-lineage-proof-guest.ts:473`,
-`sanoid-coverage-guest.ts:271`,
-`settling-command-guest.ts:295`,
+`removal-lineage-proof-guest.ts:438`,
+`sanoid-coverage-guest.ts:572`,
+`settling-command-guest.ts:537`,
 `slot-state-and-move-refusal-guest.ts:249`,
 `start-probe-guest.ts:859`).
 So a guest lives for one driver run,
@@ -346,15 +357,15 @@ at a path of its own:
   at `/opt/deferred-origin-check`;
 - `doctor-zfs-route-guest.ts:27` and `:191` to `:193`,
   at `/opt/git-policy-cli-doctor-route`;
-- `managed-git-lock-guest.ts:28` and `:196`,
+- `managed-git-lock-guest.ts:55` and `:340`,
   at `/opt/git-policy-cli-lock`;
 - `mount-git-worktree-clone-datasets-guest.ts:37` and `:435`,
   at `/opt/git-policy-cli-adoption`;
-- `removal-lineage-proof-guest.ts:47` and `:383`,
+- `removal-lineage-proof-guest-arm-scripts.ts:14` and `:260`,
   at `/opt/removal-lineage-proof`;
-- `sanoid-coverage-guest.ts:31` and `:204`,
+- `sanoid-coverage-guest.ts:59` and `:403`,
   at `/opt/git-policy-cli-sanoid-coverage`;
-- `settling-command-guest.ts:35` and `:245`,
+- `settling-command-guest.ts:66` and `:379`,
   at `/opt/settling-command`;
 - `slot-state-and-move-refusal-guest.ts:33` and `:212`,
   at `/opt/git-policy-cli-slot-state`;
@@ -363,13 +374,13 @@ at a path of its own:
 
 The build's flags differ too:
 every driver but `sanoid-coverage-guest.ts` passes `--features test-only-switches`
-(`sanoid-coverage-guest.ts:204` passes none),
+(`sanoid-coverage-guest.ts:403` passes none),
 `sanoid-coverage-guest.ts` builds and runs without `--release`,
 `start-probe-guest.ts:208` builds a second tree in `target/raised-deadline`,
 and four drivers cap the compiler's parallelism:
-`removal-lineage-proof-guest.ts:383` and `settling-command-guest.ts:245` with `--jobs 1`,
+`removal-lineage-proof-guest-arm-scripts.ts:260` and `settling-command-guest.ts:379` with `--jobs 1`,
 `mount-git-worktree-clone-datasets-guest.ts:435` with `CARGO_BUILD_JOBS=1`,
-and `sanoid-coverage-guest.ts:203` with `CARGO_BUILD_JOBS=2`.
+and `sanoid-coverage-guest.ts:402` with `CARGO_BUILD_JOBS=2`.
 The guest recipe caps its own wrapper builds at `--jobs 2`
 (`run-fixture.ts:660`)
 and OpenZFS's at `make --jobs=4`
@@ -377,7 +388,7 @@ and OpenZFS's at `make --jobs=4`
 
 Two drivers run more than one test binary in their one guest:
 `doctor-zfs-route-guest.ts:212` runs `native_binary` through nextest and `:215` runs the lib through `cargo test`,
-and `removal-lineage-proof-guest.ts:417` runs the lib and `:423` the `native_binary`,
+and `removal-lineage-proof-guest-arm-scripts.ts:284` runs the lib and `:291` the `native_binary`,
 both through nextest.
 One driver runs four nextest invocations and a Python probe in its guest
 (`mount-git-worktree-clone-datasets-guest.ts:457`,
@@ -396,15 +407,15 @@ Every driver's transfers go through `/mnt/shared`
 `doctor-zfs-route-guest.ts:183`,
 `managed-git-lock-guest.ts:190`,
 `mount-git-worktree-clone-datasets-guest.ts:421`,
-`removal-lineage-proof-guest.ts:356`,
-`sanoid-coverage-guest.ts:194`,
-`settling-command-guest.ts:234`,
+`removal-lineage-proof-guest.ts:305`,
+`sanoid-coverage-guest.ts:383`,
+`settling-command-guest.ts:358`,
 `slot-state-and-move-refusal-guest.ts:199`,
 `start-probe-guest.ts:201`),
 and three of them run a step itself from there through `guestStart` and `guestFinish`
 (`mount-git-worktree-clone-datasets-guest.ts:321` and `:356`,
-`removal-lineage-proof-guest.ts:248` and `:283`,
-`settling-command-guest.ts:133` and `:163`).
+`removal-lineage-proof-guest.ts:310` and `:318`,
+`settling-command-guest.ts:381` and `:389`).
 
 ### The host paths the test binaries carry
 
@@ -1147,7 +1158,7 @@ a driver change,
 one command after each arm's evidence is pulled,
 in the drivers whose `all` step runs more than one arm
 (`doctor-zfs-route-guest.ts:212` and `:215`,
-`removal-lineage-proof-guest.ts:417` and `:423`,
+`removal-lineage-proof-guest-arm-scripts.ts:284` and `:291`,
 `mount-git-worktree-clone-datasets-guest.ts:457`,
 `:510`,
 `:650` and `:896`,
@@ -1280,7 +1291,7 @@ Ranking: not now > drop in those four > never, because not now keeps the reading
 What it would change:
 the drivers whose `all` step runs more than one arm
 (`doctor-zfs-route-guest.ts:265`,
-`removal-lineage-proof-guest.ts:473`,
+`removal-lineage-proof-guest.ts:438`,
 `mount-git-worktree-clone-datasets-guest.ts:931`,
 `start-probe-guest.ts:859`,
 all quoted in "How a round uses guests today")
