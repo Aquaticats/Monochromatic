@@ -3,8 +3,9 @@
 //! in the words a refusal carries:
 //! how long the stop waited,
 //! whether the kernel still reported the scope populated,
-//! and which members were still listed,
-//! each with the state of its threads.
+//! and every member still listed,
+//! in the scope's own group and in every group below it,
+//! each with the group it stands in and the state of its threads.
 //! Why:
 //! Issue 6528:
 //! the install step refused a command because a process cargo started "could not be stopped",
@@ -13,6 +14,12 @@
 //! A person reading the refusal must be able to tell those apart,
 //! and a loaded host from a member that cannot be killed,
 //! so the refusal says how long the stop waited and what it was waiting for.
+//! The kernel's `populated` word counts the groups below the scope too,
+//! so a scope whose own `cgroup.procs` is empty can still hold a live process
+//! (`doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
+//! and the listing reads every group of the scope for that reason.
+//! A member is read through a pidfd,
+//! so a number the kernel listed cannot describe another process by the time its threads are read.
 //! Split out of `control_group_stop.rs`,
 //! which keeps the stop itself.
 //!
@@ -21,9 +28,21 @@
 //! // control-group-stop-report.ts
 //! export type MemberStanding = 'gone' | 'exited' | 'thread-lives' | 'alive' | { unknown: string }
 //! export function standingOf(pid: number): MemberStanding
-//! export class StopReport { waited: number; empty: boolean; members: Member[]; sentence(scope: string): string }
+//! export function standingOfWithin(pid: number, deadline: number): MemberStanding
+//! export class StopReport { waited: number; empty: boolean; sentence(scope: string): string; headline(): string }
 //! ```
 
+/// What:
+/// `use super::LISTING_BOUND;` imports how long reading the members may take.
+/// Why:
+/// A member's threads, and the listing itself, stop at that bound,
+/// and the words a refusal carries say which bound it hit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LISTING_BOUND } from './control_group_stop.ts';
+/// ```
+use super::LISTING_BOUND;
 /// What:
 /// `use crate::control_group_process_identity::parse_stat;` imports the reader of a `stat` file's state letter
 /// and start time.
@@ -47,6 +66,16 @@ use crate::control_group_process_identity::parse_stat;
 /// ```
 use std::fs;
 /// What:
+/// `use std::os::fd::OwnedFd;` imports the owning wrapper of an open file descriptor.
+/// Why:
+/// The pidfd a member is read through must be closed when the read is over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS has no equivalent: a number is a descriptor and nothing closes it for you.
+/// ```
+use std::os::fd::OwnedFd;
+/// What:
 /// `use std::path::Path;` imports the borrowed view of a path (its sibling `PathBuf` owns one).
 /// Why:
 /// The sentence names the scope's directory without keeping a copy of it.
@@ -57,16 +86,61 @@ use std::fs;
 /// ```
 use std::path::Path;
 /// What:
-/// `use std::time::Duration;` imports a span of time (its sibling `Instant` is a point on the clock).
+/// `use std::time::{Duration, Instant};` imports a span of time (its sibling `Instant` is a point on the clock).
 /// Why:
 /// The time the stop waited is what the refusal must state,
-/// because a bound that passed on a loaded host looks the same as one that passed on a member that cannot be killed.
+/// and a thread read stops at a point on the clock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // a number of milliseconds
+/// // a number of milliseconds, and Date.now() for a point on the clock
 /// ```
-use std::time::Duration;
+use std::time::{
+    Duration,
+    Instant,
+};
+
+/// What:
+/// `use rustix::event::{PollFd, PollFlags, Timespec, poll};` imports the wait on a descriptor for one event.
+/// Why:
+/// A pidfd becomes readable when its process ends,
+/// which is how a member whose `/proc` entry is gone is told from one this process cannot see at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { poll, PollFd, PollFlags, Timespec } from 'rustix/event';
+/// ```
+use rustix::event::{
+    PollFd,
+    PollFlags,
+    Timespec,
+    poll,
+};
+/// What:
+/// `use rustix::io::Errno;` imports the error code that says no process with this id exists.
+/// Why:
+/// A pidfd that cannot be opened because the process is gone is the one case that may be read as "gone".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Errno } from 'rustix/io';
+/// ```
+use rustix::io::Errno;
+/// What:
+/// `use rustix::process::{Pid, PidfdFlags, pidfd_open};` imports the pid type, the flag set of a pidfd and the call that opens it.
+/// Why:
+/// A process id read from a list can be reused,
+/// so it is turned into a descriptor first and read only while that descriptor is held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { pidfdOpen, Pid, PidfdFlags } from 'rustix/process';
+/// ```
+use rustix::process::{
+    Pid,
+    PidfdFlags,
+    pidfd_open,
+};
 
 /// How one process stood when the stop last looked at it.
 #[derive(Debug, Eq, PartialEq)]
@@ -157,28 +231,102 @@ impl MemberStanding {
 
 /// One member of a scope,
 /// by process id,
-/// with the state its threads were in.
+/// with the group below the scope it stands in, when it stands in one,
+/// and the state its threads were in.
 pub(crate) struct MemberListing {
     /// The process id the scope listed.
     pub(crate) pid: i32,
+    /// The group below the scope's own directory the member stands in,
+    /// as the path below that directory,
+    /// or `None` when it stands in the scope's own group.
+    pub(crate) below: Option<String>,
     /// What its threads were doing.
     pub(crate) standing: MemberStanding,
+}
+
+/// What:
+/// `impl MemberListing` turns one member into the words that name it.
+/// Why:
+/// "1234 in nested" tells a reader where a process stands,
+/// which is what a scope whose own group is empty needs to say.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // nothing extra: a function takes the member
+/// ```
+impl MemberListing {
+    /// What:
+    /// `fn text(&self) -> String` is the member's process id, the group it stands in when that is below the scope,
+    /// and the state of its threads.
+    /// Why:
+    /// A member of a group below the scope would otherwise read as a process of the scope itself.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// text(): string {
+    ///   const where = this.below === undefined ? '' : ` in ${this.below}`
+    ///   return `${this.pid}${where} (${this.standing.text()})`
+    /// }
+    /// ```
+    pub(crate) fn text(&self) -> String {
+        return match &self.below {
+            Some(group) => format!("{} in {group} ({})", self.pid, self.standing.text()),
+            None => format!("{} ({})", self.pid, self.standing.text()),
+        };
+    }
+}
+
+/// What the reading of the members found.
+pub(crate) enum Listing {
+    /// Every group of the scope, and every group below it, was read:
+    /// these are the members that were left.
+    Read(Vec<MemberListing>),
+    /// The listing's own bound passed before every member was read:
+    /// these are the members it read, and the rest were not named.
+    Cut(Vec<MemberListing>),
+    /// The scope's own directory was gone when its members were read,
+    /// so nothing was there to name.
+    ScopeGone,
+    /// The members could not be read,
+    /// with the reason.
+    Unreadable(String),
+}
+
+/// What a refusal may say about what the listing left,
+/// which is the one thing the opening clause adds to the sentence.
+pub(crate) enum Leftover {
+    /// A member that was read can still write.
+    Writer,
+    /// Every group was read and no member it listed can still write.
+    NoWriter,
+    /// Every group was read and none of them listed a member.
+    Nothing,
+    /// The scope's directory was gone when its members were read.
+    ScopeGone,
+    /// The members could not be read.
+    Unreadable,
+    /// The listing's own bound passed before every member was read.
+    Cut,
 }
 
 /// What the stop of one scope found.
 pub(crate) struct StopReport {
     /// How long the stop waited for the scope to become empty.
     waited: Duration,
-    /// Whether the kernel reported the scope empty (or its absence was verified).
+    /// Whether the stop showed the scope empty:
+    /// the kernel reported it unpopulated,
+    /// or its absence was verified.
     empty: bool,
     /// The kernel's last `populated` word,
     /// or `None` when the group could not be read (it was removed).
     populated: Option<bool>,
-    /// The members the scope listed when the stop gave up.
-    members: Vec<MemberListing>,
-    /// Why the members could not be listed,
-    /// when that read failed.
-    listing_failure: Option<String>,
+    /// Whether the scope's directory was gone when the stop looked and its absence was verified.
+    /// Why a flag of its own:
+    /// an empty report earned that way has no `populated` word behind it,
+    /// and the words must not say the kernel spoke.
+    absent: bool,
+    /// The members the listing found, or why it found none it could read.
+    listing: Listing,
 }
 
 /// What:
@@ -189,31 +337,51 @@ pub(crate) struct StopReport {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // a plain class with a constructor and two methods
+/// // a plain class with a constructor and a few methods
 /// ```
 impl StopReport {
     /// What:
-    /// `pub(crate) fn new(...) -> StopReport` takes what the stop saw.
+    /// `pub(crate) fn new(...) -> StopReport` takes what the stop saw of a scope that was not verified absent.
     /// Why:
     /// `control_group_stop.rs` owns the loop and hands it these facts once.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// constructor(waited: number, empty: boolean, populated: boolean | undefined, members: Member[], listingFailure?: string)
+    /// constructor(waited: number, empty: boolean, populated: boolean | undefined, listing: Listing)
     /// ```
     pub(crate) fn new(
         waited: Duration,
         empty: bool,
         populated: Option<bool>,
-        members: Vec<MemberListing>,
-        listing_failure: Option<String>,
+        listing: Listing,
     ) -> StopReport {
         return StopReport {
             waited,
             empty,
             populated,
-            members,
-            listing_failure,
+            absent: false,
+            listing,
+        };
+    }
+
+    /// What:
+    /// `pub(crate) fn absent(waited: Duration) -> StopReport` is the report of a scope whose absence was verified.
+    /// Why:
+    /// The same report type carries both answers,
+    /// so no caller has to read two shapes for one question,
+    /// and the words say the directory was gone instead of pretending the kernel reported it empty.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static absent(waited: number): StopReport
+    /// ```
+    pub(crate) fn absent(waited: Duration) -> StopReport {
+        return StopReport {
+            waited,
+            empty: true,
+            populated: None,
+            absent: true,
+            listing: Listing::ScopeGone,
         };
     }
 
@@ -231,27 +399,84 @@ impl StopReport {
     }
 
     /// What:
-    /// `pub(crate) fn may_still_write(&self) -> bool` says whether a listed member can still write.
+    /// `pub(crate) fn leftover(&self) -> Leftover` is what the report may say about what was left.
     /// Why:
-    /// This is the question the lockfiles hang on,
-    /// so it is answered from the states and not from the count.
+    /// Every refusal's opening clause is chosen from this one answer,
+    /// so a refusal cannot claim a member it never read is harmless
+    /// and cannot stay silent about a member it did read.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// mayStillWrite(): boolean { return this.members.some((member) => member.standing.canStillWrite()) }
+    /// leftover(): 'writer' | 'no-writer' | 'nothing' | 'scope-gone' | 'unreadable' | 'cut'
     /// ```
-    pub(crate) fn may_still_write(&self) -> bool {
-        return self
-            .members
-            .iter()
-            .any(|member| return member.standing.can_still_write());
+    pub(crate) fn leftover(&self) -> Leftover {
+        return match &self.listing {
+            Listing::Read(members) => {
+                if members
+                    .iter()
+                    .any(|member| return member.standing.can_still_write())
+                {
+                    Leftover::Writer
+                } else if members.is_empty() {
+                    Leftover::Nothing
+                } else {
+                    Leftover::NoWriter
+                }
+            }
+            Listing::Cut(members) => {
+                if members
+                    .iter()
+                    .any(|member| return member.standing.can_still_write())
+                {
+                    Leftover::Writer
+                } else {
+                    Leftover::Cut
+                }
+            }
+            Listing::ScopeGone => Leftover::ScopeGone,
+            Listing::Unreadable(_) => Leftover::Unreadable,
+        };
+    }
+
+    /// What:
+    /// `pub(crate) fn headline(&self) -> String` is the opening clause of a refusal of a scope that did not read as empty.
+    /// Why:
+    /// The clause and the sentence after it are one message,
+    /// and the clause must name only what the listing found (issue 6528's review, Medium 1).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// headline(): string { ... }
+    /// ```
+    pub(crate) fn headline(&self) -> String {
+        return match self.leftover() {
+            Leftover::Writer => "a member of the scope could not be shown stopped".to_string(),
+            Leftover::NoWriter => {
+                "the scope did not read as empty, and no member it listed can still write".to_string()
+            }
+            Leftover::Nothing => {
+                "the scope did not read as empty, and it listed no member of the scope or of any group below it"
+                    .to_string()
+            }
+            Leftover::ScopeGone => {
+                "the scope did not read as empty, and its directory was gone when its members were read"
+                    .to_string()
+            }
+            Leftover::Unreadable => {
+                "the scope did not read as empty, and its members could not be read".to_string()
+            }
+            Leftover::Cut => format!(
+                "the scope did not read as empty, and its members could not all be read within {LISTING_BOUND:?}"
+            ),
+        };
     }
 
     /// What:
     /// `pub(crate) fn sentence(&self, scope: &Path) -> String` is the report as one clause of a refusal.
     /// Why:
     /// The refusal of a run that cannot be settled must say how long it waited and what it was waiting for,
-    /// in words that tell an exited member from a live one.
+    /// in words that tell an exited member from a live one,
+    /// and must not state a wait that was not the wait.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -262,67 +487,137 @@ impl StopReport {
         scope: &Path,
     ) -> String {
         if self.empty {
+            if self.absent {
+                return format!(
+                    "the scope {} was gone when the stop looked, and its absence was verified",
+                    scope.display()
+                );
+            }
             return format!(
                 "the stop of {} waited {:?} and the kernel reported the scope empty",
                 scope.display(),
                 self.waited
             );
         }
-        let listing: String = match (&self.listing_failure, self.members.is_empty()) {
-            (Some(reason), _) => format!("it listed no member it could read ({reason})"),
-            (None, true) => match self.populated {
-                Some(true) => "it listed no member, so what is left is not a process of this scope's own group".to_string(),
-                _ => "it listed no member".to_string(),
-            },
-            (None, false) => {
-                let listed: Vec<String> = self
-                    .members
-                    .iter()
-                    .map(|member| {
-                        return format!("{} ({})", member.pid, member.standing.text());
-                    })
-                    .collect();
-                // What:     `if listed.len() == 1 { "member" } else { "members" }` picks the word that agrees with the count.
-                // Why:      A refusal is read by a person, and "1 member(s)" reads like a placeholder nobody finished.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const noun = listed.length === 1 ? 'member' : 'members';
-                // ```
-                let noun: &str = if listed.len() == 1 { "member" } else { "members" };
-                format!("it listed {} {noun}: {}", listed.len(), listed.join(", "))
-            }
-        };
         let population: &str = match self.populated {
-            Some(true) => "the kernel still reported it populated",
-            Some(false) => "the kernel reported it empty",
-            None => "the group could not be read",
+            Some(true) => "the kernel last reported it populated",
+            Some(false) => "the kernel last reported it empty",
+            None => "its group could not be read",
         };
         return format!(
-            "the stop of {} waited {:?} for it to be empty; {population}, and {listing}",
+            "the stop of {} waited {:?} for it to be empty; {population}, and {}",
             scope.display(),
-            self.waited
+            self.waited,
+            self.listing_text()
         );
+    }
+
+    /// What:
+    /// `fn listing_text(&self) -> String` is what the listing found, in the words that follow the kernel's word.
+    /// Why:
+    /// Three different findings would otherwise read the same:
+    /// no member was left to name, a listing could not be read, and a listing was cut at its bound.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// listingText(): string { ... }
+    /// ```
+    fn listing_text(&self) -> String {
+        return match &self.listing {
+            Listing::Read(members) if members.is_empty() => {
+                "it listed no member of the scope or of any group below it".to_string()
+            }
+            Listing::Read(members) => named_members(members),
+            Listing::Cut(members) if members.is_empty() => format!(
+                "the listing of its members was cut at its own bound of {LISTING_BOUND:?} before one was read"
+            ),
+            Listing::Cut(members) => format!(
+                "the listing of its members was cut at its own bound of {LISTING_BOUND:?} after {}",
+                named_members(members)
+            ),
+            Listing::ScopeGone => "its directory was gone when its members were read".to_string(),
+            Listing::Unreadable(reason) => format!("its members could not be read ({reason})"),
+        };
     }
 }
 
 /// What:
-/// `pub(crate) fn standing_of(pid: i32) -> MemberStanding` reads a process's threads and says what state they are in.
+/// `fn named_members(members: &[MemberListing]) -> String` is one clause naming every member the listing read.
 /// Why:
-/// The kernel's `populated` word says that something is left,
-/// never what,
-/// and the state of one process's threads is the whole difference between a member that can still write and one that
-/// only waits to be reaped.
+/// The sentence and the cut case both need the list with the count that agrees with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function standingOf(pid: number): MemberStanding { ... }
+/// function namedMembers(members: MemberListing[]): string
 /// ```
-pub(crate) fn standing_of(pid: i32) -> MemberStanding {
+fn named_members(members: &[MemberListing]) -> String {
+    let listed: Vec<String> = members
+        .iter()
+        .map(|member| {
+            return member.text();
+        })
+        .collect();
+    // What:     `if listed.len() == 1 { "member" } else { "members" }` picks the word that agrees with the count.
+    // Why:      A refusal is read by a person, and "1 member(s)" reads like a placeholder nobody finished.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const noun = listed.length === 1 ? 'member' : 'members';
+    // ```
+    let noun: &str = if listed.len() == 1 {
+        "member"
+    } else {
+        "members"
+    };
+    return format!("it listed {} {noun}: {}", listed.len(), listed.join(", "));
+}
+
+/// What:
+/// `pub(crate) fn standing_of_within(pid: i32, deadline: Instant) -> MemberStanding` reads a process's threads through
+/// a pidfd and says what state they are in, or that the bound passed before they were all read.
+/// Why:
+/// A process id read from a list can be reused,
+/// so the descriptor is opened first:
+/// while it is held no other process can take that number,
+/// and a `/proc/<pid>` entry that is gone then belongs to the process that ended and not to another one.
+/// A process this one cannot see (another pid namespace, or a mount that hides `/proc/<pid>`)
+/// is not gone, and the descriptor says so: it is not readable when the process has not ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function standingOfWithin(pid: number, deadline: number): MemberStanding
+/// ```
+pub(crate) fn standing_of_within(
+    pid: i32,
+    deadline: Instant,
+) -> MemberStanding {
+    let Some(named) = Pid::from_raw(pid) else {
+        // A listed number that names no process this one could ever signal: `cgroup.procs` writes 0 for a process of another
+        // pid namespace. It may still write, so it is never read as gone.
+        return MemberStanding::Unknown(format!(
+            "the scope listed {pid}, which names no process this one can see (a process of another pid namespace reads that way)"
+        ));
+    };
+    let descriptor: OwnedFd = match pidfd_open(named, PidfdFlags::empty()) {
+        Ok(found) => found,
+        Err(Errno::SRCH) => return MemberStanding::Gone,
+        Err(error) => {
+            return MemberStanding::Unknown(format!(
+                "a descriptor for it could not be opened, so its pid cannot be held while its threads are read ({error})"
+            ));
+        }
+    };
     let folder: String = format!("/proc/{pid}/task");
     let entries = match fs::read_dir(&folder) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return MemberStanding::Gone,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if has_ended(&descriptor) {
+                return MemberStanding::Gone;
+            }
+            return MemberStanding::Unknown(format!(
+                "{folder} is not readable although the process has not ended ({error}): a mount option, or another pid namespace, hides it from this process"
+            ));
+        }
         Err(error) => {
             return MemberStanding::Unknown(format!("{folder} cannot be read ({error})"));
         }
@@ -331,6 +626,11 @@ pub(crate) fn standing_of(pid: i32) -> MemberStanding {
     let mut a_thread_lives: bool = false;
     let mut threads: usize = 0;
     for listed in entries {
+        if Instant::now() >= deadline {
+            return MemberStanding::Unknown(format!(
+                "its threads could not all be read within {LISTING_BOUND:?}"
+            ));
+        }
         let entry: fs::DirEntry = match listed {
             Ok(found) => found,
             Err(error) => {
@@ -378,4 +678,27 @@ pub(crate) fn standing_of(pid: i32) -> MemberStanding {
         };
     }
     return MemberStanding::Exited;
+}
+
+/// What:
+/// `fn has_ended(descriptor: &OwnedFd) -> bool` asks a pidfd whether its process has ended, without waiting.
+/// Why:
+/// A pidfd becomes readable at the process's end,
+/// so a `/proc` entry that is gone is either a process that ended (readable) or one this process cannot see (not readable).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hasEnded(descriptor: Fd): boolean
+/// ```
+fn has_ended(descriptor: &OwnedFd) -> bool {
+    let mut watched: [PollFd; 1] = [PollFd::new(descriptor, PollFlags::IN)];
+    // No wait at all: the question is whether the descriptor is readable now.
+    let none: Timespec = Timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    return match poll(&mut watched, Some(&none)) {
+        Ok(count) => count > 0,
+        Err(_) => false,
+    };
 }

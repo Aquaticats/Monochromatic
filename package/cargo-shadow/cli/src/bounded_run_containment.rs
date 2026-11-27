@@ -471,19 +471,12 @@ pub(crate) fn stop_everything(
                     "the program did not end within {REAP_BOUND:?} after it was killed; {scope}"
                 ));
             }
-            if !report.empty() && report.may_still_write() {
-                return Err(format!(
-                    "a member of the scope could not be shown stopped; {scope}"
-                ));
+            if report.empty() {
+                return Ok(());
             }
-            if !report.empty() {
-                // The kernel did not read the scope as empty, and no member it listed can write: the refusal keeps the message,
-                // because only `populated 0` proves a run is settled.
-                return Err(format!(
-                    "the scope did not read as empty, and no member it listed can still write; {scope}"
-                ));
-            }
-            Ok(())
+            // The kernel did not read the scope as empty: the refusal names what the listing found and nothing more (issue 6528's
+            // review, Medium 1).
+            return Err(format!("{}; {scope}", report.headline()));
         }
         Containment::ProcessGroup => match Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)) {
             Some(group) if stop_process_group(child, group) => Ok(()),

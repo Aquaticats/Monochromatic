@@ -1044,11 +1044,15 @@ and an HTTP 429 is retried after its `Retry-After`.
   neither rolled back nor accepted and the journal kept,
   and the command is not run.
   That refusal says how long the stop waited for `populated 0` and what it was waiting for:
-  every process the scope still listed,
-  with the state of its threads,
+  every process the scope and the groups below it still listed,
+  with the group below the scope a member stands in and the state of its threads,
   so a reader can tell a member that has exited and only waits to be reaped (it can write nothing)
   from one that is alive,
   and from a leader that exited behind a live thread (which can still write).
+  The listing has a bound of its own (`LISTING_BOUND`), so a scope with many threads delays a refusal by that much and no
+  more;
+  a listing that hit it, or one that could not be read at all, is said to have done so rather than read as a scope whose
+  members can write nothing.
   A member that has exited is never what refuses a command:
   the `populated` line of a group's `cgroup.events` counts no process whose last thread has ended,
   and `cgroup.procs` does not list one (measured on this host 2026-11-27,
@@ -1596,6 +1600,9 @@ because their caps and their freed-byte reports are about the disk (the "Limits"
 
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
 its bound plus twice `QUIESCE_BOUND` (5 s).
+A stop that has to refuse then lists the members it found, inside the listing's own bound (`LISTING_BOUND` in
+`src/control_group_stop.rs`),
+so a refusal answers within its bound plus twice `QUIESCE_BOUND` and that listing bound.
 On this host under a load average near 100,
 two of them failed that window once (`the judged run ended after 15.294850135s, not at its bound of 1.6s` and
 `the call answered after 12.513946534s, not within its bound 10s`),
