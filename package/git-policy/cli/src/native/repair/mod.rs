@@ -130,6 +130,9 @@
 //! - `package_repair_pnpm.rs`:
 //!   the pnpm repair of a new worktree:
 //!   relink the copied `node_modules` offline against the frozen lockfile.
+//! - `package_repair_relink_hand_over.rs`:
+//!   the hand-over of a worktree's relink to the commit service,
+//!   and the relink the add does when no service takes it.
 //! - `package_repair.rs`:
 //!   the repair of a new worktree's package-manager state after a rung filled it and the ignored files were copied.
 //! - `package_repair_relink_job.rs`:
@@ -298,6 +301,11 @@ pub mod package_repair_cargo_workspaces;
 /// rebuild the links and launchers that name another checkout's lock.
 #[cfg(target_os = "linux")]
 pub mod package_repair_toolchain;
+
+/// The hand-over of a worktree's relink to the commit service,
+/// and the relink the add does when no service takes it.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_hand_over;
 
 /// The repair of a new worktree's package-manager state after a rung filled it and the ignored files were copied.
 #[cfg(target_os = "linux")]
