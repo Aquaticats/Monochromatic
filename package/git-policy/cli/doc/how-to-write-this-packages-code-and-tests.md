@@ -196,6 +196,26 @@ and a control that read it asserted on the cap the run happened to carry rather 
 the quota's effect on `available_parallelism` is measured in
 `doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
 
+The service's stop is one such fact
+(`process/stop_of_the_service_noticed_by_its_children.rs`):
+the signal the handler recorded,
+the pipe it wakes the shutdown through,
+the level every waiter reads and the count of unfinished work
+are statics of the whole test process,
+so a control that records a stop,
+prepares to notice one or reads them runs its body in a child of its own
+(`testing/process_wide_state_child_test_support.rs`),
+and so does a control that starts a step a recorded stop would refuse
+(`process/signal_relay_tests.rs`).
+A threaded `push::` run failed 110 of its 600 tests and a threaded `process::` run failed eleven on 2026-11-26
+(issues 6530 and 6531),
+because the stop one control recorded was the stop every other control then read.
+Measured on 2026-11-27:
+a threaded run of `process::stop_of_the_service_noticed_by_its_children::tests` answered
+`test result: FAILED. 2 passed; 8 failed`,
+and `a_process_that_never_prepared_counts_nothing_and_refuses_nothing` recorded the stop first,
+after which every control that needed to record its own found one already there.
+
 A control that holds a fault point of the service
 (`service_fault_hooks_test_support.rs`)
 names the instance it owns in the point itself:
