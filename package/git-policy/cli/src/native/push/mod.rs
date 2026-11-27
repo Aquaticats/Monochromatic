@@ -66,6 +66,18 @@
 //!   what a remote has already published:
 //!   the commits a prior destination value names,
 //!   and the tracking refs Git keeps.
+//! - `push_failure_notice_record_text.rs`:
+//!   what a record's text is:
+//!   its first line,
+//!   the field lines that name its branch and its commit,
+//!   the name it is kept under,
+//!   the words it carries,
+//!   and their cleaning.
+//! - `push_failure_notice_worktrees.rs`:
+//!   which worktree a record belongs to:
+//!   the branch each worktree has checked out,
+//!   the rule that says a record is the asking worktree's,
+//!   and the way a commit is named for the person.
 //! - `push_failure_notice_claimed_by_one_command.rs`:
 //!   the name a command holds a notice's record under while it shows it,
 //!   and who may take one over.
@@ -75,9 +87,18 @@
 //! - `push_failure_notice_reports.rs`:
 //!   the record of what a push that succeeded did,
 //!   and the name it is kept under.
+//! - `push_failure_notice_record_parsed.rs`:
+//!   a record read back:
+//!   the kind its first line names,
+//!   the branch,
+//!   the commit,
+//!   and the words after them.
 //! - `push_failure_notice_shown_then_removed.rs`:
 //!   one record of a failed push as a command holds it,
 //!   with the step that shows it and removes it.
+//! - `push_failure_notice_cleared_after_a_push.rs`:
+//!   the records a push of a branch makes no longer true,
+//!   and the step that removes them once such a push succeeded.
 //! - `push_failure_notice.rs`:
 //!   the record of a failed backup push and the rule for when a wrapper command shows it.
 //! - `push_failure_notice_words.rs`:
@@ -547,9 +568,34 @@ pub mod push_failure_notice_machine_output;
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 
+/// A record read back:
+/// the kind its first line names,
+/// the branch,
+/// the commit,
+/// and the words after them.
+pub mod push_failure_notice_record_parsed;
+
 /// One record of a failed push as a command holds it,
 /// with the step that shows it and removes it.
 pub mod push_failure_notice_shown_then_removed;
+
+/// What a record's text is:
+/// its first line,
+/// the field lines that name its branch and its commit,
+/// the name it is kept under,
+/// the words it carries,
+/// and their cleaning.
+pub mod push_failure_notice_record_text;
+
+/// Which worktree a record belongs to:
+/// the branch each worktree has checked out,
+/// the rule that says a record is the asking worktree's,
+/// and the way a commit is named for the person.
+pub mod push_failure_notice_worktrees;
+
+/// The records a push of a branch makes no longer true,
+/// and the step that removes them once such a push succeeded.
+pub mod push_failure_notice_cleared_after_a_push;
 
 /// The name a command holds a notice's record under while it shows it,
 /// and who may take one over.
