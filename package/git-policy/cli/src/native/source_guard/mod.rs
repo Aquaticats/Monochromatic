@@ -436,6 +436,32 @@ pub(crate) fn release_sources_under(prefixes: &[&str]) -> Result<Vec<(String, St
 }
 
 /// What:
+///  `release_sources_holding(words)` is every release source that names one of `words` anywhere in its text,
+///  each as its identity and its text,
+///  read one file at a time.
+/// Why:
+///  A ban whose subject is a lane of code rather than a folder selects its files by reading each one and keeping only
+///  those that name the lane,
+///  so the whole tree is never held at once
+///  (issue 6598: the sources are 46 MB and one guard that held them all spent 890 MiB).
+///  The words are matched in comments too,
+///  because a file of the lane says in its doc why it hands its lines over.
+pub(crate) fn release_sources_holding(words: &[&str]) -> Result<Vec<(String, String)>, String> {
+    let root: std::path::PathBuf = source_scan_tests::source_root();
+    let roots: Vec<source_scan_tests::CrateRoot> = source_scan_tests::real_roots();
+    let mut found: Vec<(String, String)> = Vec::new();
+    for path in release_sources_in(root.as_path(), roots.as_slice())? {
+        let text: String = std::fs::read_to_string(root.join(path.as_str()))
+            .map_err(|error| return format!("cannot read {path}: {error}"))?;
+        if !words.iter().any(|word| return text.contains(*word)) {
+            continue;
+        }
+        found.push((path, text));
+    }
+    return Ok(found);
+}
+
+/// What:
 ///  `HoldingLine` is one code line of a release source that holds a text a ban forbids:
 ///  the file's identity,
 ///  the banned text it holds,
