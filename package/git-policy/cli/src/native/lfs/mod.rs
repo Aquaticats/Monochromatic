@@ -52,6 +52,11 @@
 //! - `lfs_object_plan.rs`:
 //!   the upload plan narrowed to the objects the push introduces,
 //!   or to nothing.
+//! - `lfs_upload_child_run.rs`:
+//!   one child run of the upload:
+//!   the commands it runs,
+//!   the standard error captured from one of them,
+//!   and the wait that ends it.
 //! - `lfs_upload.rs`:
 //!   the parent's bounded or interactive run of the Git LFS upload.
 //! - `lfs_interactive.rs`:
@@ -125,6 +130,12 @@ pub mod lfs_pointer_scan;
 /// The upload plan narrowed to the objects the push introduces,
 /// or to nothing.
 pub mod lfs_object_plan;
+
+/// One child run of the upload:
+/// the commands it runs,
+/// the standard error captured from one of them,
+/// and the wait that ends it.
+pub mod lfs_upload_child_run;
 
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
