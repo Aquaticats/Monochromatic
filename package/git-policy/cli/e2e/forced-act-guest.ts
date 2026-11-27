@@ -213,9 +213,11 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    // `-j 2` because one rustc of this crate took the guest's whole memory when two ran at once (a killed rustc, the
-    // run's own log), and the library's test binary is the only target the arm needs.
-    'cargo test --release --lib --no-run --locked -j 2 > /root/forced-act-build.log 2>&1',
+    // One job, for the same reason the deferred-origin driver runs one: this build is the library's test binary, and
+    // one `rustc` of it takes the guest's whole memory. Measured 2026-11-27 in the guest of issue 6612's round at two
+    // jobs, the build's own samples read `AnonPages` 7,249,568 kB of the guest's 8,131,780 kB with one `rustc` at
+    // 7,418,336 kB resident and `MemAvailable` at 398,408 kB at its lowest.
+    'cargo test --release --lib --no-run --locked -j 1 > /root/forced-act-build.log 2>&1',
     'tail --lines=3 /root/forced-act-build.log',
   ]
     .join('\n',);
