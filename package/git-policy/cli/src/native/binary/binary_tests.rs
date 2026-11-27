@@ -990,6 +990,15 @@ mod service_selection;
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
 
+/// What a repository holds after a command, as labelled text:
+/// its head,
+/// its references,
+/// the fields of its newest commit,
+/// the index and the two diffs,
+/// and the state files an unfinished operation leaves.
+#[path = "binary_service_landing_support_what_a_repository_holds.rs"]
+mod service_landing_support_what_a_repository_holds;
+
 /// The twin harness of the landing controls:
 /// native Git in one byte copy,
 /// the service in the other,
