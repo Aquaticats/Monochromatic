@@ -41,7 +41,7 @@ use crate::random_id::{
     is_canonical_uuid,
     random_uuid,
 };
-use crate::service_index_lock::IndexLock;
+use crate::service_index_hold::IndexLock;
 use crate::service_land_follow::storage_failure;
 use crate::service_protocol::FailureCode;
 use std::io::Write as _;

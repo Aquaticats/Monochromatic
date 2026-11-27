@@ -19,6 +19,12 @@
 //!   its slot,
 //!   the record of every file made,
 //!   and the step that makes and records one.
+//! - `the_names_of_the_index_lock.rs`:
+//!   the path of an index lock,
+//!   how often a holder's line is repeated,
+//!   what the wait tells the clients,
+//!   why a wait gave up,
+//!   and the code a storage error stands for.
 //! - `service_messages_the_failures_a_person_can_meet.rs`:
 //!   every failure the client can meet,
 //!   and the facts its text names.
@@ -133,9 +139,6 @@
 //!   the service's hold on a placed index lock:
 //!   the check that it is still the holder's,
 //!   the release and the removal.
-//! - `service_index_unheld_removal.rs`:
-//!   the removal of an index lock that no process holds and no Git lock PID file stands behind,
-//!   on a proof written to the service journal.
 //! - `service_index_watch.rs`:
 //!   the inotify watch the wait for the index lock blocks on.
 //! - `service_land_batch_import_stream_and_overlaps.rs`:
@@ -363,26 +366,30 @@
 //! - `service_index_placement.rs`:
 //!   how the service's marked file becomes the index lock,
 //!   and the cleanup of staging files.
-//! - `service_index_reclaim.rs`:
-//!   the removal of a stale index lock,
-//!   by a rename and a second look.
 //! - `service_index_staging.rs`:
 //!   the staging files of the index lock.
 //! - `service_index_holder_look.rs`:
 //!   what one look at the held index lock proves,
 //!   and the words the person is told about its holder.
-//! - `service_index_attempts.rs`:
-//!   the attempts and the wait of an acquisition of the index lock.
 //! - `service_index_claim_files.rs`:
 //!   what the file at one slot of the claim chain is,
 //!   read without following a link or waiting on a pipe.
 //! - `service_index_claim.rs`:
 //!   the claim chain that keeps two reclaimers apart where the file system gives no `flock`.
-//! - `service_index_lock.rs`:
-//!   the commit service's hold on Git's index lock across a landing.
+//! - `service_index_reclaim.rs`:
+//!   the removal of a stale index lock,
+//!   by a rename and a second look,
+//!   and the pass that reclaims one whose holder is gone.
+//! - `service_index_unheld_removal.rs`:
+//!   the removal of an index lock that no process holds and no Git lock PID file stands behind,
+//!   on a proof written to the service journal.
+//! - `service_index_attempts.rs`:
+//!   the attempts and the wait of an acquisition of the index lock.
 //! - `service_index_prestage.rs`:
 //!   the marker of the next batch's index lock,
 //!   made and flushed while the service is idle.
+//! - `service_index_lock.rs`:
+//!   the commit service's hold on Git's index lock across a landing.
 //! - `service_index_wait.rs`:
 //!   the wait of a wrapped index writer for the commit service's own hold on the index.
 //! - `service_hold_retry.rs`:
@@ -994,6 +1001,14 @@ pub mod service_land_start;
 /// What one look at the held index lock proves,
 /// and the words the person is told about its holder.
 pub mod service_index_holder_look;
+
+/// The words and the names the index lock uses:
+/// the path of a lock,
+/// how often a holder's line is repeated,
+/// what the wait tells the clients,
+/// why a wait gave up,
+/// and the code a storage error stands for.
+pub mod the_names_of_the_index_lock;
 
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;

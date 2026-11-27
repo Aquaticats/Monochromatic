@@ -44,18 +44,14 @@ use crate::service_index_holder_look::{
     earlier_commit_line,
     look_at_holder,
 };
-use crate::service_index_lock::{
-    Announce,
-    Announcer,
-    LockFailure,
-    notice_every,
-};
 use crate::service_index_placement::{
     Placed,
     Platform,
-    Reclaimed,
     log_placement_failure,
     place_lock,
+};
+use crate::service_index_reclaim::{
+    Reclaimed,
     reclaim,
 };
 use crate::service_index_reclaim::{
@@ -79,6 +75,13 @@ use crate::service_index_watch::{
     Watch,
 };
 use crate::service_protocol::FailureCode;
+use crate::the_names_of_the_index_lock::{
+    Announce,
+    Announcer,
+    LockFailure,
+    notice_every,
+    storage_failure,
+};
 use std::path::Path;
 use std::time::{
     Duration,
@@ -253,7 +256,7 @@ pub(crate) fn wait_and_place(
             Err(error) => {
                 log_placement_failure(lock, &error);
                 return Err(LockFailure {
-                    code: crate::service_land_follow::storage_failure(&error),
+                    code: storage_failure(&error),
                 });
             }
         }

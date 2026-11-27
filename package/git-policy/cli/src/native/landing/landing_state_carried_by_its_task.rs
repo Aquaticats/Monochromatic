@@ -28,10 +28,11 @@
 //! await landing.run(new LandingState(), () => landTheBatch());
 //! ```
 
+use crate::index_lock_evidence::LockMetadata;
 use crate::service_busy::LandingBoard;
-use crate::service_durable::Pending;
-use crate::service_index_prestage::Slot;
-use crate::service_index_refused_lock::Refused;
+use crate::service_durable_syncs::SyncFigure;
+use crate::service_durable_the_background_sync_thread::Pending;
+use crate::service_index_prestage_the_markers_made_ahead::Slot;
 use std::cell::{
     Cell,
     RefCell,
@@ -39,10 +40,22 @@ use std::cell::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 tokio::task_local! {
     /// The state of the landing the current task (or the scoped synchronous call) runs.
     static LANDING: LandingState;
+}
+
+/// The lock that outlasted a wait,
+/// and how long that wait was.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Refused {
+    /// Device,
+    /// inode and change time of the lock file.
+    pub(crate) identity: LockMetadata,
+    /// How long the commits that waited for this file waited in all.
+    pub(crate) waited: Duration,
 }
 
 /// What one landing remembers,
@@ -88,7 +101,7 @@ pub struct LandingState {
     pub(crate) queued_syncs: RefCell<Vec<Pending>>,
     /// Every sync this landing made or handed to the background so far,
     /// in the order it asked for them (`service_durable.rs`).
-    pub(crate) syncs: RefCell<Vec<crate::service_durable_syncs::SyncFigure>>,
+    pub(crate) syncs: RefCell<Vec<SyncFigure>>,
     /// The bytes of each commit this landing already asked Git for,
     /// by commit name,
     /// so one commit read for its objects and again for its reflog row costs one Git start

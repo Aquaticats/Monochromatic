@@ -23,6 +23,7 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::the_names_of_the_index_lock::notice_every;
 
 /// A rename that does not replace,
 /// which refuses the names of claims and nothing else.

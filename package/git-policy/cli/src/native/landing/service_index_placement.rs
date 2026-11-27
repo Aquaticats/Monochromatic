@@ -420,21 +420,3 @@ pub fn placement_failure_text(
         lock.display()
     ));
 }
-
-/// Removes the stale `lock`,
-/// whose holder is gone,
-/// while no other reclaimer holds it;
-/// what came of it is the answer (`Reclaimed`),
-/// and the log says why a stale lock stays.
-pub fn reclaim(
-    platform: &Platform,
-    lock: &Path,
-) -> Reclaimed {
-    return reclaim_if(platform, lock, StaleMark::HolderIsGone);
-}
-
-pub use crate::service_index_reclaim::{
-    Reclaimed,
-    StaleMark,
-    reclaim_if,
-};

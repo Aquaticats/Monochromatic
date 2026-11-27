@@ -45,7 +45,6 @@ use crate::service_index_claim::{
     ClaimHold,
     take_claim,
 };
-use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::{
     LOCK_MARKER,
     MARKER_VERSION,
@@ -58,6 +57,7 @@ use crate::service_index_placement::{
     Platform,
     SYSTEM,
 };
+use crate::the_names_of_the_index_lock::lock_path_of;
 use std::os::unix::fs::{
     MetadataExt,
     OpenOptionsExt,
@@ -308,6 +308,18 @@ fn cleared(
 
 /// Opens `lock` to read its marker without following a link or waiting on a pipe,
 /// and without a descriptor a child could inherit.
+/// Removes the stale `lock`,
+/// whose holder is gone,
+/// while no other reclaimer holds it;
+/// what came of it is the answer (`Reclaimed`),
+/// and the log says why a stale lock stays.
+pub fn reclaim(
+    platform: &Platform,
+    lock: &Path,
+) -> Reclaimed {
+    return reclaim_if(platform, lock, StaleMark::HolderIsGone);
+}
+
 pub(crate) fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
     return std::fs::OpenOptions::new()
         .read(true)
