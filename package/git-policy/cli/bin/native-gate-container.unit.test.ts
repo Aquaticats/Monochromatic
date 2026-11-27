@@ -16,6 +16,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { runGateContainer, } from './native-gate-container.ts';
+import type { ContainerMemorySample, ContainerMemoryWatch, } from './native-gate-container-memory.ts';
 import {
   announceContainerId,
   containerIdWhenWritten,
@@ -55,6 +56,54 @@ const suiteIdentity = gateContainerIdentityOf({
  An ID in the shape podman writes to the ID file, so the test can tell which run it read.
  */
 const containerId = '3f2a9c1e'.repeat(8,);
+
+/**
+ A memory sample of a container the kernel killed inside its bound, in the shape the watcher answers.
+
+ @returns the sample
+ */
+function killedMemorySample(): ContainerMemorySample {
+  return {
+    cgroupPath: `/sys/fs/cgroup/libpod-${containerId}.scope`,
+    readAt: '2026-11-27T13:00:00.000Z',
+    currentBytes: 2_147_483_648,
+    peakBytes: 2_147_483_648,
+    maxBytes: 2_147_483_648,
+    swapCurrentBytes: 0,
+    swapMaxBytes: 0,
+    pidsCurrent: 4,
+    pidsPeak: 576,
+    stat: { anon: 1_073_741_824, },
+    events: {
+      max: 1_024,
+      oom: 1,
+      oom_kill: 1,
+    },
+  };
+}
+
+/**
+ A watch of a container that met no kill at its bound.
+
+ @returns the watch, which reports a sample of a container that peaked inside its bound
+ */
+function survivedWatch(): ContainerMemoryWatch {
+  return {
+    lastRead: function lastRead() {
+      return {
+        ...killedMemorySample(),
+        currentBytes: 629_145_600,
+        peakBytes: 1_516_845_056,
+        events: {
+          max: 0,
+          oom: 0,
+          oom_kill: 0,
+        },
+      };
+    },
+    stop: async function stop(): Promise<void> {},
+  };
+}
 
 /**
  The bound every container of the runs below is given, in the option form the caller's own limits take
@@ -468,6 +517,89 @@ await describe({
       },
       timeout: 20_000,
     },),
+    describe({
+      name: 'when the container was killed for memory',
+      // Each check below diverts stdout for its own duration, so they run one after the other.
+      concurrency: 1,
+      children: [
+        it({
+          name: 'says so when the container it ran was killed at its memory bound, apart from any test failure beside it',
+          fn: async () => {
+            await using tree = await containerTestTree({ delegate: standInPodmanThatEnds, },);
+            using printed = collectingLines({ lines: [], },);
+            /**
+             Every container the run started a memory watch for.
+             */
+            const watched: string[] = [];
+            /**
+             Whether the watch was stopped before the run answered.
+             */
+            let stopped = false;
+            /**
+             What the client answered.
+             */
+            const outcome = await runGateContainer({
+              cidFile: join(
+                tree.path,
+                'killed.cid',
+              ),
+              identity: suiteIdentity,
+              limits: gateLimits,
+              args: ['image'],
+              capture: true,
+              deadlineMilliseconds: standInDeadlineMilliseconds,
+              environment: {
+                ...process.env,
+                PATH: `${tree.standInDirectory}:${process.env.PATH ?? ''}`,
+                PODMAN_LOG: tree.argumentLog,
+                PODMAN_CONTAINER_ID: containerId,
+              },
+              watchMemory: function watchedMemory({ containerId: id, },) {
+                watched.push(id,);
+                return {
+                  lastRead: killedMemorySample,
+                  stop: async function stop(): Promise<void> {
+                    stopped = true;
+                  },
+                };
+              },
+            },);
+            expect(outcome.status,).toBe(0,);
+            expect(watched,).toEqual([containerId,],);
+            expect(stopped,).toBe(true,);
+            expect(printed.lines.join('\n',),).toContain('was killed for memory',);
+          },
+          timeout: 20_000,
+        },),
+        it({
+          name: 'says nothing about memory when the container it ran met no kill',
+          fn: async () => {
+            await using tree = await containerTestTree({ delegate: standInPodmanThatEnds, },);
+            using printed = collectingLines({ lines: [], },);
+            await runGateContainer({
+              cidFile: join(
+                tree.path,
+                'survived.cid',
+              ),
+              identity: suiteIdentity,
+              limits: gateLimits,
+              args: ['image'],
+              capture: true,
+              deadlineMilliseconds: standInDeadlineMilliseconds,
+              environment: {
+                ...process.env,
+                PATH: `${tree.standInDirectory}:${process.env.PATH ?? ''}`,
+                PODMAN_LOG: tree.argumentLog,
+                PODMAN_CONTAINER_ID: containerId,
+              },
+              watchMemory: survivedWatch,
+            },);
+            expect(printed.lines.join('\n',),).not.toContain('killed for memory',);
+          },
+          timeout: 20_000,
+        },),
+      ],
+    }),
   ],
 },);
 
