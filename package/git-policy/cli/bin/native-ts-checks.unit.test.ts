@@ -181,15 +181,18 @@ async function writeUnitTestFiles({
     directory,
     { recursive: true, }
   );
-  for (let index = 0; index < count; index += 1) {
-    await writeFile(
-      join(
-        directory,
-        `suite-${String(index)}.unit.test.ts`
-      ),
-      '',
-    );
-  }
+  await Promise.all(Array.from(
+    { length: count, },
+    function fileFor(_unused, index) {
+      return writeFile(
+        join(
+          directory,
+          `suite-${String(index)}.unit.test.ts`
+        ),
+        '',
+      );
+    },
+  ));
 }
 
 /**
@@ -677,7 +680,9 @@ await describe({
     it({
       name: 'prints a passed check as its status alone and never the output of a check that passed',
       fn: async () => {
-        expect(resultLinesOf({
+        // A task that names no package's unit tests and no type check has no count to earn, so this directory is never
+        // read for it.
+        const result = await resultLinesOf({
           check: checkRun({
             outcome: {
               status: 0,
@@ -688,7 +693,10 @@ await describe({
               accounting: SCOPE_NOT_READ,
             },
           }),
-        }),).toEqual(['//package/a:b: exit 0'],);
+          worktree: import.meta.dirname,
+        });
+        expect(result.lines,).toEqual(['//package/a:b: exit 0'],);
+        expect(result.passed,).toBe(true,);
       },
     }),
     it({
@@ -697,7 +705,7 @@ await describe({
         /**
          The lines the check printed for a scope that counted refused forks.
          */
-        const lines = resultLinesOf({
+        const result = await resultLinesOf({
           check: checkRun({
             outcome: {
               status: 1,
@@ -708,9 +716,16 @@ await describe({
               accounting: refusedForkAccounting,
             },
           }),
+          worktree: import.meta.dirname,
         });
+        /**
+         The lines themselves.
+         */
+        const { lines, } = result;
         expect(lines[0],).toBe('//package/a:b: exit 1',);
         expect(lines.slice(1,),).toContain('FAIL [   0.4s] (2/3) a test that needed a process',);
+        // A failing check keeps exactly what its own output said, so the run does not count it as passed.
+        expect(result.passed,).toBe(false,);
         /**
          Everything the check printed, which the claim about the bound is read from.
          */
@@ -747,8 +762,8 @@ await describe({
         expect(printed.status,).toBe(2,);
         expect(printed.stdout,).toContain('no [PASS] suite line',);
         expect(printed.stdout,).toContain('2 unit test files',);
-        // A run that checked nothing is not a pass, so no line of it reads as one.
-        expect(printed.stdout,).not.toContain('//package/a:test:unit: exit 0\n',);
+        // A run that checked nothing is not a pass, and says so rather than reading as one.
+        expect(printed.stdout,).toContain('this run does not count as passed',);
       },
     }),
     it({
