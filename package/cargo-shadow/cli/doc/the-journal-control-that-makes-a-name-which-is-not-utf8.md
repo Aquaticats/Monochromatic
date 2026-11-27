@@ -176,7 +176,8 @@ which is why the case asserts that and not only the message.
   declares the new module.
 - `Cargo.toml`:
   `rustix` gains the `mount` feature
-  (in `[dev-dependencies]` since the alpha.11 release pass, 2026-11-27:
+  (in `[dev-dependencies]` since the alpha.11 release pass,
+  2026-11-27:
   the only caller is a `#[cfg(test)]` module,
   so the release build compiles no such feature).
 - `src/journal_tests.rs`:
