@@ -377,8 +377,9 @@ fn a_live_installer_holds(
 /// function aFinishedCopyNothingHerePublishes(version: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined, sibling: Leftover): boolean {
 ///   if (!hasCompleteMarker(sibling.path)) return false;
 ///   if (sibling.version !== version) return true;
+///   if (expected === undefined) return true;
 ///   if (olderVersion === 'may-stay') return false;
-///   return expected === undefined || markerVouches(sibling.path, expected);
+///   return markerVouches(sibling.path, expected);
 /// }
 /// ```
 fn a_finished_copy_nothing_here_publishes(
@@ -393,13 +394,13 @@ fn a_finished_copy_nothing_here_publishes(
     if sibling.version != version {
         return true;
     }
+    let Some(record) = expected else {
+        return true;
+    };
     if matches!(older_version, AnOlderVersion::MayStay) {
         return false;
     }
-    return match expected {
-        Some(record) => marker_vouches(&sibling.path, record),
-        None => true,
-    };
+    return marker_vouches(&sibling.path, record);
 }
 
 /// What:
