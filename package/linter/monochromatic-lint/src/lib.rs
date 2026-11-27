@@ -420,6 +420,9 @@ pub mod shell_scan;
 mod shell_scan_cmd;
 /// The POSIX-family and fish scanner.
 mod shell_scan_posix;
+/// The state a POSIX-family or fish scan keeps,
+///  and the movement its steps share.
+mod shell_scan_posix_state;
 /// The PowerShell scanner.
 mod shell_scan_powershell;
 
