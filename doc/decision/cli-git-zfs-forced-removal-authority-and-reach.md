@@ -18,6 +18,9 @@ The designs it binds are still unapproved:
 `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`
 and `doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
 each on its own branch.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What was decided
 
@@ -127,6 +130,9 @@ section "The questions as I would put them",
 questions S12,
 S4,
 S6 and S7).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### A holder in a namespace whose mounts are shared
 
@@ -246,6 +252,9 @@ all with hand-made mounts
 (`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`;
 the reviewer's read against the logs:
 `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-second-probe-round.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It confirms a direction,
 not a build:
 the design's third group of measurements needs step 17's code.

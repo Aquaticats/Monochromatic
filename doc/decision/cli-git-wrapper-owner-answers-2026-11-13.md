@@ -120,6 +120,9 @@ every branch named here waits for a review or for its author.
   So the draft is a comment with this machine's counts,
   not a new issue:
   `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/draft-for-the-owner-to-post-comment-on-upstream-pi-issue-10656.md`.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
   Nothing was posted.
   That thread names answers of the same provider that must stay final
   (`PrepaidBillOverdue`,
