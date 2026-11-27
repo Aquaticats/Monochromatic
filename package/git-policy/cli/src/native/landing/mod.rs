@@ -513,6 +513,15 @@
 //!   with the line the person reads for it.
 //! - `service_work_drain_deletes_subvolumes.rs`:
 //!   the drain's step that deletes the subvolumes a removal handed over.
+//! - `service_work_drain_claims_by_kind.rs`:
+//!   the claimed items of one batch of the drain,
+//!   sorted into one list per kind of work.
+//! - `service_work_drain_housekeeping_and_upkeep.rs`:
+//!   the housekeeping one round of the drain may start,
+//!   the upkeep it runs on the items it holds,
+//!   and what it leaves for a later round.
+//! - `service_work_drain_look_again.rs`:
+//!   when the caller of one drain of a work directory must look at it again.
 //! - `service_work_drain_pending_claims.rs`:
 //!   drains the pending items of one work directory.
 //! - `service_work_items_side_by_side.rs`:
@@ -1028,6 +1037,18 @@ pub mod service_work_drain_waves_of_one_kind;
 /// the branches run beside each other,
 /// and each settled as its own answer comes.
 pub mod service_work_drain_pushes_of_each_branch;
+
+/// The claimed items of one batch of the drain,
+/// sorted into one list per kind of work.
+pub mod service_work_drain_claims_by_kind;
+
+/// The housekeeping one round of the drain may start,
+/// the upkeep it runs on the items it holds,
+/// and what it leaves for a later round.
+pub mod service_work_drain_housekeeping_and_upkeep;
+
+/// When the caller of one drain of a work directory must look at it again.
+pub mod service_work_drain_look_again;
 
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
