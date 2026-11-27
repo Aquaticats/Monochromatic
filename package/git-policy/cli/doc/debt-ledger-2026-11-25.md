@@ -1246,7 +1246,9 @@ level with `origin/main` at `caeeb3d2ad`
 (`monochromatic-lint` 0.5.2-alpha.17,
 run on `package/git-policy/cli`):
 the file holds 298 code lines and the linter reports no `rust/max-lines` finding for it,
-against 40 such findings in the crate and none of them under `command/`.
+against 40 such findings in the crate when the count was taken and none of them under `command/`
+(39 on the tree this note lands on,
+and fewer as other split rounds land).
 Two controls say that reading is the budget and not a file the scan skips:
 a hand count of three files whose line counts the linter names matches it exactly
 (`foundation/private_storage.rs` 409,
