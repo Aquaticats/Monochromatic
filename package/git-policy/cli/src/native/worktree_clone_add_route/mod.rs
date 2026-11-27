@@ -41,7 +41,10 @@
 //! - `add_route_plan.rs`: the names it chooses, its request, and the test-only stop switch.
 //! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
 //! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
-//! - `add_zfs.rs`: the pool's reads, the snapshot, the clone, the inventories and the mount request.
+//! - `add_zfs_pool_answers.rs`:
+//!   what the pool answered, read back and refused: the identities, the clone's properties, the mountpoint's sentence.
+//! - `add_zfs.rs`: the device opened behind the gate, and the snapshot, the clone and the mount request it sends.
+//! - `add_zfs_inventories.rs`: the origin's and the clone's snapshots and bookmarks.
 //! - `add_plan_clone_presence.rs`:
 //!   what the pool answers about the clone a standing plan records.
 //! - `add_route_steps_facts_and_refusal.rs`:
@@ -114,6 +117,10 @@ pub mod add_route_plan;
 pub mod add_route_steps_facts_and_refusal;
 /// The pool's calls.
 pub mod add_zfs;
+/// The origin's and the clone's snapshots and bookmarks.
+pub mod add_zfs_inventories;
+/// What the pool answered, read back and refused.
+pub mod add_zfs_pool_answers;
 
 pub mod add_route_steps_slot_and_registration;
 
