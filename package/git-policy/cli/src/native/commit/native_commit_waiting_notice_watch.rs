@@ -6,8 +6,12 @@
 //! Why:
 //!  The watching is one job of its own,
 //!  and it is the longest one in this notice:
-//!  it looks, decides the ceiling, stops the step and says what it sees,
-//!  once per look, until the step ends or the command is over.
+//!  it looks,
+//!  decides the ceiling,
+//!  stops the step,
+//!  and says what it sees,
+//!  once per look,
+//!  until the step ends or the command is over.
 //!  The window a control plants is declared here because it is this thread's own state,
 //!  and `native_commit_waiting_notice.rs` re-exports it so a control reaches it as it always did.
 //!
@@ -48,7 +52,8 @@ use crate::wait_progress::{
     Cadence,
     Ticker,
 };
-/// A decision two enforcers of one ceiling share, kept across this thread.
+/// A decision two enforcers of one ceiling share,
+/// kept across this thread.
 use std::sync::Arc;
 /// The channel that ends this thread,
 /// and the queue it hands its lines to.
