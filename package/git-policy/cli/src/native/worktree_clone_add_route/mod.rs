@@ -21,7 +21,9 @@
 //!
 //! - `add_capture_tree.rs`: one descriptor-relative walk of tracked paths.
 //! - `add_capture.rs`: the frozen capture's facts and the walk that takes them.
-//! - `add_capture_record.rs`: the capture's durable grammar and its refusals.
+//! - `add_capture_record_bound.rs`: the record's header, keys and widths, and the bound they name.
+//! - `add_capture_record_fields.rs`: one field of the record's grammar and the refusal that names it.
+//! - `add_capture_record.rs`: the record's bytes in order and its reading.
 //! - `add_capture_store.rs`: where the capture and the proof marker live, and how they are published.
 //! - `add_exchange_trash.rs`: the trash the exchange keeps the copied administration in, and its own manifest.
 //! - `add_exchange_preparation.rs`: the trash entry the saved pointer takes, and the identities on both sides.
@@ -72,6 +74,10 @@
 pub mod add_capture;
 /// The capture's durable record.
 pub mod add_capture_record;
+/// The record's header, keys and widths, and the bound they name.
+pub mod add_capture_record_bound;
+/// One field of the record's grammar and the refusal that names it.
+pub mod add_capture_record_fields;
 /// Where the capture and the proof's marker live.
 pub mod add_capture_store;
 /// One descriptor-relative walk of many tracked paths.
