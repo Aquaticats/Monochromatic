@@ -433,6 +433,9 @@ mod workflow_run;
 mod workflow_shape;
 /// The structural walk that finds every step of a workflow or composite action.
 mod workflow_walk;
+/// The keys and sequence items one workflow walk keeps open,
+///  and how a line moves that stack.
+mod workflow_walk_frames;
 
 /// Disposable native filesystem helpers used only by tests.
 #[cfg(test)]
