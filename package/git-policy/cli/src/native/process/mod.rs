@@ -119,6 +119,11 @@
 //!   the wait for a step a ceiling stopped and the kernel has not released:
 //!   the reap of that step,
 //!   and the line that says it for as long as the wait lasts.
+//! - `waiting_for_a_step_the_kernel_holds.rs`:
+//!   the wait for a step the kernel holds in a call a signal cannot end:
+//!   its bound,
+//!   the one line that says why it lasts,
+//!   and its three ends.
 //! - `child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`:
 //!   an owned child awaited until it exits,
 //!   or ended and reaped here when its step's ceiling comes,
@@ -293,6 +298,12 @@ pub mod stop_of_the_service_noticed_by_its_children;
 /// An owned child awaited until it exits,
 /// or ended and reported when the service's stop is told first.
 pub mod child_awaited_until_it_exits_or_the_service_is_stopped;
+
+/// The wait for a step the kernel holds in a call a signal cannot end:
+///  its bound,
+///  the one line that says why it lasts,
+///  and its three ends.
+pub mod waiting_for_a_step_the_kernel_holds;
 
 /// An owned child awaited until it exits,
 /// or ended and reaped here when its step's ceiling comes,
