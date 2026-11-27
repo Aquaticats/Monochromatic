@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:35:11-05:00
+## The state at 2026-11-27T12:41:54-05:00
 
-`main` was `d4a9bb5544`.
+`main` was `2ff1248256`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 228 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 230 more by this time.
 
 ### Rounds running
 
@@ -202,15 +202,34 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and the ranking stays as it was,
   with its first pair closer;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  four rounds started 2026-11-27T12:11:40-05:00 from one list,
+  two rounds started 2026-11-27T12:11:40-05:00,
   each named `mpm-shadow-alpha-14-release-pass-` and then:
-  `a-failed-or-raced-publish-never-costs-the-finished-copy`;
-  `a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
-  `four-start-messages-name-the-file-and-the-remedy-that-fit`;
-  and `the-busy-start-record-says-what-the-code-and-the-trace-show`,
-  which changes the record alone.
-  The first two both change `leftovers_of_a_killed_install.rs`,
-  each told which part the other holds.
+  `a-failed-or-raced-publish-never-costs-the-finished-copy`
+  and `a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`.
+  Both change `leftovers_of_a_killed_install.rs`,
+  each told which part the other holds;
+  `0.2.7-alpha.15` follows their merges.
+  The other two of that list are merged.
+  The record of a start refused because the program is being written says what the code and the trace show
+  (`9e13d87bbd`):
+  it names no usual cause,
+  quotes a test that exists,
+  and gives the publish's absence as measured in the installer's own process:
+  none where the file system can exchange,
+  and 24 to 48 microseconds over twelve publishes on the two-rename fallback,
+  where the record had said 5.025 ms from two separate `mv` commands.
+  Four start messages name the file and the remedy that fit (`2ff1248256`):
+  a compiled program's dynamic linker is named as such,
+  the last arm offers no step that cannot show the error,
+  the shadow prints the `mpm` candidates it saw with the reason it took or skipped each
+  (where the message had named `command -v -a mpm`,
+  which bash and zsh reject),
+  and an `mpm` without its execute bit is named with its remedy;
+  17 scenarios kept their exit status and standard output.
+- `issue-6616-the-launchers-not-there-message-names-the-interpreter-that-fits`,
+  started 2026-11-27T12:41:38-05:00:
+  the launcher's own message still names a `#!` first line for a compiled program,
+  in a file the round on the shim's messages was told to leave.
 
 Released again on 2026-11-27:
 `cargo-shadow` `0.1.5-alpha.13`
@@ -799,7 +818,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6615,
+  issues 6524 to 6616,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
