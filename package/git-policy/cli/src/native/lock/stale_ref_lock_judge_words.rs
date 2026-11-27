@@ -40,7 +40,7 @@ use std::time::SystemTime;
 ///  in words:
 ///  the notice says it and nothing decides on it.
 /// Why:
-///  A reader who sees "process 42" needs to know whether that process is still there,
+///  A reader who sees `process 42` needs to know whether that process is still there,
 ///  and a number the process table cannot answer for is said as such rather than guessed at.
 ///
 /// In TS you'd write (pseudocode):
