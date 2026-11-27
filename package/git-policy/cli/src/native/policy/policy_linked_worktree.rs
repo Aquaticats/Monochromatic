@@ -30,29 +30,6 @@ use crate::abort_recheck::{
     AbortRecheckPlan,
     plan_the_second_look,
 };
-/// What:
-///  `use` brings names from sibling files into this file;
-///  `super::` means "the parent
-///       module",
-///  where every sibling file of this crate is declared.
-/// Why:
-///   Each part of the decision and each fact it asks for lives in the file that owns it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { dirtyQuestion, targetTree } from '../command/rule_linked_worktree.ts';
-/// ```
-use crate::command_clean::{
-    clean_dry_run_arguments,
-    clean_dry_run_arguments_without_exclusions,
-    paths_only_the_exclusions_add,
-};
-/// The conflicted files a `checkout` or `restore` would replace,
-///  read before the command is refused.
-use crate::conflict_side_guard::{
-    SideVerdict,
-    judge_conflict_sides,
-};
 /// The record of every decision.
 use crate::discard_audit::{
     AuditOutcome,
@@ -80,26 +57,29 @@ use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::policy_audited::record_audited;
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
+/// The refusal of a checkout or a restore that would replace a conflict's resolution,
+///  asked of every command before the worktree's state is measured.
+use crate::policy_linked_worktree_conflicted_file_refusal::{
+    ConflictedFileForm,
+    refuse_a_form_that_would_replace_a_conflicted_file,
+};
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{
     AllowedForm,
     allow_a_discarding_form,
 };
+/// The refusal of a write to the settings every worktree of one repository shares.
+use crate::policy_linked_worktree_shared_settings_refusal::refuse_shared_remote_settings;
+/// The two readings of what work a form would take from the person.
+use crate::policy_linked_worktree_work_a_form_would_discard::{
+    clean_deletes_a_path_only_its_exclusions_ignore,
+    ends_an_operation,
+};
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
-/// The path with every link resolved as far as it exists,
-///  for comparing two spellings of one file,
-///  and the directory a command runs in,
-///  which `--work-tree` does not move.
-use crate::repository_link_paths::{
-    chain_directory,
-    resolve_as_far_as_it_exists,
-};
 /// Where a command runs.
 use crate::repository_location::RepositoryLocation;
-/// What a guarded form does to the operation it finds waiting.
-use crate::rule_abort_operation::ended_operation;
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion,
@@ -115,15 +95,6 @@ use crate::rule_linked_worktree::{
     resolve_linked_worktree,
     target_tree,
 };
-/// The rejection text that names every conflicted file the command would replace.
-use crate::rule_linked_worktree_messages::conflicted_files_message;
-/// Whether a `git remote` or `git config` command writes the settings every worktree shares.
-use crate::rule_shared_remote::{
-    SHARED_REMOTE_SETTINGS_CODE,
-    SharedRemoteChange,
-};
-/// The text that refusal prints.
-use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The three endings every check shares.
@@ -132,245 +103,16 @@ use crate::the_answers_a_policy_gives::{
     fact_unavailable,
     rejected,
 };
-/// The common Git directory,
-///  for naming the file every worktree shares.
-use crate::worktree_identity::common_directory;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{
-    Path,
-    PathBuf,
-};
-
-/// What:
-///  The directory a command of the caller's own runs in,
-///  as Git resolved it:
-///  this process's own directory moved by the `-C` chain the caller
-///  wrote before the subcommand.
-///  `&[OsString]` borrows that chain.
-///  `Result<PathBuf, String>` is the directory or why it could not be named.
-/// Why:
-///   A relative `--file` path is read from where the command runs,
-///  `--work-tree` does not move that directory for `git config`,
-///  and it may name a directory the command does not run in at all,
-///  so the worktree top level plus Git's own prefix is not the answer here:
-///  that prefix is empty whenever the caller sits outside the `--work-tree`,
-///  which is exactly when the two disagree.
-///  Only the `-C` chain moves the directory Git reads a relative path from.
-///  The command inside the shell of a `!` alias runs somewhere else,
-///  which the guard carries as `GuardedForwarded::shell_directory`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const commandDirectory = (globalPrefix) => chainDirectory(process.cwd(), globalPrefix);
-/// ```
-fn command_directory(
-    global_prefix: &[OsString],
-    start: Option<&Path>,
-) -> Result<PathBuf, String> {
-    // The caller's own directory, which no option changes: Git moves it only for `-C`.
-    let Some(cwd) = start else {
-        return Err(String::from(
-            "monochromatic-git-policy-cli could not name the directory this command runs in, so the command was \
-             not judged.",
-        ));
-    };
-    return Ok(chain_directory(cwd, global_prefix));
-}
-
-/// What:
-///  Whether the path a `--file` write names is the configuration file every worktree
-///  shares.
-///  `&Path` borrows the named path,
-///  the directory the command runs in and the shared file.
-/// Why:
-///   The shared file is one of the paths `--file` takes,
-///  and naming it is not naming another file;
-///  a
-///       relative path,
-///  one through `..` and one through a link are the same file,
-///  so both spellings are
-///       resolved the way the filesystem does before they are compared.
-///  A path that names neither the file nor a
-///       link to it is a file of the command's own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesTheSharedFile = (named, directory, shared) => resolve(named.startsWith('/') ? named : join(directory, named)) === resolve(shared);
-/// ```
-fn names_the_shared_file(
-    named: &Path,
-    directory: &Path,
-    shared_file: &Path,
-) -> bool {
-    let spelled: PathBuf = if named.is_absolute() {
-        named.to_path_buf()
-    } else {
-        directory.join(named)
-    };
-    return resolve_as_far_as_it_exists(spelled.as_path())
-        == resolve_as_far_as_it_exists(shared_file);
-}
-
-/// What:
-///  The refusal of a command that would change the remote settings every worktree of the
-///  repository shares,
-///  when the command runs in a linked worktree.
-///  `&SharedRemoteChange` borrows the change the guard decided about,
-///  and `Option<&Path>` the directory Git runs the shell of a `!` alias in,
-///  when the command that writes is the one that shell runs.
-/// Why:
-///   One `.git/config` is shared by the main checkout and every linked worktree,
-///  so a write from a
-///       linked worktree reaches the main checkout and every other worktree;
-///  the refusal names that file and
-///       the main checkout,
-///  and changes nothing.
-///  A main checkout,
-///  a place outside a worktree and an
-///       exempt tool cache keep today's behaviour,
-///  and every other command is left to the policies below.
-///  A
-///       `--file` write is this rule's only when its path resolves to that same file,
-///  read from
-///       the directory the writing command runs in:
-///  the shell's directory for a command a `!` alias runs,
-///  and the
-///       caller's `-C` chain for every other one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refuseSharedRemoteSettings(facts, change, shellDirectory, allowedDirs): PolicyOutcome;
-/// ```
-fn refuse_shared_remote_settings(
-    facts: &mut dyn RepositoryFacts,
-    change: &SharedRemoteChange,
-    shell_directory: Option<&Path>,
-    allowed_worktree_dirs: &[ToolCacheDirectory],
-    start: Option<&Path>,
-) -> PolicyOutcome {
-    let location: RepositoryLocation = match facts.location() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
-    let target: EffectiveTarget =
-        classify_effective_target(&location.identity, allowed_worktree_dirs);
-    // Only a linked worktree shares its configuration with another checkout.
-    if target != EffectiveTarget::LinkedWorktree {
-        return clean();
-    }
-    // The configuration file Git writes for the repository: `$GIT_COMMON_DIR/config`.
-    let shared_file: PathBuf = match common_directory(&location.identity) {
-        Some(directory) => directory.join("config"),
-        None => {
-            return fact_unavailable(String::from(
-                "monochromatic-git-policy-cli could not name the configuration file this repository's worktrees \
-                 share, so the command was not judged.",
-            ));
-        }
-    };
-    // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
-    if let Some(named) = &change.named_file {
-        // Where the writing command runs: a `!` alias's shell starts at the top of the working tree Git changed to,
-        //  while every other command starts where the caller's `-C` chain ends.
-        let directory: PathBuf = match shell_directory {
-            Some(found) => found.to_path_buf(),
-            None => {
-                match command_directory(facts.transaction_context().global_prefix.as_slice(), start)
-                {
-                    Ok(found) => found,
-                    Err(message) => return fact_unavailable(message),
-                }
-            }
-        };
-        if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
-            return clean();
-        }
-    }
-    let main_checkout: PathBuf = match facts.main_worktree_root() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
-    return rejected(
-        SHARED_REMOTE_SETTINGS_CODE,
-        shared_remote_settings_message(
-            &change.setting,
-            shared_file.as_path(),
-            main_checkout.as_path(),
-        ),
-    );
-}
-
-/// What:
-///  Whether the form ends the operation it finds waiting,
-///  which is every abort form and every skip form.
-/// Why:
-///   Such a form is decided by its own reading wherever it runs,
-///  so the refusal the rule above gives an overwriting form in a main worktree
-///  is not asked of it:
-///  the owner decided on 2026-11-13 that the rule is the same in the main worktree and in a linked one,
-///  an abort that would discard nothing runs and one that would discard work is refused
-///  (`doc/handover/cli-git-rust-implementation.md`,
-///  "An abort in the main worktree:
-/// Same rule everywhere").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const endsAnOperation = (command: GuardedCommand): boolean => endedOperation(command) !== undefined;
-/// ```
-fn ends_an_operation(command: GuardedCommand) -> bool {
-    return ended_operation(command).is_some();
-}
-
-/// What:
-///  Whether a `git clean -X` that carries its own `-e`/`--exclude` patterns would delete a path those patterns
-///  alone call ignored.
-///  `&[OsString]` borrows the clean's own tokens after the subcommand.
-/// Why:
-///   A pattern can pull two different things into a clean:
-///  a path the worktree itself ignores is an ignored file,
-///  which the owner decided is not a reason to refuse this clean in a linked worktree,
-///  while a path only the patterns call ignored is an untracked file this clean would lose,
-///  which still is.
-///  Git answers both sets itself:
-///  the dry run of the clean as typed and the dry run of the same clean without the patterns,
-///  and what only the first answer names is what the patterns add.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // await cleanDeletesAPathOnlyItsExclusionsIgnore(facts, ['-fX', '-e', 'notes.txt'])
-/// ```
-fn clean_deletes_a_path_only_its_exclusions_ignore(
-    facts: &mut dyn RepositoryFacts,
-    region: &[OsString],
-) -> Result<bool, String> {
-    // The global options come before every start of Git, so they are read once for both dry runs.
-    let prefix: Vec<OsString> = facts.transaction_context().global_prefix;
-    // A region Git would refuse deletes nothing, and Git refuses it in its own words when the command runs.
-    let Some(with_patterns) = clean_dry_run_arguments(prefix.as_slice(), region) else {
-        return Ok(false);
-    };
-    let deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(with_patterns)?;
-    if deleted.is_empty() {
-        return Ok(false);
-    }
-    // The same clean without them deletes what the worktree itself ignores; both answers name a path the same way,
-    //  so they are compared as Git printed them.
-    let Some(without_patterns) =
-        clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region)
-    else {
-        return Ok(true);
-    };
-    let otherwise_deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(without_patterns)?;
-    return Ok(
-        !paths_only_the_exclusions_add(deleted.as_slice(), otherwise_deleted.as_slice()).is_empty(),
-    );
-}
+/// `Path` is a borrowed filesystem path of raw bytes (siblings `PathBuf`,
+///  the owned one,
+///  and `&str` of text).
+use std::path::Path;
 
 /// What:
 ///  The linked-worktree-only check.
-///  `&[PathBuf]` borrows the exempt tool caches.
+///  `&[ToolCacheDirectory]` borrows the tool caches the environment exempts.
 /// Why:
 ///   A guarded form that overwrites is rejected at once in the main worktree and outside any worktree,
 /// and in a
@@ -426,36 +168,16 @@ pub(crate) fn check_linked_worktree(
     };
     let target: EffectiveTarget =
         classify_effective_target(&location.identity, allowed_worktree_dirs);
-    // A checkout or a restore that writes a worktree file would replace the resolution of a conflict, which exists
-    // nowhere else, so the command is refused and the refusal names every such file. No copy is kept: the person who
-    // means to replace that work passes `--no-enforce-worktree` and the command then runs exactly as real Git runs it.
-    if matches!(
+    // A checkout or a restore that would replace a conflict's resolution is refused before anything is measured;
+    //  the refusal names every such file and keeps no copy (`policy_linked_worktree_conflicted_file_refusal.rs`).
+    if let Some(outcome) = refuse_a_form_that_would_replace_a_conflicted_file(ConflictedFileForm {
+        facts,
+        identity: &location.identity,
         command,
-        GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree
-    ) && matches!(
         target,
-        EffectiveTarget::MainWorktree
-            | EffectiveTarget::LinkedWorktree
-            | EffectiveTarget::Allowlisted
-    ) && let SideVerdict::WouldReplace {
-        operation,
-        paths,
-    } = judge_conflict_sides(&facts.transaction_context(), seen)
-    {
-        record_audit(
-            &location.identity,
-            command,
-            AuditOutcome::Rejected,
-            seen,
-            None,
-        );
-        let message: String = conflicted_files_message(
-            command,
-            operation,
-            target == EffectiveTarget::MainWorktree,
-            paths.as_slice(),
-        );
-        return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+        seen,
+    }) {
+        return outcome;
     }
     if moves_head_only {
         // A `HEAD` move outside a worktree or in an exempt cache is not this policy's concern.
