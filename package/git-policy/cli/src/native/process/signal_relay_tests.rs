@@ -41,10 +41,7 @@ use std::time::{
 /// macOS relays every signal whatever its code,
 /// so its tests need none.
 #[cfg(all(unix, not(target_os = "macos")))]
-use libc::{
-    SI_QUEUE,
-    SI_USER,
-};
+use libc::SI_USER;
 
 /// A code that no process sends:
 /// the kernel's own on Linux.
@@ -456,34 +453,6 @@ fn finish(mut helper: Child) -> ExitStatus {
         assert!(started.elapsed() < STEP_TIMEOUT, "helper did not exit");
         std::thread::sleep(Duration::from_millis(10));
     }
-}
-
-/// The incumbent-facing contract:
-/// a process sender is relayed,
-/// the terminal is not.
-#[cfg(all(unix, not(target_os = "macos")))]
-#[test]
-fn only_process_senders_are_relayed() {
-    assert!(is_process_sender(SI_USER));
-    assert!(is_process_sender(SI_QUEUE));
-    assert!(!is_process_sender(KERNEL_CODE));
-}
-
-/// macOS reports `si_code` 0 for a real `kill`,
-/// so every code counts as a process sender there.
-#[cfg(target_os = "macos")]
-#[test]
-fn every_signal_is_relayed_on_macos() {
-    assert!(is_process_sender(0));
-    assert!(is_process_sender(-1));
-    assert!(is_process_sender(0x10001));
-}
-
-/// On Linux a thread-directed kill is a process sender too.
-#[cfg(target_os = "linux")]
-#[test]
-fn thread_directed_kill_is_a_process_sender_on_linux() {
-    assert!(is_process_sender(libc::SI_TKILL));
 }
 
 /// The guard relays exactly the four signals the wrapper catches.

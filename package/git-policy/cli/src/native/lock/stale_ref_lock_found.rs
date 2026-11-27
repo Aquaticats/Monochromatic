@@ -11,7 +11,6 @@
 //! type Outcome = { cleared: Found[]; left: Found[]; displaced: string[] };
 //! ```
 
-use crate::stale_ref_lock_judge::Verdict;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
@@ -35,6 +34,33 @@ pub enum PidFile {
     /// nothing shows whether it was written for this lock,
     /// so it proves nothing either way.
     Unproven(i64),
+}
+
+/// Why a lock may be removed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Proof {
+    /// The staging file `packed-refs.new` has no lock beside it,
+    /// and Git creates it only while holding that lock.
+    OrphanStaging,
+}
+
+/// What a judgement concluded.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Verdict {
+    /// Younger than the margin,
+    /// or not a regular file:
+    /// left,
+    /// and not mentioned.
+    TooNew,
+    /// A running process holds it;
+    /// the text names the process and how that is known.
+    Held(String),
+    /// Nothing proves the holder gone;
+    /// the text says why.
+    Unproven(String),
+    /// Removable,
+    /// on this proof.
+    Stale(Proof),
 }
 
 /// One judged reference lock.

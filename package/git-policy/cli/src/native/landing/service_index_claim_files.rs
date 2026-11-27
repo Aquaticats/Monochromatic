@@ -20,11 +20,13 @@
 //! const slot = lookAt(path) // 'free' | 'dead' | 'live' | { unjudged } | { elsewhere }
 //! ```
 
-use crate::service_index_marker::{
-    Marked,
+use crate::service_index_identity::{
     holder_is_elsewhere,
     holder_is_gone,
     holder_is_running,
+};
+use crate::service_index_marker::{
+    Marked,
     parse_marker,
 };
 use std::io::Read;

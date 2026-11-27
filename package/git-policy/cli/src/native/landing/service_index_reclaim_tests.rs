@@ -209,7 +209,7 @@ fn a_reclaimer_whose_judged_file_was_replaced_removes_nothing() {
     assert_eq!(outcome, Reclaimed::Changed);
     assert_eq!(
         std::fs::read_to_string(&lock).expect("the live lock stands"),
-        marker_text(8, &crate::service_index_marker::own_identity)
+        marker_text(8, &crate::service_index_identity::own_identity)
             .expect("this process has an identity")
     );
     let live = live_cell.borrow_mut().take().expect("the live lock");
@@ -360,7 +360,7 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     );
     assert_eq!(
         std::fs::read_to_string(&lock).expect("the live lock stands"),
-        marker_text(7, &crate::service_index_marker::own_identity)
+        marker_text(7, &crate::service_index_identity::own_identity)
             .expect("this process has an identity")
     );
     drop(live);

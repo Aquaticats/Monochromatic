@@ -54,6 +54,7 @@ pub struct Settlement {
 mod pointer_presence_of_the_destination;
 
 use pointer_presence_of_the_destination::{
+    POINTER,
     PointerPresence,
     pointer_presence,
 };
@@ -64,9 +65,6 @@ const WAITING_INDEX: &str = "index.pending";
 
 /// The lock a Git run pointed at the waiting index holds while it writes it.
 const WAITING_INDEX_LOCK: &str = "index.pending.lock";
-
-/// The name Git gives the pointer file that makes a directory a worktree.
-const POINTER: &str = ".git";
 
 /// What:
 ///  How long a record that names no Git process may be kept before it settles.

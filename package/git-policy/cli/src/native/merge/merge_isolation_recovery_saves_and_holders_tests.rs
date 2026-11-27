@@ -37,6 +37,7 @@ use std::path::{
     PathBuf,
 };
 
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// What:
 ///  A save that holds exactly the merge's bytes and arrives after a kill stands,
 ///  because the reading of what Git's update left travels beside the record.

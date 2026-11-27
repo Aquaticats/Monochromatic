@@ -71,10 +71,12 @@ use crate::merge_isolation_carry_reads::{
 };
 /// The write plan of one path,
 /// and the one step that lands it.
-use crate::merge_isolation_carry_writes::{
-    Batch,
+use crate::merge_isolation_carry_write_forms::{
     FileWrite,
     IndexWrite,
+};
+use crate::merge_isolation_carry_writes::{
+    Batch,
     Step,
     StepResult,
     write_steps_awaiting,
@@ -115,10 +117,8 @@ pub use crate::merge_isolation_carry_reads::{
     changes_between_awaiting,
 };
 /// Why a carry stopped.
-pub use crate::merge_isolation_carry_writes::{
-    CarryFailure,
-    LockWait,
-};
+pub use crate::merge_isolation_carry_write_failures::CarryFailure;
+pub use crate::merge_isolation_carry_writes::LockWait;
 
 /// What:
 ///  Whether a worktree state is one the capture or the change explains.

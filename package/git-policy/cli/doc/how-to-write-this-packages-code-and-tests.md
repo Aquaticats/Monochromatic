@@ -365,7 +365,7 @@ Measured on 2026-11-27 at this host's load average of 86.0 to 142.5:
 over 15398 hand-overs of one query's standard output in one threaded module run,
 the median came 0.003 ms after the pipe's end and the worst 110.4 ms,
 which the window cleared by 2.3 times.
-The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_commands.rs`:
+The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_pipes_read_beside_the_query.rs`:
 the kernel reports a pipe's end the instant its last writing end closes and keeps that news until it is read),
 and the reader's hand-over of the bytes is bounded by `REPORTING_THE_END`,
 sixty seconds,
@@ -380,6 +380,12 @@ and the control sizes that wait as a multiple of the notice's own bound,
 because issue 6524's control waited one ceiling away from a notice due at one second,
 and a journal read that waited on storage carried the words past the client's ceiling,
 so it counted none.
+A control whose subject is a notice a client says asserts only what holds in either order of the messages that decide it,
+and holds the answer away with a seam of its own when that notice must be said to a wait that is still on
+(`on_objects_written` in `landing/service_land_hung_write_tests.rs`):
+the line saying the service has not said where a commit stands is said by a look that found nothing already here,
+so a control that demands it asserts which message the host let arrive first,
+and it failed that way in one threaded module run of five (issue 6564).
 A window a control times never holds work the release code grants no ceiling to,
 because no multiple of a ceiling can bound that work:
 a commit's landing costs what this host's disk costs,
@@ -540,3 +546,18 @@ its guest arms where its brief asks for them,
 and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
+
+A round that writes or moves a line behind the controls' test-only switches runs
+`mise run //package/git-policy/cli:native:clippy:test-only-switches`
+(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`)
+as well as the plain `mise run //package/git-policy/cli:native:clippy`
+(`cargo clippy --locked --offline --all-targets -- -D warnings`),
+because the gate's Clippy step and every plain run compile without a feature
+(`bin/test-native-container.ts`),
+so nothing else lints a line only that build has.
+A line behind the fence's measurement routes takes
+`mise run //package/git-policy/cli:native:clippy:measurement` the same way.
+On 2026-11-27 the switch task failed alone on an unused re-export in `foundation/lazy_runtime.rs`,
+whose only namer,
+`testing/no_switch_is_read_without_its_feature_tests`,
+is compiled out where the feature is on (issue 6570).
