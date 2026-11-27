@@ -28,7 +28,7 @@
 /// import { parsePushRegion } from '../parser/push.ts';
 /// import { parseGlobalOptions } from '../parse-global-options.ts';
 /// ```
-use crate::command_options::OptionError;
+use crate::command_options_types::OptionError;
 use crate::command_push::{
     PushRegion,
     parse_push_region,

@@ -20,9 +20,9 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Arity, OptionError, OptionErrorKind, OptionValue } from './command_options.ts';
+/// import { Arity, OptionError, OptionErrorKind, OptionValue } from './command_options_types.ts';
 /// ```
-use crate::command_options::{
+use crate::command_options_types::{
     Arity,
     OptionError,
     OptionErrorKind,
