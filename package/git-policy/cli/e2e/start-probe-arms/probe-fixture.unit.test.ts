@@ -10,6 +10,7 @@ import {
   openZfsPath,
   probeDataset,
   probeScript,
+  raisedDeadlineHandler,
   record,
   recordLineAssertion,
 } from './probe-fixture.ts';
@@ -43,10 +44,19 @@ await describe({
           name: 'names the handler, the raised-deadline build and the record each arm reads',
           fn: async () => {
             const script = probeScript({ lines: [], },);
-            expect(script,).toContain(`H=${handler}`);
+            expect(script,).toContain(`H='${handler}'`);
+            expect(script,).toContain(`R='${raisedDeadlineHandler}'`);
             expect(script,).toContain(`REC=${record}`);
             expect(script,).toContain(`CONF=${configuration}`);
             expect(script,).toContain(`SRC='${probeDataset}@ready'`);
+          },
+        },),
+        it({
+          name: 'quotes both handler assignments, because each holds a path and then the words that select a mode',
+          fn: async () => {
+            const script = probeScript({ lines: [], },);
+            expect(script,).not.toContain(`H=${handler}`);
+            expect(script,).not.toContain(`R=${raisedDeadlineHandler}`);
           },
         },),
         it({
