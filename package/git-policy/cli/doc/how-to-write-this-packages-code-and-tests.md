@@ -723,7 +723,8 @@ and its control `the_walk_reaches_a_linked_back_source_once_where_a_recursive_re
 (`source_guard/source_scan_walk_tests.rs`) holds a fixture of one source file and one link back into the tree:
 the walk lists that file once and the `read_dir` recursion the walk replaces reaches it once per link above it.
 No test of this crate lists a source folder with a `read_dir` recursion of its own,
-and no test decides whether an entry is a folder with `path.is_dir()`,
+and every walk of one asks an entry's own type with `entry.file_type()`,
+never `path.is_dir()`,
 which follows a link.
 A check that looks for a needle reads one file at a time and holds that file's text alone.
 Measured 2026-11-27 (issue 6598):
