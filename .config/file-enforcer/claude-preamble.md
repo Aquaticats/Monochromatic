@@ -67,9 +67,9 @@ RZH:
  processes and releases it touches before repeating it.
 
 RZG:
- A native subagent `ListAgents` no longer lists after a Claude Code restart is briefed afresh from the files it kept;
- every subagent brief names a folder for findings,
- saved as they are made.
+ After a Claude Code restart `ListAgents` omits the native subagents started before it,
+ yet a message to one's agent id resumes it from its transcript:
+ message it before briefing a fresh agent.
 
 What one restart showed,
 and what is not known about restarts:

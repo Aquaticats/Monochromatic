@@ -8,6 +8,10 @@ from one restart it lived through that afternoon.
 The cause is not established,
 no reproduction exists,
 and the section "What is not known" lists what nobody checked.
+Corrected 2026-11-27T14:19:55-05:00:
+the first version said a subagent the agent list no longer names is briefed afresh,
+and a message to such an agent's id then resumed it,
+so rule `RZG` and this record now say that.
 The owner declares this record complete,
 not its writer.
 
@@ -106,6 +110,11 @@ None noticed the restart.
   The earlier folder and its files stayed readable.
 - An agent list with no subagent of its own in it.
   `ListAgents` named one other session and nothing else.
+  The subagent was still reachable:
+  `SendMessage` to its agent id,
+  which the conversation held from the result of starting it,
+  answered `Resuming agent`,
+  and the agent replied from its own transcript without running a command.
 
 ### A separate incident at the same time
 
@@ -118,7 +127,8 @@ by its own notice,
 and not shown to be the restart's.
 A listener it had started was still running 1419 seconds after its start and was stopped by its process id.
 A second agent was briefed from the twenty transcripts the first had saved as it went,
-so that work did not have to be done again.
+before the session knew the first could be resumed;
+resuming the first would have kept its whole context.
 
 ## Root cause
 
@@ -136,7 +146,28 @@ Orphaned by a previous Claude Code process exit and reported in an aggregate sum
 
 So the harness itself expects background commands to be orphaned when a Claude Code process exits,
 and reports them when the next session starts.
-What made the session end and start again on 2026-11-27 is not known.
+The same search finds what it says of background agents,
+which this incident did not show:
+
+```text
+It had no completion record after the previous Claude Code process exited, and was automatically restarted from its saved transcript. It is running in the background again; its result will arrive as a separate task notification.
+It was running when the previous Claude Code process exited and did not complete. Its in-process state was lost.
+```
+
+The program was replaced in place,
+in the same process.
+The process that starts the session's shells has process id 35147 and started at 2026-11-23T16:14:19-05:00
+(the start time in `/proc/35147/stat`),
+before the 2.1.332 executable it runs was written (2026-11-25T16:56:47-05:00),
+and every one of its threads beside the main one started at or after 2026-11-27T14:02:39-05:00
+(the start times in `/proc/35147/task/*/stat`),
+the second the stopped command's output file was last written.
+
+What made that happen on 2026-11-27 is not known.
+The journal this account can read
+(`journalctl --user` and `journalctl`,
+from 14:02:00 to 14:03:30)
+holds no line about an out-of-memory kill and none about Claude Code.
 
 ## Verification
 
@@ -197,21 +228,26 @@ and each was what kept or recovered work on 2026-11-27.
   Nothing was half-applied on 2026-11-27,
   because the one stopped command only waited;
   a merge or a release stopped the same way would have been.
-- Brief a fresh subagent from the files the earlier one kept,
-  and have every subagent save findings as it makes them
+- Message an earlier subagent by its agent id before briefing a fresh one
   (rule `RZG`).
+  The message resumes it from its transcript.
   The cost:
-  the second agent reads and checks the first one's files again before it relies on them.
+  the id has to be at hand,
+  and the agent list does not give it.
+- Have a subagent save its findings as it makes them.
+  This is no rule of the preamble.
+  It is what let a second agent take over the read of 2026-11-27,
+  and that agent reads and checks the first one's files again before it relies on them.
 
 ## What does not work
 
-- Telling a restart from the `claude` process.
-  The process that starts the resumed session's shells has process id 35147,
-  and `ps -o lstart=` gave its start as Mon Nov 23 21:14:19 2026,
-  while `readlink /proc/35147/exe` named the 2.1.332 executable,
-  a file last changed 2026-11-25T16:56:47-05:00.
-  A start time older than the executable the process runs says that neither its process id nor its start time changes
-  when the program is replaced.
+- Telling a restart from the `claude` process's id or start time.
+  Neither changed:
+  "Root cause" gives the figures.
+  The start times of its threads do change.
+- Looking the earlier subagent up in `ListAgents`.
+  It is not named there,
+  and it can still be resumed.
 - Waiting for the stopped command to report.
   It is reported once,
   as stopped,
@@ -222,19 +258,20 @@ and each was what kept or recovered work on 2026-11-27.
 
 ## What is not known
 
-- What ends and restarts a session,
-  and whether the process exits or is replaced in place.
-- Whether a message to a subagent that `ListAgents` no longer names would have reached it.
-  It was not tried:
-  a second agent already worked in the same folder.
+- What ends and restarts a session.
+- Whether a subagent that was running,
+  and not already ended,
+  is restarted by the harness itself,
+  as the executable's own sentence says.
+  The session's one subagent had already ended.
 - Whether a command in its own `systemd-run --user --scope`,
   started from a harness command,
   survives.
   Only `.service` units were running.
 - Whether scheduled wakeups and crons carry across.
-  None was scheduled;
-  the executable holds the name `carriedCrons`,
-  which nobody traced.
+  None was scheduled.
+  The executable passes `carriedCrons: true` on the path that restores a session,
+  which suggests they do and was not shown by a run.
 - What happens to a foreground command that is running at the restart.
   None was.
 - Whether other versions behave the same.
