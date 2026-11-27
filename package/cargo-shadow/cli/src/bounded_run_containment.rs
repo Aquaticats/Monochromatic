@@ -11,6 +11,20 @@
 //! The start of the child inside the containment is `bounded_run_start.rs`.
 
 /// What:
+/// `mod refusal_tests;` declares the controls of what a refusal says when a stop could not settle the run.
+/// Why:
+/// A unit control belongs in a sidecar file,
+/// and declaring it here keeps the crate root's list of modules out of the change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a sidecar test file next to the module it tests
+/// ```
+#[cfg(test)]
+#[path = "bounded_run_containment_refusal_tests.rs"]
+mod refusal_tests;
+
+/// What:
 /// `use crate::bounded_run::{Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route};`
 /// imports the bounds of a run,
 /// its error and journal state,
@@ -157,19 +171,16 @@ use std::io;
 /// ```
 use std::os::fd::OwnedFd;
 /// What:
-/// `use std::process::{Child, ExitStatus};` imports the handle of a started child and the status it ends with.
+/// `use std::process::Child;` imports the handle of a started child.
 /// Why:
 /// Every stop and every wait here acts on the child the start answered,
-/// and the reap answers the status it exited with.
+/// and the reap only needs to know that it ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { ChildProcess } from 'node:child_process';   // exitCode is the status
+/// import { ChildProcess } from 'node:child_process';
 /// ```
-use std::process::{
-    Child,
-    ExitStatus,
-};
+use std::process::Child;
 /// What:
 /// `use std::rc::Rc;` imports the reference-counted pointer type (its sibling `Arc` is the one that is safe to share between threads).
 /// Why:
@@ -246,32 +257,58 @@ use std::time::{
 
 /// The start of a child inside the containment (split out of this module).
 pub(crate) use crate::bounded_run_start::start_contained;
+/// Why a direct child was not reaped.
+pub(crate) enum ReapShortfall {
+    /// The bound passed before the child ended.
+    Bound,
+    /// Its exit could not be read,
+    /// with the reason, so no wait was spent on a question the kernel refused.
+    Unreadable(
+        /// Why the exit could not be read.
+        String,
+    ),
+}
+
+/// What became of the direct child when the run ended.
+pub(crate) enum Reaped {
+    /// The child ended,
+    /// so it was reaped.
+    Ended,
+    /// The child was not reaped,
+    /// with the reason.
+    NotReaped(ReapShortfall),
+}
+
 /// What:
-/// `fn reap(child: &mut Child) -> Option<ExitStatus>` waits for the direct child,
+/// `fn reap(child: &mut Child) -> Reaped` waits for the direct child,
 /// a few milliseconds at a time,
-/// up to `REAP_BOUND`.
+/// up to `REAP_BOUND`,
+/// and says whether the wait was spent or the kernel refused to answer.
 /// Why:
-/// `Child::wait` has no deadline.
+/// `Child::wait` has no deadline,
+/// and a refusal must not state a wait that was not the wait:
+/// a failed `try_wait` answers at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function reap(child: ChildProcess): ExitStatus | undefined
+/// function reap(child: ChildProcess): 'ended' | { shortfall: string }
 /// ```
-pub(crate) fn reap(child: &mut Child) -> Option<ExitStatus> {
+pub(crate) fn reap(child: &mut Child) -> Reaped {
     // A child that cannot be reaped within its bound is "not reaped"; a test makes that so without a process in an uninterruptible wait.
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::ReapStuck) {
-        return None;
+        return Reaped::NotReaped(ReapShortfall::Bound);
     }
     let deadline: Instant = Instant::now() + REAP_BOUND;
     loop {
         match child.try_wait() {
-            Ok(Some(status)) => return Some(status),
+            Ok(Some(_status)) => return Reaped::Ended,
             Ok(None) => {}
-            Err(_) => return None,
+            // The kernel will not answer again, so no further wait is spent; the refusal says the exit could not be read.
+            Err(error) => return Reaped::NotReaped(ReapShortfall::Unreadable(error.to_string())),
         }
         if Instant::now() >= deadline {
-            return None;
+            return Reaped::NotReaped(ReapShortfall::Bound);
         }
         thread::sleep(POLL_INTERVAL);
     }
@@ -386,32 +423,106 @@ pub(crate) fn weaker(unavailable: GroupUnavailable) -> Containment {
     return Containment::ProcessGroup;
 }
 
+/// What the weaker path's stop found when it gave up.
+pub(crate) enum GroupStop {
+    /// No member of the process group is left.
+    Gone,
+    /// Members of the process group were still there when its bound passed.
+    MembersLeft,
+    /// No member of the process group is left,
+    /// and the direct child could not be reaped,
+    /// with the reason.
+    NotReaped(ReapShortfall),
+    /// The program's process id could not be named as a process group,
+    /// so nothing of it was stopped.
+    Unnamed,
+}
+
 /// What:
-/// `fn stop_process_group(child: &mut Child, group: Pid) -> bool` kills the process group,
-/// reaps the direct child,
-/// and returns `true` once no member of the group is left.
+/// `impl GroupStop` answers whether the stop settled the run, and the words a refusal carries when it did not.
 /// Why:
-/// This is all the weaker path can show.
+/// Both process-group paths (a run's own end and the start that failed to record the group)
+/// need one sentence each,
+/// and the sentence must state the wait that was waited or none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stopProcessGroup(child: ChildProcess, group: number): boolean
+/// // settled(): boolean; refusal(): string
+/// ```
+impl GroupStop {
+    /// What:
+    /// `pub(crate) fn settled(&self) -> bool` says whether every member of the group is shown gone.
+    /// Why:
+    /// Only `Gone` lets the run be treated as quiescent.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// settled(): boolean { return this === 'gone' }
+    /// ```
+    pub(crate) fn settled(&self) -> bool {
+        return matches!(self, GroupStop::Gone);
+    }
+
+    /// What:
+    /// `pub(crate) fn refusal(&self) -> String` is why this stop could not settle the run.
+    /// Why:
+    /// A group already shown gone must not be worded as a bound that was waited,
+    /// and an unnamed group must not be worded as a wait that never started (issue 6528's review, Low 2).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// refusal(): string
+    /// ```
+    pub(crate) fn refusal(&self) -> String {
+        return match self {
+            GroupStop::Gone => "the process group is gone".to_string(),
+            GroupStop::MembersLeft => format!(
+                "the members of the process group could not be shown gone within {QUIESCE_BOUND:?}"
+            ),
+            GroupStop::NotReaped(ReapShortfall::Bound) => format!(
+                "no member of the process group is left, and the program it led did not end within {REAP_BOUND:?} after it was killed"
+            ),
+            GroupStop::NotReaped(ReapShortfall::Unreadable(reason)) => format!(
+                "no member of the process group is left, and the exit of the program it led could not be read ({reason})"
+            ),
+            GroupStop::Unnamed => {
+                "the process group of the program could not be named, so nothing of it was stopped"
+                    .to_string()
+            }
+        };
+    }
+}
+
+/// What:
+/// `fn stop_process_group(child: &mut Child, group: Pid) -> GroupStop` kills the process group,
+/// reaps the direct child,
+/// and says whether no member of the group is left.
+/// Why:
+/// This is all the weaker path can show,
+/// and the two questions it answers (the group's members and the direct child) are what a refusal has to tell apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stopProcessGroup(child: ChildProcess, group: number): GroupStop
 /// ```
 pub(crate) fn stop_process_group(
     child: &mut Child,
     group: Pid,
-) -> bool {
-    let reaped: bool = {
+) -> GroupStop {
+    let reaped: Reaped = {
         let _ = kill_process_group(group, Signal::KILL);
-        reap(child).is_some()
+        reap(child)
     };
     let deadline: Instant = Instant::now() + QUIESCE_BOUND;
     loop {
         if test_kill_process_group(group) == Err(Errno::SRCH) {
-            return reaped;
+            return match reaped {
+                Reaped::Ended => GroupStop::Gone,
+                Reaped::NotReaped(shortfall) => GroupStop::NotReaped(shortfall),
+            };
         }
         if Instant::now() >= deadline {
-            return false;
+            return GroupStop::MembersLeft;
         }
         let _ = kill_process_group(group, Signal::KILL);
         thread::sleep(POLL_INTERVAL);
@@ -451,7 +562,7 @@ pub(crate) fn stop_everything(
             ..
         } => {
             let _ = child.kill();
-            let reaped: bool = reap(child).is_some();
+            let reaped: Reaped = reap(child);
             let report: StopReport = match group.stop(QUIESCE_BOUND) {
                 Ok(found) => found,
                 Err(error) => {
@@ -466,27 +577,67 @@ pub(crate) fn stop_everything(
                 }
             };
             let scope: String = report.sentence(group.directory());
-            if !reaped {
-                return Err(format!(
-                    "the program did not end within {REAP_BOUND:?} after it was killed; {scope}"
-                ));
-            }
-            if report.empty() {
-                return Ok(());
-            }
-            // The kernel did not read the scope as empty: the refusal names what the listing found and nothing more (issue 6528's
-            // review, Medium 1).
-            return Err(format!("{}; {scope}", report.headline()));
+            return match refusal_of_scope(&report, &reaped, &scope) {
+                Some(refusal) => Err(refusal),
+                None => Ok(()),
+            };
         }
         Containment::ProcessGroup => match Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)) {
-            Some(group) if stop_process_group(child, group) => Ok(()),
-            Some(_) => Err(format!(
-                "the members of the process group could not be shown stopped within {QUIESCE_BOUND:?}"
-            )),
-            None => Err(format!(
-                "the process group of the program could not be named, so its members could not be stopped within {QUIESCE_BOUND:?}"
-            )),
+            Some(group) => match stop_process_group(child, group) {
+                GroupStop::Gone => Ok(()),
+                other => Err(other.refusal()),
+            },
+            None => Err(GroupStop::Unnamed.refusal()),
         },
+    };
+}
+
+/// What:
+/// `fn refusal_of_scope(report: &StopReport, reaped: &Reaped, scope: &str) -> Option<String>` is the refusal of a scope that did
+/// not settle the run, or `None` when it did.
+/// Why:
+/// Which of the two the stop could not show (the program, or what the scope left) is one decision,
+/// and every branch of it is a sentence that must say only what was found,
+/// so the words are built in one place a control can drive with any report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusalOfScope(report: StopReport, reaped: Reaped, scope: string): string | undefined
+/// ```
+pub(crate) fn refusal_of_scope(
+    report: &StopReport,
+    reaped: &Reaped,
+    scope: &str,
+) -> Option<String> {
+    // A direct child that was not reaped is a reason of its own, and the sentence after it says what the scope itself held.
+    if let Reaped::NotReaped(shortfall) = reaped {
+        return Some(format!("{}; {scope}", not_reaped_text(shortfall)));
+    }
+    if report.empty() {
+        return None;
+    }
+    // The kernel did not read the scope as empty: the refusal names what the listing found and nothing more.
+    return Some(format!("{}; {scope}", report.headline()));
+}
+
+/// What:
+/// `fn not_reaped_text(shortfall: &ReapShortfall) -> String` is why the direct child could not be shown ended.
+/// Why:
+/// A bound that passed and a wait the kernel would not answer are different facts,
+/// and only the first was a wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function notReapedText(shortfall: ReapShortfall): string
+/// ```
+fn not_reaped_text(shortfall: &ReapShortfall) -> String {
+    return match shortfall {
+        ReapShortfall::Bound => {
+            format!("the program did not end within {REAP_BOUND:?} after it was killed")
+        }
+        ReapShortfall::Unreadable(reason) => format!(
+            "the exit of the program could not be read after it was killed ({reason}), so it cannot be shown to have ended"
+        ),
     };
 }
 
@@ -613,13 +764,16 @@ impl Drop for CancelOnDrop {
 }
 
 /// What:
-/// `fn lose(scope: &Option<Rc<ScopeState>>)` marks the open transaction as one whose writers may remain.
+/// `fn lose(scope: &Option<Rc<ScopeState>>, reason: String)` marks the open transaction as one whose writers may remain,
+/// and keeps the reason a refusal carries.
 /// Why:
-/// The caller of the transaction reads the mark and stops the command instead of rolling back or finishing.
+/// The caller of the transaction reads the mark and stops the command instead of rolling back or finishing,
+/// and two failed stops under one transaction must both be named:
+/// the reason is appended, never replaced (issue 6528's review, Low 9).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function lose(scope: ScopeState | undefined): void
+/// function lose(scope: ScopeState | undefined, reason: string): void
 /// ```
 pub(crate) fn lose(
     scope: &Option<Rc<ScopeState>>,
@@ -627,7 +781,11 @@ pub(crate) fn lose(
 ) {
     if let Some(state) = scope {
         state.lost.set(true);
-        *state.lost_reason.borrow_mut() = Some(reason);
+        let kept: Option<String> = state.lost_reason.borrow_mut().take();
+        *state.lost_reason.borrow_mut() = match kept {
+            Some(earlier) => Some(format!("{earlier}; {reason}")),
+            None => Some(reason),
+        };
     }
 }
 
