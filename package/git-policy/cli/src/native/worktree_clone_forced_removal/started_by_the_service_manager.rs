@@ -329,11 +329,12 @@ pub fn the_refusal_text(
 
 /// What:
 ///  The command name a refusal prints,
-///  escaped,
+///  cut to the kernel's bound,
 ///  or the sentence's own word for a record it could not read.
 /// Why:
 ///  The sentence prints `(<command>)` beside a number,
-///  and a command name is bounded and escaped like every other.
+///  and the escape for that parenthesis belongs to the sentence that writes it,
+///  so this hands the sentence the kernel's bytes and no escape of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
