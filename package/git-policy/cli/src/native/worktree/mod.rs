@@ -509,6 +509,13 @@
 //! - `worktree_ladder.rs`:
 //!   the cheap-worktree ladder around one `git worktree add`:
 //!   what runs before real Git and after it.
+//! - `worktree_snapshot_placeholders_entries.rs`:
+//!   one entry of a folder that holds worktrees,
+//!   and the two moments a control may change the snapshot at.
+//! - `worktree_snapshot_placeholders_hand_over.rs`:
+//!   the trash a whole worktree folder goes into,
+//!   the fresh empty folder that takes its place,
+//!   and the folder kept beside the trash.
 //! - `worktree_snapshot_placeholders.rs`:
 //!   the empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 //!   found below the folders that hold worktrees and removed as empty directories.
@@ -830,6 +837,17 @@ pub mod worktree_snapshot_ahead_claim;
 /// made for the add after the one that asked for it.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead_job;
+
+/// One entry of a folder that holds worktrees,
+/// and the two moments a control may change the snapshot at.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_placeholders_entries;
+
+/// The trash a whole worktree folder goes into,
+/// the fresh empty folder that takes its place,
+/// and the folder kept beside the trash.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_placeholders_hand_over;
 
 /// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 /// found below the folders that
