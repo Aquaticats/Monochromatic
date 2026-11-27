@@ -142,7 +142,7 @@ globset = ">=0.4.21"
 helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-loader = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-lsp = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = "=1.19.1"
 i-slint-backend-winit = ">=1.18.1"
 ignore = ">=0.4.34"
 notify = { version = ">=8.2.2", default-features = false }

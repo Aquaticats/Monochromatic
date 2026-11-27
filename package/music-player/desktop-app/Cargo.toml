@@ -292,7 +292,7 @@ clap = ">=4.6.7"
 cpal = ">=0.18.2"
 directories = ">=6"
 futures-util = { version = ">=0.3.34", default-features = false }
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = "=1.19.1"
 i-slint-backend-winit = ">=1.18.1"
 icu_provider = ">=2.4.0"
 libc = ">=0.2.191"
