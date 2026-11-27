@@ -133,6 +133,12 @@
 //!   and the receipt an unavailable key alone files.
 //! - `sweep_unmount_under_the_claim.rs`:
 //!   the unmount arm of one clone's turn, once its slot is claimed.
+//! - `sweep_intent_read_again.rs`:
+//!   the clone's identity and intent read again under the claim,
+//!   and whether the intent changed after the request a turn acted on.
+//! - `sweep_slot_first_observation.rs`:
+//!   the slot's first observation:
+//!   its record, its walk and its Git pointer.
 //! - `sweep_one_clone.rs`:
 //!   one clone's whole turn of the sweep.
 //! - `sweep_run.rs`:
@@ -197,6 +203,12 @@ pub mod sweep_attach_answer;
 
 /// The answer to a clone the checks refused.
 pub mod sweep_refused_clone_answers;
+
+/// The clone's identity and intent read again under the slot's claim.
+pub mod sweep_intent_read_again;
+
+/// The slot's first observation: its record, its walk and its Git pointer.
+pub mod sweep_slot_first_observation;
 
 /// The default invocation:
 /// the clone-mount sweep.
