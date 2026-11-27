@@ -247,8 +247,33 @@ fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
     if let Some(deleted) = merged_deletions(gap.base, gap.ours, gap.theirs) {
         return Some(deleted);
     }
+    let merged: Vec<u8> = merged_word_text(gap.base, gap.ours, gap.theirs)?;
+    if keeps_a_deleted_line(gap.base, gap.ours, gap.theirs, merged.as_slice()) {
+        return None;
+    }
+    return Some(merged);
+}
+
+/// What:
+///  The merge of one line region by word and then by the bytes between the words,
+///  or nothing when it would write text no side wrote.
+/// Why:
+///   The rule that keeps a line one side deleted out of a merge judges this text,
+/// and its own control asks what that rule refuses,
+/// so the text is one answer of its own
+/// (`src/native/merge/word_merge_deleted_lines_tests.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mergedWordText(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array): Uint8Array | undefined;
+/// ```
+pub(super) fn merged_word_text(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+) -> Option<Vec<u8>> {
     let mut merged: Vec<u8> = Vec::new();
-    for hunk in align(gap.base, gap.ours, gap.theirs, Level::Word) {
+    for hunk in align(base, ours, theirs, Level::Word) {
         match hunk {
             Hunk::Same(text) => merged.extend_from_slice(text),
             Hunk::Gap(word_gap) => match trivial(&word_gap) {
@@ -269,10 +294,7 @@ fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
             },
         }
     }
-    if refuses_word_merge(gap.base, gap.ours, gap.theirs, merged.as_slice()) {
-        return None;
-    }
-    if keeps_a_deleted_line(gap.base, gap.ours, gap.theirs, merged.as_slice()) {
+    if refuses_word_merge(base, ours, theirs, merged.as_slice()) {
         return None;
     }
     return Some(merged);

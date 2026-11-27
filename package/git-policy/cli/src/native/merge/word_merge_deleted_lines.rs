@@ -237,3 +237,9 @@ pub(super) fn keeps_a_deleted_line(
     }
     return false;
 }
+
+/// The union of two sides' deletions,
+/// and the rule over a generated region of repeated lines.
+#[cfg(test)]
+#[path = "word_merge_deleted_lines_tests.rs"]
+mod tests;
