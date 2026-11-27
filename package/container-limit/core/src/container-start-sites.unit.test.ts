@@ -218,7 +218,8 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
   // calls, image names, stand-ins for tests, the generic runner whose callers build the arguments, and the gate's own
   // identity, ID file, fixture-root and evidence helpers, which name `podman` in prose only. The gate's syscall profile
   // and its image retention read what `podman info` and `podman images` printed, and its replaced-image removal runs
-  // `podman image rm`; none of them starts a container.
+  // `podman image rm`; none of them starts a container. Its cgroup-memory reader says which files a `podman run --rm`
+  // leaves behind and reads the kernel's own accounting of a container its launcher started.
   ...[
     'package/claude-code-plugin/bash-output-filter/bundle/node/index.mjs',
     'package/container-limit/core/src/argument-text-of-a-container-start.ts',
@@ -231,6 +232,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/forbidden-strings/cli/data/betterleaks-default-config.toml',
     'package/git-policy/cli/bin/command-deadline.ts',
     'package/git-policy/cli/bin/native-gate-checks.ts',
+    'package/git-policy/cli/bin/native-gate-container-cgroup-memory.ts',
     'package/git-policy/cli/bin/native-gate-container-id-file.ts',
     'package/git-policy/cli/bin/native-gate-container-identity.ts',
     'package/git-policy/cli/bin/native-gate-fixture-root.ts',
