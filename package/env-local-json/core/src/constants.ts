@@ -46,7 +46,15 @@ export const SOPS_ENCRYPTED_VALUE_PREFIX = 'ENC[';
 //region Bounds
 
 /**
- Timeout for one sops child process.
+ Deadline for one sops child process of the reader.
+
+ Measured on 2026-11-27T18:30:20-05:00 on this machine as it was found (load
+ average 9.46 over the minute, four other Pi runs and two other Claude runs in
+ the process list), over 20 calls per arm: a `sops --decrypt` child took
+ slowest 11.9 ms, and a whole `readEnvLocalJson` call against a disposable
+ store slowest 78.4 ms. Fifteen seconds is 191 times that slowest read, so only
+ a stalled disk reaches it: a 4 KiB write-and-sync probe saw 2,564 ms on
+ 2026-11-17.
  */
 export const SOPS_TIMEOUT_MS = 15_000;
 
