@@ -838,6 +838,20 @@ fn a_dead_file_use_line_names_the_folder_the_rule_read() {
     ] {
         assert!(found[0].contains(part), "{part} missing in {}", found[0]);
     }
+    // The control: a line naming a folder this package holds names no folder, and is told only to be deleted.
+    // Why: without the folders of the tree the check would call every dead line a misspelling.
+    let held: Vec<String> = findings_with(&fixture.path, "file-uses src/a one.rs -> two.rs\n");
+    assert_eq!(held.len(), 1, "{held:#?}");
+    assert!(
+        held[0].contains("tolerates nothing any more. Delete the line"),
+        "{}",
+        held[0]
+    );
+    assert!(
+        !held[0].contains("No source folder of this package has that name"),
+        "{}",
+        held[0]
+    );
 }
 
 /// A `file-uses` line reads its folder the way a `uses` line reads one:
