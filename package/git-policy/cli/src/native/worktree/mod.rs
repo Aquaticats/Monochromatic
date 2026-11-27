@@ -387,9 +387,19 @@
 //!   the paths the proof settles cloned,
 //!   the index built from the tree,
 //!   and the rest written by Git.
+//! - `worktree_dirty_restore_left_out.rs`:
+//!   the line that tells the person a snapshot of a checkout with changes left the changes out,
+//!   and the journal record of what the add did with a dirty checkout.
+//! - `worktree_dirty_restore_stage_git_questions.rs`:
+//!   the questions the restore asks of the stage:
+//!   the words of each Git run there,
+//!   and the ignored paths the stage holds.
+//! - `worktree_dirty_restore_proof.rs`:
+//!   the proof that the stage equals what Git's checkout of the target commit makes.
 //! - `worktree_dirty_restore.rs`:
 //!   the restore of a snapshot of a main checkout with uncommitted changes,
-//!   and its proof.
+//!   the files the reset cannot see,
+//!   and the changes it leaves out.
 //! - `worktree_ladder_finish_clones.rs`:
 //!   the answers worktree ladder finish clones holds.
 //! - `worktree_ladder_target_tree_skip.rs`:
@@ -1073,8 +1083,22 @@ pub mod worktree_ladder_finish;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish_trash_record;
 
+/// The line a snapshot of a checkout with changes leaves,
+/// and the journal record of what the add did with a dirty checkout.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore_left_out;
+
+/// The questions the restore asks of the stage.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore_stage_git_questions;
+
+/// The proof that the stage equals what Git's checkout of the target commit makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore_proof;
+
 /// The restore of a snapshot of a main checkout with uncommitted changes,
-/// and its proof.
+/// the files the reset cannot see,
+/// and the changes it leaves out.
 #[cfg(target_os = "linux")]
 pub mod worktree_dirty_restore;
 
