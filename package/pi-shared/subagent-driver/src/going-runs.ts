@@ -93,7 +93,8 @@ export type GoingRun = {
   readonly name: string;
 
   /**
-   The pool this run holds a slot in; a membership that is in no pool claims no slot anywhere.
+   The pool this run holds a slot in, or the virtual selection its router names, which holds no slot in any pool; a membership
+   that is in no pool claims no slot anywhere.
    */
   readonly membership: PoolMembership;
 };
@@ -118,7 +119,7 @@ function membershipOfCommandLine({
   readonly pools?: readonly ProviderPool[];
 },): PoolMembership {
   /**
-   What the launcher's own options hold: one pool, or every pool a virtual selection's router may take.
+   What the launcher's own options hold: one pool, or the virtual selection its router names.
    */
   const holds = membershipOfSelection({
     provider: optionIn({

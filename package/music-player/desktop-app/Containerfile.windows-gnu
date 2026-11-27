@@ -63,7 +63,10 @@ RUN curl --proto '=https' --tlsv1.2 --location --silent --show-error --fail \
       "https://get.nexte.st/latest/linux" | tar zxf - -C /usr/local/bin
 
 ENV CARGO_HOME=/cargo
-ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
+# The Slint experimental language feature the UI names (`internal-types`, for
+# `SlintInternal.accent-color`). Slint 1.19.0 rejects the former boolean `1`
+# (doc/troubleshooting/slint-lsp-experimental-features.md).
+ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types
 # The cross linker and the Wine test runner, read by cargo for this target only. Arch's wine package installs one `wine`
 # binary (new WoW64 mode runs 64-bit programs too) and no `wine64`.
 ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc

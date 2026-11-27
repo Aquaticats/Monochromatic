@@ -219,8 +219,6 @@ file-uses src/native/merge merge_second_pass_git_lines.rs -> merge_second_pass.r
 file-uses src/native/merge merge_second_pass_report.rs -> merge_second_pass.rs
 file-uses src/native/merge merge_second_pass_worktree.rs -> merge_second_pass_worktree_unchanged.rs
 file-uses src/native/merge merge_second_pass_worktree_unchanged.rs -> merge_second_pass_worktree.rs
-file-uses src/native/merge word_merge.rs -> word_merge_invented_text.rs
-file-uses src/native/merge word_merge_invented_text.rs -> word_merge.rs
 file-uses src/native/policy direct_fix_install.rs -> direct_fix_install_judging.rs
 file-uses src/native/policy direct_fix_install.rs -> direct_fix_install_messages.rs
 file-uses src/native/policy direct_fix_install_attributes.rs -> direct_fix_install_attributes_reading.rs
@@ -235,9 +233,7 @@ file-uses src/native/policy policy_linked_worktree.rs -> policy_linked_worktree_
 file-uses src/native/policy policy_linked_worktree_nested_repositories.rs -> policy_checks.rs
 file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
 file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
-file-uses src/native/process signal_relay.rs -> signal_relay_descriptor.rs
 file-uses src/native/process signal_relay.rs -> signal_report.rs
-file-uses src/native/process signal_relay_descriptor.rs -> signal_relay.rs
 file-uses src/native/process signal_report.rs -> signal_relay.rs
 file-uses src/native/push auto_push.rs -> auto_push_awaiting.rs
 file-uses src/native/push auto_push.rs -> auto_push_reconcile.rs
@@ -292,10 +288,7 @@ file-uses src/native/push push_wait_until_done.rs -> auto_push_single_flight.rs
 file-uses src/native/push push_wait_until_done.rs -> push_progress.rs
 file-uses src/native/push stacked_merge_push.rs -> push_stacking.rs
 file-uses src/native/repair package_repair_cargo.rs -> package_repair_cargo_jobs.rs
-file-uses src/native/repair package_repair_cargo.rs -> package_repair_prewarm_job.rs
 file-uses src/native/repair package_repair_cargo_jobs.rs -> package_repair_cargo.rs
-file-uses src/native/repair package_repair_prewarm_job.rs -> package_repair_prewarm_job_filling.rs
-file-uses src/native/repair package_repair_prewarm_job_filling.rs -> package_repair_cargo.rs
 file-uses src/native/repair package_repair_relink_notice.rs -> package_repair_toolchain.rs
 file-uses src/native/repair package_repair_toolchain.rs -> package_repair_toolchain_install.rs
 file-uses src/native/repair package_repair_toolchain_copy_removal.rs -> package_repair_relink_notice.rs
@@ -436,15 +429,11 @@ file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_ha
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_own_manifest.rs
 file-uses src/native/worktree_clone_binding_record registration_recipe.rs -> registration_removals.rs
 file-uses src/native/worktree_clone_binding_record registration_removals.rs -> registration_recipe.rs
-file-uses src/native/worktree_clone_mount_handler sweep_configuration.rs -> sweep_configuration_refusal.rs
-file-uses src/native/worktree_clone_mount_handler sweep_configuration_refusal.rs -> sweep_configuration.rs
 file-uses src/native/worktree_clone_mount_handler sweep_one_clone.rs -> sweep_one_clone_answers.rs
 file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_one_clone.rs
 file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_unmount_answers.rs
 file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone.rs
 file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone_answers.rs
-file-uses src/native/worktree_clone_unmount unmount_record.rs -> unmount_turn.rs
-file-uses src/native/worktree_clone_unmount unmount_turn.rs -> unmount_record.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs

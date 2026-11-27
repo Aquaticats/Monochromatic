@@ -205,6 +205,11 @@
 //! - `wrapper_names_old_and_new.rs`:
 //!   the names this program answers to and keeps on disk,
 //!   each as the current spelling and the one an earlier release used.
+//! - `the_lines_of_a_log_compared_and_appended.rs`:
+//!   the bytes of a log as a fold of it uses them:
+//!   a round's bytes and the older copies they may already be in,
+//!   the one write that adds them,
+//!   and how a fold of one log ended.
 //! - `earlier_log_lines_added_to_current_log.rs`:
 //!   the lines of a log an earlier release wrote added to the log under the current name,
 //!   restartable after a kill.
@@ -213,6 +218,14 @@
 //! - `earlier_name_moved_to_current_in_place.rs`:
 //!   where a kept file or folder is,
 //!   moved in place from its earlier name on the first need.
+//! - `what_a_fold_is_given_and_what_it_answers.rs`:
+//!   the kinds of name a fold works on,
+//!   what it reads of the process around it,
+//!   and how the fold of one name ended.
+//! - `what_a_fold_says_to_a_person.rs`:
+//!   the two lines a fold says,
+//!   one when it waits for an earlier program to stop and one when it could not finish,
+//!   each said once in a process.
 //! - `earlier_names_folded_into_current.rs`:
 //!   every kept name that exists under both spellings folded into the current one when no earlier program writes it.
 //! - `kept_names_in_the_git_directories.rs`:
@@ -407,6 +420,17 @@ pub mod rename_that_never_replaces;
 ///  moved in place from its earlier name on the first need.
 pub mod earlier_name_moved_to_current_in_place;
 
+/// What a fold is given and what it answers:
+/// the kinds of name it folds,
+/// the surroundings it reads,
+/// how one name's fold ended,
+/// and one Git directory's report.
+pub mod what_a_fold_is_given_and_what_it_answers;
+
+/// The two lines a fold says to a person,
+/// one when it waits for an earlier program to stop and one when it could not finish.
+pub mod what_a_fold_says_to_a_person;
+
 /// Every kept name in a repository's Git directories settled to its current spelling,
 ///  and the finder for a reader that moves nothing.
 pub mod kept_names_in_the_git_directories;
@@ -427,6 +451,12 @@ pub mod file_open_for_write_by_any_process;
 /// a round,
 /// a record's text and the journal file held with its lock.
 pub mod earlier_log_lines_journal_held_and_recorded;
+
+/// The bytes of a log as a fold of it uses them:
+/// a round's bytes and the older copies they may already be in,
+/// the one write that adds them,
+/// and how a fold of one log ended.
+pub mod the_lines_of_a_log_compared_and_appended;
 
 /// The lines of a log an earlier release wrote added to the log under the current name,
 /// restartable after a kill.

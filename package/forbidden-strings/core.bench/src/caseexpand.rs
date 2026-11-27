@@ -28,6 +28,24 @@
 //!  A pattern with no inline case flag is
 //! returned byte-identical,
 //!  so only the affected rules are transformed.
+//!
+//! The three-casing of one literal run lives in the sibling
+//! `caseexpand/three_casing_of_literal_runs.rs`,
+//!  and the class widening in
+//! `caseexpand/letter_case_widening_of_classes.rs`;
+//!  both are split out to honor the max-lines budget.
+
+/// Registers the three-casing of one flag-on literal run.
+///  The `#[path]` is spelled out because this module is itself registered
+/// through a `#[path]`,
+///  which puts a plain `mod` child in `src/` instead of the module folder.
+#[path = "caseexpand/three_casing_of_literal_runs.rs"]
+mod three_casing_of_literal_runs;
+
+/// Registers the class and quantified-letter widening applied under the flag.
+///  The `#[path]` is spelled out for the same reason as the sibling above.
+#[path = "caseexpand/letter_case_widening_of_classes.rs"]
+mod letter_case_widening_of_classes;
 
 /// Imports the class-span and group-span helpers shared with the porter.
 use crate::port::{
@@ -35,16 +53,11 @@ use crate::port::{
     matching_close,
 };
 
-/// Selects which casing `recase` applies to a literal run.
-enum CaseMode {
-    /// Every letter lowercase.
-    Lower,
-    /// First letter of each alphabetic run uppercase,
-    ///  the rest lowercase.
-    Cap,
-    /// Every letter uppercase.
-    Upper,
-}
+/// Imports the three-casing alternation a flag-on run flushes through.
+use crate::caseexpand::three_casing_of_literal_runs::three_case;
+
+/// Imports the class widening a `[...]` class body gets under the flag.
+use crate::caseexpand::letter_case_widening_of_classes::widen_class;
 
 /// Expands every inline case-insensitive span of `pattern` into case-sensitive dialect.
 ///
@@ -224,207 +237,6 @@ fn flush_run(
     run.clear();
 }
 
-/// Builds the non-capturing three-casing alternation of a literal run.
-///
-/// What:
-///  the distinct lowercase,
-///  per-run-Capitalized,
-///  and UPPERCASE forms joined with `|` inside
-/// `(?:...)`;
-///  a run with no letter (all three forms equal) is returned bare.
-///  Why:
-///  matching only
-/// the three consistent shapes is the decided approximation of case-insensitivity.
-fn three_case(run: &str) -> String {
-    let mut forms: Vec<String> = Vec::new();
-    for form in [
-        recase(run, CaseMode::Lower),
-        recase(run, CaseMode::Cap),
-        recase(run, CaseMode::Upper),
-    ] {
-        if !forms.contains(&form) {
-            forms.push(form);
-        }
-    }
-    if forms.len() == 1 {
-        return forms.into_iter().next().unwrap_or_default();
-    }
-    return format!("(?:{})", forms.join("|"));
-}
-
-/// Applies one casing to a literal run,
-///  casing bare ASCII letters and copying escapes intact.
-///
-/// What:
-///  lowercases,
-///  uppercases,
-///  or Capitalizes (first letter of each alphabetic run upper,
-///  rest
-/// lower);
-///  a backslash escape and any non-letter break the alphabetic run and pass through.
-///  Why:
-/// an escape such as `\_` or `\x60` must never have its bytes recased.
-fn recase(
-    run: &str,
-    mode: CaseMode,
-) -> String {
-    let b = run.as_bytes();
-    let mut out = String::new();
-    let mut fresh = true;
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'\\' {
-            out.push('\\');
-            if i + 1 < b.len() {
-                out.push(b[i + 1] as char);
-            }
-            fresh = true;
-            i += 2;
-            continue;
-        }
-        let c = b[i];
-        if c.is_ascii_alphabetic() {
-            let cased = match mode {
-                CaseMode::Lower => c.to_ascii_lowercase(),
-                CaseMode::Upper => c.to_ascii_uppercase(),
-                CaseMode::Cap if fresh => c.to_ascii_uppercase(),
-                CaseMode::Cap => c.to_ascii_lowercase(),
-            };
-            out.push(cased as char);
-            fresh = false;
-        } else {
-            out.push(c as char);
-            fresh = true;
-        }
-        i += 1;
-    }
-    return out;
-}
-
-/// Widens each letter range or single of a `[...]` class to cover both cases.
-///
-/// What:
-///  preserves a leading `^` and every non-letter member,
-///  and inserts the opposite-case
-/// range or letter after each letter one it does not already contain.
-///  Why:
-///  a class under `(?i)`
-/// matched both cases,
-///  so widening is exact.
-fn widen_class(class: &str) -> String {
-    if class.len() < 2 || !class.ends_with(']') {
-        return class.to_string();
-    }
-    let inner = &class[1..class.len() - 1];
-    let (neg, body) = match inner.strip_prefix('^') {
-        Some(rest) => ("^", rest),
-        None => ("", inner),
-    };
-    let bb = body.as_bytes();
-    let mut out = String::from("[");
-    out.push_str(neg);
-    let mut i = 0;
-    while i < bb.len() {
-        let (atom, next) = read_class_atom(body, i);
-        if next < bb.len() && bb[next] == b'-' && next + 1 < bb.len() && bb[next + 1] != b']' {
-            let (atom2, after) = read_class_atom(body, next + 1);
-            out.push_str(&atom);
-            out.push('-');
-            out.push_str(&atom2);
-            if let Some(widened) = widen_letter_range(&atom, &atom2, body) {
-                out.push_str(&widened);
-            }
-            i = after;
-        } else {
-            out.push_str(&atom);
-            if let Some(widened) = widen_letter_single(&atom, body) {
-                out.push_str(&widened);
-            }
-            i = next;
-        }
-    }
-    out.push(']');
-    return out;
-}
-
-/// Reads one class member (an escape pair or a single byte),
-///  returning it and the next index.
-///
-/// What:
-///  two bytes for `\X`,
-///  else one byte.
-///  Why:
-///  range detection must step over whole members.
-fn read_class_atom(
-    body: &str,
-    i: usize,
-) -> (String, usize) {
-    let bb = body.as_bytes();
-    if bb[i] == b'\\' && i + 1 < bb.len() {
-        return (body[i..i + 2].to_string(), i + 2);
-    }
-    return (body[i..i + 1].to_string(), i + 1);
-}
-
-/// Returns the opposite-case range for a same-case letter range absent from `body`,
-///  or `None`.
-///
-/// What:
-///  for `a-z` yields `A-Z` unless `body` already contains it.
-///  Why:
-///  avoids re-adding a case
-/// a class such as `[a-zA-Z0-9]` already spans.
-fn widen_letter_range(
-    lo: &str,
-    hi: &str,
-    body: &str,
-) -> Option<String> {
-    let (l, h) = (single_letter(lo)?, single_letter(hi)?);
-    if l.is_ascii_lowercase() != h.is_ascii_lowercase() {
-        return None;
-    }
-    let opp = format!("{}-{}", swap_case(l) as char, swap_case(h) as char);
-    if body.contains(&opp) {
-        return None;
-    }
-    return Some(opp);
-}
-
-/// Returns the opposite-case letter for a single-letter member absent from `body`,
-///  or `None`.
-///
-/// What:
-///  for `a` yields `A` unless `body` already contains it.
-///  Why:
-///  widens a lone letter such as
-/// the `a` through `f` of a hex class.
-fn widen_letter_single(
-    atom: &str,
-    body: &str,
-) -> Option<String> {
-    let a = single_letter(atom)?;
-    let opp = swap_case(a) as char;
-    if body.contains(opp) {
-        return None;
-    }
-    return Some(opp.to_string());
-}
-
-/// Returns the byte of a one-character ASCII-letter atom,
-///  or `None`.
-///
-/// What:
-///  `Some(byte)` only for a bare single letter.
-///  Why:
-///  only letters have an opposite case.
-fn single_letter(atom: &str) -> Option<u8> {
-    let bytes = atom.as_bytes();
-    if bytes.len() == 1 && bytes[0].is_ascii_alphabetic() {
-        return Some(bytes[0]);
-    }
-    return None;
-}
-
 /// Emits one quantified literal unit,
 ///  widening a single letter to a two-case class under `(?i)`.
 ///
@@ -515,18 +327,4 @@ fn brace_end(
         }
     }
     return pos + 1;
-}
-
-/// Returns the opposite ASCII case of a letter byte,
-///  leaving non-letters unchanged.
-///
-/// What:
-///  lowercase to uppercase and the reverse.
-///  Why:
-///  widening inserts the counterpart case.
-fn swap_case(c: u8) -> u8 {
-    if c.is_ascii_lowercase() {
-        return c.to_ascii_uppercase();
-    }
-    return c.to_ascii_lowercase();
 }

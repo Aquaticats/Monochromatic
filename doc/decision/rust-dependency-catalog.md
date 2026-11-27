@@ -118,6 +118,23 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
 - `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
    it writes no lockfiles.
 
+### A pinned row follows the floor it is tied to (owner, recorded 2026-11-27T01:20:45-05:00)
+
+The daily update raised the `slint` and `slint-build` floors to `>=1.19.0` on 2026-11-23
+(`aead90ed51`,
+issue 6398)
+and left the `pinned` row `i-slint-backend-testing = "=1.18.1"`,
+which `rust-catalog.toml` says must equal the resolved Slint release.
+After `f4a30120e8` wrote the floor into four manifests,
+`package/ide/app` and `package/music-player/desktop-app` resolved no dependency set on `main`.
+Asked whether to finish the move to 1.19,
+revert the floor to `>=1.18.1`,
+or leave `main` as it was,
+the owner chose:
+"Finish the move (Recommended)".
+So the pinned row and the affected locks move to the release the floor resolves to,
+and the floor is not reverted.
+
 ## Consequences
 
 - Upstream majors arrive through the update by design;

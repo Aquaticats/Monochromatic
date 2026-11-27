@@ -38,6 +38,11 @@
 //! - `child_number_told_at_start.rs`:
 //!   the number of the child a caller waits for,
 //!   published the moment the child starts.
+//! - `process_use_targets_and_answers.rs`:
+//!   what a scan of this host's processes is asked for,
+//!   and what it answers with.
+//! - `descriptor_of_a_process_that_may_hold_the_file.rs`:
+//!   whether one descriptor of one process is the file a scan looks for.
 //! - `process_use.rs`:
 //!   the processes of this host that use a directory or a file.
 //! - `quiet_ledger.rs`:
@@ -95,6 +100,15 @@
 //!   the same attributes of the file of another process's descriptor,
 //!   read in a child that the caller stops waiting for at a ceiling,
 //!   for a mount whose file system this process cannot ask in its own name.
+//! - `step_output_pipes_attached_before_the_child_starts.rs`:
+//!   the read ends of a child's standard output and standard error,
+//!   made as pipes and registered with the runtime before the child starts.
+//! - `step_output_held_open_by_a_program_the_step_started.rs`:
+//!   what a person is told when a program the step started still holds one of its streams open after it ended,
+//!   and the error that carries those words.
+//! - `step_output_ceiling_carried_by_the_wait.rs`:
+//!   the ceiling a wait for a step's output carries,
+//!   and which of the two enforcers ends the step at it.
 //! - `step_output_read_whole_through_pipes.rs`:
 //!   the output of a child the caller started,
 //!   read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
@@ -109,6 +123,10 @@
 //!   an owned child awaited until it exits,
 //!   or ended and reaped here when its step's ceiling comes,
 //!   because a number is safe only while the child is this process's own unreaped child.
+//! - `signal_relay_child_published_to_the_handler.rs`:
+//!   the child this process publishes to the relay's handler:
+//!   the slots a signal caught before that child exists waits in,
+//!   and the publishing the handler reaches it through.
 //! - `signal_relay.rs`:
 //!   catching SIGINT,
 //!   SIGTERM,
@@ -153,6 +171,11 @@ pub mod process_start;
 /// and relaying only process-sent signals.
 pub mod signal_relay;
 
+/// The child this process publishes to the relay's handler:
+/// the slots a signal caught before that child exists waits in,
+/// and the publishing the handler reaches it through.
+pub mod signal_relay_child_published_to_the_handler;
+
 /// The stop signal this process relayed to a child,
 /// and the process the kernel named as its sender,
 /// kept for the command that waits after it.
@@ -190,6 +213,13 @@ pub mod descriptor_record;
 
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
+
+/// What a scan of this host's processes is asked for,
+/// and what it answers with.
+pub mod process_use_targets_and_answers;
+
+/// Whether one descriptor of one process is the file a scan looks for.
+pub mod descriptor_of_a_process_that_may_hold_the_file;
 
 /// The device and the inode of the file an open descriptor refers to,
 /// read from the kernel's own copy of the descriptor.
@@ -236,6 +266,18 @@ pub mod captured_child_run_to_its_end;
 /// The output of a child the caller started,
 /// read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
 pub mod step_output_read_whole_through_pipes;
+
+/// The read ends of a child's standard output and standard error,
+/// made as pipes and registered with the runtime before the child starts.
+pub mod step_output_pipes_attached_before_the_child_starts;
+
+/// What a person is told when a program the step started still holds one of its streams open after it ended,
+/// and the error that carries those words.
+pub mod step_output_held_open_by_a_program_the_step_started;
+
+/// The ceiling a wait for a step's output carries,
+/// and which of the two enforcers ends the step at it.
+pub mod step_output_ceiling_carried_by_the_wait;
 
 /// When a stop that asked its tree to end may force the end:
 /// at the end of its grace,

@@ -242,13 +242,13 @@ music-player path/to/music-folder
 apk add rust cargo build-base cmake samurai pkgconf linux-headers clang21-libclang \
   pipewire-dev alsa-lib-dev fontconfig-dev freetype-dev
 cd package/music-player/desktop-app
-SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 cargo build --release --locked --features alsa-fallback
+SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types cargo build --release --locked --features alsa-fallback
 ```
 
 Unit tests also need `cargo-nextest dbus font-dejavu`:
 
 ```sh
-SLINT_EMIT_DEBUG_INFO=1 SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 cargo nextest run --locked --features alsa-fallback
+SLINT_EMIT_DEBUG_INFO=1 SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types cargo nextest run --locked --features alsa-fallback
 ```
 
 ### Checking the Alpine build
@@ -787,9 +787,10 @@ through the portal's `SettingChanged` signal),
 DWM colorization on Windows and `NSColor` accent on macOS.
 A transparent accent (alpha 0) means none is available,
 and the root is then the Fold capture baseline `#4E5E8B`.
-`SlintInternal` needs Slint's experimental-features switch (`SLINT_ENABLE_EXPERIMENTAL_FEATURES`),
+`SlintInternal` needs Slint's experimental-features list (`SLINT_ENABLE_EXPERIMENTAL_FEATURES`)
+to name `internal-types`,
 which the package
-`mise.toml` and the repo `.cargo/config.toml` already set.
+`mise.toml` and the repo `.cargo/config.toml` already do.
 
 Every other colour is derived from the root in OKLCH by `src/theme_roles.rs` (math in `src/oklch.rs`):
 each role has a lightness target,
@@ -880,8 +881,17 @@ the selected row is a filled pill in the secondary container role with a bold ti
 channels),
 the title's box is sized by a hidden bold copy,
 and the new content fades in over 150 ms.
-Slint 1.18 exposes no reduced-motion setting (searched in its 1.18.1 crates),
-so the fade is always that short.
+Slint 1.19 makes every animation honour the system's reduced-motion setting,
+and only the Windows backend reports that setting: `i-slint-backend-winit` 1.19.1
+`windows_settings.rs` reads `SPI_GETCLIENTAREAANIMATION`
+(the "Animation effects" switch under Settings,
+Accessibility,
+Visual effects)
+and `i-slint-compiler` 1.19.1 `llr/lower_expression.rs` `honor_reduced_motion`
+takes it out of every animation's `enabled`.
+No XDG setting exists for it on Linux and no macOS backend reads one,
+so the fade is always that short on those two platforms,
+and it is instant on Windows when animations are switched off there.
 While Settings is open the player layouts are hidden,
 so nothing of the player shows through the fade.
 The first row is selected when Settings opens.

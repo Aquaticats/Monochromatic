@@ -504,3 +504,27 @@ configuration migration for the intentional parser change. No upstream report is
   https://github.com/slint-ui/slint/blob/e436f546f71481d786cbc2a74316b1be1ef678c1/internal/compiler/experimental_features.rs#L147-L155
 [slint-119-diagnostic]:
   https://github.com/slint-ui/slint/blob/e436f546f71481d786cbc2a74316b1be1ef678c1/internal/compiler/lib.rs#L466-L474
+
+## The migration landed 2026-11-26T22:06:59-05:00
+
+The round that moved the three Slint applications to 1.19.1 named the feature each package needs.
+Every value below was probed with the installed `slint-viewer` 1.19.0, `--check` on the package's
+`ui/app.slint`, unset and then set:
+
+- `package/music-player/desktop-app`: `internal-types`. `ui/theme.slint` reads
+  `SlintInternal.accent-color`; unset, the compile stops with `error: Cannot access id 'SlintInternal'`,
+  and `internal-types` compiles with no error.
+- `package/terminal/app`: the empty list. The markup uses no experimental feature; `1` fails and the
+  empty value compiles with only `info:` lines.
+- `package/browser-selector/desktop-app`: the empty list, already set for this reason.
+- The repository-wide value in `.cargo/config.toml` and `.config/mise/conf.d/20-env.toml` is
+  `internal-types`, which is what an editor LSP launched from the repository root needs for the music
+  player and which changes nothing for the other applications.
+
+`FlexboxLayout` needs no feature from 1.19.0 on:
+`i-slint-compiler` 1.19.1 `builtin_elements.rs` gives `experimental_feature(..)` to
+`ComponentContainer` alone, so the comments that asked for this switch on the page-tab bar's behalf
+now name `SlintInternal` instead.
+
+`mise run //package/music-player/desktop-app:lint` (Slint 1.19.1, `cargo check`) passes and
+`slint-viewer --check` reports no error with these values.

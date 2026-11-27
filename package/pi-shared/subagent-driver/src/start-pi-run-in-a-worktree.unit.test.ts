@@ -1561,7 +1561,7 @@ await describe({
       },
     },),
     it({
-      name: 'takes a run that names Pi\'s virtual writer with the pair it named, and says the pools its router may take have room',
+      name: 'takes a run that names Pi\'s virtual writer with the pair it named, and says its router may take the members while the run holds no slot in any pool',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
           provider: VIRTUAL_WRITER.provider,
@@ -1573,11 +1573,12 @@ await describe({
         // into one member's pair would pin the run to that member.
         expect(answered.unitWords,).toContain(`--provider=${VIRTUAL_WRITER.provider}`,);
         expect(answered.unitWords,).toContain(`--model=${VIRTUAL_WRITER.model}`,);
-        // The line names every pool the router may take, so a reader sees what this run holds of each.
+        // The line names every pool the router may take, and says the run holds no slot in any of them.
         for (const pool of VIRTUAL_WRITER.memberPools) {
           expect(answered.stdout,).toContain(pool.name,);
         }
         expect(answered.stdout,).toContain(`pool: ${VIRTUAL_WRITER.provider}/${VIRTUAL_WRITER.model},`,);
+        expect(answered.stdout,).toContain('holds no slot in any pool',);
         // The run may last as long as the slowest pool of that order would give it, because the router can land there.
         expect(answered.unitWords,).toContain(`--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({
           wallSeconds: wallSecondsOn({
@@ -1593,7 +1594,7 @@ await describe({
       },
     },),
     it({
-      name: 'counts a run on the virtual writer in every pool its router may take, so a run that fills one of them leaves the next one to a run started after it',
+      name: 'takes the first pool of the order for a run that names no provider while a run on the virtual writer goes, because that run holds no slot in that pool',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
           environment: { [POOL_LIMITS_VARIABLE]: `${QWEN_PLAN_DEEPSEEK.name}=1`, },
@@ -1608,37 +1609,15 @@ await describe({
           ],
         },);
         expect(answered.unitWasReached,).toBe(true,);
-        // A run on the virtual writer holds a slot in the first pool of that order too, so a default run started while it is going
-        // finds that pool full and takes the next one.
-        expect(answered.unitWords,).toContain(`--provider=${OPENCODE_GO.provider}`,);
-        expect(answered.unitWords,).toContain(`--model=${OPENCODE_GO.model}`,);
-        expect(answered.stdout,).toContain(`${QWEN_PLAN_DEEPSEEK.name} 1/1`,);
+        // A run on the virtual writer is counted in no pool, so the first pool's own room is still free for a run whose command
+        // line names no provider.
+        expect(answered.stdout,).toContain(`${QWEN_PLAN_DEEPSEEK.name} 0/1`,);
+        expect(answered.unitWords,).toContain(`--provider=${QWEN_PLAN_DEEPSEEK.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${QWEN_PLAN_DEEPSEEK.model}`,);
       },
     },),
     it({
-      name: 'refuses a run on the virtual writer when one pool its router may take is full, naming that pool and its count, and starts nothing',
-      fn: async () => {
-        const answered = await launchThroughTheStandIns({
-          provider: VIRTUAL_WRITER.provider,
-          model: VIRTUAL_WRITER.model,
-          environment: { [POOL_LIMITS_VARIABLE]: `${NEURALWATT_DEEPSEEK_FLEX.name}=1`, },
-          otherLaunchers: [
-            {
-              name: 'another-review',
-              pool: NEURALWATT_DEEPSEEK_FLEX,
-            },
-          ],
-        },);
-        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
-        // A pool the router may send the run to has no room, and the run would hold a slot there, so it cannot start.
-        expect(answered.stderr,).toContain(`${NEURALWATT_DEEPSEEK_FLEX.name}: full: 1 going of the 1 it takes`,);
-        expect(answered.stderr,).toContain(`--provider=${VIRTUAL_WRITER.provider} --model=${VIRTUAL_WRITER.model}`,);
-        expect(answered.unitWasReached,).toBe(false,);
-        expect(answered.runsFolderHolds,).toEqual([],);
-      },
-    },),
-    it({
-      name: 'refuses a run on the virtual writer when every pool its router may take is full, naming each one with its count',
+      name: 'starts a run on the virtual writer while every member\'s own room is full, because a run on it holds no slot in any pool',
       fn: async () => {
         /**
          The pools the virtual writer's router may take, each given one slot for this command.
@@ -1663,12 +1642,13 @@ await describe({
             };
           },),
         },);
-        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.code,).not.toBe(NO_SLOT_EXIT_STATUS,);
+        // Each member's own room is full for the runs pinned to it, and the run on the selection starts anyway.
         for (const pool of members) {
-          expect(answered.stderr,).toContain(`${pool.name}: full: 1 going of the 1 it takes`,);
+          expect(answered.stdout,).toContain(`${pool.name} 1/1`,);
         }
-        expect(answered.unitWasReached,).toBe(false,);
-        expect(answered.runsFolderHolds,).toEqual([],);
+        expect(answered.stdout,).toContain('holds no slot in any pool',);
       },
     },),
     it({
