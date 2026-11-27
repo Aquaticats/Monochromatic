@@ -102,6 +102,29 @@ so two controls of a threaded run cannot both have theirs,
 and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
 The setters refuse in any other process and name the starter,
 as the descriptor limit's setter does.
+The environment is one of those facts,
+and a control that changes what it names runs its body through
+`run_the_body_with_an_environment_of_its_own`
+in the same file,
+which adds the variables the control states and removes the ones it names.
+The route a hand-over finds the commit service by reads two of them:
+`XDG_RUNTIME_DIR` names the socket and the bus,
+and `DBUS_SESSION_BUS_ADDRESS` names the session bus a service is provisioned through.
+So a control whose body hands a trash over through the release path reaches this account's own manager as soon
+as another control of the same process has resolved the real Git,
+because resolving it remembers the running executable
+(`service_route.rs`,
+`OWN_EXECUTABLE`),
+which in a test process is the test binary:
+the hand-over wrote that fixture worktree's units into `/run/user/<n>/systemd/user/`,
+pointed the account-wide program link at the test binary,
+and asked the manager to start a unit for the fixture,
+which failed five times on libtest's `error: Unrecognized option: 'journal'` until the start limit hit,
+while the add printed its own starting notice into the control's captured standard error (issue 6582).
+Such a control names a fixture `XDG_RUNTIME_DIR` and clears `DBUS_SESSION_BUS_ADDRESS`,
+so the route answers nothing and the hand-over fails with "no commit service can be started from this
+session",
+which is the world those controls are about.
 A child also inherits the records its parent holds,
 so a control whose body reads the chain record closes the record it inherited before it makes its own
 (`invocation/started_as_git_tests.rs`,
@@ -581,6 +604,41 @@ and 4 more read one at run time outside `source_guard`
 and the rest are in `source_guard` whose whole module runs.
 Each of those 26 modules ran once and threaded
 and only the control above was stale.
+
+## Walk the sources through the one walk, never a recursive read
+
+Every source folder holds a `uses/` folder of links to the folders its code uses,
+so a read that follows a link reaches the same module once per chain of links above it.
+Measured 2026-11-27:
+a recursive read of `src/native` returned 165,978 entries and 163,498 `.rs` names
+where the tree holds 4,234 entries and 3,905 Rust sources,
+and joining that much text ended the planted-controls unit test with `RangeError: Invalid string length`
+(issue 6580).
+A TypeScript script or test of this package that reads the sources walks them through
+`bin/source-tree-files.ts` (`sourceTreeFiles`),
+which enters each folder once,
+never descends a link,
+and gives the files in code unit order.
+A fixture folder a script makes itself is not the source tree,
+so a reader of one may list it directly:
+two readers of this package list a folder recursively and each follows a link it meets,
+`e2e/observation-fixture.ts` (a fixture repository's common directory) and
+`perf/fence-size-read-beside-the-check-2026-11-21-control-identical-fence.ts` (the fixture trees it compares),
+and neither fixture holds a link as of 2026-11-27,
+because no script of the package makes one there.
+
+A planted control names one file and one needle in it,
+and a needle goes stale without anything renaming it:
+a split moves the guard into a sibling file,
+or `cargo fmt` reflows the expression onto other lines.
+`bin/native-planted-controls.unit.test.ts` is what reports that,
+so it names the control and the file whose text no longer occurs exactly once;
+seven controls were stale on 2026-11-27 and the source walk's crash hid every one of them.
+A control whose guard moved names the file that holds the guard now,
+and one whose text was reflowed carries the text as the file holds it,
+with a comment saying which commit moved what.
+A needle that compiles is not the same as a needle a campaign notices:
+`mise run //package/git-policy/cli:native:mutation:planted` is what proves that.
 
 ## A filtered run counts only when it ran the tests you meant
 

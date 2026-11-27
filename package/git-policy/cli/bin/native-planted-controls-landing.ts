@@ -34,7 +34,9 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   },
   {
     name: 'worktree copy journal private-mode refusal',
-    file: 'src/native/worktree_copying/worktree_copy_journal.rs',
+    // The mode check moved to `worktree_copy_private_path.rs` when the journal was split by role, and the condition
+    // keeps its text.
+    file: 'src/native/worktree_copying/worktree_copy_private_path.rs',
     from: '|| (metadata.mode() & NON_PRIVATE_MODE_BITS) != 0',
     to: '|| false',
     failing: 'worktree_copying::worktree_copy_journal::tests::unsafe_journal_mode_fails_closed_and_is_kept',
