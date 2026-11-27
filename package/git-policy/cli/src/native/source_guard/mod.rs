@@ -157,6 +157,14 @@ mod no_control_takes_the_log_line_queue_in_the_run_tests;
 #[path = "notice_controls_take_their_window_tests.rs"]
 mod notice_controls_take_their_window_tests;
 
+/// The ban on a control publishing,
+/// ending or reading in the process the run holds the step a waiting add's notice names:
+/// such a control starts a child of its own first,
+/// whose record holds nothing but what that control published.
+#[cfg(test)]
+#[path = "standing_notice_controls_own_the_published_step_tests.rs"]
+mod standing_notice_controls_own_the_published_step_tests;
+
 /// The ban on a control starting the interactive selection in the process the run holds:
 /// such a control starts a child of its own first,
 /// whose standard input is the null device and not the terminal the run was started from.
