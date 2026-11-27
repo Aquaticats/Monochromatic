@@ -632,9 +632,24 @@ and the record says how the measurement was made.
   and the record stays until its line is known written.
   The alternative is to accept the loss and correct the first passage.
 
-Waiting on a round's proposal,
-to be added here when it lands:
-what proves the reload remedy once no release from before it exists (issue 6587's second round).
+What proves the reload remedy,
+now that no release this host holds comes from before it,
+is its own proposal:
+`doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`
+(issue 6587's second round).
+The reload proof's control arm must end a desktop stand-in by a manager-wide reload,
+and every release since the remedy of 2026-11-12 asks for none.
+Its options:
+A keeps two pre-remedy releases for the arm,
+B has a stand-in ask the manager for the reload,
+C retires the arm and plants one reload in the arm that remains,
+which must then survive the steps;
+D,
+separable,
+writes an earlier release's unit text into the machine,
+since no arm meets one today.
+Its ranking is C > A > B,
+and D > A for the earlier text.
 
 ## Open: what a repository with slot records does with a shell alias the wrapper cannot read (recorded 2026-11-27T10:01:17-05:00)
 

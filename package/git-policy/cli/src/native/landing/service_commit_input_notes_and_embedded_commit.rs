@@ -55,7 +55,10 @@ use crate::service_route::{
 };
 use crate::service_server::Bind;
 /// Standard error as a stream whose lines a thread of their own writes.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 use crate::transaction_git::{
     GitRequest,
     run_git,
@@ -162,7 +165,7 @@ pub(crate) fn repository_not_found(invocation: &CommitInvocation<'_>) -> Transac
     // What: Git's own words go to the thread that writes standard error.
     // Why:  The command is ending with Git's status, and a reader that stopped draining must not keep
     //       it from reaching that end.
-    let mut refusal: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut refusal: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     let _reported = refusal.write_all(output.stderr.as_slice());
     let _flushed = refusal.flush();
@@ -226,7 +229,7 @@ pub(crate) fn print_summary(line: &str) {
 /// printNote(line)
 /// ```
 pub(crate) fn print_note(line: &str) {
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     let _said = writeln!(notes, "{line}");
     let _flushed = notes.flush();

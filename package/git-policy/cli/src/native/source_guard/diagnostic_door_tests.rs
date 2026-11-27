@@ -25,10 +25,22 @@
 //! expect(findingsOfTheDoor(read(door))).toEqual([]); expect(findingsOfTheWriter(read(writer))).toEqual([]); expect(eprintlnInRelease(sources)).toEqual([]);
 //! ```
 
-use crate::source_guard::source_scan_tests::tree::classified_sources;
+// What:
+//  `release_sources_in` lists the files of this crate the module tree reaches as release code,
+//  and the other three name a source file, read one of them, and give the crate's own source root.
+// Why:
+//  All four are the shared source scan,
+//  so this check walks the tree exactly as every other check of the crate's sources does.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { releaseSourcesIn, sourceText, sourceRoot, realRoots } from './source_guard'
+// ```
+use crate::source_guard::release_sources_in;
 use crate::source_guard::source_scan_tests::{
     real_roots,
     source_root,
+    source_text,
 };
 
 /// The file of the door every diagnostic level goes through.
@@ -158,31 +170,31 @@ fn eprintln_in_release(files: &[(String, String)]) -> Vec<String> {
 }
 
 /// What:
-///  Every release source of this crate,
-///  as its `/`-separated identity under `src/native` and the text of the file.
+///  Every release source of this crate that says a line with `eprintln!`,
+///  as its `/`-separated identity under `src/native`.
 /// Why:
 ///  The module tree decides what is release code,
-/// so a module declared under `#[cfg(test)]` is never read as one that ships.
+/// so a module declared under `#[cfg(test)]` is never read as one that ships,
+/// and each file is read on its own so no test process holds the tree's 46 MB of sources
+/// (issue 6598).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const releaseSources = () => classifiedSources(sourceRoot(), realRoots()).filter((file) => !file.testOnly).map((file) => [file.path, read(file.path)])
+/// const eprintlnSources = () => releaseSourcesIn(sourceRoot(), realRoots()).filter((path) => eprintlnInRelease([[path, read(path)]]).length > 0)
 /// ```
-fn release_sources() -> Vec<(String, String)> {
-    let root: std::path::PathBuf = source_root();
-    let sources = classified_sources(root.as_path(), real_roots().as_slice())
-        .expect("the crate's source tree");
-    let mut release: Vec<(String, String)> = Vec::new();
-    for file in sources {
-        if file.test_only {
-            continue;
-        }
-        let path: std::path::PathBuf = root.join(file.path.as_str());
-        let text: String = std::fs::read_to_string(path.as_path())
-            .unwrap_or_else(|error| panic!("{} cannot be read: {error}", path.display()));
-        release.push((file.path, text));
+fn eprintln_in_the_release_sources() -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for path in release_sources_in(&source_root(), &real_roots()).expect("the release sources") {
+        // What:
+        //  `source_text` reads this one file, and `eprintln_in_release` judges one `(path, text)` pair,
+        //  which is the same call the planted controls below hand a made-up pair.
+        // Why:
+        //  The tree's check and the controls' check are one function, so a control that passes proves the tree's
+        //  check too, and the file's text is dropped before the next read.
+        let text: String = source_text(path.as_str());
+        found.extend(eprintln_in_release(&[(path, text)]));
     }
-    return release;
+    return found;
 }
 
 /// The door hands every line over and writes no stream of its own.
@@ -213,7 +225,7 @@ fn the_writer_writes_the_descriptor_and_never_the_shared_standard_error() {
 #[test]
 fn no_release_file_says_a_line_with_eprintln() {
     assert_eq!(
-        eprintln_in_release(release_sources().as_slice()),
+        eprintln_in_the_release_sources(),
         Vec::<String>::new(),
         "a line that waits for the reader where the command stands is what this guard exists to prevent; say it through the door"
     );
