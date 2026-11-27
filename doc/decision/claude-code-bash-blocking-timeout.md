@@ -43,6 +43,12 @@ and with the policy enabled:
   "leave them running in background";
   the Claude Sonnet review of that day pointed out the stop.
 
+Shell commands that REPL code-mode scripts run reach the hook as main-session Bash calls
+and get the same treatment,
+by the owner's answer "Clamp REPL too (Recommended)" of 2026-11-27T12:49:24-05:00:
+a script's `.timeout(ms)` no longer keeps a long command in front,
+and its result arrives with the task notification.
+
 Unchanged:
 native subagents keep their execution fields and get no prefix;
 explicit background calls keep their flag and timeout;

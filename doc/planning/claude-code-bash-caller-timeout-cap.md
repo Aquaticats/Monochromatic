@@ -429,6 +429,20 @@ asked through the question tool with both choices framed as mattering only under
   only the note quoted under "A prefix keeps sleep-first commands running",
   and is asked again with the four combinations.
 
+On 2026-11-27T12:29:58-05:00:
+
+- Which fix:
+  "Clamp + prefix (Recommended)".
+
+On 2026-11-27T12:49:24-05:00,
+after the gate review raised REPL commands and the mislabeled pair was disclosed:
+
+- REPL commands:
+  "Clamp REPL too (Recommended)".
+- Merge timing:
+  "Merge now (Recommended)",
+  with the second-pass review's findings to follow as fixes.
+
 ## Changes once a choice is accepted
 
 For the native cap:
@@ -550,10 +564,10 @@ and it was not run in a live session.
 
 ## Open
 
-- The owner's answers on REPL commands and on merging,
-  see "Owner answers".
-- A gate review of the accepted clamp-and-prefix design;
-  the Claude Sonnet review covered only the native-cap version.
+- A Claude Sonnet second pass on the branch (same vendor,
+  not independent) started at 2026-11-27T12:48 -05:00;
+  its findings are to be weighed and fixed after the merge.
+- A REPL command with `.timeout(600000)` is to be checked live once the merge is in place.
 - The Claude Sonnet gate review's findings.
 - The REPL surface under the cap stays unprobed until an interactive code-mode session runs with the variable set.
 - A background subagent under the cap was not probed;
