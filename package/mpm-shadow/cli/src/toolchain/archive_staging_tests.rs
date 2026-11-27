@@ -449,6 +449,17 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
         fs::create_dir_all(path).expect("make a hidden directory");
     }
 
+    // A finished copy of another version, which may be the only copy of it and so is no leftover to remove.
+    let finished_elsewhere: PathBuf = hidden_sibling(
+        &tool_dir.join("0.2.2"),
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(finished_elsewhere.join("release-folder"))
+        .expect("make the hidden directory");
+    write_executable(&finished_elsewhere.join("release-folder").join(BIN));
+    write_complete_marker(&finished_elsewhere, ID, "0.2.2").expect("write the completion marker");
+
     let recovered: Recovered = recover_leftovers(&version_dir, BIN).expect("recovered");
     assert!(
         live.is_dir(),
@@ -467,6 +478,10 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
     assert!(
         removed.contains(&&another_version),
         "so is the remains of a kill in another version's install: {removed:?}"
+    );
+    assert!(
+        finished_elsewhere.is_dir(),
+        "a finished copy of another version is left for that version's own install: {removed:?}"
     );
 }
 
@@ -502,5 +517,36 @@ fn the_copy_a_kill_moved_aside_comes_back_when_the_finished_one_is_gone() {
         report.failed.len(),
         1,
         "the archive was not served, so the install after the recovery failed: {report:?}"
+    );
+}
+
+#[test]
+fn a_third_party_archive_tool_also_finishes_the_publish_a_kill_left() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    // A tool of another repository: it finishes on the marker alone, and no program of it is looked for.
+    let tool_dir: PathBuf = tool_directory(&root, "node").expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join(rig.tool("node").version);
+    let dead: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(&dead).expect("make the finished copy a killed install left");
+    write_complete_marker(&dead, "node", &rig.tool("node").version).expect("write the marker");
+
+    let recovered: Recovered = recover_leftovers(&version_dir, "").expect("recovered");
+    assert!(
+        recovered.published,
+        "the finished copy is published: {recovered:?}"
+    );
+    assert!(
+        has_complete_marker(&version_dir),
+        "the version's name holds the finished copy"
+    );
+    assert_eq!(
+        names_of(&tool_dir),
+        vec![rig.tool("node").version],
+        "and nothing else"
     );
 }

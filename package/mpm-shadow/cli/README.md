@@ -1319,6 +1319,8 @@ so a reused number is never read as the installer.
 Nothing is read from that other process except its own `/proc/<pid>/stat` record.
 A hidden directory whose name carries no start time was written by an earlier release,
 so it cannot be judged and is left where it is.
+A finished copy under another version's name may be the only copy of that version,
+so it is left for that version's own install to publish.
 
 `install` prints one line for each version it finished this way,
 for example `toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed the 2 hidden directories it left behind`.

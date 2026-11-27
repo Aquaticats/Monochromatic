@@ -47,7 +47,7 @@
 //! Nothing here touches a sibling whose installer still runs
 //! (`the_owner_of_a_hidden_sibling` says how that is told),
 //! and nothing here removes a copy that may be the only one:
-//! the finished copy of another version is never published or deleted.
+//! a finished copy under another version's name is left for that version's own install to publish.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -316,6 +316,11 @@ pub(crate) fn recover_leftovers(
         }
     }
     for sibling in &gone {
+        if sibling.version != version && is_finished(&sibling.path, first_bin) {
+            // Another version's finished copy may be the only one that version has,
+            // and publishing it is that version's own install to do.
+            continue;
+        }
         if fs::symlink_metadata(&sibling.path).is_err() {
             continue;
         }
