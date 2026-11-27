@@ -12,16 +12,22 @@
 use super::{
     AllowKind,
     AllowList,
+    counted_work,
     parse_allow_list,
     read_allow_list,
+    tolerated,
 };
 use crate::{
+    layout_finding::LayoutFinding,
     run_test_support::write,
     test_fs::Fixture,
 };
 use std::{
     io::Read,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Read a list from text,
@@ -349,4 +355,87 @@ fn the_read_stops_one_byte_past_the_cap() {
         b"xxxx"
     );
     assert_eq!(short.served, 4);
+}
+
+/// A key is answered from the index the list read once,
+///  so tolerating one finding of a long list walks no entry at all,
+///  where a scan over every entry would walk each of them.
+#[test]
+fn a_key_lookup_walks_no_entry_of_the_list() {
+    // What: the number of keys the fixture list holds, named so the last one is no magic number.
+    // Why: the list must be long enough that a scan before the last key is unmistakable in the count.
+    const KEYS: usize = 64;
+    let mut text: String = String::new();
+    for index in 0..KEYS {
+        text.push_str(format!("glob src/a{index}/lib.rs child::*\n").as_str());
+    }
+    let list: AllowList = parsed(text.as_str());
+    let finding: LayoutFinding = LayoutFinding {
+        file: PathBuf::from("src/a63/lib.rs"),
+        line: 1,
+        message: String::from("a fixture finding about the last glob"),
+        help: None,
+        // What: the key of the last entry, which is the one the list holds at the end.
+        // Why: a scan would read every entry before it, so the counter says which lookup this run made.
+        key: format!("glob src/a{}/lib.rs child::*", KEYS - 1),
+    };
+    // What: the control, one entry counted by hand before the question is asked.
+    // Why: a count of zero is only an answer if this counter records work at all.
+    counted_work::note_entry();
+    assert_eq!(
+        counted_work::entries_walked(),
+        1,
+        "the counter records work"
+    );
+    counted_work::reset();
+    let (kept, used): (Vec<LayoutFinding>, std::collections::BTreeSet<usize>) =
+        tolerated(vec![finding], &list);
+    assert_eq!(kept.len(), 0, "the last key is on the list");
+    assert_eq!(
+        used.len(),
+        1,
+        "the entry that holds it is the one that tolerated it"
+    );
+    assert_eq!(
+        counted_work::entries_walked(),
+        0,
+        "the index answers a key without walking the entries"
+    );
+}
+
+/// A file use is answered by walking the entries,
+///  which is what the README says of a file-use lookup,
+///  so asking about the last pair of a long list reads every entry before it.
+#[test]
+fn a_file_use_lookup_walks_the_entries() {
+    // What: the number of file-use lines the fixture list holds, named so the last one is no magic number.
+    // Why: a walk over every entry would read each of them before the last pair, which the count shows.
+    const LINES: usize = 64;
+    let mut text: String = String::new();
+    for index in 0..LINES {
+        text.push_str(format!("file-uses src/a one{index}.rs -> two{index}.rs\n").as_str());
+    }
+    let list: AllowList = parsed(text.as_str());
+    // What: the control, one entry counted by hand before the question is asked.
+    // Why: a count of zero is only an answer if this counter records work at all.
+    counted_work::note_entry();
+    assert_eq!(
+        counted_work::entries_walked(),
+        1,
+        "the counter records work"
+    );
+    counted_work::reset();
+    assert!(
+        list.covers_file_use(
+            Path::new("src/a"),
+            format!("one{}.rs", LINES - 1).as_str(),
+            format!("two{}.rs", LINES - 1).as_str()
+        ),
+        "the last pair is on the list"
+    );
+    assert_eq!(
+        counted_work::entries_walked(),
+        LINES,
+        "the last pair is found by walking every entry before it"
+    );
 }
