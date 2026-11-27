@@ -148,15 +148,22 @@ and each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
   issue 6339).
   After it merges,
   rounds start through `start-pi-run-in-a-worktree`.
+- `slint-1-19-pin-and-locks-so-three-apps-resolve-again`,
+  which finishes the half-applied Slint update ("What the split rounds found").
+- Issue 6491 (`forbidden-strings`' embedding control fails on a `utf8only` home)
+  and issue 6398 (the daily update moves a catalog floor without the manifests and locks).
 
-Waiting for a place under the 64,
-in this order:
-`slint-1-19-pin-and-locks-so-three-apps-resolve-again` ("What the split rounds found"),
-`split-forbidden-strings-core.bench-files-over-the-line-budget`,
-`split-music-player-truepeak-core.bench-files-over-the-line-budget`,
-`split-music-player-truepeak-core-files-over-the-line-budget`,
-`split-ide-app-files-over-the-line-budget-part-4-of-4`,
-`split-cargo-shadow-cli-files-over-the-line-budget-part-4-of-4`.
+Nothing waits for a place under the 64.
+Waiting on a named merge:
+
+- The music player's split rounds part 1 and 2 of 3 (second runs) and part 3 of 3,
+  on the Slint round's merge.
+- Issues 6524,
+  6525 and 6526 (three landing controls that fail only threaded),
+  on the merge of the landing split rounds 2 to 4,
+  which change the same folder.
+- Issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy"),
+  on the merge of the `mpm-shadow` and `cargo-shadow` split rounds.
 
 Not yet briefed:
 issue 6513 (the linter reads a near-miss file-list marker as no list),
@@ -199,6 +206,13 @@ with two to five adds copying at once beside about sixty running rounds
   the rounds split them to the same budget anyway.
 - `forbidden-strings`' `embedding::public_embedding_runs_without_real_user_state` fails on `main`
   on this machine's `utf8only` home (issue 6491).
+- Two rounds split the four byte-identical copies of `src/shadow_identity.rs` into different parts,
+  because each scanned the open branches before the other pushed.
+  The `pnpm-shadow` round's layout landed first (`0eac88f14d`),
+  the `search-shadow` branch took it in its merge (`f216e142a3`,
+  on `main` as `437293c4b0`),
+  and the two rounds still running with that file in their brief were told to leave it.
+  A file that several crates must keep identical belongs to one round.
 
 ### Next
 
