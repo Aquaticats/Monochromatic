@@ -23,6 +23,9 @@ snapshots the original commit's files,
 so Git then reports the new worktree dirty.
 A later `git worktree remove` is refused by plain Git but goes through on the wrapper.
 A test showed no uncommitted work lost.
+The reviewer read,
+from the proof's design and not by running it,
+that a real edit would still be seen by the repository's own store.
 The branch's note wrongly says a named base "cannot change the answer".
 
 The question ranked the options A over B over C:
@@ -72,6 +75,9 @@ a control for the ladder target's open,
 and the note's leftover words.
 The recheck's review is
 `~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/review-fourth-recheck.md`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## Moved from the old handover
 
