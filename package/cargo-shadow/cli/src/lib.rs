@@ -145,6 +145,9 @@ pub mod control_group_process_identity;
 /// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
 pub mod control_group_machine_identity;
 
+/// The stop of a scope, and the reads of `cgroup.events` (split out of the control group module).
+pub mod control_group_stop;
+
 /// The resource limits of the caller's control group,
 /// read so the scope of a run keeps them.
 pub mod inherited_limits;

@@ -11,7 +11,7 @@
 //! These tests read the production sources of the bounded run and fail when either rule is broken.
 
 /// The production sources of the bounded run that write trace events.
-const SOURCES: [(&str, &str); 10] = [
+const SOURCES: [(&str, &str); 11] = [
     ("bounded_run.rs", include_str!("bounded_run.rs")),
     (
         "bounded_run_containment.rs",
@@ -26,6 +26,10 @@ const SOURCES: [(&str, &str); 10] = [
         include_str!("bounded_run_route_cache.rs"),
     ),
     ("control_group.rs", include_str!("control_group.rs")),
+    (
+        "control_group_stop.rs",
+        include_str!("control_group_stop.rs"),
+    ),
     ("journal.rs", include_str!("journal.rs")),
     (
         "journal_directory_readers.rs",
