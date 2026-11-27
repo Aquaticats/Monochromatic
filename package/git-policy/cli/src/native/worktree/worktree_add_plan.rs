@@ -21,20 +21,23 @@
 //! const plan = parseAddPlan(['-C', 'repo', 'worktree', 'add', '-b', 'topic', '../topic'], 1, cwd); // undefined: plain Git
 //! ```
 
-/// Import the copy's destination reading,
-/// and hand it on under this module's name,
-/// which is the name every caller already writes.
-pub use crate::worktree_add_plan_copy_destination::{
-    COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE,
-    copy_start_directory,
-    parse_copy_destination,
-};
+/// The Git global option table this reading was copied from,
+/// which only a control reads.
+#[cfg(test)]
+pub(crate) use crate::worktree_add_plan_copy_destination::COPIED_GLOBAL_OPTION_TABLE_GIT_RELEASE;
 /// Import the two words of that reading a control names,
 /// which the release build never reads.
 #[cfg(test)]
 use crate::worktree_add_plan_copy_destination::{
     copy_add_operands,
     creating_destination,
+};
+/// Import the copy's destination reading,
+/// and hand it on under this module's name,
+/// which is the name every caller already writes.
+pub use crate::worktree_add_plan_copy_destination::{
+    copy_start_directory,
+    parse_copy_destination,
 };
 /// Import the questions about a path that the plan's own destination asks.
 use crate::worktree_add_plan_path_questions::{

@@ -100,12 +100,6 @@ pub use crate::service_server_batch_and_idle_limits::{
     MAX_BATCH,
     OWN_WORKTREE_CHECK,
 };
-/// The trees a group's requests name,
-/// and their removal once the landing that read them is over.
-pub use crate::service_server_scratch_trees_of_a_group::{
-    released_trees,
-    remove_the_trees,
-};
 /// What one service run is configured with.
 pub use crate::service_server_serve_settings::ServeSettings;
 #[cfg(test)]

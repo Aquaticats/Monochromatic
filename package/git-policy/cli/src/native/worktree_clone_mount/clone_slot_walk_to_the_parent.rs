@@ -45,8 +45,12 @@ use std::path::{
     PathBuf,
 };
 
-/// Module tag for diagnostics.
-const TAG: &str = "cloneSlotWalk";
+/// The tag every line about one slot walk is tagged with.
+/// Why:
+///  The subject is one,
+/// so every file it was split into carries the same word,
+///  and a person's search of the log keeps finding all of it.
+pub(super) const TAG: &str = "cloneSlotWalk";
 
 /// The checkout's root handle and the chain down to `.claude/worktrees`.
 pub(super) fn walk_to_the_parent(
