@@ -175,9 +175,27 @@
 //! - `scratch_commit_step.rs`:
 //!   what the waiting notice of the scratch `git commit` saw while the step ran,
 //!   for the timing record.
+//! - `commit_timing_submit.rs`:
+//!   what the client did to hand one request to the service and get its answer,
+//!   as the timing record states it.
+//! - `commit_timing_place.rs`:
+//!   where one timing record goes:
+//!   the worktree's Git directory,
+//!   the common Git directory that holds the file,
+//!   and the service instance it names.
+//! - `commit_timing_json_words.rs`:
+//!   the small JSON words one timing record is written with:
+//!   a duration in whole milliseconds,
+//!   the word for a field with no value,
+//!   and the landing's own figures as one object.
 //! - `commit_timing.rs`:
-//!   the record of where one wrapped commit spent its time,
-//!   appended beside the discard audit.
+//!   the record of where one wrapped commit spent its time:
+//!   its fields and the clocks that fill them.
+//! - `commit_timing_record_line.rs`:
+//!   one timing record as the single line of JSON it is written as.
+//! - `commit_timing_record_writing.rs`:
+//!   the one append that writes a timing record to its file,
+//!   best effort.
 //! - `commit_command.rs`:
 //!   the `git commit` command:
 //!   the transaction,
@@ -273,9 +291,32 @@ pub mod commit_facts;
 /// The worktree completion records of selected corrections and of hook changes.
 pub mod commit_worktree_records;
 
-/// The record of where one wrapped commit spent its time,
-/// appended beside the discard audit.
+/// The record of where one wrapped commit spent its time:
+/// its fields and the clocks that fill them.
 pub mod commit_timing;
+
+/// What the client did to hand one request to the service and get its answer,
+/// as the timing record states it.
+pub mod commit_timing_submit;
+
+/// Where one timing record goes:
+/// the worktree's Git directory,
+/// the common Git directory that holds the file,
+/// and the service instance it names.
+pub mod commit_timing_place;
+
+/// The small JSON words one timing record is written with:
+/// a duration in whole milliseconds,
+/// the word for a field with no value,
+/// and the landing's own figures as one object.
+pub mod commit_timing_json_words;
+
+/// One timing record as the single line of JSON it is written as.
+pub mod commit_timing_record_line;
+
+/// The one append that writes a timing record to its file,
+/// best effort.
+pub mod commit_timing_record_writing;
 
 /// How much of a commit's time its timing record names,
 /// and how much no phase covers.
