@@ -3,8 +3,10 @@
 //! What:
 //!  The one place a session file is replaced:
 //!  the process-wide save lock,
-//!  `replace_file`, which writes a temporary file beside the target and renames it over,
-//!  and `write_synced`, which flushes the bytes to disk before that rename.
+//!  `replace_file`,
+//!  which writes a temporary file beside the target and renames it over,
+//!  and `write_synced`,
+//!  which flushes the bytes to disk before that rename.
 //! Why:
 //!  A save must publish either the whole new session or the previous one,
 //!  never a half-written file,

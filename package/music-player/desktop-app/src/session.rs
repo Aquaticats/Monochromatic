@@ -10,7 +10,8 @@
 //! `Session` is re-exported here,
 //! so every caller still names `session::Session`.
 
-/// Borrowed and owned filesystem paths: the session file and the disposable test home.
+/// Borrowed and owned filesystem paths:
+/// the session file and the disposable test home.
 use std::path::{
     Path,
     PathBuf,
@@ -61,7 +62,8 @@ mod record;
 /// What:
 ///      `pub use record::Session;` re-exports the record at the `session` path.
 /// Why:
-///       Callers say `session::Session`, unaware of the submodule split.
+///       Callers say `session::Session`,
+///  unaware of the submodule split.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

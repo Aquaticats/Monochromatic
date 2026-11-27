@@ -7,7 +7,8 @@
 //!  `shuffle` and `repeat_track` fields,
 //!  and the first-run values each starts from.
 //! Why:
-//!  The reading, migrating and saving code lives in the sibling file `session.rs`,
+//!  The reading,
+//!  migrating and saving code lives in the sibling file `session.rs`,
 //!  so the record shapes and their defaults get a file of their own.
 //!  `Session` is re-exported as `session::Session`,
 //!  so every caller keeps the path it already names.
