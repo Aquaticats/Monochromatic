@@ -389,10 +389,18 @@ and the failure is the store's own text not being JSON,
 so what is short is the file the fixture wrote,
 not anything the run did with it.
 
-### The mechanism, inferred
+It was met again on 2026-11-27T18:19:55-05:00,
+by one whole run of the suite in a worktree whose only change was whitespace in five Markdown files,
+on `secret-values-of-this-machine.unit.test.ts`
+with the same message as above,
+and the same file passed alone straight afterwards
+(issue 6410,
+whose newest comment holds the run).
+
+### The mechanism, measured on 2026-11-27
 
 `createSopsFixture` writes its store from what its own `runCommand` captured,
-and `runCommand` awaits the child's `exit` event and then joins the chunks it has
+and `runCommand` on `main` awaits the child's `exit` event and then joins the chunks it has
 (`package/env-local-json/core/src/fixture.ts:215-234`).
 Node may still deliver a child's standard output after `exit`,
 so a store built from what had arrived can be short,
@@ -408,16 +416,38 @@ scratch,
 deleted on 2026-11-27;
 what this record uses from it is stated here;
 and the entry naming branch `74dbe1200e` under `doc/handover/cli-git-rust-implementation.md`).
-Branch `74dbe1200e` changes the wait to `close`,
-and that change is not merged here.
 
-For the three failures above the mechanism is **inferred**,
-not measured:
-this branch's probes of the same shape did not reproduce a lost chunk,
-and the review's probe did not either.
+A run of the same probe on 2026-11-27T18:35:53-05:00 measured it again,
+on the branch `fix/env-local-json-core-issue-6410-the-sops-fixture-joins-a-tools-output-after-its-pipe-closes-inside-a-deadline-and-names-the-failure`,
+at load average 8.03 with four other Pi runs and two other Claude runs in the process list,
+eighty waits per arm with eight children in flight.
+Each child printed the head of a store,
+left a subshell holding its standard output open,
+and exited;
+the two arms differed in the event their join waited for alone:
+
+- joined at `exit`,
+  as `main` joins:
+  the whole document 0 of 80 waits,
+  empty 8 of 80,
+  cut 72 of 80;
+- joined at `close`,
+  as the branch's fixture joins:
+  the whole document 80 of 80 waits.
+
+So the mechanism is measured,
+not inferred,
+and the probe is known able to show it here:
+the same stand-in,
+the same command shape and the same count,
+with the join's event as the only difference.
 Nothing in the driver's store reader is implicated:
 it parses the file it was given,
 and the file was short.
+
+Branch `74dbe1200e` moved the fixture's join to `close`,
+and the later branch above adds a deadline that stops the tool's whole process group;
+neither is merged here.
 A suite run that fails this way should keep the fixture folder the message names before anything is concluded.
 
 From lines 46408 to 46408 of the old handover

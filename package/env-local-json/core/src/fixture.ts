@@ -6,11 +6,22 @@
  material is read or written. A missing `sops` or `age-keygen` fails with the
  install command to run.
 
+ Every tool call is bounded: the runner waits for the tool to close its
+ output, stops the tool's whole process group when that does not happen in
+ time, and reports the tool's own standard error instead of install advice
+ alone (`FixtureCommandError`).
+
  @module
  */
 
-import { spawn, } from 'node:child_process';
+import { Buffer, } from 'node:buffer';
+import {
+  type ChildProcess,
+  spawn,
+  type SpawnOptions,
+} from 'node:child_process';
 import { once, } from 'node:events';
+import type { Readable, } from 'node:stream';
 import {
   chmod,
   mkdir,
@@ -58,10 +69,42 @@ const PUBLIC_KEY_MARKER = 'public key: ';
 const PUBLIC_KEY_COMMENT_START = '#';
 
 /**
- Install command named by preflight failures.
+ Fixture-only deadline for one tool call, including the time to drain both
+ output streams.
+
+ Measured on 2026-11-27T18:30:20-05:00 on this machine as it was found (load
+ average 9.46 over the minute, four other Pi runs and two other Claude runs in
+ the process list), over 20 calls per arm: `age-keygen` slowest 3.8 ms, `sops
+ --encrypt` slowest 14.2 ms, `sops --decrypt` slowest 11.9 ms, a whole
+ `createSopsFixture` slowest 18.7 ms. Two seconds is 107 times that slowest
+ whole fixture call, which leaves room for scheduling and a slower test host.
  */
-const TOOLS_REMEDIATION =
-  "sops and age-keygen must be on PATH; install them with 'mise install sops age' and retry";
+export const FIXTURE_COMMAND_TIMEOUT_MS = 2_000;
+
+/**
+ Signal sent to a tool's process group when the deadline passes. Nothing of a
+ fixture tool has state worth a graceful stop, and a tool that ignores
+ SIGTERM would keep the wait alive.
+ */
+const KILL_SIGNAL = 'SIGKILL';
+
+/**
+ `process.kill` code for a process group with nothing left in it, which is the
+ state a deadline wants.
+ */
+const GROUP_ALREADY_GONE_CODE = 'ESRCH';
+
+/**
+ Retained bytes from standard error. The same fixture measurement collected 75 bytes from `age-keygen`, none from
+ successful sops commands, and 935 bytes from a sops decrypt with the wrong throwaway identity. Four KiB preserves
+ several times that diagnostic text while bounding what a noisy tool can add to every failing test report.
+ */
+export const MAX_FIXTURE_COMMAND_STDERR_BYTES: number = 4 * (2 ** 10);
+
+/**
+ Largest delay accepted by Node's `setTimeout` without reducing it to 1 ms.
+ */
+const MAX_TIMER_DELAY_MS = (2 ** 31) - 1;
 
 //endregion Constants
 
@@ -128,9 +171,34 @@ type CommandResult = {
 };
 
 /**
+ Starts one tool child with both output pipes. Node's `spawn` by default.
+ */
+export type SpawnFixtureTool = (
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions,
+) => ChildProcess;
+
+/**
+ Signals one process group. Node's `process.kill` through
+ {@link signalProcessGroup} by default.
+
+ @param processGroupId - group id to signal, which is the negative of its leader's pid
+
+ @param signal - signal to send
+ */
+export type SignalProcessGroup = ({
+  processGroupId,
+  signal,
+}: {
+  readonly processGroupId: number;
+  readonly signal: NodeJS.Signals;
+},) => void;
+
+/**
  Options for {@link runCommand}.
  */
-type RunCommandOptions = {
+export type RunCommandOptions = {
   /**
    Executable to run.
    */
@@ -145,14 +213,80 @@ type RunCommandOptions = {
    Extra environment values layered over the test process environment.
    */
   readonly extraEnv?: Readonly<Record<string, string>>;
+
+  /**
+   Maximum time to wait for the tool and all its output, in milliseconds.
+   */
+  readonly timeoutMilliseconds?: number;
+
+  /**
+   Test seam: starts the tool child. Defaults to `spawn`. A test passes a stand-in
+   child so it can fail a pipe read or a group signal, which no fixture tool
+   produces on demand.
+   */
+  readonly spawnTool?: SpawnFixtureTool;
+
+  /**
+   Test seam: signals one process group. Defaults to `signalProcessGroup`, which
+   calls `process.kill`. A test passes its own signaler to assert the stop or to
+   show the report when signalling fails.
+   */
+  readonly signalGroup?: SignalProcessGroup;
 };
+
+/**
+ A fixture tool call that did not complete successfully.
+ */
+export class FixtureCommandError extends Error {
+  /**
+   Distinguishes fixture failures in test reports.
+   */
+  override readonly name = 'FixtureCommandError';
+}
 
 //endregion Types
 
 //region Command execution
 
 /**
- Runs one real tool and captures its standard output.
+ Signals one process group through the operating system's own kill.
+
+ @param processGroupId - group id to signal, which is the negative of its leader's pid
+
+ @param signal - signal to send
+ */
+function signalProcessGroup({
+  processGroupId,
+  signal,
+}: {
+  readonly processGroupId: number;
+  readonly signal: NodeJS.Signals;
+},): void {
+  process.kill(
+    processGroupId,
+    signal,
+  );
+}
+
+/**
+ Runs one real tool and captures its whole standard output.
+
+ The capture ends at the tool's `close` event, never at its `exit` event: a
+ tool can end while its standard output pipe still holds unread data, and a
+ join there yields empty or cut text that then lands in a fixture store.
+
+ The capture stays here instead of going through `collectChildStdout` in
+ `./sops-stdout-capture.ts` because this package's lint refuses a fixture
+ module that imports its package's source, and the built artifact that lint
+ allows would make every suite importing this fixture need this package built
+ first. `fixture.unit.test.ts` guards the event this join waits for.
+
+ The tool runs in a process group of its own, so the deadline can stop a
+ helper the tool left behind holding either pipe. A helper that leaves that
+ group itself survives the deadline; nothing here can find it again.
+
+ Exported so a test can drive a stand-in tool the fixture's own helpers cannot
+ name, such as one whose standard output arrives after its exit event.
 
  @param command - executable to run
 
@@ -160,76 +294,337 @@ type RunCommandOptions = {
 
  @param extraEnv - extra environment values layered over the process environment
 
+ @param timeoutMilliseconds - deadline for tool execution and pipe closure, defaulting to {@link FIXTURE_COMMAND_TIMEOUT_MS}
+
+ @param spawnTool - test seam that starts the child, `spawn` by default
+
+ @param signalGroup - test seam that signals a process group, `process.kill` by default
+
  @returns captured standard output
 
- @throws Error naming the install command when the tool is missing
-
- @throws Error when the tool exits non-zero; the message names the tool and
- status only, never its output
+ @throws {@link FixtureCommandError} if the deadline is invalid, the tool cannot start, either output cannot be read,
+ the tool exits non-zero or by signal, or the deadline passes. Failures may include bounded standard error, never
+ standard output or the inherited environment.
 
  @example
  ```ts
  const result = await runCommand({ command: 'age-keygen', args: ['--version'] });
  ```
  */
-async function runCommand({
+export async function runCommand({
   command,
   args,
   extraEnv,
+  timeoutMilliseconds = FIXTURE_COMMAND_TIMEOUT_MS,
+  spawnTool = spawn,
+  signalGroup = signalProcessGroup,
 }: RunCommandOptions,): Promise<CommandResult> {
   /**
-   Output chunks captured from the child process.
+   Tool and argument boundaries as passed to spawn, not a shell command.
+   */
+  const invocation = JSON.stringify([
+    command,
+    ...args,
+  ],);
+  if ((!Number.isInteger(timeoutMilliseconds,)) || (timeoutMilliseconds < 1)
+    || (timeoutMilliseconds > MAX_TIMER_DELAY_MS)) {
+    throw new FixtureCommandError(
+      `Fixture command ${invocation} has an invalid deadline (${String(timeoutMilliseconds,)} ms). `
+        + `Use a whole number of milliseconds from 1 to ${String(MAX_TIMER_DELAY_MS,)}.`,
+    );
+  }
+
+  /**
+   Standard output chunks, kept separate from diagnostics because they can contain plaintext.
    */
   const captured: string[] = [];
-  try {
+  /**
+   Prefix of standard error, measured before decoding so the limit is in bytes.
+   */
+  const diagnostic = {
+    bytes: Buffer.alloc(MAX_FIXTURE_COMMAND_STDERR_BYTES,),
+    length: 0,
+    truncated: false,
+  };
+
+  /**
+   Names the invocation and attaches only the retained tool diagnostic.
+
+   @param explanation - result and what to do about it
+
+   @param cause - underlying process or stream error, when available
+
+   @returns failure ready to throw or reject
+   */
+  function failure({
+    explanation,
+    cause,
+  }: {
+    readonly explanation: string;
+    readonly cause?: unknown;
+  },): FixtureCommandError {
     /**
-     Tool child process with captured standard output.
+     Visible warning when the captured diagnostic is only a prefix.
      */
-    const child = spawn(
-      command,
-      [...args,],
-      {
-        env: {
-          ...process.env,
-          ...extraEnv,
+    const note = diagnostic.truncated
+      ? `\n[Standard error truncated after ${String(MAX_FIXTURE_COMMAND_STDERR_BYTES,)} bytes]`
+      : '';
+    /**
+     Diagnostic omitted entirely when the tool wrote nothing to standard error.
+     */
+    const detail = diagnostic.length === 0
+      ? ''
+      : `\nStandard error:\n${diagnostic.bytes
+        .toString(
+          'utf8',
+          0,
+          diagnostic.length,
+        )}${note}`;
+    return new FixtureCommandError(
+      `Fixture command ${invocation} ${explanation}${detail}`,
+      { cause, },
+    );
+  }
+
+  /**
+   Distinguishes a missing executable or interpreter from other launch failures.
+
+   @param error - cause reported by Node
+
+   @returns failure with remediation specific to the launch attempt
+   */
+  function launchFailure(error: unknown,): FixtureCommandError {
+    /**
+     A missing executable or interpreter has different remediation from a denied or invalid launch.
+     */
+    const missing = Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT');
+    /**
+     Installation guidance applies only to the fixture's own tools.
+     */
+    const install = (command === 'sops') || (command === 'age-keygen')
+      ? " If the fixture tools are not installed, run 'mise install sops age'."
+      : '';
+    /**
+     Actions that may fix the observed launch failure.
+     */
+    const advice = missing
+      ? `Check the executable path or PATH and any interpreter the tool requires.${install} Then retry.`
+      : 'Check that the tool is executable and the arguments are valid, then retry.';
+    return failure({
+      explanation: `could not start: ${caughtValueText(error,)}. ${advice}`,
+      cause: error,
+    },);
+  }
+
+  /**
+   Starts the child in a process group of its own, preserving the same error
+   contract for synchronous launch failures.
+
+   The separate group is what lets the deadline stop a helper the tool left
+   behind: a signal to the group reaches the tool and every process it started
+   that did not leave the group itself. The cost is that a terminal signal sent
+   to the test run's own group no longer reaches the tool, so an interrupted run
+   leaves it to this deadline to stop.
+
+   @returns child from which the runner reads both streams
+
+   @throws {@link FixtureCommandError} when Node rejects the launch before starting the tool
+   */
+  function startTool(): ChildProcess {
+    try {
+      return spawnTool(
+        command,
+        [...args,],
+        {
+          detached: true,
+          env: {
+            ...process.env,
+            ...extraEnv,
+          },
+          stdio: [
+            'ignore',
+            'pipe',
+            'pipe',
+          ],
         },
-        stdio: [
-          'ignore',
-          'pipe',
-          'ignore',
-        ],
-      },
-    );
-    child.stdout
-      .setEncoding('utf8',);
-    child.stdout
-      .on(
-      'data',
-      function captureChunk(chunk: string,): void {
-        captured.push(chunk,);
-      },
       );
+    }
+    catch (error) {
+      throw launchFailure(error,);
+    }
+  }
+
+  /**
+   Child to wait on and stop if necessary.
+   */
+  const child = startTool();
+  /**
+   Pipes owned by the runner rather than inherited by the test process.
+   */
+  const {
+    stdout,
+    stderr,
+  } = child;
+  /**
+   Interrupts the close wait on an expired deadline or failed pipe read.
+   */
+  const stopWaiting = new AbortController();
+
+  /**
+   Checks whether the direct child has reported any kind of exit.
+
+   @returns whether stopping the direct child could still affect it
+   */
+  function isRunning(): boolean {
+    return (child.exitCode === null) && (child.signalCode === null);
+  }
+
+  /**
+   Records failed pipe reads as command failures instead of allowing an uncaught stream error.
+
+   @param pipeName - stream named in diagnostic
+
+   @returns error listener for the named stream
+   */
+  function pipeErrorListener(pipeName: string,): (error: Error) => void {
+    return function reportPipeError(error: Error,): void {
+      stopWaiting.abort(failure({
+        cause: error,
+        explanation: `could not read ${pipeName}: ${caughtValueText(error,)}. Check the tool and retry.`,
+      },),);
+    };
+  }
+
+  /**
+   Stops the tool and every helper it left in its process group.
+
+   A tool can exit while a helper it started still owns an output pipe, so
+   stopping only the direct child leaves that helper running with the wait
+   already abandoned. The group id is the direct child's own id because
+   {@link startTool} starts it detached.
+
+   @param processGroupId - process id of the direct child, which is its group id
+
+   @param reported - failure already established, which a stop problem is reported after
+
+   @throws {@link FixtureCommandError} when the group could not be signalled, unless it had already ended
+   */
+  function stopToolGroup({
+    processGroupId,
+    reported,
+  }: {
+    readonly processGroupId: number;
+    readonly reported: FixtureCommandError;
+  },): void {
+    try {
+      signalGroup({
+        processGroupId: -processGroupId,
+        signal: KILL_SIGNAL,
+      },);
+    }
+    catch (error) {
+      /**
+       A group with nothing left in it cannot hold an output pipe open.
+       */
+      if (Error.isError(error,) && ('code' in error)
+        && (error.code === GROUP_ALREADY_GONE_CODE)) {
+        return;
+      }
+      throw new FixtureCommandError(
+        `${reported.message}\nCould not stop the tool's process group ${String(-processGroupId,)}: `
+          + `${caughtValueText(error,)}. Check whether the tool or a helper it left is still running.`,
+        { cause: reported, },
+      );
+    }
+  }
+
+  stdout?.on(
+    'error',
+    pipeErrorListener('standard output',),
+  );
+  stderr?.on(
+    'error',
+    pipeErrorListener('standard error',),
+  );
+  stdout?.setEncoding('utf8',);
+  stdout?.on(
+    'data',
+    function captureOutput(chunk: string,): void {
+      captured.push(chunk,);
+    },
+  );
+  stderr?.on(
+    'data',
+    function captureDiagnostic(chunk: Buffer,): void {
     /**
-     Raw exit event of the tool process.
+     Bytes that fit; keep draining after the cap so the writer cannot become blocked.
      */
-    const exitEvent: unknown = await once(
+      const copied = chunk.copy(
+        diagnostic.bytes,
+        diagnostic.length,
+      );
+      diagnostic.length += copied;
+      if (copied < chunk.length)
+        diagnostic.truncated = true;
+    },
+  );
+
+  /**
+   Disposed on every return or throw, including a failed launch.
+   */
+  using timer = setTimeout(
+    function reportDeadline(): void {
+      /**
+       The direct child can have exited while a helper still owns either pipe.
+       */
+      const detail = isRunning()
+        ? 'Check why the tool did not finish.'
+        : 'The tool exited, but its output did not close. Check whether a helper still holds its output open.';
+      stopWaiting.abort(failure({
+        explanation: `did not complete within ${String(timeoutMilliseconds,)} ms. ${detail} `
+          + 'If the delay is expected, increase timeoutMilliseconds for this test and retry.',
+      },),);
+    },
+    timeoutMilliseconds,
+  );
+  try {
+    await once(
       child,
-      'exit',
+      'close',
+      { signal: stopWaiting.signal, },
     );
-    /**
-     Reported exit code from the event tuple.
-     */
-    const code: unknown = Array.isArray(exitEvent,) ? exitEvent[0] : undefined;
-    if ((typeof code) !== 'number')
-      throw new Error(`${command} did not exit with a status`,);
-    if (code !== 0)
-      throw new Error(`${command} exited with status ${String(code,)}`,);
   }
   catch (error) {
-    throw new Error(
-      `${command} failed: ${caughtValueText(error,)}. ${TOOLS_REMEDIATION}`,
-      { cause: error, },
-    );
+    /**
+     The abort reason is our deadline or pipe error; otherwise `once` rejected with the child's launch error.
+     */
+    const reason: unknown = stopWaiting.signal
+      .reason;
+    /**
+     Report the original failure even when stopping the tool runs into a problem of its own.
+     */
+    const reported = reason instanceof FixtureCommandError ? reason : launchFailure(error,);
+    stdout?.destroy();
+    stderr?.destroy();
+    if (child.pid !== undefined) {
+      child.unref();
+      stopToolGroup({
+        processGroupId: child.pid,
+        reported,
+      },);
+    }
+    throw reported;
+  }
+  if (child.signalCode !== null) {
+    throw failure({
+      explanation: `was terminated by ${child.signalCode}. Check what sent the signal before retrying.`,
+    },);
+  }
+  if (child.exitCode !== 0) {
+    throw failure({
+      explanation: `exited with status ${String(child.exitCode,)}. Check the tool's diagnostic and fixture inputs, then retry.`,
+    },);
   }
   return { stdout: captured.join('',), };
 }
@@ -562,7 +957,7 @@ export async function decryptStore({
 
  @returns disposable fixture
 
- @throws Error naming the install command when sops or age-keygen is absent
+ @throws {@link FixtureCommandError} when sops or age-keygen cannot run successfully
 
  @example
  ```ts
