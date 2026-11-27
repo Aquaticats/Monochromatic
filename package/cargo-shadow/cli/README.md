@@ -1603,7 +1603,7 @@ so the script's own count is what ends it where the test process dies.
 That control also holds its program in a guard (`ProgramInItsScope`),
 which releases the program and stops its scope when the control's scope ends,
 a panic included,
-and whose last lines the control uses to assert the program and the scope gone;
+and the control's last lines assert the program's process and the scope gone;
 `a_control_that_fails_before_its_release_line_leaves_no_program_and_no_scope` is the control for that guard,
 and it judges only what it started,
 because other tests' programs and scopes are alive while it looks.
