@@ -41,6 +41,16 @@
 //!   the process that owns one item of a copy transaction,
 //!   written into the item's name,
 //!   and the proof that it still runs.
+//! - `worktree_copy_publish_file_temporary_name.rs`:
+//!   the stable name a fallback's temporary is filled under,
+//!   computed from the stage token and the entry's path.
+//! - `worktree_copy_publish_file_making_the_file.rs`:
+//!   the calls that make one file in a directory held open:
+//!   an unnamed file where the filesystem has one,
+//!   and a file under a name this copy chose otherwise.
+//! - `worktree_copy_publish_file_giving_it_its_name.rs`:
+//!   the calls that give the filled file its destination name in one step,
+//!   and the removal of a name an interrupted fallback left.
 //! - `worktree_copy_publish_file.rs`:
 //!   the publication of one staged regular file at its destination name in one step:
 //!   unnamed while it is filled,
@@ -300,6 +310,17 @@ pub mod worktree_copy_settling;
 #[cfg(unix)]
 pub mod worktree_copy_install_entry;
 
+/// The stable name a fallback's temporary is filled under.
+pub mod worktree_copy_publish_file_temporary_name;
+
+/// The calls that make one file in a directory this module holds open.
+#[cfg(unix)]
+pub mod worktree_copy_publish_file_making_the_file;
+
+/// The calls that give a filled file its destination name in one step.
+#[cfg(unix)]
+pub mod worktree_copy_publish_file_giving_it_its_name;
+
 /// The publication of one staged regular file at its destination name in one step:
 /// unnamed while it is filled,
 /// with the entry's mode before it can be read,
@@ -332,7 +353,7 @@ pub mod worktree_copy_journal_encoding_and_validation;
 #[cfg(unix)]
 pub mod worktree_copy_journal_removal;
 
-/// The words one stage claim file holds, written and read back.
+/// The words one stage claim file holds.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_record;
 
