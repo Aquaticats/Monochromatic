@@ -497,11 +497,14 @@ is the green above:
 
 ### What is not claimed
 
-- No quiet host was available for this measurement:
+- No idle host was available for this measurement:
   every run above was taken while other sessions built on this machine,
   at the load average recorded beside it,
-  and the "on a quiet host" half of the issue's question is a figure this round does not have.
-  What it has is the range at load average 90 to 186 and one failure at 246.
+  and the quietest it came was 37,
+  so the "on a quiet host" half of the issue's question rests on that run and not on an idle one.
+  What the round has is 55.70 s there,
+  the range 70 to 80 s at load average 90 to 186,
+  and one failure at 246.
 - The window is still a wall clock,
   so a host several times slower than the worst measured above will cross it too.
   The bound that the load does not move is the run's own watchdog,
