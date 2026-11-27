@@ -1186,7 +1186,8 @@ const THE_CLIENT_MODULE: &[&str] = &["service/systemd_dbus"];
 const THE_WIRE_ITSELF: &[&str] = &["UnixStream", "encode_call(", "decode_reply(", "read_exact"];
 
 /// What:
-///  `MAY_HOLD` is the wire-format file, and the reason it writes what the client no longer does.
+///  `MAY_HOLD` is the wire-format file,
+///  and the reason it writes what the client no longer does.
 /// Why:
 ///  The format needs no socket and stays testable by bytes alone,
 ///  and the controls' fake bus and the fuzz target are what reach it now;

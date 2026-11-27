@@ -114,7 +114,8 @@ const THE_NOTE_FILES: &[&str] = &[
 ];
 
 /// What:
-///  `MAY_HOLD` is the one note file that keeps the shared handle, and the reason it does.
+///  `MAY_HOLD` is the one note file that keeps the shared handle,
+///  and the reason it does.
 /// Why:
 ///  The measured stream is built over any stream,
 ///  and the shared one is the other arm of that measurement rather than a note of the commit path;
@@ -139,7 +140,8 @@ const MAY_HOLD: &[MayHold] = &[
 ];
 
 /// What:
-///  `note_files()` is every release source that says a note, each as its identity and its text.
+///  `note_files()` is every release source that says a note,
+///  each as its identity and its text.
 /// Why:
 ///  The set is the tree's answer,
 ///  so a new note file joins the guard by being written and no receiver of a split is left behind.
@@ -286,7 +288,8 @@ fn the_check_allows_the_sentence_a_refused_summary_leaves() {
 /// and a file that says one is read by both.
 #[test]
 fn the_lane_is_what_the_hand_over_makes_it() {
-    let lane: Vec<(String, String)> = release_sources_holding(NOTE_LANE).expect("the crate's release sources");
+    let lane: Vec<(String, String)> =
+        release_sources_holding(NOTE_LANE).expect("the crate's release sources");
     assert!(
         !lane.is_empty(),
         "the note lane reached no release file, so this guard passes every tree"

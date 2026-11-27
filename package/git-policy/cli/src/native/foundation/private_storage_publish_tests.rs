@@ -221,7 +221,8 @@ const THE_MODULE: &[&str] = &[
 ];
 
 /// What:
-///  `THE_TEMPFILE_CRATES` is the work the module does not do itself: the staging file and the exclusive publish.
+///  `THE_TEMPFILE_CRATES` is the work the module does not do itself:
+///  the staging file and the exclusive publish.
 /// Why:
 ///  The owner's answer put them in the `tempfile` crate,
 ///  so a file of this module that grows its own link or its own staging name is the finding.
@@ -233,7 +234,8 @@ const THE_MODULE: &[&str] = &[
 const THE_TEMPFILE_CRATES: &[&str] = &["hard_link", "random_uuid", "fn staging_path"];
 
 /// What:
-///  `MAY_HOLD` is empty: no file of the private-record module makes a link of its own or builds a staging name.
+///  `MAY_HOLD` is empty:
+///  no file of the private-record module makes a link of its own or builds a staging name.
 /// Why:
 ///  The ban reaches the whole module,
 ///  so a file added here fails until a reader decides whether the crate's own publish answers,
@@ -272,7 +274,8 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
 fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
     let sources: Vec<(String, String)> =
         release_sources_under(THE_MODULE).expect("the crate's release sources");
-    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
         abandoned.is_empty(),
         "the scope reached no file holding what this ban is about:\n{}",
@@ -307,7 +310,9 @@ fn the_scan_flags_a_link_in_a_receiver_file() {
     );
     let publish: Vec<(String, String)> = vec![(
         String::from("foundation/private_storage.rs"),
-        String::from("fn published(staged: tempfile::NamedTempFile) { staged.persist_noclobber(path); }\n"),
+        String::from(
+            "fn published(staged: tempfile::NamedTempFile) { staged.persist_noclobber(path); }\n",
+        ),
     )];
     assert!(
         lines_holding_one_of(publish.as_slice(), THE_TEMPFILE_CRATES).is_empty(),

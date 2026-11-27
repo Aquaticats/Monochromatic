@@ -283,13 +283,15 @@ fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
     );
     let commit_path: Vec<(String, String)> =
         release_sources_under(THE_COMMIT_PATH).expect("the crate's release sources");
-    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(commit_path.as_slice(), SCOPE_ANCHORS);
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(commit_path.as_slice(), SCOPE_ANCHORS);
     assert!(
         abandoned.is_empty(),
         "the scope reached no file holding what this ban is about:\n{}",
         abandoned.join("\n")
     );
-    let held: Vec<HoldingLine> = lines_holding_one_of(commit_path.as_slice(), &[THE_CALL_THAT_WRITES]);
+    let held: Vec<HoldingLine> =
+        lines_holding_one_of(commit_path.as_slice(), &[THE_CALL_THAT_WRITES]);
     let unexplained: Vec<String> = lines_no_entry_excuses(held.as_slice(), MAY_HOLD);
     assert!(
         unexplained.is_empty(),
@@ -331,7 +333,8 @@ const THE_COMMIT_PATH: &[&str] = &["landing/"];
 const THE_CALL_THAT_WRITES: &str = "submit_traced(";
 
 /// What:
-///  `MAY_HOLD` is the stream's own module, and the reason it calls what the commit path may not.
+///  `MAY_HOLD` is the stream's own module,
+///  and the reason it calls what the commit path may not.
 /// Why:
 ///  `submit_saying_where_it_stands` is the one call that hands the notices over,
 ///  and it is written on top of `submit_traced` inside the stream's own file;

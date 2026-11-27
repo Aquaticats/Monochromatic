@@ -70,7 +70,8 @@ const THE_CLIENT: &[&str] = &["standards_review/standards_review_client"];
 const THE_LIBRARY_THAT_WAS_NOT_ADOPTED: &[&str] = &["ureq"];
 
 /// What:
-///  `MAY_HOLD` is empty: no file of the client may name the library the owner refused.
+///  `MAY_HOLD` is empty:
+///  no file of the client may name the library the owner refused.
 /// Why:
 ///  The ban reaches the whole client,
 ///  so a file added here fails until a reader decides whether the library answers,
@@ -355,7 +356,8 @@ fn a_reply_that_keeps_arriving_is_ended_at_the_ceiling() {
 fn the_client_is_built_on_hyper_and_no_longer_on_ureq() {
     let sources: Vec<(String, String)> =
         release_sources_under(THE_CLIENT).expect("the crate's release sources");
-    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
         abandoned.is_empty(),
         "the scope reached no file holding what this ban is about:\n{}",

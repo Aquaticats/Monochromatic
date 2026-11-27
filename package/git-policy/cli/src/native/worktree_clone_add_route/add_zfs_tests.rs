@@ -274,7 +274,8 @@ const THE_LIST_IT_CARRIES: &str = "target, origin, None";
 const THE_PROPERTY_THAT_IS_NOT_SENT: &[&str] = &["add_str(\"mountpoint\""];
 
 /// What:
-///  `MAY_HOLD` is empty: no file of the pool route builds a property list.
+///  `MAY_HOLD` is empty:
+///  no file of the pool route builds a property list.
 /// Why:
 ///  The ban reaches every file the route was split into,
 ///  so a file added here fails until a reader decides whether that property answers,
@@ -308,7 +309,8 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
 fn the_clone_request_sends_no_property() {
     let sources: Vec<(String, String)> =
         release_sources_under(THE_ADD_ZFS_MODULE).expect("the crate's release sources");
-    let abandoned: Vec<String> = anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
         abandoned.is_empty(),
         "the scope reached no file holding what this ban is about:\n{}",
@@ -349,7 +351,9 @@ fn the_clone_request_sends_no_property() {
 fn the_scan_flags_a_property_in_a_receiver_file() {
     let planted: Vec<(String, String)> = vec![(
         String::from("worktree_clone_add_route/add_zfs_planted.rs"),
-        String::from("fn planted(list: &mut NvList) { list.add_str(\"mountpoint\", \"/tank/clones\"); }\n"),
+        String::from(
+            "fn planted(list: &mut NvList) { list.add_str(\"mountpoint\", \"/tank/clones\"); }\n",
+        ),
     )];
     let holding = lines_holding_one_of(planted.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT);
     assert!(

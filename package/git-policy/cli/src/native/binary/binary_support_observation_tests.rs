@@ -596,8 +596,8 @@ fn the_signal_at_the_bound_reaches_the_command_and_no_other_process() {
 }
 
 /// What:
-///  `THE_WAIT` is every file the wait is made of, each with its text and the text that proves it is still about
-///  the wait.
+///  `THE_WAIT` is every file the wait is made of,
+///  each with its text and the text that proves it is still about the wait.
 /// Why:
 ///  The ban below is about the wait,
 ///  and the alpha.48 split moved nine items out of `binary_support_observation.rs` and seven out of
