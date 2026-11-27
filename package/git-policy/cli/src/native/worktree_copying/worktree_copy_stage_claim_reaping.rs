@@ -22,11 +22,8 @@
 //! const notices = await reapJudgedStages(commonDir, verdicts);
 //! ```
 
-use crate::json_record::quote;
-use crate::path_bytes_in_records::path_of_the_two_fields;
 use crate::worktree_copy_error::{
     WorktreeCopyError,
-    failure_with_cause,
     raw_failure,
     raw_failure_of,
 };
@@ -43,11 +40,8 @@ use crate::worktree_copy_journal_removal::{
     remove_stage,
 };
 use crate::worktree_copy_owner::token_owner_is_dead;
-use crate::worktree_copy_recovery::RecoveryDestinations;
-use crate::worktree_copy_selection::{
-    STAGE_PREFIX,
-    js_order,
-};
+use crate::worktree_copy_recovery_destinations::RecoveryDestinations;
+use crate::worktree_copy_selection::js_order;
 use crate::worktree_copy_stage_claim::{
     COMPLETE_SUFFIX,
     DESTINATION_SUFFIX,
@@ -84,132 +78,16 @@ pub use crate::worktree_copy_interrupted_add_settlement::*;
 /// Which claim owners were found dead,
 /// decided before anything is removed:
 /// the type lives in a file of its own (`worktree_copy_stage_claim_owner_verdicts.rs`),
-/// and this file re-exports it so its readers keep one path.
-pub use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
-pub use crate::worktree_copy_stage_claim_record::ClaimFile;
-use crate::worktree_copy_stage_claim_record::{
-    ClaimFields,
-    claim_fields,
+/// and this file names it from there.
+use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
+
+/// The readers of one claim file,
+/// which live beside the words a claim holds (`worktree_copy_stage_claim_record.rs`),
+/// re-exported so a caller of the sweeps reaches them here.
+pub use crate::worktree_copy_stage_claim_record::{
+    claim_file_reading,
+    read_claim,
 };
-
-/// What:
-///  One claim file as read,
-/// or nothing when it is gone,
-/// with the damage a crash can leave named instead of refused.
-/// Why:
-///   A claim is published whole by one rename,
-/// so a file at its name that does not read is the mark of a write a crash cut short;
-/// the command that found it moves it aside and settles what it named
-/// (`worktree_copy_unreadable_records`).
-/// A claim another account owns,
-/// or a link or a pipe at its name,
-/// stays a refusal:
-/// no crash writes one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reading = await claimFileReading(claim); // undefined when the claim is gone
-/// ```
-pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCopyError> {
-    // `match` on the lookup: a claim already gone is nobody's fault, and nothing is left to reap.
-    match std::fs::symlink_metadata(claim) {
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(raw_failure(&error)),
-    }
-    assert_private_path(claim, Role::JournalFile)?;
-    // `match` on the read: the claim can vanish between the lookup and the read, and bytes that are not text are damage.
-    let text: String = match std::fs::read_to_string(claim) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
-            return Ok(Some(ClaimFile::Unreadable {
-                reason: String::from("its bytes are not text"),
-            }));
-        }
-        Err(error) => {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: could not read worktree-copy stage claim {}.",
-                quote(claim.to_string_lossy().as_ref())
-            );
-            return Err(failure_with_cause(message.as_str(), Some(&error)));
-        }
-    };
-    let fields: ClaimFields<'_> = match claim_fields(text.as_str()) {
-        Ok(fields) => fields,
-        Err(reason) => {
-            return Ok(Some(ClaimFile::Unreadable {
-                reason: reason.to_string(),
-            }));
-        }
-    };
-    let container: PathBuf = match path_of_the_two_fields(fields.bytes, fields.text) {
-        Ok(Some(path)) => path,
-        Ok(None) => PathBuf::new(),
-        Err(reason) => {
-            return Ok(Some(ClaimFile::Unreadable {
-                reason: format!("it holds a container in bytes that is not a path ({reason})"),
-            }));
-        }
-    };
-    // Both lines of a claim this release writes name one path; a line of text that says otherwise is a shorter path
-    // that ended where the line break was, and the bytes it stood beside are not the record's own.
-    if let (Some(named), Some(_)) = (fields.text, fields.bytes)
-        && container.as_path() != Path::new(named)
-    {
-        return Ok(Some(ClaimFile::Unreadable {
-            reason: String::from(
-                "its line of text and its line of container bytes name different paths",
-            ),
-        }));
-    }
-    let stage_named: bool = match container.file_name() {
-        Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
-        None => false,
-    };
-    let named: bool = container.is_absolute() && stage_named;
-    if !named {
-        return Ok(Some(ClaimFile::Unreadable {
-            reason: String::from("it does not name a stage container"),
-        }));
-    }
-    return Ok(Some(ClaimFile::Named {
-        container,
-        owner: fields.owner,
-    }));
-}
-
-/// What:
-///  One claim file as read:
-/// the stage container it names,
-/// refused unless it is a monochromatic-git-policy-cli stage container name,
-/// and the owner token,
-/// with a claim this release cannot read read as none.
-/// Why:
-///   The container is deleted recursively,
-/// so a claim that names anything else is never acted on;
-/// the owner decides whether
-///  the claim may be reaped at all.
-/// A claim that vanished while it was read was removed by its owner or by another command.
-/// A claim whose lines are not a record this release writes is settled by the command that found it,
-/// so a sweep that may only act on claims this release reads has nothing there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const named = await readClaim(claimPath); // undefined when gone, unreadable, or of another shape
-/// ```
-pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
-    return match claim_file_reading(claim)? {
-        Some(ClaimFile::Named {
-            container,
-            owner,
-        }) => Ok(Some((container, owner))),
-        Some(ClaimFile::Unreadable {
-            ..
-        })
-        | None => Ok(None),
-    };
-}
 
 /// The suffix of the file one write is made in before its own temporary takes its name:
 /// a write cut off inside it leaves this rather than a temporary the sweep already knows.
