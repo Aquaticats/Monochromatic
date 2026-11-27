@@ -39,7 +39,10 @@
 //!  Timestamps,
 //!  file names and stack strings never cross this
 //! boundary;
-//!  it carries one number in and one number out.
+//!  what crosses is a handle,
+//!  a file descriptor and a fingerprint in,
+//!  and one
+//! gain out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
