@@ -46,12 +46,14 @@
 //!   the loss a plan already records and the one sentence a refusal prints from it.
 //! - `origin_refusal_words.rs`:
 //!   the three forms of message and the ways forward.
+//! - `origin_refusal_answers_receipt_words.rs`:
+//!   the cause's own name and the step word a record files it under.
+//! - `origin_refusal_answers_named_object.rs`:
+//!   the clone and the slot a refusal names.
 //! - `origin_refusal_answers.rs`:
-//!   each cause's step word,
-//!   form,
-//!   record rule,
-//!   the clone and slot it names,
-//!   and its message.
+//!   each cause's message form,
+//!   the record rule that follows,
+//!   and the sentence a person reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -76,6 +78,12 @@ pub mod origin_refusal;
 
 /// Each cause's step word, form, record rule and message.
 pub mod origin_refusal_answers;
+
+/// Each cause's own name and the step word a record files it under.
+pub mod origin_refusal_answers_receipt_words;
+
+/// The clone and the slot a refusal names.
+pub mod origin_refusal_answers_named_object;
 
 /// The cause sentence a message prints, with the mark's two counts.
 pub mod origin_refusal_causes;

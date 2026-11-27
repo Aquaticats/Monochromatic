@@ -299,7 +299,10 @@ so no later writer can take an identity from a folder that moved under it.
 One probe,
 `probe_publish_primitives.py`,
 kept in this round's scratch folder at
-`/home/user/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/scratch/keep/`,
+`/home/user/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/scratch/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 run once on 2026-11-21 as the account,
 on kernel `7.3.5-1-cachyos`,
 in its own capped scope,
@@ -307,7 +310,10 @@ which is a transient systemd scope with a runtime,
 CPU,
 memory,
 task and I/O weight limit sized to one probe,
-inside `/home/user/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/scratch/probe-home`,
+inside `/home/user/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/scratch/probe-home`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 which `findmnt` reports as `zpcachyos/ROOT/cos/home`,
 file system `zfs`,
 `rw,noatime,xattr,posixacl,casesensitive`.
@@ -2372,11 +2378,17 @@ and the last two are flagged because they need a decision this design cannot mak
   `package/git-policy/cli/src/native/foundation/private_storage.rs`.
 - The probe:
   `probe_publish_primitives.py` and its printed output in
-  `/home/user/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/scratch/keep/`,
+  `/home/user/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/scratch/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which is this round's scratch and not a repository file.
 - The gate review this round answers,
   and its own probe checks:
-  `/home/user/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`,
+  `/home/user/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   `probe-outputs.txt` and `probe_checks_of_the_reviewer.py` beside it,
   also outside the repository.
 

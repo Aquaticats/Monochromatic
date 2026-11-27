@@ -1,416 +1,48 @@
 //! What:
-//!  The unmount of a staged mount from the descriptor a process holds,
-//!  and the later sweep that holds that descriptor again from the record's
-//!  file handle.
+//!  The later sweep of a staged folder:
+//!  the reading of one record from the cache,
+//!  the two mount numbers that must be the cache's and the folder's,
+//!  the pin check,
+//!  the held-descriptor unmount it hands the pair to,
+//!  and the word the wrapper and `doctor` answer with.
 //! Why:
-//!  The design's interface is "the unmount from the held descriptor"
-//!  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
-//!  "The unmount call from staging"):
-//!  the first `umount2` takes the clone,
-//!  the second takes the bind,
-//!  and each call checks the topmost mount before it and the transition after
-//!  it.
-//!  A later sweep has no descriptor of its own,
+//!  A sweep has no descriptor of its own,
 //!  so it opens the folder from the record's handle and then makes the same
-//!  calls.
+//!  calls a held descriptor makes
+//!  (`doc/decision/cli-git-zfs-staging-under-cache.md`,
+//!  "How a later sweep finishes an unmount").
+//!  A record from another boot is settled by the wrapper rather than rewritten
+//!  here,
+//!  and a sweep over a void or absent record is a non-binding pass.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = unmountTheStagedMount({ cache, name, cloneSource, calls });
-//! const swept = finishAStagedUnmount({ cache, guid, boot, calls });
+//! const outcome = finishAStagedUnmount(sweep);
+//! const record = recordName(guid);
 //! ```
 
 use super::staged_record_reading::{
     RecordReading,
     read_staged_record,
 };
-use super::staging_calls::{
-    StagingCallRefusal,
-    StagingCalls,
-};
 use super::staging_folder_name::staging_record_name;
-use super::user_cache_pin::{
-    UserCachePin,
-    check_live_pin,
-};
-use crate::fs_mount_options::MountFacts;
+use super::user_cache_pin::check_live_pin;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::ffi::OsStr;
-use std::path::Path;
 
-/// What:
-///  One staged mount to take down from a held folder descriptor.
-/// Why:
-///  The clone's source and the folder's name are all the caller knows,
-///  and the calls read the rest live.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type HeldUnmount = { cache; folder; name; cloneSource; calls };
-/// ```
-pub struct HeldUnmount<'a> {
-    /// The account's cache descriptor.
-    pub cache: &'a std::fs::File,
-    /// The held folder descriptor,
-    /// on the topmost mount at the folder.
-    pub folder: &'a std::fs::File,
-    /// The folder's name beneath the cache.
-    pub name: &'a str,
-    /// The clone's dataset source.
-    pub clone_source: &'a str,
-    /// The mount calls.
-    pub calls: &'a dyn StagingCalls,
-}
+/// The held-descriptor unmount and the answer it leaves.
+pub use super::staged_unmount_held::{
+    HeldOutcome,
+    HeldUnmount,
+    unmount_the_staged_mount,
+};
 
-/// What:
-///  What the held-descriptor unmount did.
-/// Why:
-///  The wrapper needs to know both mounts left,
-///  and a refusal names the step.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type HeldOutcome = { kind: 'unmounted'; clone: boolean; bind: boolean } | { kind: 'retained'; step; said };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[allow(
-    clippy::large_enum_variant,
-    reason = "the retained alternative names the step, words and row a person acts on"
-)]
-pub enum HeldOutcome {
-    /// The clone and the bind left.
-    Unmounted {
-        /// The clone's mount number.
-        clone_mount: u64,
-        /// The bind's mount number.
-        bind_mount: u64,
-    },
-    /// Something is left,
-    /// and the step says what refused.
-    Retained {
-        /// The step that refused.
-        step: String,
-        /// The kernel's errno,
-        /// or zero.
-        errno: i32,
-        /// What refused.
-        said: String,
-        /// The topmost row when one was read.
-        mount: Option<MountFacts>,
-    },
-}
+/// The finish of an interrupted unmount and the answer it leaves.
+pub use super::staged_unmount_recovery::{
+    RecoveryOutcome,
+    StagedSweep,
+    recover_a_staged_unmount,
+};
 
-/// What:
-///  Take down the topmost mount,
-///  check what is now topmost,
-///  and take that down too when it is the bind.
-/// Why:
-///  The first call takes the clone,
-///  and the second takes the bind only when the transition check proved the
-///  bind is what the call will now reach.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const outcome = unmountTheStagedMount(request);
-/// ```
-pub fn unmount_the_staged_mount(request: &HeldUnmount<'_>) -> HeldOutcome {
-    let top: (std::fs::File, u64, MountFacts) =
-        match topmost(request.calls, request.cache, request.name) {
-            Ok(top) => top,
-            Err(refusal) => return retained(refusal, None),
-        };
-    let clone_mount: u64 = top.1;
-    if top.2.source != request.clone_source {
-        return HeldOutcome::Retained {
-            step: String::from("pre-call-check"),
-            errno: 0,
-            said: format!(
-                "the topmost mount at the staging folder is {} with source `{}`, and the clone is `{}`. Nothing was unmounted.",
-                top.1, top.2.source, request.clone_source
-            ),
-            mount: Some(top.2),
-        };
-    }
-    drop(top.0);
-    if let Err(refusal) = request.calls.unmount_top(request.folder) {
-        return retained(refusal, None);
-    }
-    let after: (std::fs::File, u64, MountFacts) =
-        match topmost(request.calls, request.cache, request.name) {
-            Ok(after) => after,
-            Err(refusal) => return retained(refusal, None),
-        };
-    if after.1 == clone_mount {
-        return HeldOutcome::Retained {
-            step: String::from("post-call-check"),
-            errno: 0,
-            said: format!("the clone's unmount returned and mount {clone_mount} is still topmost"),
-            mount: Some(after.2),
-        };
-    }
-    let bind_mount: u64 = after.1;
-    drop(after.0);
-    if let Err(refusal) = request.calls.unmount_top(request.folder) {
-        return retained(refusal, None);
-    }
-    let final_read = topmost(request.calls, request.cache, request.name);
-    return match final_read {
-        Ok((folder, mount_id, facts)) => {
-            drop(folder);
-            if mount_id == bind_mount {
-                return HeldOutcome::Retained {
-                    step: String::from("post-call-check"),
-                    errno: 0,
-                    said: format!(
-                        "the bind's unmount returned and mount {bind_mount} is still topmost"
-                    ),
-                    mount: Some(facts),
-                };
-            }
-            HeldOutcome::Unmounted {
-                clone_mount,
-                bind_mount,
-            }
-        }
-        Err(refusal) => retained(refusal, None),
-    };
-}
-
-/// One topmost mount by name.
-fn topmost(
-    calls: &dyn StagingCalls,
-    cache: &std::fs::File,
-    name: &str,
-) -> Result<(std::fs::File, u64, MountFacts), StagingCallRefusal> {
-    let folder: std::fs::File = calls.open_by_name(cache, OsStr::new(name))?;
-    let mount_id: u64 = calls.mount_id(&folder)?;
-    let facts: MountFacts = calls.mount_facts(mount_id)?;
-    return Ok((folder, mount_id, facts));
-}
-
-/// One call's refusal as a retained outcome.
-fn retained(
-    refusal: StagingCallRefusal,
-    mount: Option<MountFacts>,
-) -> HeldOutcome {
-    return HeldOutcome::Retained {
-        step: String::from(refusal.call.word()),
-        errno: refusal.errno,
-        said: refusal.message("the staged unmount refused"),
-        mount,
-    };
-}
-
-/// What:
-///  One later sweep's reading of a record.
-/// Why:
-///  The sweep opens the folder from the handle and makes the held-descriptor
-///  calls,
-///  so a fresh process finishes what a killed handler left.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Sweep = { cache; cachePath; guid; boot; pin; calls };
-/// ```
-pub struct StagedSweep<'a> {
-    /// The account's cache descriptor.
-    pub cache: &'a std::fs::File,
-    /// The account's cache folder.
-    pub cache_path: &'a Path,
-    /// The clone's GUID.
-    pub guid: DatasetGuid,
-    /// This boot's identifier.
-    pub boot: &'a str,
-    /// The `user-cache` pin.
-    pub pin: &'a UserCachePin,
-    /// The mount calls.
-    pub calls: &'a dyn StagingCalls,
-}
-
-/// What:
-///  What a later run found when it looked for an interrupted unmount.
-/// Why:
-///  The four kill points leave four distinct states,
-///  and the next run must finish each from the record rather than refuse.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RecoveryOutcome = { kind: 'finished'; mountId } | { kind: 'bind-removed' } | { kind: 'not-staged'; why } | { kind: 'refused'; step; said };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum RecoveryOutcome {
-    /// The clone is gone and the bind is gone;
-    /// a `done` receipt is owed.
-    Finished {
-        /// The clone's mount number when it was still there,
-        /// or zero when the run only found the bind.
-        mount_id: u64,
-    },
-    /// The bind covered an empty folder while the clone stood at its slot;
-    /// the bind is now gone and the ordinary turn may bind again.
-    BindRemoved,
-    /// No current record describes a staged state.
-    NotStaged,
-    /// The state could not be finished,
-    /// and the step says why.
-    Refused {
-        /// The step that refused.
-        step: String,
-        /// What refused.
-        said: String,
-    },
-}
-
-/// One topmost row at the folder path.
-fn topmost_row(
-    table: &[crate::fs_mount_options::MountFacts],
-    path: &Path,
-) -> Option<crate::fs_mount_options::MountFacts> {
-    return table
-        .iter()
-        .filter(|facts| return facts.mount_point == path)
-        .max_by_key(|facts| return facts.mount_id)
-        .cloned();
-}
-
-/// What:
-///  Finish an interrupted unmount before the normal turn runs.
-/// Why:
-///  The accepted staging design lets a later `unmount` intent's sweep complete
-///  an interrupted removal from the record's handle:
-///  a clone staged on the bind is unmounted there,
-///  a bind left over an empty folder is unbound,
-///  and a state with neither left files the receipt the waiting command reads.
-///  The slot is the one path the record does not carry,
-///  so the caller passes it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const outcome = recoverAStagedUnmount(sweep, slot);
-/// ```
-pub fn recover_a_staged_unmount(
-    sweep: &StagedSweep<'_>,
-    slot: &Path,
-    clone_mount_id: u64,
-) -> RecoveryOutcome {
-    let folder_path = sweep
-        .cache_path
-        .join(super::staging_folder_name::staging_folder_name(sweep.guid));
-    let reading: RecordReading = read_staged_record(
-        sweep.cache,
-        sweep.guid,
-        sweep.boot,
-        folder_path.as_path(),
-        sweep.calls,
-    );
-    let (record, folder): (
-        super::staged_folder_record::StagedFolderRecord,
-        std::fs::File,
-    ) = match reading {
-        RecordReading::Current {
-            record,
-            folder,
-        } => (record, folder),
-        RecordReading::Void {
-            ..
-        }
-        | RecordReading::Unrecorded {
-            ..
-        }
-        | RecordReading::Absent => return RecoveryOutcome::NotStaged,
-        RecordReading::Refused {
-            step,
-            said,
-        } => {
-            return RecoveryOutcome::Refused {
-                step,
-                said,
-            };
-        }
-    };
-    if let Err(pin) = check_live_pin(sweep.cache, sweep.pin) {
-        return RecoveryOutcome::Refused {
-            step: String::from("user-cache-pin"),
-            said: pin.message(),
-        };
-    }
-    let table = match sweep.calls.mount_table() {
-        Ok(table) => table,
-        Err(refusal) => {
-            return RecoveryOutcome::Refused {
-                step: String::from(refusal.call.word()),
-                said: refusal.message("the recovery could not read the mount table"),
-            };
-        }
-    };
-    let cache_facts = match sweep
-        .calls
-        .mount_facts(sweep.calls.mount_id(sweep.cache).unwrap_or(0))
-    {
-        Ok(facts) => facts,
-        Err(refusal) => {
-            return RecoveryOutcome::Refused {
-                step: String::from(refusal.call.word()),
-                said: refusal.message("the recovery could not read the cache's row"),
-            };
-        }
-    };
-    let Some(top) = topmost_row(table.as_slice(), folder_path.as_path()) else {
-        return RecoveryOutcome::Finished {
-            mount_id: clone_mount_id,
-        };
-    };
-    if top.source == record.dataset && top.root == Path::new("/") {
-        return match unmount_the_staged_mount(&HeldUnmount {
-            cache: sweep.cache,
-            folder: &folder,
-            name: record.component.as_str(),
-            clone_source: record.dataset.as_str(),
-            calls: sweep.calls,
-        }) {
-            HeldOutcome::Unmounted {
-                ..
-            } => RecoveryOutcome::Finished {
-                mount_id: top.mount_id,
-            },
-            HeldOutcome::Retained {
-                step,
-                said,
-                ..
-            } => RecoveryOutcome::Refused {
-                step,
-                said,
-            },
-        };
-    }
-    if top.source == cache_facts.source && top.root != Path::new("/") {
-        let slot_source = table
-            .iter()
-            .find(|facts| return facts.mount_point == slot)
-            .map(|facts| return facts.source.clone());
-        let clone_at_slot: bool = slot_source.as_deref() == Some(record.dataset.as_str());
-        if let Err(refusal) = sweep.calls.unmount_top(&folder) {
-            return RecoveryOutcome::Refused {
-                step: String::from(refusal.call.word()),
-                said: refusal.message("the leftover bind could not be unbound"),
-            };
-        }
-        return if clone_at_slot {
-            RecoveryOutcome::BindRemoved
-        } else {
-            RecoveryOutcome::Finished {
-                mount_id: clone_mount_id,
-            }
-        };
-    }
-    return RecoveryOutcome::Refused {
-        step: String::from("pre-call-check"),
-        said: format!(
-            "the topmost mount at the staging folder is {} with source `{}`, which is neither the clone `{}` nor the cache bind `{}`",
-            top.mount_id, top.source, record.dataset, cache_facts.source
-        ),
-    };
-}
 /// What:
 ///  What one sweep found.
 /// Why:
@@ -619,7 +251,6 @@ pub fn finish_a_staged_unmount(sweep: &StagedSweep<'_>) -> SweepOutcome {
 pub fn record_name(guid: DatasetGuid) -> String {
     return staging_record_name(guid);
 }
-
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "staged_unmount_tests.rs"]

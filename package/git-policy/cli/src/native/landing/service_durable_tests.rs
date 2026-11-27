@@ -5,6 +5,7 @@
 //! and the flush of the index that follows `core.fsync`.
 
 use super::*;
+use crate::service_durable_the_background_sync_thread::sync_batch;
 use crate::test_support::{
     fixture,
     remove,

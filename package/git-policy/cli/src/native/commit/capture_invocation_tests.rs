@@ -5,6 +5,9 @@
 //! the ref backend and the base.
 
 use super::*;
+/// The count of answers the one layout query prints,
+///  read by the control that hands the report reader its own answers.
+use crate::capture_invocation_layout_report::LAYOUT_ANSWERS;
 use crate::git_report_answers::{
     answers_of,
     required_answer,

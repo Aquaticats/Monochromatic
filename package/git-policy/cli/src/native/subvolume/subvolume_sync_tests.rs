@@ -27,9 +27,12 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use std::ffi::OsString;
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{
+    FileTypeExt,
+    MetadataExt,
     PermissionsExt,
     symlink,
 };

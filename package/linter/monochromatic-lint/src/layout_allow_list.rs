@@ -47,7 +47,10 @@ use crate::layout_finding::{
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::BTreeSet,
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     io::Read,
     path::{
         Path,
@@ -94,7 +97,7 @@ pub const MAX_BYTES: u64 = 4 * 1024 * 1024;
 ///   source: Path;
 ///   entries: AllowEntry[];
 ///   uses: Set<[Path, Path]>;
-///   keys: Set<string>;
+///   keys: Map<string, number>;
 /// };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,8 +108,9 @@ pub struct AllowList {
     entries: Vec<AllowEntry>,
     /// The uses the entries record, so one lookup is not a pass over every entry.
     uses: BTreeSet<(PathBuf, PathBuf)>,
-    /// The keys the entries record, for the same reason.
-    keys: BTreeSet<String>,
+    /// Each key the entries record and the line that holds it,
+    ///  so one lookup is not a pass over every entry.
+    keys: BTreeMap<String, usize>,
 }
 
 /// What:
@@ -114,7 +118,7 @@ pub struct AllowList {
 /// Why:
 ///  The lines are read by `layout_allow_entries.rs`,
 ///  and the list they make is the one a rule asks about.
-///  The uses and the keys are also collected once here,
+///  The uses, the keys and the line each key sits on are also collected once here,
 ///  because a rule asks about one use or one key per finding it makes,
 ///  and a list of a dense loop holds a line for every use inside that loop:
 ///  a pass over every entry per question cost minutes on a list of 60,300 lines
@@ -130,8 +134,8 @@ pub fn parse_allow_list(
 ) -> Result<AllowList, String> {
     let entries: Vec<AllowEntry> = parse_entries(text)?;
     let mut uses: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
-    let mut keys: BTreeSet<String> = BTreeSet::<String>::new();
-    for entry in &entries {
+    let mut keys: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
+    for (index, entry) in entries.iter().enumerate() {
         match &entry.kind {
             AllowKind::FolderUse {
                 from,
@@ -140,7 +144,7 @@ pub fn parse_allow_list(
                 uses.insert((from.clone(), to.clone()));
             }
             AllowKind::Key(key) => {
-                keys.insert(key.clone());
+                keys.insert(key.clone(), index);
             }
             // A file use is asked about once per file pair of one folder, and a folder holds few files.
             AllowKind::FileUse {
@@ -298,7 +302,16 @@ impl AllowList {
         &self,
         key: &str,
     ) -> bool {
-        return self.keys.contains(key);
+        return self.keys.contains_key(key);
+    }
+
+    /// The line of the entry that holds one finding's key,
+    ///  or nothing when no line holds it.
+    pub fn key_entry(
+        &self,
+        key: &str,
+    ) -> Option<usize> {
+        return self.keys.get(key).copied();
     }
 }
 
@@ -323,18 +336,19 @@ pub fn tolerated(
     let mut kept: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     let mut used: BTreeSet<usize> = BTreeSet::<usize>::new();
     for finding in findings {
-        if finding.key.is_empty() || !list.covers_key(finding.key.as_str()) {
+        // What: a finding that carries no key, which no line can hold.
+        // Why: the loop findings and the use added inside a tolerated loop are what makes new code unrecordable.
+        if finding.key.is_empty() {
             kept.push(finding);
             continue;
         }
-        for (index, entry) in list.entries().iter().enumerate() {
-            let AllowKind::Key(key) = &entry.kind else {
-                continue;
-            };
-            if *key == finding.key {
-                used.insert(index);
-            }
-        }
+        // What: the line that holds this finding's key, which the list read once.
+        // Why: a pass over every entry per tolerated finding reads a list of tens of thousands of lines once per finding.
+        let Some(index) = list.key_entry(finding.key.as_str()) else {
+            kept.push(finding);
+            continue;
+        };
+        used.insert(index);
     }
     return (kept, used);
 }

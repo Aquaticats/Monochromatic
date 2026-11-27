@@ -9,7 +9,10 @@ It settles choices that ZFS plan step 8's build made where the design and decisi
 "Step 8:
 The attaching sweep for a clone that carries a mount request"),
 as its integration pass put them
-(`~/temp/agent/integration-pass-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`,
+(`~/temp/agent/integration-pass-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 section "The twelve choices").
 
 ## What was decided
@@ -32,7 +35,10 @@ No person edits the file by hand.
 
 Recorded 2026-11-22T14:27:54-05:00,
 after step 8 merged as `00d857a435` and its recheck ran the built sweep with no file
-(`~/temp/agent/integration-recheck-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`,
+(`~/temp/agent/integration-recheck-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "Owner item 1"):
 with no file,
 with an empty object,
@@ -106,6 +112,11 @@ moved verbatim on 2026-11-23:
   brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`;
   the
 
+The brief in `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`
+(scratch,
+deleted on 2026-11-27;
+not kept).
+
 ### Receipts for refusals
 
 "C:
@@ -134,7 +145,10 @@ in the claim order that design states.
 Accepted 2026-11-22 in the question tool,
 recorded 2026-11-22T20:21:19-05:00,
 on the integration pass of the step 8 follow-up
-(`~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
+(`~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 the section whose heading starts "Owner item 2").
 
 Asked with that pass's figures:
@@ -158,7 +172,10 @@ and keeping the count while adding a time limit per sweep.
 Accepted 2026-11-22 in the question tool,
 recorded 2026-11-22T22:22:43-05:00,
 on the integration pass of the branch that builds the section "With no configuration file"
-(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review.md`,
+(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "Owner's to decide",
 decisions D1 to D4).
 They bind the sweep and the start probe alike
@@ -249,7 +266,10 @@ and whether any part of the route reads a snapshot through that directory.
 
 Asked in the question tool on 2026-11-23,
 after the branch's second integration pass measured the setting on OpenZFS 2.4.4
-(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review-second-pass.md`).
+(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review-second-pass.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)).
 What the project was shown:
 only `snapdir=disabled` stops those mounts;
 `hidden`,
@@ -305,7 +325,10 @@ Answered in the question tool on 2026-11-23,
 recorded 2026-11-23T18:03:17-05:00,
 on the second Sonnet pass of the step 8 follow-up
 (`fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `c87a50a09b`;
-`~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
+`~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "Owner item 1",
 finding P2-H1).
 
@@ -362,7 +385,10 @@ kernel 6.14),
 interleaved with `main`'s handler and an identical-binary control,
 and the branch merged as `c099c069a8`
 (`keep/report-pi-zfs-step-8-merge-main-and-the-sweep-timing.md` in
-`~/temp/agent/zfs-step-8-merge-main-and-the-sweep-timing-2026-11-23/`).
+`~/temp/agent/zfs-step-8-merge-main-and-the-sweep-timing-2026-11-23/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)).
 Two figures in this section do not hold as written:
 
 - The steady sweep was 0.36 (0.30 to 0.58) and 0.34 (0.19 to 0.42) of `main`'s time at 1,024 clones,

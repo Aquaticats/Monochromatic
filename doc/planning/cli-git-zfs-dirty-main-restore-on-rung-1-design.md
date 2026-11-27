@@ -15,25 +15,37 @@ the project's answers or the plan's own records did not decide,
 beyond the writer's choices that "Choices this design marks for the project's veto" lists for the project to settle.
 It edited no other file.
 
-This revision answers the gate review at `~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review.md` (tip `1f24dcc10d` of this document) and its probe logs beside it.
+This revision answers the gate review at `~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review.md` (tip `1f24dcc10d` of this document) and its probe logs beside it
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 "Answers to the gate review" records,
 finding by finding,
 what changed and where.
 
 This revision also answers the second gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-second-pass.md`,
 tip `c342dd1a06`,
-with `probe-logs-second-pass.md` beside it) and the project's answers of 2026-11-22 to three of its four questions (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`).
+with `probe-logs-second-pass.md` beside it;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here) and the project's answers of 2026-11-22 to three of its four questions (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`).
 "Answers to the second gate pass" records,
 finding by finding,
 what changed and where,
 and "The project's answers of 2026-11-22" quotes the three answers.
 
 This revision answers the third gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-owners-answers.md`,
-tip `610e5da52e`),
+tip `610e5da52e`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose findings and their fixes "Answers to the third gate pass" records.
 
 This revision answers the seventh gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-last-diff-read.md`,
-tip `b377d175de`),
+tip `b377d175de`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose two mediums and lows are made here,
 and it applies the merge-bar waiver of 2026-11-22 (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
 "The merge bar is waived for an add above the warning's count").
@@ -41,11 +53,17 @@ It answers the sixth gate pass (`.../keep/review-check-before-acceptance.md`,
 tip `5237948862`) in the commits before it.
 
 This revision answers the fifth gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-of-the-high-finding.md`,
-tip `04ce55a880`) and applies the project's three further answers of 2026-11-22 (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+tip `04ce55a880`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here) and applies the project's three further answers of 2026-11-22 (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
 "Three further answers") and the seven answers on clone worktree records (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`).
 
 This revision answers the fourth gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-further-answer.md`,
-tip `4dadc5fd27`),
+tip `4dadc5fd27`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose findings and their fixes "Answers to the fourth gate pass" records.
 
 This revision also applies the project's further answer of 2026-11-22 to the third pass's own question Q-R5,
@@ -1040,7 +1058,10 @@ The reviewer rewrote one four-byte file 400 times with no wait:
 the stamps moved in steps of one millisecond,
 and the 14 pairs that moved are the probe's own positive control (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/probe-logs.md`,
 "P1",
-on `zpcachyos/ROOT/cos/home`).
+on `zpcachyos/ROOT/cos/home`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 A same-size rewrite can therefore leave every compared field of F2 and of the wrapper's settle equal.
 - F23.
 The reviewer moved only the sub-second part of a file's modification time and change time in one test arm and a whole second in a control arm:
@@ -3919,7 +3940,10 @@ for a sentence about the access and modification times);
 and `SPEC.md:4408` to `:4410` for the record sentence (the first text cited the heading's line `:4398`).
 The script's output,
 printing every citation beside the lines it names,
-is kept at `~/temp/agent/zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/citations-2026-11-22.md`.
+is kept at `~/temp/agent/zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/citations-2026-11-22.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The second pass's citation findings are corrected in this revision:
 F14 now cites `sa.c:1702` to `:1704`,

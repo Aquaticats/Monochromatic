@@ -24,6 +24,8 @@ use crate::worktree_copy::GitStep;
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_journal::journal_root;
 use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_ladder_finish_snapshot::Ended;
+use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
 use crate::worktree_ladder_run::begin_ladder;
 use crate::worktree_ladder_test_support::{
     OLDER_TARGET_OLD_PATHS,
@@ -36,7 +38,14 @@ use crate::worktree_ladder_test_support::{
     tracked,
     tracked_sparse,
 };
+use crate::worktree_snapshot::PlaceError;
+use crate::worktree_trash::{
+    PendingTrash,
+    TrashManifest,
+};
 use std::cell::RefCell;
+use std::ffi::OsString;
+use std::path::Path;
 use std::process::{
     Command,
     Stdio,
@@ -1733,7 +1742,7 @@ fn the_fallback_checkout_rewrites_a_zeroed_entry_and_leaves_a_recorded_one_trust
             destination.as_path(),
         )
         .expect("bound");
-        let status: GitStatus = super::checkout_like_git_with(
+        let status: GitStatus = crate::worktree_ladder_finish_git_checkout::checkout_like_git_with(
             (&plan, &bound, &mut runner),
             Some(pending.as_path()),
             true,

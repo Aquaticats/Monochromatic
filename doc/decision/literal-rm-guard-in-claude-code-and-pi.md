@@ -35,11 +35,17 @@ because an unset or empty variable widens what gets deleted."
   so no hook sees the script's text,
   and `require` and `import()` give the script no file system.
   The probe records are in
-  `~/temp/agent/build-literal-rm-guard-in-both-harnesses-2026-11-24/keep/` (files starting `claude-code-mode-`).
+  `~/temp/agent/build-literal-rm-guard-in-both-harnesses-2026-11-24/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here) (files starting `claude-code-mode-`).
 - Pi 1.6.0's `codemode` call reaches the guardrail's `tool_call` handler with its script as `code`,
   and each nested call reaches it too,
   with a block honoured at either level
-  (`keep/measurement-pi-codemode-tool-call.md` in the same folder).
+  (`keep/measurement-pi-codemode-tool-call.md` in the same folder
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)).
 
 ## The owner's answers
 

@@ -39,6 +39,9 @@ moved verbatim on 2026-11-23:
   `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-1` (round 297)
   and `reload-fix-brought-onto-main-where-a-program-link-already-is-1` (round 301):
   `~/temp/agent/notes-to-send/2026-11-12T1214-the-wrapper-also-works-around-defects-of-the-service-manager.md`.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 From lines 26930 to 27046 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),

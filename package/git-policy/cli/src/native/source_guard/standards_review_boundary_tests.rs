@@ -118,11 +118,20 @@ fn native_sources() -> Vec<(String, String)> {
 /// a module file registers its own members,
 /// which is
 /// declaring them and not using them.
+///  A declaration also covers a module whose name begins with a service-only module's name,
+///  which is a sibling of that module's own family:
+///  the file prefixes above already let such a file name the client,
+///  and a folder's index has to declare it by name to let the module tree reach it.
 fn without_declarations(text: &str) -> String {
     let mut kept: Vec<String> = Vec::new();
     for line in text.lines() {
-        let declares_service_module: bool =
-            module_name(line).is_some_and(|name| return SERVICE_ONLY_MODULES.contains(&name));
+        // What: `module_name(line)` reads `[visibility] mod name;` and gives the name of the declared module.
+        // Why:  A register names a member without reaching it, so a declaration is not a mention.
+        let declares_service_module: bool = module_name(line).is_some_and(|name| {
+            return SERVICE_ONLY_MODULES
+                .iter()
+                .any(|module| return name.starts_with(module));
+        });
         if !declares_service_module {
             kept.push(without_the_registered_file_name(line));
         }

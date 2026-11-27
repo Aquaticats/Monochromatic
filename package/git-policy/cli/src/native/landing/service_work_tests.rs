@@ -2,6 +2,7 @@
 //! with handlers that record what they are asked.
 
 use super::*;
+use crate::auto_push_single_flight::PushGit;
 use crate::merge_second_pass::tests::await_it;
 use crate::push_failure_notice::{
     PushOutcome,
@@ -22,6 +23,7 @@ use crate::service_claim_renewal_running::{
     DrivenRenewal,
     Renewal,
 };
+use crate::service_review_key::ReviewKey;
 use crate::service_work_common_directory::is_bare_common_directory;
 use crate::service_work_run_round::run_round;
 use crate::test_support::{
@@ -29,6 +31,7 @@ use crate::test_support::{
     remove,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::transaction_git::GitContext;
 use crate::work_item::{
     CLAIMED,
     PENDING,
@@ -47,6 +50,7 @@ use crate::work_item_recovery::requeue_expired;
 use crate::work_item_state_directories_and_claim_names::take_listings;
 use std::ffi::OsString;
 use std::os::unix::fs::OpenOptionsExt as _;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{
     Duration,
