@@ -179,15 +179,19 @@ pub(crate) use crate::bounded_run_containment::{
     CancelOnDrop,
     Containment,
     contain,
-    fail_started,
     finished,
     lose,
     open_pidfd,
     reason_of,
     settle,
     start_contained,
-    stop_everything,
     wait_for_exit,
+};
+/// The end of a run:
+/// its containment stopped and its scope unit retired (split out of the containment module).
+pub(crate) use crate::bounded_run_end::{
+    fail_started,
+    stop_everything,
 };
 
 /// The write of one containment record (split out of the bounded run module).

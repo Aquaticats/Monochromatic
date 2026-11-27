@@ -20,8 +20,10 @@
   journal.
 
  Usage:
-  `node bin/service-manager-install-proof.ts --image <tag> --older-wrapper <path>`
-  where `--older-wrapper` is a build of the release the account had before this one.
+  `node bin/service-manager-install-proof.ts --image <tag> --older-wrapper <path> [--candidate-wrapper <path>]`
+  where `--older-wrapper` is a build of the release the account had before this one and `--candidate-wrapper` is a build
+  of the release being installed. Without `--candidate-wrapper` this file runs the build of this worktree, which the
+  caller makes first (`GPC_CANDIDATE_WRAPPER` names one too, which a task that passes no option uses).
  */
 import { join, } from 'node:path';
 
@@ -209,6 +211,11 @@ async function failedUnits({ machine, }: { readonly machine: Machine; }): Promis
 
 /**
  Puts one wrapper in the container as `<folder>/git` and makes it executable.
+
+ Why:
+  `podman cp` writes the copy as the container's own user, which is the user every command here runs as, so the release
+  that Git starts below this folder is the owner of what it writes and no Git call asks for a capability
+  (`containerUser` in `service-manager-machine.ts`).
 
  @param machine - the machine to put it in
 
@@ -478,14 +485,16 @@ async function prove({
 const {
   image,
   olderWrapper,
+  candidateWrapper,
 } = options({ argv: process.argv
   .slice(2,), });
 
 /**
- The release built from this worktree, which the caller builds before it runs this file.
+ The release the install puts in place: the one the caller named, or this worktree's build, which the caller makes first.
  */
-const candidate: string = process.env
-  .GPC_CANDIDATE_WRAPPER
+const candidate: string = candidateWrapper
+  ?? process.env
+    .GPC_CANDIDATE_WRAPPER
   ?? join(
     import.meta.dirname,
     '..',
