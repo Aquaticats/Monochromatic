@@ -21309,7 +21309,7 @@ because it loses which line is which and pairs one side's deleted line with the 
 (issue 6529,
 merge `b928c5fa6999`,
 whose resolution `24f8c1947b` corrected by hand).
-A base line written twice in the region is read by word as before:
+A base line written twice in the region is read by word:
 which copy a side deleted cannot be told there.
 A region whose word merge would write back a line the base held,
 while one side's part holds that line fewer times than the base did
