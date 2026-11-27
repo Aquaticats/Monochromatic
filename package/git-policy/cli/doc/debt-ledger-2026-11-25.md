@@ -1230,6 +1230,38 @@ and neither layout allow list gained a line.
 The work is unapproved and non-final;
 the owner declares completion.
 
+Note of 2026-11-27T05:25:09-05:00:
+the round briefed to split `command/rule_linked_worktree.rs` split nothing,
+because the loop break of that folder closed the item first.
+The 352 code lines the brief carried is the count before `1466cd124c`
+("move the guarded forms beside the rejection texts",
+merged as `817cc3bb4c`,
+whose own message records "352 code lines before the move,
+298 after"):
+that commit moved `GuardedCommand` and its `ALL` list into
+`command/the_guarded_commands.rs` and re-exported the name,
+so no caller changed and the file came to 298 code lines.
+Measured on the branch,
+level with `origin/main` at `caeeb3d2ad`
+(`monochromatic-lint` 0.5.2-alpha.17,
+run on `package/git-policy/cli`):
+the file holds 298 code lines and the linter reports no `rust/max-lines` finding for it,
+against 40 such findings in the crate and none of them under `command/`.
+Two controls say that reading is the budget and not a file the scan skips:
+a hand count of three files whose line counts the linter names matches it exactly
+(`foundation/private_storage.rs` 409,
+`health/doctor.rs` 362,
+`foundation/lines_written_by_a_thread.rs` 391),
+and padding the file with five code lines made the linter report 303 for it.
+`command/rule_linked_worktree_messages.rs` holds 299 code lines,
+one under the budget,
+so the next change to it is the one that owes a split.
+No file was split,
+so neither layout allow list gained a line and none was deleted,
+and the linter finds zero `rust/folder-uses-links` and zero `rust/file-order-in-folder` findings.
+The work is unapproved and non-final;
+the owner declares completion.
+
 
 ### Item 16. Twenty-nine of fifty-five source folders sit in one dependency loop, and the layout rules are not enforced
 
