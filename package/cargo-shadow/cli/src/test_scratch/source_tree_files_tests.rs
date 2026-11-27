@@ -16,13 +16,6 @@
 //! which is why the second control asks for the error.
 
 /// What:
-/// `source_tree_files` is the walk under control,
-/// which answers every regular file below one folder and never enters a link.
-/// Why:
-/// The guards of this crate read the sources through it,
-/// so a defect in it is a defect in every one of them.
-use crate::test_scratch::source_tree_files::source_tree_files;
-/// What:
 /// `scratch` is one empty folder under the build output,
 /// removed when its guard drops.
 /// Why:
@@ -36,6 +29,13 @@ use crate::test_scratch::scratch;
 /// Why:
 /// A control that returned green without asking its question would be evidence of nothing.
 use crate::test_scratch::skip_or_fail;
+/// What:
+/// `source_tree_files` is the walk under control,
+/// which answers every regular file below one folder and never enters a link.
+/// Why:
+/// The guards of this crate read the sources through it,
+/// so a defect in it is a defect in every one of them.
+use crate::test_scratch::source_tree_files::source_tree_files;
 /// What:
 /// `fs` is the file system's own functions.
 /// Why:
