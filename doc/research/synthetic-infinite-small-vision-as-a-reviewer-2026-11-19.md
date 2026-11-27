@@ -49,6 +49,9 @@ both in three turns:
 about 22 times slower,
 one sample,
 no spread yet.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 From lines 45378 to 45385 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -59,6 +62,9 @@ moved verbatim on 2026-11-23:
 four interleaved rounds,
 model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):**
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Qwen-plan DeepSeek 9.4,
 10.8,
 6.3,
