@@ -11,8 +11,17 @@ The question's full text,
 with all 37 choices,
 their examples and the 14 entries,
 is the record reviewer's eleventh read,
-`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-eleventh-read-and-the-records-question.md`,
+`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-eleventh-read-and-the-records-question.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "The question".
+That text put each of the 37 choices with what it decides,
+its options best first by what each gives the person who uses the worktrees,
+the cost of each,
+and one example of what the person sees;
+its 14 entries each name a sentence of the two designs
+and the words that would replace it.
 The add's record's step 10 parts were accepted earlier the same day
 (`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`).
 

@@ -58,13 +58,20 @@ plus the reconciliation that numbered the findings:
   the third review,
   of the service plus intents.
   Its design document is `review-wtc/v3/worktree-copy-service.md`.
-- `/var/home/user/temp/agent/reviews/p1-reconciliation.md`,
+- `/var/home/user/temp/agent/reviews/p1-reconciliation.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   which assigns the
   nine open findings and the eight off-`main` fixes their identifiers.
 
 No report is missing.
 The handover's own summary cites
-`/var/home/user/temp/agent/reviews/p1-reconciliation.md` and the three `review-wtc` reviews,
+`/var/home/user/temp/agent/reviews/p1-reconciliation.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
+and the three `review-wtc` reviews,
 and
 all of them were read in full.
 

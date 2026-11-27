@@ -1,22 +1,21 @@
 //! What:
-//!  The kernel calls the unmount route makes:
+//!  The release calls of the staging route:
 //!  the bind of the staging folder,
 //!  its propagation change,
 //!  the move of the clone onto it,
 //!  the descriptor unmount,
 //!  the file-handle pair a later sweep reopens the folder with,
-//!  and the reads that decide whether any of them may run.
+//!  the reads that decide whether any of them may run,
+//!  and the two kernel files those reads name.
 //! Why:
 //!  The design forbids a path-based mount or unmount on the account's tree,
 //!  so every call here takes a descriptor or a `/proc/self/fd/<n>` string
 //!  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
 //!  "The unmount call from staging";
 //!  the two `/proc` readings were accepted without veto).
-//!  The calls are behind one trait because a control on a person's machine
-//!  cannot mount:
-//!  the unmount turn's identity comparisons are proved against a recording
-//!  implementation,
-//!  and the real one runs in the guest.
+//!  The kernel's own calls sit apart from the trait they keep and the words
+//!  they refuse with,
+//!  so the `unsafe` of the route is read in one file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -45,205 +44,23 @@ use std::os::fd::{
 };
 use std::path::PathBuf;
 
+/// The call names a receipt carries,
+/// and one refusal's words.
+pub use super::staging_call_words::{
+    StagingCall,
+    StagingCallRefusal,
+};
+
+/// The contract every staging call and every control keeps.
+pub use super::staging_calls_contract::StagingCalls;
+
+use super::staging_call_words::refused;
+
 /// The kernel file that names this boot.
 pub const BOOT_ID_PATH: &str = "/proc/sys/kernel/random/boot_id";
 
 /// This process's own mount namespace.
 pub const MOUNT_NAMESPACE_PATH: &str = "/proc/self/ns/mnt";
-
-/// What:
-///  One call of the staging route,
-///  named as a receipt names the failed step.
-/// Why:
-///  A refusal must say which call refused and its errno,
-///  and the words are read by a person and matched by the guest arms.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type StagingCall = 'bind' | 'open-bind' | 'make-private' | 'move' | 'unmount' | 'name-handle' | 'open-handle' | 'mount-id' | 'mount-table' | 'namespace' | 'boot';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StagingCall {
-    /// `mount(2)` with `MS_BIND` of the folder onto itself.
-    Bind,
-    /// The by-name open of the bind under the cache descriptor.
-    OpenBind,
-    /// `mount_setattr(2)` making the bind private.
-    MakePrivate,
-    /// `move_mount(2)` of the clone onto the bind.
-    Move,
-    /// `umount2(2)` through the held descriptor.
-    Unmount,
-    /// `name_to_handle_at(2)` of the folder.
-    NameHandle,
-    /// `open_by_handle_at(2)` of the folder.
-    OpenHandle,
-    /// The final slot hop of the unmount's walk.
-    OpenSlot,
-    /// A second whole walk of the canonical slot.
-    LookAgain,
-    /// The mount number in `/proc/self/fdinfo`.
-    MountId,
-    /// This process's mount table.
-    MountTable,
-    /// This process's mount namespace identity.
-    Namespace,
-    /// This boot's identifier.
-    Boot,
-}
-
-impl StagingCall {
-    /// The word a refusal and a receipt carry.
-    pub fn word(self) -> &'static str {
-        return match self {
-            StagingCall::Bind => "bind",
-            StagingCall::OpenBind => "open-bind",
-            StagingCall::MakePrivate => "make-private",
-            StagingCall::Move => "move-mount",
-            StagingCall::Unmount => "unmount",
-            StagingCall::NameHandle => "name-handle",
-            StagingCall::OpenHandle => "open-handle",
-            StagingCall::OpenSlot => "open-slot",
-            StagingCall::LookAgain => "look-again",
-            StagingCall::MountId => "mount-id",
-            StagingCall::MountTable => "mount-table",
-            StagingCall::Namespace => "namespace",
-            StagingCall::Boot => "boot",
-        };
-    }
-}
-
-/// What:
-///  One refused call:
-///  which call,
-///  its errno and the kernel's words.
-/// Why:
-///  The receipt carries the step and errno,
-///  and a refusal that lost either would leave a person with nothing to check.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type StagingCallRefusal = { call: StagingCall; errno: number; detail: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StagingCallRefusal {
-    /// The call that refused.
-    pub call: StagingCall,
-    /// The kernel's errno,
-    /// or zero when the call answered without one.
-    pub errno: i32,
-    /// What the call answered.
-    pub detail: String,
-}
-
-impl StagingCallRefusal {
-    /// The refusal in words.
-    pub fn message(
-        &self,
-        subject: &str,
-    ) -> String {
-        return format!(
-            "{subject}: {} answered {}{}. Nothing later in the unmount ran, so the mount stays where it was and the receipt names this step.",
-            self.call.word(),
-            self.detail,
-            if self.errno == 0 {
-                String::new()
-            } else {
-                format!(" (errno {})", self.errno)
-            },
-        );
-    }
-}
-
-/// The refusal of one call with the thread's last error.
-fn refused(
-    call: StagingCall,
-    error: std::io::Error,
-) -> StagingCallRefusal {
-    return StagingCallRefusal {
-        call,
-        errno: error.raw_os_error().unwrap_or(0),
-        detail: error.to_string(),
-    };
-}
-
-/// What:
-///  The calls the unmount route and its later sweep make.
-/// Why:
-///  A control records them,
-///  and the release path makes them,
-///  so the identity comparisons are provable without a mount and the guest
-///  proves the calls.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface StagingCalls { bindTheFolder(...); makePrivate(...); moveClone(...); unmountTop(...); ... }
-/// ```
-pub trait StagingCalls {
-    /// Bind the folder onto itself and answer the descriptor the bind's name opens.
-    fn bind_the_folder(
-        &self,
-        folder: &std::fs::File,
-        cache: &std::fs::File,
-        name: &OsStr,
-    ) -> Result<std::fs::File, StagingCallRefusal>;
-    /// Make the bind private.
-    fn make_private(
-        &self,
-        bind: &std::fs::File,
-    ) -> Result<(), StagingCallRefusal>;
-    /// Move the clone onto the bind.
-    fn move_clone(
-        &self,
-        clone: &std::fs::File,
-        bind: &std::fs::File,
-    ) -> Result<(), StagingCallRefusal>;
-    /// Unmount the topmost mount at the held descriptor.
-    fn unmount_top(
-        &self,
-        held: &std::fs::File,
-    ) -> Result<(), StagingCallRefusal>;
-    /// The folder's handle and its type.
-    fn name_handle(
-        &self,
-        folder: &std::fs::File,
-    ) -> Result<(i32, Vec<u8>), StagingCallRefusal>;
-    /// The folder reopened from its handle through the cache's descriptor.
-    fn open_from_handle(
-        &self,
-        cache: &std::fs::File,
-        handle_type: i32,
-        handle: &[u8],
-    ) -> Result<std::fs::File, StagingCallRefusal>;
-    /// The entry at `name` beneath the cache descriptor,
-    /// crossing the one mount that may cover it.
-    fn open_by_name(
-        &self,
-        cache: &std::fs::File,
-        name: &OsStr,
-    ) -> Result<std::fs::File, StagingCallRefusal>;
-    /// The mount a descriptor is on.
-    fn mount_id(
-        &self,
-        file: &std::fs::File,
-    ) -> Result<u64, StagingCallRefusal>;
-    /// The path a descriptor names now.
-    fn observed_path(
-        &self,
-        file: &std::fs::File,
-    ) -> Result<PathBuf, StagingCallRefusal>;
-    /// One mount's facts from this process's table.
-    fn mount_facts(
-        &self,
-        mount_id: u64,
-    ) -> Result<MountFacts, StagingCallRefusal>;
-    /// This process's whole mount table.
-    fn mount_table(&self) -> Result<Vec<MountFacts>, StagingCallRefusal>;
-    /// This process's mount namespace device and inode.
-    fn namespace_pair(&self) -> Result<(u64, u64), StagingCallRefusal>;
-    /// This boot's identifier.
-    fn boot(&self) -> Result<String, StagingCallRefusal>;
-}
 
 /// What:
 ///  The kernel's `file_handle` with the bytes the kernel actually writes.
@@ -569,7 +386,6 @@ impl StagingCalls for LiveStagingCalls {
 pub fn descriptor_path(file: &std::fs::File) -> OsString {
     return OsString::from(format!("/proc/self/fd/{}", file.as_raw_fd()));
 }
-
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "staging_calls_tests.rs"]

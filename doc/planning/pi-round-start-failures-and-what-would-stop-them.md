@@ -15,7 +15,11 @@ found it not ready:
 its merge-on-end item reversed the owner's merge bar,
 its start command already exists in the driver package,
 and live text still carried the retracted limits
-(`~/temp/agent/pi-start-proposal-sonnet-read-2026-11-26/keep/review.md`, which expires with scratch).
+(`~/temp/agent/pi-start-proposal-sonnet-read-2026-11-26/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+which expires with scratch).
 This version takes those findings in.
 
 ## The instruction already on record
@@ -88,7 +92,10 @@ because nothing marks an agent's choice as an agent's once it is written down.
   a refusal the virtual writer passes on to flex because it comes before any output
   (`package/pi-plugin/rate-limit-fallback/README.md`).
 
-The launchers live in `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`,
+The launchers live in `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 outside the repository,
 with no tests and no review;
 tracked documents point at them (the skill `pi-as-subagent` and the handover),
@@ -116,7 +123,10 @@ although each brief quoted the synthetic-load ban.
 ### Briefs that state the coordinator's design as the project's
 
 The driver round's brief
-(`~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/prompt.md`)
+(`~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/prompt.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 tells it to count a virtual-writer run once against its members' combined room.
 The owner asked not to be limited;
 the combined-room count is the coordinator's design,

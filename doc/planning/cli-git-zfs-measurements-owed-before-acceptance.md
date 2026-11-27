@@ -23,7 +23,10 @@ The guest probe
 reused the descriptor calls from that research's `guest-extra-commands.txt`.
 Full commands,
 output and assertions
-are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`,
+are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 in `guest-probe.py` and the
 per-item logs.
 Each item uses a separate encrypted file-backed pool in `zfs-acceptance-mvm`,
@@ -801,7 +804,10 @@ raw key,
 `recordsize=32K`,
 `compression=zstd-3`,
 checkout and clone parent under the same home dataset.
-Scripts and logs are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/delta-review-items/keep/`.
+Scripts and logs are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/delta-review-items/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The project decisions to destroy the worktree and its own snapshots at once and to include `promote` still stand.
 
 ### 12. Same-name replacement with delegated grants
@@ -1225,7 +1231,10 @@ an Ubuntu 24.04 `mvm` libvirt VM,
 destroyed after the run
 (`item-17/keep/mvm-destroy.log`).
 Scripts are in
-`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-17/`:
+`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-17/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 `guest-probe.py` and
 `guest-delta-items.py` are unchanged copies of the kept harness,
 `guest-item-17-items.py` adds the arms and
@@ -1497,7 +1506,10 @@ The guest was `zfs-item-18-measurements`,
 an Ubuntu 24.04 `mvm` libvirt VM,
 destroyed after the run (`keep/mvm-destroy.log`).
 Scripts are in
-`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-18/`:
+`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-18/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 `prepare-item-18.ts` prepared the guest
 and built OpenZFS,
 `run-item-18.ts` pushed the probe and ran the arm,
@@ -1896,7 +1908,10 @@ and nothing mounted on the host.
 
 Three program files,
 each named for the logs it produced,
-kept with every log in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`:
+kept with every log in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `probe-guest-round2.py`,
 sha256 `e390d490a7eb…15d1e0`:
@@ -3257,7 +3272,10 @@ none of these three arms needs it.
 
 The program is `probe-round4.py`,
 sha256 `02e0a82c6e33d3077d9a627493cdecd90a51ac48a470e7af1c5c5fdfa4108879`,
-kept with the logs in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`,
+kept with the logs in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 and every log in this section prints that name and hash as its sixth line,
 after the driver's push lines.
 Each arm ran twice,

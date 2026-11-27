@@ -47,88 +47,31 @@
 //! ```
 
 /// What:
-/// `use std::cell::RefCell;` imports `RefCell`,
-/// a value that can be changed through a shared reference (sibling:
-/// `&mut`,
-/// which needs exclusive access).
+/// `use crate::cargo_run::CargoRunner;` imports the trait that runs the real cargo for the install step.
 /// Why:
-/// The record of what this run's cargo calls wrote (`produced`) grows while the transaction body holds a shared reference to it.
+/// `InstallRequest` holds one,
+/// so a test passes a fake cargo in place of the real one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // TS objects are mutable through any reference; no import is needed.
+/// import { CargoRunner } from 'crate/cargo_run';
 /// ```
-use std::cell::RefCell;
-/// Imports `BTreeSet`,
-/// an ordered set (sibling:
-/// `HashSet`,
-/// unordered),
-/// which collects the versions to check once each.
-use std::collections::BTreeSet;
+use crate::cargo_run::CargoRunner;
 /// What:
-/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// `use crate::checks::CheckOutcome;` imports the findings of the policy checks.
 /// Why:
-/// `Path` is used by `InstallRequest`.
+/// The frozen path answers with one,
+/// empty when every locked version passes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Path } from 'std/path';
+/// import { CheckOutcome } from 'crate/checks';
 /// ```
-use std::path::Path;
-
+use crate::checks::CheckOutcome;
 /// What:
-/// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
+/// `use crate::crates::{LockSnapshot, read_locks};` imports the snapshot of one lockfile and the call that reads one per crate root.
 /// Why:
-/// `Settings` is used by `InstallRequest`,
-/// `policy_findings`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Settings } from 'monochromatic_dependency_catalog';
-/// ```
-use monochromatic_dependency_catalog::Settings;
-
-/// What:
-/// `use crate::cargo_run::{CargoOutcome, CargoRunner};` imports `CargoOutcome`,
-/// `CargoRunner` from another module of this crate so this file can name them unqualified.
-/// Why:
-/// `CargoOutcome` is used by `run_cargo`,
-/// `run_or_fail`;
-/// `CargoRunner` is used by `InstallRequest`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { CargoOutcome, CargoRunner } from 'crate/cargo_run';
-/// ```
-use crate::cargo_run::{
-    CargoOutcome,
-    CargoRunner,
-};
-/// What:
-/// `use crate::checks::{CheckOutcome, check_policy};` imports `CheckOutcome`,
-/// `check_policy` from another module of this crate so this file can name them unqualified.
-/// Why:
-/// `check_policy` runs the release-age and trust checks together and keeps a refusal when a later lookup fails;
-/// `CheckOutcome` carries the findings and warnings of the install and of the frozen verification.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { CheckOutcome, checkPolicy } from 'crate/checks';
-/// ```
-use crate::checks::{
-    CheckOutcome,
-    check_policy,
-};
-/// What:
-/// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
-/// `read_locks` from another module of this crate so this file can name them unqualified.
-/// Why:
-/// `LockSnapshot` is used by `sources_of`,
-/// `update_stale_roots`,
-/// `policy_findings`,
-/// `install_rust_lockfiles`;
-/// `read_locks` is used by `update_stale_roots`,
-/// `install_rust_lockfiles`.
+/// The entry point snapshots every lockfile before the transaction and hands those snapshots to the restore.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -138,67 +81,64 @@ use crate::crates::{
     LockSnapshot,
     read_locks,
 };
-/// What:
-/// `use crate::journal::{begin, finish, run_recording, process_exists, recover, restore_if_unchanged};` imports `begin`,
-/// `finish`,
-/// `run_recording`,
-/// `process_exists`,
-/// `recover`,
-/// `restore_if_unchanged` from another module of this crate so this file can name them unqualified.
-/// Why:
-/// `begin` is used by `install_rust_lockfiles`;
-/// `finish` is used by `install_rust_lockfiles`;
-/// `run_recording` is used by `update_stale_roots`;
-/// `process_exists` is used by `install_rust_lockfiles`;
-/// `recover` is used by `install_rust_lockfiles`;
-/// `restore_if_unchanged` is used by `install_rust_lockfiles`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { begin, finish, run_recording, process_exists, recover, restore_if_unchanged } from 'crate/journal';
-/// ```
-use crate::journal::{
-    begin,
-    recover_report,
-    restore_if_unchanged,
-    run_recording,
-};
-
-/// Imports `Claim`,
-/// what the ownership evidence says about a file a child wrote.
-use crate::file_owner::Claim;
-/// What:
-/// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `RegistryError` is used by the `impl` of `InstallError`,
-/// `from`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { RegistryError } from 'crate/http';
-/// ```
-/// Re-exports the error type (it lives in `install_error.rs`).
+/// The failure of an install (it lives in `install_error.rs`).
 pub use crate::install_error::InstallError;
-/// Imports the helpers that classify a failure into an install error.
+/// What:
+/// `use crate::install_error::{InstallError, io_error, registry_error, unapproved_roots};` imports the failure of an install and the three
+/// classifications this file reports.
+/// Why:
+/// A journal that cannot start or a restore that fails is an I/O failure over a file this run wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { InstallError, io_error, registry_error, unapproved_roots } from 'crate/install_error';
+/// ```
 use crate::install_error::{
-    invalid_lock_toml,
     io_error,
-    io_message,
     registry_error,
     unapproved_roots,
 };
+/// The lockfile texts of snapshots (split out of this module).
+pub(crate) use crate::install_stale_roots::sources_of;
 /// What:
-/// `pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};` imports and
-/// re-exports the helpers split out of this file,
-/// so callers keep writing `crate::install::verification_cached`.
+/// `use crate::install_stale_roots::{sources_of, stale_roots, update_stale_roots};` imports the read-only staleness check,
+/// the transaction body and the lockfile texts.
 /// Why:
-/// The file was split to stay under the line limit;
-/// the callers and the tests are unchanged.
+/// A frozen install asks only whether any lockfile is stale,
+/// and a non-frozen one hands the snapshots to the body.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export { LockBaseFactory, LockBaseReader, verificationCached, verificationScope } from './install-verify.ts';
+/// import { sources_of, stale_roots, update_stale_roots } from 'crate/install_stale_roots';
 /// ```
+use crate::install_stale_roots::update_stale_roots;
+/// The cargo command lines the install step runs and the update of a stale root (split out of this module).
+pub use crate::install_stale_roots::{
+    CHECK_ARGS,
+    UPDATE_ARGS,
+    VERIFY_ARGS,
+    arguments_for,
+    is_continuous_integration,
+    is_stale,
+    stale_roots,
+};
+/// What:
+/// `use crate::install_verify::{LockBaseReader, PolicyJudge, base_reader, verification_scope};` and the four verification calls
+/// (`is_verified`,
+/// `mark_verified`,
+/// `verify_added_since_base_outcome`,
+/// `verify_locked_entries_outcome`).
+/// Why:
+/// The frozen path verifies the lockfiles it finds,
+/// and the same remembered passes tell it what to skip.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockBaseReader, PolicyJudge, base_reader, verification_scope, is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome } from 'crate/install_verify';
+/// ```
+use crate::install_verify::base_reader;
+/// The helpers split out of this file before it,
+/// so callers keep their paths.
 pub use crate::install_verify::{
     LockBaseFactory,
     LockBaseReader,
@@ -208,46 +148,48 @@ pub use crate::install_verify::{
     verification_scope,
 };
 /// What:
-/// `use crate::install_verify::{base_reader, set_aside_pass};` imports the two helpers that only this crate calls.
+/// `use crate::journal::{begin, recover_report, restore_if_unchanged};` imports the start of a transaction over the snapshots,
+/// the recovery of an earlier run and the restore that skips a lockfile another writer changed.
 /// Why:
-/// `update_stale_roots` and `install_rust_lockfiles` read the base revision and set refused releases aside with them.
+/// These three are the transaction around an install:
+/// finish what a killed run left,
+/// journal this one,
+/// and put the lockfiles back when nothing is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { baseReader, setAsidePass } from 'crate/install_verify';
+/// import { begin, recover_report, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::install_verify::{
-    base_reader,
-    set_aside_pass,
+use crate::journal::{
+    begin,
+    recover_report,
+    restore_if_unchanged,
 };
-/// Imports `crate::journal_finish::FinishError` for this file.
+/// What:
+/// `use crate::journal_finish::{FinishError, settle_finish};` imports the failure of finishing a journal and the call that joins it with the install's own result.
+/// Why:
+/// The entry point finishes the transaction and reports a finish error beside the install's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { FinishError, settle_finish } from 'crate/journal_finish';
+/// ```
 use crate::journal_finish::FinishError;
 /// What:
-/// `use crate::lockfile::{LockedVersion, added_versions};` imports `LockedVersion`,
-/// `added_versions` from another module of this crate so this file can name them unqualified.
+/// `use crate::lockfile::LockedVersion;` imports the record of one locked registry crate.
 /// Why:
-/// `LockedVersion` is used by `InstallReport`,
-/// `update_stale_roots`,
-/// `policy_findings`;
-/// `added_versions` is used by `update_stale_roots`,
-/// `policy_findings`.
+/// `InstallReport` lists the versions the install newly locked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { LockedVersion, added_versions } from 'crate/lockfile';
+/// import { LockedVersion } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{
-    LockedVersion,
-    added_versions,
-};
+use crate::lockfile::LockedVersion;
 /// What:
-/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// `use crate::registry::Registry;` imports the trait the policy checks ask crates.io through.
 /// Why:
-/// `Registry` is used by `InstallError`,
-/// `fmt`,
-/// `from`,
-/// `InstallRequest`,
-/// and others.
+/// `InstallRequest` holds one,
+/// so a test answers the checks from memory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -255,18 +197,15 @@ use crate::lockfile::{
 /// ```
 use crate::registry::Registry;
 /// What:
-/// `use crate::verify::{is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome};` imports
-/// `is_verified`,
-/// `mark_verified`,
-/// `verify_added_since_base`,
-/// `verify_locked_entries` from another module of this crate so this file can name them unqualified.
+/// `use crate::verify::{is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome};` imports the two
+/// verifications a frozen install runs and the remembered pass they read and write.
 /// Why:
-/// The frozen check and the remembered passes live in `verify.rs`;
-/// `install_rust_lockfiles` and `update_stale_roots` use them.
+/// Under `trustLockfile` only the versions new since the base are checked,
+/// and otherwise every locked entry is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { isVerified, markVerified, verifyAddedSinceBase, verifyLockedEntries } from 'crate/verify';
+/// import { is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome } from 'crate/verify';
 /// ```
 use crate::verify::{
     is_verified,
@@ -274,98 +213,39 @@ use crate::verify::{
     verify_added_since_base_outcome,
     verify_locked_entries_outcome,
 };
-
-/// Asks whether the lockfile satisfies the manifests:
-/// exits 0 without writing when it does.
-pub const CHECK_ARGS: [&str; 4] = ["update", "--workspace", "--locked", "--offline"];
-
-/// Re-locks the workspace members and whatever their changed requirements force,
-/// keeping every other locked release.
-pub const UPDATE_ARGS: [&str; 3] = ["update", "--workspace", "--offline"];
-
-/// The consistency check run after the update.
-pub const VERIFY_ARGS: [&str; 5] = ["metadata", "--locked", "--offline", "--format-version", "1"];
-
 /// What:
-/// `pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String>` is an argument list as owned text,
-/// without `--offline`
-/// when the run may use the network.
+/// `use monochromatic_dependency_catalog::Settings;` imports the release-age and trust settings from the external catalog crate.
 /// Why:
-/// A fresh CI runner has no cached registry index,
-/// so an offline check cannot read it;
-/// a developer machine has one,
-/// and the
-/// offline form keeps the check from touching the network at all.
+/// `InstallRequest` holds them,
+/// and they decide which lockfile entries the frozen path checks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const argumentsFor = (args: string[], offline: boolean) => offline ? args : args.filter((a) => a !== '--offline');
+/// import { Settings } from 'monochromatic_dependency_catalog';
 /// ```
-pub fn arguments_for(
-    args: &[&str],
-    offline: bool,
-) -> Vec<String> {
-    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-    // Why:      `arguments_for` drops `--offline` from the argument list when the run may use the network (CI), and that rule is a small callback per argument.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // (a, b) => body
-    // ```
-    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-    // Why:      The runner takes owned `String` arguments, so each borrowed `&str` of the constant argument arrays is copied once when the list is built.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // String(value)  // JS strings are always owned values
-    // ```
-    // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
-    // Why:      `arguments_for` hands the finished list to the runner, so the lazy filter and copy steps must run here.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // Array.from(iterable)  // or [...iterable]
-    // ```
-    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The constant argument arrays (`CHECK_ARGS`, `UPDATE_ARGS`, `VERIFY_ARGS`) stay untouched and reusable: the list is a walk over them, not a consumption.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const item of list) { ... }  // or list.map(...)
-    // ```
-    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      Filter, then copy to owned text, is the whole of `arguments_for`: drop `--offline` when online, then build the `Vec<String>` the runner takes.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // list.map(f).filter(g)
-    // ```
-    let mut kept: Vec<String> = Vec::new();
-    for argument in args.iter() {
-        if offline || *argument != "--offline" {
-            kept.push(argument.to_string());
-        }
-    }
-    return kept;
-}
-
-/// The values of the `CI` variable that mean this is not a continuous integration run.
-const NOT_CI_VALUES: [&str; 3] = ["", "0", "false"];
-
-/// Whether the environment is a continuous integration run,
-/// where `pnpm install` defaults `--frozen-lockfile` to true.
-pub fn is_continuous_integration(ci_value: &str) -> bool {
-    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-    // Why:      `is_continuous_integration` compares the lower-cased `CI` value with the list of not-CI values without moving either.
-    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
-    // ```
-    return !NOT_CI_VALUES.contains(&ci_value.to_lowercase().as_str());
-}
-
+use monochromatic_dependency_catalog::Settings;
+/// What:
+/// `use std::cell::RefCell;` imports a box whose contents can be changed through a shared reference (sibling:
+/// `&mut`,
+/// which needs exclusive access).
+/// Why:
+/// The record of what this run's cargo calls wrote grows while the transaction body holds a shared reference to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS objects are mutable through any reference; no import is needed.
+/// ```
+use std::cell::RefCell;
+/// What:
+/// `use std::path::Path;` imports the borrowed path type from the standard library so this file can name it unqualified.
+/// Why:
+/// `InstallRequest` borrows the repository root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS has one type for this: string
+/// ```
+use std::path::Path;
 /// The outcome of an install run.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct InstallReport {
@@ -428,328 +308,6 @@ pub struct InstallRequest<'a> {
     /// so the staleness check (a cargo call) is skipped;
     /// the policy checks are not.
     pub known_consistent: bool,
-}
-
-/// Runs cargo in a crate root;
-/// a start failure is an `Io` error.
-fn run_cargo(
-    request: &InstallRequest,
-    crate_dir: &str,
-    args: &[&str],
-) -> Result<CargoOutcome, InstallError> {
-    return request
-        .runner
-        // Borrow `&request.root.join`: lends the value without copying or giving it away.
-        .run(
-            &request.root.join(crate_dir),
-            &arguments_for(args, request.offline),
-        )
-        // Closure `|message|`: an anonymous function, like a TS arrow function.
-        // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
-        // Why:      `io_message` converts the `String` error of `read_locks` into `InstallError::Io`, the error type `install_rust_lockfiles` returns, so `?` can pass it on.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // try { ... } catch (error) { throw new MyError(String(error)); }
-        // ```
-        .map_err(io_message);
-}
-
-/// Whether a crate root's lockfile no longer satisfies its manifests,
-/// without writing anything.
-pub fn is_stale(
-    request: &InstallRequest,
-    crate_dir: &str,
-) -> Result<bool, InstallError> {
-    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-    // Why:      `is_stale` answers with a plain boolean, and a cargo that cannot even start comes back as an `InstallError`, never as a stale lockfile.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Ok(value)  is  return value;
-    // // Err(error) is  throw error;   (the caller sees it as a returned value)
-    // ```
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&CHECK_ARGS`: lends the value without copying or giving it away.
-    return Ok(!run_cargo(request, crate_dir, &CHECK_ARGS)?.ok);
-}
-
-/// What:
-/// `struct UpdateOffline<'a> { request, crate_dir }` is the work of updating one crate root's workspace offline.
-/// Why:
-/// `run_recording` takes the work as a value,
-/// and this holds what the closure that stood here captured.
-struct UpdateOffline<'a> {
-    /// The install request that names the cargo runner.
-    request: &'a InstallRequest<'a>,
-    /// The crate root the update runs in.
-    crate_dir: &'a str,
-}
-
-/// What:
-/// The implementation of `RecordedWork` for `UpdateOffline`.
-/// Why:
-/// `run_recording` runs it between its before and after observations.
-impl crate::file_owner::RecordedWork<Result<(), InstallError>> for UpdateOffline<'_> {
-    /// What:
-    /// Runs the offline update and fails with the crate named when cargo exits non-zero.
-    /// Why:
-    /// The result is the one the closure returned.
-    fn run(self) -> Result<(), InstallError> {
-        return run_or_fail(self.request, self.crate_dir, &UPDATE_ARGS);
-    }
-}
-
-/// Runs one cargo command in a crate root and fails with the crate named when it exits non-zero.
-fn run_or_fail(
-    request: &InstallRequest,
-    crate_dir: &str,
-    args: &[&str],
-) -> Result<(), InstallError> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      `outcome` is declared as `CargoOutcome` so the reader sees a non-zero exit is data here, tested with `.ok`, not an error by itself.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const name: Type = value;
-    // ```
-    let outcome: CargoOutcome = run_cargo(request, crate_dir, args)?;
-    if !outcome.ok {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(InstallError::Cargo {
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            crate_dir: crate_dir.to_string(),
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            command: format!("cargo {}", arguments_for(args, request.offline).join(" ")),
-            output: outcome.output,
-        });
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(());
-}
-
-/// The lockfile texts of snapshots.
-pub(crate) fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
-    // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
-    // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-    // Why:      `added_versions` takes plain lockfile texts, so `sources_of` copies the text out of each snapshot instead of passing the snapshot itself.
-    // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // structuredClone(value)  // or [...list] / {...object}
-    // ```
-    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    return snapshots.iter().map(LockSnapshot::source_text).collect();
-}
-
-/// The crate roots whose lockfile is stale,
-/// found with read-only checks.
-pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError> {
-    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-    // Why:      `stale` collects the crate roots found stale, one at a time, in the loop that follows.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let x = ...;   // plain Rust `let` is TS `const`
-    // ```
-    // Typed binding: `stale: Vec<String>`.
-    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      The list starts empty and only a root whose lockfile is out of date is added.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const list: string[] = [];   // or new Set() / new Map()
-    // ```
-    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      Each stale root is kept as owned text so it can be moved into the error that names the stale roots.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      `stale` is a `Vec<String>` the function owns and fills, then moves into the error.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    let mut stale: Vec<String> = Vec::new();
-    for crate_dir in request.crate_dirs {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        if is_stale(request, crate_dir)? {
-            // `.clone()`: an independent owned copy.
-            stale.push(crate_dir.clone());
-        }
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(stale);
-}
-
-/// What:
-/// `fn update_stale_roots(request, before, produced) -> Result<InstallReport, InstallError>` is the transaction body:
-/// update the stale roots,
-/// set refused releases aside,
-/// then check what is left;
-/// restoring on refusal is the caller's.
-/// Why:
-/// Three sets of versions are held to the policy:
-/// the ones this update newly locked,
-/// and,
-/// unless a remembered pass covers
-/// them,
-/// the existing entries (all of them,
-/// or under `trustLockfile = true` the ones new since the base revision).
-/// A refused one is set aside for the newest older release that passes;
-/// only a refusal with no such release stands.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function updateStaleRoots(request, before, produced): Promise<InstallReport>
-/// ```
-fn update_stale_roots(
-    request: &InstallRequest,
-    before: &[LockSnapshot],
-    produced: &RefCell<Vec<LockSnapshot>>,
-) -> Result<InstallReport, InstallError> {
-    let mut stale: Vec<String> = Vec::new();
-    for crate_dir in request.crate_dirs {
-        // The stamp already showed this root consistent, so no cargo call is spent on asking again.
-        if request.known_consistent || !is_stale(request, crate_dir)? {
-            eprintln!("cargo-shadow: {crate_dir}: lockfile already satisfies its manifests");
-            continue;
-        }
-        eprintln!("cargo-shadow: {crate_dir}: lockfile is stale, updating the workspace offline");
-        // The call is recorded whether it succeeds or fails: a cargo that wrote a lockfile and then exited with an error left that
-        // lockfile behind, and the rollback must know it is this run's.
-        let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(
-            request.root,
-            crate_dir,
-            produced,
-            UpdateOffline {
-                request,
-                crate_dir,
-            },
-        )
-        .map_err(io_error)?;
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        updated?;
-        run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
-        stale.push(crate_dir.clone());
-    }
-    // Typed binding: `before_sources: Vec<String>`.
-    let before_sources: Vec<String> = sources_of(before);
-    // `.clone()`: an independent owned copy.
-    // `let mut`: a binding that may change.
-    // Typed binding: `baselines: Vec<Vec<String>>`.
-    // Macro `vec!`: builds or prints text (or a list) from a template.
-    let mut baselines: Vec<Vec<String>> = vec![before_sources.clone()];
-    // `let mut`: a binding that may change.
-    // Typed binding: `notes: Vec<String>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let mut notes: Vec<String> = Vec::new();
-    // The versions this update newly locked.
-    if !stale.is_empty() {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&before_sources`: lends the value without copying or giving it away.
-        notes.extend(set_aside_pass(request, &before_sources, produced)?);
-    }
-    // The existing entries, unless a remembered pass covers this exact lockfile text, policy and base.
-    let scope: String = verification_scope(request.settings, false, request.trust_base);
-    // Typed binding: `covered: bool`.
-    let covered: bool = verification_cached(
-        request.root,
-        request.crate_dirs,
-        request.settings,
-        false,
-        request.trust_base,
-    );
-    if !covered {
-        // Typed binding: `baseline: Vec<String>`.
-        let baseline: Vec<String> = if request.settings.trust_lockfile {
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            // Typed binding: `reader: LockBaseReader`.
-            let reader: LockBaseReader = base_reader(request)?;
-            // `let mut`: a binding that may change.
-            // Typed binding: `texts: Vec<String>`.
-            // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-            let mut texts: Vec<String> = Vec::new();
-            for dir in request.crate_dirs {
-                texts.push(reader(dir));
-            }
-            texts
-        } else {
-            // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-            Vec::new()
-        };
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&baseline`: lends the value without copying or giving it away.
-        notes.extend(set_aside_pass(request, &baseline, produced)?);
-        baselines.push(baseline);
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `after: Vec<LockSnapshot>`.
-    let after: Vec<LockSnapshot> =
-        read_locks(request.root, request.crate_dirs).map_err(io_error)?;
-    // Borrow `&after`: lends the value without copying or giving it away.
-    // Typed binding: `after_sources: Vec<String>`.
-    let after_sources: Vec<String> = sources_of(&after);
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&before_sources`: lends the value without copying or giving it away.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `added: Vec<LockedVersion>`.
-    let added: Vec<LockedVersion> =
-        added_versions(&before_sources, &after_sources).map_err(invalid_lock_toml)?;
-    // Everything either baseline did not hold is checked, once.
-    let mut checked: BTreeSet<LockedVersion> = BTreeSet::new();
-    // Borrow `&baselines`: lends the value without copying or giving it away.
-    for baseline in &baselines {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&after_sources`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        for version in added_versions(baseline, &after_sources).map_err(invalid_lock_toml)? {
-            checked.insert(version);
-        }
-    }
-    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    // Typed binding: `versions: Vec<LockedVersion>`.
-    let versions: Vec<LockedVersion> = checked.into_iter().collect();
-    // Typed binding: `age: CheckOutcome`.
-    let outcome: CheckOutcome = if versions.is_empty() {
-        CheckOutcome::default()
-    } else {
-        check_policy(&versions, request.settings, request.registry, request.now)?
-    };
-    // Typed binding: `problems: Vec<String>`.
-    let problems: Vec<String> = outcome.problems;
-    // Only a pass is remembered, and only for the text that is live now.
-    // Review finding (3c P2-4): a pass that carried a warning is not remembered, so the next call reports it again.
-    if problems.is_empty() && outcome.warnings.is_empty() && !covered {
-        // Borrow `&after`: lends the value without copying or giving it away.
-        for snapshot in &after {
-            // Borrow `&scope`: lends the value without copying or giving it away.
-            mark_verified(request.root, snapshot, request.settings, &scope);
-        }
-    }
-    // `let mut`: a binding that may change.
-    // Typed binding: `warnings: Vec<String>`.
-    let mut warnings: Vec<String> = outcome.warnings;
-    warnings.extend(notes);
-    let keep: bool = problems.is_empty() && !request.dry_run;
-    return Ok(InstallReport {
-        crate_dirs: request.crate_dirs.to_vec(),
-        stale,
-        added,
-        problems,
-        warnings,
-        written: keep,
-    });
 }
 
 /// What:

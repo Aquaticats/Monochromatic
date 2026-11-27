@@ -1,5 +1,6 @@
 //! What:
-//!  The real-Git facts provider against disposable repositories,
+//!  The real-Git facts provider (`repository_facts_git_provider.rs`) against disposable
+//!  repositories,
 //!  with its query count.
 //! Why:
 //!  Every rule that needs a repository fact trusts these answers,

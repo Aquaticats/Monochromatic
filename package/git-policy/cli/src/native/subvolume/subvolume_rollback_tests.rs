@@ -15,7 +15,11 @@ use crate::subvolume_arguments::{
 };
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_platform::Platform;
-use crate::subvolume_preflight::layout_of;
+use crate::subvolume_preflight::{
+    Refusal,
+    layout_of,
+};
+use crate::subvolume_rollback_subvolume_removal::remove_subvolume_tree;
 use crate::subvolume_test_support::{
     PlainPlatform,
     checkout_with_worktree,
@@ -30,6 +34,10 @@ use crate::test_support::{
 use std::cell::RefCell;
 use std::fs::File;
 use std::os::unix::fs::MetadataExt;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The exit status of a refusal.
 const REFUSED: i32 = 1;

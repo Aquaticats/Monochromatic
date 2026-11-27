@@ -50,6 +50,12 @@
 //! - `repo_read_config_value_kinds.rs`:
 //!   the kinds of value a configuration key takes,
 //!   and the lookup from a key to its kind.
+//! - `repo_read_config_typed_value_spellings.rs`:
+//!   the spelling of each typed value Git reads silently:
+//!   a boolean,
+//!   a number with its unit letters,
+//!   a color,
+//!   and a ref name or a word from a list.
 //! - `repo_read_config_typed.rs`:
 //!   in-process repository reads:
 //!   proof that every configuration value Git types at startup is one Git accepts silently.
@@ -134,6 +140,18 @@
 //!   in-process repository reads:
 //!   the part of a tree that differs from an index,
 //!   found beside its cache-tree.
+//! - `repository_location.rs`:
+//!   the one query for repository identity,
+//!   top level and the path below it.
+//! - `repository_facts_git_provider.rs`:
+//!   the provider that asks real Git for a fact:
+//!   the values it holds,
+//!   the one query every fact goes through,
+//!   and the small messages its questions report.
+//! - `repository_facts_abort_discard_query_arguments_and_readings.rs`:
+//!   the questions one abort form asks Git,
+//!   the argument list of each,
+//!   and the reading of its answer.
 //! - `repository_facts_abort_discard_record.rs`:
 //!   the record of the commit an abort restores,
 //!   read in bounded time from a regular file only,
@@ -155,9 +173,6 @@
 //! - `repository_facts_untracked_files.rs`:
 //!   the worktree's untracked files whose paths a revision's tree tracks,
 //!   read beside the provider so its interface file stays within its line bound.
-//! - `repository_location.rs`:
-//!   the one query for repository identity,
-//!   top level and the path below it.
 //! - `repo_read_adapter.rs`:
 //!   in-process repository reads:
 //!   the layout turned into the shapes the wrapper's existing queries answer with.
@@ -190,6 +205,10 @@ pub mod repository_location;
 /// The one query for the worktree a repository's shared settings belong to.
 pub mod repo_read_main_worktree;
 
+/// The provider that asks real Git for a repository fact,
+///  beside the interface it implements.
+pub mod repository_facts_git_provider;
+
 /// Lazily fetched repository facts behind one interface,
 ///  with the real-Git provider.
 pub mod repository_facts;
@@ -212,6 +231,11 @@ pub mod repository_facts_staged_entries;
 
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
+
+/// The questions one abort form asks Git,
+/// the argument list of each,
+/// and the reading of its answer.
+pub mod repository_facts_abort_discard_query_arguments_and_readings;
 
 /// The record of the commit an abort restores,
 /// read in bounded time from a regular file only,
@@ -245,6 +269,13 @@ pub mod repo_read_config_text;
 /// In-process repository reads:
 /// proof that no configuration scope sets `core.bare` or `core.worktree`.
 pub mod repo_read_config_scan;
+
+/// The spelling of each typed value Git reads silently:
+/// a boolean,
+/// a number with its unit letters,
+/// a color,
+/// and a ref name or a word from a list.
+pub mod repo_read_config_typed_value_spellings;
 
 /// In-process repository reads:
 /// proof that every configuration value Git types at startup is one Git accepts silently.

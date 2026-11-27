@@ -29,13 +29,18 @@ Not chosen: "Keep forwarding".
 ## A slot whose binding record cannot be read
 
 The finding (the alpha.47 ZFS pass, finding 12,
-`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`):
-with a bound slot's binding record overwritten with garbage,
+`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+With a bound slot's binding record overwritten with garbage,
 `git worktree move` refuses with the unreadable record's reason,
 while `git worktree remove -f -f` exits 0 and Git deletes the registration and the slot folder.
 That was the decided text of `package/git-policy/cli/SPEC.md` (line 5424 on `aba76005c3`:
 "a slot nothing proves [is] left to Git"),
 and with the clone mounted and the mount table unreadable Git would delete inside the clone.
+The mounted arm was not run;
+it needs a guest.
 
 Answer:
 "Refuse the removal too (Recommended)".

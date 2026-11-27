@@ -9,6 +9,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `holder_scan_evidence.rs`:
+//!   what one scan of a lock's holders reports:
+//!   the mechanism it read,
+//!   the processes holding the file open,
+//!   and the reasons it could not see a process or identify a descriptor.
 //! - `git_command_name.rs`:
 //!   whether a process's command name is Git's,
 //!   shared by both lock judgements.
@@ -28,11 +33,25 @@
 //! - `index_lock_holders_accounts.rs`:
 //!   which account owns one process of the scan,
 //!   which tells a holder this account cannot read from another account's.
+//! - `proc_fd_holder_scan.rs`:
+//!   the `/proc/<pid>/fd` scan for an open descriptor on one file,
+//!   newest process number first,
+//!   and the limit that cuts it short.
 //! - `index_lock_holders.rs`:
 //!   processes holding a lock file open,
 //!   found by device and inode.
 //! - `index_lock_evidence.rs`:
 //!   evidence about a foreign `index.lock` and the verdict it supports.
+//! - `index_wait_outcome.rs`:
+//!   what came of one wait:
+//!   not held,
+//!   released,
+//!   a gone owner,
+//!   the ceiling,
+//!   or another command's holder.
+//! - `index_lock_looks.rs`:
+//!   the looks at `index.lock` that do not wait and what each proves,
+//!   with the sentences their lines are written in.
 //! - `index_holder_wait.rs`:
 //!   the wait for any program's hold on `index.lock` before a command changes the checkout.
 //! - `index_lock_wait.rs`:
@@ -63,8 +82,18 @@
 //!   its boot time,
 //!   what its process table shows,
 //!   and the time a file carries.
+//! - `stale_ref_lock_judge_limits.rs`:
+//!   the shipped limits a judgement rests on,
+//!   with the measurements each was chosen from.
+//! - `stale_ref_lock_judge_words.rs`:
+//!   the sentences an unproven verdict is reported in:
+//!   what the pid file's number is now,
+//!   why it proves nothing,
+//!   and that the lock looks older than the boot.
 //! - `stale_ref_lock_judge.rs`:
 //!   how one reference lock is judged.
+//! - `stale_ref_lock_judge_staging.rs`:
+//!   how the staging file `packed-refs.new` is judged when no lock stands beside it.
 //! - `stale_ref_lock_message.rs`:
 //!   what the wrapper prints about reference locks,
 //!   and the quoted command that clears one it will not remove.
@@ -104,6 +133,12 @@
 #[cfg(test)]
 mod git_stop_lock_tests;
 
+/// What one scan of a lock's holders reports:
+/// the mechanism it read,
+/// the processes holding the file open,
+/// and the reasons it could not see a process or identify a descriptor.
+pub mod holder_scan_evidence;
+
 /// Processes holding a lock file open,
 ///  found by device and inode.
 pub mod index_lock_holders;
@@ -111,6 +146,12 @@ pub mod index_lock_holders;
 /// Which account owns one process of the scan,
 ///  which tells a holder this account cannot read from another account's.
 pub mod index_lock_holders_accounts;
+
+/// The `/proc/<pid>/fd` scan for an open descriptor on one file,
+///  newest process number first,
+///  and the limit that cuts it short.
+#[cfg(unix)]
+pub mod proc_fd_holder_scan;
 
 /// Parsers of `lsof -F pcDi` records and Restart Manager lines,
 ///  matched by device and inode.
@@ -137,6 +178,18 @@ pub mod index_lock_evidence_words;
 
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
+
+/// What came of one wait:
+///  not held,
+///  released,
+///  a gone owner,
+///  the ceiling,
+///  or another command's holder.
+pub mod index_wait_outcome;
+
+/// The looks at `index.lock` that do not wait and what each proves,
+///  with the sentences their lines are written in.
+pub mod index_lock_looks;
 
 /// The wait for any program's hold on `index.lock` before a command changes the checkout.
 pub mod index_holder_wait;
@@ -176,6 +229,19 @@ pub mod stale_ref_lock_judge_environment;
 
 /// How one reference lock is judged.
 pub mod stale_ref_lock_judge;
+
+/// The shipped limits a judgement rests on,
+/// with the measurements each was chosen from.
+pub mod stale_ref_lock_judge_limits;
+
+/// The sentences an unproven verdict is reported in:
+/// what the pid file's number is now,
+/// why it proves nothing,
+/// and that the lock looks older than the boot.
+pub mod stale_ref_lock_judge_words;
+
+/// How the staging file `packed-refs.new` is judged when no lock stands beside it.
+pub mod stale_ref_lock_judge_staging;
 
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
@@ -234,6 +300,11 @@ pub mod stale_ref_lock_message;
 /// for the controls.
 #[cfg(test)]
 pub(crate) mod stale_ref_lock_killed_git;
+
+/// The disposable repository a control builds so a real Git takes a reference lock in it,
+/// for the controls.
+#[cfg(test)]
+pub(crate) mod stale_ref_lock_stage;
 
 /// The numbered claim files that let exactly one command work on one worktree or checkout,
 /// without a lock.
