@@ -30,7 +30,10 @@ as Synthetic's `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`).
 Benchmark going (unit
 `reviewer-speed-infinite-small-vision-against-qwen-20261119`,
 script and results in
-`~/temp/agent/reviewer-speed-infinite-small-vision-against-qwen-deepseek-2026-11-19/keep/`):
+`~/temp/agent/reviewer-speed-infinite-small-vision-against-qwen-deepseek-2026-11-19/keep/`)
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 one fixed read-only review
 task (two `git show` reads at `7d10dc5f88`,
 three questions),
@@ -49,9 +52,6 @@ both in three turns:
 about 22 times slower,
 one sample,
 no spread yet.
-(scratch,
-deleted on 2026-11-27;
-what this record uses from it is stated here).
 
 From lines 45378 to 45385 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
