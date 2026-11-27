@@ -92,7 +92,7 @@ pub(super) fn may_start_housekeeping(
 /// held = await upkeepAwaiting(held, workDir, handlers, upkeep, slice, started, leftBehind) // undefined ends the round
 /// ```
 pub(super) async fn upkeep_the_held_items_awaiting<H: WorkHandlers + Sync + ?Sized>(
-    held: HeldClaims,
+    mut held: HeldClaims,
     work_dir: &Path,
     handlers: &H,
     upkeep: Vec<Claimed>,
@@ -100,7 +100,6 @@ pub(super) async fn upkeep_the_held_items_awaiting<H: WorkHandlers + Sync + ?Siz
     housekeeping_has_started: &mut bool,
     left_for_a_later_round: &mut Vec<Claimed>,
 ) -> Option<HeldClaims> {
-    let mut held: HeldClaims = held;
     let mut upkept: Vec<PathBuf> = Vec::new();
     let still_here: Vec<Claimed> = match still_held_awaiting(held, work_dir, upkeep).await {
         Some((back, mine)) => {
