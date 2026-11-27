@@ -119,6 +119,10 @@
 //! - `worktree_copy_install_entry.rs`:
 //!   the exclusive creation of one destination entry from the stage,
 //!   and the identity captured after it.
+//! - `worktree_copy_journal_names_and_shapes.rs`:
+//!   the names a copy journal lives under,
+//!   the phase a copy reached,
+//!   and the shape of one journal record.
 //! - `worktree_copy_journal_encoding_and_validation.rs`:
 //!   the exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
 //! - `worktree_copy_install_log.rs`:
@@ -344,6 +348,10 @@ pub mod worktree_copy_rollback;
 /// atomic writes and reading.
 #[cfg(unix)]
 pub mod worktree_copy_journal;
+
+/// The names a copy journal lives under and the shapes it is written as.
+#[cfg(unix)]
+pub mod worktree_copy_journal_names_and_shapes;
 
 /// The exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
 #[cfg(unix)]
