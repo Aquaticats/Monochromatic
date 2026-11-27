@@ -26,6 +26,7 @@ use crate::forwarded_command::{
     creates_worktrees,
     resolve_forwarded_command,
     the_command_git_runs,
+    the_directory_a_commands_operands_are_read_from,
 };
 use crate::index_writer_commands::is_index_writer;
 use crate::index_writer_forward::CoordinatedForward;
@@ -125,11 +126,21 @@ pub(crate) fn forward_action(
     // Why: Reading the alias's own name as the command word let `git -c 'alias.x=!git worktree remove' x -f -f <slot>`
     //  delete a bound slot's registration while the plain spelling was refused.
     let slot_command: Option<ResolvedCommand> = the_command_git_runs(&command);
+    // What: The directory a slot command's operands are read from. Git runs a `!` alias's shell at the top of the
+    //  working tree (`git.c:388` to `git.c:407`), so the command inside it reads a relative operand from there, never
+    //  from the directory this wrapper was started in; every other spelling runs where the caller's `-C` chain reaches,
+    //  which its own reader applies to the directory this process was started in.
+    // Why: `git -c 'alias.rmwt=!git worktree remove --force' rmwt ./wt/two` from a subdirectory removed a bound slot's
+    //  registration with no refusal, because the operand was looked for under the subdirectory while Git looked for it
+    //  under the top.
+    let started_in: Option<&Path> = checks.start_directory.path();
+    let slot_start: Option<PathBuf> =
+        the_directory_a_commands_operands_are_read_from(&context, &command, started_in);
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {
         Route::Alias => command.arguments.clone(),
-        Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
+        Route::Direct | Route::ShellAlias | Route::Unresolved | Route::Unread => arguments,
     };
     let writes_index: bool = is_index_writer(&command);
     // A `git worktree remove` or `git worktree move` behind a global option this build does not read is refused in a
@@ -175,7 +186,7 @@ pub(crate) fn forward_action(
                 read,
                 common,
                 &mut stderr,
-                checks.start_directory.path(),
+                slot_start.as_deref(),
             )
         {
             return ending;
@@ -187,8 +198,7 @@ pub(crate) fn forward_action(
         if let Some(common) = common_dir.as_deref()
             && crate::worktree_clone_binding_record::registration_home::home_folder(common).is_dir()
             && let Some(read) = slot_command.as_ref()
-            && let Some(target) =
-                plan_removal_target(read, Some(common), checks.start_directory.path())
+            && let Some(target) = plan_removal_target(read, Some(common), slot_start.as_deref())
         {
             return Action::ForwardSettled {
                 real_git,
@@ -225,7 +235,7 @@ pub(crate) fn forward_action(
             read,
             common,
             &mut stderr,
-            checks.start_directory.path(),
+            slot_start.as_deref(),
         )
     {
         return ending;
@@ -271,7 +281,7 @@ pub(crate) fn forward_action(
     //  The command it reads is the one Git will run, so a `!` alias the resolver could follow reaches the same refusal.
     let removal_target: Option<PathBuf> = match slot_command.as_ref() {
         Some(read) if read.word() == b"worktree" => {
-            plan_removal_target(read, common_dir.as_deref(), checks.start_directory.path())
+            plan_removal_target(read, common_dir.as_deref(), slot_start.as_deref())
         }
         _ => None,
     };

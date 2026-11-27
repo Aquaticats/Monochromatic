@@ -36,19 +36,15 @@
 /// import { resolveForwardedCommand, Route } from './forwarded_command.ts';
 /// import { decideGuardedWord } from '../command/rule_linked_worktree.ts';
 /// ```
-use crate::external_git_command::alias_run_directory;
 use crate::forwarded_command::{
     ResolvedCommand,
     Route,
     resolve_forwarded_command,
+    shell_run_directory,
     the_command_git_runs,
 };
 use crate::git_builtins::is_git_builtin;
-use crate::global_arguments::{
-    GlobalLayout,
-    command_tokens,
-    global_layout,
-};
+use crate::global_arguments::command_tokens;
 use crate::rule_linked_worktree::{
     LinkedWorktreeDecision,
     decide_guarded_word,
@@ -164,7 +160,7 @@ pub fn decide_guarded_forwarded(
             decision: decide_guarded_word(command_git_runs.word(), command_git_runs.region()),
             arguments: arguments.to_vec(),
             // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
-            shell_directory: shell_run_directory(context, arguments, start),
+            shell_directory: shell_run_directory(context, &resolved, start),
         };
     }
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
@@ -179,39 +175,6 @@ pub fn decide_guarded_forwarded(
         arguments: command_git_runs.arguments,
         shell_directory: None,
     };
-}
-
-/// What:
-///  The directory Git runs the shell of a `!` alias in,
-///  asked of Git with the caller's own global options.
-///  `&[OsString]` borrows the caller's whole argument vector;
-///  `Option<&Path>` is the directory this command was started in;
-///  `Option<PathBuf>` is that directory,
-///  and nothing when it cannot be named.
-/// Why:
-///   Git changes to the top of the working tree before it starts such a shell
-///  (`git.c:388` to `git.c:407`),
-///  so the same relative path names one file in the caller's directory
-///  and another in the shell's.
-///  `alias_run_directory` is the one answer to that question in this crate,
-///  the same one the search for an installed `git-<word>` uses,
-///  so a path read here cannot land somewhere Git never goes.
-///  This asks Git only for an alias whose shell runs one plain Git command,
-///  and a caller that gets nothing falls back to the directory the caller's options reach,
-///  which is where Git runs every other command.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const shellRunDirectory = (globals, start) => aliasRunDirectory({ globals, start });
-/// ```
-fn shell_run_directory(
-    context: &GitContext,
-    arguments: &[OsString],
-    start: Option<&Path>,
-) -> Option<PathBuf> {
-    let layout: GlobalLayout = global_layout(arguments);
-    let globals: &[OsString] = &arguments[..layout.prefix_len];
-    return alias_run_directory(context, globals, start);
 }
 
 /// Alias resolution,
