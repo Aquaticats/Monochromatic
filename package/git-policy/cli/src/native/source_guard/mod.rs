@@ -446,3 +446,25 @@ pub(super) fn release_sources_in(
     }
     return Ok(found);
 }
+
+/// The scan a ban over part of the release tree reads:
+/// which sources it covers,
+/// which of their code lines hold the text it forbids,
+/// which entries excuse one,
+/// and the anchor that proves the scope is still the code the ban is about;
+/// never in the release build.
+#[cfg(test)]
+#[path = "source_scan_banned_lines_tests.rs"]
+pub(crate) mod source_scan_banned_lines_tests;
+
+/// That scan under the names each ban of this folder calls it by.
+pub(crate) use source_scan_banned_lines_tests::{
+    HoldingLine,
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    entries_that_match_nothing,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_holding,
+    release_sources_under,
+};

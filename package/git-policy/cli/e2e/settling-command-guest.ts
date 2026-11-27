@@ -21,42 +21,138 @@
  it carries every `SETTLING` line below and no `SKIPPED` line, so an arm that returned without running fails the run
  instead of reporting a green suite.
  */
-import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
 import {
-  basename,
+  mkdir,
+  rm,
+} from 'node:fs/promises';
+import {
   join,
   resolve,
 } from 'node:path';
 
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
+import {
+  holdsWordLine,
+  missingMarkerRefusal,
+  missingMarkers,
+} from '../bin/mvm-guest-arm-log.ts';
+import {
+  flagValue,
+  shellQuote,
+} from '../bin/mvm-guest-command-line.ts';
+import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
+import {
+  type GuestFacts,
+  recipeStepOf,
+} from '../bin/mvm-guest-recipe-step.ts';
+import {
+  readStepLog,
+  runRequiredStepCommand,
+} from '../bin/mvm-guest-step-command.ts';
+import {
+  awaitDetachedGuestScript,
+  startDetachedGuestScript,
+} from '../bin/mvm-guest-detached-script.ts';
+import {
+  type GuestRunStep,
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
 
-/** Where the wrapper's tree is unpacked and built inside the guest. */
+//region Constants
+
+/**
+ Where the wrapper's tree is unpacked and built inside the guest.
+ */
 const CRATE_DIR = '/opt/settling-command';
-/** Milliseconds one host command may take. */
+
+/**
+ Milliseconds one host command may take.
+ */
 const HOST_COMMAND_TIMEOUT_MS = 120_000;
-/** Milliseconds the guest's build of the library and its tests may take. */
+
+/**
+ Milliseconds the guest's build of the library and its tests may take.
+ */
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
-/** Milliseconds the guest arm may take. */
+
+/**
+ Milliseconds the guest arm may take.
+ */
 const ARM_TIMEOUT_MS = 900_000;
-/** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
+
+/**
+ Seconds the guest's own `timeout` fires before `mvm`'s kill, so the guest reports a status rather than dying with it.
+ */
 const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
-/** How often the host asks the guest whether a detached script has finished, in milliseconds. */
+
+/**
+ Milliseconds the host waits past the build's own bound, so the guest can write the status line the host reads.
+ */
+const BUILD_FINISH_MARGIN_MS = 180_000;
+
+/**
+ Milliseconds the host waits past the arm's own bound, so the guest can write the status line the host reads.
+ */
+const ARM_FINISH_MARGIN_MS = 120_000;
+
+/**
+ How often the host asks the guest whether a detached script has finished, in milliseconds.
+ */
 const POLL_INTERVAL_MS = 15_000;
-/** The swap file the guest adds, in gibibytes, so one rustc does not exhaust its memory. */
+
+/**
+ The swap file the guest adds, in gibibytes, so one rustc does not exhaust its memory.
+ */
 const SWAP_GIB = '6G';
-/** The environment the arm reads, so it never opens the host's device. */
+
+/**
+ The environment the arm reads, so it never opens the host's device.
+ */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_SETTLING_GUEST';
-/** The pool the arm builds and destroys. */
+
+/**
+ The pool the arm builds and destroys.
+ */
 const POOL = 'zfsstep16settling';
-/** The folder the pool's image and the fixture repository live under. */
+
+/**
+ The folder the pool's image and the fixture repository live under.
+ */
 const FIXTURE_ROOT = '/home/zfs-step-16-settling-fixture';
-/** The OpenZFS 2.4.4 prefix the guest's recipe installs. */
+
+/**
+ The OpenZFS 2.4.4 prefix the guest's recipe installs.
+ */
 const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
-/** The `PATH` the guest's OpenZFS userspace needs. */
+
+/**
+ The `PATH` the guest's OpenZFS userspace needs.
+ */
 const OPENZFS_PATH = `${OPENZFS_PREFIX}/sbin:${OPENZFS_PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 
-/** The lines a run must find in the guest's arm log, one per arm it performed. */
+/**
+ The guest name a run takes when the command line names none.
+ */
+const DEFAULT_GUEST_NAME = 'settling-command-arm';
+
+/**
+ The log directory a run takes when the command line names none: this package's build folder.
+ */
+const DEFAULT_LOG_DIRECTORY_NAME = 'settling-command-guest-logs';
+
+/**
+ The log the arm's own test output is kept in, inside the guest's shared folder and beside the host's logs.
+ */
+const ARM_LOG = 'settling-command-arm.log';
+
+/**
+ The word a test binary prints at the start of a line when it returned without running its arm.
+ */
+const SKIP_WORD = 'SKIPPED';
+
+/**
+ The lines a run must find in the guest's arm log, one per arm it performed.
+ */
 const EXPECTED_MARKERS = [
   'SETTLING stands=refused',
   'SETTLING gone=settled',
@@ -64,189 +160,209 @@ const EXPECTED_MARKERS = [
   'SETTLING done',
 ] as const;
 
-/** The step, the guest name and the log directory. */
-interface Options {
+//endregion Constants
+
+//region Arguments
+
+/**
+ The step, the guest name, the log directory and, when a run names them, the custom template the guest is made from.
+ */
+type Options = {
   readonly step: string;
   readonly name: string;
-  readonly logDir: string;
+  readonly logDirectory: string;
   /**
-   The `mvm` custom template the guest is made from,
-   or `undefined` for the Ubuntu 24.04 image the recipe prepares,
-   and the kernel release that template must boot.
+   The `mvm` custom template the guest is made from, or absent for the Ubuntu 24.04 image the recipe prepares itself.
    */
-  readonly image: string | undefined;
-  readonly kernelRelease: string | undefined;
+  readonly image?: string;
+  /**
+   The kernel release that template must boot, which the recipe checks instead of installing a module.
+   */
+  readonly kernelRelease?: string;
+};
+
+/**
+ The log directory a run keeps its logs in, which this package's build folder holds unless the command line names one.
+
+ @returns the directory this package's build folder holds for this driver's logs
+
+ @example
+ ```ts
+ defaultLogDirectory(); // <package>/target/settling-command-guest-logs
+ ```
+ */
+function defaultLogDirectory(): string {
+  return resolve(
+    import.meta.dirname,
+    '..',
+    'target',
+    DEFAULT_LOG_DIRECTORY_NAME,
+  );
 }
 
-/** The step and the values the command line gave it. */
+/**
+ The step and the values the command line gave it.
+
+ @returns the step, the guest's name, the log directory and the template a run names
+
+ @example
+ ```ts
+ const runOptions = options();
+ ```
+ */
 function options(): Options {
-  const [step = '', ...rest] = process.argv.slice(2);
-  const value = (flag: string): string | undefined => {
-    const at = rest.indexOf(flag);
-    return at === -1 ? undefined : rest[at + 1];
-  };
+  /**
+   The words this run was started with, after the program and this file's own path.
+   */
+  const argumentLine = process.argv
+    .slice(2,);
+  /**
+   The template the command line names, or empty text when it names none.
+   */
+  const image = flagValue({
+    argumentWords: argumentLine,
+    flag: '--image',
+    fallback: '',
+  },);
+  /**
+   The kernel release the command line names, or empty text when it names none.
+   */
+  const kernelRelease = flagValue({
+    argumentWords: argumentLine,
+    flag: '--kernel-release',
+    fallback: '',
+  },);
   return {
-    step,
-    name: value('--name') ?? 'settling-command-arm',
-    logDir: value('--log-dir') ?? resolve(import.meta.dirname, '..', 'target', 'settling-command-guest-logs'),
-    image: value('--image'),
-    kernelRelease: value('--kernel-release'),
+    step: argumentLine[0] ?? '',
+    name: flagValue({
+      argumentWords: argumentLine,
+      flag: '--name',
+      fallback: DEFAULT_GUEST_NAME,
+    },),
+    logDirectory: flagValue({
+      argumentWords: argumentLine,
+      flag: '--log-dir',
+      fallback: defaultLogDirectory(),
+    },),
+    ...(image === '' ? {} : { image, }),
+    ...(kernelRelease === '' ? {} : { kernelRelease, }),
   };
 }
 
-/** Quote one block of shell for the guest's `sh -ec`, quotes included. */
-function shellQuote(script: string): string {
-  return `'${script.replaceAll("'", `'\\''`)}'`;
-}
-
 /**
- One host command whose whole output goes to its own log.
+ The words the recipe's steps take beyond the guest's name and log directory.
+
+ A run that names a custom template hands the recipe the template and the kernel release it must boot; a run that
+ names neither leaves the recipe on its own Ubuntu 24.04 image, which it installs OpenZFS into.
 
  @param chosen - the run's options
 
- @param command - the program to run
+ @returns the recipe's extra words, empty for a run that names no template
 
- @param args - its arguments
-
- @param log - the log file's name in the log directory
-
- @throws Error naming the command and its status
+ @example
+ ```ts
+ recipeExtraArguments({ chosen }); // ['--image', 'cachyos-template', '--kernel-release', '7.3.5-1-cachyos']
+ ```
  */
-function host({ chosen, command, args, log, }: { readonly chosen: Options; readonly command: string; readonly args: readonly string[]; readonly log: string; }): void {
-  const output = openSync(join(chosen.logDir, log), 'w', 0o600);
-  try {
-    const result = spawnSync(command, args, {
-      stdio: ['ignore', output, output,],
-      timeout: HOST_COMMAND_TIMEOUT_MS,
-    });
-    if ((result.error !== undefined) || (result.status !== 0))
-      throw result.error ?? new Error(`${command} ${args.join(' ')} exited ${String(result.status)}; see ${log}`);
-  } finally {
-    closeSync(output);
-  }
+function recipeExtraArguments({ chosen, }: { readonly chosen: Options; },): readonly string[] {
+  /**
+   The extra words, in the order the recipe reads them.
+   */
+  const words: string[] = [];
+  if (chosen.image !== undefined)
+    words.push(
+      '--image',
+      chosen.image,
+    );
+  if (chosen.kernelRelease !== undefined)
+    words.push(
+      '--kernel-release',
+      chosen.kernelRelease,
+    );
+  return words;
 }
 
-/**
- Start one long guest script detached, so it cannot lose its answer, and leave its log in the shared folder.
+//endregion Arguments
 
- @param chosen - the run's options
+//region Steps
 
- @param script - the shell script to run inside the guest
 
- @param log - the log's name inside the shared folder
-
- @param timeout - milliseconds the script may take inside the guest
-
- @throws Error when the guest cannot be asked to start it
- */
-function guestStart({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): void {
-  const seconds = Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS;
-  const step = join(chosen.logDir, `${log}.step.sh`);
-  writeFileSync(step, [`timeout ${seconds} sh -ec ${shellQuote(script)} > /mnt/shared/${log} 2>&1`, 'status=$?', `echo "DONE=$status" >> /mnt/shared/${log}`, ''].join('\n'), { mode: 0o600, });
-  const launch = join(chosen.logDir, `${log}.launch.sh`);
-  writeFileSync(launch, [`setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`, 'exit 0', ''].join('\n'), { mode: 0o600, });
-  for (const from of [step, launch,]) {
-    host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, from, `/shared/${basename(from)}`,], log: `guest-push-${log}.log`, });
-  }
-  const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'sh', `/mnt/shared/${log}.launch.sh`,], {
-    stdio: 'ignore',
-    timeout: HOST_COMMAND_TIMEOUT_MS,
-  });
-  if (result.error !== undefined)
-    throw result.error;
-}
-
-/**
- Wait for one detached script's own `DONE=` line, pull its log, and refuse a status other than zero.
-
- @param chosen - the run's options
-
- @param log - the log's name inside the shared folder
-
- @param timeout - milliseconds the host waits before giving up
-
- @returns the pulled log
-
- @throws Error naming the status the script ended with, or the wait that ended
- */
-function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; readonly log: string; readonly timeout: number; }): string {
-  const path = `/mnt/shared/${log}`;
-  const deadline = Date.now() + timeout;
-  let finished = false;
-  while (Date.now() < deadline) {
-    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'tail', '--lines=1', path,], {
-      encoding: 'utf8',
-      timeout: HOST_COMMAND_TIMEOUT_MS,
-    });
-    if ((answer.stdout ?? '').trim().startsWith('DONE=')) {
-      finished = true;
-      break;
-    }
-    spawnSync('sleep', [String(POLL_INTERVAL_MS / 1000),], { timeout: POLL_INTERVAL_MS * 2, });
-  }
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, path, join(chosen.logDir, log),], log: `host-pull-${log}`, });
-  const pulled = readFileSync(join(chosen.logDir, log), 'utf8');
-  if (!finished)
-    throw new Error(`${log}: the guest script did not finish inside ${String(timeout)} ms; see ${log}`);
-  const status = /^DONE=(?<status>\d+)$/m.exec(pulled)?.groups?.status;
-  if (status !== '0')
-    throw new Error(`${log}: the guest script ended ${status ?? 'without a status'}; see ${log}`);
-  return pulled;
-}
-
-/**
- Run one step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction.
-
- @param chosen - the run's options
-
- @param step - the recipe's step
-
- @throws Error naming the recipe step and its status
- */
-function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: string; }): void {
-  const script = resolve(import.meta.dirname, '..', '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
-  const result = spawnSync('node', [
-    script,
-    step,
-    '--name',
-    chosen.name,
-    '--log-dir',
-    chosen.logDir,
-    ...(chosen.image === undefined ? [] : ['--image', chosen.image,]),
-    ...(chosen.kernelRelease === undefined ? [] : ['--kernel-release', chosen.kernelRelease,]),
-  ], {
-    stdio: 'inherit',
-    timeout: HOST_COMMAND_TIMEOUT_MS * 60,
-  });
-  if ((result.error !== undefined) || (result.status !== 0))
-    throw result.error ?? new Error(`the guest recipe's ${step} step exited ${String(result.status)}`);
-}
-
-/** Create the guest, refusing a name another run holds. */
-function create(chosen: Options): void {
-  recipe({ chosen, step: 'create', });
-}
-
-/** Install OpenZFS 2.4.4, the Rust toolchain and `cargo-nextest` in the guest. */
-function prepare(chosen: Options): void {
-  recipe({ chosen, step: 'prepare', });
-}
 
 /**
  Push a repository-shaped snapshot of the wrapper, build it in the guest, and run the arm.
 
  @param chosen - the run's options
 
- @throws Error naming the step that refused, or the marker the pulled log lacks
+ @throws GuestDriverError naming the step that refused, or the marker the pulled log lacks
+
+ @example
+ ```ts
+ await run({ chosen });
+ ```
  */
-async function run(chosen: Options): Promise<void> {
-  const context = join(chosen.logDir, 'snapshot');
-  rmSync(context, { recursive: true, force: true, });
-  mkdirSync(context, { recursive: true, mode: 0o700, });
-  await copyWrapperSnapshot({ context, });
-  const tarball = join(chosen.logDir, 'subject.tar.gz');
-  host({ chosen, command: 'tar', args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--directory', context, '.'], log: 'host-package.log', });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, tarball, '/root/subject.tar.gz'], log: 'guest-push.log', });
+async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+  /**
+   The build context the wrapper's tree is copied into before it is packed.
+   */
+  const context = join(
+    chosen.logDirectory,
+    'snapshot',
+  );
+  await rm(
+    context,
+    {
+      recursive: true,
+      force: true,
+    },
+  );
+  await mkdir(
+    context,
+    {
+      recursive: true,
+      mode: 0o700,
+    },
+  );
+  await copyWrapperSnapshot({ context, },);
+  /**
+   The packed tree this run hands the guest.
+   */
+  const tarball = join(
+    chosen.logDirectory,
+    'subject.tar.gz',
+  );
+  await runRequiredStepCommand({
+    logDirectory: chosen.logDirectory,
+    program: 'tar',
+    argumentWords: [
+      '--create',
+      '--gzip',
+      '--file',
+      tarball,
+      '--exclude=target',
+      '--directory',
+      context,
+      '.',
+    ],
+    log: 'host-package.log',
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+  },);
+  await runRequiredStepCommand({
+    logDirectory: chosen.logDirectory,
+    program: 'mvm',
+    argumentWords: [
+      '--backend',
+      'libvirt',
+      'push',
+      chosen.name,
+      tarball,
+      '/root/subject.tar.gz',
+    ],
+    log: 'guest-push.log',
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+  },);
+  /**
+   The script the guest runs to unpack and build the library and its tests.
+   */
   const build = [
     'set -eu',
     'test -f /mnt/shared/subject.tar.gz',
@@ -261,9 +377,25 @@ async function run(chosen: Options): Promise<void> {
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
     'cargo build --release --tests --locked --features test-only-switches --jobs 1',
-  ].join('\n');
-  guestStart({ chosen, script: build, log: 'settling-command-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
-  guestFinish({ chosen, log: 'settling-command-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
+  ].join('\n',);
+  await startDetachedGuestScript({
+    logDirectory: chosen.logDirectory,
+    name: chosen.name,
+    script: build,
+    log: 'settling-command-build.log',
+    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
+  },);
+  await awaitDetachedGuestScript({
+    logDirectory: chosen.logDirectory,
+    name: chosen.name,
+    log: 'settling-command-build.log',
+    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + BUILD_FINISH_MARGIN_MS,
+    pollIntervalMilliseconds: POLL_INTERVAL_MS,
+  },);
+  /**
+   The script the guest runs to perform the arm, refuse a log that lacks a claim it made, and leave nothing behind.
+   */
   const arm = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}:/root/.cargo/bin:$PATH`,
@@ -273,88 +405,152 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_SETTLING_ROOT=${FIXTURE_ROOT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'if cargo nextest run --release --locked --features test-only-switches --lib --run-ignored all --no-capture --status-level fail ' +
-      '--filterset "test(the_settling_command_guest_arms)" ' +
-      '> /root/settling-command-arm.log 2>&1; then status=0; else status=$?; fi',
-    'cp /root/settling-command-arm.log /mnt/shared/settling-command-arm.log || true',
-    'tail --lines=120 /root/settling-command-arm.log',
+      '--filterset "test(the_settling_command_guest_arms)" '
+      +
+      `> /root/${ARM_LOG} 2>&1; then status=0; else status=$?; fi`,
+    `cp /root/${ARM_LOG} /mnt/shared/${ARM_LOG} || true`,
+    `tail --lines=120 /root/${ARM_LOG}`,
     'test "$status" = 0',
-    `if grep --quiet '^SKIPPED' /root/settling-command-arm.log; then echo 'the arm returned without running'; exit 1; fi`,
+    `if grep --quiet '^${SKIP_WORD}' /root/${ARM_LOG}; then echo 'the arm returned without running'; exit 1; fi`,
     ...EXPECTED_MARKERS.map(function markerLine(marker) {
-      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/settling-command-arm.log`;
-    }),
-    'cp /root/settling-command-arm.log /mnt/shared/settling-command-arm.log',
+      return `grep --quiet --fixed-strings ${shellQuote({ script: marker, },)} /root/${ARM_LOG}`;
+    },),
+    `cp /root/${ARM_LOG} /mnt/shared/${ARM_LOG}`,
     `zpool destroy -f ${POOL} 2>/dev/null || true`,
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
-  ].join('\n');
-  guestStart({ chosen, script: arm, log: 'settling-command-arm-shell.log', timeout: ARM_TIMEOUT_MS, });
-  guestFinish({ chosen, log: 'settling-command-arm-shell.log', timeout: ARM_TIMEOUT_MS + 120_000, });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/settling-command-arm.log', join(chosen.logDir, 'settling-command-arm.log'),], log: 'host-pull-arm.log', });
-  const pulled = readFileSync(join(chosen.logDir, 'settling-command-arm.log'), 'utf8');
-  for (const marker of EXPECTED_MARKERS) {
-    if (!pulled.includes(marker))
-      throw new Error(`the pulled arm log lacks ${marker}; the guest ran the arm without performing it`);
+  ].join('\n',);
+  await startDetachedGuestScript({
+    logDirectory: chosen.logDirectory,
+    name: chosen.name,
+    script: arm,
+    log: 'settling-command-arm-shell.log',
+    timeoutMilliseconds: ARM_TIMEOUT_MS,
+    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
+  },);
+  await awaitDetachedGuestScript({
+    logDirectory: chosen.logDirectory,
+    name: chosen.name,
+    log: 'settling-command-arm-shell.log',
+    timeoutMilliseconds: ARM_TIMEOUT_MS + ARM_FINISH_MARGIN_MS,
+    pollIntervalMilliseconds: POLL_INTERVAL_MS,
+  },);
+  await runRequiredStepCommand({
+    logDirectory: chosen.logDirectory,
+    program: 'mvm',
+    argumentWords: [
+      '--backend',
+      'libvirt',
+      'pull',
+      chosen.name,
+      `/mnt/shared/${ARM_LOG}`,
+      join(
+        chosen.logDirectory,
+        ARM_LOG,
+      ),
+    ],
+    log: 'host-pull-arm.log',
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+  },);
+  /**
+   The arm's own output, as the host pulled it back.
+   */
+  const pulled = await readStepLog({
+    logDirectory: chosen.logDirectory,
+    log: ARM_LOG,
+  },);
+  /**
+   The first claim the pulled log lacks a line for, which the run refuses on.
+   */
+  const [firstMissing] = missingMarkers({
+    text: pulled,
+    markers: EXPECTED_MARKERS,
+  },);
+  if (firstMissing !== undefined)
+    throw missingMarkerRefusal({ marker: firstMissing, },);
+  if (holdsWordLine({
+    text: pulled,
+    word: SKIP_WORD,
+  },)) {
+    throw new GuestDriverError('the pulled arm log holds a SKIPPED line, so the arm did not run',);
   }
-  if (/(^|\n)SKIPPED/m.test(pulled))
-    throw new Error('the pulled arm log holds a SKIPPED line, so the arm did not run');
 }
 
-/** Destroy the guest and keep the list of what is left. */
-function destroy(chosen: Options): void {
-  recipe({ chosen, step: 'destroy', });
-}
 
 /**
  Create, prepare, run and destroy, in that order, destroying even when a step refused.
 
  @param chosen - the run's options
 
- @throws Error naming the step that refused, after the guest it created is gone
+ @throws GuestDriverError naming the step that refused, after the guest it created is gone
+
+ @example
+ ```ts
+ await all({ chosen });
+ ```
  */
-async function all(chosen: Options): Promise<void> {
-  let failure: unknown = null;
-  let created = false;
-  try {
-    create(chosen);
-    created = true;
-    prepare(chosen);
-    await run(chosen);
-  } catch (thrown) {
-    failure = thrown;
-  }
-  if (!created) {
-    console.error(`git-policy settling-command guest: no guest was destroyed, because this run did not create '${chosen.name}'`);
-    if (failure !== null)
-      throw failure;
-    return;
-  }
-  try {
-    destroy(chosen);
-  } catch (destruction) {
-    if (failure === null)
-      throw destruction;
-    console.error(`git-policy settling-command guest: destroying '${chosen.name}' also failed: ${String(destruction)}`);
-  }
-  if (failure !== null)
-    throw failure;
+async function all({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+  await runWholeGuestRun({
+    label: 'git-policy settling-command guest',
+    chosen,
+    steps: {
+      ...recipeSteps,
+      work: run,
+    },
+  },);
 }
 
-/** The steps this driver knows, and nothing else. */
-const steps: Record<string, (chosen: Options) => void | Promise<void>> = {
-  create,
-  prepare,
+//endregion Steps
+
+//region The command line
+
+/**
+ The options this run was given.
+ */
+const runOptions = options();
+
+/**
+ The recipe's three steps, which this driver's command line and its whole run both perform.
+ */
+const recipeSteps = {
+  create: recipeStepOf({
+    step: 'create',
+    extraArgumentWords: recipeExtraArguments({ chosen: runOptions, },),
+  },),
+  prepare: recipeStepOf({
+    step: 'prepare',
+    extraArgumentWords: recipeExtraArguments({ chosen: runOptions, },),
+  },),
+  destroy: recipeStepOf({
+    step: 'destroy',
+    extraArgumentWords: recipeExtraArguments({ chosen: runOptions, },),
+  },),
+};
+
+/**
+ The steps this driver knows, and nothing else.
+ */
+const steps: Record<string, GuestRunStep> = {
+  create: recipeSteps.create,
+  prepare: recipeSteps.prepare,
   run,
-  destroy,
+  destroy: recipeSteps.destroy,
   all,
 };
 
-/** Run the step the command line names. */
-async function main(): Promise<void> {
-  const chosen: Options = options();
-  const step = steps[chosen.step];
-  if (step === undefined)
-    throw new Error(`unknown step '${chosen.step}'; use create, prepare, run, destroy or all`);
-  mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
-  await step(chosen);
+/**
+ The step this run performs, or nothing when the command line named one this driver does not know.
+ */
+const step = steps[runOptions.step];
+if (step === undefined) {
+  throw new GuestDriverError(`unknown step '${runOptions.step}'; use create, prepare, run, destroy or all`,);
 }
+await mkdir(
+  runOptions.logDirectory,
+  {
+    recursive: true,
+    mode: 0o700,
+  },
+);
+await step({ chosen: runOptions, },);
 
-await main();
+//endregion The command line

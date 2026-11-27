@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T11:20:49-05:00
+## The state at 2026-11-27T11:33:40-05:00
 
-`main` was `65bffa15ec`.
+`main` was `97d9afb21c`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 218 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 219 more by this time.
 
 ### Rounds running
 
@@ -148,9 +148,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
   ("Releases of 2026-11-27");
   `0.5.2-alpha.20` follows its merge;
-- the last round for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
-  `wrapper-alpha-48-release-pass-list-guards-name-the-files-the-splits-made`.
-  Every other finding of the two passes that earned a fix is merged:
+- no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
+  Every finding of the two passes that earned a fix is merged:
+  the guards that named a file code had left now read the folders the splits made,
+  ten pairs in eight files,
+  and no plant found a violation in release code (`97d9afb21c`);
   the slot refusals read every shell alias the guard can follow (`cd62517318`);
   the merge pass reaches a last line with no line end (`f583a0d9bf`),
   where a generated control also found and fixed a correct merge that was refused;
@@ -163,7 +165,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   a merge record that cannot be read says which file to remove,
   each batch of the service's work reads the room it has when it starts,
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
-  One whole gate on `main` and then `0.6.1-alpha.49` follow that last round's merge;
+  A whole gate on `main` at `97d9afb21c` was started at 2026-11-27T11:33:15-05:00
+  (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
+  log under `~/temp/agent/gate/` by the same name),
+  with the three feature Clippy arms run beside it in the gate's worktree
+  (`~/temp/agent/feature-clippy-arms-in-the-gate-worktree-at-97d9afb21c-2026-11-27/keep/`);
+  `0.6.1-alpha.49` follows a passing verdict;
 - for all four shadow crates,
   `issue-6609-the-four-shadow-crates-identity-rule-copies-agree-again`:
   `mpm-shadow`'s copies of the shared identity rule differ from the other three since `c388b2b725`,
