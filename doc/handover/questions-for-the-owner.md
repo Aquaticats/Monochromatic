@@ -1259,6 +1259,62 @@ A beats C because a frozen run is where a CI log is read,
 and the line costs one directory read there.
 C beats B because B puts a directory walk and a line in front of commands that today hand straight over to `cargo`.
 
+What the read of `0.1.5-alpha.15` adds:
+a run on the fast path leaves the journal and says nothing too
+(shown in a second crate of the same repository),
+as does `cargo-shadow install --frozen-lockfile`.
+The journal belongs to the catalog's root,
+so a later run in any crate of the repository settles it.
+
+### A dry run settles a kept journal before it looks
+
+`cargo-shadow install --dry-run` and `update --dry-run` say they report and then restore every `Cargo.lock`.
+With a kept journal present each settles it first,
+as every run that is not frozen does,
+and that can keep or replace a lockfile
+(the read of `0.1.5-alpha.15`,
+on both releases).
+
+- A,
+  a dry run reports the kept journal and what settling it would do,
+  and changes nothing:
+  the word "dry" then holds,
+  at the price of a recovery that can describe without acting,
+  and of a report about lockfiles a real run would first change.
+- B,
+  as now,
+  with the help saying so:
+  what a dry run reports is true of the settled state,
+  and a person who ran it only to look gets a changed lockfile.
+
+Ranking:
+A > B,
+because a person reaches for a dry run exactly when they do not want anything changed.
+A round makes the help say what happens today and returns what A would take.
+
+### The steps that merge a round's branch are written down and no command does them
+
+The coordinator's merge script lived in scratch and went with the cleanup of 2026-11-27T15:26:37-05:00.
+Its steps are in `doc/handover/cli-git-rust-implementation.md`,
+with the check that a merge really landed
+(a `git merge` once returned 0 with nothing merged).
+The owner said on 2026-11-11 of the scripts for Pi runs:
+"I don't wanna see you edit pi-runs outside the workspace again."
+The coordinator read that as about the scripts that start rounds,
+and asks whether it covers this.
+
+- A,
+  a task of the driver package (`package/pi-shared/subagent-driver`) that takes branches in order and makes every check:
+  no step can be dropped by a session in a hurry,
+  at the price of one more command to keep.
+- B,
+  as now,
+  by hand from the handover.
+
+Ranking:
+A > B,
+because the check that the merge landed exists for a failure that printed success.
+
 ### A scope whose directory was never made reads as a collected scope
 
 The retire gate reads a missing directory as the manager having collected the scope,
@@ -1282,8 +1338,11 @@ The fix needs one of two facts
 Ranking:
 A > B,
 because A tells the two cases apart without bringing back the cost that was taken out.
-The coordinator means to start a round on A with the findings of the `0.1.5-alpha.15` read,
-veto open.
+The read of `0.1.5-alpha.15` reached the silent state in a release build,
+through a start the manager refuses and through a launcher that is killed,
+and did not find a unit left loaded:
+in 56 launcher kills and two stand-ins both unit names read not found afterwards.
+So no round starts on A until a unit left loaded is shown outside a stand-in's race.
 
 ### What each shadow package's copies test compares
 
@@ -1330,6 +1389,24 @@ the run says what it could not read and keeps the unit.
 No exit status changes.
 The other way is one guard to revert,
 which puts alpha.14's silence back.
+
+What the read of `0.1.5-alpha.15` adds
+(a same-vendor second pass):
+by its reading of the kernel at three versions,
+the window does not exist.
+A new group's directory and its files are made invisible and become visible together,
+so no read sees the directory without its `cgroup.events`.
+The answer the kernel can give with the directory there is "No such device",
+for a file opened before the group was removed and read after;
+there alpha.14's silence was right,
+and alpha.15 prints "may be left loaded" about a unit the manager is freeing.
+The round's reason was a reading as well,
+neither observed anything,
+and this host's kernel was not read.
+A round measures both arms on this host and makes the code answer what the measurement supports;
+where it supports the read,
+that row goes back to alpha.14's answer,
+again as a pick with the veto open.
 
 ### The driver: who makes a run's scratch folder, and who clears one a launcher never reached
 
@@ -2905,3 +2982,40 @@ Ranking:
 leave them out > widen,
 because the folders exist to hold work that is not being done,
 and the rule already reaches a package the moment it comes back.
+
+## Whether a name of another boot that carries no start time is ended (recorded 2026-11-27T15:23:31-05:00)
+
+The `0.2.7-alpha.15` release read found that `Owner::liveness` asked whether a
+hidden name's start time field is zero before it asked which boot the name
+belongs to.
+A run that cannot read its own `/proc/<pid>/stat` record writes that zero, so a
+name it wrote under an earlier boot was read as "the system did not say" and
+never reclaimed, although no process survives a reboot and the README says a
+name from another boot names an installer that reboot certainly ended.
+The round for `2026-11-27T14:35:51-05:00` gave the boot the first word, so the
+code and that sentence now agree.
+
+The two ways:
+
+- The boot decides first (taken):
+  a name of another boot is ended whatever its start time says, so the copy
+  under it is published or removed instead of staying for ever.
+  The cost is that a name of a boot this reader is not in is now removed on the
+  strength of the boot alone, where before a zero start time held every such
+  name back; if `/proc/sys/kernel/random/boot_id` ever answers two values for
+  two live processes of one machine (a container that bind-mounts another over
+  it, or a kernel that namespaces the file), a live installer's directory could
+  be removed. The same risk already covers every name with a start time other
+  than zero, so this widens a hazard that exists rather than making one.
+- The zero decides first (the code before this round):
+  such a name is never judged, and the README sentence needs the qualification
+  that a name which carries no start time is not placed in any boot.
+  The cost is a copy that stays for ever: nothing publishes it, nothing removes
+  it, and `prune --toolchain` prints it for a person to delete by hand.
+
+Neither way changes the two picks recorded at `2026-11-27T13:23:53-05:00`:
+a name of another boot never held the copy a kill moved aside, because it does
+not carry this boot's identifier, and it does not become a vouched finished
+copy either.
+What changes is only which `.staging` and `.replaced` directories of another
+boot with a zero start time a recovery or `prune --toolchain` removes.
