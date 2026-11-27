@@ -102,9 +102,9 @@ pub(super) fn declared_step_body(name: &str) -> Option<String> {
     while !lines.is_empty() && lines[lines.len() - 1].is_empty() {
         lines.pop();
     }
-    // What:     `Some(lines.join("\n"))` wraps the joined body in the present
-    //           variant of `Option`, and being the tail expression makes it
-    //           the return value.
+    // What:     `return Some(lines.join("\n"))` wraps the joined body in the
+    //           present variant of `Option` and hands it back as the step's
+    //           body.
     // Why:      The caller gets the body, and an absent step answers `None`
     //           instead of aborting the whole test binary.
     //
@@ -112,5 +112,5 @@ pub(super) fn declared_step_body(name: &str) -> Option<String> {
     // ```ts
     // return lines.join('\n');
     // ```
-    Some(lines.join("\n"))
+    return Some(lines.join("\n"));
 }
