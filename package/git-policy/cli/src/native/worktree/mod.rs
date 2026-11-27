@@ -148,9 +148,18 @@
 //!   the index install (`worktree_clone_index`),
 //!   and the rung itself,
 //!   whose module doc names each of them.
+//! - `worktree_convert_candidate.rs`:
+//!   the worktree a conversion might change,
+//!   read from its `.git` file and the registration that file names,
+//!   without starting Git:
+//!   its canonical root,
+//!   its administrative and common directories,
+//!   and the exact bytes of its `.git` file.
 //! - `worktree_convert_inspection.rs`:
-//!   the first look at a worktree a conversion might change,
-//!   and every reason the conversion must not start.
+//!   the first look at a worktree a conversion might change:
+//!   the sibling name the copy is built at,
+//!   and every reason the conversion must not start,
+//!   with the kind of each.
 //! - `worktree_convert_leftover_stage_record.rs`:
 //!   the record,
 //!   beside a worktree,
@@ -1027,8 +1036,16 @@ pub mod worktree_finish_commands;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
 
-/// The first look at a worktree a conversion might change,
-/// and every reason the conversion must not start.
+/// The worktree a conversion might change,
+/// read from its `.git` file and the registration that file names,
+/// without starting Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_candidate;
+
+/// The first look at a worktree a conversion might change:
+/// the sibling name the copy is built at,
+/// and every reason the conversion must not start,
+/// with the kind of each.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_inspection;
 
