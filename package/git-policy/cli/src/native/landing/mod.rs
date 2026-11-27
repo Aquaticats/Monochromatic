@@ -471,6 +471,11 @@
 //! - `service_claim_watch_watched_repositories.rs`:
 //!   what the notes of one claim watch say about the repositories they name,
 //!   read without keeping anything.
+//! - `service_claim_watch_reading_the_store.rs`:
+//!   the reading of the claim watch's store:
+//!   which notes are kept,
+//!   which are removed as certainly of no use,
+//!   and what could not be read at all.
 //! - `service_claim_watch.rs`:
 //!   the Git directories the service looks at by itself when it starts.
 //! - `service_claim_watch_note_within_a_ceiling.rs`:
@@ -602,6 +607,12 @@ pub mod service_claim_watch_watched_repositories;
 /// the landing's own write,
 /// and the store's write under the first free name.
 pub mod service_claim_watch_writing_a_note;
+
+/// The reading of the claim watch's store:
+/// which notes are kept,
+/// which are removed as certainly of no use,
+/// and what could not be read at all.
+pub mod service_claim_watch_reading_the_store;
 
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
