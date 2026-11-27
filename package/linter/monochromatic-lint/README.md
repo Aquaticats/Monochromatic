@@ -2078,9 +2078,27 @@ and what the messages say.
 - A `uses` line is read whatever whitespace character sets its words off,
   after the word and on both sides of the arrow:
   a list aligned with tabs or with no-break spaces is read as one aligned with spaces is.
-  alpha.19 read such a line when every gap was one whitespace character and neither of its names held one,
-  and refused the whole list for a tab or a no-break space anywhere else,
-  which hid every other finding of the rule.
+  alpha.19 read such a line in two cases only:
+  when exactly one whitespace character set each of its four words off,
+  whatever character that was,
+  and when it held one ` -> ` and one space after the word `uses`,
+  whatever its names held.
+  Every other line refused the whole list,
+  which hid every other finding of the rule:
+  a tab or a no-break space in a gap beside a name that holds whitespace,
+  and a second whitespace character in a gap where either of the two is no space.
+  A gap of two spaces or of three was read,
+  as the name with the extra spaces in front of it,
+  which is how this release reads it too
+  (measured on 2026-11-27:
+  alpha.19 read `uses src/f<TAB>g -> src/h` and `uses src/r<NBSP>s -> src/t`,
+  two names holding that character with gaps of spaces,
+  read `uses<TAB>src/a<TAB>-><TAB>src/b` and the same line with a no-break space in every gap,
+  read `uses   src/c d -> src/e` and named the folder `  src/c d`,
+  the name with two spaces in front of it,
+  and refused `uses<TAB>src/c d<TAB>-><TAB>src/e`,
+  `uses src/c d<TAB><TAB>-><TAB>src/e`,
+  `uses src/a<TAB><TAB>-> src/b` and `uses src/a <TAB>-> src/b`).
   Of the 220 spellings of one line the alpha.19 release read built,
   alpha.19 read 31 as the use,
   reported 26 of them dead,
@@ -2111,16 +2129,21 @@ and what the messages say.
   with a sentence naming the whitespace characters and where they stand,
   and a line that sets two of them off says so,
   where alpha.19 sent its reader back to the shape of a line alone.
-- A `file-uses` line of six words whose words between the folder's place and the arrow name no folder
+- A `file-uses` line whose words between the folder's place and the arrow name no folder
   is refused with what is wrong with it:
   a doubled arrow is named as two `->` set off by whitespace,
+  a line of five words with another word in the arrow's place names that word and the arrow it must be,
   and any other such line by its word count against the five words the shape has,
   where alpha.19 told its reader to rename a folder that holds no space and is fine.
-  A six-word line whose words do name such a folder is refused by naming that folder and the whitespace in its name,
+  A line whose words do name such a folder is refused by naming that folder and the whitespace in its name,
   whether that whitespace is a space,
   a tab,
   a no-break space or a doubled space,
-  where the first release of this reader named only a space and told the others only the shape.
+  wherever in its gaps the characters that make the sixth word stand,
+  and whether the name holds an arrow word of its own.
+  The release of 0.5.2-alpha.21 named the folder only while the character after the word,
+  the one before the file and the one before the arrow was one each,
+  and answered an arrow-named folder with a sentence about two arrows the line does not hold.
 - A refusal says what renaming must give and says what the name is:
   a folder whose name is `->`,
   begins with `-> `,
@@ -2180,6 +2203,15 @@ and what the messages say.
   so a six-word line whose words between the folder's place and the arrow name no folder
   is a third file name or a doubled arrow,
   and it is refused as the misspelling of the shape it is.
+  Three readings of one line decide that,
+  in this order:
+  the name the line writes between the word and the file before its arrow,
+  that name with the whitespace a doubled gap left beside it taken off,
+  and the words joined with one space.
+  The first is the name the reader meant whenever the tree holds it,
+  so a tree holding both `src/c<TAB>d` and `src/c d` still has the line for the tab folder named as that folder;
+  the third is the only reading an arrow-named folder such as `src/x -> y` can come from,
+  because the arrow the reader finds first is the name's own.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
   a tab or a no-break space inside a module file name is keyed as written,
@@ -2224,10 +2256,16 @@ and what the messages say.
   it is not whitespace,
   a line another tool does not read as a `uses` line would start reading as one,
   and a key a macro prints may hold one as its own content.
-  The dead line's message spells the character,
-  says where it stands,
-  and says to take it out,
-  and a whitespace character where one belongs replaces it.
+  Every message about such a character spells it,
+  names it,
+  and says where it stands,
+  counted in characters from the line's first one,
+  which is the column an editor shows.
+  A line whose only fault is that character is told to take it out:
+  a dead line the reader took for one finding's key,
+  a dead `file-uses` line whose file name holds one,
+  and a line the reader refuses.
+  A whitespace character where one belongs replaces it.
 
 ### Links and other tools
 

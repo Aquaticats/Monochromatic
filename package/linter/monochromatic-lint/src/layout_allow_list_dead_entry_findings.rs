@@ -201,12 +201,6 @@ pub fn dead_entry_findings(
             // What: the line as the message quotes it, with every character a reader cannot see spelled.
             // Why: a name holding a zero-width space prints as a name the package does hold, and the reader would look for it in vain.
             let spelled_text: String = spelled_unreadable(entry.text.as_str());
-            // What: the first character of the line that a reader cannot see, when it holds one.
-            // Why: such a character is no whitespace, so the name it joined is no name on disk, and taking it out is the edit that makes the line read.
-            let invisible: Option<char> = entry
-                .text
-                .chars()
-                .find(|letter| return prints_as_nothing(*letter));
             // What: the sentence about the one edit, which names the character kept and the one taken off.
             // Why: a reader told only that a doubled space is part of a name has to work out which of the two to delete.
             let mut help: String = if kept.is_empty() {
@@ -219,12 +213,15 @@ pub fn dead_entry_findings(
                     kept.join(", and ")
                 )
             };
-            if let Some(letter) = invisible {
+            if let Some((letter, position)) = first_unseen_character(entry.text.as_str()) {
                 let name: &str =
                     unseen_character_name(letter).unwrap_or("a character a reader cannot see");
+                // What: where that character stands in the line, counted from its first character.
+                // Why: the name above is spelled, and its reader still has to find the character inside it.
+                let place: usize = entry.column + position - 1;
                 help.push_str(
                     format!(
-                        " The name above also holds {name} where a reader cannot see it: take that character out."
+                        " The name above also holds {name} at character {place} of the line, where a reader cannot see it: take that character out."
                     )
                     .as_str(),
                 );
@@ -248,40 +245,6 @@ pub fn dead_entry_findings(
         });
     }
     return findings;
-}
-
-/// What:
-///  Whether a line would read as a use, a comment or a blank line once its characters a reader cannot see are gone.
-/// Why:
-///  A byte order mark before the first word is the common way such a character hides a real line,
-///  while a key a rule prints can hold a zero-width character as content,
-///  and only the first reader needs the advice to take it out.
-///  The word is the line's own first word, compared whole and not by prefix:
-///  `usesé` begins with the letters of `uses` and is no `uses` line,
-///  so taking its character out would leave a key the message had promised was a use.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const readsAsALine = (text) => {
-///   const without = [...text].filter((letter) => !printsAsNothing(letter)).join('').trim()
-///   const first = without.split(/\s/u)[0]
-///   return without === '' || without.startsWith('#') || first === 'uses' || first === 'file-uses'
-/// }
-/// ```
-fn reads_as_a_line_without_unseen_characters(text: &str) -> bool {
-    // What: the line with every character a reader cannot see taken out.
-    // Why: what the line spells is what stands beside those characters, and that is what the reader compares.
-    let without: String = line_without_unseen_characters(text);
-    // What: the part of that line a reader would see, without the whitespace the list reader trims.
-    // Why: a line holding only a byte order mark and spaces would read as blank, which carries nothing.
-    let trimmed: &str = without.trim();
-    if trimmed.is_empty() || trimmed.starts_with('#') {
-        return true;
-    }
-    // What: the word the line would begin with, compared whole.
-    // Why: a prefix test let `usesé` pass for `uses`, and the advice then left a line the reader reads as no use.
-    let first: Option<&str> = trimmed.split_whitespace().next();
-    return first == Some(FOLDER_USE_WORD) || first == Some(FILE_USE_WORD);
 }
 
 /// What:
@@ -347,25 +310,6 @@ fn what_the_line_would_read_as(
         }
         _ => None,
     };
-}
-
-/// What:
-///  The line with every character a reader cannot see taken out, trimmed as the list reader trims it.
-/// Why:
-///  Both sentences about such a character ask the same question of the same text,
-///  and one filter keeps them from disagreeing about which lines carry a use.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const withoutUnseen = (text) => [...text].filter((one) => !printsAsNothing(one)).join('').trim()
-/// ```
-fn line_without_unseen_characters(text: &str) -> String {
-    // What: the text every character a reader cannot see has been taken out of.
-    // Why: the caller owns the answer and trims it, because a slice of a local text cannot leave this function.
-    return text
-        .chars()
-        .filter(|letter| return !prints_as_nothing(*letter))
-        .collect();
 }
 
 /// What:
