@@ -149,6 +149,7 @@ fn content_match(
         path: Some(EventPath::display(path)),
         location: None,
         fix_available: false,
+        commit_correction: None,
     };
 }
 
@@ -356,6 +357,7 @@ fn redacted_matches(work: &Path) {
                 path: Some(EventPath::from_git_bytes("dir/[REDACTED]".as_bytes())),
                 location: None,
                 fix_available: false,
+                commit_correction: None,
             },
         ])
     );
@@ -517,6 +519,7 @@ fn failure_findings_take_precedence_over_matches() {
             path: Some(EventPath::from_git_bytes("a.txt".as_bytes())),
             location: None,
             fix_available: false,
+            commit_correction: None,
         })
     );
 }

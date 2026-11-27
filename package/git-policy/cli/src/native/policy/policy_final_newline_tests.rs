@@ -125,9 +125,11 @@ fn preserved_paths_keep_their_bytes() {
     }
 }
 
-/// The finding about the file at `path`,
-///  offering a fix or not.
+/// The finding of `lifecycle` about the file at `path`,
+///  offering a fix or not,
+///  whose answer about a commit is the one `lifecycle` gives.
 fn finding_with(
+    lifecycle: &LifecycleContent,
     path: &str,
     fix_available: bool,
 ) -> PolicyFinding {
@@ -137,12 +139,16 @@ fn finding_with(
         path: Some(EventPath::from_git_bytes(path.as_bytes())),
         location: None,
         fix_available,
+        commit_correction: Some(super::commit_correction(lifecycle)),
     };
 }
 
-/// The finding about the file at `path` of a lifecycle that does not correct.
-fn finding(path: &str) -> PolicyFinding {
-    return finding_with(path, false);
+/// The finding of `lifecycle` about the file at `path` of a lifecycle that does not correct.
+fn finding(
+    lifecycle: &LifecycleContent,
+    path: &str,
+) -> PolicyFinding {
+    return finding_with(lifecycle, path, false);
 }
 
 /// The correction of the file at `path` from `before` to `after`.
@@ -195,9 +201,9 @@ fn the_check_reports_each_noncanonical_text_file() {
             false
         ),
         PolicyOutcome::Findings(vec![
-            finding("a-extra.txt"),
-            finding("b-missing.txt"),
-            finding("script.sh"),
+            finding(&lifecycle, "a-extra.txt"),
+            finding(&lifecycle, "b-missing.txt"),
+            finding(&lifecycle, "script.sh"),
         ])
     );
     // A check proposes nothing; only a direct fix offers and proposes each correction.
@@ -210,9 +216,9 @@ fn the_check_reports_each_noncanonical_text_file() {
             false
         ),
         PolicyOutcome::Findings(vec![
-            finding("a-extra.txt"),
-            finding("b-missing.txt"),
-            finding("script.sh"),
+            finding(&lifecycle, "a-extra.txt"),
+            finding(&lifecycle, "b-missing.txt"),
+            finding(&lifecycle, "script.sh"),
         ])
     );
     assert_eq!(content.take_proposals(), Vec::<Correction>::new());
@@ -225,9 +231,9 @@ fn the_check_reports_each_noncanonical_text_file() {
             false
         ),
         PolicyOutcome::Findings(vec![
-            finding_with("a-extra.txt", true),
-            finding_with("b-missing.txt", true),
-            finding_with("script.sh", true),
+            finding_with(&lifecycle, "a-extra.txt", true),
+            finding_with(&lifecycle, "b-missing.txt", true),
+            finding_with(&lifecycle, "script.sh", true),
         ])
     );
     assert_eq!(

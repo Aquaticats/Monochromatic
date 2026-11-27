@@ -60,14 +60,19 @@ use std::path::{
 };
 use std::rc::Rc;
 
-/// The finding about the file at `path` of a lifecycle that does not correct.
-fn finding(path: &str) -> PolicyFinding {
+/// The finding about the file at `path` of a lifecycle that does not correct,
+///  whose answer about a commit is the one `lifecycle` gives.
+fn finding(
+    lifecycle: &LifecycleContent,
+    path: &str,
+) -> PolicyFinding {
     return PolicyFinding {
         code: FINAL_NEWLINE_CODE,
         message: String::from(FINAL_NEWLINE_MESSAGE),
         path: Some(EventPath::from_git_bytes(path.as_bytes())),
         location: None,
         fix_available: false,
+        commit_correction: Some(super::commit_correction(lifecycle)),
     };
 }
 
@@ -168,7 +173,7 @@ fn a_file_whose_text_attribute_is_unset_keeps_its_bytes() {
     write(repo.as_path(), "other.txt", b"no final newline");
     assert_eq!(
         check(repo.as_path(), &add_all()),
-        PolicyOutcome::Findings(vec![finding("other.txt")])
+        PolicyOutcome::Findings(vec![finding(&add_all(), "other.txt")])
     );
     remove(root.as_path());
 }
@@ -184,7 +189,7 @@ fn a_file_marked_binary_keeps_its_bytes() {
     write(repo.as_path(), "blob.txt", b"utf-8 without a final newline");
     assert_eq!(
         check(repo.as_path(), &add_all()),
-        PolicyOutcome::Findings(vec![finding("blob.txt")])
+        PolicyOutcome::Findings(vec![finding(&add_all(), "blob.txt")])
     );
     remove(root.as_path());
 }
@@ -213,7 +218,7 @@ fn a_plain_text_file_is_still_corrected() {
         outcome,
         PolicyOutcome::Findings(vec![PolicyFinding {
             fix_available: true,
-            ..finding("plain.txt")
+            ..finding(&add_all(), "plain.txt")
         }])
     );
     let proposals: Vec<Correction> = content.take_proposals();
@@ -261,7 +266,7 @@ fn the_forbidden_strings_fuzz_sidecar_declaration_preserves_its_files() {
     write(repo.as_path(), &format!("{sidecar}/src/lib.rs"), b"source");
     assert_eq!(
         check(repo.as_path(), &add_all()),
-        PolicyOutcome::Findings(vec![finding(&format!("{sidecar}/src/lib.rs"))])
+        PolicyOutcome::Findings(vec![finding(&add_all(), &format!("{sidecar}/src/lib.rs"))])
     );
     remove(root.as_path());
 }
@@ -294,7 +299,7 @@ fn the_toml_edit_fixture_declaration_preserves_its_sources() {
     write(repo.as_path(), &format!("{package}/README.md"), b"readme");
     assert_eq!(
         check(repo.as_path(), &add_all()),
-        PolicyOutcome::Findings(vec![finding(&format!("{package}/README.md"))])
+        PolicyOutcome::Findings(vec![finding(&add_all(), &format!("{package}/README.md"))])
     );
     remove(root.as_path());
 }
@@ -317,7 +322,10 @@ fn a_file_whose_text_attribute_is_set_is_still_corrected() {
     write(repo.as_path(), "seed/case", b"exact");
     assert_eq!(
         check(repo.as_path(), &add_all()),
-        PolicyOutcome::Findings(vec![finding("automatic.txt"), finding("explicit.txt")])
+        PolicyOutcome::Findings(vec![
+            finding(&add_all(), "automatic.txt"),
+            finding(&add_all(), "explicit.txt")
+        ])
     );
     remove(root.as_path());
 }
@@ -340,9 +348,9 @@ fn a_nested_gitattributes_applies_to_its_own_subtree() {
     assert_eq!(
         check(repo.as_path(), &add_all()),
         PolicyOutcome::Findings(vec![
-            finding("package/other.fuzz/seed/case"),
-            finding("package/sidecar.fuzz/src/lib.rs"),
-            finding("seed/case"),
+            finding(&add_all(), "package/other.fuzz/seed/case"),
+            finding(&add_all(), "package/sidecar.fuzz/src/lib.rs"),
+            finding(&add_all(), "seed/case"),
         ])
     );
     remove(root.as_path());
@@ -389,7 +397,7 @@ fn staged_candidates_read_the_index_attributes_not_the_worktree() {
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from(":/")]));
     assert_eq!(
         check(repo.as_path(), &lifecycle),
-        PolicyOutcome::Findings(vec![finding("plain.txt")])
+        PolicyOutcome::Findings(vec![finding(&lifecycle, "plain.txt")])
     );
     remove(root.as_path());
 }
@@ -410,7 +418,7 @@ fn a_check_started_below_the_top_level_resolves_top_level_paths() {
     ]));
     assert_eq!(
         check_from(repo.join("sub").as_path(), &lifecycle, Trigger::PreForward),
-        PolicyOutcome::Findings(vec![finding("sub/plain.txt")])
+        PolicyOutcome::Findings(vec![finding(&lifecycle, "sub/plain.txt")])
     );
     remove(root.as_path());
 }
@@ -433,7 +441,7 @@ fn a_landed_commit_reads_the_attributes_of_its_own_tree() {
     let lifecycle: LifecycleContent = LifecycleContent::Requested(CandidateRequest::Landed(landed));
     assert_eq!(
         check_from(repo.as_path(), &lifecycle, Trigger::PostCommit),
-        PolicyOutcome::Findings(vec![finding("plain.txt")])
+        PolicyOutcome::Findings(vec![finding(&lifecycle, "plain.txt")])
     );
     remove(root.as_path());
 }
@@ -460,7 +468,7 @@ fn a_pushed_commit_reads_the_attributes_of_its_own_tree() {
         }));
     assert_eq!(
         check_from(repo.as_path(), &lifecycle, Trigger::ManualPush),
-        PolicyOutcome::Findings(vec![finding("seed/later")])
+        PolicyOutcome::Findings(vec![finding(&lifecycle, "seed/later")])
     );
     remove(root.as_path());
 }
@@ -482,7 +490,7 @@ fn a_pushed_tree_reads_its_own_attributes() {
         }));
     assert_eq!(
         check_from(repo.as_path(), &lifecycle, Trigger::ManualPush),
-        PolicyOutcome::Findings(vec![finding("plain.txt")])
+        PolicyOutcome::Findings(vec![finding(&lifecycle, "plain.txt")])
     );
     remove(root.as_path());
 }

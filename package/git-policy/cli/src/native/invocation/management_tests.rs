@@ -156,7 +156,7 @@ const FIXED_A: &str = "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"fix-summar
 ///  as event number `sequence`.
 fn final_newline_warning(sequence: u64) -> String {
     return format!(
-        "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"final-newline\",\"severity\":\"warn\",\"code\":\"final-newline/noncanonical-final-newline\",\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing or checking this file, edit it so it ends with exactly one newline, then stage it again.\",\"path\":\"a.txt\",\"fix\":\"none\"}}\n"
+        "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"final-newline\",\"severity\":\"warn\",\"code\":\"final-newline/noncanonical-final-newline\",\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing this file, a commit that takes it corrects the ending for you while this repository's settings keep `final-newline` on; to correct it now without committing, run `git monochromatic-git-policy-cli fix -- <path>`.\",\"path\":\"a.txt\",\"fix\":\"none\"}}\n"
     );
 }
 

@@ -45,111 +45,167 @@ pub const SELF_HINTED: &[(&str, &str)] = &[
 ];
 
 /// What:
-///  The hint for a policy finding,
-/// or none when the message carries its own.
-///  `&'static str` is text compiled into the program.
+///  What a commit that takes the bytes a finding names does with them,
+///  for a hint that has to say it.
 /// Why:
-///   A finding's wording is the rule;
-/// the hint is the guess about the goal and the way to reach it.
+///   The hint of `final-newline` is printed by lifecycles that correct nothing,
+///  and whether a commit still corrects those bytes decides what the person is told:
+///  an `add` stages worktree bytes a commit would take and correct,
+///  while a commit whose selection is read-only records the bytes it was given,
+///  as does a landed commit and a pushed tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function findingHint(policy: string, code: string, fixAvailable: boolean): string | undefined;
+/// type CommitCorrection = 'corrects' | 'records';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommitCorrection {
+    /// A commit that takes these bytes corrects them before it records them.
+    Corrects,
+    /// A commit records these bytes exactly as they are.
+    Records,
+}
+
+/// What:
+///  The hint for a policy finding,
+/// or none when the message carries its own.
+///  `&'static str` is text compiled into the program;
+///  `commit_correction` is what a commit does with the finding's bytes,
+///  for the one code whose hint says it.
+/// Why:
+///   A finding's wording is the rule;
+/// the hint is the guess about the goal and the way to reach it.
+///  Two lifecycles can print the same finding and need different next steps,
+///  so the fact that decides the step travels with the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function findingHint(policy: string, code: string, fixAvailable: boolean, commitCorrection?: CommitCorrection): string | undefined;
 /// ```
 pub fn finding_hint(
     policy: &str,
     code: &str,
     fix_available: bool,
+    commit_correction: Option<CommitCorrection>,
 ) -> Option<&'static str> {
-    match (policy, code, fix_available) {
-        ("add-explicit", "bulk-add-rejected", _) => {
+    match (policy, code, fix_available, commit_correction) {
+        ("add-explicit", "bulk-add-rejected", _, _) => {
             return Some(
                 "Hint: if you meant to stage everything you changed, run `git status --short` to list it and name \
                  each path, as in `git add -- <path> <path>`; if you meant only files git already tracks, name those \
                  paths the same way.",
             );
         }
-        ("final-newline", "noncanonical-final-newline", true) => {
+        // What: A commit that may correct the bytes corrects them itself, and says so.
+        // Why:  The person need not do anything for the ending; the commit it is part of fixes it.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (fixAvailable) return 'Hint: ... a commit corrects the ending for you; ... fix -- <path>.';
+        // ```
+        ("final-newline", "noncanonical-final-newline", true, _) => {
             return Some(
                 "Hint: if you are committing or checking this file, a commit corrects the ending for you; \
                  to correct it now without committing, run `git monochromatic-git-policy-cli fix -- <path>`.",
             );
         }
-        ("final-newline", "noncanonical-final-newline", false) => {
+        // What: A lifecycle that corrects nothing, whose bytes a commit still corrects.
+        // Why:  An `add` and a direct check stage nothing, so the person is told what the commit that takes the file
+        //       does with it, and how to correct it now without one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (commitCorrection === 'corrects') return 'Hint: ... a commit that takes it corrects the ending ...';
+        // ```
+        (
+            "final-newline",
+            "noncanonical-final-newline",
+            false,
+            Some(CommitCorrection::Corrects),
+        ) => {
+            return Some(
+                "Hint: if you are committing this file, a commit that takes it corrects the ending for you while this \
+                 repository's settings keep `final-newline` on; to correct it now without committing, run \
+                 `git monochromatic-git-policy-cli fix -- <path>`.",
+            );
+        }
+        // What: A lifecycle whose bytes nothing corrects, because a commit records them as they are.
+        // Why:  Only the person's own edit changes such bytes, so the hint says to edit and stage again.
+        ("final-newline", "noncanonical-final-newline", false, _) => {
             return Some(
                 "Hint: if you are committing or checking this file, edit it so it ends with exactly one newline, \
                  then stage it again.",
             );
         }
-        ("markdown/autofix", "markdown-autofix", _) => {
+        ("markdown/autofix", "markdown-autofix", _, _) => {
             return Some(
                 "Hint: if you are committing this Markdown, the commit applies the linter's corrections itself; \
                  to apply them now, run `git monochromatic-git-policy-cli fix -- <path>`.",
             );
         }
-        ("markdown/autofix", "markdown-violation", _) => {
+        ("markdown/autofix", "markdown-violation", _, _) => {
             return Some(
                 "Hint: if you are committing this Markdown, the linter cannot repair this rule by itself; \
                  edit the file at the reported line and column, stage it again, and retry.",
             );
         }
-        ("mono/forbidden-root-context", "root-context-forbidden", _) => {
+        ("mono/forbidden-root-context", "root-context-forbidden", _, _) => {
             return Some(
                 "Hint: if you meant to keep project notes or terms for later readers, put them in a file under doc/; \
                  to drop CONTEXT.md from this commit and keep the file on disk, run `git rm --cached CONTEXT.md`.",
             );
         }
-        ("mono/dependent-version-bump", "dependent-version-stale", _) => {
+        ("mono/dependent-version-bump", "dependent-version-stale", _, _) => {
             return Some(
                 "Hint: if you changed a package that others depend on, raise its dependents' version ranges to match \
                  the new version in the same commit, then stage those files; `git monochromatic-git-policy-cli fix -- <path>` applies the \
                  correction when one is available.",
             );
         }
-        ("mono/dependent-version-bump", "dependent-version-unsupported", _) => {
+        ("mono/dependent-version-bump", "dependent-version-unsupported", _, _) => {
             return Some(
                 "Hint: if you edited a dependency declaration of a shape this check does not read, update the \
                  dependents by hand in the same commit; the message names the file.",
             );
         }
-        ("mono/catalog-specifiers", "disallowed-specifier", _) => {
+        ("mono/catalog-specifiers", "disallowed-specifier", _, _) => {
             return Some(
                 "Hint: if you are adding or changing a dependency, move its version into the catalog section of \
                  pnpm-workspace.yaml and write catalog: here, or write workspace:* for a package of this workspace; \
                  peerDependencies take * or catalog:.",
             );
         }
-        ("mono/catalog-specifiers", "non-string-specifier", _) => {
+        ("mono/catalog-specifiers", "non-string-specifier", _, _) => {
             return Some(
                 "Hint: if you are writing a dependency version, make it a string such as catalog: or workspace:*; \
                  a number, list, object or null is not a specifier.",
             );
         }
-        ("mono/catalog-specifiers", "malformed-section", _) => {
+        ("mono/catalog-specifiers", "malformed-section", _, _) => {
             return Some(
                 "Hint: if you are editing a dependency section, write it as an object that maps package names to \
                  specifiers; the message names the section.",
             );
         }
-        ("mono/catalog-specifiers", "duplicate-key", _) => {
+        ("mono/catalog-specifiers", "duplicate-key", _, _) => {
             return Some(
                 "Hint: if you are editing this manifest by hand, keep one copy of the repeated section or \
                  dependency name; pnpm keeps the last copy, which may not be the one you meant.",
             );
         }
-        ("mono/catalog-specifiers", "invalid-manifest", _) => {
+        ("mono/catalog-specifiers", "invalid-manifest", _, _) => {
             return Some(
                 "Hint: if you are committing this package.json, make it a JSON object that parses and is UTF-8 \
                  text (a stray character, an empty file or a link instead of a file shows here), then stage it again.",
             );
         }
-        ("mono/catalog-specifiers", "unsupported-manifest-format", _) => {
+        ("mono/catalog-specifiers", "unsupported-manifest-format", _, _) => {
             return Some(
                 "Hint: if you are adding a package.json5, package.yaml or package.yml, use package.json instead, \
                  because the catalog rule reads only that format; rename or convert the file and stage it again.",
             );
         }
-        ("security/forbidden-strings", "forbidden-string", _) => {
+        ("security/forbidden-strings", "forbidden-string", _, _) => {
             return Some(
                 "Hint: if you are committing text or a path that contains a secret or a banned term, remove or \
                  replace it where the message points and stage the file again; if you believe the rule is wrong, \

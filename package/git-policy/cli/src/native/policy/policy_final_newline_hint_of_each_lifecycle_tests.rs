@@ -1,7 +1,9 @@
 //! What:
 //!  The hint a `final-newline` finding gives at each lifecycle that makes one:
-//!  an `add` and a direct check, whose bytes a later commit corrects,
-//!  a commit whose selection is read-only, a landed commit and a manual push,
+//!  an `add` and a direct check,
+//!  whose bytes a later commit corrects,
+//!  a commit whose selection is read-only,
+//!  a landed commit and a manual push,
 //!  whose bytes nothing corrects,
 //!  and the two lifecycles that correct the bytes themselves.
 //! Why:
@@ -12,7 +14,8 @@
 //!  Each control runs the policy stage for one lifecycle and reads the `hint` field of the
 //!  finding line that stage rendered,
 //!  so every word asserted here is the program's own,
-//!  and the `code`, `message` and `fix` fields beside it are held to what `SPEC.md` says they keep.
+//!  and the `code`,
+//!  `message` and `fix` fields beside it are held to what `SPEC.md` says they keep.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,13 +38,16 @@ use crate::candidate_prediction::{
 use crate::config_schema::PolicyConfig;
 use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
-/// Import the stage, its request and the renderer of the events it produces.
+/// Import the stage,
+///  its request and the renderer of the events it produces.
 use crate::policy_engine::{
     StageRequest,
     run_policy_stage,
 };
 use crate::policy_events::render_policy_events;
-/// Import the policy whose hint these controls read, its severity, and the lifecycle points.
+/// Import the policy whose hint these controls read,
+///  its severity,
+///  and the lifecycle points.
 use crate::policy_registry::{
     PolicyId,
     Severity,
@@ -93,10 +99,10 @@ const THE_HINT_WHERE_THE_LIFECYCLE_CORRECTS: &str = "Hint: if you are committing
      corrects the ending for you; to correct it now without committing, run `git monochromatic-git-policy-cli fix -- \
      <path>`.";
 
-/// The `code` field the finding of every lifecycle of this file carries,
+/// The `code` and `message` of a finding of this policy,
 ///  which no hint may change (`SPEC.md`,
 ///  "Hints").
-const THE_CODE: &str = "final-newline/noncanonical-final-newline";
+const THE_CODE_AND_MESSAGE: &str = "\"code\":\"final-newline/noncanonical-final-newline\",\"message\":\"Non-empty text file must end with exactly one LF byte.\"";
 
 /// What:
 ///  One fixture repository,
@@ -139,7 +145,8 @@ fn a_scene(name: &str) -> Scene {
     // The base commit is made by the real Git, never by this crate's commit path, so the file this scene writes
     //  afterwards reaches the index and the history exactly as written.
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    std::fs::write(repo.join(THE_FILE), WITHOUT_A_LINE_FEED).expect("the file without its line feed");
+    std::fs::write(repo.join(THE_FILE), WITHOUT_A_LINE_FEED)
+        .expect("the file without its line feed");
     return Scene {
         root,
         repo,
@@ -191,7 +198,10 @@ fn stage_the_file(scene: &Scene) {
 /// ```
 fn commit_the_file(scene: &Scene) -> ObjectId {
     stage_the_file(scene);
-    git(scene.repo.as_path(), &["commit", "--quiet", "--message=the file"]);
+    git(
+        scene.repo.as_path(),
+        &["commit", "--quiet", "--message=the file"],
+    );
     return the_commit_of_the_scene(scene);
 }
 
@@ -285,11 +295,7 @@ fn assert_the_finding_keeps_its_fields(
     rendered: &str,
     fix: &str,
 ) {
-    assert!(rendered.contains(THE_CODE), "{rendered}");
-    assert!(
-        rendered.contains("\"message\":\"Non-empty text file must end with exactly one LF byte.\""),
-        "{rendered}"
-    );
+    assert!(rendered.contains(THE_CODE_AND_MESSAGE), "{rendered}");
     assert!(
         rendered.contains(format!("\"fix\":\"{fix}\"").as_str()),
         "{rendered}"
@@ -341,11 +347,15 @@ fn an_add_says_the_commit_corrects_the_file() {
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
-    assert!(rendered.contains("\"trigger\":\"pre-forward\""), "{rendered}");
+    assert!(
+        rendered.contains("\"trigger\":\"pre-forward\""),
+        "{rendered}"
+    );
     remove(scene.root.as_path());
 }
 
-/// A direct check reads the worktree bytes a commit would take, so its hint says that commit
+/// A direct check reads the worktree bytes a commit would take,
+///  so its hint says that commit
 ///  corrects them,
 ///  and offers the correction now.
 #[test]
@@ -364,7 +374,10 @@ fn a_direct_check_says_the_commit_corrects_the_file() {
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
-    assert!(rendered.contains("\"trigger\":\"direct-check\""), "{rendered}");
+    assert!(
+        rendered.contains("\"trigger\":\"direct-check\""),
+        "{rendered}"
+    );
     remove(scene.root.as_path());
 }
 
@@ -463,7 +476,10 @@ fn a_landed_commit_says_to_edit_the_file() {
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
-    assert!(rendered.contains("\"trigger\":\"post-commit\""), "{rendered}");
+    assert!(
+        rendered.contains("\"trigger\":\"post-commit\""),
+        "{rendered}"
+    );
     remove(scene.root.as_path());
 }
 
@@ -490,6 +506,9 @@ fn a_manual_push_says_to_edit_the_file() {
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
-    assert!(rendered.contains("\"trigger\":\"manual-push\""), "{rendered}");
+    assert!(
+        rendered.contains("\"trigger\":\"manual-push\""),
+        "{rendered}"
+    );
     remove(scene.root.as_path());
 }
