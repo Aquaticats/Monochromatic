@@ -31,7 +31,10 @@ This round's folder is `~/temp/agent/zfs-step-19-fifth-revision-2026-11-24/`.
 "round two" means `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`,
 "round three" means `~/temp/agent/zfs-step-19-third-revision-2026-11-24/`,
 "round four" means `~/temp/agent/zfs-step-19-fourth-revision-2026-11-24/`,
-and "round five" means this folder's own first half, the fifth revision's round.
+and "round five" means this folder's own first half, the fifth revision's round
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 A log named without a round is this round's.
 Where a fact rests only on an earlier round's log, the round is named with it.
 
@@ -102,7 +105,10 @@ its own boot: `evidence-chosen-green.log`, `evidence-chosen-key-removed.log`,
 ## What the read of the fourth revision changed
 
 The read
-(`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/keep/read-of-the-fourth-step-19-revision.md`,
+(`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/keep/read-of-the-fourth-step-19-revision.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 a same-vendor second pass, not an independent review)
 found no high defect, eight medium ones and twelve lows.
 All eight held as findings and are folded here.
