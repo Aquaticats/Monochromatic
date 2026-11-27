@@ -377,7 +377,8 @@ fn readings_of_a_written_folder(written: &str) -> Vec<String> {
     let without_trailing: &str = written.trim_end_matches(char::is_whitespace);
     // What: how many whitespace characters the text begins with, which is the doubled gap's character and the name's own whitespace together.
     // Why: the loop below takes those off one at a time, so each name a tree could hold is read once.
-    let leading: usize = without_trailing.chars().count() - without_trailing.trim_start().chars().count();
+    let leading: usize =
+        without_trailing.chars().count() - without_trailing.trim_start().chars().count();
     for removed in 0..=leading {
         // What: that text with its first `removed` characters gone.
         // Why: one more than the gap's character is the name's own first character, which a name beginning with whitespace keeps.
@@ -492,6 +493,27 @@ fn counted_words(count: usize) -> String {
 }
 
 /// What:
+///  The line as a refusal quotes it, and the sentence about a character a reader cannot see.
+/// Why:
+///  One spelling serves every refusal of the reader,
+///  and a line that reads pays for neither:
+///  a list of many thousands of keys would otherwise build a sentence it never prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quoteOf = (text, column) => [spelledUnreadable(text), unseenCharacterNote(text, column)]
+/// ```
+fn quote_of(
+    text: &str,
+    column: usize,
+) -> (String, String) {
+    return (
+        spelled_unreadable(text),
+        unseen_character_note(text, column),
+    );
+}
+
+/// What:
 ///  Read one line as an entry,
 ///  or say why it names nothing.
 /// Why:
@@ -513,14 +535,11 @@ fn entry_of(
     base: &Path,
 ) -> Result<AllowEntry, String> {
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
-    // What: the line as every refusal below quotes it, and the sentence about a character a reader cannot see.
-    // Why: a refusal that printed such a character would show a line other than the one the file holds, and one spelling of a line serves every sentence about it.
-    let spelled: String = spelled_unreadable(text);
-    let note: String = unseen_character_note(text, column);
     let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
         let (from, to): (&str, &str) = use_ends(line, column, text)?;
         for path in [from, to] {
             if let Some(reason) = unusable_reason(path) {
+                let (spelled, note): (String, String) = quote_of(text, column);
                 return Err(format!(
                     "Line {line} reads `{spelled}`. It names a folder that {reason}. A path is relative to the package folder, as findings show it.{note}"
                 ));
@@ -537,6 +556,7 @@ fn entry_of(
         if words.len() > 5
             && let Some(reason) = unusable_reason(words[1])
         {
+            let (spelled, note): (String, String) = quote_of(text, column);
             return Err(format!(
                 "Line {line} reads `{spelled}`. It names a folder that {reason}. A path is relative to the package folder, as findings show it.{note}"
             ));
@@ -563,11 +583,13 @@ fn entry_of(
                     "whitespace character",
                 )
             };
+            let (spelled, note): (String, String) = quote_of(text, column);
             return Err(format!(
                 "Line {line} reads `{spelled}`. It names the folder `{spelled_folder}`, {holds}: a `file-uses` line sets its five words off with one whitespace character each, so it cannot carry a name that holds one. Rename the folder so its name holds no {fix}, or untangle the loop of files inside it.{note}"
             ));
         }
         if words.len() != 5 || words[3] != ARROW {
+            let (spelled, note): (String, String) = quote_of(text, column);
             // What: whether the line sets more than one arrow off with whitespace, which is one way its five words become more.
             // Why: a doubled arrow is a different mistake from an extra word, and its reader has to know which one is theirs.
             if arrows_between_whitespace(text) > 1 {
@@ -589,6 +611,7 @@ fn entry_of(
             ));
         }
         if let Some(reason) = unusable_reason(words[1]) {
+            let (spelled, note): (String, String) = quote_of(text, column);
             return Err(format!(
                 "Line {line} reads `{spelled}`. It names a folder that {reason}. A path is relative to the package folder, as findings show it.{note}"
             ));

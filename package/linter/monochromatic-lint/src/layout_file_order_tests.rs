@@ -1009,7 +1009,8 @@ fn findings_with_list(
 ///  because a line that spells a real module file's own name is dead for another reason,
 ///  and the file name is what the finding prints.
 #[test]
-fn a_dead_file_use_line_takes_a_character_out_only_when_no_module_of_the_folder_holds_its_file_name() {
+fn a_dead_file_use_line_takes_a_character_out_only_when_no_module_of_the_folder_holds_its_file_name()
+ {
     // What: one folder whose module file really is named with the character, and its line, spelled as the file is.
     // Why: the use the line records sits in no loop, so the line is dead although its name is the file's own.
     let genuine = package_with(&[
@@ -1046,9 +1047,11 @@ fn a_dead_file_use_line_takes_a_character_out_only_when_no_module_of_the_folder_
     );
     // What: the control, a file name the folder does not hold, which is the case the advice is for.
     // Why: an advice that never fired would pass the lines above and leave a mistyped name unreported.
-    let mistyped: String =
-        findings_with_list(genuine.path.as_path(), "file-uses src/f one\u{200b}.rs -> two.rs\n")
-            .join("\n");
+    let mistyped: String = findings_with_list(
+        genuine.path.as_path(),
+        "file-uses src/f one\u{200b}.rs -> two.rs\n",
+    )
+    .join("\n");
     assert!(
         mistyped.contains("Take that character out of the line"),
         "no module of the folder is called `one\u{200b}.rs`: {mistyped}"
@@ -1069,10 +1072,7 @@ fn a_dead_file_use_line_takes_a_character_out_only_when_no_module_of_the_folder_
             "//! Folder.\n//!\n//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `two.rs`: two.\n//! - `three.rs`: three.\nmod three;\nmod two;\n",
         ),
         ("src/e\u{200c}f/two.rs", "/// Two.\npub struct Two;\n"),
-        (
-            "src/e\u{200c}f/three.rs",
-            "/// Three.\npub struct Three;\n",
-        ),
+        ("src/e\u{200c}f/three.rs", "/// Three.\npub struct Three;\n"),
     ]);
     let in_folder: String = findings_with_list(
         folder_name.path.as_path(),

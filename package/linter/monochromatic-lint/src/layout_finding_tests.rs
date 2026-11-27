@@ -90,7 +90,10 @@ fn a_key_path_uses_forward_slashes_at_every_boundary() {
 #[test]
 fn every_character_this_crate_names_is_named_by_the_phrase_a_message_shows() {
     for (letter, name) in [
-        ('\u{feff}', "a byte order mark or zero-width no-break space (`\\u{feff}`)"),
+        (
+            '\u{feff}',
+            "a byte order mark or zero-width no-break space (`\\u{feff}`)",
+        ),
         ('\u{200b}', "a zero-width space (`\\u{200b}`)"),
         ('\u{200c}', "a zero-width non-joiner (`\\u{200c}`)"),
         ('\u{200d}', "a zero-width joiner (`\\u{200d}`)"),
