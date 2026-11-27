@@ -68,12 +68,13 @@ use std::time::{
 ///  it makes 4,196 paths of which two change lists past `MAX_CHANGES` are landed,
 ///  and each landing's index update reads every one of them.
 ///  Measured alone on this host:
-///  70.25 s and 75.68 s while its load average was 90,
-///  73.77 s and 79.97 s while it was 120 to 185,
+///  55.70 s at the quietest load it met (43 before the run and 37 after),
+///  70.25 s and 75.68 s while the load average was 90 to 139,
+///  73.77 s and 79.97 s while it was 120 to 186,
 ///  and more than the 120 s of `CHILD_TEST_DEADLINE` in the run of 2026-11-26 whose load average was 100 to 235
 ///  (issue 6546).
 ///  Four times the 60 s `NATIVE_GIT_BOUND_SECONDS` bounds one command of this harness with,
-///  3.4 times the quietest body measured,
+///  4.3 times the 55.70 s the quietest body measured,
 ///  and below the five minutes the container gate stops a test after,
 ///  so a child that really never ends is still a named failure and not a timeout.
 ///  The measurements and what the body spends its time on are in

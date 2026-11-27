@@ -407,6 +407,9 @@ one change list of a few paths):
   the body did not end within 120 s and was killed,
   the failure the issue records,
   seen here without anything planted in the tree.
+- 55.70 s,
+  load average 43 before the run and 37 after,
+  which is the quietest this session came.
 - The same body with 130 s planted in it
   (`std::thread::sleep`,
   a scratch change,
@@ -416,10 +419,12 @@ one change list of a few paths):
   and load average 88 before the run and 84 after:
   `1 passed` in 214.23 s once the control stated its own window.
 
-So the body is 70 to 80 s on this host at a load average of 90 to 186,
+So the body is 55.70 s at the quietest load measured,
+70 to 80 s at a load average of 90 to 186,
 and it crossed 120 s at 246.
-The second figure is not noise around the first:
-the body's time is the disk's.
+None of these is noise around another:
+the body's time is the disk's,
+and the disk is what the other sessions on this host load.
 
 ### What the body spends its time on
 
@@ -459,8 +464,8 @@ so every other control that runs a child is as it was.
 four times the 60 s that `NATIVE_GIT_BOUND_SECONDS` bounds one command of this
 harness with:
 240 s,
-which is 3.4 times the 70.25 s measured at load average 90,
-3.0 times the 79.97 s measured at 186,
+which is 4.3 times the 55.70 s measured at the quietest load,
+3.0 times the 79.97 s measured at load average 186,
 and below the five minutes after which the container gate stops a test,
 so a child that really never ends is still a named failure and not a timeout.
 
