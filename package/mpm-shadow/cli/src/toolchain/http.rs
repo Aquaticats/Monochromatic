@@ -4,11 +4,15 @@
 //!           size-bounded GET for registries and manifests,
 //! and a streamed download to a file that returns the file's
 //!           SHA-256),
-//! and the real implementation on `hyper`,
-//! `hyper-util`,
-//! `http-body-util`,
-//! `hyper-rustls` and a
-//!           current-thread `tokio` runtime.
+//! the `HttpResponse` and `HttpError` types those methods answer with,
+//! and the bounds every call respects.
+//! The client that does the work lives in the files beside this one,
+//! each named for what it holds:
+//! the real client over `hyper` (`the_real_client_over_hyper`),
+//! one request and its redirects (`one_request_and_its_redirects`),
+//! the bounded GET and the download (`the_bounded_get_and_the_download`),
+//! and the clients a run that must not reach the network gets
+//! (`a_client_that_never_reaches_the_network`).
 //! Why:
 //! Registry lookups go to `registry.npmjs.org` and `pypi.org` directly over HTTPS,
 //! never through `curl` or
@@ -17,6 +21,8 @@
 //! Every
 //!           failure names the URL,
 //! and every wait is bounded.
+//! This file keeps the seam and its vocabulary,
+//! so a caller imports `super::http::HttpGet` and never one of the parts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,54 +31,37 @@
 //!   get(url: string, headers: [string, string][], maxBytes: number): HttpResponse;
 //!   download(url: string, target: string, maxBytes: number): string; // returns the SHA-256 of the file
 //! }
+//! export * from './http/the_real_client_over_hyper.ts';
 //! ```
 
-/// Imports what this module uses from `http_body_util`.
-use http_body_util::{
-    BodyExt,
-    Empty,
-};
-/// Imports `Request` from `hyper`.
-use hyper::Request;
-/// Imports `Bytes` from `hyper::body`.
-use hyper::body::Bytes;
-/// Imports what this module uses from `hyper::header`.
-use hyper::header::{
-    HeaderName,
-    HeaderValue,
-    LOCATION,
-};
-/// Imports `Uri` from `hyper::http`.
-use hyper::http::Uri;
-/// Imports what this module uses from `hyper_rustls`.
-use hyper_rustls::{
-    HttpsConnector,
-    HttpsConnectorBuilder,
-};
-/// Imports `Client` from `hyper_util::client::legacy`.
-use hyper_util::client::legacy::Client;
-/// Imports `HttpConnector` from `hyper_util::client::legacy::connect`.
-use hyper_util::client::legacy::connect::HttpConnector;
-/// Imports `TokioExecutor` from `hyper_util::rt`.
-use hyper_util::rt::TokioExecutor;
-/// Imports what this module uses from `sha2`.
-use sha2::{
-    Digest,
-    Sha256,
-};
 /// Imports `fmt` from `std`.
 use std::fmt;
-/// Imports `File` from `std::fs`.
-use std::fs::File;
-/// Imports `Write` from `std::io`.
-use std::io::Write;
 /// Imports `Path` from `std::path`.
 use std::path::Path;
-/// Imports `Duration` from `std::time`.
-use std::time::Duration;
 
-/// Imports `hex_of_digest` from `super::hash`.
-use super::hash::hex_of_digest;
+/// The clients a run that must not reach the network gets.
+mod a_client_that_never_reaches_the_network;
+/// The redirect rules and the one request that follows them.
+mod one_request_and_its_redirects;
+/// The real client over `hyper`, its redirects and its two bounded reads.
+mod the_bounded_get_and_the_download;
+/// The client that owns the runtime and answers `HttpGet`.
+mod the_real_client_over_hyper;
+
+/// A client that fails every request,
+/// for the commands that never need the network.
+pub use self::a_client_that_never_reaches_the_network::NoNetwork;
+/// A client that fails every request with the reason the real one could not be built.
+pub use self::a_client_that_never_reaches_the_network::UnavailableNetwork;
+/// The real client,
+/// or a client that fails every request with the reason it could not be built.
+pub use self::a_client_that_never_reaches_the_network::connect_or_explain;
+/// The redirect rule the real client applies,
+/// exported so its tests can state it alone.
+pub use self::one_request_and_its_redirects::resolve_location;
+/// The real client over `hyper`,
+/// which every command that needs the network builds.
+pub use self::the_real_client_over_hyper::HyperClient;
 
 /// The most redirects one request follows.
 pub const MAX_REDIRECTS: usize = 5;
@@ -195,529 +184,4 @@ pub trait HttpGet {
         target: &Path,
         max_bytes: u64,
     ) -> Result<String, HttpError>;
-}
-
-/// What:
-/// Resolves a redirect `Location` value against the URL that returned it.
-/// Why:
-/// A location is absolute (`https://...`),
-/// absolute-path (`/x`) or scheme-relative (`//host/x`);
-/// a relative
-///           path without a leading slash is not used by the registries this crate talks to and is refused.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function resolveLocation(base: string, location: string): string  // throws
-/// ```
-pub fn resolve_location(
-    base: &str,
-    location: &str,
-) -> Result<String, String> {
-    if location.starts_with("https://") {
-        return Ok(location.to_string());
-    }
-    let uri: Uri = match base.parse::<Uri>() {
-        Ok(parsed) => parsed,
-        Err(error) => return Err(format!("the request URL is not a valid URL: {error}")),
-    };
-    let Some(authority) = uri.authority() else {
-        return Err("the request URL has no host".to_string());
-    };
-    if let Some(rest) = location.strip_prefix("//") {
-        return Ok(format!("https://{rest}"));
-    }
-    if location.starts_with('/') {
-        return Ok(format!("https://{authority}{location}"));
-    }
-    return Err(format!(
-        "the redirect target {location:?} is neither an https URL nor an absolute path"
-    ));
-}
-
-/// Fails unless `url` is an `https://` URL.
-fn require_https(url: &str) -> Result<(), HttpError> {
-    if url.starts_with("https://") {
-        return Ok(());
-    }
-    return Err(HttpError {
-        url: url.to_string(),
-        message: "only https URLs are fetched; this URL is refused".to_string(),
-    });
-}
-
-/// The `hyper` client type this module builds:
-/// HTTPS connector over TCP,
-/// empty request bodies.
-type TlsClient = Client<HttpsConnector<HttpConnector>, Empty<Bytes>>;
-
-/// What:
-/// The real HTTP client.
-/// Why:
-/// It owns a current-thread `tokio` runtime and a TLS client (native root certificates,
-/// HTTPS only,
-/// HTTP/1.1)
-///           so the callers stay synchronous.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class HyperClient implements HttpGet { ... }
-/// ```
-pub struct HyperClient {
-    /// The current-thread runtime every call blocks on.
-    runtime: tokio::runtime::Runtime,
-    /// The TLS client.
-    client: TlsClient,
-    /// The User-Agent header value sent with every request.
-    user_agent: String,
-}
-
-/// The methods of `HyperClient`.
-impl HyperClient {
-    /// Builds the runtime and the TLS client;
-    /// the error says why the system's root certificates or the runtime failed.
-    pub fn new() -> Result<HyperClient, String> {
-        let runtime: tokio::runtime::Runtime = match tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-        {
-            Ok(built) => built,
-            Err(error) => return Err(format!("cannot start the network runtime: {error}")),
-        };
-        let builder = match HttpsConnectorBuilder::new().with_native_roots() {
-            Ok(roots) => roots,
-            Err(error) => {
-                return Err(format!(
-                    "cannot load the system's root certificates: {error}"
-                ));
-            }
-        };
-        let connector: HttpsConnector<HttpConnector> = builder.https_only().enable_http1().build();
-        // No connection is kept for reuse:
-        // the runtime above runs only while a call blocks on it,
-        // so a pooled connection that the server closes during a long install step (cargo binstall, rustup, uv)
-        // is never noticed,
-        // and the next request over it fails with `client error (SendRequest)`.
-        let client: TlsClient = Client::builder(TokioExecutor::new())
-            .pool_max_idle_per_host(0)
-            .build(connector);
-        return Ok(HyperClient {
-            runtime,
-            client,
-            user_agent: format!("monochromatic-mpm-shadow/{}", env!("CARGO_PKG_VERSION")),
-        });
-    }
-
-    /// Sends one request,
-    /// following up to `MAX_REDIRECTS` redirects,
-    /// and returns the final response's parts.
-    async fn send(
-        &self,
-        url: &str,
-        headers: &[(String, String)],
-    ) -> Result<hyper::Response<hyper::body::Incoming>, HttpError> {
-        let mut current: String = url.to_string();
-        for _hop in 0..=MAX_REDIRECTS {
-            require_https(&current)?;
-            let uri: Uri = match current.parse::<Uri>() {
-                Ok(parsed) => parsed,
-                Err(error) => {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!("not a valid URL: {error}"),
-                    });
-                }
-            };
-            let mut builder = Request::builder()
-                .method("GET")
-                .uri(uri)
-                .header("user-agent", self.user_agent.as_str());
-            // Credentials only go to the host they were meant for; a redirect to another host drops them.
-            let same_host: bool = current == url || host_of(&current) == host_of(url);
-            for (name, value) in headers {
-                if !same_host && name.eq_ignore_ascii_case("authorization") {
-                    continue;
-                }
-                let (Ok(header_name), Ok(header_value)) = (
-                    HeaderName::from_bytes(name.as_bytes()),
-                    HeaderValue::from_str(value),
-                ) else {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!("the header {name:?} is not valid"),
-                    });
-                };
-                builder = builder.header(header_name, header_value);
-            }
-            let request = match builder.body(Empty::<Bytes>::new()) {
-                Ok(built) => built,
-                Err(error) => {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!("cannot build the request: {error}"),
-                    });
-                }
-            };
-            let pending = self.client.request(request);
-            let response = match tokio::time::timeout(
-                Duration::from_secs(CONNECT_AND_HEADERS_TIMEOUT_SECONDS),
-                pending,
-            )
-            .await
-            {
-                Ok(Ok(answered)) => answered,
-                Ok(Err(error)) => {
-                    return Err(HttpError {
-                        url: current.clone(),
-                        message: format!("the request failed: {error}"),
-                    });
-                }
-                Err(_elapsed) => {
-                    return Err(HttpError {
-                        url: current.clone(),
-                        message: format!(
-                            "no response within {CONNECT_AND_HEADERS_TIMEOUT_SECONDS} seconds"
-                        ),
-                    });
-                }
-            };
-            if response.status().is_redirection() {
-                let Some(location) = response.headers().get(LOCATION).and_then(header_text) else {
-                    return Err(HttpError {
-                        url: current.clone(),
-                        message: "a redirect without a Location header".to_string(),
-                    });
-                };
-                current = match resolve_location(&current, location) {
-                    Ok(next) => next,
-                    Err(message) => {
-                        return Err(HttpError {
-                            url: current.clone(),
-                            message,
-                        });
-                    }
-                };
-                continue;
-            }
-            return Ok(response);
-        }
-        return Err(HttpError {
-            url: url.to_string(),
-            message: format!("more than {MAX_REDIRECTS} redirects"),
-        });
-    }
-
-    /// The bounded GET,
-    /// inside the runtime.
-    async fn get_async(
-        &self,
-        url: &str,
-        headers: &[(String, String)],
-        max_bytes: usize,
-    ) -> Result<HttpResponse, HttpError> {
-        let response = self.send(url, headers).await?;
-        let status: u16 = response.status().as_u16();
-        let mut body = response.into_body();
-        let mut collected: Vec<u8> = Vec::new();
-        loop {
-            let next = match tokio::time::timeout(
-                Duration::from_secs(DOWNLOAD_IDLE_TIMEOUT_SECONDS),
-                body.frame(),
-            )
-            .await
-            {
-                Ok(frame) => frame,
-                Err(_elapsed) => {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!(
-                            "the body stalled for {DOWNLOAD_IDLE_TIMEOUT_SECONDS} seconds"
-                        ),
-                    });
-                }
-            };
-            let Some(received_frame) = next else {
-                break;
-            };
-            let frame = match received_frame {
-                Ok(received) => received,
-                Err(error) => {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!("reading the body failed: {error}"),
-                    });
-                }
-            };
-            if let Some(data) = frame.data_ref() {
-                if collected.len() + data.len() > max_bytes {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!(
-                            "the response is larger than the {max_bytes} bytes this lookup accepts"
-                        ),
-                    });
-                }
-                collected.extend_from_slice(data);
-            }
-        }
-        return Ok(HttpResponse {
-            status,
-            body: collected,
-        });
-    }
-
-    /// The download,
-    /// inside the runtime.
-    async fn download_async(
-        &self,
-        url: &str,
-        target: &Path,
-        max_bytes: u64,
-    ) -> Result<String, HttpError> {
-        let response = self.send(url, &[]).await?;
-        let status: u16 = response.status().as_u16();
-        if !(200..300).contains(&status) {
-            return Err(HttpError {
-                url: url.to_string(),
-                message: format!("HTTP {status}"),
-            });
-        }
-        if let Some(parent) = target.parent()
-            && let Err(error) = std::fs::create_dir_all(parent)
-        {
-            return Err(HttpError {
-                url: url.to_string(),
-                message: format!("cannot create {}: {error}", parent.display()),
-            });
-        }
-        let mut file: File = match File::create(target) {
-            Ok(created) => created,
-            Err(error) => {
-                return Err(HttpError {
-                    url: url.to_string(),
-                    message: format!("cannot create {}: {error}", target.display()),
-                });
-            }
-        };
-        let mut hasher: Sha256 = Sha256::new();
-        let mut written: u64 = 0;
-        let mut body = response.into_body();
-        let started = std::time::Instant::now();
-        loop {
-            if started.elapsed() > Duration::from_secs(DOWNLOAD_TOTAL_TIMEOUT_SECONDS) {
-                return Err(HttpError {
-                    url: url.to_string(),
-                    message: format!(
-                        "the download took longer than {DOWNLOAD_TOTAL_TIMEOUT_SECONDS} seconds"
-                    ),
-                });
-            }
-            let next = match tokio::time::timeout(
-                Duration::from_secs(DOWNLOAD_IDLE_TIMEOUT_SECONDS),
-                body.frame(),
-            )
-            .await
-            {
-                Ok(frame) => frame,
-                Err(_elapsed) => {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!(
-                            "the download stalled for {DOWNLOAD_IDLE_TIMEOUT_SECONDS} seconds"
-                        ),
-                    });
-                }
-            };
-            let Some(received_frame) = next else {
-                break;
-            };
-            let frame = match received_frame {
-                Ok(received) => received,
-                Err(error) => {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!("reading the body failed: {error}"),
-                    });
-                }
-            };
-            if let Some(data) = frame.data_ref() {
-                written += data.len() as u64;
-                if written > max_bytes {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!(
-                            "the file is larger than the {max_bytes} bytes this download accepts"
-                        ),
-                    });
-                }
-                hasher.update(data);
-                if let Err(error) = file.write_all(data) {
-                    return Err(HttpError {
-                        url: url.to_string(),
-                        message: format!("cannot write {}: {error}", target.display()),
-                    });
-                }
-            }
-        }
-        return Ok(hex_of_digest(hasher.finalize().as_slice()));
-    }
-}
-
-/// A header value as text,
-/// or `None` when it is not visible ASCII.
-fn header_text(value: &HeaderValue) -> Option<&str> {
-    return value.to_str().ok();
-}
-
-/// The host part of a URL (`registry.npmjs.org`),
-/// or the empty text.
-fn host_of(url: &str) -> String {
-    return match url.parse::<Uri>() {
-        Ok(uri) => uri.host().unwrap_or("").to_string(),
-        Err(_) => String::new(),
-    };
-}
-
-/// Implements `HttpGet` for `HyperClient`.
-impl HttpGet for HyperClient {
-    /// Runs the bounded GET on the client's runtime.
-    fn get(
-        &self,
-        url: &str,
-        headers: &[(String, String)],
-        max_bytes: usize,
-    ) -> Result<HttpResponse, HttpError> {
-        require_https(url)?;
-        // The timer must be created inside the runtime, so the whole thing is one async block.
-        let bounded = async {
-            return tokio::time::timeout(
-                Duration::from_secs(GET_TIMEOUT_SECONDS),
-                self.get_async(url, headers, max_bytes),
-            )
-            .await;
-        };
-        return match self.runtime.block_on(bounded) {
-            Ok(result) => result,
-            Err(_elapsed) => Err(HttpError {
-                url: url.to_string(),
-                message: format!("not finished within {GET_TIMEOUT_SECONDS} seconds"),
-            }),
-        };
-    }
-
-    /// Runs the download on the client's runtime.
-    fn download(
-        &self,
-        url: &str,
-        target: &Path,
-        max_bytes: u64,
-    ) -> Result<String, HttpError> {
-        require_https(url)?;
-        return self
-            .runtime
-            .block_on(self.download_async(url, target, max_bytes));
-    }
-}
-
-/// What:
-/// An `HttpGet` that fails every request with the reason the real client could not be built.
-/// Why:
-/// A machine without root certificates still runs commands that need no network;
-/// only a command that
-///           reaches for the network fails,
-/// and the message says why.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unavailable = (reason: string): HttpGet => ({ get: (url) => { throw new HttpError(url, reason); }, ... });
-/// ```
-#[derive(Clone, Debug)]
-pub struct UnavailableNetwork {
-    /// Why the client could not be built.
-    pub reason: String,
-}
-
-/// Implements `HttpGet` for `UnavailableNetwork`.
-impl HttpGet for UnavailableNetwork {
-    /// Fails with the reason the client could not be built.
-    fn get(
-        &self,
-        url: &str,
-        _headers: &[(String, String)],
-        _max_bytes: usize,
-    ) -> Result<HttpResponse, HttpError> {
-        return Err(HttpError {
-            url: url.to_string(),
-            message: self.reason.clone(),
-        });
-    }
-
-    /// Fails with the reason the client could not be built.
-    fn download(
-        &self,
-        url: &str,
-        _target: &Path,
-        _max_bytes: u64,
-    ) -> Result<String, HttpError> {
-        return Err(HttpError {
-            url: url.to_string(),
-            message: self.reason.clone(),
-        });
-    }
-}
-
-/// The real client,
-/// or an `UnavailableNetwork` carrying the reason it could not be built.
-pub fn connect_or_explain() -> Box<dyn HttpGet> {
-    return match HyperClient::new() {
-        Ok(client) => Box::new(client),
-        Err(reason) => Box::new(UnavailableNetwork {
-            reason,
-        }),
-    };
-}
-
-/// What:
-/// An `HttpGet` that refuses every request.
-/// Why:
-/// `list` and `bin` never need the network;
-/// handing them this makes "they never touch it" a fact the
-///           compiler and a test can check,
-/// and gives a clear diagnostic if code ever tries.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const noNetwork: HttpGet = { get: (url) => { throw new HttpError(url, '...'); }, download: ... };
-/// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub struct NoNetwork;
-
-/// Implements `HttpGet` for `NoNetwork`.
-impl HttpGet for NoNetwork {
-    /// Refuses:
-    /// this command does not use the network.
-    fn get(
-        &self,
-        url: &str,
-        _headers: &[(String, String)],
-        _max_bytes: usize,
-    ) -> Result<HttpResponse, HttpError> {
-        return Err(HttpError {
-            url: url.to_string(),
-            message: "this command does not use the network".to_string(),
-        });
-    }
-
-    /// Refuses:
-    /// this command does not use the network.
-    fn download(
-        &self,
-        url: &str,
-        _target: &Path,
-        _max_bytes: u64,
-    ) -> Result<String, HttpError> {
-        return Err(HttpError {
-            url: url.to_string(),
-            message: "this command does not use the network".to_string(),
-        });
-    }
 }
