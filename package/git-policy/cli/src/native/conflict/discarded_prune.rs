@@ -45,8 +45,6 @@
 //! const removed = await pruneDiscarded({ commonDir, nowMillis, limits, keep: newestDirectoryName });
 //! ```
 
-/// The folder of saved copies inside a Git directory.
-use crate::conflict_sides::SAVED_DIRECTORY;
 /// The audit record's own path.
 use crate::discard_audit::AUDIT_FILE;
 /// The listing of the folder,
@@ -66,6 +64,8 @@ use crate::discarded_prune_removal::{
 use crate::discarded_store::Store;
 /// Whether the audit record can take the line a removal is about to write.
 use crate::log_lines_appended_without_a_lock::check_appendable;
+/// The folder of saved copies inside a Git directory.
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{
     Path,

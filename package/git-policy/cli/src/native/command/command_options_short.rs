@@ -19,10 +19,10 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Occurrence, OptionError, OptionSpec, ParsedOptions, ParseMode } from './command_options.ts';
+/// import { Occurrence, OptionError, OptionErrorKind, OptionSpec, OptionValue, ParseMode, ParsedOptions } from './command_options_types.ts';
 /// import { takeValue } from './command_options_value.ts';
 /// ```
-use crate::command_options::{
+use crate::command_options_types::{
     Occurrence,
     OptionError,
     OptionErrorKind,

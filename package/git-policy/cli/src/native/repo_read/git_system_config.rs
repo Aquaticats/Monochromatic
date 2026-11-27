@@ -36,6 +36,7 @@ use crate::git_version_cache::{
     read_cached_text,
     store_cached_text,
 };
+use crate::repo_read::git_system_config_asking::ask_git_var_explaining;
 use std::ffi::OsString;
 use std::path::{
     Path,
@@ -87,30 +88,13 @@ fn ask_git_var(
     real_git: &Path,
     variable: &str,
 ) -> Option<Vec<u8>> {
-    let mut command = std::process::Command::new(real_git);
-    command
-        .args(["var", variable])
-        .env_clear()
-        .env("LC_ALL", "C")
-        .current_dir("/")
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`), and it is a start of
-    //  the wrapper's own reading: nothing of the person's runs under it.
-    crate::started_as_git::mark_real_git_start(
-        &mut command,
-        crate::started_as_git::StartMode::Query,
-    );
-    let output = crate::captured_child_run_to_its_end::output_of_within_bound(
-        &mut command,
-        crate::wait_ceilings::PLUMBING_STEP_CEILING,
-    )
-    .ok()?;
-    return if output.status.success() {
-        Some(output.stdout)
-    } else {
-        None
-    };
+    // What:     the answer, or nothing with the reason it gave nothing said in the wrapper's diagnostics.
+    // Why:      `Option` cannot carry a reason, and issue 6540's failure could name no cause at all.
+    let asked: Result<Vec<u8>, String> = ask_git_var_explaining(real_git, variable);
+    if let Err(reason) = asked.as_ref() {
+        crate::diagnostic_log::warn("ask_git_var", reason.as_str());
+    }
+    return asked.ok();
 }
 
 /// What:

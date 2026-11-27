@@ -14,7 +14,6 @@
 //! ```
 
 use crate::call_catching_panics::call_catching_panics;
-use crate::git_metadata::MetadataOutput;
 #[cfg(unix)]
 use crate::repo_read_config_scan::ScopeEnvironment;
 #[cfg(unix)]
@@ -22,6 +21,17 @@ use crate::repo_read_query::{
     Answer,
     Query,
     answer_with,
+};
+use crate::the_output_a_captured_query_gives::MetadataOutput;
+/// The overlay entry a control writes to make every read start Git.
+#[cfg(test)]
+pub use crate::the_switch_that_turns_the_answers_off::switch_off;
+/// The switch that turns these answers off,
+/// which the layout reader asks too,
+/// and which lives in a file of its own so that neither file uses the other.
+pub use crate::the_switch_that_turns_the_answers_off::{
+    SWITCH_VARIABLE,
+    enabled,
 };
 use crate::transaction_git_request_and_reply_types::{
     GitContext,
@@ -31,40 +41,6 @@ use crate::transaction_git_request_and_reply_types::{
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::path::Path;
-
-/// The wrapper environment variable that turns the in-process answers off when it holds `off`.
-pub const SWITCH_VARIABLE: &str = "CLI_GIT_IN_PROCESS_READS";
-
-/// Whether the answers are enabled in this process and for this run's added variables.
-pub fn enabled(variables: &[(OsString, OsString)]) -> bool {
-    for (name, value) in variables {
-        if name == SWITCH_VARIABLE && value == "off" {
-            return false;
-        }
-    }
-    return match std::env::var_os(SWITCH_VARIABLE) {
-        Some(value) => value != "off",
-        None => true,
-    };
-}
-
-/// What:
-///  The overlay entry that makes a runner start Git for every command line.
-/// Why:
-///   Controls that count the starts of a stand-in Git,
-/// or that need an unstartable Git to fail,
-/// measure the process
-///  path,
-/// which stays the fallback for everything the readers decline.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const switchOff = [['CLI_GIT_IN_PROCESS_READS', 'off']];
-/// ```
-#[cfg(test)]
-pub fn switch_off() -> [(OsString, OsString); 1] {
-    return [(OsString::from(SWITCH_VARIABLE), OsString::from("off"))];
-}
 
 /// What:
 ///  Run a reader and turn a panic inside it into "start Git".

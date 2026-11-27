@@ -26,8 +26,8 @@ use crate::held_push_holder_and_verdict::{
     this_command,
     with_holding,
 };
-use crate::private_storage::{
-    create_private_directory_all,
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::{
     replace_private_file,
     replace_private_file_unsynced,
 };

@@ -554,35 +554,46 @@ fn hold_the_relay_statics() -> std::sync::MutexGuard<'static, ()> {
 /// Without the relay after publication the child runs its full 30 seconds and exits normally,
 /// so the assertion names the outcome:
 /// a child that was not signaled exits normally after its sleep.
+/// The step this control starts is refused when the service's stop was recorded in this process,
+/// and that stop belongs to the whole process,
+/// so this control runs its body in a child of its own
+/// (`crate::process_wide_state_child_test_support`),
+/// as issue 6531 found.
 #[cfg(unix)]
 #[test]
 fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
-    let _statics: std::sync::MutexGuard<'_, ()> = hold_the_relay_statics();
-    // Slot 1 is SIGTERM; the handler test uses slot 0, so the two tests never read each other's slot.
-    PENDING[1].store(libc::SIGTERM, std::sync::atomic::Ordering::SeqCst);
-    let mut command: Command = Command::new("sleep");
-    command.arg("30");
-    let told: crate::child_number_told_at_start::ChildNumber =
-        crate::child_number_told_at_start::ChildNumber::not_started();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(
-        &mut command,
-        true,
-        CeilingDuty {
-            told: &told,
-            bound: None,
-            while_held: None,
-            stall: None,
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published",
+        || {
+            let _statics: std::sync::MutexGuard<'_, ()> = hold_the_relay_statics();
+            // Slot 1 is SIGTERM; the handler test uses slot 0, so the two tests never read each other's slot.
+            PENDING[1].store(libc::SIGTERM, std::sync::atomic::Ordering::SeqCst);
+            let mut command: Command = Command::new("sleep");
+            command.arg("30");
+            let told: crate::child_number_told_at_start::ChildNumber =
+                crate::child_number_told_at_start::ChildNumber::not_started();
+            let outcome: ChildOutcome = run_on_runtime(run_relayed(
+                &mut command,
+                true,
+                CeilingDuty {
+                    told: &told,
+                    bound: None,
+                    while_held: None,
+                    stall: None,
+                },
+            ))
+            .expect("the runtime runs the child")
+            .expect("child runs")
+            .0;
+            assert_eq!(
+                outcome,
+                ChildOutcome::Signaled(libc::SIGTERM),
+                "the pending SIGTERM reaches the child"
+            );
+            PENDING[1].store(0, std::sync::atomic::Ordering::SeqCst);
         },
-    ))
-    .expect("the runtime runs the child")
-    .expect("child runs")
-    .0;
-    assert_eq!(
-        outcome,
-        ChildOutcome::Signaled(libc::SIGTERM),
-        "the pending SIGTERM reaches the child"
     );
-    PENDING[1].store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// The first guard of a process owns the handlers;
@@ -870,32 +881,43 @@ fn an_inherited_ignore_is_not_replaced_by_the_guard() {
 
 /// The wait ends when the child has exited,
 /// reports its status and leaves it reaped.
+/// The step this control starts is refused when the service's stop was recorded in this process,
+/// and that stop belongs to the whole process,
+/// so this control runs its body in a child of its own
+/// (`crate::process_wide_state_child_test_support`),
+/// as issue 6531 found.
 #[cfg(target_os = "linux")]
 #[test]
 fn waiting_ends_at_the_childs_exit_and_reports_it() {
-    let mut command: Command = Command::new("sleep");
-    command.arg("1");
-    // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
-    let started: Instant = Instant::now();
-    let told: crate::child_number_told_at_start::ChildNumber =
-        crate::child_number_told_at_start::ChildNumber::not_started();
-    let duty: CeilingDuty<'_> = CeilingDuty {
-        told: &told,
-        bound: None,
-        while_held: None,
-        stall: None,
-    };
-    // The wait publishes the child's number to the relay statics, so it holds the same lock the other in-process controls do.
-    let _statics: std::sync::MutexGuard<'_, ()> = hold_the_relay_statics();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty))
-        .expect("the runtime runs the child")
-        .expect("the child runs")
-        .0;
-    assert!(
-        started.elapsed() >= Duration::from_millis(800),
-        "the wait lasted until the child exited"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "waiting_ends_at_the_childs_exit_and_reports_it",
+        || {
+            let mut command: Command = Command::new("sleep");
+            command.arg("1");
+            // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
+            let started: Instant = Instant::now();
+            let told: crate::child_number_told_at_start::ChildNumber =
+                crate::child_number_told_at_start::ChildNumber::not_started();
+            let duty: CeilingDuty<'_> = CeilingDuty {
+                told: &told,
+                bound: None,
+                while_held: None,
+                stall: None,
+            };
+            // The wait publishes the child's number to the relay statics, so it holds the same lock the other in-process controls do.
+            let _statics: std::sync::MutexGuard<'_, ()> = hold_the_relay_statics();
+            let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty))
+                .expect("the runtime runs the child")
+                .expect("the child runs")
+                .0;
+            assert!(
+                started.elapsed() >= Duration::from_millis(800),
+                "the wait lasted until the child exited"
+            );
+            assert_eq!(outcome, ChildOutcome::Exited(0));
+        },
     );
-    assert_eq!(outcome, ChildOutcome::Exited(0));
 }
 
 /// A signal that interrupts the waiting thread does not end the wait;

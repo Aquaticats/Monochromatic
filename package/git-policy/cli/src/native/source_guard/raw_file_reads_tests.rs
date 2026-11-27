@@ -102,7 +102,6 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ),
     ("foundation/runtime_limits.rs", 5, "system"),
     ("health/doctor_filesystem.rs", 1, "system"),
-    ("invocation/real_git_candidate.rs", 2, "person-path"),
     ("invocation/started_as_git.rs", 2, "system"),
     ("landing/claim_time.rs", 2, "system"),
     ("landing/earlier_service_command_line_read.rs", 1, "system"),

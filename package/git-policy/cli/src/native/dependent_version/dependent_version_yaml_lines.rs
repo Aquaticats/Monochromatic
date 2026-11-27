@@ -92,14 +92,16 @@ impl YamlProblem {
     }
 }
 
-/// The scalar a line holds after its key or its dash.
-#[path = "dependent_version_yaml_lines_scalar.rs"]
-mod dependent_version_yaml_lines_scalar;
 /// The quoted-scalar reader `split_key` shares with the scalar reader.
-use self::dependent_version_yaml_lines_scalar::read_quoted;
+use crate::dependent_version_yaml_lines_scalar::read_quoted;
 /// Every scalar form,
 /// re-exported so callers keep reading it from this module.
-pub use self::dependent_version_yaml_lines_scalar::read_scalar;
+pub use crate::dependent_version_yaml_lines_scalar::read_scalar;
+/// The spacing test and the indicator test a line and its scalar both ask.
+use crate::dependent_version_yaml_lines_scalar::{
+    is_space_or_tab,
+    refused_indicator,
+};
 
 /// What:
 /// The spaces the generated configuration puts after a sequence dash.
@@ -321,89 +323,6 @@ pub fn item_content(content: &str) -> &str {
         return "";
     }
     return content.strip_prefix("- ").unwrap_or("");
-}
-
-/// What:
-/// Whether a character separates text on a line:
-/// a space or a tab.
-/// Why:
-///  YAML ends a plain scalar at a comment,
-/// and separates a key from its value,
-///       with either;
-/// treating only a space as one would read a comment
-///       as part of a package name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isSpaceOrTab = (c: string) => c === ' ' || c === '\t';
-/// ```
-fn is_space_or_tab(character: char) -> bool {
-    return character == ' ' || character == '\t';
-}
-
-/// What:
-/// The indicator a plain scalar or key begins with,
-/// when this reader does not follow it.
-/// Why:
-///  A tag (`!`),
-/// anchor (`&`),
-/// alias (`*`),
-/// block scalar (`|`,
-///       `>`),
-/// directive (`%`),
-/// reserved character (`@`,
-/// backtick),
-/// flow collection
-///       (`[`,
-/// `]`,
-/// `{`,
-/// `}`,
-/// `,`),
-/// comment (`#`) or quote makes the line mean something other
-///       than the text this reader would store;
-/// `-`,
-/// `?` and `:` begin a plain
-///       scalar only when a non-space follows,
-/// so an item indicator or an explicit
-///       key is refused too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refusedIndicator(text: string): string | undefined;
-/// ```
-fn refused_indicator(text: &str) -> Option<char> {
-    let first: char = text.chars().next()?;
-    if matches!(
-        first,
-        '!' | '&'
-            | '*'
-            | '|'
-            | '>'
-            | '%'
-            | '@'
-            | '`'
-            | '['
-            | ']'
-            | '{'
-            | '}'
-            | ','
-            | '#'
-            | '\''
-            | '"'
-    ) {
-        return Some(first);
-    }
-    if matches!(first, '-' | '?' | ':') {
-        let after: &str = &text[first.len_utf8()..];
-        let separated: bool = match after.chars().next() {
-            None => true,
-            Some(next) => is_space_or_tab(next),
-        };
-        if separated {
-            return Some(first);
-        }
-    }
-    return None;
 }
 
 /// What:
