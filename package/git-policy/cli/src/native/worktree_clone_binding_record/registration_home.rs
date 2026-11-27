@@ -135,7 +135,7 @@ pub fn binding_name(slot: &str) -> String {
 /// ```ts
 /// bindingPath('/repo/.git', 'topic'); // '/repo/.git/monochromatic-git-policy-cli/worktree-clones/v1/topic.binding'
 /// ```
-pub fn binding_path(
+pub(crate) fn binding_path(
     common_dir: &Path,
     slot: &str,
 ) -> PathBuf {
