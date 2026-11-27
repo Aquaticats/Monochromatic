@@ -41,10 +41,7 @@ use std::ffi::{
     OsString,
 };
 use std::fs::File;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::Path;
 use std::time::{
     Duration,
     SystemTime,
