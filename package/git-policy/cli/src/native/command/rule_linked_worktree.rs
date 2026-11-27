@@ -61,7 +61,7 @@ use crate::command_discard::{
     skip_discard,
     switch_discard,
 };
-use crate::command_options::{
+use crate::command_options_types::{
     OptionError,
     OptionSpec,
 };

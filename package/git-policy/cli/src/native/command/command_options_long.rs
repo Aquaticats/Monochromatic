@@ -13,6 +13,11 @@
 //! // scanLongOption({ args, index, table, mode, parsed }): number  // tokens consumed
 //! ```
 
+use crate::command_options_long_resolution::{
+    Candidate,
+    Resolution,
+    resolve_long_option,
+};
 /// What:
 ///  Bring the tokenizer types and the shared value decision into this file.
 /// Why:
@@ -20,21 +25,16 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Occurrence, OptionError, OptionSpec, ParsedOptions, ParseMode } from './command_options.ts';
+/// import { Occurrence, OptionError, OptionSpec, OptionValue, ParseMode, ParsedOptions } from './command_options_types.ts';
 /// import { takeValue } from './command_options_value.ts';
 /// ```
-use crate::command_options::{
+use crate::command_options_types::{
     Occurrence,
     OptionError,
     OptionSpec,
     OptionValue,
     ParseMode,
     ParsedOptions,
-};
-use crate::command_options_long_resolution::{
-    Candidate,
-    Resolution,
-    resolve_long_option,
 };
 use crate::command_options_value::{
     Spelling,
