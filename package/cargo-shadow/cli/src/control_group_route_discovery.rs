@@ -30,6 +30,18 @@
 /// ```
 use crate::control_group_route_child_runs::run_plain;
 /// What:
+/// `use crate::control_group_route_manager_reach::a_refusal_that_ends_the_asking;` imports the read that says nothing on this host
+/// could carry an ask to a user manager.
+/// Why:
+/// A host with no manager refuses every ask at once,
+/// so the one failure that host gives ends the discovery instead of spending the whole span of the asking again (issue 6629).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { aRefusalThatEndsTheAsking } from 'crate/control_group_route_manager_reach';
+/// ```
+use crate::control_group_route_manager_reach::a_refusal_that_ends_the_asking;
+/// What:
 /// `use crate::inherited_limits::{InheritedLimits, caller_limits};` imports the limits a scope keeps from its caller and the read of them.
 /// Why:
 /// A scope that did not carry the caller's limits would loosen the run it bounds.
@@ -379,21 +391,28 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
 /// ten controls whose asks began about half a second after a reexec had ended (issue 6623):
 /// no ask failed in the five seconds after any reexec measured here,
 /// so nothing is sized to that event and it stays open.
-/// Cost where no manager answers:
-/// 0.810 s and five asks per call,
-/// measured in a container with none (README,
+/// Where no user manager can be reached at all,
+/// which is not the case these attempts are for:
+/// the first failed ask is not put again,
+/// because the discovery reads in its own process that nothing here could carry another one
+/// (`control_group_route_manager_reach`),
+/// so a call there makes one ask and spends no wait (README,
 /// "Development").
 const ASKING_AGAIN_ATTEMPTS: u32 = 5;
 
-/// How long the discovery waits before it asks the same question again.
+/// How long the discovery waits before it asks the same question again,
+/// where a manager could be reached and did not answer for a moment.
 /// What it rests on:
 /// the longest reexec measured across which asks fail (0.588 s,
 /// 2026-11-27),
 /// so that four waits of this length hold the question open past the end of one however early in it the first ask fell,
 /// and a copy of each figure is in `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
-/// An ask that spent its own deadline is not made again at all (see `ask_where_the_slice_is`),
-/// so this wait is never spent on a host whose manager does not answer.
-const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
+/// This wait is spent on one case only:
+/// a manager that can be reached and did not answer for a moment.
+/// An ask that spent its own deadline inside its bound is not made again (see `ask_where_the_slice_is`),
+/// and an ask that failed where no user manager can be reached is not made again either,
+/// because nothing here could carry a second one.
+pub(crate) const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
 
 /// What one ask of the manager left when it answered nothing:
 /// the words of the failure,
@@ -523,9 +542,12 @@ fn spent_its_bound(
 /// A run and every control that needs a delegated scope ask this before they may do anything,
 /// and one failed ask is not the host's answer about itself:
 /// the same host answers a moment later (issue 6619).
-/// An ask whose program spent its own deadline is the one failure that is not put again,
+/// Two failures are not put again.
+/// An ask whose program spent its own deadline is one,
 /// because a manager that answered nothing inside its bound is what a host without one looks like,
 /// and a second ask would only spend a second bound.
+/// A host where nothing could carry an ask to a manager at all is the other,
+/// which the discovery reads in its own process rather than from the words of the refusal (issue 6629).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -549,6 +571,19 @@ fn ask_where_the_slice_is(settings: &RouteSettings) -> Result<String, String> {
             Err(failed) => {
                 if failed.spent_its_deadline {
                     return Err(failed.reason);
+                }
+                // What:     `a_refusal_that_ends_the_asking(settings, &failed.reason)` says what to refuse with where nothing on
+                //           this host could carry an ask to a user manager.
+                // Why:      The same failure is that host's whole answer, so putting the question again only spends the span the
+                //           asking again is sized to (issue 6629).
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const refusal = aRefusalThatEndsTheAsking(settings, failed.reason)
+                // if (refusal !== undefined) throw new Error(refusal)
+                // ```
+                if let Some(refusal) = a_refusal_that_ends_the_asking(settings, &failed.reason) {
+                    return Err(refusal);
                 }
                 last = failed.reason;
             }
