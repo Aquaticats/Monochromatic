@@ -75,8 +75,8 @@ What the copy decides for itself:
   the inner half proves with `/proc/self/uid_map` that its id 0 stands for another id outside:
   the variable alone would mount in whatever namespace a process that inherited it runs in.
 - The inner half is waited for with a deadline and ended if it never ends;
-  the control itself took about 20 ms
-  here in a release build.
+  the control itself took under 0.1 s
+  in every run here in a release build.
 
 On a Unix platform with no unprivileged user namespace the control fails and names itself when the root
 refuses the name,
@@ -109,3 +109,52 @@ there refused a name that is not UTF-8
 ```
 
 Both lines rest on real invocations of the test binary on this host on 2026-11-27.
+
+## Checks
+
+Run on 2026-11-27 in `package/forbidden-strings/cli` on the branch after its last merge of `origin/main`,
+each once,
+each inside its own `systemd-run --user --scope --slice=agent-work.slice` with `MemoryMax`,
+`CPUQuota`,
+`TasksMax`,
+`IOWeight=1` and `RuntimeMaxSec`:
+
+- `cargo fmt --check`:
+  no output,
+  exit 0.
+- `cargo check --locked --offline --all-targets`:
+  exit 0.
+- `cargo clippy --locked --offline --all-targets -- -D warnings`:
+  exit 0,
+  no warning.
+- `mise run //package/forbidden-strings/cli:test`:
+  `365 tests run: 365 passed, 0 skipped`.
+- `/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint package/forbidden-strings/cli`,
+  from the
+  repository root:
+  exit 0.
+  Its one line is a `rust/avoidable-closure` warning,
+  not a finding:
+  it says the Dylint driver for this toolchain is absent and that nothing in this package was checked by that
+  rule,
+  so the run says nothing about closures.
+  Its `--fix` pass rewrapped the prose in this package and removed the two pre-existing
+  `markdown/semantic-line-breaks` findings the package's README carried.
+
+Not run,
+and why:
+
+- `mise run //package/forbidden-strings/cli:lint:clippy:windows`:
+  no `x86_64-pc-windows-gnu` target is installed
+  on this machine,
+  so the not-Unix side of this change is reasoned and not compiled here.
+- `mise run //package/forbidden-strings/cli:verify:markdown`:
+  it passed on this tree before the last merges and
+  fails after them with `Expected one installed unified renderer, found 0`,
+  because this worktree's
+  `node_modules/.pnpm` holds only `lock.yaml`;
+  a `pnpm install` in a worktree is not this round's to run.
+  The repository linter's CommonMark pipeline still parsed this document and the README.
+- The package's container tasks,
+  its mutation tasks and its fuzz tasks:
+  outside this change's subject.

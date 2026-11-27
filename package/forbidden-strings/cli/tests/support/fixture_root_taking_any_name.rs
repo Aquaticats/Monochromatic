@@ -173,7 +173,7 @@ const ONE_TEST_PASSED: &str = "test result: ok. 1 passed; 0 failed";
 ///  A child that never ends would hold the whole test run,
 /// and a run under `cargo nextest` has no per-test
 ///  stop of its own here;
-///  the control itself ended in about 20 ms on this host on 2026-11-27 in a release build,
+///  the control itself ended in under 0.1 s in every run on this host on 2026-11-27 in a release build,
 ///  so this bound is far above its work and only ends a child that never ends.
 #[cfg(target_os = "linux")]
 const CHILD_DEADLINE: Duration = Duration::from_secs(120);
