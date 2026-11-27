@@ -74,8 +74,11 @@ use crate::crates::{
 /// import { PolicyJudge } from 'crate/install';
 /// ```
 use crate::install::PolicyJudge;
-/// The refused run's own words, so the update and the install refuse one way.
-/// Why: both keep a journal and say the same thing about it, and all that differs is the nouns of what the run would have written.
+/// The refused run's own words,
+/// so the update and the install refuse one way.
+/// Why:
+/// both keep a journal and say the same thing about it,
+/// and all that differs is the nouns of what the run would have written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

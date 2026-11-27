@@ -1092,7 +1092,8 @@ so the look answers `Collected`,
 which asks the manager nothing and prints nothing,
 and whatever the unit was is left loaded.
 
-The read is what a control settles, on 2026-11-27:
+The read is what a control settles,
+on 2026-11-27:
 `control_group_retire_scope_not_made_yet_tests` in `package/cargo-shadow/cli/src/`
 starts a real scope with a real member in it,
 reads its own directory first (the warning says the unit keeps its member),
@@ -1122,15 +1123,18 @@ Two exist:
 asking the manager whether the unit is still loaded
 (`systemctl --user show <unit> --property=LoadState --value`),
 which the alpha.12 release asked and a later release removed because it cost a scoped run a program start
-(see "What cargo-shadow does now", the measurement of the cost),
+(see "What cargo-shadow does now",
+the measurement of the cost),
 or a record the run makes of the group it made,
 so that an absent directory afterwards is a group the manager collected
 and an absent directory with no such record is one that was never made.
 The second keeps the ordinary path free of program starts,
 and it needs that record to reach the look,
 which lives in `src/bounded_run_end.rs` and `src/control_group_retire.rs`;
-the first is a change of that step's cost, not of its correctness.
-Until one of them is chosen, the sentence in `README.md` that a group which is gone was collected
+the first is a change of that step's cost,
+not of its correctness.
+Until one of them is chosen,
+the sentence in `README.md` that a group which is gone was collected
 holds for a group the manager removed and not for one that was never made.
 
 #### The test that left one, found and closed (2026-11-27)

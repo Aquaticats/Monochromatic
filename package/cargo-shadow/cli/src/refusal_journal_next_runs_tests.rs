@@ -17,8 +17,11 @@
 //! because only two call sites of this crate read a kept journal (`src/install.rs` and `src/update.rs`)
 //! and the rest of the commands reach neither.
 //! Every kind measured here was first seen on a kept journal a killed wrapper left
-//! (`/home/user/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/evidence/10-next-runs`),
-//! and each leg here starts from a refusal instead, so what a refusal leaves is measured rather than assumed.
+//! (the read of `0.1.5-alpha.15` of 2026-11-27,
+//! Low 6,
+//! which named four settling kinds and the fast path that the refusal's sentence did not),
+//! and each leg here starts from a refusal instead,
+//! so what a refusal leaves is measured rather than assumed.
 //! Every leg here starts from a real refusal:
 //! the stop is made to report that the scope vanished between the last `populated` read and the listing
 //! (`ContainmentStopStuck` and `ContainmentScopeGoneAtListing`),
@@ -31,15 +34,19 @@
 //! // describe('the next run after a refusal', () => { it('a pass-through leaves the journal', ...) })
 //! ```
 
-/// Holds the count of started runs the helper watches, and the callback that reads it.
+/// Holds the count of started runs the helper watches,
+/// and the callback that reads it.
 use std::cell::Cell;
-/// Holds the counters the fakes of the update leg keep, and the count of the starts the helper watches.
+/// Holds the counters the fakes of the update leg keep,
+/// and the count of the starts the helper watches.
 use std::cell::RefCell;
 /// Holds the versions the fake registry answers with.
 use std::collections::BTreeMap;
 /// Copies text into an owned `String`.
 use std::ffi::OsString;
-/// Reads and writes the fixture's files, the stand-ins, and the child's exit code.
+/// Reads and writes the fixture's files,
+/// the stand-ins,
+/// and the child's exit code.
 use std::fs;
 /// Makes the stand-in cargo executable.
 use std::os::unix::fs::PermissionsExt;
@@ -66,24 +73,33 @@ use crate::cgroup_test_support::{
     scope_directory_of,
     wait_until,
 };
-/// The catalog commands themselves, so a leg can make the run a person types (`cargo-shadow install`, `update`).
-/// Why: `install` and `update` are the two call sites that read a kept journal, and the ones the refusal names.
-/// Gotcha: `std::process::Command` is the spawned process, so this one is named for the catalog grammar it is.
+/// The catalog commands themselves,
+/// so a leg can make the run a person types (`cargo-shadow install`,
+/// `update`).
+/// Why:
+/// `install` and `update` are the two call sites that read a kept journal,
+/// and the ones the refusal names.
+/// Gotcha:
+/// `std::process::Command` is the spawned process,
+/// so this one is named for the catalog grammar it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { Command as CatalogCommand } from './cli.ts';
 /// ```
 use crate::cli::Command as CatalogCommand;
-/// The catalog marker file, so the leg that needs a directory outside every catalog repository can prove it has one.
-/// Why: a directory that did have the marker above it would settle a journal and the leg would show nothing.
+/// The catalog marker file,
+/// so the leg that needs a directory outside every catalog repository can prove it has one.
+/// Why:
+/// a directory that did have the marker above it would settle a journal and the leg would show nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { CATALOG_MARKER } from './constants.ts';
 /// ```
 use crate::constants::CATALOG_MARKER;
-/// The one decision the refuse-on test arms: the stop's report and the listing of a scope that went away.
+/// The one decision the refuse-on test arms:
+/// the stop's report and the listing of a scope that went away.
 use crate::failpoints::{
     Point,
     arm,
@@ -92,13 +108,16 @@ use crate::failpoints::{
 use crate::http::RegistryError;
 /// The journal directories of a fixture.
 use crate::journal_support::journal_dirs;
-/// One release of one crate, as a registry answers it.
+/// One release of one crate,
+/// as a registry answers it.
 use crate::policy::VersionRecord;
 /// The registry the update asks about versions.
 use crate::registry::Registry;
-/// The tests' own scratch directory, beside the build output.
+/// The tests' own scratch directory,
+/// beside the build output.
 use crate::test_scratch::scratch;
-/// Renders the catalog into the manifests, which the update calls after it resolves.
+/// Renders the catalog into the manifests,
+/// which the update calls after it resolves.
 use crate::tighten::Syncer;
 /// The update's own entry point and the two values it is called with.
 use crate::update::{
@@ -106,7 +125,8 @@ use crate::update::{
     UpdateRequest,
     update_rust_lockfiles,
 };
-/// What a fake cargo answers and how it is asked, for the install step and the update.
+/// What a fake cargo answers and how it is asked,
+/// for the install step and the update.
 use monochromatic_dependency_catalog::Settings;
 /// The trust policy the fixture's catalog states.
 use monochromatic_dependency_catalog::TrustPolicy;
@@ -117,8 +137,10 @@ const FIXTURE_ROOT: &str = "CARGO_SHADOW_FIXTURE_ROOT";
 const NEXT_RUN: &str = "CARGO_SHADOW_NEXT_RUN";
 /// The crate root inside the fixture's catalog repository.
 const CRATE_DIR: &str = "package/x/y";
-/// A second crate of the same catalog repository, whose lockfile already satisfies its manifests.
-/// Why: a run in a crate whose stamp and remembered pass are fresh takes the fast path without reading the journal.
+/// A second crate of the same catalog repository,
+/// whose lockfile already satisfies its manifests.
+/// Why:
+/// a run in a crate whose stamp and remembered pass are fresh takes the fast path without reading the journal.
 const OTHER_CRATE_DIR: &str = "package/x/z";
 /// A lockfile that does not satisfy its manifests.
 const STALE: &str = "# stale\nversion = 4\n";
@@ -130,7 +152,8 @@ const SATISFIED: &str = "# satisfied\nversion = 4\n";
 /// writes a satisfied lock on a plain `update`,
 /// answers `metadata` with an empty package list of this workspace,
 /// and prints a marker for anything else.
-/// A stand-in: no claim about real cargo rests on it.
+/// A stand-in:
+/// no claim about real cargo rests on it.
 const FAKE_CARGO: &str = "#!/bin/sh\n\
 echo \"$@\" >> \"$FAKE_CARGO_LOG\"\n\
 if [ \"$1\" = update ]; then\n\
@@ -147,7 +170,8 @@ fi\n\
 echo \"fake-cargo-ran $@\"\n\
 exit 0\n";
 
-/// The fixture's settings, which match the catalog the fixture writes.
+/// The fixture's settings,
+/// which match the catalog the fixture writes.
 fn settings() -> Settings {
     // What:     `Settings { .. }` is the catalog's parsed settings, built field by field here.
     // Why:      The fixture writes a catalog file; the update and the install step are handed the settings the same way a
@@ -234,14 +258,16 @@ impl CargoRunner for FakeCargo {
     }
 }
 
-/// A registry with no versions of anything, which is every crate this fixture's lock names.
+/// A registry with no versions of anything,
+/// which is every crate this fixture's lock names.
 struct EmptyRegistry;
 
 /// What:
 /// `impl Registry for EmptyRegistry` answers nothing about any crate.
 /// Why:
 /// The fixture's lockfile names no dependency,
-/// so the update asks about none, and a registry that answers "none" says so if one is ever asked.
+/// so the update asks about none,
+/// and a registry that answers "none" says so if one is ever asked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -275,7 +301,8 @@ impl Registry for EmptyRegistry {
     }
 }
 
-/// A catalog sync that renders nothing, which the update calls after it resolves.
+/// A catalog sync that renders nothing,
+/// which the update calls after it resolves.
 struct NoSync;
 
 /// What:
@@ -298,14 +325,16 @@ impl Syncer for NoSync {
 }
 
 /// What:
-/// `struct Fixture` is one catalog repository whose lockfile is stale, and the stand-in cargo beside it.
+/// `struct Fixture` is one catalog repository whose lockfile is stale,
+/// and the stand-in cargo beside it.
 /// Why:
 /// Every leg of this file needs the same world,
 /// and the refusal leaves the journal in it.
 struct Fixture {
     /// The scratch directory that holds the repository and the stand-ins.
     root: tempfile::TempDir,
-    /// The directory the fake cargo stands in, first on the child's `PATH`.
+    /// The directory the fake cargo stands in,
+    /// first on the child's `PATH`.
     programs: PathBuf,
     /// The log the fake cargo appends its calls to.
     log: PathBuf,
@@ -323,7 +352,9 @@ struct Fixture {
 /// ```
 impl Fixture {
     /// What:
-    /// `fn made() -> Fixture` writes the catalog, the crate, its stale lockfile and the stand-in cargo.
+    /// `fn made() -> Fixture` writes the catalog,
+    /// the crate,
+    /// its stale lockfile and the stand-in cargo.
     /// Why:
     /// A fixture that is not a catalog repository would make the install step skip,
     /// and the test would show nothing.
@@ -435,14 +466,16 @@ struct Ran {
     stdout: String,
     /// What the child wrote to standard error.
     stderr: String,
-    /// The status the child's run answered, or the harness's status where the run answered none.
+    /// The status the child's run answered,
+    /// or the harness's status where the run answered none.
     code: i32,
 }
 
 /// What:
 /// `impl Ran` reads the child's text the way a person reads it.
 /// Why:
-/// Every assertion is about a line of that text, never about the whole of it.
+/// Every assertion is about a line of that text,
+/// never about the whole of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -470,7 +503,8 @@ impl Ran {
 /// What:
 /// `fn run_one(fixture: &Fixture, name: &str, frozen: bool) -> Ran` makes one next run in the refused crate.
 /// Why:
-/// Most legs run where the refusal ran; only the fast-path leg runs in the other crate.
+/// Most legs run where the refusal ran;
+/// only the fast-path leg runs in the other crate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -551,7 +585,8 @@ fn run_one_in(
 }
 
 /// The helper process:
-/// it makes the one run its parent names, in the fixture its parent built,
+/// it makes the one run its parent names,
+/// in the fixture its parent built,
 /// and writes the status it answered.
 /// Run on its own it does nothing.
 #[test]
@@ -848,7 +883,9 @@ fn an_update_after_a_refusal_settles_the_kept_journal() {
     );
 }
 
-/// The words a run prints when it settles a kept journal, names one, or prints the command that acknowledges one.
+/// The words a run prints when it settles a kept journal,
+/// names one,
+/// or prints the command that acknowledges one.
 /// Why:
 /// The child re-enters this test binary,
 /// so its own harness lines name `refusal_journal_next_runs_tests`;
@@ -1059,7 +1096,8 @@ fn an_update_dry_run_after_a_refusal_settles_the_kept_journal() {
 }
 
 /// The control of `cargo metadata`:
-/// it resolves dependencies, so it enters the install step and settles the kept journal.
+/// it resolves dependencies,
+/// so it enters the install step and settles the kept journal.
 #[test]
 fn a_cargo_metadata_run_after_a_refusal_settles_the_kept_journal() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
