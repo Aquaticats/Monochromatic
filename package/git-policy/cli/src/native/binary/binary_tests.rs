@@ -1010,6 +1010,12 @@ mod service_amend;
 #[path = "binary_service_landing_support_what_a_repository_holds.rs"]
 mod service_landing_support_what_a_repository_holds;
 
+/// The finished record a landing writes,
+/// the wait a control makes for it,
+/// and what a control says when it does not arrive.
+#[path = "binary_service_landing_support_the_record_a_landing_writes.rs"]
+mod service_landing_support_the_record_a_landing_writes;
+
 /// The twin harness of the landing controls:
 /// native Git in one byte copy,
 /// the service in the other,

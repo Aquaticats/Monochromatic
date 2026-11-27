@@ -30,7 +30,7 @@ use crate::merge_isolation_journal::{
     list_merge_intents,
     parse_merge_intent,
 };
-use crate::merge_isolation_kept_copies_decisions::sweep_kept_copies_awaiting;
+use crate::merge_isolation_kept_copies_decisions_sweep::sweep_kept_copies_awaiting;
 use crate::merge_isolation_recovery::settle_failed_merge_awaiting;
 use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_place::RecoveryPlace;
