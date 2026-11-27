@@ -63,7 +63,7 @@ lines 18920 to 18932):
 > called from `build_index` in `service_land_follow.rs`;
 
 and `package/git-policy/cli/src/native/landing/service_land_follow.rs`,
-lines 237 to 243:
+lines 232 to 243:
 
 ```text
     let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
@@ -78,7 +78,7 @@ So the copy starts as the live index,
 and the entries the person staged are in it,
 with the stat data the person's own `git add` wrote
 (`package/git-policy/cli/SPEC.md`,
-line 18977,
+line 18949,
 "filled from the live index while the lock is held").
 
 The paths the reset names are either the list the command carried
@@ -158,7 +158,7 @@ states the same rule for the landing:
 
 The fifth condition is in the source and in `stamp_proves_one_version`
 (`src/native/index/index_reset_worktree_stat_proofs.rs`,
-lines 138 to 140),
+lines 124 to 127),
 and the `SPEC.md` list states four of the five;
 that gap is worth its own small correction,
 and none was made here.
@@ -373,7 +373,7 @@ an index file written a moment after the entries it describes puts every one of 
 and every read of them hashes.
 That is why the landing puts the live index's times back onto the copy after each write of it
 (`package/git-policy/cli/SPEC.md`,
-lines 18979 to 18991),
+lines 17553 to 17562),
 and why a cheap form that writes stat data has to keep that discipline to help rather than to hide.
 
 ## What was measured
