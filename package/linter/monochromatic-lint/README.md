@@ -947,13 +947,22 @@ so a finding is never reported twice.
   breadth first,
   so each message spells the fewest uses that lead back,
   and each use takes its route from that one table.
+  The table every walk reads is built once for the package,
+  so a package of many groups whose own files close loops reads its graph once,
+  not once per group.
+  When several routes are equally short,
+  each step takes the entry whose path sorts first,
+  so the message spells the smallest route,
+  never the one a walk happened to reach first.
   A walk per use read the graph once for each of them instead,
   which cost 14 to 16 times alpha.15's time on a package of 2,000 folders whose one group's own file uses all of them
-  (measured on 2026-11-26 in interleaved rounds, on the run's own CPU time,
+  (measured on 2026-11-26 in interleaved rounds,
+  on the run's own CPU time,
   because the host's wall time for one run swung from 27 to 547 seconds while its CPU time stayed near 27):
   this release spends 0.07 of alpha.16's CPU time there in each of three rounds,
   0.14 to 0.16 on the same shape with 1,000 folders and thirty uses each,
-  and 0.98 to 1.00 on the shape above with its loop open, where nothing is walked,
+  and 0.98 to 1.00 on the shape above with its loop open,
+  where nothing is walked,
   against 0.94 to 1.11 between two runs of one binary.
   Measured on 2026-11-26,
   one process per binary per round in its own capped scope,
@@ -987,6 +996,23 @@ so a finding is never reported twice.
   against 1.00 to 1.02 between two runs of one binary,
   and 1.01 to 1.04 on the three-layer package,
   where the walk costs alpha.16 0.90 to 1.05 of the run with empty own files and this release 1.00 to 1.05.
+  The shape the release read measured is the one with many groups that each close a loop
+  (300 folders that each use every later one,
+  beside 100 groups whose own files each close one loop,
+  about 45,000 uses),
+  and there the closing arm costs 0.80 to 1.10 times the same binary's open arm on this branch,
+  where alpha.17's costs 3.83 to 5.49 times its own and alpha.16's 0.77 to 0.94;
+  on the same shape in miniature (120 folders,
+  40 groups) the three are 1.07 to 1.14,
+  1.94 to 2.06 and 1.03 to 1.06
+  (three interleaved rounds,
+  each figure inside one binary and its control arm in the same round,
+  on the run's own CPU time,
+  2026-11-27).
+  No ratio between two of these three binaries is a finding here,
+  because a binary built in this worktree spends 1.02 to 1.54 times the released alpha.16's and alpha.17's time
+  on the same shape with its loop open,
+  where no walk runs.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
   which uses a child folder of every group,
@@ -1321,13 +1347,19 @@ such a line is read as the key it spells,
 matches the finding whose key it is,
 and is reported as tolerating nothing any more when no finding prints it.
 The uses and the keys of a list are indexed once when it is read,
-so a rule answers each finding from that index and never walks the entries again:
+so a rule answers each use and each key from that index and never walks the entries for one:
 on a package whose 62,750 keys a run prints back as the list,
 alpha.16 spent 2.3 to 2.7 times its own CPU time on that tree with an empty list,
 and this release 0.8 to 1.0 times over four rounds,
 ranges that do not overlap (measured on 2026-11-26).
 The ratio sits below one because a run whose findings the list tolerates prints none of them,
 so once the scan is gone the listed run is the cheaper one.
+A `file-uses` line is matched by walking the entries instead,
+because a folder holds few files:
+an index for the file uses of a list that holds 517 of them measured 0.86 to 1.04 times the walk's CPU time,
+against 0.87 to 0.98 between two runs of one binary
+(three interleaved rounds on `package/git-policy/cli`,
+2026-11-27).
 
 A rule reports the key of each finding it makes in `--debug`,
 as a note that reads `allow-list key: <key>`,
@@ -1741,7 +1773,8 @@ and every other line stays as it is.
   so a line naming a folder whose name holds a space,
   a tab or a no-break space reads back,
   where alpha.16 could not read such a line at all.
-  No alpha.16 list can hold one, because alpha.16 refused those lines,
+  No alpha.16 list can hold one,
+  because alpha.16 refused those lines,
   so no line of a list written then changes meaning.
   A line whose words are set off by exactly one whitespace character each reads as the four words,
   as a line written with tabs always did,
@@ -1754,6 +1787,31 @@ and every other line stays as it is.
   is refused with one `core/processing-failure`,
   where alpha.16 printed a key that named another folder,
   so the name is changed rather than recorded.
+- A loop finding that two equally short routes lead back from spells the route its backward walk reached first,
+  where alpha.16 spelled the route its forward walk reached,
+  so the message of such a finding names other folders and its key names the same use.
+
+#### How a list written before alpha.18 maps
+
+A tree that holds one of these shapes needs no regeneration,
+and every other line stays as it is.
+
+- A tie between two routes of one length now spells the route whose entries sort first,
+  so a loop finding of such a tree names a different route than alpha.17 did,
+  and its key,
+  which names the use that closes the loop,
+  is unchanged.
+- A listed path is read back against the package folder and written the way a key writes it,
+  so `uses ../p/src/a -> src/b` beside the package folder `p` names the use that
+  `uses src/a -> src/b` names:
+  that line tolerates its use where alpha.17 kept it alive and tolerated nothing,
+  and a folder outside the package keeps the spelling `../outside` its keys print.
+- A group whose own file closes a loop costs the size of the graph once for the package
+  and not once per group,
+  so a package of many such groups pays for its graph once,
+  as alpha.16 did,
+  and no key changes.
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
