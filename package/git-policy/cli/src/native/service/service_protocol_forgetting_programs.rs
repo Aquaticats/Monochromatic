@@ -15,8 +15,10 @@
 //! ```
 
 use crate::path_bytes_in_records as path_bytes;
-use crate::service_protocol::ClientMessage;
-use crate::service_protocol_messages_and_name_checks::MAX_FORGOTTEN_RECORDS;
+use crate::service_protocol_messages_and_name_checks::{
+    ClientMessage,
+    MAX_FORGOTTEN_RECORDS,
+};
 use serde_json::Value;
 use std::path::PathBuf;
 

@@ -1092,6 +1092,27 @@ and an HTTP 429 is retried after its `Retry-After`.
   A private lockfile that the checks approve before it is published is not possible with the pinned nightly,
   and the window is accepted and documented here (owner rule "Use as few locks as possible";
   delegated pick of 2026-11-03).
+- The lean pass sizes an entry by the disk blocks it holds
+  (`allocated_bytes_of` in `src/lean_removal/deletion_walk.rs`),
+  and a file system need not have accounted the blocks of a fresh file yet:
+  on this host's ZFS pool a file written a moment ago reports one 512-byte block
+  until a transaction group commits
+  (measured 2026-11-27:
+  8192 bytes of one repeated byte reported 1 block written and 9 blocks eight seconds later,
+  and 100000 random bytes reported 1 and then 217;
+  `doc/troubleshooting/zfs-reports-one-block-for-a-file-written-moments-ago.md`).
+  No entry the pass may remove is that fresh:
+  a run record written within a day is never removed (`RECORD_PROTECT_SECONDS`)
+  and only records past the retention age go (`RECORD_RETENTION_SECONDS`),
+  a unit is kept until its last invocation is older than `GRACE_SECONDS`,
+  and a tree until it has been idle for `TREE_IDLE_SECONDS` or `UNIDENTIFIED_TREE_IDLE_SECONDS`,
+  so everything it deletes was written days before it read the sizes.
+  What a fresh entry can do is understate one directory's total,
+  which makes a cap reachable one pass later than it would be otherwise
+  (the service runs a pass a minute,
+  `PAUSE_BETWEEN_PASSES_SECONDS`).
+  It changes no decision about what to remove:
+  every decision is taken from an entry's own age against one of those windows.
 - The step needs the network only for the policy checks of newly locked versions and for a frozen install's verification of a lockfile it has not seen;
   the lock check and the update run offline (the check drops `--offline` in CI,
   where no registry index is cached).
@@ -1421,6 +1442,13 @@ recorded in the log line of every removal:
   and refusing every removal while another user's system daemon exists would stop the sweep wherever the build base is
   world-searchable (the host base here is on a `0777` mount with a `uid 70` daemon running,
   measured 2026-11-08).
+  On this host that count is always zero:
+  the account's home folder is mode `700`,
+  so every build base below it denies another user the way in,
+  whatever the base's own mode is
+  (measured 2026-11-27 with `/home/user` at `700` and `/home/user/.cargo/build` at `755`,
+  issue 6551;
+  the reading is `other_uids_can_reach` in `src/lean_proc_scan.rs`).
   The limit is therefore narrowed and named,
   not closed:
   the proof line says how many processes it could not judge and which kind,
@@ -1530,6 +1558,22 @@ Unit tests sit beside the modules as `*_tests.rs`;
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
 
+A control that sizes a fixture it wrote a moment earlier counts by the fixture's length
+(`length_bytes` in `src/lean_test_support.rs`),
+not by the disk blocks it holds (`allocated_bytes_of`),
+and sets that rule through `lean_sizes::ByteCount`:
+`sweep_run_records`,
+`SizeCap` and `delete_claimed` all take it.
+On this host's ZFS pool a fresh file reports one block until a transaction group commits,
+and once it has,
+the pool's compression alone can put an 8192-byte file at 4608 bytes,
+so a control that read those blocks would decide on a number neither it nor the tool produced
+(measured 2026-11-27,
+issue 6552;
+`doc/troubleshooting/zfs-reports-one-block-for-a-file-written-moments-ago.md`).
+The tools pass `allocated_bytes_of` as the same rule,
+because their caps and their freed-byte reports are about the disk (the "Limits" heading).
+
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
 its bound plus twice `QUIESCE_BOUND` (5 s).
 On this host under a load average near 100,
@@ -1621,6 +1665,19 @@ exit status 0,
 and no per-test line naming any of them.
 Before this change that host reported `872 tests run: 872 passed` with the same 67 tests never executed.
 
+Two controls of the `/proc` scan (`lean_proc_scan_tests`) build a tree that a process of another user must be able to
+walk to,
+and the answer they check is read from every folder between `/` and that tree.
+On this host the account's home folder is mode `700`
+(measured 2026-11-27,
+issue 6551),
+so no tree below the build folder can be reached by another user whatever the fixture does to its own bits.
+The fixtures therefore stand in a temporary folder of their own below a folder every user can walk to
+(`/dev/shm` first,
+then `/var/tmp`),
+and where the host has neither,
+each control prints the `not run` line above with its reason and the `test` task leaves it out of its totals.
+
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store
 [pnpm-resolution]: https://pnpm.io/settings/dependency-resolution
@@ -1630,9 +1687,7 @@ Before this change that host reported `872 tests run: 872 passed` with the same 
 ## Owner answers of 2026-11-10
 
 - Asked whether `cargo-shadow lean` may remove a run record another user's process might hold,
-  when that
-  process cannot be inspected,
+  when that process cannot be inspected,
   the owner answered at 2026-11-10T08:24:33-05:00:
-  "Keep removing and
-  logging (Recommended)".
+  "Keep removing and logging (Recommended)".
   So the sweep keeps removing and logs each record it removes.

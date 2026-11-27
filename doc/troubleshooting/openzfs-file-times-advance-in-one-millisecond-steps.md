@@ -188,6 +188,100 @@ each plant reverted after its run:
   `a_source_written_after_the_stamp_fails_the_final_check` among them,
   which is what keeps the control's own claim from going hollow.
 
+## The discarded prune removed a directory whose change time did not move (issue 6544)
+
+`conflict::discarded_prune::guard_tests::a_file_added_after_the_listing_keeps_the_directory`
+writes a file into a directory the pass has just listed,
+and expects the pass to keep the directory and say why.
+Measured on 2026-11-27 on `main`,
+the control failed in one run of three of itself and in two runs of three of `conflict::`,
+and that run failed with exactly the panic issue 6544 recorded:
+
+```text
+thread 'conflict::discarded_prune::guard_tests::a_file_added_after_the_listing_keeps_the_directory' panicked at src/native/conflict/discarded_prune_guard_tests.rs:450:59:
+kept: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+```
+
+A run passes when a tick boundary falls between the listing and the control's write,
+which is what the runs that passed show and what the failing runs do not contradict;
+I did not instrument the span between the two,
+so how often a run lands on one side is a measurement of the runs above,
+not of the span.
+
+### What the pass assumed
+
+`remove_entry` (`src/native/conflict/discarded_prune_removal.rs`)
+compared the identity it had listed with the identity of the directory it opened,
+change time included,
+and removed the directory without reading its names whenever the two were equal.
+The comment beside it said why a moved change time is not a replacement by itself:
+another pass emptying the directory moves it too.
+The unstated half was that a change time that did not move means the directory gained nothing,
+and a write inside the listing's own tick makes that half false.
+
+### The fix
+
+The pass compares device and inode alone for the identity of the directory,
+which is what `remove_empty_directory` already compares,
+and reads the names every time:
+only a directory that holds nothing the listing did not see is removed,
+and a directory that gained a file is kept and reported as `EntryChanged`.
+No clock is read on the path that decides a removal.
+
+Repeats with the change in place:
+
+```text
+the control alone, 3 runs     1 passed; 0 failed each
+the prune module, 3 runs      32 passed; 0 failed each
+```
+
+A second control pins the decision without racing a clock:
+`a_directory_whose_change_time_did_not_move_is_judged_by_what_it_holds`
+hands the removal the identity the directory has now,
+change time included,
+and a listing that never named the file.
+Taken with the change out,
+it failed `0 passed; 1 failed` on the read of the added file,
+and with the change in it passed.
+
+### What it costs
+
+The added look is one further read of a removed directory's names,
+and of every directory below it:
+two more `getdents64` calls for each directory level,
+and one more `newfstatat` for each name it holds.
+Measured with `strace -c` on one control that removes two one-file directories in a single pass
+(`discarded_prune::tests::a_pass_removes_the_chosen_directories_and_audits_each`),
+before the fix and after it,
+one run each twice,
+the same counts in both runs of each arm:
+
+```text
+               getdents64  newfstatat  unlinkat  fstat  total
+before the fix         35          14        12     27     88
+after the fix          39          16        12     29     96
+```
+
+So these system calls rise by a ratio of 1.09 (96 to 88),
+for two removed directories that hold one file each,
+and a removed directory costs one further names read.
+Wall time is not where that shows.
+Five pairs of the prune module,
+before and after,
+interleaved in one round,
+gave the ratios below,
+with the runs themselves spread from 0.13 s to 1.05 s,
+so the added look is inside this host's spread of the same controls:
+
+```text
+pair   before   after   ratio
+1      0.51 s   1.05 s  2.06
+2      0.41 s   0.32 s  0.78
+3      0.25 s   0.21 s  0.84
+4      0.20 s   0.13 s  0.65
+5      0.24 s   0.30 s  1.25
+```
+
 ## What is not claimed
 
 - Only ZFS was measured,

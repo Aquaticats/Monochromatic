@@ -1296,8 +1296,18 @@ the launcher that builds the session's environment asks it, once, before it make
   `piStartFailures` holds every start that ended before its Pi took the prompt,
   each with its exit, the pause that followed it and the last lines Pi printed,
   `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
+  `startThatEndedWithoutARun` holds the waits that ended a start before the prompt was taken,
+  each with its bound, how long it had waited, why no run happened, and what to do next
+  (the section "A start that ended without a run"),
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
+- `start-ended-without-a-run.txt`:
+  the line a start that ended without a run leaves,
+  which is the same line the driver prints and the launcher prints,
+  and the only record a start that ended before the driver could write a summary leaves.
+  It names the wait that ended the start, the bound that wait is given, how long it had waited, why no run happened,
+  and what to do next.
+  It is written under its own name and never over one an earlier attempt left.
 - `stderr.log`:
   Pi's standard error.
   A run whose Pi is started more than once adds each start's output to this one file,
@@ -1788,6 +1798,34 @@ or names the compaction that was still running when the run ended,
 and it is there however the run ended:
 a run that ended at its wall clock or on a model error after a compaction Pi could not finish carries it too.
 
+### A start that ended without a run
+
+Every ending before the prompt is taken names what ended it, because an ending that does not is a start nobody can act on.
+Three places carry the same facts:
+
+- `start-ended-without-a-run.txt` in the run folder, written for every such ending, including the ones that end before a
+  summary can be written;
+- the line the driver prints as it ends, which appends the same sentence to the end reason when a summary exists;
+- the launcher's own output, which prints the file's line after a unit that failed, because a start that wrote no summary
+  has nothing else to tell a caller how it ended.
+
+The facts are the wait in words a reader can follow (`get_state`, `get_commands`, the run's first prompt, the sops decrypt of
+the checkout's store, the bound that refuses another start), the bound that wait is given, how long it had waited, and what to
+do next. A wait Pi left or a run's deadline ended has no bound of its own to name, and the line says which of the two ended it
+instead.
+
+The ways a start can end this way, each with its own test:
+
+- the sops read of the checkout's store reaches `SOPS_TIMEOUT_MS`, so no value of this machine's secret environment can be masked
+  and Pi is never started;
+- the folder a run gives Pi for its temporary files cannot be made;
+- the session a run was told to resume cannot be masked into this run's copy of it;
+- Pi never answers `get_state`, the first of the three answers;
+- Pi answers its state and never answers `get_commands`, so the masking cannot be confirmed and no prompt is sent;
+- Pi answers both and never takes the first prompt;
+- Pi answers its command list without the command that arms the masking;
+- Pi leaves before it takes the prompt, on every start the driver makes.
+
 ### A Pi that exits before it takes the prompt
 
 Pi writes why it will not start to its standard error and nowhere else,
@@ -1893,6 +1931,8 @@ and four runs were still waiting 90 to 91 seconds after Pi started when the old 
 `prompt-rejected`.
 Each of the three still stops counting silence while Pi reports a compaction,
 and the run's wall clock still ends them.
+A start that ends on one of them says which one, at what bound, and for how long it had waited,
+in the run folder and in what the launcher prints (the section "A start that ended without a run").
 
 ## Which layer retries what
 
@@ -2303,6 +2343,10 @@ or give it a smaller `--deadline-seconds`;
 the driver README says why a call that cannot be cancelled also cannot be waited out.
 
 ### What the tests reach
+
+`PI_RUNS_START_UP_ANSWER_MILLISECONDS` gives the three start-up answers a bound of the test's own, in milliseconds. The shipped
+bound is two minutes and no unit test can spend that on each of the three answers, so a test that needs a Pi which never answers
+sets this. A launcher never sets it, so no run of this machine is bounded by anything but `START_UP_ANSWER_MILLISECONDS`.
 
 `systemctl` and `ps` sit behind one seam,
 a function that runs a command and answers with what it printed,

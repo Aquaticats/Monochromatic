@@ -63,6 +63,11 @@ use crate::service_route::{
     route_from_environment,
 };
 use crate::service_work::work_directory;
+use crate::the_names_and_the_manifest_of_the_trash::{
+    PendingTrash,
+    TRASH_PARENT,
+    TRASH_REFERENCE,
+};
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{
     ANSWER_CEILING,
@@ -79,11 +84,6 @@ use crate::work_item::{
     WorkKind,
     enqueue,
     state_directory,
-};
-use crate::worktree_trash::{
-    PendingTrash,
-    TRASH_PARENT,
-    TRASH_REFERENCE,
 };
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt as _;

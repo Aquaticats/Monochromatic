@@ -52,12 +52,10 @@ use crate::private_storage::{
 };
 /// Random member names.
 use crate::random_id::random_uuid;
-/// The facts a creation is made from,
-/// and the creation without a commit's own parts.
-use crate::shadow_create::{
-    ShadowTemplate,
-    create_shadow_template,
-};
+/// The facts a creation is made from.
+use crate::shadow_create_template::ShadowTemplate;
+/// The creation without a commit's own parts.
+use crate::shadow_create_the_commit_free_parts::create_shadow_template;
 /// Whether a worktree's shadows can be taken from a pool at all.
 use crate::shadow_links::keeps_its_own_info;
 /// What a member must be for this invocation.

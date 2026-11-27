@@ -346,7 +346,6 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
             );
             held.let_go();
             wait_until_settled(&world);
-            remove(serving.directory.as_path());
             remove(world.root.as_path());
         },
     );
@@ -430,7 +429,6 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
             );
             held.let_go();
             wait_until_settled(&world);
-            remove(serving.directory.as_path());
             remove(world.root.as_path());
         },
     );
@@ -482,7 +480,6 @@ fn a_commit_whose_note_the_store_answers_does_not_wait_for_that_ceiling() {
                 world.repo.join(".git").as_path(),
             );
             wait_until_settled(&world);
-            remove(serving.directory.as_path());
             remove(world.root.as_path());
         },
     );

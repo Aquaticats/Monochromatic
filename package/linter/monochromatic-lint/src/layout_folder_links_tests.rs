@@ -10,7 +10,10 @@
 //! test('a used folder without a link is reported', () => expect(check(tree)).toEqual([...]));
 //! ```
 
-use super::check_folder_links;
+use super::{
+    check_folder_links,
+    counted_work,
+};
 use crate::{
     layout_finding::LayoutFinding,
     layout_module_uses::collect_uses,
@@ -733,4 +736,268 @@ fn the_missing_link_help_warns_about_a_looped_crate() {
         hazard < command,
         "the warning must come before the command: {help}"
     );
+}
+
+/// Write the shape the walk cost was measured on:
+///  `plain` folders that each use every later one,
+///  and `groups` groups whose own file uses a folder that uses a child of the group,
+///  so each of those own-file uses closes one loop.
+fn package_of_groups_closing_one_loop(
+    plain: usize,
+    groups: usize,
+) -> crate::test_fs::Fixture {
+    // What: the module declarations of the root, which every folder below needs.
+    // Why: a folder that no `mod` line reaches is no folder of the tree.
+    let mut lib: String = String::new();
+    let mut files: Vec<(String, String)> = Vec::<(String, String)>::new();
+    for index in 0..plain {
+        lib.push_str(format!("mod f{index};\n").as_str());
+        // What: one plain folder that uses every later plain folder.
+        // Why: those uses make the searched graph large without closing any loop of their own.
+        let mut body: String = String::new();
+        for later in index + 1..plain {
+            body.push_str(format!("use crate::f{later}::F;\n").as_str());
+        }
+        body.push_str("pub struct F;\n");
+        files.push((format!("src/f{index}/mod.rs"), body));
+    }
+    for index in 0..groups {
+        lib.push_str(format!("mod g{index};\nmod x{index};\n").as_str());
+        files.push((
+            format!("src/g{index}/mod.rs"),
+            format!("pub mod c{index};\npub mod own;\n"),
+        ));
+        files.push((
+            format!("src/g{index}/c{index}/mod.rs"),
+            String::from("pub struct C;\n"),
+        ));
+        files.push((
+            format!("src/g{index}/own.rs"),
+            format!("use crate::x{index}::X;\n"),
+        ));
+        // What: the folder the group's own file uses, which uses a child of the group back.
+        // Why: that use is what closes the own-file loop, so the group has a route to walk.
+        files.push((
+            format!("src/x{index}/mod.rs"),
+            format!("use crate::g{index}::c{index}::C;\npub struct X;\n"),
+        ));
+    }
+    let mut listed: Vec<(&str, &str)> = vec![("src/lib.rs", lib.as_str())];
+    for (path, body) in &files {
+        listed.push((path.as_str(), body.as_str()));
+    }
+    return package_with(listed.as_slice());
+}
+
+/// Every loop a group's own file closes is found, so the controls below measure a walk that ran.
+fn own_file_loops_of(root: &Path) -> Vec<String> {
+    return findings_of(root)
+        .into_iter()
+        .filter(|text| return text.contains("These entries use each other in a loop"))
+        .collect::<Vec<String>>();
+}
+
+/// The reverse index of the searched graph is built once for the package,
+///  and each group whose own file closes a loop is walked back once,
+///  however many groups close one:
+///  a cost of one graph per group would build the index once per group.
+#[test]
+fn one_reverse_index_answers_every_group_that_closes_a_loop() {
+    let fixture = package_of_groups_closing_one_loop(5, 3);
+    counted_work::reset();
+    let loops: Vec<String> = own_file_loops_of(&fixture.path);
+    assert_eq!(loops.len(), 3, "the control found no loop: {loops:#?}");
+    assert_eq!(
+        counted_work::reverse_indexes(),
+        1,
+        "the reverse index is one table for the package, not one per group"
+    );
+    assert_eq!(
+        counted_work::walks(),
+        3,
+        "one walk per group, not one per use and not one per package"
+    );
+}
+
+/// A group whose own file uses two folders, each of which uses a different child of the group,
+///  closes two loops in one group:
+///  both findings are reported, and one walk answers both of them.
+#[test]
+fn one_walk_answers_two_loops_of_one_group() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g;\nmod x;\nmod y;\n"),
+        ("src/g/mod.rs", "pub mod c0;\npub mod c1;\npub mod own;\n"),
+        ("src/g/c0/mod.rs", "pub struct C0;\n"),
+        ("src/g/c1/mod.rs", "pub struct C1;\n"),
+        // What: one own file whose two uses leave the group towards two different entries.
+        // Why: both entries reach the group back by their own child, so this one group has two loops.
+        ("src/g/own.rs", "use crate::x::X;\nuse crate::y::Y;\n"),
+        ("src/x/mod.rs", "use crate::g::c0::C0;\npub struct X;\n"),
+        ("src/y/mod.rs", "use crate::g::c1::C1;\npub struct Y;\n"),
+    ]);
+    counted_work::reset();
+    let loops: Vec<String> = own_file_loops_of(&fixture.path);
+    assert_eq!(loops.len(), 2, "{loops:#?}");
+    assert!(
+        loops.iter().any(|text| return text
+            .contains("These entries use each other in a loop: src/g uses src/x ")),
+        "{loops:#?}"
+    );
+    assert!(
+        loops.iter().any(|text| return text
+            .contains("These entries use each other in a loop: src/g uses src/y ")),
+        "{loops:#?}"
+    );
+    assert_eq!(
+        counted_work::walks(),
+        1,
+        "one walk answers every own-file use of one group"
+    );
+    assert_eq!(
+        counted_work::reverse_indexes(),
+        1,
+        "one group still reads the graph's reverse index once"
+    );
+}
+
+/// Two shortest routes of one length back to the group are decided by the path names:
+///  each step takes the successor that sorts first,
+///  so the message spells the route through `a` and never the one through `b`.
+#[test]
+fn an_equal_length_tie_spells_the_smallest_route() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "mod a;\nmod b;\nmod c;\nmod d;\nmod g;\nmod x;\n",
+        ),
+        ("src/g/mod.rs", "pub mod c0;\npub mod own;\n"),
+        ("src/g/c0/mod.rs", "pub struct G;\n"),
+        ("src/g/own.rs", "use crate::x::X;\n"),
+        // What: the used entry, which reaches the group by two routes of three uses each.
+        // Why: `a` sorts before `b`, so the smallest route is the one through `a`.
+        (
+            "src/x/mod.rs",
+            "use crate::a::A;\nuse crate::b::B;\npub struct X;\n",
+        ),
+        ("src/a/mod.rs", "use crate::d::D;\npub struct A;\n"),
+        ("src/b/mod.rs", "use crate::c::C;\npub struct B;\n"),
+        ("src/c/mod.rs", "use crate::g::c0::G;\npub struct C;\n"),
+        ("src/d/mod.rs", "use crate::g::c0::G;\npub struct D;\n"),
+    ]);
+    let loops: Vec<String> = own_file_loops_of(&fixture.path);
+    assert_eq!(loops.len(), 1, "{loops:#?}");
+    assert!(
+        loops[0].contains("src/x uses src/a"),
+        "the tie spells the smallest route: {}",
+        loops[0]
+    );
+    assert!(
+        !loops[0].contains("src/x uses src/b"),
+        "the tie spells one route only: {}",
+        loops[0]
+    );
+}
+
+/// A `uses` line that climbs out of the package with `..` and comes back in
+///  names the folder its key names,
+///  so it tolerates the use it spells rather than staying alive and tolerating nothing.
+#[cfg(unix)]
+#[test]
+fn a_listed_path_that_climbs_out_and_back_tolerates_the_use_it_names() {
+    let fixture = a_loop_of_three();
+    let name: String = fixture
+        .path
+        .file_name()
+        .expect("the fixture folder has a name")
+        .to_string_lossy()
+        .into_owned();
+    let listed: String =
+        format!("uses ../{name}/src/a -> src/b\nuses src/b -> src/c\nuses src/c -> src/a\n");
+    assert_eq!(
+        findings_with(&fixture.path, listed.as_str()),
+        Vec::<String>::new(),
+        "the alias names the same use as `uses src/a -> src/b`"
+    );
+    // What: the control, an alias that names a use no code makes.
+    // Why: it must still be dead, so the reading above does not make every climbing path alive.
+    let dead: Vec<String> = findings_with(
+        &fixture.path,
+        format!("uses ../{name}/src/a -> src/z\n").as_str(),
+    );
+    assert!(
+        dead.iter()
+            .any(|text| return text.contains("tolerates nothing any more")),
+        "{dead:#?}"
+    );
+}
+
+/// The findings of a package with an allow list, as the rule made them,
+///  so a control can read a finding's help and not only its message.
+fn findings_asked_with(
+    root: &Path,
+    lines: &str,
+) -> Vec<LayoutFinding> {
+    let tree = tree_of(root);
+    assert!(tree.problems.is_empty(), "{:?}", tree.problems);
+    let uses = collect_uses(&tree);
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+        .expect("the fixture list is valid");
+    return check_folder_links(&tree, uses.as_slice(), root, Some(&list));
+}
+
+/// Write the smallest package whose group's own file closes a loop through `x`,
+///  where `x` reaches the group both directly and through `a`.
+fn write_two_route_min(fixture: &crate::test_fs::Fixture) {
+    crate::run_test_support::write(&fixture.path, "src/lib.rs", "mod a;\nmod g;\nmod x;\n");
+    crate::run_test_support::write(&fixture.path, "src/g/mod.rs", "pub mod c0;\npub mod own;\n");
+    crate::run_test_support::write(&fixture.path, "src/g/c0/mod.rs", "pub struct G;\n");
+    crate::run_test_support::write(&fixture.path, "src/g/own.rs", "use crate::x::X;\n");
+    crate::run_test_support::write(&fixture.path, "src/x/mod.rs", "pub mod f;\n");
+    crate::run_test_support::write(
+        &fixture.path,
+        "src/x/f.rs",
+        "use crate::a::A;\nuse crate::g::c0::G;\npub struct X;\n",
+    );
+    crate::run_test_support::write(&fixture.path, "src/a/mod.rs", "pub mod f;\n");
+    crate::run_test_support::write(
+        &fixture.path,
+        "src/a/f.rs",
+        "use crate::g::c0::G;\npub struct A;\n",
+    );
+}
+
+/// A use that joins a loop a group's own file closes says how a list written before the change
+///  is migrated: delete that loop's `own-file-loop` lines and write the lines the next run prints.
+///  Only this help says so, so a run that lost the sentence would send a reader to edit a list
+///  that no round may grow.
+#[test]
+fn a_use_joining_a_tolerated_own_file_loop_says_how_to_migrate_the_list() {
+    let fixture = package_with(&[]);
+    write_two_route_min(&fixture);
+    // What: the list that holds the loop and nothing of its uses, which is what alpha.15 wrote.
+    // Why: that is the state the extra sentence is about, and the state a use added later meets.
+    let listed: &str = "group-file src/g own.rs\nown-file-loop src/g -> src/x\n";
+    let found: Vec<LayoutFinding> = findings_asked_with(&fixture.path, listed);
+    let joining: Vec<&LayoutFinding> = found
+        .iter()
+        .filter(|item| {
+            return item
+                .message
+                .contains("and both sit inside one loop the allow list tolerates today");
+        })
+        .collect::<Vec<&LayoutFinding>>();
+    assert!(!joining.is_empty(), "{found:#?}");
+    for item in &joining {
+        let help: &str = item.help.as_deref().expect("the finding has help");
+        assert!(
+            help.contains("If this list was written before alpha.16"),
+            "the help names the migration: {help}"
+        );
+        assert!(
+            help.contains(
+                "delete those lines, run once with `--debug`, and write every line it prints"
+            ),
+            "the help says what to do: {help}"
+        );
+    }
 }

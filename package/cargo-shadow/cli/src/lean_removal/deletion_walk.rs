@@ -14,8 +14,8 @@
 //! export function widenedMode(mode: number): number
 //! function openDirectory(path: string, metadata: Stats, walk: Walk): string | undefined
 //! function deleteEntry(path: string, walk: Walk): void
-//! export function deleteClaimed(claimed: string, judged: Identity): Deleted  // throws Refusal
-//! export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number): Deleted  // throws Refusal
+//! export function deleteClaimed(claimed: string, judged: Identity, countBytes: ByteCount): Deleted  // throws Refusal
+//! export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number, countBytes: ByteCount): Deleted  // throws Refusal
 //! ```
 /// Imports what a completed deletion did.
 use super::item_and_deletion_record::Deleted;
@@ -26,6 +26,8 @@ use crate::lean_identity::{
     Identity,
     identity_of,
 };
+/// Imports how a walk counts an entry's bytes.
+use crate::lean_sizes::ByteCount;
 /// Imports the effective user id,
 /// which is the user a removal acts as.
 use rustix::process::geteuid;
@@ -52,7 +54,14 @@ const OWNER_ACCESS_BITS: u32 = 0o700;
 /// `pub fn allocated_bytes_of(metadata: &fs::Metadata) -> u64` is the disk space an entry occupies (blocks of 512 bytes).
 /// Why:
 /// Freed space is reported by what the files occupy,
-/// not by their apparent length.
+/// not by their apparent length,
+/// so this is the rule every tool of this package counts by.
+/// Gotcha:
+/// A file system need not have accounted a fresh file's blocks yet:
+/// on this host's ZFS a file written a moment ago reports one 512-byte block until the pool's transaction group commits
+/// (measured 2026-11-27,
+/// issue 6552),
+/// which is why a control that sizes what it just wrote counts by `length_bytes` instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,6 +136,9 @@ struct Walk<'a> {
     /// The user the removal runs as,
     /// which decides whose directory mode it may change.
     this_uid: u32,
+    /// How the walk counts an entry's bytes,
+    /// which its caller sets.
+    count_bytes: ByteCount,
     /// What it did.
     deleted: Deleted,
     /// The files already counted,
@@ -210,7 +222,7 @@ fn delete_entry(
             inode: metadata.ino(),
         });
     if first {
-        walk.deleted.bytes += allocated_bytes_of(&metadata);
+        walk.deleted.bytes += (walk.count_bytes)(&metadata);
     }
     match fs::remove_file(path) {
         Ok(()) => {}
@@ -223,8 +235,8 @@ fn delete_entry(
 }
 
 /// What:
-/// `pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<Deleted, Refusal>` deletes a claimed entry after
-/// checking its identity once more,
+/// `pub fn delete_claimed(claimed: &Path, judged: Identity, count_bytes: ByteCount) -> Result<Deleted, Refusal>` deletes a
+/// claimed entry after checking its identity once more,
 /// and reports what it removed.
 /// Why:
 /// The device and inode are checked just before the unlink,
@@ -232,30 +244,32 @@ fn delete_entry(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function deleteClaimed(claimed: string, judged: Identity): Deleted  // throws Refusal
+/// export function deleteClaimed(claimed: string, judged: Identity, countBytes: ByteCount): Deleted  // throws Refusal
 /// ```
 pub fn delete_claimed(
     claimed: &Path,
     judged: Identity,
+    count_bytes: ByteCount,
 ) -> Result<Deleted, Refusal> {
-    return delete_claimed_as(claimed, judged, geteuid().as_raw());
+    return delete_claimed_as(claimed, judged, geteuid().as_raw(), count_bytes);
 }
 
 /// What:
-/// `pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32) -> Result<Deleted, Refusal>` deletes a
-/// claimed entry as the given user.
+/// `pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32, count_bytes: ByteCount) -> Result<Deleted, Refusal>`
+/// deletes a claimed entry as the given user.
 /// Why:
 /// The directory whose mode a removal may change is the one this user owns,
 /// and a test can act as a user who owns nothing of the fixture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number): Deleted  // throws Refusal
+/// export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number, countBytes: ByteCount): Deleted  // throws Refusal
 /// ```
 pub(crate) fn delete_claimed_as(
     claimed: &Path,
     judged: Identity,
     this_uid: u32,
+    count_bytes: ByteCount,
 ) -> Result<Deleted, Refusal> {
     let found: Identity = match identity_of(claimed) {
         Ok(identity) => identity,
@@ -279,6 +293,7 @@ pub(crate) fn delete_claimed_as(
     let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
     let mut walk: Walk<'_> = Walk {
         this_uid,
+        count_bytes,
         deleted: Deleted::default(),
         seen: &mut seen,
     };

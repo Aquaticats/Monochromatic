@@ -15,20 +15,27 @@
 //! removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
 //! ```
 
-use super::{
-    ATTEMPTS,
-    GITDIR_HEX_PREFIX,
-    TAG,
+use crate::diagnostic_log::warn;
+use crate::path_bytes_in_records as path_bytes;
+use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
+use crate::process_identity::process_birth_identity;
+use crate::worktree_removal_snapshot_promotion::{
     files_of,
     name_of,
-    path_bytes,
 };
-use crate::diagnostic_log::warn;
-use crate::process_identity::process_birth_identity;
 use std::path::{
     Path,
     PathBuf,
 };
+
+/// Tag used for diagnostics from this module.
+pub(super) const TAG: &str = "worktreeRemovalRescue";
+
+/// Directory in a snapshot that holds one file per command that took or retook it,
+/// named by the command's process number
+///  and holding the process's birth identity.
+pub(super) const ATTEMPTS: &str = "attempts";
+
 /// What a Git directory,
 /// the process that took a snapshot,
 /// and the checkout say about a removal.
