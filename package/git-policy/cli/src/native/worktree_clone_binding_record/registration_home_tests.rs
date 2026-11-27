@@ -12,7 +12,8 @@ use std::path::{
     PathBuf,
 };
 
-/// The home is under the wrapper's own folder, one family and one version down.
+/// The home is under the wrapper's own folder,
+/// one family and one version down.
 #[test]
 fn the_home_is_the_wrappers_folder_one_family_and_one_version_down() {
     let home: PathBuf = home_folder(Path::new("/repo/.git"));
@@ -114,5 +115,55 @@ fn the_first_command_makes_the_folder_private() {
     let metadata: std::fs::Metadata = folder.metadata().expect("the folder's metadata reads");
     assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
     assert!(home_folder(common.as_path()).is_dir());
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A home that is not there,
+/// is empty,
+/// or holds only an unrelated file answers
+///  that it holds no record;
+///  a binding record and a record still being written answer that it does.
+/// Why:
+///  The unknown-global refusal protects a slot that has a record,
+///  so it reads this answer instead of asking whether the folder exists:
+///  a folder the route made on an earlier command and left empty endangers no
+///  slot,
+/// and a record mid-write is the same home's record.
+#[test]
+fn the_home_says_whether_it_holds_a_record() {
+    let root: PathBuf = crate::test_support::fixture("registration-home-records");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    assert!(
+        !holds_a_record(common.as_path()),
+        "a home that is not there holds no record"
+    );
+    let home: PathBuf = home_folder(common.as_path());
+    std::fs::create_dir_all(home.as_path()).expect("the home");
+    assert!(
+        !holds_a_record(common.as_path()),
+        "an empty home holds no record"
+    );
+    std::fs::write(home.join("notes.txt"), b"unrelated\n").expect("the unrelated file");
+    assert!(
+        !holds_a_record(common.as_path()),
+        "an unrelated file is no record"
+    );
+    std::fs::write(home.join(binding_name("one")), b"a record\n").expect("the record");
+    assert!(
+        holds_a_record(common.as_path()),
+        "a binding record answers yes"
+    );
+    std::fs::remove_file(home.join(binding_name("one"))).expect("the record goes");
+    std::fs::write(
+        home.join(".one.binding.0123456789abcdef0123456789abcdef.partial"),
+        b"a record being written\n",
+    )
+    .expect("the staging record");
+    assert!(
+        holds_a_record(common.as_path()),
+        "a record being written answers yes"
+    );
     crate::test_support::remove(root.as_path());
 }
