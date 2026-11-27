@@ -30,10 +30,12 @@ use std::path::Path;
 /// Imports the name the shadow answers to,
 /// which the refused-shadow remedy counts.
 use crate::constants::SHADOWED_NAME;
-/// Imports the reader that says which interpreter a program names,
+/// Imports the reader that says which interpreter a program names that is not there,
 /// and its answers.
 use crate::named_interpreter::{
+    MissingInterpreter,
     NamedInterpreter,
+    missing_interpreter,
     named_interpreter,
 };
 
@@ -94,7 +96,7 @@ fn needed_files(program: &Path) -> String {
 /// What:
 /// The cause and the remedy for a start the system refused because another process holds open for writing
 /// a file this start needs,
-/// for a caller that knows which program was started.
+/// for the program that was started.
 /// Why:
 /// `execve` refuses such a file (`ETXTBSY`),
 /// and both the shadow mode and the launcher mode meet that refusal,
@@ -109,36 +111,18 @@ fn needed_files(program: &Path) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function beingWrittenCauseAndRemedyFor(program: string | undefined, error: Error): [string, string]
+/// export function beingWrittenCauseAndRemedy(program: string, error: Error): [string, string]
 /// ```
-pub fn being_written_cause_and_remedy_for(
-    program: Option<&Path>,
+pub fn being_written_cause_and_remedy(
+    program: &Path,
     error: &Error,
 ) -> (String, String) {
-    let needed: String = match program {
-        Some(path) => needed_files(path),
-        None => "the program itself, or the interpreter it names, which is the program after `#!` on a script's first line or a compiled program's dynamic linker".to_string(),
-    };
+    let needed: String = needed_files(program);
     let cause: String = format!(
         "the system refused to start it because a file this start needs is open for writing by some other process ({error}): {needed}. mpm-shadow cannot tell which process holds that file, or why it holds it"
     );
     let remedy: String = "run the same command again once that process has finished with the file: nothing of this command ran, so nothing has to be undone, and the start succeeds as soon as the file is free and whole. If a write was cut short, the file is a broken program or interpreter, and starting it again will not work: install or upgrade it again, which writes a whole new copy into place".to_string();
     return (cause, remedy);
-}
-
-/// What:
-/// The cause and the remedy for that same refusal,
-/// for a caller that does not know which program was started.
-/// Why:
-/// The launcher mode's own start reports this refusal without passing its program,
-/// and the words that name both kinds of interpreter are true without it too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function beingWrittenCauseAndRemedy(error: Error): [string, string]
-/// ```
-pub fn being_written_cause_and_remedy(error: &Error) -> (String, String) {
-    return being_written_cause_and_remedy_for(None, error);
 }
 
 /// What:
@@ -304,9 +288,7 @@ fn system_cause_and_remedy(
                 "wait for other work under the same user, service or container to finish, or raise the limit (`ulimit -u` for the user, `TasksMax` for a systemd unit, `--pids-limit` for a container), then run the command again; nothing was started, so there is nothing to clean up".to_string(),
             )
         }
-        ErrorKind::ExecutableFileBusy => {
-            being_written_cause_and_remedy_for(Some(failure.program), error)
-        }
+        ErrorKind::ExecutableFileBusy => being_written_cause_and_remedy(failure.program, error),
         ErrorKind::PermissionDenied => (
             format!("the operating system denied permission to run the program ({error})"),
             format!(
@@ -340,7 +322,9 @@ fn system_cause_and_remedy(
 /// `execve` answers one error for both,
 /// and the program's own file says which interpreter it would need:
 /// when that file is still there and the interpreter is not,
-/// the cause can name the missing file instead of listing two possibilities.
+/// the cause can name the missing file instead of listing two possibilities,
+/// and when nothing of the program can be read,
+/// the cause names both kinds of interpreter and claims neither.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -351,10 +335,10 @@ fn missing_cause_and_remedy(
     error: &Error,
 ) -> (String, String) {
     let display: String = program.display().to_string();
-    return match named_interpreter(program) {
-        NamedInterpreter::Script {
+    return match missing_interpreter(program) {
+        MissingInterpreter::Script {
             interpreter,
-        } if !interpreter.exists() => (
+        } => (
             format!(
                 "`{display}` is there, but the interpreter its first line names (`{}`) is not ({error}): a script is started by that program, and this start finds nothing to start it with",
                 interpreter.display()
@@ -364,9 +348,9 @@ fn missing_cause_and_remedy(
                 interpreter.display()
             ),
         ),
-        NamedInterpreter::DynamicLinker {
+        MissingInterpreter::DynamicLinker {
             linker,
-        } if !linker.exists() => (
+        } => (
             format!(
                 "`{display}` is there, but the dynamic linker it names (`{}`) is not ({error}): a compiled program cannot start without it, and this start finds nothing to start the program with",
                 linker.display()
@@ -376,7 +360,7 @@ fn missing_cause_and_remedy(
                 linker.display()
             ),
         ),
-        _ => (
+        MissingInterpreter::SaysNothing => (
             format!(
                 "the program, or the interpreter it names, is not there ({error}). A program can be gone because an install or an upgrade moved it aside and has not yet named the new copy into place, so a start that lands between those two steps finds nothing; the interpreter a program names is the program after `#!` on a script's first line, or a compiled program's dynamic linker, and it can be missing because it is not installed"
             ),

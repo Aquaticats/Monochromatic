@@ -25,6 +25,13 @@ use crate::process_use::{
     UseTarget,
     processes_using,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::single_owner_claim::live_owner_of;
 use crate::subvolume_platform::Platform;
 use crate::worktree_clean::check_clean_tracked_by_content;
@@ -206,6 +213,34 @@ fn refuse(
 }
 
 /// What:
+///  One process the scan saw working inside the tree,
+///  as the refusal that names it:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///  A program sets its own name to any bytes it likes (`/proc/<pid>/comm`),
+///  and this refusal is how the person finds what must be closed:
+///  an escape in the name would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = (pid, command) => `process ${pid} (${shownSoItCannotRewriteTheLine(command ?? 'unknown', TheWrappingAroundTheName.Parentheses)}) has its working directory or an open file inside it`;
+/// ```
+pub(crate) fn a_process_inside_the_tree_refusal(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
+    return format!(
+        "process {pid} ({}) has its working directory or an open file inside it",
+        shown_so_it_cannot_rewrite_the_line(
+            command.unwrap_or("unknown"),
+            TheWrappingAroundTheName::Parentheses
+        )
+    );
+}
+
+/// What:
 ///  Every reason a worktree cannot be converted now,
 /// with its kind;
 /// empty means it can.
@@ -323,11 +358,7 @@ pub fn refusals(
         refuse(
             &mut reasons,
             RefusalKind::Process,
-            format!(
-                "process {} ({}) has its working directory or an open file inside it",
-                user.pid,
-                user.command.as_deref().unwrap_or("unknown")
-            ),
+            a_process_inside_the_tree_refusal(user.pid, user.command.as_deref()),
         );
     }
     return reasons;

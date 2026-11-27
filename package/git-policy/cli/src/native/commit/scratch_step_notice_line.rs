@@ -21,6 +21,13 @@
 /// The kernel's name,
 /// state and processor time of one process.
 use crate::process_tree::ProcessUse;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the backticks that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 /// Time spans,
 /// for the two figures the line names.
 use std::time::Duration;
@@ -42,6 +49,10 @@ pub fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
 /// Why:
 ///   The first one adds what to do when the step looks stuck;
 /// the repeats stay short.
+///  A program below the step is named between backticks,
+///  and its name is another program's text (`/proc/<pid>/stat`),
+///  so it is shown escaped for those backticks:
+///  a backtick inside the name could end them and speak the rest of the line as its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +71,10 @@ pub fn notice_line(
         String::new()
     };
     let signer: String = match below.first() {
-        Some((pid, name)) => format!("; `{name}` (process {pid}) runs below it"),
+        Some((pid, name)) => format!(
+            "; `{}` (process {pid}) runs below it",
+            shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Backticks)
+        ),
         None => String::new(),
     };
     let hint: &str = if first {

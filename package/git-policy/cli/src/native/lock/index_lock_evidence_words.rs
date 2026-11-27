@@ -25,8 +25,12 @@ use crate::index_lock_evidence::{
 /// The summary of what a scan of open descriptors could not read.
 use crate::index_lock_holder_words::partial_summary;
 /// A name another program chose,
-/// shown so no byte of it can act on the line it lands in.
-use crate::shown_so_it_cannot_rewrite_the_line::shown_so_it_cannot_rewrite_the_line;
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses those lines put around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// How long a span lasts.
@@ -63,7 +67,10 @@ pub(crate) fn holder_name(
         // return `PID ${pid} (${shownSoItCannotRewriteTheLine(name)})`;
         // ```
         Some(name) => {
-            return format!("PID {pid} ({})", shown_so_it_cannot_rewrite_the_line(name));
+            return format!(
+                "PID {pid} ({})",
+                shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Parentheses)
+            );
         }
         None => return format!("PID {pid}"),
     }
@@ -198,11 +205,17 @@ fn evidence_words(evidence: &Evidence) -> String {
         ),
         PidFile::Owner(pid, process) if process.starts_after(&evidence.lock) => format!(
             "a Git lock PID file naming PID {pid} ({}), which runs, and which this host's clock puts after the lock was made, which a reused number would explain and so would a clock that moved",
-            process.command.as_deref().unwrap_or("command name unknown")
+            shown_so_it_cannot_rewrite_the_line(
+                process.command.as_deref().unwrap_or("command name unknown"),
+                TheWrappingAroundTheName::Parentheses
+            )
         ),
         PidFile::Owner(pid, process) => format!(
             "a Git lock PID file naming PID {pid} ({}), which runs",
-            process.command.as_deref().unwrap_or("command name unknown")
+            shown_so_it_cannot_rewrite_the_line(
+                process.command.as_deref().unwrap_or("command name unknown"),
+                TheWrappingAroundTheName::Parentheses
+            )
         ),
     };
     return format!("{descriptors}, and {pid_file}");

@@ -200,7 +200,7 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
 /// What:
 ///  `THE_MODULE` names the release sources of the private-record module:
 ///  the publish itself,
-///  the three files `private_storage.rs` re-exports from,
+///  the files `private_storage.rs` re-exports from,
 ///  the publish over a taken name,
 ///  and the folder whose entries a private read lists.
 /// Why:
@@ -209,6 +209,13 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
 ///  so the scope is stated as prefixes rather than as the one file it used to be:
 ///  a file a later split makes beside them is covered without anyone remembering it
 ///  (issue 6599).
+///  A file of the module named without one of these prefixes is one this ban does not read,
+///  and no folder closes that:
+///  the folder they live in (`foundation/`) holds other files that link and name a random identifier for their own
+///  work,
+///  so the folder would be a ban on code that is no record writer;
+///  `SCOPE_ANCHORS` is what fails when these prefixes stop reaching the module's publish,
+///  and a reader checks the name of a new file of this module against these prefixes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
