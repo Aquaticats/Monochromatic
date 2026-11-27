@@ -904,7 +904,8 @@ fn a_word_merge_of_a_region_that_ends_a_file_keeps_both_bytes() {
 }
 
 /// What:
-///  The reverse: every kept line ends with the byte it had,
+///  The reverse:
+///  every kept line ends with the byte it had,
 ///  so a file whose last line has a line end keeps it.
 /// Why:
 ///   The ending is the kept line's own,

@@ -1,6 +1,6 @@
 //! What:
 //!  The answer for a line region that both sides only deleted lines from,
-//! and the check that keeps a word merge from writing back a line a side deleted.
+//! and the check that keeps a word merge from writing back copies of a line a side deleted.
 //! Why:
 //!  A file that holds one record per line (an allow list,
 //! a manifest of one entry per line)
@@ -13,7 +13,8 @@
 //!  and whose resolution `24f8c1947b` corrected by hand).
 //! A region one side also wrote a line into is read by word,
 //! and there the same pairing can still happen,
-//! so a word merge that writes a line the base held and one side deleted is refused.
+//! so a word merge that writes more copies of a line the base held
+//! than the side that deleted copies of it still holds is refused.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

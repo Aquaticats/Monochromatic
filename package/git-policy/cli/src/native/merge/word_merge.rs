@@ -42,7 +42,12 @@
 //! (`src/native/merge/word_merge_deleted_lines.rs`,
 //! issue 6529).
 //! A region one side also wrote a line into is read by word,
-//! and a word merge that would write back a line one side deleted is refused there.
+//! and a word merge that would write back more copies of a line one side deleted
+//! than that side still holds is refused there.
+//! A region's own text is the bytes its stages hold,
+//! so a region that ends a file keeps the file's own ending:
+//! a file whose last line has no line end keeps none,
+//! and one whose last line has a line end keeps it.
 //! The owner asked on 2026-11-10 for wrong text to land less often;
 //! the controls for both refusals are
 //!  `src/native/merge/word_merge_refusals/`

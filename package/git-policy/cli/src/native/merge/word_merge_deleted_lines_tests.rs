@@ -25,10 +25,12 @@ const SEED: u64 = 20_261_127;
 /// How many generated regions the search reads.
 const CASES: usize = 600;
 
-/// How many lines a generated region holds, at fewest.
+/// How many lines a generated region holds,
+/// at fewest.
 const LEAST_LINES: usize = 2;
 
-/// How many lines a generated region holds, at most.
+/// How many lines a generated region holds,
+/// at most.
 const MOST_LINES: usize = 4;
 
 /// The multiplier and increment of the linear congruential generator (Numerical Recipes).
@@ -158,14 +160,13 @@ fn no_union_of_repeated_lines_is_refused() {
             })
             .collect();
         let base: String = records.join("\n");
-        let ours: String = run_of_records(records.as_slice(), kept_places(&mut state, size).as_slice());
+        let ours: String =
+            run_of_records(records.as_slice(), kept_places(&mut state, size).as_slice());
         let theirs: String =
             run_of_records(records.as_slice(), kept_places(&mut state, size).as_slice());
-        let Some(merged): Option<Vec<u8>> = merged_word_text(
-            base.as_bytes(),
-            ours.as_bytes(),
-            theirs.as_bytes(),
-        ) else {
+        let Some(merged): Option<Vec<u8>> =
+            merged_word_text(base.as_bytes(), ours.as_bytes(), theirs.as_bytes())
+        else {
             // The refusal that keeps invented text out of a region answered this one, so the rule under
             // test never reads it.
             continue;
