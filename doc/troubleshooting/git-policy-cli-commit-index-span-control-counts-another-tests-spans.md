@@ -270,3 +270,43 @@ but it was `ok. 11 passed` alone before the change.
 The step ledger's own module did fail in a threaded run of itself,
 `transaction::transaction_step_durations::tests` `5 passed; 1 failed` on 2026-11-26;
 the two parts tests above are the sites that failed in the whole `commit::` filter.
+
+## The waiting-notice control's credit lost a look to a slow host (issue 6592)
+
+`commit::native_commit_waiting_notice::tests::the_notice_reports_the_programs_that_ran_below_the_step` failed
+once, in the second gate of 2026-11-27 (`gpc-gate-issue-6562-clippy-bound-2-20261127T055625-0500`, tree
+`2a3bf031f8`, `12096 tests, 1 failed`):
+
+```text
+the sleep ran while the notice looked: ScratchStepFacts { ceiling: Some(120s), armed: true, stopped_after: None,
+held_after_ceiling: None, stall_ceiling: None, notice: 125.909µs, wrote: 0ns, lines_dropped: 0, looks: 4,
+looks_found: 3, below: [SeenProgram { name: "sleep", seen: 639.46873ms }], below_cpu: 0ns,
+below_unlisted: false, below_unended: 0, blind_looks: 0, blocked_looks: 0 }
+```
+
+This is not the cause above.
+The control takes both windows, as issue 6509's fix makes it, `blind_looks` was zero and `below_unlisted` was
+false, so no other control's plant and no other test's spans are in these figures:
+the credited time is computed by `credit_between_looks` from this notice's own look times.
+
+639.46873 ms is two intervals of 319.734365 ms.
+The notice waits `LOOK_INTERVAL`, 250 ms, between two looks, so every interval that run proved was 69.7 ms longer
+than the least one: its thread woke late on a host whose load average stood between 48 and 96.
+The control slept a fixed 1,200 ms and asserted 750 ms, which is three intervals of `LOOK_INTERVAL`, and that is
+what a 1,200 ms window proves only while five looks fall in it with the first one missing.
+A notice starts before the step's number is published, so its first look usually finds nothing, and a program is
+credited only with the interval between two looks that both found it:
+the loaded run's window held four looks, three of them finding the step, so the record proved two intervals and
+the first finding look credited nothing.
+
+Measured on 2026-11-27 by planting the stretch load added (`a_look_of_this_step_waits`, which names the step),
+three runs of that body answered `0 passed; 1 failed` at 640.675664 ms and 640.578796 ms credited
+(`looks: 4, looks_found: 3`) and `1 passed` once, because whether the first look comes before the publish is a
+race the stretch does not decide.
+
+The control rests on the looks now (`until_looks_find_the_step`), derives its bound from the record's own `looks`
+and `looks_found`, watches a `sleep` only the control ends, and plants a stretch inside the 350 to 500 ms band
+where both orders of that race lose the look
+(`commit/native_commit_waiting_notice_control_window.rs`, `commit/native_commit_waiting_notice_tests.rs`).
+Measured with that stretch planted: `ok. 1 passed; 0 failed`, `looks: 6, looks_found: 5`, 2.800999468 s credited
+of 3.506208296 s watched.
