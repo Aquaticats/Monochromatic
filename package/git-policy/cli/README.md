@@ -2479,6 +2479,21 @@ and that refusal names the record it could not read and how to repair it,
 rather than let Git delete a registration nothing proved safe.
 It is decided from the record alone,
 so no mount table and no pool is read to make it.
+A slot the readings prove nothing about is refused too,
+in the three cases the owner answered on 2026-11-26:
+no record is filed under the slot's name and a mount stands at its path,
+the record filed under that name names another path,
+or the mount table,
+which includes the mount at the slot,
+cannot be read.
+Each of the three names what could not be proved and the repair that ends it,
+and none of them reads a pool:
+Git's own removal would otherwise delete the registration and the underlay folder
+while a clone's files may stand behind the mount.
+A phase that disagrees with its mount and a destruction plan nobody could read are
+still left to Git,
+because the answer names these three and no more,
+and the slot's report says which reading it met.
 A `git worktree remove` or `git worktree move` behind a global option this build does not know
 (a spelling a newer Git may add) is refused while the repository holds slot records,
 because the option leaves the worktree's path unread and Git would then delete a bound
@@ -2487,6 +2502,16 @@ The refusal names that option and the two spellings the wrapper reads:
 the command without it,
 or `git -C <repository> worktree ...`.
 A repository with no slot record forwards the command as before.
+A spelling that stands such an option before the words naming the repository is
+refused too,
+even where the wrapper stands in no repository to check:
+`git --future-option=x -C checkouts/repo worktree remove -f -f slot-one` stops the reading at
+the option,
+so a `-C`,
+`--git-dir` or `--work-tree` after it names a repository the wrapper never
+read,
+and the refusal says that nothing proves which repository the command names or whether
+that repository holds slot records.
 The plan is read through one reader
 (`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
 which plan steps 15 to 18 call rather than reading the folder again.
