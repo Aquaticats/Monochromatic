@@ -17,10 +17,7 @@ const SOURCES: [(&str, &str); 11] = [
         "bounded_run_containment.rs",
         include_str!("bounded_run_containment.rs"),
     ),
-    (
-        "bounded_run_start.rs",
-        include_str!("bounded_run_start.rs"),
-    ),
+    ("bounded_run_start.rs", include_str!("bounded_run_start.rs")),
     (
         "bounded_run_record_writes.rs",
         include_str!("bounded_run_record_writes.rs"),
