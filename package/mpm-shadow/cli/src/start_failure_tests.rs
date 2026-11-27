@@ -43,6 +43,12 @@ fn no_retry() -> RetryReport {
     return RetryReport::default();
 }
 
+/// `ETXTBSY` on Linux is errno 26 (named here,
+/// not in the assertions);
+/// the system's own text for it is what the message must carry.
+#[cfg(target_os = "linux")]
+const LINUX_ETXTBSY: i32 = 26;
+
 /// The parts every message has,
 /// whatever the cause.
 fn assert_has_the_common_parts(text: &str) {
@@ -101,6 +107,28 @@ fn a_program_without_permission_names_the_execute_bit_and_the_directory_search_b
     assert_has_the_common_parts(&text);
     assert!(text.contains("permission"), "{text}");
     assert!(text.contains("chmod"), "{text}");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_refusal_because_the_program_is_being_written_names_the_write_the_usual_cause_and_the_command_to_repeat()
+ {
+    let error = Error::from_raw_os_error(LINUX_ETXTBSY);
+    assert_eq!(error.kind(), ErrorKind::ExecutableFileBusy, "{error}");
+    let text = message(&["i", "-g"], &error, no_retry(), 0);
+    assert_has_the_common_parts(&text);
+    assert!(text.contains("Text file busy"), "{text}");
+    for expected in [
+        "is open for writing by another program",
+        "An upgrade or an install of that program is the usual cause",
+        "run the same command again",
+    ] {
+        assert!(text.contains(expected), "{expected}: {text}");
+    }
+    assert!(
+        !text.contains("by hand"),
+        "running the program by hand shows nothing once the write is over: {text}"
+    );
 }
 
 #[test]

@@ -101,6 +101,28 @@ fn nesting_note(depth: u32) -> String {
     );
 }
 
+/// What:
+/// The cause and the remedy for a start the system refused because another program is writing the program's file.
+/// Why:
+/// `execve` refuses a file that any process holds open for writing (`ETXTBSY`),
+/// and both the shadow mode and the launcher mode meet that refusal,
+/// so the words live in one place and both say the same thing:
+/// a replacement is in progress,
+/// nothing is broken,
+/// and the same command works once the write has finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function beingWrittenCauseAndRemedy(error: Error): [string, string]
+/// ```
+pub fn being_written_cause_and_remedy(error: &Error) -> (String, String) {
+    let cause: String = format!(
+        "the program's file is open for writing by another program ({error}): the system does not start a file that any process holds open for writing. An upgrade or an install of that program is the usual cause, because it writes the new copy there before anything can start it"
+    );
+    let remedy: String = "run the same command again once that write has finished: nothing of this command ran, and the same command works as soon as the program's file is no longer being written".to_string();
+    return (cause, remedy);
+}
+
 /// The cause and the remedy for one kind of start failure,
 /// in plain words.
 fn cause_and_remedy(failure: &StartFailure) -> (String, String) {
@@ -124,6 +146,7 @@ fn cause_and_remedy(failure: &StartFailure) -> (String, String) {
                 "wait for other work under the same user, service or container to finish, or raise the limit (`ulimit -u` for the user, `TasksMax` for a systemd unit, `--pids-limit` for a container), then run the command again; nothing was started, so there is nothing to clean up".to_string(),
             )
         }
+        ErrorKind::ExecutableFileBusy => being_written_cause_and_remedy(failure.error),
         ErrorKind::PermissionDenied => (
             format!("the operating system denied permission to run the program ({})", failure.error),
             format!("give the program execute permission (`chmod +x {program}`) and make sure every directory on its path can be searched, then run the command again"),
