@@ -118,10 +118,20 @@
 //! - `push_retry_store_loaded.rs`:
 //!   reading every plan a service instance's journal holds,
 //!   one plan per branch and whether something could not be read.
+//! - `push_retry_pauses.rs`:
+//!   the pause before each new try of a push the service stopped or that failed.
+//! - `push_retry_waiting_branches.rs`:
+//!   the shapes one round of retries is handed:
+//!   a branch waiting,
+//!   the tries due again,
+//!   and the change a worker asks of the plan.
 //! - `push_retry.rs`:
 //!   the service's own retry of a push it stopped or that failed:
-//!   the pauses,
-//!   and the waiting branches.
+//!   the list of branches waiting for a new try,
+//!   and what a start rebuilds it from.
+//! - `push_retry_changes_applied.rs`:
+//!   what the workers of a round asked,
+//!   applied to the list the service loop reads.
 //! - `push_retry_cause_line.rs`:
 //!   the first of Git's own lines that gives a reason for a push's failure.
 //! - `push_retry_failure.rs`:
@@ -312,10 +322,23 @@ pub mod stacked_merge_push;
 /// brought up to date when Git could not write it.
 pub mod push_tracking_ref_repair;
 
+/// The pause before each new try of a push the service stopped or that failed.
+pub mod push_retry_pauses;
+
+/// The shapes one round of retries is handed:
+/// a branch waiting,
+/// the tries due again,
+/// and the change a worker asks of the plan.
+pub mod push_retry_waiting_branches;
+
 /// The service's own retry of a push it stopped or that failed:
-/// the pauses,
-/// and the waiting branches.
+/// the list of branches waiting for a new try,
+/// and what a start rebuilds it from.
 pub mod push_retry;
+
+/// What the workers of a round asked,
+/// applied to the list the service loop reads.
+pub mod push_retry_changes_applied;
 
 /// What a failed push's own words mean for that retry:
 /// whether the failure is final,
