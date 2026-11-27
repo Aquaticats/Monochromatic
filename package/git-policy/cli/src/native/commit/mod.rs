@@ -116,11 +116,30 @@
 //! - `commit_selection_staging.rs`:
 //!   the worktree paths an explicit-path commit stages,
 //!   and the two `git add` starts that stage them.
+//! - `commit_index_private_git.rs`:
+//!   the one Git start every private-index step makes,
+//!   and the empty index a repository with no index file starts from.
+//! - `commit_index_listings.rs`:
+//!   what the private index says:
+//!   the intended tree written from it,
+//!   the paths with unmerged stages,
+//!   and the paths it changes against the recorded base.
+//! - `commit_index_checks.rs`:
+//!   the questions about the private index this process answers without a Git start:
+//!   whether it holds exactly the base revision's tree,
+//!   and which selected paths the real index stages as additions.
+//! - `commit_index_staging.rs`:
+//!   the staging of one selection into the private commit index:
+//!   the copy of the index this preparation read,
+//!   the reset to the base an explicit-path commit needs,
+//!   and the `git add` that stages the selected paths.
+//! - `commit_index_retry.rs`:
+//!   the second attempt of an initialization whose branch moved under the commit,
+//!   which rebuilds the private index to hold exactly the tree it commits.
 //! - `commit_index.rs`:
-//!   the private commit index:
-//!   copies,
-//!   selection modes,
-//!   pathspec files and listings.
+//!   the private commit index of one transaction:
+//!   its files,
+//!   and the initialization that reads the real index once and refreshes the private copy.
 //! - `commit_named_ignored_files.rs`:
 //!   the named files an ignore rule refuses,
 //!   decided from the selection before any `git add` runs (issue 6278).
@@ -333,11 +352,35 @@ pub mod commit_args;
 /// a cluster's letters and the value it carries inline.
 pub mod commit_args_token_bytes;
 
-/// The private commit index:
-/// copies,
-/// selection modes,
-/// pathspec files and listings.
+/// The private commit index of one transaction:
+/// its files,
+/// and the initialization that reads the real index once and refreshes the private copy.
 pub mod commit_index;
+
+/// The one Git start every private-index step makes,
+/// and the empty index a repository with no index file starts from.
+pub mod commit_index_private_git;
+
+/// What the private index says:
+/// the intended tree written from it,
+/// the paths with unmerged stages,
+/// and the paths it changes against the recorded base.
+pub mod commit_index_listings;
+
+/// The questions about the private index this process answers without a Git start:
+/// whether it holds exactly the base revision's tree,
+/// and which selected paths the real index stages as additions.
+pub mod commit_index_checks;
+
+/// The staging of one selection into the private commit index:
+/// the copy of the index this preparation read,
+/// the reset to the base an explicit-path commit needs,
+/// and the `git add` that stages the selected paths.
+pub mod commit_index_staging;
+
+/// The second attempt of an initialization whose branch moved under the commit,
+/// which rebuilds the private index to hold exactly the tree it commits.
+pub mod commit_index_retry;
 
 /// The worktree paths an explicit-path commit stages,
 /// and the two `git add` starts that stage them.
