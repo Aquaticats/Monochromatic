@@ -836,21 +836,45 @@ and an HTTP 429 is retried after its `Retry-After`.
   and every failure on
   this path after the program started is "not quiescent".
   After a last read of the scope's `populated` line shows no member,
-  the run asks the manager to stop the unit it started
-  (`systemctl --user --no-ask-password stop <name>.scope`,
-  `src/control_group_retire.rs`),
+  the run ends the unit it started
+  (`src/control_group_retire.rs`),
   on every path that ends a run,
   because a scope whose process was already exiting when the manager wrote its id into the scope's
   `cgroup.procs` never becomes populated,
   so the kernel sends no empty notification and the unit would stay `active (running)` with no member
   (issue 6578;
   [the census, the reproduction and the count](../../../doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md)).
-  A unit the manager already collected is read as `not-found` and is not a refusal;
-  a stop it refuses for another reason is a warning that names the unit,
+  The last look at the scope is answered from the kernel,
+  and it is what keeps the ordinary run free:
+  a member keeps the unit,
+  and the run says so;
+  an absence counts only when `absence_is_verified` holds,
+  and a `populated` read that failed is reported;
+  and `pids.peak` says whether any process was ever counted in the group.
+  A group that held one changed its `populated` line,
+  which is the change the manager watches and ends the unit on,
+  so that run asks the manager nothing;
+  a group that is gone was collected,
+  and asks nothing either.
+  Only a group that never held a process is the leftover this step exists for,
+  and only that run asks the manager,
+  once:
+  `systemctl --user --no-ask-password stop <name>.scope`.
+  The answer is the manager's exit status,
+  and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
+  which is a collected unit and not a refusal,
+  so the second question the alpha.12 release asked (`show <name>.scope --property=LoadState --value`) is gone.
+  A stop the manager refuses for another reason is a warning that names the exact command that ran,
   because the run's own proof that no writer is left has already held.
-  A run whose scope still has a member keeps its unit,
-  so the member its refusal names stays inspectable and is not killed behind the report;
-  a stop that failed to read the scope while it was already empty still retires the unit.
+  The question keeps one bound (`RETIRE_BOUND`,
+  five seconds),
+  and a request the bound kills is given a measured grace to be reaped before the warning is built.
+  Measured 2026-11-27 on this host:
+  before this change a trivial shadow call asked four stop questions and up to one `LoadState` question,
+  one per scoped run;
+  after it,
+  none,
+  and the call's ratio to alpha.11's release binary is the control's own.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
@@ -1714,6 +1738,11 @@ A stop that has to refuse then lists the members it found,
 inside the listing's own bound (`LISTING_BOUND` in
 `src/control_group_stop.rs`),
 so a refusal answers within its bound plus twice `QUIESCE_BOUND` and that listing bound.
+The end of a run adds the retirement's own bound only where the scope is the leftover of issue 6578:
+the manager is asked once there (`RETIRE_BOUND`,
+five seconds,
+in `src/control_group_retire.rs`),
+and the ordinary run asks nothing and waits for nothing.
 On this host under a load average near 100,
 two of them failed that window once (`the judged run ended after 15.294850135s, not at its bound of 1.6s` and
 `the call answered after 12.513946534s, not within its bound 10s`),

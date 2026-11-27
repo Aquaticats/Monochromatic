@@ -2,21 +2,22 @@
 //! The short programs route discovery runs:
 //! one program started with no standard input,
 //! read under one deadline that also covers the killing and the reaping,
-//! with the text a failure adds when the killed program could not be reaped in time,
+//! with the text a failure adds about the killed program's reap,
 //! and the check of whether a group directory can be killed through `cgroup.kill`.
 //! Why:
 //! The question "can this host give a delegated scope" is put to the manager by running it,
 //! and a question must not wait without end:
 //! a reaping with a budget of its own would end after the promised time,
 //! so one deadline covers reading,
-//! killing and reaping.
+//! killing and reaping,
+//! and only a killed child is given the grace that lets its own reap answer.
 //! Split out of `control_group_route_discovery.rs`;
 //! `kill_file_present` is re-exported from there,
 //! so its path is unchanged.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // control_group_route_child_runs.ts: runPlain(program, args, env, bound), endChild, reapWithin, unreapedNote, killFilePresent
+//! // control_group_route_child_runs.ts: runPlain(program, args, env, bound), runAsking(...), endChild, reapWithin, reapNote, killFilePresent
 //! ```
 
 /// What:
@@ -144,14 +145,47 @@ use std::time::{
     Duration,
     Instant,
 };
+/// How long a killed short program is given to become reapable before its reap attempt is read as "still running".
+/// Why:
+/// `kill` sends a signal and returns;
+/// the child becomes reapable a moment later,
+/// so an attempt made immediately after the kill races with the scheduler and mostly answers that the child is still
+/// running.
+/// What the value rests on:
+/// on 2026-11-27 on this host,
+/// 20 `sleep 30` processes were killed and polled for their reaping every 200 microseconds:
+/// the median wait was 265 microseconds and the longest 282 microseconds,
+/// so 100 milliseconds is more than three hundred times the longest wait seen,
+/// and it is the most a reap attempt adds past the deadline it serves.
+pub(crate) const KILL_REAP_GRACE: Duration = Duration::from_millis(100);
+
 /// What:
-/// `fn run_plain(program, arguments, environment) -> Result<String, String>` runs a short program under a deadline and returns its
-/// standard output,
+/// `pub(crate) struct Answered` is what a short program answered:
+/// how it ended and the two streams it wrote.
+/// Why:
+/// A caller that has to read the exit status itself,
+/// as the step that ends a run's scope unit does,
+/// cannot be given only the standard output of a program that succeeded.
+pub(crate) struct Answered {
+    /// How the program ended.
+    pub(crate) status: std::process::ExitStatus,
+    /// What it wrote on standard output.
+    pub(crate) out: Vec<u8>,
+    /// What it wrote on standard error.
+    pub(crate) err: Vec<u8>,
+}
+
+/// What:
+/// `fn run_plain(program, arguments, environment, bound) -> Result<String, String>` runs a short program under a deadline and
+/// returns its standard output,
 /// or the reason it failed.
 /// Why:
 /// The question to the manager must not wait without end (contract V6);
 /// the program is not a run of the user's,
 /// so it needs no containment.
+/// A caller that has to see the exit status,
+/// rather than only whether the program succeeded,
+/// asks `run_asking` instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,6 +197,35 @@ pub(crate) fn run_plain(
     environment: &[(String, Option<String>)],
     bound: Duration,
 ) -> Result<String, String> {
+    let answered: Answered = run_asking(program, arguments, environment, bound)?;
+    if !answered.status.success() {
+        let message: String = String::from_utf8_lossy(&answered.err).to_string();
+        return Err(format!(
+            "{program} failed ({})",
+            message.lines().next().unwrap_or("no message").trim()
+        ));
+    }
+    return Ok(String::from_utf8_lossy(&answered.out).to_string());
+}
+
+/// What:
+/// `fn run_asking(program, arguments, environment, bound) -> Result<Answered, String>` runs a short program under a deadline and
+/// returns how it ended and what it wrote,
+/// or the reason it could not be read.
+/// Why:
+/// An answer the caller has to judge itself (a stop request the manager refuses as "not loaded") is a status and two streams,
+/// and it is the same one-deadline run as `run_plain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runAsking(program: string, args: string[], env: [string, string | undefined][]): {status, out, err}
+/// ```
+pub(crate) fn run_asking(
+    program: &str,
+    arguments: &[&str],
+    environment: &[(String, Option<String>)],
+    bound: Duration,
+) -> Result<Answered, String> {
     let mut command: Command = Command::new(program);
     command
         .args(arguments)
@@ -183,11 +246,11 @@ pub(crate) fn run_plain(
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let (Some(out_pipe), Some(err_pipe)) = (child.stdout.take(), child.stderr.take()) else {
         let _ = child.kill();
-        let reaped: bool = reap_within(&mut child, deadline);
-        return Err(format!(
-            "{program} has no output pipes{}",
-            unreaped_note(reaped)
+        let note: String = reap_note(reap_within(
+            &mut child,
+            deadline.max(Instant::now() + KILL_REAP_GRACE),
         ));
+        return Err(format!("{program} has no output pipes{note}"));
     };
     let out_reader = crate::bounded_io::collect(OwnedFd::from(out_pipe), Arc::clone(&cancel));
     let err_reader = crate::bounded_io::collect(OwnedFd::from(err_pipe), Arc::clone(&cancel));
@@ -198,12 +261,12 @@ pub(crate) fn run_plain(
             Ok(Some(found)) => break found,
             Ok(None) => {}
             Err(error) => {
-                let note: &str = end_child(&mut child, &cancel, deadline);
+                let note: String = end_child(&mut child, &cancel, deadline);
                 return Err(format!("{program} could not be waited for ({error}){note}"));
             }
-        }
+        };
         if Instant::now() >= deadline {
-            let note: &str = end_child(&mut child, &cancel, deadline);
+            let note: String = end_child(&mut child, &cancel, deadline);
             return Err(format!("{program} did not answer within {bound:?}{note}"));
         }
         std::thread::sleep(DISCOVERY_POLL);
@@ -213,7 +276,7 @@ pub(crate) fn run_plain(
     let out: Vec<u8> = match out_reader.recv_timeout(out_wait) {
         Ok(Ok(bytes)) => bytes,
         _ => {
-            let note: &str = end_child(&mut child, &cancel, deadline);
+            let note: String = end_child(&mut child, &cancel, deadline);
             return Err(format!(
                 "{program} did not answer within {bound:?} (its output was not closed){note}"
             ));
@@ -223,81 +286,87 @@ pub(crate) fn run_plain(
     let err: Vec<u8> = match err_reader.recv_timeout(err_wait) {
         Ok(Ok(bytes)) => bytes,
         _ => {
-            let note: &str = end_child(&mut child, &cancel, deadline);
+            let note: String = end_child(&mut child, &cancel, deadline);
             return Err(format!(
                 "{program} did not answer within {bound:?} (its error output was not closed){note}"
             ));
         }
     };
     cancel.store(true, Ordering::Relaxed);
-    if !status.success() {
-        let message: String = String::from_utf8_lossy(&err).to_string();
-        return Err(format!(
-            "{program} failed ({})",
-            message.lines().next().unwrap_or("no message").trim()
-        ));
-    }
-    return Ok(String::from_utf8_lossy(&out).to_string());
+    return Ok(Answered {
+        status,
+        out,
+        err,
+    });
 }
 
 /// What:
-/// `fn end_child(running: &mut std::process::Child, readers: &Arc<AtomicBool>, deadline: Instant) -> &'static str` ends the readers,
+/// `fn end_child(running: &mut std::process::Child, readers: &Arc<AtomicBool>, deadline: Instant) -> String` ends the readers,
 /// kills a child that is still running,
-/// and reaps it within what is left of the deadline.
+/// reaps it within what is left of the deadline,
+/// and answers the text that says what became of it.
 /// Why:
 /// Every exit from the wait ends the child this way,
 /// and a function replaces the closure that captured the deadline.
-/// It returns the text that says so when the child was not reaped in time.
+/// The text names what the kill and the reap answered (issue:
+/// the note said a dead line had passed when it had not),
+/// and a killed child is reaped before the note is built,
+/// so the note speaks of one that was still running rather than one that was never waited for.
 pub(crate) fn end_child(
     running: &mut std::process::Child,
     readers: &Arc<AtomicBool>,
     deadline: Instant,
-) -> &'static str {
+) -> String {
     readers.store(true, Ordering::Relaxed);
     let _ = running.kill();
-    return unreaped_note(reap_within(running, deadline));
+    return reap_note(reap_within(
+        running,
+        deadline.max(Instant::now() + KILL_REAP_GRACE),
+    ));
 }
 
 /// What:
-/// `fn unreaped_note(reaped: bool) -> &'static str` is the text that a discovery adds to its failure when its killed program was
-/// not reaped before the deadline.
+/// `pub(crate) enum Reap` is what the attempts to reap a killed program answered.
 /// Why:
-/// The failure is conservative:
-/// the capability is missing,
-/// and the message says that a process may still exist.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unreapedNote(reaped: boolean): string
-/// ```
-pub(crate) fn unreaped_note(reaped: bool) -> &'static str {
-    return if reaped {
-        ""
-    } else {
-        "; the killed program could not be reaped before the deadline"
-    };
+/// The note a failure carries has to say which of three things happened:
+/// the program was reaped,
+/// it was still running when the grace after its kill ran out,
+/// or the wait itself failed.
+pub(crate) enum Reap {
+    /// The program was reaped.
+    Reaped,
+    /// The program had not ended when the grace after its kill ran out.
+    StillRunning,
+    /// The wait itself failed,
+    /// so the program was not reaped.
+    Failed {
+        /// The failure the wait answered.
+        error: io::Error,
+    },
 }
 
 /// What:
-/// `fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool` waits for a killed child until `deadline` and says
-/// whether it was reaped.
+/// `fn reap_within(child: &mut std::process::Child, deadline: Instant) -> Reap` waits for a killed child until `deadline` and
+/// says what the waiting answered.
 /// Why:
 /// `Child::wait` has no deadline (contract V6),
 /// and the discovery's one deadline covers its reading,
 /// its killing and its reaping:
 /// a reaping with a budget of its own would end after the promised time (round 10,
 /// 9a D3).
-/// One non-blocking attempt is made even when the deadline has passed,
-/// so a child that is already reapable is reaped.
+/// A wait that fails is not a reap and ends the waiting,
+/// because a broken child handle does not mend by asking again;
+/// an interrupted wait is asked again,
+/// because the kernel's signal is not the child's answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function reapWithin(child: ChildProcess, deadline: number): boolean
+/// function reapWithin(child: ChildProcess, deadline: number): 'reaped' | 'still running' | Error
 /// ```
 pub(crate) fn reap_within(
     child: &mut std::process::Child,
     deadline: Instant,
-) -> bool {
+) -> Reap {
     // A test makes the killed child look unreapable for as long as the budget lasts.
     #[cfg(test)]
     let stuck: bool = crate::failpoints::fires(crate::failpoints::Point::ReapStuck);
@@ -313,15 +382,48 @@ pub(crate) fn reap_within(
         } else {
             child.try_wait()
         };
-        if !stuck && matches!(waited, Ok(Some(_))) {
-            return true;
+        match waited {
+            Ok(Some(_)) if !stuck => return Reap::Reaped,
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => {
+                return Reap::Failed {
+                    error,
+                };
+            }
         }
         let now: Instant = Instant::now();
         if now >= deadline {
-            return false;
+            return Reap::StillRunning;
         }
         std::thread::sleep(DISCOVERY_POLL.min(deadline - now));
     }
+}
+
+/// What:
+/// `fn reap_note(answered: Reap) -> String` is the text a failure adds about a killed program,
+/// or nothing when it was reaped.
+/// Why:
+/// The failure is conservative:
+/// a program that may still exist is reported as one that may,
+/// and a person who reads it is told what was tried and what came back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reapNote(answered: 'reaped' | 'still running' | Error): string
+/// ```
+fn reap_note(answered: Reap) -> String {
+    return match answered {
+        Reap::Reaped => String::new(),
+        Reap::StillRunning => format!(
+            "; the program was killed and could not be reaped (it was still running {KILL_REAP_GRACE:?} after the kill)"
+        ),
+        Reap::Failed {
+            error,
+        } => format!(
+            "; the program was killed and could not be reaped (the wait after it failed: {error})"
+        ),
+    };
 }
 
 /// What:

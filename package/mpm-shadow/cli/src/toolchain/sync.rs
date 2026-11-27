@@ -45,7 +45,9 @@ mod the_install_order;
 /// and the steps that follow it.
 mod the_sync_itself;
 /// What one sync did,
-/// and the warning for a replaced version.
+/// the warning for a replaced version,
+/// and the sentence for a version a killed install left unfinished,
+/// which this crate's own report reads (not a caller).
 mod what_the_sync_did;
 
 /// Re-exports what a lock preparation wrote.
