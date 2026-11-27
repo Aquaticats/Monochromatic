@@ -9,6 +9,8 @@
 //! the whitespace and any comment beside the last entry are the person's,
 //! so the place is read from the text itself rather than assumed from the file's shape,
 //! and the same reading carries the indentation the new entry is written with.
+//! Only `plan_insert` reads this module,
+//! which is why every name here is `pub(super)`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +38,7 @@ use monochromatic_jsonc_edit::{
 };
 
 /// The indentation the toolchain plan of this repository uses for one nesting level.
-pub const ONE_LEVEL: &str = "  ";
+pub(super) const ONE_LEVEL: &str = "  ";
 
 /// What:
 /// The places in a plan this module writes at,
@@ -49,17 +51,17 @@ pub const ONE_LEVEL: &str = "  ";
 /// ```ts
 /// type ToolsRecord = { insertAt: number; memberIndent: string; closingIndent: string; empty: boolean };
 /// ```
-pub struct ToolsRecord {
+pub(super) struct ToolsRecord {
     /// Where the new text goes,
     /// read from the text that follows the last entry,
     /// or from an object that holds none.
-    pub place: Place,
+    pub(super) place: Place,
     /// The indentation one entry of this object gets,
     /// taken from the entry that is there already.
-    pub member_indent: String,
+    pub(super) member_indent: String,
     /// The indentation of the line that holds the `{` of the object,
     /// written in front of the closing `}` of an empty object.
-    pub closing_indent: String,
+    pub(super) closing_indent: String,
 }
 
 /// What:
@@ -77,7 +79,7 @@ pub struct ToolsRecord {
 ///   | { kind: 'afterComment'; valueEnd: number; commaPresent: boolean; afterComment: number }
 ///   | { kind: 'empty'; brace: number; bracesBroken: boolean };
 /// ```
-pub enum Place {
+pub(super) enum Place {
     /// Nothing but whitespace (and the entry's own comma) follows the last value.
     AtLastValue {
         /// The byte just after the last member's value.
@@ -231,7 +233,7 @@ fn place_after(
 /// ```ts
 /// function toolsRecord(source: string, label: string): ToolsRecord
 /// ```
-pub fn tools_record(
+pub(super) fn tools_record(
     source: &str,
     label: &str,
 ) -> Result<ToolsRecord, ToolchainError> {

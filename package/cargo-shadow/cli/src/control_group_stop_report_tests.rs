@@ -367,6 +367,22 @@ fn bound(limit: Duration) -> Bound {
     };
 }
 
+/// Asks the manager to stop the scope unit a test's run made,
+/// through the package's own retirement,
+/// so no unit of this test stays loaded once its members are gone.
+fn retire(scope: &Path) {
+    let route = crate::cgroup_test_support::delegated_route();
+    let unit: String = scope
+        .file_name()
+        .map(|name| return name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let _ = crate::control_group::retire::retire_unit(
+        &route.systemctl,
+        &unit,
+        crate::control_group::retire::RETIRE_BOUND,
+    );
+}
+
 /// Stops a scope a test left behind,
 /// through its recorded path,
 /// and waits until it is empty or gone.
@@ -378,6 +394,7 @@ fn clean_up(scope: &Path) {
                 return text.contains("populated 0");
             });
     });
+    retire(scope);
 }
 
 /// Stops a scope a test left behind whose `nested` group this test made,
@@ -408,15 +425,9 @@ fn clean_up_a_nested_scope(
         "the nested group {} could not be removed",
         nested.display()
     );
-    // The unit is the directory's own name; stopping it lets the manager remove a scope it could not remove while the group was
-    // below it, and an empty scope left active would stay in the account's unit list.
-    let unit: String = scope
-        .file_name()
-        .map(|name| return name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let _ = Command::new("systemctl")
-        .args(["--user", "stop", "--no-ask-password", &unit])
-        .status();
+    // The manager removes a scope it could not remove while the group was below it only when it is asked to end the unit, so the
+    // package's own retirement is asked last.
+    retire(scope);
     let gone: bool = wait_up_to(Duration::from_secs(20), &|| {
         return !scope.exists();
     });

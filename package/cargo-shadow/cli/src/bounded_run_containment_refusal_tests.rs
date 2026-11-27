@@ -35,6 +35,8 @@ use std::time::Duration;
 
 /// The open scope of one run as this process remembers it.
 use crate::bounded_run::ScopeState;
+/// The one stop that ends a run whatever its containment is.
+use crate::bounded_run::stop_everything;
 /// The bounds the refusals must state.
 use crate::bounded_run::{
     QUIESCE_BOUND,
@@ -49,7 +51,6 @@ use crate::bounded_run_containment::{
     Reaped,
     lose,
     refusal_of_scope,
-    stop_everything,
 };
 /// What a stop of a scope found, and the listing it found it from.
 use crate::control_group_stop::report::{
