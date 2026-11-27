@@ -45,10 +45,17 @@
 //!   the typed failure of one Linux filesystem primitive:
 //!   the call,
 //!   the path and the error number.
+//! - `fs_btrfs_ioctl_request_numbers.rs`:
+//!   the request numbers the btrfs ioctls are called by,
+//!   and the kernel encodings they are computed from.
+//! - `fs_btrfs_ioctl_argument_structures.rs`:
+//!   the kernel structures the btrfs ioctls read and write,
+//!   each at the size its request number states.
 //! - `fs_btrfs_ioctl.rs`:
-//!   the btrfs ioctls that create,
-//!   snapshot and destroy a subvolume,
-//!   called in process.
+//!   the calls that create,
+//!   snapshot,
+//!   destroy and read a subvolume,
+//!   and the whole paths their callers hold.
 //! - `fs_clone_exchange.rs`:
 //!   `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
 //! - `fs_kind.rs`:
@@ -70,6 +77,12 @@
 //!   the failure type of the subvolume migration and its simulated-kill hook.
 //! - `subvolume_file_write_steps.rs`:
 //!   write-and-flush and directory-flush steps that the migration's writers share.
+//! - `subvolume_journal_leftover_names.rs`:
+//!   the names a killed journal write may leave beside the journal.
+//! - `subvolume_journal_writes.rs`:
+//!   the journal's durable writes:
+//!   one file written exclusively and renamed over its target,
+//!   and the error for a journal that cannot be understood.
 //! - `subvolume_journal.rs`:
 //!   the migration journal beside the checkout.
 //! - `subvolume_lock.rs`:
@@ -92,12 +105,17 @@
 //!   the paths of a migration and the refusals that stop it before anything is created.
 //! - `subvolume_registered_worktrees.rs`:
 //!   the linked worktrees of a main checkout and the registrations that are not one of them.
+//! - `subvolume_remove_walk_boundary_and_refusal.rs`:
+//!   the boundary a removal may not cross,
+//!   and the words of the refusal it gives.
 //! - `subvolume_remove_walk.rs`:
 //!   empty a directory that is held open,
 //!   one descriptor-relative step at a time,
 //!   refusing every nested subvolume and mount point before anything is deleted.
 //! - `subvolume_remove.rs`:
 //!   removal of a directory tree whose directories may lack owner write permission.
+//! - `subvolume_remove_around_look.rs`:
+//!   the look that finds every volume below a tree without changing it.
 //! - `subvolume_remove_around.rs`:
 //!   the look that finds every volume below a tree without changing it,
 //!   and the pass that empties a tree around each one it did not make.
@@ -155,6 +173,11 @@
 //!   statistics,
 //!   work entries,
 //!   the pass state and the entry checks.
+//! - `subvolume_sync_directory_visit.rs`:
+//!   the walk of one directory of a tree pass,
+//!   and the test-only callback a control installs at it.
+//! - `subvolume_sync_source_child.rs`:
+//!   the dispatch of one source child by what it is.
 //! - `subvolume_sync.rs`:
 //!   one idempotent pass that makes a directory tree match another,
 //!   in process.
@@ -162,6 +185,19 @@
 //!   the lines a tree pass says about what it could not carry into the destination.
 //! - `subvolume_run.rs`:
 //!   the state a migration command carries between its steps.
+//! - `subvolume_migrate_options.rs`:
+//!   what a person asked a migration to do,
+//!   and how one ended.
+//! - `subvolume_migrate_steps.rs`:
+//!   the steps that change the checkout:
+//!   create,
+//!   the index locks,
+//!   the exchange,
+//!   and the finish.
+//! - `subvolume_migrate_words.rs`:
+//!   the lines a migration says:
+//!   the facts the run begins with,
+//!   and the closing text with everything left to do.
 //! - `subvolume_migrate.rs`:
 //!   converting a main checkout into a btrfs subvolume,
 //!   resumably.
@@ -189,6 +225,11 @@
 //!   `git monochromatic-git-policy-cli migrate-to-subvolume`:
 //!   root discovery,
 //!   modes and exit statuses.
+//! - `subvolume_sync_copy_link_record.rs`:
+//!   the bookkeeping of a file with several names in a tree pass:
+//!   whether a destination file is one of the recorded copies,
+//!   recording a copy,
+//!   and linking the next name to an earlier copy.
 //! - `subvolume_sync_copy_one_entry.rs`:
 //!   the copying of one source entry (file,
 //!   symbolic link,
@@ -222,9 +263,20 @@ pub mod fs_mount_options;
 #[cfg(target_os = "linux")]
 pub mod fs_uuid_of_source;
 
-/// The btrfs ioctls that create,
-/// snapshot and destroy a subvolume,
-/// called in process.
+/// The request numbers the btrfs ioctls are called by,
+/// and the kernel encodings they are computed from.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl_request_numbers;
+
+/// The kernel structures the btrfs ioctls read and write,
+/// each at the size its request number states.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl_argument_structures;
+
+/// The calls that create,
+/// snapshot,
+/// destroy and read a subvolume,
+/// and the whole paths their callers hold.
 #[cfg(target_os = "linux")]
 pub mod fs_btrfs_ioctl;
 
@@ -386,6 +438,15 @@ pub mod subvolume_sync_attrs_fifo;
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_attrs;
 
+/// The walk of one directory of a tree pass,
+/// and the test-only callback a control installs at it.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_directory_visit;
+
+/// The dispatch of one source child by what it is.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_source_child;
+
 /// One idempotent pass that makes a directory tree match another,
 /// in process.
 #[cfg(target_os = "linux")]
@@ -402,6 +463,13 @@ pub mod subvolume_pass_report;
 /// the pass state and the entry checks.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_pass_state_and_checks;
+
+/// The bookkeeping of a file with several names in a tree pass:
+/// whether a destination file is one of the recorded copies,
+/// recording a copy,
+/// and linking the next name to an earlier copy.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_copy_link_record;
 
 /// The copying of one source entry (file,
 /// symbolic link,
@@ -424,15 +492,32 @@ pub mod subvolume_anchor;
 #[cfg(target_os = "linux")]
 pub mod subvolume_remove;
 
+/// The look that finds every volume below a tree without changing it.
+pub mod subvolume_remove_around_look;
+
 /// The look that finds every volume below a tree without changing it, and the pass that empties a tree around
 /// each one it did not make.
 pub mod subvolume_remove_around;
+
+/// The boundary a removal may not cross,
+/// and the words of the refusal it gives.
+pub mod subvolume_remove_walk_boundary_and_refusal;
 
 pub mod subvolume_remove_walk;
 
 /// The moment a removal has read a directory's entries and not yet removed them, for a control that acts there.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_remove_listing_test_support;
+
+/// The names a killed journal write may leave beside the journal.
+#[cfg(target_os = "linux")]
+pub mod subvolume_journal_leftover_names;
+
+/// The journal's durable writes:
+/// one file written exclusively and renamed over its target,
+/// and the error for a journal that cannot be understood.
+#[cfg(target_os = "linux")]
+pub mod subvolume_journal_writes;
 
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
@@ -470,6 +555,25 @@ pub mod subvolume_preflight;
 /// The state a migration command carries between its steps.
 #[cfg(target_os = "linux")]
 pub mod subvolume_run;
+
+/// What a person asked a migration to do,
+/// and how one ended.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate_options;
+
+/// The steps that change the checkout:
+/// create,
+/// the index locks,
+/// the exchange,
+/// and the finish.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate_steps;
+
+/// The lines a migration says:
+/// the facts the run begins with,
+/// and the closing text with everything left to do.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate_words;
 
 /// Converting a main checkout into a btrfs subvolume,
 /// resumably.
