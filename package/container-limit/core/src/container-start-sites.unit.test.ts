@@ -225,6 +225,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/container-limit/core/src/container-start-vocabulary.ts',
     'package/container-limit/core/src/container-starts-in-source-text.ts',
     'package/container-limit/core/src/positions-in-source-text.ts',
+    'package/container-limit/core/src/rust-comments-in-source-text.ts',
     'package/claude-code-plugin/source/src/handler/bash-output-filter/validation.ts',
     'package/forbidden-strings/cli/bin/scanner-run.ts',
     'package/forbidden-strings/cli/data/betterleaks-default-config.toml',
@@ -261,6 +262,17 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/test-harness/core-matrix/src/pnpm-store-mount.ts',
     'package/test-harness/core-matrix/src/locked-tool-build-arguments.ts',
     'package/vm-builder/cli/src/image-signing.ts',
+  ].map((path,) => ({ path, role: 'reads' as const, }),),
+  // The Rust sources that name the tool. `cargo-shadow`'s real Podman is the one place a Rust program runs it: it runs
+  // `images`, `ps`, `rmi`, `volume ls` and `volume rm` through `Command::new("podman").args(...)`, whose arguments its
+  // callers build, and starts nothing. The step that reaches it names the tool in prose, the cleanup's tests drive a
+  // fake Podman and hold a sample source line whose `podman build` is text, and the gate's process-look control names a
+  // `podman run` line only in a doc comment, as the length an ordinary command line reaches.
+  ...[
+    'package/cargo-shadow/cli/src/lean_podman_cleanup_tests.rs',
+    'package/cargo-shadow/cli/src/lean_podman_real.rs',
+    'package/cargo-shadow/cli/src/lean_run_steps.rs',
+    'package/git-policy/cli/src/native/landing/earlier_service_process_look_tests.rs',
   ].map((path,) => ({ path, role: 'reads' as const, }),),
 ];
 
