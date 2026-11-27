@@ -197,7 +197,7 @@ those are not where the time went:
   in every add that returned;
 - Git's own checkout of the 26,836 tracked files took 6.5 s to 35.8 s;
 - the ignored-state copy took 143.4 s to 859.1 s,
-  which is 89% to 97% of each add.
+  which is 89% to 99% of each add.
 
 The wrapper's own `README.md`,
 "Repairing package-manager state in a new worktree",
@@ -216,10 +216,10 @@ The issue says the stage folder held every entry of the ignored-state copy in ea
 What this round can add to that:
 
 - for the adds that returned,
-  89% to 97% of the add is inside the copy,
+  89% to 99% of the add is inside the copy,
   and the steps after it (the records,
   the package-state repair,
-  the relink hand-over) are 1 s to 6 s together;
+  the relink hand-over) are 1 s to 2.5 s together;
 - the wrapper's own last line before a killed add's bound names the ignored-file copy as what it was still doing,
   in the `.out` files of the three lists:
   "`git worktree add` is still running after 891 seconds;
@@ -295,11 +295,12 @@ stated once here and relied on below:
   02:37:24.174 and 02:37:25.317.
 - Their first adds began at 02:37:29.45,
   three of them within 42 ms of each other,
-  and the thirtieth began at 02:40:45:
+  and the thirtieth began at about 02:40:45 (its list's schedule,
+  to within a few seconds):
   every add of the round was in flight within three and a half minutes of the first.
 - The most adds in flight at one moment:
   27,
-  from 02:40:45 to 02:43:24.
+  from about 02:40:45 to 02:43:24.
   Then 26 until 02:52:14,
   and 24 until the last first attempt was killed.
 - First attempts:
@@ -330,7 +331,7 @@ stated once here and relied on below:
   Their ignored state was still owed,
   so each run's first command made the copy the killed add never finished.
 - The eight second-attempt adds that returned all ended between 03:09:20 and 03:10:36,
-  five of them 6 s to 21 s after the last of the sixteen killed adds hit its bound.
+  five of them 6 s to 8 s after the sixteenth killed add hit its bound.
   They had been running for thirteen to fifteen minutes when they ended.
 
 ### Each add, and what was in flight during it
@@ -425,7 +426,7 @@ counted from the wrapper's timing record:
 - `copyIgnored`,
   the ignored-state copy:
   143.4 s to 859.1 s,
-  which is 89% to 97% of each add;
+  which is 89% to 99% of each add;
 - `git ls-files`:
   0.5 s to 3.1 s;
 - `git check-ignore`:
@@ -434,7 +435,7 @@ counted from the wrapper's timing record:
   the recovery,
   the configuration,
   the records:
-  under 6 s.
+  0.9 s to 2.4 s.
 
 The copy's own rise,
 as each group of adds lived it.
