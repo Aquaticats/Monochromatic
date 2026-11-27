@@ -272,6 +272,22 @@ twice the notice's own maximum,
 and failed that way in three threaded `commit::` runs;
 it waits thirty times the notice's own bound now,
 sized from a measured answer of 500.1 to 501.6 ms).
+A fixture's own pipe is waited for at the pipe, not at the thread of this process that reads it
+(issue 6538:
+three `repo_read_config_typed` controls failed in five kept threaded runs with
+`the query [...] ended, and a descendant of it still holds its output`).
+`real_git_within` gave a query's output 250 ms to reach its end,
+and the news it waited for was a message from a thread of the test process,
+so a host that woke that thread past 250 ms made the answer say a pipe was held when nothing held it.
+Measured on 2026-11-27 at this host's load average of 86.0 to 142.5:
+over 15398 hand-overs of one query's standard output in one threaded module run,
+the median came 0.003 ms after the pipe's end and the worst 110.4 ms,
+which the window cleared by 2.3 times.
+The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_commands.rs`:
+the kernel reports a pipe's end the instant its last writing end closes and keeps that news until it is read),
+and the reader's hand-over of the bytes is bounded by `REPORTING_THE_END`,
+sixty seconds, which only stops a hang.
+A control's own bound then rests on a promise the test's own threads do not have to keep.
 A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one

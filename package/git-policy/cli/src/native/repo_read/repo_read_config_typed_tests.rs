@@ -17,6 +17,7 @@ use crate::repo_read_query::{
 };
 use crate::test_support::{
     FIXTURE_GIT_BOUND,
+    PIPE_GRACE,
     QueryAnswer,
     QueryEnding,
     REAL_GIT,
@@ -150,7 +151,7 @@ fn real(
     );
     assert!(
         !answer.held_open,
-        "the query {:?} ended, and a descendant of it still holds its output",
+        "the query {:?} ended, and a descendant of it still holds its output after {PIPE_GRACE:?}",
         shape.0
     );
     return (
@@ -1020,7 +1021,7 @@ fn real_under(
     );
     assert!(
         !answer.held_open,
-        "the query {arguments:?} ended, and a descendant of it still holds its output"
+        "the query {arguments:?} ended, and a descendant of it still holds its output after {PIPE_GRACE:?}"
     );
     return answer.output;
 }
