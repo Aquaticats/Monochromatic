@@ -73,6 +73,11 @@
 //! - `shadow_skeleton.rs`:
 //!   the entries of an empty bare repository,
 //!   created in-process instead of by `git init`.
+//! - `shadow_create_for_one_commit.rs`:
+//!   the tree one commit was handed and the hold that keeps it,
+//!   whether a finished tree may be handed to it,
+//!   whether its worktree holds a conclusion,
+//!   and the parts the commit adds to its shadow.
 //! - `shadow_create.rs`:
 //!   creation of the shadow repository of one transaction.
 //! - `shadow_pool_member.rs`:
@@ -156,6 +161,12 @@ pub mod shadow_create_template;
 /// The `git init` that makes a reftable shadow,
 /// and the starts made again after one was cut or refused.
 pub mod shadow_create_init;
+
+/// The tree one commit was handed,
+/// whether a finished tree may be handed to it,
+/// whether it concludes,
+/// and the parts the commit adds to its shadow.
+pub mod shadow_create_for_one_commit;
 
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;
