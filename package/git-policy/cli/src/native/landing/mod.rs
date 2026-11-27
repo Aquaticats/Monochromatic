@@ -80,6 +80,11 @@
 //!   and the store's write under the first free name.
 //! - `service_commit_args_editor_opening.rs`:
 //!   whether a `commit` command line opens an editor.
+//! - `service_commit_args_message.rs`:
+//!   the commit message Git makes of the `-m` texts when no editor opens.
+//! - `service_commit_args_fixed_message.rs`:
+//!   the arguments of a commit Git built,
+//!   rewritten so that the message the person already typed is used as it is and no editor opens.
 //! - `service_commit_args.rs`:
 //!   which commit command lines the commit service covers,
 //!   and the message they stand for.
@@ -899,6 +904,13 @@ pub mod service_prepare_own_git_steps;
 
 /// The smaller steps of a service preparation.
 pub mod service_prepare_changes_config_and_pathspec_steps;
+
+/// The commit message Git makes of the `-m` texts when no editor opens.
+pub mod service_commit_args_message;
+
+/// The arguments of a commit Git built,
+/// rewritten so that the message the person already typed is used as it is and no editor opens.
+pub mod service_commit_args_fixed_message;
 
 /// Which commit command lines the commit service covers,
 /// and the message they stand for.
