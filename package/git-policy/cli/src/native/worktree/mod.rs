@@ -129,6 +129,15 @@
 //! - `worktree_clean_tree_walk.rs`:
 //!   the walks of tracked files against the index's recorded stat data,
 //!   by metadata or by content.
+//! - `worktree_clean_state.rs`:
+//!   what a clean check reads before it judges:
+//!   the marks of an operation in progress,
+//!   what `HEAD` names,
+//!   the index with its stat fields and the commit's tree.
+//! - `worktree_clean_tracked_proof.rs`:
+//!   the tracked-file proof:
+//!   every tracked file unchanged by its stat data or by its content,
+//!   and the first entry a reset cannot undo.
 //! - `worktree_clean.rs`:
 //!   whether a worktree is clean enough to copy from or to remove without asking Git,
 //!   proven in process.
@@ -598,6 +607,19 @@ pub mod worktree_subvolume;
 /// proven in process.
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
+
+/// What a clean check reads before it judges:
+/// the marks of an operation in progress,
+/// what `HEAD` names,
+/// the index with its stat fields and the commit's tree.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_state;
+
+/// The tracked-file proof:
+/// every tracked file unchanged by its stat data or by its content,
+/// and the first entry a reset cannot undo.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tracked_proof;
 
 /// What a clean check says about one tracked file:
 /// refusals,
