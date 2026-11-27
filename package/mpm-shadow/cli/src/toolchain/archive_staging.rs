@@ -440,8 +440,10 @@ fn replace_the_copy_that_is_there(
 /// The copy that is there is moved aside first,
 /// so a failed second rename puts it back and a working copy is never deleted before its replacement is in place.
 /// The instant between the two renames is the one window this module has.
-/// A copy that a second install published in that instant goes back rather than being replaced,
-/// and the finished copy this call holds stays wherever it is when anything here fails,
+/// A copy that a second install published in that instant is kept rather than replaced,
+/// and the copy this call holds and the copy it moved aside are dropped;
+/// a copy that a second install put back in it goes back rather than being replaced,
+/// and the finished copy this call holds stays wherever it is when anything else fails,
 /// so the next install publishes it.
 ///
 /// In TS you'd write (pseudocode):
@@ -481,6 +483,15 @@ fn two_renames(
     }
     reached_the_instant_between_the_two_renames(staging, final_dir);
     if let Err(error) = the_rename(staging, final_dir, RenameRefused::GivesTheVersionItsName) {
+        // What: whether another install published the version in the instant between the two renames, which makes both
+        //  this rename and the put-back below fail.
+        // Why: the version is then finished by that install, so this call has nothing to put in place and nothing to
+        //  restore, and the copies it holds are the leftovers a later install would only remove.
+        if is_finished(final_dir, first_bin) {
+            discard_path(staging);
+            discard_path(&aside);
+            return Ok(Published::AlreadyThere);
+        }
         if let Err(restore_error) = the_rename(&aside, final_dir, RenameRefused::PutsTheCopyBack) {
             return Err(ToolchainError::failure(format!(
                 "cannot move the finished install to {}: {error}; the copy that was there could not be put back from {}: {restore_error}; the finished copy this run holds is still at {}",
