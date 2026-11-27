@@ -1,5 +1,7 @@
 //! What:
 //!  The probe's worker:
+//!  what the fork hands it,
+//!  and the sequence of its arms:
 //!  arms 1 to 5,
 //!  the two scan passes around the holder,
 //!  arm 8's fork and its relayed lines,
@@ -25,14 +27,9 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_attach_arm::AttachFailure;
 use super::probe_child_prelude::{
-    CHILD_CONTROL_DESCRIPTOR,
-    CHILD_STATUS_DESCRIPTOR,
-    close_from,
     exit_now,
     join_own_process_group,
-    move_descriptor,
 };
 use super::probe_configuration::{
     ProbeCheckout,
@@ -46,34 +43,26 @@ use super::probe_mount_calls::{
     mount_scratch_tmpfs,
     unshare_mount_namespace,
 };
-use super::probe_namespace_scan::{
-    compare_namespaces,
-    scan_namespaces,
-};
 use super::probe_open_beneath::open_path_handle;
-use super::probe_pipe_lines::{
-    read_line_blocking,
-    read_one_blocking,
-    write_all,
-};
-use super::probe_processes::{
-    fork,
-    pipe_pair,
-    raw,
-    wait_blocking,
-};
+use super::probe_processes::wait_blocking;
 use super::probe_record_files::RecordPlace;
-use super::probe_status_line::{
-    LineFeed,
-    StepAnswer,
-    StepLine,
-};
+use super::probe_status_line::StepLine;
 use super::probe_walk_arm::{
     make_scratch_tree,
     open_checkout,
     refusal_controls,
     walk_to_slot,
 };
+use super::probe_worker_holder_scans::{
+    ask_holder,
+    own_namespace,
+    scan_expecting,
+};
+use super::probe_worker_step_lines::{
+    attach_line,
+    say,
+};
+use super::probe_worker_unmount_child::fork_unmount_child;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::os::fd::{
     OwnedFd,
@@ -88,7 +77,6 @@ use std::path::{
 pub const SLOT_NAME: &str = "slot";
 /// The directory the mount is moved to before its unmount.
 pub const MOVE_TARGET_NAME: &str = "move-target";
-
 /// What:
 ///  What the fork handed the worker:
 ///  the record's place,
@@ -120,34 +108,6 @@ pub struct WorkerStart<'a> {
     /// Whether the worker keeps one descriptor on the attached mount,
     /// which only M9's fixture asks for.
     pub keep_descriptor: bool,
-}
-
-/// One step's line on the status pipe.
-fn say(
-    status: RawFd,
-    line: StepLine,
-) {
-    let _written = write_all(status, line.encode().as_bytes());
-}
-
-/// The step an attach failure happened at,
-/// or the not-exercised answer the design gives the exclusive create's two
-/// special errnos.
-fn attach_line(failure: AttachFailure) -> StepLine {
-    return match (failure.step, failure.errno) {
-        (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(
-            failure.step,
-            "exclusive-create-unsupported",
-            Some("EOPNOTSUPP"),
-        ),
-        (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => {
-            StepLine::not_exercised(failure.step, "source-held", Some("EBUSY"))
-        }
-        (ProbeStep::AttachExclusiveCreate, Some(libc::ENOENT)) => {
-            StepLine::not_exercised(failure.step, "missing-source", Some("ENOENT"))
-        }
-        _ => StepLine::failed_number(failure.step, failure.errno),
-    };
 }
 
 /// What:
@@ -301,7 +261,7 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
         Err(failure) => ending(attach_line(failure)),
     };
     drop(slot_handle);
-    let Some(holder_namespace) = ask_holder(start, b'H') else {
+    let Some(holder_namespace) = ask_holder(start.request, start.reply, b'H') else {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     };
     if holder_namespace.is_empty() {
@@ -321,7 +281,7 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     }
     say(start.status, StepLine::passed(ProbeStep::ScanWhileHeld));
     hold_after(ProbeStep::ScanWhileHeld);
-    if ask_holder(start, b'S').is_none() {
+    if ask_holder(start.request, start.reply, b'S').is_none() {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
     let worker_own_after: String = match own_namespace() {
@@ -353,135 +313,4 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     say(start.status, StepLine::passed(ProbeStep::ClosingScan));
     say(start.status, StepLine::passed(ProbeStep::Teardown));
     exit_now(0);
-}
-
-/// What:
-///  Ask the mode to start or stop the holder,
-///  and answer the holder's namespace when it started.
-/// Why:
-///  Requests are single bytes,
-///  and the reply is one line so the first pass can compare the exact set
-///  of namespaces with the worker's and the holder's rather than a count.
-fn ask_holder(
-    start: &WorkerStart<'_>,
-    request: u8,
-) -> Option<String> {
-    if write_all(start.request, &[request]).is_err() {
-        return None;
-    }
-    let line: String = read_line_blocking(start.reply, 128).ok()?;
-    if line == "P" {
-        return Some(String::new());
-    }
-    return line.strip_prefix("P ").map(String::from);
-}
-
-/// This process's own mount-namespace identity.
-fn own_namespace() -> Result<String, ()> {
-    return std::fs::read_link("/proc/self/ns/mnt")
-        .map(|path| return path.to_string_lossy().into_owned())
-        .map_err(|_| ());
-}
-
-/// Scan this PID namespace for the source and require exactly the namespaces
-///  the pass expects,
-///  naming a leaked or missing namespace rather than comparing a count.
-fn scan_expecting(
-    source: &str,
-    expected: &[&str],
-) -> Result<(), ()> {
-    let mentioned: Vec<String> = match scan_namespaces(Path::new("/proc"), source) {
-        Ok(mentioned) => mentioned,
-        Err(_) => return Err(()),
-    };
-    return match compare_namespaces(mentioned.as_slice(), expected) {
-        None => Ok(()),
-        Some(_difference) => Err(()),
-    };
-}
-
-/// One forked unmount child and its status pipe's read end.
-struct UnmountChild {
-    /// The child's pid.
-    pid: libc::pid_t,
-    /// The read end of the child's status pipe.
-    reports: OwnedFd,
-    /// The write end of the child's control pipe,
-    /// kept open so a hold in the child waits rather than reading its end.
-    _control: OwnedFd,
-}
-
-impl UnmountChild {
-    /// What:
-    ///  Relay every line the child writes,
-    ///  as it writes it,
-    ///  and answer whether one of them failed.
-    /// Why:
-    ///  The mode can name which of arm 8's steps was in flight only if the
-    ///  step's line reaches it before the next step starts,
-    ///  so the worker relays while the child lives rather than after it ends.
-    ///  The child holds its status pipe open until `_exit`,
-    ///  so the end of the pipe is the child's own end.
-    fn relay_until_eof(
-        &mut self,
-        status: RawFd,
-    ) -> bool {
-        let mut feed: LineFeed = LineFeed::new();
-        let mut failed: bool = false;
-        loop {
-            let byte: u8 = match read_one_blocking(raw(&self.reports)) {
-                Ok(byte) => byte,
-                Err(_) => break,
-            };
-            for parsed in feed.push(&[byte]) {
-                match parsed {
-                    Ok(step_line) => {
-                        if matches!(step_line.answer, StepAnswer::Failed { .. }) {
-                            failed = true;
-                        }
-                        say(status, step_line);
-                    }
-                    Err(_refusal) => say(status, StepLine::failed(ProbeStep::Move, None)),
-                }
-            }
-        }
-        return failed;
-    }
-}
-
-/// Fork the unmount child with its two pipes.
-fn fork_unmount_child(
-    slot: &Path,
-    move_target: &Path,
-    mount_id: u64,
-    hold: Option<ProbeStep>,
-) -> Result<UnmountChild, Option<&'static str>> {
-    let control = pipe_pair().map_err(|error| return error.errno_name())?;
-    let reports = pipe_pair().map_err(|error| return error.errno_name())?;
-    match fork() {
-        Err(error) => return Err(error.errno_name()),
-        Ok(None) => {
-            let _ = move_descriptor(raw(&control.read), CHILD_CONTROL_DESCRIPTOR);
-            let _ = move_descriptor(raw(&reports.write), CHILD_STATUS_DESCRIPTOR);
-            let _ = close_from(5);
-            super::probe_unmount_child::run(
-                CHILD_STATUS_DESCRIPTOR,
-                slot,
-                move_target,
-                mount_id,
-                hold,
-            );
-        }
-        Ok(Some(pid)) => {
-            // The child stays in the worker's own process group,
-            // so the mode's group kill at the deadline reaches it too.
-            drop(control.read);
-            drop(reports.write);
-            return Ok(UnmountChild {
-                pid,
-                reports: reports.read,
-                _control: control.write,
-            });
-        }
-    }
 }

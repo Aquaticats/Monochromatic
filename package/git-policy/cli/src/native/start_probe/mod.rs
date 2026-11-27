@@ -105,8 +105,15 @@
 //!   the mode's side of that holder.
 //! - `probe_status_drain.rs`:
 //!   one status pipe drained into the report.
+//! - `probe_worker_step_lines.rs`:
+//!   the lines the worker says on its status pipe.
+//! - `probe_worker_holder_scans.rs`:
+//!   the two holder requests and the scans' comparisons.
+//! - `probe_worker_unmount_child.rs`:
+//!   arm 8's forked child and the lines it relays.
 //! - `probe_worker.rs`:
-//!   arms 1 to 5,
+//!   what the fork hands the worker,
+//!   and arms 1 to 5,
 //!   the scans,
 //!   arm 8's fork and the teardown.
 //! - `probe_test_switch.rs`:
@@ -207,6 +214,12 @@ pub mod probe_unmount_child;
 pub mod probe_walk_arm;
 /// The worker's arms.
 pub mod probe_worker;
+/// The two holder requests and the scans' comparisons.
+pub mod probe_worker_holder_scans;
+/// The lines the worker says on its status pipe.
+pub mod probe_worker_step_lines;
+/// Arm 8's forked child and the lines it relays.
+pub mod probe_worker_unmount_child;
 
 /// The bound the mode enforces and its margin.
 pub use probe_deadline::{
