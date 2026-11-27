@@ -2,12 +2,15 @@
 //! What a refusal says when a stop of a bare process group,
 //! or a stop of a scope whose direct child did not end,
 //! could not settle the run:
-//! which wait was waited, or that none was,
+//! which wait was waited,
+//! or that none was,
 //! and how a reason kept from an earlier failed stop is not lost.
 //! Why:
-//! Issue 6528's review (Low 2, Low 3 and Low 9):
+//! Issue 6528's review (Low 2,
+//! Low 3 and Low 9):
 //! the process-group reasons named a bound that was not the wait
-//! (a group already shown gone, and a group that was never named),
+//! (a group already shown gone,
+//! and a group that was never named),
 //! a `try_wait` the kernel refused was worded as a five-second bound,
 //! and `lose` replaced the reason of an earlier failed stop.
 //! The weaker path is a process group of the test's own,
@@ -52,7 +55,8 @@ use crate::bounded_run_containment::{
     lose,
     refusal_of_scope,
 };
-/// What a stop of a scope found, and the listing it found it from.
+/// What a stop of a scope found,
+/// and the listing it found it from.
 use crate::control_group_stop::report::{
     Listing,
     StopReport,
@@ -94,7 +98,8 @@ fn a_program_in_a_group_of_its_own() -> std::process::Child {
         .expect("starts a program in a group of its own");
 }
 
-/// Issue 6528's review, Low 2:
+/// Issue 6528's review,
+/// Low 2:
 /// a bound that passed on the reaping of a program that is still a zombie leaves the group it led present,
 /// so the refusal names that bound as the one it waited,
 /// and does not claim the program's end was waited for.
@@ -123,12 +128,15 @@ fn a_process_group_whose_program_was_not_reaped_is_not_shown_gone() {
     );
 }
 
-/// Issue 6528's review, Low 2 and Low 3:
+/// Issue 6528's review,
+/// Low 2 and Low 3:
 /// the program was reaped by someone else,
 /// so the group it led is gone and its exit can no longer be read.
 /// The refusal must say the group is gone and that the exit could not be read,
 /// and must not state a five-second wait that never happened.
-/// No test-only switch is needed: the test reaps the program itself, as another waiter would.
+/// No test-only switch is needed:
+/// the test reaps the program itself,
+/// as another waiter would.
 #[test]
 fn a_process_group_that_is_gone_and_whose_exit_could_not_be_read_says_so() {
     let mut child = a_program_in_a_group_of_its_own();
@@ -159,7 +167,8 @@ fn a_process_group_that_is_gone_and_whose_exit_could_not_be_read_says_so() {
     );
 }
 
-/// Issue 6528's review, Low 2:
+/// Issue 6528's review,
+/// Low 2:
 /// the two process-group reasons that cannot be produced from outside name only what was found:
 /// a group whose members were still there at its bound says that bound,
 /// and a group that could not be named says that no stop was tried.
@@ -189,7 +198,8 @@ fn the_process_group_reasons_state_the_wait_that_was_waited_or_none() {
     );
 }
 
-/// The state a failed stop writes its reason into, for the control below.
+/// The state a failed stop writes its reason into,
+/// for the control below.
 fn a_scope_state() -> std::rc::Rc<ScopeState> {
     return std::rc::Rc::new(ScopeState {
         log: PathBuf::from("/dev/null"),
@@ -199,7 +209,8 @@ fn a_scope_state() -> std::rc::Rc<ScopeState> {
     });
 }
 
-/// Issue 6528's review, Low 9:
+/// Issue 6528's review,
+/// Low 9:
 /// two failed stops under one transaction must both be named,
 /// because a refusal that names only the last would hide the first writer that may still remain.
 #[test]
@@ -225,7 +236,8 @@ fn a_second_failed_stop_keeps_the_reason_of_the_first() {
     );
 }
 
-/// Issue 6528's review, Low 3:
+/// Issue 6528's review,
+/// Low 3:
 /// a program that was not reaped is named before the scope's own sentence,
 /// the absent scope is worded as absent,
 /// and a run whose scope was shown empty has no refusal at all.

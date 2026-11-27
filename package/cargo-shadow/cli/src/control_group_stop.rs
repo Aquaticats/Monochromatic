@@ -9,7 +9,9 @@
 //! then `SIGKILL` through a pidfd for each listed process,
 //! then `populated 0` or a verified absence,
 //! all inside the caller's bound,
-//! and then, only when the wait was spent, a listing of every member that was left,
+//! and then,
+//! only when the wait was spent,
+//! a listing of every member that was left,
 //! inside the listing's own bound.
 //! `control_group.rs` keeps the type and the launcher that start a run in the group.
 //!
@@ -68,19 +70,16 @@ use std::os::fd::OwnedFd;
 /// ```
 use std::os::unix::fs::FileExt;
 /// What:
-/// `use std::path::{Path, PathBuf};` imports the borrowed view of a path and the owned one (its sibling `&Path` borrows).
+/// `use std::path::Path;` imports the borrowed view of a path (its sibling `PathBuf` owns one).
 /// Why:
-/// A group's directory is lent to the reads here,
-/// and the walk below keeps the owned paths of the groups it has still to read.
+/// A group's directory is lent to the reads here and never stored;
+/// the walk that keeps owned paths lives in `control_group_stop_listing.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Path, PathBuf } from 'std/path';
+/// import { Path } from 'std/path';
 /// ```
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::Path;
 /// What:
 /// `use std::time::{Duration, Instant};` imports a length of time and a point on the monotonic clock.
 /// Why:
@@ -142,6 +141,19 @@ use rustix::process::{
 };
 
 /// What:
+/// `mod listing;` declares the listing a stop makes when its bound passed:
+/// the members of the scope's own group and of every group below it.
+/// Why:
+/// The walk and its two reads are a subject of their own,
+/// and a file that held both the stop and the walk would pass the code-line limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the listing of the members, beside the stop
+/// ```
+#[path = "control_group_stop_listing.rs"]
+pub(crate) mod listing;
+/// What:
 /// `mod report;` declares what a stop reports:
 /// how long it waited,
 /// whether the kernel still reported the scope populated,
@@ -157,6 +169,7 @@ use rustix::process::{
 /// ```
 #[path = "control_group_stop_report.rs"]
 pub(crate) mod report;
+
 /// What:
 /// `mod report_tests;` declares the controls of what a stop reports (issue 6528).
 /// Why:
@@ -172,21 +185,19 @@ pub(crate) mod report;
 mod report_tests;
 
 /// What:
-/// `use self::report::{MemberListing, StopReport, standing_of};` imports what a stop reports,
-/// and the read of one member's threads.
+/// `use self::report::{Listing, StopReport};` imports what a stop reports and the listing it found.
 /// Why:
 /// The stop answers a report,
-/// and the report must be able to say whether a member it waited for had exited or was alive.
+/// and the report must be able to say whether a member it waited for had exited or was alive;
+/// the listing itself is made in `control_group_stop_listing.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { MemberListing, StopReport, standingOf } from './control_group_stop_report.ts';
+/// import { Listing, StopReport } from './control_group_stop_report.ts';
 /// ```
 use self::report::{
     Listing,
-    MemberListing,
     StopReport,
-    standing_of_within,
 };
 /// What:
 /// `use crate::control_group::ControlGroup;` imports the scope this stop acts on.
@@ -218,7 +229,8 @@ use crate::control_group_route_discovery::{
 
 /// How long reading the members of a scope that was left may take.
 /// Why:
-/// The listing runs after the stop's own bound, so it is the one wait a refusal adds;
+/// The listing runs after the stop's own bound,
+/// so it is the one wait a refusal adds;
 /// without a bound of its own a scope with many threads would hold the refusal for as long as the reads take.
 /// What the value rests on (measured 2026-11-27 on this host,
 /// release build,
@@ -229,7 +241,8 @@ use crate::control_group_route_discovery::{
 /// 90 µs to 136 µs with no thread beside the program,
 /// 12.5 ms to 15.6 ms with 1000,
 /// 37.5 ms to 45.6 ms with 3000.
-/// Read linearly, 500 ms covers a scope of about 33000 threads,
+/// Read linearly,
+/// 500 ms covers a scope of about 33000 threads,
 /// far more than a build leaves,
 /// and it still bounds what a refusal adds after its own bound.
 pub(crate) const LISTING_BOUND: Duration = Duration::from_millis(500);
@@ -448,87 +461,6 @@ impl ControlGroup {
             Err(_) => None,
         };
     }
-
-    /// What:
-    /// `fn listings(&self) -> Listing` is every member the scope lists, in its own group and in every group below it,
-    /// with the state of its threads:
-    /// or the reason the list could not be read,
-    /// or the fact that the scope was gone,
-    /// or the members it read before its own bound passed.
-    /// Why:
-    /// A refusal that could not list the members must say so instead of naming none,
-    /// because "no member is listed" and "the listing failed" mean different things,
-    /// and `populated` counts the groups below the scope,
-    /// so a scope whose own `cgroup.procs` is empty can still hold a live member
-    /// (`doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`).
-    /// Each member is read through a pidfd,
-    /// so a number the kernel listed cannot name another process by the time its threads are read.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// listings(): Listing
-    /// ```
-    fn listings(&self) -> Listing {
-        // A test makes the listing find the scope gone: the window between the last `populated` read and the listing is too short
-        // to produce from outside, because a removal before the read makes the stop report the scope empty at once.
-        #[cfg(test)]
-        if crate::failpoints::fires(crate::failpoints::Point::ContainmentScopeGoneAtListing) {
-            return Listing::ScopeGone;
-        }
-        let deadline: Instant = Instant::now() + LISTING_BOUND;
-        let own: Vec<i32> = match self.members() {
-            Ok(found) => found,
-            Err(error) => return Listing::Unreadable(error.to_string()),
-        };
-        // `members()` reads a removed group as empty; the directory itself says whether it was removed.
-        if own.is_empty() && fs::metadata(&self.directory).is_err() {
-            return Listing::ScopeGone;
-        }
-        let mut members: Vec<MemberListing> = Vec::new();
-        // The scope's own group first, then every group below it, depth first.
-        let mut pending: Vec<(PathBuf, Option<String>)> = vec![(self.directory.clone(), None)];
-        while let Some((group, below)) = pending.pop() {
-            if Instant::now() >= deadline {
-                return Listing::Cut(members);
-            }
-            let listed: Vec<i32> = if below.is_none() {
-                own.clone()
-            } else {
-                match read_procs(&group) {
-                    Ok(Some(found)) => found,
-                    // A group below the scope that is gone holds nothing.
-                    Ok(None) => continue,
-                    Err(reason) => return Listing::Unreadable(reason),
-                }
-            };
-            // Sorted, so two readings of the same members name them in the same order whatever the file system answers.
-            let mut ordered: Vec<i32> = listed;
-            ordered.sort_unstable();
-            for pid in ordered {
-                if Instant::now() >= deadline {
-                    return Listing::Cut(members);
-                }
-                members.push(MemberListing {
-                    pid,
-                    below: below.clone(),
-                    standing: standing_of_within(pid, deadline),
-                });
-            }
-            match sub_groups(&group) {
-                Ok(children) => {
-                    for (path, name) in children {
-                        let path_below: String = match &below {
-                            Some(parent) => format!("{parent}/{name}"),
-                            None => name,
-                        };
-                        pending.push((path, Some(path_below)));
-                    }
-                }
-                Err(reason) => return Listing::Unreadable(reason),
-            }
-        }
-        return Listing::Read(members);
-    }
 }
 
 /// What:
@@ -605,87 +537,4 @@ fn populated_through(events: &fs::File) -> io::Result<bool> {
 /// ```
 pub(crate) fn populated_at(directory: &Path) -> io::Result<bool> {
     return parse_populated(&fs::read_to_string(directory.join("cgroup.events"))?);
-}
-
-/// What:
-/// `fn read_procs(group: &Path) -> Result<Option<Vec<i32>>, String>` lists one group's `cgroup.procs`,
-/// or `None` when the group is gone,
-/// or the reason it could not be read.
-/// Why:
-/// A member of a group below the scope is left out of the scope's own list,
-/// and a group that was removed while the listing ran holds nothing rather than failing it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function readProcs(group: string): number[] | undefined  // throws on other errors
-/// ```
-fn read_procs(group: &Path) -> Result<Option<Vec<i32>>, String> {
-    let path: PathBuf = group.join("cgroup.procs");
-    let text: String = match fs::read_to_string(&path) {
-        Ok(found) => found,
-        // `ENODEV` is what a read of a removed group's file says, and `NotFound` is what an absent directory says.
-        Err(error)
-            if error.kind() == io::ErrorKind::NotFound
-                || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) =>
-        {
-            return Ok(None);
-        }
-        Err(error) => return Err(format!("{} cannot be read ({error})", path.display())),
-    };
-    let mut found: Vec<i32> = Vec::new();
-    for line in text.lines() {
-        match line.trim().parse::<i32>() {
-            Ok(number) => found.push(number),
-            Err(error) => return Err(format!("{} holds {line:?} ({error})", path.display())),
-        }
-    }
-    return Ok(Some(found));
-}
-
-/// What:
-/// `fn sub_groups(group: &Path) -> Result<Vec<(PathBuf, String)>, String>` lists the groups directly below one group,
-/// each with its name,
-/// in name order.
-/// Why:
-/// The kernel's `populated` word counts a descendant group's threads,
-/// so the listing has to walk them;
-/// sorting the names makes the members named in the same order from one reading to the next
-/// (`doc/directory-listing-order.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function subGroups(group: string): Array<[string, string]>
-/// ```
-fn sub_groups(group: &Path) -> Result<Vec<(PathBuf, String)>, String> {
-    let entries = match fs::read_dir(group) {
-        Ok(found) => found,
-        // A group that was removed while the listing ran has no groups below it any more.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("{} cannot be listed ({error})", group.display())),
-    };
-    let mut groups: Vec<(PathBuf, String)> = Vec::new();
-    for listed in entries {
-        let entry: fs::DirEntry = match listed {
-            Ok(found) => found,
-            Err(error) => return Err(format!("{} cannot be listed ({error})", group.display())),
-        };
-        let is_dir: bool = match entry.file_type() {
-            Ok(kind) => kind.is_dir(),
-            Err(error) => {
-                return Err(format!(
-                    "{} cannot be read ({error})",
-                    entry.path().display()
-                ));
-            }
-        };
-        if !is_dir {
-            continue;
-        }
-        groups.push((
-            entry.path(),
-            entry.file_name().to_string_lossy().into_owned(),
-        ));
-    }
-    groups.sort();
-    return Ok(groups);
 }

@@ -61,7 +61,8 @@ use crate::cgroup_test_support::{
     wait_until,
     wait_up_to,
 };
-/// The report's own words, and the listing it is built from.
+/// The report's own words,
+/// and the listing it is built from.
 use crate::control_group_stop::report::{
     Listing,
     MemberListing,
@@ -404,7 +405,8 @@ fn clean_up(scope: &Path) {
 /// Why the group is removed here:
 /// the manager removes a scope's directory only when nothing is below it,
 /// so a group this test made would keep the scope of the host behind;
-/// and a scope whose directory the test removed first stays an active unit, so the unit is stopped after the group is gone,
+/// and a scope whose directory the test removed first stays an active unit,
+/// so the unit is stopped after the group is gone,
 /// when there is nothing left for its own removal to fail on.
 fn clean_up_a_nested_scope(
     scope: &Path,
@@ -591,7 +593,8 @@ fn leave_a_writer(ready: &Path) -> String {
     );
 }
 
-/// Issue 6528's review, Medium 1:
+/// Issue 6528's review,
+/// Medium 1:
 /// the scope's own `cgroup.procs` is empty while the kernel still reports the scope populated,
 /// because its only live member stands in a group below it.
 /// The refusal must name that member as one that may still write,
@@ -684,7 +687,8 @@ fn a_member_in_a_group_below_the_scope_is_named_where_it_stands_and_as_one_that_
     drop(transaction);
 }
 
-/// Issue 6528's review, Medium 1:
+/// Issue 6528's review,
+/// Medium 1:
 /// the listing of the members failed,
 /// so the refusal must say that and must not say what its members can do.
 /// A listing that could not be read is not a list of members that cannot write.
@@ -734,14 +738,17 @@ fn a_refusal_whose_members_could_not_be_read_says_nothing_about_what_they_can_do
     drop(transaction);
 }
 
-/// Issue 6528's review, Medium 1, last case:
+/// Issue 6528's review,
+/// Medium 1,
+/// last case:
 /// the scope vanished between the last `populated` read and the listing,
 /// so the refusal must say its directory was gone and must not say anything about members it never read.
 /// The window is too short to produce from outside
 /// (a removal before that read makes the stop report the scope empty at once),
 /// so a test build makes the listing find the scope gone,
 /// and the test judges the words the refusal carries;
-/// the member is a real one that still stands in the scope, so the report is made of real facts.
+/// the member is a real one that still stands in the scope,
+/// so the report is made of real facts.
 #[test]
 fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
     this_test_needs_a_delegated_scope();
@@ -877,7 +884,8 @@ fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
     );
 }
 
-/// A report of a scope that was not shown empty, built from the facts a case names.
+/// A report of a scope that was not shown empty,
+/// built from the facts a case names.
 fn report_of(
     populated: Option<bool>,
     listing: Listing,
@@ -897,7 +905,8 @@ fn at_home(
     };
 }
 
-/// A member in a group below the scope, by that group's path below the scope.
+/// A member in a group below the scope,
+/// by that group's path below the scope.
 fn below(
     pid: i32,
     group: &str,
@@ -966,7 +975,8 @@ fn the_sentence_of_a_report_states_the_wait_and_the_state_of_every_member() {
     );
 }
 
-/// Issue 6528's review, Low 5:
+/// Issue 6528's review,
+/// Low 5:
 /// a listing whose members all ended says so,
 /// and the refusal does not claim a member that can still write.
 #[test]
@@ -990,7 +1000,8 @@ fn a_refusal_whose_members_all_ended_says_no_member_it_listed_can_still_write() 
     );
 }
 
-/// Issue 6528's review, Medium 1:
+/// Issue 6528's review,
+/// Medium 1:
 /// a listing that read every group and found no member says that,
 /// and the refusal does not say what such a member can do.
 #[test]
@@ -1012,7 +1023,8 @@ fn a_refusal_that_listed_no_member_says_so() {
     );
 }
 
-/// Issue 6528's review, Low 4:
+/// Issue 6528's review,
+/// Low 4:
 /// a listing that was cut at its own bound says which bound it hit and names what it read before that,
 /// so a member it never reached is not counted as one that cannot write.
 #[test]
@@ -1046,7 +1058,8 @@ fn a_refusal_whose_listing_was_cut_states_the_bound_it_hit() {
     );
 }
 
-/// Issue 6528's review, Low 3:
+/// Issue 6528's review,
+/// Low 3:
 /// a scope whose absence was verified is worded as absent,
 /// never as a kernel that reported it empty,
 /// and no wait is stated for it.

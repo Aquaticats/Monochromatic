@@ -14,6 +14,61 @@
 //! is `bounded_run_end.rs`.
 
 /// What:
+/// `mod process_group;` declares the stop of a bare process group and its refusal's words.
+/// Why:
+/// The weaker path is a subject of its own beside the scope,
+/// and the file that held both passed the code-line limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the stop of a process group, beside the stop of a scope
+/// ```
+#[path = "bounded_run_containment_process_group.rs"]
+pub(crate) mod process_group;
+/// What:
+/// `use self::process_group::{GroupStop, stop_process_group};` re-exports what the weaker path's stop found and that stop.
+/// Why:
+/// The end of a run and the start that failed to record a group both call it,
+/// and their paths stay `bounded_run_containment::stop_process_group` and `bounded_run_containment::GroupStop`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { GroupStop, stopProcessGroup } from './bounded_run_containment_process_group.ts';
+/// ```
+pub(crate) use self::process_group::{
+    GroupStop,
+    stop_process_group,
+};
+
+/// What:
+/// `mod reap_of_the_child;` declares the wait for the direct child and what became of it.
+/// Why:
+/// The reap and the stop are separate subjects,
+/// and a file that held both would pass the code-line limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the reap of the direct child, beside the stop that calls it
+/// ```
+#[path = "bounded_run_containment_reap_of_the_child.rs"]
+pub(crate) mod reap_of_the_child;
+/// What:
+/// `use self::reap_of_the_child::{ReapShortfall, Reaped, reap};` re-exports the wait and its two answers.
+/// Why:
+/// The stop of a scope and of a process group both read them,
+/// and their paths stay `bounded_run_containment::reap` and `bounded_run_containment::Reaped`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { ReapShortfall, Reaped, reap } from './bounded_run_containment_reap_of_the_child.ts';
+/// ```
+pub(crate) use self::reap_of_the_child::{
+    ReapShortfall,
+    Reaped,
+    reap,
+};
+
+/// What:
 /// `mod refusal_tests;` declares the controls of what a refusal says when a stop could not settle the run.
 /// Why:
 /// A unit control belongs in a sidecar file,
@@ -117,35 +172,20 @@ use rustix::event::{
     poll,
 };
 /// What:
-/// `use rustix::io::Errno;` imports the operating-system error code type.
+/// `use rustix::process::{Pid, PidfdFlags, pidfd_open};` imports the process id type,
+/// the flag of a pidfd and the call that opens one.
 /// Why:
-/// "No member of the group is left" is told from "some member is left" by the code of the signal test.
+/// The wait is woken by the child's pidfd becoming readable;
+/// the process group's own signal and test live in `bounded_run_containment_process_group.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // error.code === 'ESRCH'
-/// ```
-use rustix::io::Errno;
-/// What:
-/// `use rustix::process::{Pid, PidfdFlags, Signal, kill_process_group, pidfd_open, test_kill_process_group};` imports the process id type,
-/// the flag of a pidfd,
-/// the signal to send and the three calls that send it,
-/// test it and open the descriptor.
-/// Why:
-/// The weaker path kills and tests a whole process group,
-/// and the wait is woken by that group's leader ending.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // process.kill(-pid, 'SIGKILL') and process.kill(-pid, 0)
+/// // fs.watch on the child's pidfd
 /// ```
 use rustix::process::{
     Pid,
     PidfdFlags,
-    Signal,
-    kill_process_group,
     pidfd_open,
-    test_kill_process_group,
 };
 /// What:
 /// `use std::io;` imports the standard library's input/output module so this file can name it unqualified.
@@ -244,78 +284,19 @@ use std::sync::mpsc::{
 /// ```
 use std::thread;
 /// What:
-/// `use std::time::{Duration, Instant};` imports a span of time and a reading of the clock.
+/// `use std::time::Duration;` imports a span of time (its sibling `Instant` is a point on the clock).
 /// Why:
-/// Every wait here computes a deadline from the moment it started.
+/// The wait here is given the time that is left,
+/// and its own deadline lives with the reap and the process group.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // Date.now() and a number of milliseconds
+/// // a number of milliseconds
 /// ```
-use std::time::{
-    Duration,
-    Instant,
-};
+use std::time::Duration;
 
 /// The start of a child inside the containment (split out of this module).
 pub(crate) use crate::bounded_run_start::start_contained;
-/// Why a direct child was not reaped.
-pub(crate) enum ReapShortfall {
-    /// The bound passed before the child ended.
-    Bound,
-    /// Its exit could not be read,
-    /// with the reason, so no wait was spent on a question the kernel refused.
-    Unreadable(
-        /// Why the exit could not be read.
-        String,
-    ),
-}
-
-/// What became of the direct child when the run ended.
-pub(crate) enum Reaped {
-    /// The child ended,
-    /// so it was reaped.
-    Ended,
-    /// The child was not reaped,
-    /// with the reason.
-    NotReaped(ReapShortfall),
-}
-
-/// What:
-/// `fn reap(child: &mut Child) -> Reaped` waits for the direct child,
-/// a few milliseconds at a time,
-/// up to `REAP_BOUND`,
-/// and says whether the wait was spent or the kernel refused to answer.
-/// Why:
-/// `Child::wait` has no deadline,
-/// and a refusal must not state a wait that was not the wait:
-/// a failed `try_wait` answers at once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function reap(child: ChildProcess): 'ended' | { shortfall: string }
-/// ```
-pub(crate) fn reap(child: &mut Child) -> Reaped {
-    // A child that cannot be reaped within its bound is "not reaped"; a test makes that so without a process in an uninterruptible wait.
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::ReapStuck) {
-        return Reaped::NotReaped(ReapShortfall::Bound);
-    }
-    let deadline: Instant = Instant::now() + REAP_BOUND;
-    loop {
-        match child.try_wait() {
-            Ok(Some(_status)) => return Reaped::Ended,
-            Ok(None) => {}
-            // The kernel will not answer again, so no further wait is spent; the refusal says the exit could not be read.
-            Err(error) => return Reaped::NotReaped(ReapShortfall::Unreadable(error.to_string())),
-        }
-        if Instant::now() >= deadline {
-            return Reaped::NotReaped(ReapShortfall::Bound);
-        }
-        thread::sleep(POLL_INTERVAL);
-    }
-}
-
 /// What:
 /// `fn wait_for_exit(watch: Option<&OwnedFd>, remaining: Duration)` waits until the child ends or `remaining` passes.
 /// Why:
@@ -434,112 +415,6 @@ pub(crate) fn weaker(unavailable: GroupUnavailable) -> Containment {
     return Containment::ProcessGroup;
 }
 
-/// What the weaker path's stop found when it gave up.
-pub(crate) enum GroupStop {
-    /// No member of the process group is left.
-    Gone,
-    /// Members of the process group were still there when its bound passed.
-    MembersLeft,
-    /// No member of the process group is left,
-    /// and the direct child could not be reaped,
-    /// with the reason.
-    NotReaped(ReapShortfall),
-    /// The program's process id could not be named as a process group,
-    /// so nothing of it was stopped.
-    Unnamed,
-}
-
-/// What:
-/// `impl GroupStop` answers whether the stop settled the run, and the words a refusal carries when it did not.
-/// Why:
-/// Both process-group paths (a run's own end and the start that failed to record the group)
-/// need one sentence each,
-/// and the sentence must state the wait that was waited or none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // settled(): boolean; refusal(): string
-/// ```
-impl GroupStop {
-    /// What:
-    /// `pub(crate) fn settled(&self) -> bool` says whether every member of the group is shown gone.
-    /// Why:
-    /// Only `Gone` lets the run be treated as quiescent.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// settled(): boolean { return this === 'gone' }
-    /// ```
-    pub(crate) fn settled(&self) -> bool {
-        return matches!(self, GroupStop::Gone);
-    }
-
-    /// What:
-    /// `pub(crate) fn refusal(&self) -> String` is why this stop could not settle the run.
-    /// Why:
-    /// A group already shown gone must not be worded as a bound that was waited,
-    /// and an unnamed group must not be worded as a wait that never started (issue 6528's review, Low 2).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// refusal(): string
-    /// ```
-    pub(crate) fn refusal(&self) -> String {
-        return match self {
-            GroupStop::Gone => "the process group is gone".to_string(),
-            GroupStop::MembersLeft => format!(
-                "the members of the process group could not be shown gone within {QUIESCE_BOUND:?}"
-            ),
-            GroupStop::NotReaped(ReapShortfall::Bound) => format!(
-                "no member of the process group is left, and the program it led did not end within {REAP_BOUND:?} after it was killed"
-            ),
-            GroupStop::NotReaped(ReapShortfall::Unreadable(reason)) => format!(
-                "no member of the process group is left, and the exit of the program it led could not be read ({reason})"
-            ),
-            GroupStop::Unnamed => {
-                "the process group of the program could not be named, so nothing of it was stopped"
-                    .to_string()
-            }
-        };
-    }
-}
-
-/// What:
-/// `fn stop_process_group(child: &mut Child, group: Pid) -> GroupStop` kills the process group,
-/// reaps the direct child,
-/// and says whether no member of the group is left.
-/// Why:
-/// This is all the weaker path can show,
-/// and the two questions it answers (the group's members and the direct child) are what a refusal has to tell apart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stopProcessGroup(child: ChildProcess, group: number): GroupStop
-/// ```
-pub(crate) fn stop_process_group(
-    child: &mut Child,
-    group: Pid,
-) -> GroupStop {
-    let reaped: Reaped = {
-        let _ = kill_process_group(group, Signal::KILL);
-        reap(child)
-    };
-    let deadline: Instant = Instant::now() + QUIESCE_BOUND;
-    loop {
-        if test_kill_process_group(group) == Err(Errno::SRCH) {
-            return match reaped {
-                Reaped::Ended => GroupStop::Gone,
-                Reaped::NotReaped(shortfall) => GroupStop::NotReaped(shortfall),
-            };
-        }
-        if Instant::now() >= deadline {
-            return GroupStop::MembersLeft;
-        }
-        let _ = kill_process_group(group, Signal::KILL);
-        thread::sleep(POLL_INTERVAL);
-    }
-}
-
 /// What:
 /// `fn stop_containment(containment, child) -> Result<(), String>` kills and reaps the direct child,
 /// stops what the containment holds,
@@ -596,9 +471,11 @@ pub(crate) fn stop_containment(
 
 /// What:
 /// `fn refusal_of_scope(report: &StopReport, reaped: &Reaped, scope: &str) -> Option<String>` is the refusal of a scope that did
-/// not settle the run, or `None` when it did.
+/// not settle the run,
+/// or `None` when it did.
 /// Why:
-/// Which of the two the stop could not show (the program, or what the scope left) is one decision,
+/// Which of the two the stop could not show (the program,
+/// or what the scope left) is one decision,
 /// and every branch of it is a sentence that must say only what was found,
 /// so the words are built in one place a control can drive with any report.
 ///
@@ -739,7 +616,9 @@ impl Drop for CancelOnDrop {
 /// Why:
 /// The caller of the transaction reads the mark and stops the command instead of rolling back or finishing,
 /// and two failed stops under one transaction must both be named:
-/// the reason is appended, never replaced (issue 6528's review, Low 9).
+/// the reason is appended,
+/// never replaced (issue 6528's review,
+/// Low 9).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
