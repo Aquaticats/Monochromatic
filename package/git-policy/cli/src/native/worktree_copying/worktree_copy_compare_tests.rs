@@ -167,52 +167,66 @@ fn unchanged_source_passes_final_check() {
 /// The source's manifest walk is a job of the process's blocking pool:
 /// it asks for the one place of the process's bound before it runs,
 /// which a walk on a thread of its own never does.
+/// The bound is made once for the whole process and is never resized,
+/// so a hold that comes after another test's blocking job decides nothing,
+/// and this body runs in a child of its own
+/// (`foundation/blocking_jobs_within_the_budget.rs`,
+/// issue 6477).
 #[test]
 fn the_source_walk_takes_a_place_of_the_processs_bound() {
-    use std::sync::atomic::{
-        AtomicBool,
-        Ordering,
-    };
-    use std::sync::mpsc::RecvTimeoutError;
-    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) =
-        crate::parallel_test_support::hold_the_only_place();
-    let root: PathBuf = fixture("compare-the-bound");
-    let source: PathBuf = root.join("source");
-    std::fs::create_dir_all(source.join("cache")).expect("cache");
-    std::fs::write(source.join("cache/file"), b"x").expect("file");
-    let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
-    let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(source.as_path(), selected.as_slice(), &[]).expect("manifest");
-    let stage: PathBuf = root.join("stage");
-    std::fs::create_dir_all(stage.join("cache")).expect("stage cache");
-    std::fs::write(stage.join("cache/file"), b"x").expect("stage file");
-    assert_final_source_equivalence(
-        source.as_path(),
-        stage.as_path(),
-        selected.as_slice(),
-        &[],
-        entries.as_slice(),
-    )
-    .expect("unchanged");
-    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
-    //  source's walk reached the process's bound instead of starting at once.
-    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
-        Ok(true) => {}
-        Ok(false) => panic!(
-            "the job that holds the only place saw no ask, so the source's walk took no place of the process's bound"
-        ),
-        Err(RecvTimeoutError::Timeout) => panic!(
-            "the source's walk asked for no place of the process's bound within the patience, so it did not run as a job of the blocking pool"
-        ),
-        Err(RecvTimeoutError::Disconnected) => {
-            panic!("the job that holds the only place ended without answering")
-        }
-    }
-    assert!(
-        given_back.load(Ordering::SeqCst),
-        "the place of the process's bound was never given back to the source's walk"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_source_walk_takes_a_place_of_the_processs_bound",
+        || {
+            use std::sync::atomic::{
+                AtomicBool,
+                Ordering,
+            };
+            use std::sync::mpsc::RecvTimeoutError;
+            let (given_back, wanted): (
+                std::sync::Arc<AtomicBool>,
+                std::sync::mpsc::Receiver<bool>,
+            ) = crate::parallel_test_support::hold_the_only_place();
+            let root: PathBuf = fixture("compare-the-bound");
+            let source: PathBuf = root.join("source");
+            std::fs::create_dir_all(source.join("cache")).expect("cache");
+            std::fs::write(source.join("cache/file"), b"x").expect("file");
+            let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
+            let entries: Vec<WorktreeCopyEntry> =
+                collect_entry_manifest(source.as_path(), selected.as_slice(), &[])
+                    .expect("manifest");
+            let stage: PathBuf = root.join("stage");
+            std::fs::create_dir_all(stage.join("cache")).expect("stage cache");
+            std::fs::write(stage.join("cache/file"), b"x").expect("stage file");
+            assert_final_source_equivalence(
+                source.as_path(),
+                stage.as_path(),
+                selected.as_slice(),
+                &[],
+                entries.as_slice(),
+            )
+            .expect("unchanged");
+            // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+            //  source's walk reached the process's bound instead of starting at once.
+            match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+                Ok(true) => {}
+                Ok(false) => panic!(
+                    "the job that holds the only place saw no ask, so the source's walk took no place of the process's bound"
+                ),
+                Err(RecvTimeoutError::Timeout) => panic!(
+                    "the source's walk asked for no place of the process's bound within the patience, so it did not run as a job of the blocking pool"
+                ),
+                Err(RecvTimeoutError::Disconnected) => {
+                    panic!("the job that holds the only place ended without answering")
+                }
+            }
+            assert!(
+                given_back.load(Ordering::SeqCst),
+                "the place of the process's bound was never given back to the source's walk"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// A source file that changed after the manifest blocks the destination with the changed entry named.

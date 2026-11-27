@@ -1,9 +1,11 @@
 //! What:
 //!  The durable journal of one destination's linked-worktree copy:
 //!  private storage under `<common>/monochromatic-git-policy-cli-worktree-copy/v1`,
-//! the atomic writes into it,
-//! and the reading of what it holds.
+//! the creating of a journal,
+//! and the reading of what the root holds.
 //!  The exact JSON encoding is in `worktree_copy_journal_encoding_and_validation.rs`,
+//! the write of one record whole is in `worktree_copy_atomic_write.rs`,
+//! the check that a path is this account's and private is in `worktree_copy_private_path.rs`,
 //! and the removal of a finished
 //!  transaction's stage and journal is in `worktree_copy_journal_removal.rs`.
 //! Why:
@@ -20,12 +22,13 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::private_storage::{
-    sync_directory,
-    write_exclusive_scratch,
-    write_exclusive_synced,
-};
 use crate::random_id::random_uuid;
+pub use crate::worktree_copy_atomic_write::{
+    temporary_path,
+    temporary_writer_token,
+    write_atomic,
+    write_atomic_unsynced,
+};
 use crate::worktree_copy_error::{
     WorktreeCopyError,
     failure_with_cause,
@@ -40,7 +43,6 @@ use crate::worktree_copy_journal_encoding_and_validation::{
     JournalRefusal,
     PendingJournal,
     Phase,
-    TEMPORARY_SUFFIX,
     encode_journal,
     parse_journal_reading,
 };
@@ -50,104 +52,16 @@ use crate::worktree_copy_owner::{
     current_copy_owner,
     token_owner_is_dead,
 };
+pub use crate::worktree_copy_private_path::{
+    Role,
+    assert_private_path,
+};
 use crate::worktree_copy_selection::by_js_order;
 use crate::worktree_copy_stage_snapshot::StagedSnapshot;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The group and other permission bits a private path must not have.
-/// Why:
-///   A journal or stage readable or writable by others could be planted or read by another account.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const NON_PRIVATE_MODE_BITS = 0o077;
-/// ```
-const NON_PRIVATE_MODE_BITS: u32 = 0o077;
-
-/// What:
-///  The role a private path plays,
-/// which selects its expected entry kind.
-/// Why:
-///   A journal file must be a single-link file;
-/// a directory must be a directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type PrivateWorktreeCopyPathRole = 'journal directory' | 'journal file' | 'private stage';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Role {
-    /// A journal parent or root directory.
-    JournalDirectory,
-    /// A journal file.
-    JournalFile,
-    /// A private stage container or payload.
-    PrivateStage,
-}
-
-impl Role {
-    /// The role's name in diagnostics.
-    fn name(self) -> &'static str {
-        // `match` keeps each role's diagnostic spelling next to its variant.
-        match self {
-            Role::JournalDirectory => return "journal directory",
-            Role::JournalFile => return "journal file",
-            Role::PrivateStage => return "private stage",
-        }
-    }
-}
-
-/// What:
-///  Checks that a path is canonical,
-/// owned by this account,
-/// private,
-/// and of the role's kind.
-/// Why:
-///   A journal or stage that another account can write,
-/// or that a link redirects,
-/// is never acted on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await assertPrivateWorktreeCopyPath({ path, role });
-/// ```
-pub fn assert_private_path(
-    path: &Path,
-    role: Role,
-) -> Result<(), WorktreeCopyError> {
-    use std::os::unix::fs::MetadataExt;
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(raw_failure_of)?;
-    let shape: bool = match role {
-        Role::JournalFile => metadata.is_file() && metadata.nlink() == 1,
-        Role::JournalDirectory | Role::PrivateStage => metadata.is_dir(),
-    };
-    // SAFETY: `geteuid` has no preconditions and cannot fail.
-    let effective_user: u32 = unsafe { libc::geteuid() };
-    let canonical: bool = std::fs::canonicalize(path)
-        .map_err(raw_failure_of)?
-        .as_path()
-        == path;
-    if !shape
-        || (metadata.mode() & NON_PRIVATE_MODE_BITS) != 0
-        || metadata.uid() != effective_user
-        || !canonical
-    {
-        return Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: worktree-copy {} is unsafe: {}.",
-                role.name(),
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
-        ));
-    }
-    return Ok(());
-}
 
 /// What:
 ///  The journal root beneath a common Git directory,
@@ -229,153 +143,6 @@ pub fn write_journal(
     journal: &Journal,
 ) -> Result<(), WorktreeCopyError> {
     return write_atomic_unsynced(path, encode_journal(journal).as_bytes(), "journal");
-}
-
-/// What:
-///  The name of the temporary file a write of `path` by `owner` uses:
-/// `<path>.<owner>.<unique>.tmp`.
-/// Why:
-///   The writer's owner is part of the temporary's name,
-/// so a sweep removes only a dead writer's temporaries and can never
-///  delete one a live writer is about to rename.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// temporaryPath('/j/abc.stage', owner, 'u1') === `/j/abc.stage.${owner.token()}.u1.tmp`;
-/// ```
-pub fn temporary_path(
-    path: &Path,
-    owner: &CopyOwner,
-    unique: &str,
-) -> PathBuf {
-    // The suffix is appended to the path's own bytes, so a name that is not text keeps every byte of itself.
-    let mut temporary: std::ffi::OsString = path.as_os_str().to_owned();
-    temporary.push(format!(".{}.{unique}{TEMPORARY_SUFFIX}", owner.token()));
-    return PathBuf::from(temporary);
-}
-
-/// What:
-///  The writer's owner token in a temporary file's name,
-/// or nothing for a name of another shape.
-/// Why:
-///   It is the inverse of [`temporary_path`] that the sweep of dead writers' temporaries reads.
-///  A name of that shape has a token field,
-///  so a stranger's name whose token field is empty names no writer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// writerTokenOf('abc.stage.<owner>.u1.tmp') === '<owner>';
-/// ```
-pub fn temporary_writer_token(file_name: &str) -> Option<&str> {
-    let stem: &str = file_name.strip_suffix(TEMPORARY_SUFFIX)?;
-    let (rest, _unique) = stem.rsplit_once('.')?;
-    let (_item, token) = rest.rsplit_once('.')?;
-    // The writer fills each field, so an empty token field is a stranger's file that must name no writer.
-    if token.is_empty() {
-        return None;
-    }
-    return Some(token);
-}
-
-/// What:
-///  Writes one private file atomically beside its final name;
-/// a failure names `subject` and leaves no temporary.
-/// Why:
-///   Journals and stage claims share one rule:
-/// a reader sees a complete file or none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeFileAtomically({ path, bytes, subject });
-/// ```
-pub fn write_atomic(
-    path: &Path,
-    bytes: &[u8],
-    subject: &str,
-) -> Result<(), WorktreeCopyError> {
-    return write_atomic_flushing(path, bytes, subject, Flush::ToDisk);
-}
-
-/// Whether a record written by [`write_atomic_flushing`] is flushed to disk before the call returns.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Flush {
-    /// The file and its directory are flushed:
-    /// a crash finds the record.
-    ToDisk,
-    /// Neither is flushed:
-    /// the file is published whole by the rename,
-    /// and the filesystem makes it durable with its next commit.
-    Never,
-}
-
-/// What:
-///  Writes one private file atomically beside its final name without flushing the file or its directory to disk;
-/// a failure
-///  names `subject` and leaves no temporary.
-/// Why:
-///   A flush after a subvolume was swapped into place in the same btrfs transaction is a commit of the whole filesystem (the
-///  kernel sets `btrfs_set_log_full_commit` for the swap),
-/// which waits for every other writer's data.
-/// A record that only
-///  silences a notice is published whole by the rename and made durable by the commit the filesystem makes anyway.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeFileAtomicallyUnflushed({ path, bytes, subject });
-/// ```
-pub fn write_atomic_unsynced(
-    path: &Path,
-    bytes: &[u8],
-    subject: &str,
-) -> Result<(), WorktreeCopyError> {
-    return write_atomic_flushing(path, bytes, subject, Flush::Never);
-}
-
-/// `write_atomic` and `write_atomic_unsynced`:
-/// one rename publishes the whole file;
-/// `flush` says whether the file and its
-///  directory are flushed.
-fn write_atomic_flushing(
-    path: &Path,
-    bytes: &[u8],
-    subject: &str,
-    flush: Flush,
-) -> Result<(), WorktreeCopyError> {
-    let unique: String = match random_uuid() {
-        Ok(made) => made,
-        Err(error) => {
-            return Err(failure_with_cause(
-                format!(
-                    "monochromatic-git-policy-cli: could not persist worktree-copy {subject} {}.",
-                    quote(path.to_string_lossy().as_ref())
-                )
-                .as_str(),
-                Some(&error.0),
-            ));
-        }
-    };
-    let temporary: PathBuf = temporary_path(path, &current_copy_owner()?, unique.as_str());
-    let written: std::io::Result<()> = match flush {
-        Flush::ToDisk => write_exclusive_synced(temporary.as_path(), bytes),
-        Flush::Never => write_exclusive_scratch(temporary.as_path(), bytes),
-    };
-    let persisted: std::io::Result<()> = match written {
-        Ok(()) => publish_written(temporary.as_path(), path, flush),
-        Err(error) => Err(error),
-    };
-    // A failed write removes its own temporary, so the directory keeps no partial journal.
-    if let Err(error) = persisted {
-        let _ignored_removal: std::io::Result<()> = std::fs::remove_file(temporary.as_path());
-        return Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: could not persist worktree-copy {subject} {}.",
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            Some(&error),
-        ));
-    }
-    return Ok(());
 }
 
 /// What:
@@ -532,29 +299,6 @@ pub fn adopt_journal(
 /// ```
 pub fn journal_owner_is_dead(pending: &PendingJournal) -> Result<bool, WorktreeCopyError> {
     return token_owner_is_dead(pending.owner_token().as_deref(), pending.path.as_path());
-}
-
-/// What:
-///  Rename a written temporary file over `path`,
-/// and make the directory durable when the flush mode asks.
-/// Why:
-///   The rename publishes the journal in one step,
-/// and the sync makes the publication survive a crash.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// renameSync(temporary, path); if (flush === 'toDisk') syncDirectory(dirname(path));
-/// ```
-fn publish_written(
-    temporary: &Path,
-    path: &Path,
-    flush: Flush,
-) -> std::io::Result<()> {
-    std::fs::rename(temporary, path)?;
-    return match (flush, path.parent()) {
-        (Flush::ToDisk, Some(parent)) => sync_directory(parent),
-        _ => Ok(()),
-    };
 }
 
 /// What:

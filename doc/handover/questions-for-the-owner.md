@@ -265,6 +265,187 @@ The coordinator's ranking:
 leave it > probe,
 because the gate's verdict is unchanged and a false failure costs more than a slow one.
 
+
+## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
+
+The plan's rounds 1 to 3 are done or nearly done
+(`doc/planning/cli-git-source-layout-target-tree.md`,
+"Next"):
+the single-item moves merged on 2026-11-26,
+the splits and the loop breaks on 2026-11-27,
+and the allow list `layout-allow-list/file-rule.txt` went from 544 lines to 52.
+What is left of round 3 is one loop of twelve files in `worktree/`,
+with a round running,
+and three lines in `foundation/`,
+which wait for the choice recorded under "five choices the rounds of 2026-11-27 left".
+
+Round 4 is the plan's five call changes,
+each a changed signature in release code:
+finished results (`subvolume_command` and `doctor` stop building `Action` themselves),
+system settings path (`repo_read_config_scan` stops calling `git_system_config::system_config_for`),
+after-stop action (the watcher's callers stop passing a `LockLedger`),
+current step record (`transaction_git` stops entering its step through `service_busy_step_record_on_this_thread`),
+and run this next (`stacked_merge_push` stops planning a whole invocation in process).
+On `main` today each call site the plan names is still there:
+`plan_invocation` in `push/stacked_merge_push.rs`,
+`LockLedger` in six files of `push/`,
+`service_busy_step_record_on_this_thread` in `transaction/`,
+`service/` and `push/`,
+and `system_config_for` in two files of `repo_read/`.
+
+The coordinator did not start it.
+The plan calls itself a draft for the owner's review,
+the only recorded answer about the split is when to cut the crate
+("Window after live rounds (Recommended)",
+`doc/planning/cli-git-source-layout.md`),
+and the loop-break rounds were told to leave any loop that needed a changed signature,
+which is what round 4 is made of.
+An earlier entry of this file says rounds 1 to 6 need none of the owner's open points;
+that is the coordinator's reading of which points hold which round,
+not an acceptance of the changes.
+
+- Run round 4 now,
+  one round per call change.
+  Three of the five meet work in flight
+  (the push split cuts `child_watch_one_shot_run.rs`,
+  issue 6573 changes the control that reads `repo_read/git_system_config.rs`,
+  and the choice of issue 6529 edits `merge_second_pass_finish.rs`),
+  so those three start after that work merges.
+- Read the five signatures first
+  (the plan's "The call changes,
+  as signatures")
+  and accept or change each.
+- Leave round 4 and go to what needs no changed signature.
+
+Ranking,
+the coordinator's:
+read first > run now > leave.
+Read first beats run now because five signatures are five design choices nobody but a draft has stated.
+Run now beats leave because rounds 5 to 7 build on these changes,
+and the files over the budget in `invocation/` and `health/` wait for round 7's move.
+
+## Open: where a worktree removal's Git reads its cache place (issue 6571, recorded 2026-11-27T07:08:00-05:00)
+
+Controls whose service runs inside the test process wrote `git-system-attributes-<digest>`
+under the real home cache.
+The round measured the writers and fixed the ones it could without a signature the release's callers see
+(`c1a3b33db5`):
+a fixture names a cache place of its own,
+and `for_context` now lets a variable its caller named win over the process's own,
+where the caller's entries were appended and the first match won,
+so a caller's variable never reached the place.
+That last change is release code:
+the release's overlay names no cache place,
+and the built binary run with a throwaway home wrote its two cache files there.
+
+One writer is left,
+and reaching it changes a signature:
+a worktree removal's service-side Git (`the_service_git`) builds a context of its own from the process's environment,
+so a removal a control runs still writes `git-system-config-<digest>` under the real home cache.
+The proposal is `doc/planning/cli-git-removal-work-cache-place-the-caller-hands.md`.
+
+- A:
+  the removal work runs under the `GitContext` its handlers already hold,
+  and `the_service_git`'s own resolution of Git goes.
+  One channel for the place;
+  the removal stops resolving a second Git.
+- B:
+  the work keeps resolving its own Git,
+  and its caller hands it the variables.
+  It keeps the Git of the attempt for a service that restarts mid-record.
+- C:
+  a build of the controls refuses a write to the process's own home cache.
+  No signature changes;
+  two callers already catch a panic and decline,
+  so the file can be written and the control stay green.
+
+Ranking,
+the round's:
+A > B > C.
+A beats B because the service already holds that one value for every child it runs.
+B beats C because B fixes the place for every route that reaches the work,
+where C only refuses the write.
+
+## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
+
+Each is merged.
+None needed an answer to proceed,
+and each can be undone by one round.
+
+- `process/`'s file list puts `open_file_of_a_descriptor_in_a_child` before `open_file_of_a_descriptor`
+  (`356c39c4d7`),
+  because `opened_file_of` calls into the child for an overlay mount.
+  The target table lists them the other way;
+  taking the overlay branch out of `opened_file_of` would put them back,
+  and that is a call change.
+- `lock/`'s loop of `index_lock_evidence` and `index_lock_evidence_words` closed by deleting a re-export and re-pointing callers,
+  not by moving the evidence types into the file of sentences as the plan said
+  (`356c39c4d7`).
+  The other form renames that file for the types and the sentences together and touches many callers.
+- In `push/` (`d356c58a03`):
+  `push_once`,
+  the plain-thread face nothing in the release calls,
+  moved into `auto_push_awaiting.rs`,
+  where the alternative moves that file's seventeen borrowed items into a file of their own;
+  `STOP_GRACE` moved into `push_deadline_and_patience_settings.rs`;
+  and the batch query for a push's range sits in `manual_push_update_and_query_limits.rs`.
+- The control for issue 6564 (`a1119838ca`) both asserts either order of the two printed lines
+  and holds the answer away so that the place line is said at all.
+  With the assertion alone the control could pass with no place line.
+- The `source_guard` ban on a control that writes a fixture Git inside the run
+  still reads one test file (`invocation/git_version_cache_tests.rs`).
+  Issue 6540's round found two more files that do it and held neither to the ban,
+  as a change for the owner to approve.
+- The window of the control for issue 6546 is still a wall clock,
+  sized over the whole run (`eeeee1f44e`).
+  A bound the load does not move needs a reader of one child's own process tree,
+  which the binary test target does not include.
+- The linter's alpha.18 refuses a `uses` line with spacing before its arrow and stops the whole folder rule,
+  where spacing after the arrow is only a dead entry.
+  The fix round for the alpha.18 pass was told to make the two sides one rule,
+  and to prefer a finding on the line over a refusal of the list unless the reader cannot recover.
+- A drain's batches are sized by a host its caller states,
+  where the drain used to read the machine itself (issue 6567,
+  `e22e629637`):
+  `drain_pending_awaiting`,
+  `drain_the_slow_work_awaiting` and the planned drains take `&HostResources`.
+  Nothing test-only entered a signature;
+  the callers read the machine once.
+  The round measured why the two controls saw one item of two:
+  `HostResources::read` takes the control group's free bytes,
+  which count the page cache a build wrote inside a memory-capped scope,
+  so a scope whose cache fills its cap reads no headroom and every batch falls to one item.
+  That is the shipped conservative behaviour for a service unit too,
+  and whether the width should count reclaimable cache is a design question the round left open
+  (`doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
+- A fixture's removal now waits the package's five seconds for what a landing starts beside its loop,
+  and names what is left when it fails (issue 6568,
+  `291fe5309f`).
+  The writer was the thread that draws a shadow ahead,
+  five milliseconds after the landing returned.
+  Open:
+  the two index-lock markers a landing makes for the next batches stay in a control's fixture
+  until a service's shutdown or the next landing's take,
+  and ending them needs a way that is not a test-only argument of `land_group`;
+  and the shadow pool's fill was measured at 5.6 s in a release note,
+  longer than the five seconds the removal waits.
+- Three place controls of `worktree_copying` (stage,
+  journal,
+  install) own their process now (issue 6477,
+  `d3ea7eaeea`) and can still pass when the bound is not one place,
+  because nothing inside them asserts the width.
+  Adding the assertion issue 6534's control has is one line each.
+- The control for issue 6573 reads every release file of `repo_read/` and `invocation/` for the bounded call,
+  where it read one named file (`53d7f739f3`).
+  The round's search found no other control made stale by the splits,
+  and 58 places where a required literal is absent from the file a pin reads although every such module passes,
+  so it built no guard over source pins and left whether one is worth building.
+- The control for issue 6572 waits for the record its landing writes
+  (`41d82a677e`).
+  The release code did what `SPEC.md` says:
+  a command may report a landed commit from an open batch before the finished record exists.
+  Its new failure message for the bound itself was written and not reached by a run.
+
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 
 The session's `git` (`.cache/monochromatic-git-policy-cli-bin/git`) is the wrapper built from `ee0cf2268b` on 2026-11-22,

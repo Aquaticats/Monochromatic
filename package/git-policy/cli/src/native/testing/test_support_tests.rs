@@ -866,4 +866,137 @@ fn a_child_dies_with_the_test_process_that_started_it() {
     remove(root.as_path());
 }
 
+/// What:
+///  A removal that gives up says the fixture's path and every name it still holds,
+///  each with what it is,
+///  so the writer that put one there is named by the failure itself.
+/// Why:
+///   Issue 6568's failure said that a directory was not empty and named no entry,
+///  so the writer took a round of measurement to find;
+///  a control cannot be asked to keep its fixtures after a failure,
+///  so the failure has to carry the names.
+#[test]
+fn a_refused_removal_names_what_the_fixture_still_holds() {
+    let root: PathBuf = fixture("refused-removal-names");
+    let held: PathBuf = root.join("held");
+    std::fs::create_dir(held.as_path()).expect("a folder the removal was given");
+    std::fs::write(held.join("a-record-left-behind"), "content").expect("a file");
+    // A removal of a path that is not a folder refuses at once, whatever writes it, so this control costs no wait.
+    let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        remove(held.join("a-record-left-behind").as_path());
+    }));
+    let failure: Box<dyn std::any::Any + Send> =
+        refused.expect_err("a removal of a file is not a removal of a fixture");
+    let words: String = match failure.downcast_ref::<String>() {
+        Some(text) => text.clone(),
+        None => panic!("the failure carries words"),
+    };
+    assert!(
+        words.starts_with("remove only the fixture: "),
+        "the failure says what was asked of it: {words}"
+    );
+    assert!(words.contains("still holds"), "{words}");
+    assert!(
+        words.contains("(file)"),
+        "the name left behind is said with what it is: {words}"
+    );
+    assert!(
+        words.contains("a-record-left-behind"),
+        "the name left behind is in the failure: {words}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The report of a fixture that still holds something names every entry,
+///  with its kind and where it is,
+///  and cuts a long list at its own bound rather than bury the first line.
+/// Why:
+///   The report is what a person reads when a teardown fails,
+///  and a folder's own name alone does not say whether a writer made a folder or a record,
+///  nor how deep it sits.
+#[cfg(unix)]
+#[test]
+fn the_report_of_a_fixture_names_every_entry_with_what_it_is() {
+    let root: PathBuf = fixture("report-of-a-fixture");
+    std::fs::create_dir(root.join("a-folder").as_path()).expect("folder");
+    std::fs::write(root.join("a-folder/a-nested-file"), "content").expect("file");
+    std::fs::write(root.join("a-file"), "content").expect("file");
+    std::os::unix::fs::symlink("a-file", root.join("a-link")).expect("link");
+    for number in 0..41 {
+        std::fs::write(root.join(format!("many-{number}")), "").expect("file");
+    }
+    let report: String =
+        super::fixture_support_shared_by_both_test_targets::what_the_fixture_still_holds(
+            root.as_path(),
+        );
+    assert!(report.contains("a-file (file)"), "{report}");
+    assert!(report.contains("a-folder (directory)"), "{report}");
+    assert!(report.contains("a-folder/a-nested-file (file)"), "{report}");
+    assert!(report.contains("a-link (link)"), "{report}");
+    assert!(
+        report.ends_with(", and 5 more"),
+        "a list past the bound says how many it left out: {report}"
+    );
+    remove(root.as_path());
+}
+
+//endregion
+
+//region The cache a fixture's work records its facts in is a folder of that fixture (issue 6571)
+
+/// What:
+///  The cache place the variables of a fixture context name is a folder of the fixture,
+///  and the facts about the real Git are recorded there.
+/// Why:
+///  The wrapper records `git version`'s text,
+///  and where that Git's system configuration and attributes files are,
+///  in a cache under `XDG_CACHE_HOME` or the home directory.
+///  A control's work must use disposable fixtures and never the person's,
+///  because such a cache is shared with every session and outlives the run,
+///  and a control that read one would answer from the machine
+///  (`AGENTS.md`'s THR and HOM).
+///  A build whose fixture named no place wrote `git-system-attributes-<digest>` under the
+///       person's home cache from a passing control's in-process service (issue 6571).
+/// Gotcha:
+///  The code this control starts is the landing's own:
+///  a service's index reset reads its facts through `for_context`,
+///  and that code records as it learns,
+///  so a fixture that names no place writes the person's home cache here.
+#[test]
+fn the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture() {
+    let context: crate::transaction_git::GitContext = git_context();
+    // What: the environment the landing's own in-process index reset reads its facts from.
+    // Why: any other way of asking would prove a place this control's subject never uses.
+    let environment: crate::worktree_clean_content::ConversionEnvironment =
+        crate::worktree_clean_content::for_context(&context);
+    let place: PathBuf =
+        crate::git_version_cache::cache_directory(environment.variables.as_slice())
+            .expect("a cache place for the variables a fixture hands its work");
+    assert!(
+        place.starts_with(fixture_root()),
+        "the cache a control's work records in is a folder of its fixture, never the person's home cache: {}",
+        place.display()
+    );
+    let learned: Vec<PathBuf> = std::fs::read_dir(place.as_path())
+        .expect("the cache place")
+        .map(|entry| {
+            return entry.expect("an entry of the cache place").path();
+        })
+        .filter(|path| {
+            let text: Option<&str> = path.file_name().and_then(|name| {
+                return name.to_str();
+            });
+            return text.is_some_and(|entry_name| {
+                return entry_name.starts_with(crate::git_system_config::SYSTEM_ATTRIBUTES_KIND);
+            });
+        })
+        .collect();
+    assert_eq!(
+        learned.len(),
+        1,
+        "learning where the system attributes file is records one entry of the fixture's place: {learned:?}"
+    );
+}
+
 //endregion

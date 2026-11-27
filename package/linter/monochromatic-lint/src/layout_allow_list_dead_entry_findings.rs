@@ -3,10 +3,14 @@
 //! Why:
 //!  A dead line is the sign the list has not shrunk after the work that made it dead,
 //!  and the run must say so on the line itself.
-//!  A `uses` or `file-uses` line that names a folder no folder of the package is called
-//!  says which folder it read and that the package holds none of that name:
+//!  A `uses` or `file-uses` line that names a folder no source folder of the package is called
+//!  says which folder it read and that no source folder has that name:
 //!  that is what a hand-aligned or mistyped line looks like,
 //!  and it is the only thing that tells its reader to re-space the line rather than delete it.
+//!  The sentence speaks of source folders rather than of folders,
+//!  because the set it is judged against is the module tree's:
+//!  a folder on disk that holds no module file (a `docs` folder holding a `README.md`)
+//!  is no source folder, and telling its reader that the package holds no such folder would be false.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,10 +45,14 @@ use std::{
 /// Why:
 ///  A dead line is the sign the list has not shrunk after the work that made it dead,
 ///  and the run must say so on the line itself.
-///  A `uses` or `file-uses` line that names a folder no folder of the package is called
-///  says which folder it read and that the package holds none of that name:
+///  A `uses` or `file-uses` line that names a folder no source folder of the package is called
+///  says which folder it read and that no source folder has that name:
 ///  that is what a hand-aligned or mistyped line looks like,
 ///  and it is the only thing that tells its reader to re-space the line rather than delete it.
+///  The sentence speaks of source folders rather than of folders,
+///  because the set it is judged against is the module tree's:
+///  a folder on disk that holds no module file is no source folder,
+///  and telling its reader that the package holds no such folder would be false.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,14 +121,14 @@ pub fn dead_entry_findings(
             };
             (
                 format!(
-                    "The allow-list entry `{}` in {} names {} {}, which no folder of this package is called, so the entry tolerates nothing any more. Check the line's spelling and the spacing between its words.",
+                    "The allow-list entry `{}` in {} names {} {}. No source folder of this package has that name, so the entry tolerates nothing any more. Check the line's spelling and the spacing between its words.",
                     entry.text,
                     shown(list.source(), base),
                     names,
                     absent.join(" and ")
                 ),
                 String::from(
-                    "Write the folder name the rule prints, or delete the line if the use is gone: a doubled or padded space is read as part of a name.",
+                    "Write the folder name the rule prints, or delete the line if the use is gone: a doubled space, or a tab beside a name, is read as part of that name.",
                 ),
             )
         };

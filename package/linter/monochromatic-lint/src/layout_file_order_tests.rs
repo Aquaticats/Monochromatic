@@ -677,7 +677,7 @@ fn findings_with(
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"), root)
         .expect("the fixture list is valid");
     let prefix: String = format!("{}/", root.display());
     return check_file_order(&tree, uses.as_slice(), root, Some(&list))
@@ -782,6 +782,7 @@ fn every_extra_copy_of_a_listed_name_has_its_own_key() {
     let list = crate::layout_allow_list::parse_allow_list(
         "listed-twice src/a/mod.rs one.rs\n",
         Path::new("allow-list.txt"),
+        &fixture.path,
     )
     .expect("the fixture list is valid");
     let kept: Vec<String> = check_file_order(&tree, uses.as_slice(), &fixture.path, Some(&list))
@@ -811,6 +812,75 @@ fn a_listed_file_use_that_holds_no_loop_is_reported() {
         found[0].contains("tolerates nothing any more"),
         "{}",
         found[0]
+    );
+}
+
+/// A dead `file-uses` line names the folder the rule read,
+///  so a reader whose line is mistyped or hand-aligned is told which name the tree lacks
+///  rather than only to delete the line.
+#[test]
+fn a_dead_file_use_line_names_the_folder_the_rule_read() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(&["one.rs", "two.rs"], &["one", "two"]).as_str(),
+        ),
+        ("src/a/one.rs", ""),
+        ("src/a/two.rs", ""),
+    ]);
+    let found: Vec<String> = findings_with(&fixture.path, "file-uses src/gone one.rs -> two.rs\n");
+    assert_eq!(found.len(), 1, "{found:#?}");
+    for part in [
+        "names the folder `src/gone`",
+        "No source folder of this package has that name",
+        "tolerates nothing any more",
+    ] {
+        assert!(found[0].contains(part), "{part} missing in {}", found[0]);
+    }
+    // The control: a line naming a folder this package holds names no folder, and is told only to be deleted.
+    // Why: without the folders of the tree the check would call every dead line a misspelling.
+    let held: Vec<String> = findings_with(&fixture.path, "file-uses src/a one.rs -> two.rs\n");
+    assert_eq!(held.len(), 1, "{held:#?}");
+    assert!(
+        held[0].contains("tolerates nothing any more. Delete the line"),
+        "{}",
+        held[0]
+    );
+    assert!(
+        !held[0].contains("No source folder of this package has that name"),
+        "{}",
+        held[0]
+    );
+}
+
+/// A `file-uses` line reads its folder the way a `uses` line reads one:
+///  a path that climbs out with `..` and comes back in names the folder every key names,
+///  so the alias tolerates the use it spells.
+#[test]
+fn a_listed_file_use_reads_its_folder_back_against_the_package_folder() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod ab;\n"),
+        (
+            "src/ab/mod.rs",
+            index_listing(&["one.rs", "two.rs"], &["one", "two"]).as_str(),
+        ),
+        ("src/ab/one.rs", "use super::two::T;\n"),
+        ("src/ab/two.rs", "use super::one::O;\n"),
+    ]);
+    let name: String = fixture
+        .path
+        .file_name()
+        .expect("the fixture folder has a name")
+        .to_string_lossy()
+        .into_owned();
+    let listed: String = format!(
+        "file-uses ../{name}/src/ab one.rs -> two.rs\nfile-uses ../{name}/src/ab two.rs -> one.rs\n"
+    );
+    assert_eq!(
+        findings_with(&fixture.path, listed.as_str()),
+        Vec::<String>::new(),
+        "the alias names the same folder as `file-uses src/ab`"
     );
 }
 

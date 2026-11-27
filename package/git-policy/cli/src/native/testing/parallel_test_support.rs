@@ -277,7 +277,8 @@ pub(crate) const ONE_PLACE: usize = 1;
 /// The place is known to be taken before this returns,
 ///  so the work that follows either waits for it or did not take one.
 /// The bound is held for the life of the process (`hold_blocking_jobs_to`),
-///  which is why this runs in a test process of its own.
+///  which is why every caller runs its body in a child process of its own:
+///  that setter refuses in any other process (issue 6477).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
