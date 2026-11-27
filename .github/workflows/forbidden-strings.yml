@@ -174,12 +174,11 @@ jobs:
             fi
           done
           if [ -n "$watermark" ]; then
-            changed_list="$RUNNER_TEMP/forbidden-strings.changed"
-            if ! git diff --name-only --diff-filter=ACMRT -z "$watermark" "$HEAD_SHA" > "$changed_list"; then
+            changed_list="$RUNNER_TEMP/forbidden-strings.changed-raw"
+            if ! git diff --raw --no-renames --diff-filter=ACMRT -z "$watermark" "$HEAD_SHA" > "$changed_list"; then
               echo "::error::Could not list files changed since validated commit $watermark." >&2
               exit 1
             fi
-            mapfile -d '' -t changed < "$changed_list"
             comparison="$watermark..$HEAD_SHA"
           else
             echo '::notice::No validated scan baseline; scanning the current tree.'
@@ -187,16 +186,60 @@ jobs:
             exit 0
           fi
         else
-          changed_list="$RUNNER_TEMP/forbidden-strings.changed"
-          if ! git diff --name-only --diff-filter=ACMRT -z origin/main...HEAD > "$changed_list"; then
+          changed_list="$RUNNER_TEMP/forbidden-strings.changed-raw"
+          if ! git diff --raw --no-renames --diff-filter=ACMRT -z origin/main...HEAD > "$changed_list"; then
             echo '::error::Could not list files changed against origin/main.' >&2
             exit 1
           fi
-          mapfile -d '' -t changed < "$changed_list"
           comparison='origin/main...HEAD'
         fi
-        if [ ${#changed[@]} -eq 0 ]; then
+        # A scan that opens each changed entry as a file cannot open a tracked
+        # link to a folder or a submodule gitlink: `fs::read` on the first
+        # follows into the folder and fails with `Is a directory (os error 21)`,
+        # and a gitlink's path is a folder or absent. `--raw` names each
+        # entry's mode in the tree, so the step can leave those two kinds out
+        # without reading the runner's disk. The walk (`--all`) already leaves
+        # the same entries out (`Mode::SYMLINK` and `Mode::COMMIT` in
+        # `src/walk.rs`); this makes the changed-entry scan match it.
+        # Nothing leaves silently: a line after this loop counts them and says
+        # why. A link to a file, a broken link and a regular file the scanner
+        # cannot open are still handed over, because something inspectable may
+        # sit behind them.
+        changed=()
+        listed_entries=0
+        folder_links_left_out=0
+        gitlink_entries_left_out=0
+        while IFS= read -r -d '' raw_record; do
+          IFS= read -r -d '' entry
+          listed_entries=$((listed_entries + 1))
+          # A raw record is `:<old mode> <new mode> <old sha> <new sha> <status>`
+          # followed by the entry's path as its own NUL-terminated field.
+          raw_fields=${raw_record#:}
+          entry_mode=${raw_fields#* }
+          entry_mode=${entry_mode%% *}
+          if [ "$entry_mode" = '160000' ]; then
+            gitlink_entries_left_out=$((gitlink_entries_left_out + 1))
+            continue
+          fi
+          # `-d` follows the link, so this is true only when the link's target
+          # on disk is a folder; a link to a file and a broken link stay in.
+          if [ "$entry_mode" = '120000' ] && [ -d "./$entry" ]; then
+            folder_links_left_out=$((folder_links_left_out + 1))
+            continue
+          fi
+          changed+=("$entry")
+        done < "$changed_list"
+        left_out_entries=$((folder_links_left_out + gitlink_entries_left_out))
+        if [ "$listed_entries" -eq 0 ]; then
           echo "No changed files in $comparison; nothing to scan."
+          exit 0
+        fi
+        if [ "$left_out_entries" -gt 0 ]; then
+          printf 'Left out %d of %d changed entries the scanner cannot open as a file: folder links %d, submodule gitlinks %d. A link to a file, a broken link and an unreadable file stay in the scan.\n' \
+            "$left_out_entries" "$listed_entries" "$folder_links_left_out" "$gitlink_entries_left_out"
+        fi
+        if [ ${#changed[@]} -eq 0 ]; then
+          echo "Every changed entry in $comparison is one the scanner cannot open as a file; nothing to scan."
           exit 0
         fi
         printf 'Scanning %d changed file(s) from %s:\n' "${#changed[@]}" "$comparison"
