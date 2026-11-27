@@ -348,6 +348,13 @@ mod removal_command_path_writes_nothing_tests;
 #[path = "add_route_issues_no_destroy_tests.rs"]
 mod add_route_issues_no_destroy_tests;
 
+/// Every release call that replaces this process puts back the action this process had for
+/// `SIGPIPE` when the replacement fails,
+/// because every path that goes on after it writes the wrapper's own words.
+#[cfg(test)]
+#[path = "every_exec_puts_the_signal_action_back_tests.rs"]
+mod every_exec_puts_the_signal_action_back_tests;
+
 /// The text with every whitespace character removed,
 /// so `args_os ()` reads as `args_os()` and `clippy ::` as `clippy::`.
 ///

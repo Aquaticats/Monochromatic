@@ -5237,6 +5237,11 @@ Real Git keeps the normal standard streams.
    because the automatic push of that branch stops before it and
    every command says which commit holds the branch back and which check refused it.
 
+A command whose real Git could not be started keeps that status and the wrapper's own words
+ even when nothing reads its standard error:
+ the wrapper puts back the action it had for `SIGPIPE` after a failed replacement of its process,
+ so a write to a pipe nobody reads answers `EPIPE` instead of ending the command by the signal.
+
 The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
 which can name a remote.

@@ -42,8 +42,8 @@ use super::process_wide_fact_readers_tests::{
 ///  `SIGPIPE_DEFAULT_NAMES` is each call that leaves `SIGPIPE` at its default in the calling process,
 ///  with why that name is the signal's.
 ///  Its siblings a reader might expect are the calls that only read the action
-///  (`testing/signal_disposition_of_the_process.rs`) and the one that puts the ignore back,
-///  which a control may call anywhere because they leave the process as they found it.
+///  (`testing/signal_disposition_of_the_process.rs`),
+///  which a control may call anywhere because a read leaves the process as it found it.
 /// Why:
 ///  A control that names one of these asks a question about the whole process,
 ///  so it is each call that reaches the change that has to be found,
@@ -108,7 +108,7 @@ const IN_A_CHILD_WHOSE_ENDING_IS_THE_ASSERTION: &str = "child_test_process::fini
 const FILES_THAT_LEAVE_SIGPIPE_AT_ITS_DEFAULT: &[(&str, &str)] = &[
     (
         "invocation/forwarding_tests.rs",
-        "three controls replace the process, read what that leaves or end by a signal, each in a child of its own",
+        "four controls replace the process, read what that leaves or end by a signal, each in a child of its own",
     ),
     (
         "push/start_retry_tests.rs",
