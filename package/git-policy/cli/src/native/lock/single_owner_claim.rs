@@ -36,6 +36,16 @@
 //!  `FOREIGN_OWNER_PATIENCE`,
 //! as every owner record of the wrapper does.
 //!
+//! Files beside this one,
+//!  and why the claim is not one file:
+//!  `single_owner_claim_record.rs` holds the text of one claim file,
+//!  `single_owner_claim_files.rs` holds the numbered files a claim is kept in,
+//!  and `single_owner_claim_liveness.rs` decides whether the owner a record names still runs.
+//!  `rust/max-lines` splits the claim by role,
+//!  and taking the claim,
+//!  giving it back,
+//!  and answering who owns an item are the role this file keeps.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const outcome = await takeClaim({ directory, prefix }); // { held: claim } or { busy: { pid, path } }
@@ -43,41 +53,48 @@
 //! await claim.release();
 //! ```
 
-use crate::pid_namespace::{
-    ForeignStanding,
-    current_pid_namespace,
-    foreign_owner_standing,
+/// The PID namespace a planted claim names,
+///  which is this process's own.
+#[cfg(test)]
+use crate::pid_namespace::current_pid_namespace;
+/// Every generation of an item's claims,
+///  the path of one,
+///  and the three steps that publish,
+///  read and release one.
+use crate::single_owner_claim_files::{
+    generations,
+    path_of,
+    publish_new,
+    read_record,
+    rewrite_as_released,
 };
-use crate::process_identity::{
-    current_birth_identity,
-    process_birth_identity,
+/// Whether the owner a claim names still runs,
+///  and this process's own record.
+use crate::single_owner_claim_liveness::{
+    live_owner,
+    own_record,
 };
+/// The text a claim this command plants is written as,
+///  which only a control plants.
+#[cfg(test)]
+use crate::single_owner_claim_record::encode;
+/// The record a claim file holds,
+///  and the decoder the words of one claim file give it back through.
+pub use crate::single_owner_claim_record::{
+    ClaimRecord,
+    decode,
+};
+/// The refusal a claim fails with,
+///  which names the item and what was being done to it.
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_file_write_steps::{
-    sync_directory_to_disk,
-    write_all_then_sync,
-};
-use crate::wrapper_names_old_and_new::DATA_FOLDER;
-use std::ffi::{
-    OsStr,
-    OsString,
-};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::OpenOptionsExt;
+/// Borrowed file names,
+///  which the prefix of a claim series is.
+use std::ffi::OsStr;
+/// The paths a claim is laid out as.
 use std::path::{
     Path,
     PathBuf,
 };
-use std::sync::atomic::{
-    AtomicU64,
-    Ordering,
-};
-
-/// The first line of every claim file.
-const CLAIM_HEADER: &str = "monochromatic-git-policy-cli owner-claim v1";
-
-/// The line of a released claim.
-const RELEASED_LINE: &str = "released";
 
 /// The most rounds one `take_claim` call makes.
 /// Each round after the first follows the progress of another command (it
@@ -87,9 +104,6 @@ const RELEASED_LINE: &str = "released";
 ///  than this command can look;
 /// it then reports that instead of looping.
 const MOST_ROUNDS: u32 = 64;
-
-/// Distinguishes the temporary files of claims taken by one process at the same instant.
-static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// What:
 ///  A claim this process holds:
@@ -148,270 +162,6 @@ pub enum ClaimOutcome {
     Held(OwnerClaim),
     /// A live process owns the item.
     Busy(BusyOwner),
-}
-
-/// What:
-///  What a claim file says,
-/// as [`decode`] reads it.
-/// Why:
-///   A claim decides whether a command may work on one item,
-/// so the record it gives is the input of every liveness decision.
-/// The record is public,
-/// and so is [`decode`],
-/// so the fuzz sidecar
-///  (`package/git-policy/cli.fuzz/src/owner_claim_record.rs`) reads generated claim text through the same decoder a
-///  command does,
-/// instead of a copy of its rules.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClaimRecord {
-    /// The owner gave the item back.
-    Released,
-    /// A process owns the item:
-    /// its id,
-    /// birth identity and PID namespace (`-` when unknown).
-    Owned {
-        /// The owner's process id,
-        /// which a claim names no lower than one.
-        pid: i64,
-        /// The owner's birth identity,
-        /// which a claim names non-empty.
-        birth: String,
-        /// The owner's PID namespace,
-        /// absent when its own namespace is the reader's or cannot be read.
-        namespace: Option<String>,
-    },
-}
-
-/// The text of a claim file.
-fn encode(record: &ClaimRecord) -> String {
-    return match record {
-        ClaimRecord::Released => format!("{CLAIM_HEADER}\n{RELEASED_LINE}\n"),
-        ClaimRecord::Owned {
-            pid,
-            birth,
-            namespace,
-        } => format!(
-            "{CLAIM_HEADER}\npid={pid}\nbirth={birth}\nnamespace={}\n",
-            namespace.as_deref().unwrap_or("-")
-        ),
-    };
-}
-
-/// What:
-///  The record a claim file's text holds,
-/// or nothing when the text is not a claim of this command.
-/// Why:
-///   The two folder spellings,
-/// the released line,
-/// the three owner fields and every refusal between them are the whole of what
-///  this command reads about an owner,
-/// so a text that reads differently here is a liveness decision from what no command wrote.
-/// Public so the fuzz sidecar reads generated claims through it.
-pub fn decode(text: &str) -> Option<ClaimRecord> {
-    let mut lines = text.lines();
-    // The files are named as before the rename, so a claim of the earlier release is found, and read in its own spelling.
-    let earlier_header: String = CLAIM_HEADER.replacen(DATA_FOLDER.current, DATA_FOLDER.earlier, 1);
-    let first: &str = lines.next()?;
-    if first != CLAIM_HEADER && first != earlier_header {
-        return None;
-    }
-    let second: &str = lines.next()?;
-    if second == RELEASED_LINE {
-        return Some(ClaimRecord::Released);
-    }
-    let pid: i64 = second.strip_prefix("pid=")?.parse().ok()?;
-    if pid <= 0 {
-        return None;
-    }
-    let birth: String = lines.next()?.strip_prefix("birth=")?.to_string();
-    let namespace: String = lines.next()?.strip_prefix("namespace=")?.to_string();
-    if birth.is_empty() {
-        return None;
-    }
-    return Some(ClaimRecord::Owned {
-        pid,
-        birth,
-        namespace: if namespace == "-" {
-            None
-        } else {
-            Some(namespace)
-        },
-    });
-}
-
-/// The generation a directory entry names under `prefix`,
-/// or nothing for any other name.
-fn generation_of(
-    name: &OsStr,
-    prefix: &OsStr,
-) -> Option<u64> {
-    let digits: &[u8] = name
-        .as_bytes()
-        .strip_prefix(prefix.as_bytes())?
-        .strip_prefix(b".")?;
-    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
-        return None;
-    }
-    return std::str::from_utf8(digits).ok()?.parse().ok();
-}
-
-/// Every generation of `prefix` in `directory`,
-/// ascending.
-fn generations(
-    directory: &Path,
-    prefix: &OsStr,
-) -> Result<Vec<u64>, MigrateError> {
-    let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
-        Ok(listing) => listing,
-        Err(error) => return Err(MigrateError::io("list the claims in", directory, &error)),
-    };
-    let mut found: Vec<u64> = Vec::new();
-    for entry in entries.flatten() {
-        if let Some(generation) = generation_of(entry.file_name().as_os_str(), prefix) {
-            found.push(generation);
-        }
-    }
-    found.sort_unstable();
-    return Ok(found);
-}
-
-/// The path of one generation.
-fn path_of(
-    directory: &Path,
-    prefix: &OsStr,
-    generation: u64,
-) -> PathBuf {
-    let mut name: OsString = prefix.to_os_string();
-    name.push(format!(".{generation}"));
-    return directory.join(name);
-}
-
-/// Write `record` into a new private file beside the claims,
-/// synchronized,
-/// and return its path.
-fn write_private(
-    directory: &Path,
-    record: &ClaimRecord,
-) -> std::io::Result<PathBuf> {
-    let unique: u64 = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        Ok(elapsed) => elapsed.as_nanos(),
-        Err(_) => 0,
-    };
-    let path: PathBuf = directory.join(format!(
-        ".cli-git-claim.tmp.{}.{nanos}.{unique}",
-        std::process::id()
-    ));
-    let mut file: std::fs::File = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&path)?;
-    // The flush is the shared step's, so a call that keeps its writes in memory (
-    // `subvolume_file_write_steps::WritesKeptInMemory`,
-    // which a stand-in platform installs for a control that simulates a kill in the process) keeps this one too,
-    // and a release build always flushes.
-    let written: std::io::Result<()> = write_all_then_sync(&mut file, encode(record).as_bytes());
-    if let Err(error) = written {
-        let _removed: std::io::Result<()> = std::fs::remove_file(&path);
-        return Err(error);
-    }
-    return Ok(path);
-}
-
-/// Make the directory's new entry durable,
-/// as the shared step does.
-fn sync_directory(directory: &Path) -> std::io::Result<()> {
-    return sync_directory_to_disk(directory);
-}
-
-/// Publish `record` as `target` without replacing anything:
-/// `AlreadyExists` when the generation exists.
-fn publish_new(
-    directory: &Path,
-    target: &Path,
-    record: &ClaimRecord,
-) -> std::io::Result<()> {
-    let private: PathBuf = write_private(directory, record)?;
-    let linked: std::io::Result<()> = std::fs::hard_link(&private, target);
-    let _removed: std::io::Result<()> = std::fs::remove_file(&private);
-    linked?;
-    return sync_directory(directory);
-}
-
-/// The claim file's record,
-/// or nothing when the file is gone,
-/// or an error when it is not a claim of this command.
-fn read_record(path: &Path) -> Result<Option<ClaimRecord>, MigrateError> {
-    let bytes: Vec<u8> = match crate::plain_file::read_plain_file(path, SMALL_RECORD_LIMIT) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(MigrateError::io("read the claim", path, &error)),
-    };
-    return match decode(String::from_utf8_lossy(bytes.as_slice()).as_ref()) {
-        Some(record) => Ok(Some(record)),
-        None => Err(MigrateError::Journal(format!(
-            "{} is not a claim file this command wrote, so it cannot tell whether another command is working here; nothing was changed. Look at the file: if no monochromatic-git-policy-cli command is running on this item, remove it and run the command again",
-            path.display()
-        ))),
-    };
-}
-
-/// The most bytes of a claim file that are read.
-const SMALL_RECORD_LIMIT: u64 = 4096;
-
-/// The process id of the owner a record names when that process is alive,
-/// nothing when the claim is released or its owner is
-///  gone,
-/// and an error when that cannot be decided.
-fn live_owner(
-    record: &ClaimRecord,
-    path: &Path,
-) -> Result<Option<i64>, MigrateError> {
-    let ClaimRecord::Owned {
-        pid,
-        birth,
-        namespace,
-    } = record
-    else {
-        return Ok(None);
-    };
-    match foreign_owner_standing(namespace.as_deref(), path) {
-        Some(ForeignStanding::Standing) => return Ok(Some(*pid)),
-        // The claim of another namespace that its owner removed is a finished owner's: nothing is held, so nothing is taken
-        //  from a live owner either (cross-vendor review of 2026-11-09, finding 3).
-        Some(ForeignStanding::Finished) => return Ok(None),
-        // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old claim of another namespace is neither taken nor trusted.
-        Some(ForeignStanding::Refused(refused)) => {
-            return Err(MigrateError::Journal(refused.describe(*pid)));
-        }
-        None => {}
-    }
-    return match process_birth_identity(*pid) {
-        Ok(Some(current)) => Ok((&current == birth).then_some(*pid)),
-        Ok(None) => Ok(None),
-        Err(error) => Err(MigrateError::Journal(format!(
-            "{} names process {pid}, and whether it still runs cannot be decided ({error}); nothing was changed. If it does not, remove the file and run the command again",
-            path.display()
-        ))),
-    };
-}
-
-/// This process's claim record.
-fn own_record() -> Result<ClaimRecord, MigrateError> {
-    let birth: String = match current_birth_identity() {
-        Ok(identity) => identity,
-        Err(error) => {
-            return Err(MigrateError::Journal(format!(
-                "this process cannot be identified for a claim ({error}); nothing was changed"
-            )));
-        }
-    };
-    return Ok(ClaimRecord::Owned {
-        pid: i64::from(std::process::id()),
-        birth,
-        namespace: current_pid_namespace(),
-    });
 }
 
 /// What:
@@ -536,20 +286,6 @@ pub fn live_owner_of(
         })),
         None => Ok(None),
     };
-}
-
-/// Replace the claim file at `path` by a released record through a new private file and a rename,
-/// then make it durable.
-fn rewrite_as_released(
-    directory: &Path,
-    path: &Path,
-) -> std::io::Result<()> {
-    let private: PathBuf = write_private(directory, &ClaimRecord::Released)?;
-    if let Err(error) = std::fs::rename(&private, path) {
-        let _removed: std::io::Result<()> = std::fs::remove_file(&private);
-        return Err(error);
-    }
-    return sync_directory(directory);
 }
 
 impl OwnerClaim {

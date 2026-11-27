@@ -21,7 +21,6 @@
 //! ```
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -106,14 +105,17 @@ pub fn finished(outcome: Outcome) -> Output {
     }
 }
 
-/// Copies a program and keeps it executable.
+/// Copies a program and keeps it executable,
+/// through a child `cp` process.
 pub fn copy_program(
     source: &Path,
     target: &Path,
 ) {
-    fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::copy(source, target).expect("copy the program");
-    fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // What:     A test starts the copy as the shadow.
+    // Why:      A copy this process made would be open for writing here, and a child of
+    //           another test thread could inherit that descriptor, so its start would be
+    //           refused with `ETXTBSY` (issue 6527).
+    crate::through_a_child_process::copy_program(source, target);
 }
 
 /// A copy of the shadow that names another version:
@@ -135,9 +137,9 @@ pub fn copy_of_another_version(target: &Path) {
             index += 1;
         }
     }
-    fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::write(target, bytes).expect("write the copy");
-    fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // What:     The version text of the copy is rewritten, and a test starts the copy.
+    // Why:      A child process writes it for the reason `copy_program` gives.
+    crate::through_a_child_process::write_program(target, bytes.as_slice());
 }
 
 /// A shadow link:
@@ -152,10 +154,11 @@ pub fn link_as_tool(folder: &Path) -> PathBuf {
 /// A script standing in for the real tool:
 /// prints which tool answered and the arrival marker it was started with.
 pub fn write_real_script(folder: &Path) {
-    fs::create_dir_all(folder).expect("make the folder");
-    fs::write(folder.join(TOOL), format!("#!/bin/sh\nprintf 'REAL {TOOL} %s\\n' \"$*\"\nprintf 'MARKER %s\\n' \"${ARRIVAL_VARIABLE}\"\n")).expect("write the script");
-    fs::set_permissions(folder.join(TOOL), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
+    // A test starts this script as the real tool, so a child process writes it.
+    crate::through_a_child_process::write_program(
+        folder.join(TOOL).as_path(),
+        format!("#!/bin/sh\nprintf 'REAL {TOOL} %s\\n' \"$*\"\nprintf 'MARKER %s\\n' \"${ARRIVAL_VARIABLE}\"\n").as_bytes(),
+    );
 }
 
 /// A scratch folder beside the build output.

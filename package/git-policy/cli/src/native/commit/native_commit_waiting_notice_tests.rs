@@ -7,6 +7,18 @@
 //! prints nothing.
 
 use super::*;
+use crate::native_commit_waiting_notice_watch::LOOK_INTERVAL;
+use crate::process_tree::ProcessUse;
+use crate::scratch_step_ceiling_stop::{
+    CeilingCame,
+    ceiling_came,
+};
+use crate::scratch_step_look_below::look_below;
+use crate::scratch_step_programs_below::{
+    SeenBelow,
+    credit_between_looks,
+    seen_below,
+};
 
 /// The words of a command line as the notice reads them.
 fn words(text: &[&str]) -> Vec<OsString> {

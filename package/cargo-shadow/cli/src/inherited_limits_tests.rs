@@ -288,6 +288,13 @@ fn the_own_cgroup_is_the_unified_line_of_the_proc_file() {
         own_cgroup("1:name=systemd:/legacy\n0::/unified\n").expect("a path"),
         "/unified"
     );
+    // A hybrid host writes a version 1 controller's line first; this one was captured from `/proc/self/cgroup` on this host on
+    // 2026-11-27, and issue 6549 quotes the same two lines.
+    assert_eq!(
+        own_cgroup("1:net_cls:/\n0::/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash\n")
+            .expect("a path"),
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash"
+    );
     assert_eq!(
         own_cgroup("0::/gone.scope (deleted)\n").expect("a path"),
         "/gone.scope"
