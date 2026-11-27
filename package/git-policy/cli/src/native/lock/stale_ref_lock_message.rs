@@ -22,8 +22,6 @@ use crate::stale_ref_lock_found::{
     Found,
     Outcome,
     PidFile,
-};
-use crate::stale_ref_lock_judge::{
     Proof,
     Verdict,
 };

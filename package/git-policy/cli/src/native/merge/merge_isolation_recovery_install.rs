@@ -22,20 +22,22 @@ use crate::merge_isolation_changes::{
     Change,
     worktree_path,
 };
-use crate::merge_isolation_recovery_steps::{
+use crate::merge_isolation_recovery_place::RecoveryPlace;
+use crate::merge_isolation_recovery_record::{
     Installed,
-    Judged,
     MergeRefusal,
-    RecoveryPlace,
-    Standing,
-    TakenOnDisk,
 };
+use crate::merge_isolation_take_asides::TakenOnDisk;
 use crate::merge_isolation_take_asides::{
     Take,
     finish_asides_awaiting,
     put_back_awaiting,
     restore_what_git_did_not_write_awaiting,
     take_aside_awaiting,
+};
+use crate::merge_isolation_the_merges_paths_judged::{
+    Judged,
+    Standing,
 };
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;

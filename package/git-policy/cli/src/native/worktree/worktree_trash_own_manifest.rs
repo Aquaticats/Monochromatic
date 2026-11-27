@@ -38,29 +38,17 @@ use crate::fs_beneath::{
     plain_components,
 };
 use crate::plain_file::write_plain_file;
-use crate::worktree_trash::TRASH_PARENT;
+use crate::the_names_and_the_manifest_of_the_trash::{
+    MANIFEST_FILE_NAME,
+    OwnManifest,
+    TRASH_PARENT,
+};
 use crate::worktree_trash_manifest::TrashManifest;
 use std::ffi::OsStr;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The name of the file a trash carries inside itself,
-/// below its own name in a worktree.
-/// Why:
-///   The trash directory is the wrapper's own,
-/// named with forty hexadecimal digits,
-/// so one plain name inside it
-///  cannot be mistaken for a directory the leave-out set aside,
-/// which are all named `d<index>`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const TRASH_MANIFEST_FILE = '.manifest';
-/// ```
-pub const MANIFEST_FILE_NAME: &str = ".manifest";
 
 /// The most bytes a trash's own manifest may take:
 /// the encoded manifest of the thousands of directories one snapshot can set aside.
@@ -109,26 +97,6 @@ pub fn write(
             shown(root, manifest.name.as_str()).display()
         )),
     };
-}
-
-/// What:
-///  The manifest a trash carries inside itself,
-///  with the identity of the file that carries it.
-/// Why:
-///   The bytes say which trash the leave-out made,
-/// and the identity of the file they were read through is what the emptying compares again
-///  before it unlinks that file,
-/// so a file another process moved onto the name is never removed unread.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type OwnManifest = { manifest: TrashManifest; file: ObjectId };
-/// ```
-pub struct OwnManifest {
-    /// What the leave-out made and moved.
-    pub manifest: TrashManifest,
-    /// The object that held those bytes when they were read.
-    pub file: crate::fs_beneath::ObjectId,
 }
 
 /// What:

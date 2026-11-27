@@ -25,10 +25,8 @@ use crate::merge_isolation_changes::{
     Change,
     parse_raw_changes,
 };
-use crate::merge_isolation_recovery_steps::{
-    RecoveryPlace,
-    Standing,
-};
+use crate::merge_isolation_recovery_place::RecoveryPlace;
+use crate::merge_isolation_the_merges_paths_judged::Standing;
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;

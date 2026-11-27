@@ -30,9 +30,9 @@ use crate::candidate_object::ObjectId;
 use crate::child_watch::{
     ChildWatch,
     WatchTerms,
-    reader_subject,
     watched_timeout_text,
 };
+use crate::child_watch_one_shot_run::reader_subject;
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 /// Who a real-Git start runs for:

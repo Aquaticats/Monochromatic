@@ -25,7 +25,7 @@ use crate::fs_beneath::{
     handle_path,
     open_directory_at,
 };
-use crate::worktree_trash::TrashManifest;
+use crate::worktree_trash_manifest::TrashManifest;
 use std::ffi::{
     OsStr,
     OsString,
