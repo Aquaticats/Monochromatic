@@ -3429,7 +3429,8 @@ The rule is:
 The guard reads the command Git will run,
 not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
-up to 16 expansions,
+up to 64 expansions,
+and a chain longer than that is left to Git as a command the wrapper could not read,
 the decision is taken on the expansion,
 and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
 `git config --null --list` decides which value Git keeps when both spellings of one alias are set,
@@ -3450,16 +3451,23 @@ and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
 One plain form of it is read,
 only so the guard can decide:
-a value written `!git <words>` whose bytes hold no quote,
+a value whose bytes hold no quote,
 backslash,
 `$`,
 backtick,
 glob,
 brace or separator,
-and whose words name no global option of their own.
+whose own words name no global option,
+and whose first word after the `!` and any blanks is `git`.
+A blank there is a space or a TAB,
+so `! git reset --hard` and a TAB after `!git` are read as `!git reset --hard` is.
 Git appends your own words to that value,
 so `-c 'alias.wipe=!git' wipe reset --hard` is refused where `git reset --hard` is,
-and so is `-c 'alias.wipe=!git reset --hard' wipe`.
+and so is `-c 'alias.wipe=!git reset --hard' wipe`;
+those words may begin with a global option,
+and a value whose own words name another `!` alias is followed through the
+shells it starts,
+up to four of them.
 Every other shell alias runs as Git runs it,
 with no guard:
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
