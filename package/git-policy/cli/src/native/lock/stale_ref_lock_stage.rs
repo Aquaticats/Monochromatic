@@ -7,8 +7,11 @@
 //!  The shape of a lock left by a killed Git is a fact about Git,
 //!  not about this crate,
 //!  so a control produces it with Git in a repository of its own (rule THR).
-//!  Every path a control asks about (a reference's lock, its pid file, the packed
-//!  references, the reftable list) is named here,
+//!  Every path a control asks about (a reference's lock,
+//!  its pid file,
+//!  the packed
+//!  references,
+//!  the reftable list) is named here,
 //!  so a control spells no path itself and a change to Git's layout is one edit.
 //!
 //! In TS you'd write (pseudocode):

@@ -77,12 +77,12 @@ pub(crate) fn looks_older_than_boot(
     born: Option<SystemTime>,
     identity: &Identity,
 ) -> bool {
-    let Some(boot) = boot else {
+    let Some(booted_at) = boot else {
         return false;
     };
     let modified: SystemTime = nanoseconds_to_time(identity.modified_ns);
     return match born {
-        Some(at) => at < boot && modified < boot,
+        Some(at) => at < booted_at && modified < booted_at,
         None => false,
     };
 }
