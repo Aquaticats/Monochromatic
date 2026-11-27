@@ -56,11 +56,18 @@ const ROUNDS: usize = 2;
 ///   The measured tree is this crate's own source,
 /// whose size and file count are the run's to report,
 /// so the walk names
-///  nothing by hand.
+///  nothing by hand,
+///  and it reads nothing through a symbolic link:
+///  every source folder of this crate holds a `uses` folder of links to the folders its code uses
+///  (`AGENTS.md`,
+///  rules `LYD` and `LYL`),
+///  so a walk that descends one counts the same file once per chain of links above it
+///  (measured on 2026-11-27 for issue 6598:
+///  the service control's walk read 165,978 entries where the tree holds 4,327).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const files = walk(manifestDir + '/src').filter(isFile);
+/// const files = walk(manifestDir + '/src').filter((entry) => !entry.isSymbolicLink() && entry.isFile())
 /// ```
 fn files_under(directory: &Path) -> Vec<(PathBuf, PathBuf)> {
     let mut found: Vec<(PathBuf, PathBuf)> = Vec::new();
@@ -71,9 +78,19 @@ fn files_under(directory: &Path) -> Vec<(PathBuf, PathBuf)> {
             .flatten()
         {
             let path: PathBuf = entry.path();
-            if path.is_dir() {
+            // What:
+            //  `entry.file_type()` is the entry's own type, which a symbolic link answers as a link and does not
+            //  follow, where `path.is_dir()` follows one.
+            // Why:
+            //  A link in this tree is the repository's record of which folders a source folder uses,
+            //  and its target is a folder the walk reaches under its own name.
+            let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
+            if kind.is_symlink() {
+                continue;
+            }
+            if kind.is_dir() {
                 pending.push(path);
-            } else if path.is_file() {
+            } else if kind.is_file() {
                 found.push((
                     path.strip_prefix(directory)
                         .expect("below the tree")
