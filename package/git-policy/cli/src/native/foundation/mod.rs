@@ -239,6 +239,10 @@
 //! - `kept_names_in_the_git_directories.rs`:
 //!   every kept name in a repository's Git directories settled to its current spelling,
 //!   and the finder for a reader that moves nothing.
+//! - `a_private_scratch_folder_and_the_stale_entries_a_sweep_removes.rs`:
+//!   what any scratch folder of this wrapper must be,
+//!   how old an entry must be before a preparation removes it,
+//!   and the sweep that removes the stale entries of one folder.
 //! - `scratch_location.rs`:
 //!   where short-lived private files live:
 //!   the per-user scratch directory and the repository scratch directory,
@@ -264,6 +268,12 @@ pub mod publishing_entries_in_one_open_folder;
 /// How one scratch entry is removed within its ceiling,
 /// and which commit scratch trees a later command takes for abandoned.
 pub mod scratch_entry_removal;
+
+/// What any scratch folder of this wrapper must be:
+/// the check that it is this account's private directory,
+/// how old an entry must be before a preparation removes it,
+/// and the sweep that removes the stale entries of one folder.
+pub mod a_private_scratch_folder_and_the_stale_entries_a_sweep_removes;
 
 /// Where short-lived private files live:
 ///  the per-user scratch directory and the repository scratch directory,
