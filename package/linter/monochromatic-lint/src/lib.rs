@@ -131,6 +131,11 @@ mod layout_allow_entries;
 /// The findings a layout rule tolerates today,
 ///  read from the file its `allow` option names.
 mod layout_allow_list;
+/// The findings for the allow-list entries that tolerate nothing.
+mod layout_allow_list_dead_entry_findings;
+/// Reading one allow-list file,
+///  under the byte cap its reader accepts.
+mod layout_allow_list_reading;
 /// Where a Cargo package's code starts:
 ///  its library root and executable roots.
 mod layout_crate_roots;
