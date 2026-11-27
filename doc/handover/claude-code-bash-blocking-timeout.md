@@ -68,13 +68,16 @@ and successfully returned `startupWired` from its Bash command.
 ## Open work
 
 - Owner review and acceptance are not recorded.
-- Calls that carry their own `timeout` skip the one-second default and can wait in front for up to their timeout.
-  The cause,
-  measurements,
-  a probe of Claude Code's native `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` cap
-  and the ranked options are in `doc/planning/claude-code-bash-caller-timeout-cap.md`,
-  first committed 2026-11-27T12:19:19-05:00;
-  the owner's choice is pending.
+- Caller timeouts and leading sleeps:
+  the owner chose the hook clamp with a sleep prefix on 2026-11-27T12:29:58-05:00
+  (`doc/decision/claude-code-bash-blocking-timeout.md`,
+  "Amendment of 2026-11-27").
+  It is implemented and verified on branch `feat/claude-code-plugin-source-bash-caller-timeout-clamp-and-sleep-prefix`
+  in `.claude/worktrees/claude-code-bash-caller-timeout-clamp-and-sleep-prefix`,
+  not yet merged:
+  the merge makes it live for every running session.
+  Waiting on the owner's answers about REPL commands and the merge;
+  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the evidence and the open items.
 
 ## Next step
 

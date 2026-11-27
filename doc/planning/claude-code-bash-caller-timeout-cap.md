@@ -5,13 +5,13 @@ explain why main-session Bash calls still wait in the foreground for minutes
 under the one-second policy in `doc/decision/claude-code-bash-blocking-timeout.md`,
 and propose how to stop it.
 Status:
-a proposal awaiting the owner's decision,
-not accepted;
-two of its separate choices were answered on 2026-11-27T12:26:54-05:00,
-recorded under "Owner answers".
-First committed 2026-11-27T12:19:19-05:00 (`1f2f98005c`) by a Claude Code session;
-a gate review by Claude Sonnet started after that commit,
-and its verdict is not yet folded in.
+the owner chose "Clamp + prefix" on 2026-11-27T12:29:58-05:00;
+the accepted contract is the amendment in `doc/decision/claude-code-bash-blocking-timeout.md`,
+and "Implementation and verification" records the work,
+which the owner has not reviewed.
+First committed 2026-11-27T12:19:19-05:00 (`1f2f98005c`) by a Claude Code session.
+A Claude Sonnet gate review of that first version returned at 2026-11-27T12:44:44-05:00;
+"Gate review findings" weighs it.
 
 ## Question as asked
 
@@ -49,6 +49,8 @@ and `600000`."
 returns `false` when `timeout` is present,
 and the committed bundle the live settings run has the same branch.
 
+Without a manual move (Ctrl+B,
+a queued user message or a turn abort),
 Claude Code moves a foreground command to the background only when the command reaches its own timeout.
 A call carrying `timeout: 3480000`,
 which the terminal shows as `timeout 58m`,
@@ -86,6 +88,17 @@ permission and queueing time and so is an upper bound:
 The calls without a caller timeout are the control:
 the hook's default moves them,
 so caller timeouts are the cause of the long waits.
+The control is not a matched sample,
+since callers choose a timeout for commands they expect to run long;
+the hook source and the probes carry the causal claim.
+
+The long waits are concentrated.
+The gate review's rerun found one orchestrating session behind 119 of the 120 caller-timeout calls over 60 s
+and 1115 of 1462 caller-timeout calls,
+so the counts describe that session's habit more than every session's.
+It also found 371 caller-timeout calls that took 3 to 60 s;
+under the clamp each of those returns a task ID instead of its output,
+and its result arrives with the task notification.
 
 In this session,
 a REPL command without a timeout moved to the background after 2062 ms,
@@ -390,9 +403,14 @@ so a bare sleep receives `timeout: 1000` and moves like any other command.
 
 ### The hook's own default
 
-With the cap,
-calls without a timeout moved at the same time with or without the hook's `timeout: 1000`
-(2067 ms and 2058 ms).
+Correction recorded 2026-11-27:
+the pair first cited here (2067 ms and 2058 ms) compares the capped and uncapped arms,
+both of which ran the hook's `timeout: 1000`;
+no arm ran the cap without the hook's default.
+The owner's "Keep both" answer was given on that mislabeled premise.
+Under the hook clamp the owner then chose,
+the hook's default stays in any case,
+so the answer changes nothing.
 Recommendation:
 keep the hook's default,
 because it is the documented fallback if a release stops reading the undocumented variable.
@@ -430,9 +448,112 @@ For the native cap:
   otherwise agents can keep waits in front through the one shape the cap leaves alone,
   a filter-skipped command starting with `sleep`.
 
+## Gate review findings
+
+The Claude Sonnet review reviewed the native-cap version of this proposal,
+before the owner chose the clamp.
+Each finding,
+weighed against the accepted design:
+
+- REPL commands:
+  the REPL's inner Bash calls reach the hook as main-session calls
+  (this session's REPL probe moved at 2062 ms under the hook's default),
+  so the clamp lowers `.timeout(ms)` there too,
+  and a REPL script can no longer wait for a long command and act on its exit code in the same script.
+  Put to the owner,
+  see "Owner answers".
+- A clamp with native background tasks disabled would stop commands at one second,
+  because `kEo` skips its cap only when a move is impossible and the hook had no such check.
+  Fixed:
+  the hook now keeps a caller timeout and adds no prefix when `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`.
+  Bare mode sets no variable the hook can read,
+  as the decision already records.
+- The caller's timeout is not carried into the background:
+  in a local terminal session a moved command has no limit,
+  as before the change;
+  in an unattended session it gets the 30-minute limit described under
+  "Cost shared by every option that moves these calls".
+- The mislabeled pair under "The hook's own default" is corrected there.
+- The cap's other overrides (the opt-out variable,
+  PowerShell,
+  a user-global setting,
+  silent failure after an upgrade) applied only to the native cap,
+  which was not chosen.
+- The concentration in one session and the cost to short calls are recorded under "How often callers pass a timeout".
+- The REPL,
+  `!` commands typed by the user,
+  a background subagent and an interactive session were not probed under the cap;
+  the verification of the clamp covers a background subagent
+  (its `Agent` call launched asynchronously).
+
+## Implementation and verification
+
+Branch `feat/claude-code-plugin-source-bash-caller-timeout-clamp-and-sleep-prefix`,
+in the worktree `.claude/worktrees/claude-code-bash-caller-timeout-clamp-and-sleep-prefix`.
+`package/claude-code-plugin/source/src/handler/bash-output-filter/blocking-timeout.ts`
+holds `isTimeoutPolicyCall`,
+`canMoveToBackground`,
+`clampedTimeout`,
+`startsWithSleepWord` and `withSleepPrefix`;
+`index.ts` beside it composes them with the output filter.
+The prefix rule follows the probe of sleep shapes recorded in
+`doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`:
+a comment line before `sleep` and `sleep 5;x` were stopped,
+so the check skips whole comment lines and ends a word at shell operators.
+
+Checks in the worktree:
+`format:oxlint`,
+`lint:types` and `lint:oxlint` for `claude-code-plugin-source`,
+`lint:types` and `build` for `claude-code-plugin-bash-output-filter`,
+and `test:unit` for `claude-code-plugin-source` with no `[FAIL]` line
+and the new suites `isTimeoutPolicyCall`,
+`canMoveToBackground`,
+`clampedTimeout`,
+`startsWithSleepWord` and `withSleepPrefix` present by name.
+
+Consumer check at about 12:41 -05:00:
+a disposable session on Claude Code 2.1.332 whose `PreToolUse` hook ran the worktree's rebuilt bundle,
+with a `PostToolUse` logger recording the input Claude Code executed:
+
+- A filtered 8-second `node` command with `timeout: 3480000`:
+  executed with `timeout: 1000`,
+  moved at 2145 ms.
+- `sleep 5 && printf v2-done > v2.out` with `timeout: 3480000`:
+  executed as `true && sleep 5 && ...` with `timeout: 1000`,
+  moved at 2101 ms,
+  `v2.out` written.
+- The same shape without a timeout:
+  prefixed,
+  moved at 2100 ms,
+  written;
+  before the change this shape was stopped.
+- A comment line,
+  then `sleep 5 && printf v4-done > v4.out`,
+  with `timeout: 3480000`:
+  prefixed,
+  moved at 2103 ms,
+  written.
+- Bare `sleep 5`:
+  filter-wrapped with `timeout: 1000`,
+  moved at 2097 ms.
+- Explicit `run_in_background: true` with `timeout: 3480000`:
+  executed unchanged,
+  written.
+- A background subagent's `sleep 5 && printf s1-done > s1.out` and a 9-second `node` command,
+  each with `timeout: 600000`:
+  executed unchanged,
+  finished in front at 5241 ms and 9197 ms.
+
+The disabled-background exception was added after this check;
+its unit tests cover it,
+and it was not run in a live session.
+
 ## Open
 
-- The owner's choice among the four combinations under "Ranking".
+- The owner's answers on REPL commands and on merging,
+  see "Owner answers".
+- A gate review of the accepted clamp-and-prefix design;
+  the Claude Sonnet review covered only the native-cap version.
 - The Claude Sonnet gate review's findings.
 - The REPL surface under the cap stays unprobed until an interactive code-mode session runs with the variable set.
 - A background subagent under the cap was not probed;
