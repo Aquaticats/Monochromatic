@@ -93,7 +93,7 @@ pub(crate) fn write_program(
 ///     and the copy is made by a child `cp` process.
 /// Why:
 ///     A copy this process made would be open for writing here,
-/// with the window
+///     with the window
 ///     `write_program` describes,
 ///     and the tests copy a built binary that they then start.
 ///
