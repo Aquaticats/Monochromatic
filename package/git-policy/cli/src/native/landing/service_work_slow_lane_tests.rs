@@ -1155,7 +1155,7 @@ fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
         return Verdict::Done;
     });
     let drained = crate::merge_second_pass::tests::await_it(
-        crate::service_work::drain_planned_with_awaiting(
+        crate::service_work_drains_awaiting::drain_planned_with_awaiting(
             world.common.as_path(),
             &handlers,
             &ClaimTime::read(),

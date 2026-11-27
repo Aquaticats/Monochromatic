@@ -21,6 +21,9 @@
 //!   and the step that makes and records one.
 //! - `the_clause_a_commit_no_reference_proves.rs`:
 //!   the clause a sentence about a commit ends with when no reference is proven to name it.
+//! - `the_memory_one_round_keeps.rs`:
+//!   the bytes one repository's drain holds at its peak,
+//!   and the measurement those bytes are rounded up from.
 //! - `the_names_of_the_index_lock.rs`:
 //!   the path of an index lock,
 //!   how often a holder's line is repeated,
@@ -433,9 +436,6 @@
 //! - `service_work_common_directory.rs`:
 //!   the common Git directory a linked worktree's Git directory names,
 //!   and whether it belongs to a repository with no main worktree.
-//! - `service_round.rs`:
-//!   the drain of several repositories of one round,
-//!   side by side and without a lock.
 //! - `service_work_push_environment.rs`:
 //!   the environment every Git child of a service push receives,
 //!   and where its program search list comes from.
@@ -612,6 +612,53 @@
 //!   a removal's subvolume,
 //!   a snapshot ahead,
 //!   and the automatic upkeep.
+//! - `service_work_drain_waves_of_one_kind.rs`:
+//!   the bodies a wave of one kind asks of its handler,
+//!   and the line one answer that is done writes.
+//! - `service_work_storage_step_awaited.rs`:
+//!   how one storage step of a drain runs as a job of the blocking pool,
+//!   and the words a step that got no place is refused with.
+//! - `service_work_storage_claims_awaited.rs`:
+//!   the storage steps that touch the queue's own records,
+//!   from the claim of a directory to the claims another instance let run out.
+//! - `service_work_storage_awaited.rs`:
+//!   the storage steps of one drain that leave a push's record for the person,
+//!   each a job of the blocking pool awaited by a task.
+//! - `service_work_drains_a_snapshot_ahead.rs`:
+//!   the drain of the snapshots the commit service makes ahead of the next add,
+//!   as one step of a round.
+//! - `service_work_settling_with_words.rs`:
+//!   how one item whose kind answers with words is settled,
+//!   with the line the person reads for it.
+//! - `service_work_items_side_by_side.rs`:
+//!   which items of one batch of that drain run at once and how many of them.
+//! - `service_work_settling_a_verdict.rs`:
+//!   what a drained push's verdict does to its records,
+//!   its retry plan and the person.
+//! - `service_work_drain_pushes_of_each_branch.rs`:
+//!   the push step of one round:
+//!   the pushes grouped by branch,
+//!   the branches run beside each other,
+//!   and each settled as its own answer comes.
+//! - `service_work_drain_deletes_subvolumes.rs`:
+//!   the drain's step that deletes the subvolumes a removal handed over.
+//! - `service_work_drain_claims_by_kind.rs`:
+//!   the claimed items of one batch of the drain,
+//!   sorted into one list per kind of work.
+//! - `service_work_drain_housekeeping_and_upkeep.rs`:
+//!   the housekeeping one round of the drain may start,
+//!   the upkeep it runs on the items it holds,
+//!   and what it leaves for a later round.
+//! - `service_work_drain_look_again.rs`:
+//!   when the caller of one drain of a work directory must look at it again.
+//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
+//!   the pushes a round runs again because their retry is due,
+//!   and the programs a record's end gives up.
+//! - `service_work_drain_pending_claims.rs`:
+//!   drains the pending items of one work directory.
+//! - `service_work_drains_awaiting.rs`:
+//!   the drains of one directory and of a common directory,
+//!   awaited by a task of the runtime.
 //! - `service_work.rs`:
 //!   the service's consumer of after-commit push and upkeep work.
 //! - `service_claim_watch_watched_repositories.rs`:
@@ -643,55 +690,11 @@
 //!   and the aftermath of a service that failed or went silent.
 //! - `service_commit.rs`:
 //!   the commit command's path through the commit service.
-//! - `service_work_drain_waves_of_one_kind.rs`:
-//!   the bodies a wave of one kind asks of its handler,
-//!   and the line one answer that is done writes.
+//! - `service_round.rs`:
+//!   the drain of several repositories of one round,
+//!   side by side and without a lock.
 //! - `service_work_run_round.rs`:
 //!   runs one round of the service's work over several directories.
-//! - `service_work_storage_step_awaited.rs`:
-//!   how one storage step of a drain runs as a job of the blocking pool,
-//!   and the words a step that got no place is refused with.
-//! - `service_work_storage_claims_awaited.rs`:
-//!   the storage steps that touch the queue's own records,
-//!   from the claim of a directory to the claims another instance let run out.
-//! - `service_work_storage_awaited.rs`:
-//!   the storage steps of one drain that leave a push's record for the person,
-//!   each a job of the blocking pool awaited by a task.
-//! - `service_work_drains_a_snapshot_ahead.rs`:
-//!   the drain of the snapshots the commit service makes ahead of the next add,
-//!   as one step of a round.
-//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
-//!   the pushes a round runs again because their retry is due,
-//!   and the programs a record's end gives up.
-//! - `service_work_drains_awaiting.rs`:
-//!   the drains of one directory and of a common directory,
-//!   awaited by a task of the runtime.
-//! - `service_work_settling_a_verdict.rs`:
-//!   what a drained push's verdict does to its records,
-//!   its retry plan and the person.
-//! - `service_work_drain_pushes_of_each_branch.rs`:
-//!   the push step of one round:
-//!   the pushes grouped by branch,
-//!   the branches run beside each other,
-//!   and each settled as its own answer comes.
-//! - `service_work_settling_with_words.rs`:
-//!   how one item whose kind answers with words is settled,
-//!   with the line the person reads for it.
-//! - `service_work_drain_deletes_subvolumes.rs`:
-//!   the drain's step that deletes the subvolumes a removal handed over.
-//! - `service_work_drain_claims_by_kind.rs`:
-//!   the claimed items of one batch of the drain,
-//!   sorted into one list per kind of work.
-//! - `service_work_drain_housekeeping_and_upkeep.rs`:
-//!   the housekeeping one round of the drain may start,
-//!   the upkeep it runs on the items it holds,
-//!   and what it leaves for a later round.
-//! - `service_work_drain_look_again.rs`:
-//!   when the caller of one drain of a work directory must look at it again.
-//! - `service_work_drain_pending_claims.rs`:
-//!   drains the pending items of one work directory.
-//! - `service_work_items_side_by_side.rs`:
-//!   which items of one batch of that drain run at once and how many of them.
 //! - `service_work_slow_lane.rs`:
 //!   the service's work that can take minutes:
 //!   a lane of its own,
@@ -1023,6 +1026,9 @@ pub mod the_clause_a_commit_no_reference_proves;
 /// what the wait tells the clients,
 /// why a wait gave up,
 /// and the code a storage error stands for.
+/// The bytes one repository's drain holds at its peak.
+pub mod the_memory_one_round_keeps;
+
 pub mod the_names_of_the_index_lock;
 
 /// The attempts and the wait of an acquisition of the index lock.
