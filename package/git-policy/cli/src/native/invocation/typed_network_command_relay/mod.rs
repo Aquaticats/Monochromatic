@@ -34,11 +34,11 @@
 //!   the child started with its error stream on a terminal or a pipe,
 //!   and the wait that reads it to the child's end.
 //! - `the_options_before_the_remote.rs`:
-//!   the first of a command's words that is not an option,
+//!   the four commands a typed network command covers,
+//!   and the first of one's words that is not an option,
 //!   read with Git's own option table.
 //! - `the_remote_a_typed_command_names.rs`:
-//!   the four command words,
-//!   the remote URL Git would use,
+//!   the remote URL Git would use for the command the person wrote,
 //!   and whether ssh carries it.
 //! - `the_sentence_after_the_refusal.rs`:
 //!   the sentence printed after a refusal,
@@ -59,11 +59,11 @@ pub mod a_target_the_sentence_may_name;
 pub mod a_terminal_the_child_writes_its_error_stream_to;
 /// The child started with its error stream on a terminal or a pipe, and the wait that reads it to the child's end.
 pub mod git_error_stream_relayed_as_it_arrives;
-/// The first of a command's words that is not an option, read with Git's own option table.
+/// The four commands a typed network command covers, and the first of one's words that is not an option.
 pub mod the_options_before_the_remote;
 /// The relayed bytes: read as they arrive, written on, and kept as a bounded tail of the size the file holds.
 pub mod the_relayed_bytes;
-/// The four command words, the remote URL Git would use, and whether ssh carries it.
+/// The remote URL Git would use for the command the person wrote, and whether ssh carries it.
 pub mod the_remote_a_typed_command_names;
 /// The sentence printed after a refusal, and the record that one was printed.
 pub mod the_sentence_after_the_refusal;

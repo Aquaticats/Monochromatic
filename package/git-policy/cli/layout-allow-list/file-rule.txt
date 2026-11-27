@@ -32,8 +32,6 @@ file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_ca
 file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs
 file-uses src/native/foundation private_storage.rs -> private_storage_replacing_a_record.rs
 file-uses src/native/foundation private_storage_replacing_a_record.rs -> private_storage.rs
-file-uses src/native/invocation/typed_network_command_relay the_options_before_the_remote.rs -> the_remote_a_typed_command_names.rs
-file-uses src/native/invocation/typed_network_command_relay the_remote_a_typed_command_names.rs -> the_options_before_the_remote.rs
 file-uses src/native/kept_references kept_reference_log.rs -> kept_reference_pass.rs
 file-uses src/native/kept_references kept_reference_pass.rs -> kept_reference_log.rs
 file-uses src/native/landing held_commit_settle.rs -> held_commit_settle_move.rs
