@@ -130,7 +130,8 @@ and the numbers behind them:
   and that is not known to be covered.
 - `NotFound`:
   `ENOENT`,
-  the program or the interpreter on its first line.
+  the program or the interpreter it names,
+  which is the program after `#!` on a script's first line or a compiled program's dynamic linker.
 - `ENOEXEC`:
   number 8,
   which maps to an unnamed kind;
@@ -139,7 +140,7 @@ and the numbers behind them:
 
 Everything else reaches the last arm.
 These numbers were measured to reach it,
-with what a hand run of the same program shows for each:
+with what a shell does for each:
 
 - `E2BIG`:
   `ArgumentListTooLong`,
@@ -185,16 +186,42 @@ with what a hand run of the same program shows for each:
   each reaching the last arm;
   the shell repeats each as its own text.
 
-So the last arm's advice was true for most of them and false or unreliable for four:
-the shadow refusal,
+So the advice alpha.14 shipped was wrong for four of them:
+it sent every reader to a hand run of the program,
+and that run shows nothing for the shadow refusal,
 which is a different event and never an operating-system error,
-`ENOEXEC`,
+nothing for `ENOEXEC`,
 which a shell hides,
-and the two shortages (`EMFILE` and `ENOMEM`),
-where the hand run can come out clean because the shortage has passed.
+and something clean for the two shortages (`EMFILE` and `ENOMEM`),
+because the shortage has passed by the time a shell starts the program.
+Three of them cannot be cured by running the same command again at all:
+`E2BIG`,
+because the same argument list is refused the same way,
+`ENAMETOOLONG`,
+because the same path keeps its length,
+and `ELOOP`,
+because the link that loops keeps looping.
 
 ## What the code does now
 
+- The two arms that name the other file a start needs name the interpreter the program names,
+  and read it from the program's own bytes (`src/named_interpreter.rs`):
+  the program after `#!` on a script's first line,
+  or the `PT_INTERP` entry of a compiled program,
+  which is its dynamic linker.
+  A compiled program has no first line,
+  so the sentence that said the interpreter was named there pointed at a file the program does not have;
+  the realistic case is a system's own linker being replaced during an upgrade.
+  The being-written arm names the interpreter and says the shadow cannot tell which of the two files is held.
+  The not-there arm goes further when the program is still there:
+  with its own file readable, and the interpreter that file names gone,
+  it says which interpreter is missing and the remedy installs that file.
+  Reproduced 2026-11-27 in a fixture:
+  a compiled program linked against a copy of the system's own linker
+  (`gcc -Wl,--dynamic-linker=<copy>`) with that copy held open for writing,
+  and then with the copy taken away.
+  The arm that says nothing about which file is missing is the one where the program itself is gone,
+  because then no bytes are left to say.
 - A refused shadow has its own arm:
   the path,
   the shadow the file is or leads to (the sentence `vet` built),
@@ -205,8 +232,14 @@ where the hand run can come out clean because the shortage has passed.
   that the same path was not a shadow when the lookup read it a moment earlier,
   and the remedies:
   run the command again,
-  `command -v -a mpm` to list every `mpm` on PATH in lookup order with the shadow first and the real `mpm` after it,
+  the list of every `mpm` on PATH in lookup order, which the message prints itself,
   and `mpm install` in a launcher's tree for a record that names a shadow.
+  The sentence used to name `command -v -a mpm`,
+  which bash refuses (`command: -a: invalid option`) and zsh refuses (`command not found: -v`);
+  only fish's `command` takes `-a`.
+  Nothing a person has to read now depends on a shell's own spelling:
+  `real_binary::lookup_in_path` keeps every candidate it saw with the reason it passed it over,
+  and the message prints that list.
   The line that names the program says what it turned out to be there,
   instead of "the first `mpm` on PATH that is not this shadow".
 - `ENOEXEC` has its own arm:
@@ -231,11 +264,49 @@ where the hand run can come out clean because the shortage has passed.
   The shell runs a file the kernel refuses as a script,
   or runs the empty file and exits 0;
   only a start without a shell reports the refusal.
-- The last arm keeps the system's own words and says what a hand run can and cannot show:
-  the same words when the program's own file is at fault,
-  and something else or nothing when a limit of the machine,
-  a limit of the shadow's own process,
-  or the shape of the command line is the cause.
+- The last arm keeps the system's own words and names no step that cannot show the error:
+  the hand run of the program is gone,
+  because it cannot reproduce a refusal of this start,
+  and for `E2BIG`, `ENAMETOOLONG` and `ELOOP` the arm says that running the same command again cannot succeed
+  and names what to change instead.
+  The other refusals keep the advice to run the command again,
+  with the reason it can work (a shortage passes),
+  and the words the system printed stay what to act on:
+  words about the program's own file mean a damaged file,
+  which installing it again replaces,
+  and words about a limit mean work to wait for or a limit to raise.
+
+## When the lookup finds no real `mpm`
+
+The shadow's other message, for a `PATH` that holds no real `mpm` at all, exits 127
+(`src/shim.rs`).
+It said `mpm` is not installed,
+that every `mpm` on `PATH` is this shadow or a launcher of one,
+or that an install had moved the real `mpm` aside at the moment of the lookup.
+A file named `mpm` with no execute bit is none of those:
+the lookup skips it without a word,
+so the message told the person to install an `mpm` they already had,
+when the step the case needs is `chmod +x`.
+
+Measured 2026-11-27 in a fixture:
+with one `mpm` of mode 644 on `PATH` and nothing else,
+alpha.14 printed that sentence and exited 127,
+and alpha.13's shorter sentence ("no real mpm found on PATH") was true but named no file either.
+
+The lookup now keeps every candidate it saw with the reason it passed it over
+(`SkipReason` in `src/real_binary.rs`),
+and the message prints that list in `PATH` order and builds the remedy from it:
+`chmod +x <path>` for a file without its execute bit,
+replacing a directory of that name or taking its directory off `PATH`,
+pointing a symbolic link that leads nowhere at the real `mpm`,
+and installing the real `mpm` only where nothing named `mpm` is there at all.
+A directory on `PATH` that holds no `mpm` adds no line:
+the list is of programs found, not of directories read.
+The status stays 127 and standard output stays empty.
+
+Measured on the same fixture with the changed binary:
+the mode-644 case names the file and its mode and prints the `chmod`,
+and a run with a directory named `mpm`, a mode-644 file and a link to no file names all three with their own repairs.
 
 Nothing else changed:
 `start_retry::is_refusal` is untouched and still counts `WouldBlock` alone,
@@ -259,7 +330,22 @@ so whether a refused start is repeated is unchanged and stays before the owner
 - The message wording:
   the crate's tests,
   which pin each sentence this record quotes
-  (`src/start_failure_tests.rs`).
+  (`src/start_failure_tests.rs`,
+  `src/real_binary_tests.rs`).
+- The interpreter naming:
+  `src/named_interpreter.rs` and its tests,
+  and a fixture run of both the alpha.14 binary and the changed one on the same files:
+  a compiled program built with `gcc -Wl,--dynamic-linker=<a copy of the system's own linker>`,
+  that copy held open for writing by a separate process (append mode, so its bytes never change),
+  and then renamed away.
+  `src/program_bytes.rs` builds the same shapes by hand for the unit tests,
+  so no test depends on what a program on this machine happens to name.
+- The shell behaviour:
+  with two `mpm` files on a `PATH` of the run's own,
+  `bash -c 'command -v -a mpm'` printed `bash: line 1: command: -a: invalid option` and exited 2,
+  `zsh -c 'command -v -a mpm'` printed `zsh:1: command not found: -v` and exited 127,
+  and `fish -c 'command -v -a mpm'` listed every `mpm` on `PATH` and exited 0,
+  each run 2026-11-27.
 
 Not run:
 a start that meets the changed entry through `PATH`,
@@ -271,5 +357,10 @@ Windows and macOS are out of scope.
 This record is unapproved and non-final.
 What was done is recorded here and in the commits.
 What is open is the owner's review,
-and the option of repeating a start refused as busy,
-which this change leaves exactly as it was.
+the option of repeating a start refused as busy,
+which this change leaves exactly as it was,
+and the launcher's own sentence for a program that vanished,
+which still says the interpreter is named on the program's first line
+(`src/toolchain/launcher/starting_it.rs`).
+That file belongs to another round of this release pass,
+so this round read it and left it unchanged.
