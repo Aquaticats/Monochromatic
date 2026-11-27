@@ -80,23 +80,6 @@ pub(crate) fn list_stamped_below(
     };
 }
 
-/// What:
-///  Every directory of the folder that is named like the wrapper's own,
-/// oldest first,
-/// with its size and what it was when
-///  listed,
-/// and what could not be read.
-/// Why:
-///  The listing has no opinion about which folder is read,
-/// so the caller names it:
-/// the pass in `discarded_prune.rs` names the folder the current name holds,
-/// because it is the pass that may write.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { entries, problems } = await listStampedBelow(commonDir, 'discarded');
-/// ```
-
 /// The problem that says why the folder cannot be used.
 pub(crate) fn unusable(
     saved_root: &Path,
