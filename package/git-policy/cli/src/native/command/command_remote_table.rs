@@ -19,7 +19,7 @@
 
 /// The row type and its builder,
 ///  and the arity names.
-use crate::command_options::{
+use crate::command_options_types::{
     Arity,
     OptionSpec,
     UNREAD,

@@ -19,7 +19,7 @@
 //! type MountedDatasetRefusal = { kind: 'table-unreadable' | 'none-mounted' | ... };
 //! ```
 
-use super::the_designs_datasets_in_the_mount_table::{
+use super::the_dataset_names_the_design_fixes::{
     DESIGN_CHECKOUT_DATASET_NAME,
     DESIGN_CONTAINER_DATASET_NAME,
     DESIGN_PROBE_DATASET_UNDER_THE_POOL,

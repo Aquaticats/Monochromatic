@@ -949,11 +949,13 @@ so a finding is never reported twice.
   and each use takes its route from that one table.
   A walk per use read the graph once for each of them instead,
   which cost 14 to 16 times alpha.15's time on a package of 2,000 folders whose one group's own file uses all of them
-  (measured on 2026-11-26 in interleaved rounds, on the run's own CPU time,
+  (measured on 2026-11-26 in interleaved rounds,
+  on the run's own CPU time,
   because the host's wall time for one run swung from 27 to 547 seconds while its CPU time stayed near 27):
   this release spends 0.07 of alpha.16's CPU time there in each of three rounds,
   0.14 to 0.16 on the same shape with 1,000 folders and thirty uses each,
-  and 0.98 to 1.00 on the shape above with its loop open, where nothing is walked,
+  and 0.98 to 1.00 on the shape above with its loop open,
+  where nothing is walked,
   against 0.94 to 1.11 between two runs of one binary.
   Measured on 2026-11-26,
   one process per binary per round in its own capped scope,
@@ -1337,12 +1339,21 @@ and a line that reads as none of them fails the run:
   so a loop is tolerated only while every use inside it is listed,
   and a round writes one line for each use it leaves alone.
   A folder name may hold a space,
-  so the line is read from the two sides of the arrow it holds: the folder before the arrow, and the folder after it.
+  so the line is read from the two sides of the arrow it holds:
+  the folder before the arrow,
+  and the folder after it.
   The four words are read from the line when it sets them off with one whitespace character each,
   and any other line is read from its arrow with no space taken off either side,
   because a folder name may start with a space,
   and the space a line sets its words off with must never be read as part of a name or the other way round.
-  A line holds one arrow only, because no folder name holds the words it is set off with.
+  A run of two spaces in front of a name is therefore read as that name's own leading space,
+  so a hand-aligned line names a folder the package does not hold,
+  and its finding says which folder the line read and that no folder is called that.
+  A space left at the end of a name is a misspelling and not a name,
+  because a folder whose name ends in whitespace is refused before any check:
+  such a line fails the run with a `core/processing-failure` that names its line.
+  A line holds one arrow only,
+  because no folder name holds the words it is set off with.
   A line stays alive while its two folders still make that use and still sit in one loop together,
   in the folders' own graph or in the graph of the entries:
   a folder inside a group can be in a loop of its own folders and in the loop of its group at once,
@@ -1355,7 +1366,8 @@ the way findings show it,
 written with `/` on every platform,
 never absolute,
 and no line may repeat another.
-A folder outside the package, which a `#[path]` can declare,
+A folder outside the package,
+which a `#[path]` can declare,
 is written by the walk from the package folder,
 `../outside`,
 exactly as a key writes it,
@@ -1472,23 +1484,30 @@ Every key names exactly one finding:
   is therefore refused before any check,
   with one `core/processing-failure` that spells that character and names the path.
   A folder name that holds a backslash,
-  which every key writes as the separator `/`,
-  or the words ` -> ` that a `uses` line sets its arrow off with,
+  which a `uses` line writes as the separator `/` on the machines that separate folders with it,
   is refused for the same reason,
-  while a file name keeps its backslash as the source writes it,
-  because a file name is no path and a `file-uses` line names it as written.
+  and so is a folder name that holds ` -> `,
+  begins with `-> `,
+  ends with ` ->`,
+  or is `->` alone,
+  because the `uses` line naming such a folder would be read as another pair of folders.
+  A file name and an entry of a `uses` folder keep their backslashes and arrow words as the source writes them,
+  because neither is a path:
+  a `file-uses` line names a file as written,
+  and the key about an entry holds the entry's name as written,
+  so both read back.
   The refusal is a rule about the tree's names,
   not a condition on the findings one run reports:
   it covers every file and folder the walk reads,
-  a crate root,
-  a `src/bin` root and every entry of a `uses` folder included,
+  a crate root and a `src/bin` root included,
+  and every entry of a `uses` folder for the characters the reader trims and for a line break,
   whether or not this run has a finding to report about that name,
   so a rename today can never put a key on the list that no line could hold tomorrow.
   Two keys held a line break on alpha.15 although no name the walk read held one,
   and both are gone:
   the ABI string of an `extern` block is keyed with every run of whitespace squeezed to one space,
   so `extern "C<line break>x"` keys `extern-block-"C x"`,
-  and an entry of a `uses` folder is refused like any other name.
+  and an entry of a `uses` folder that ends in a trimmed character or holds a line break is refused like any other name.
   A top doc entry is read without the whitespace at the end of its backticks,
   so an entry written `x.rs ` names the file `x.rs` and no key carries that space.
   An entry whose backticks hold no name at all is keyed by its shape and index alone,
@@ -1537,6 +1556,10 @@ and the list's own record of today's findings is the only thing that does:
   whose two ends are no longer in one loop,
   or whose key no finding reports,
   fails the run until it is gone.
+  An entry of the two use shapes whose folder the package does not hold
+  names that folder and says that no folder of the package is called it,
+  because a hand-aligned or mistyped line reads as a folder no tree holds,
+  and its reader has to re-space the line rather than delete it.
 - A use added between two folders or two files that the list already tolerates in one loop is a finding.
   It carries no key,
   so no round can record a new loop edge:
@@ -1798,12 +1821,17 @@ and every other line stays as it is.
   so a line naming a folder whose name holds a space,
   a tab or a no-break space reads back,
   where alpha.16 could not read such a line at all.
-  No alpha.16 list can hold one, because alpha.16 refused those lines,
-  so no line of a list written then changes meaning.
   A line whose words are set off by exactly one whitespace character each reads as the four words,
   as a line written with tabs always did,
   and a line with any other spacing is read from its arrow,
   so a run of two spaces beside a name is read as that name's own space.
+  That changes what a hand-aligned alpha.16 list names:
+  alpha.16 read `uses  src/a -> src/b` as the use from `src/a`,
+  and alpha.17 reads it as the use from ` src/a`,
+  a folder no tree holds,
+  which one run reports dead,
+  so such a list is re-spaced or regenerated from a `--debug` run rather than deleted.
+  This repository's two lists hold no line of that shape (read on 2026-11-27).
 - A `uses` or `file-uses` line may name a folder outside the package,
   written by the walk from the package folder,
   where alpha.16 refused the line although its own keys printed it.
@@ -1814,7 +1842,7 @@ and every other line stays as it is.
 
 #### How a list written before alpha.18 maps
 
-A tree that holds this shape gains the line below from one `--debug` run,
+A tree that holds one of these shapes needs one regeneration,
 and every other line stays as it is.
 
 - A top doc that spells the marker nearly,
@@ -1831,6 +1859,27 @@ and every other line stays as it is.
   and 71 file findings over it,
   which those lists tolerate
   (measured on 2026-11-27 with the release build of this branch on the tree of its last merge from `main`).
+- A folder name that begins with `-> `,
+  ends with ` ->`,
+  or is `->`
+  is refused with one `core/processing-failure`,
+  where alpha.17 printed a `uses` key that the next run read as another pair of folders,
+  so the name is changed rather than recorded.
+- A key about a file or an entry of a `uses` folder whose name holds a backslash
+  keeps that backslash,
+  where alpha.17 wrote `/` for it and so named a path the tree does not hold.
+  A tree that holds such a name gains the line the rule prints for it,
+  and an alpha.17 line for it was a line about another path.
+- An entry of a `uses` folder whose name holds a backslash or the arrow words
+  is no longer refused:
+  its `link` or `unused-link` key holds the name as written,
+  so a tree that holds one reports that finding and records the key.
+- A `uses` line whose name before the arrow ends in whitespace
+  is refused with a `core/processing-failure` that names the line,
+  where alpha.17 read that space as part of the name and reported the entry dead.
+- A dead `uses` or `file-uses` line whose folder the package does not hold
+  names that folder,
+  where alpha.17 said only to delete the line.
 
 ### Known limits
 
@@ -1866,9 +1915,14 @@ and every other line stays as it is.
 - A module that a macro declares is not seen.
 - The rules cannot see a use through a trait method or a type alias that never names the module.
 - `/*! ... */` top docs are not read.
-- A folder whose name holds a space is reported and tolerated:
+- A folder whose name holds a space is reported and tolerated by the folder rule:
   `missing-link src/a b -> src/c` is a key line,
   and `uses src/a b -> src/c` is read from the two sides of its arrow.
+  The file rule reports such a folder and no `file-uses` line can tolerate a use in it,
+  because that shape is five words set off with one whitespace character each
+  and a folder name holding a space makes a sixth,
+  so the whole list is refused:
+  a loop of files in such a folder is untangled or the folder is renamed.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
   a tab or a no-break space inside a module file name is keyed as written,
@@ -1885,7 +1939,11 @@ and every other line stays as it is.
   because no key could end in that character,
   and so is a name that holds a line break,
   because a list line ends at one,
-  and a folder name that holds a backslash or the words ` -> `,
+  and a folder name that holds a backslash,
+  begins with `-> `,
+  ends with ` ->`,
+  is `->`,
+  or holds ` -> `,
   because no line could name the folder such a name belongs to.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
@@ -2316,6 +2374,32 @@ and an `orchestration` target that drives the executable's per-source path
 through nested doc tests and adversarial edit groups.
 Evidence belongs to its recorded source snapshot;
 new source does not inherit a previous campaign's completion status.
+
+## Splitting a source file
+
+`rust/max-lines` allows 300 code lines per `.rs` file,
+so a file that grows past that is split by role into sibling modules in `src/`,
+declared in `src/lib.rs` beside it.
+The parts keep every item at the path callers already write:
+a caller names `crate::markdown_source::MarkdownSource` and calls its methods
+wherever the `impl` block that holds them lives,
+and a function that moves while callers still name the old file is re-exported
+(`pub use crate::closure_step_package::ClosureOutcome;`).
+A file that keeps its items and gains siblings names them in its top doc.
+
+A private field of a struct is visible only in the module that declares it and
+in that module's children,
+so the `impl` block of a struct cannot read its fields from a sibling file
+without a change.
+The splits of 2026-11-26 and 2026-11-27 widened the fields and helper methods
+the moved `impl` reads to `pub(crate)`,
+which is how `src/markdown_traversal.rs` already hands `Traversal` to
+`src/markdown_source.rs`,
+and left every module a crate-root sibling,
+because the mutation scopes in `bin/mutation-scopes.ts` select files by
+`src/<name>_*.rs` globs that a file in a subfolder would leave.
+A module inside a folder named after the origin keeps those fields private,
+and is the other way to split such a type.
 
 ## Script linting
 

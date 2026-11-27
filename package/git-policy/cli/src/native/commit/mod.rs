@@ -258,6 +258,17 @@
 //! - `scratch_step_stall_decided_once.rs`:
 //!   the one decision two enforcers of a step's ceiling make together:
 //!   whether the ceiling stands aside for a step the kernel holds in a disk wait.
+//! - `native_commit_waiting_notice_ceiling.rs`:
+//!   the ceiling of the commit Git builds in the scratch repository,
+//!   as the setting a person gives it.
+//! - `native_commit_waiting_notice_signing.rs`:
+//!   whether that commit is signed:
+//!   the configuration says so or the command line asks for it.
+//! - `native_commit_waiting_notice_watch.rs`:
+//!   the thread that watches that commit:
+//!   one look at the step and the programs below it,
+//!   the ceiling's decision,
+//!   and the line a person reads while it runs.
 //! - `native_commit_waiting_notice.rs`:
 //!   the waiting notice of the commit Git builds in the scratch repository.
 //! - `scratch_step_stop_words.rs`:
@@ -601,6 +612,20 @@ pub mod scratch_step_programs_below;
 
 /// One look at the step the commit waits for and the programs below it.
 pub mod scratch_step_look_below;
+
+/// The ceiling of the commit Git builds in the scratch repository,
+/// as the setting a person gives it.
+pub mod native_commit_waiting_notice_ceiling;
+
+/// Whether that commit is signed:
+/// the configuration says so or the command line asks for it.
+pub mod native_commit_waiting_notice_signing;
+
+/// The thread that watches that commit:
+/// one look at the step and the programs below it,
+/// the ceiling's decision,
+/// and the line a person reads while it runs.
+pub mod native_commit_waiting_notice_watch;
 
 /// The waiting notice of the commit Git builds in the scratch repository.
 pub mod native_commit_waiting_notice;

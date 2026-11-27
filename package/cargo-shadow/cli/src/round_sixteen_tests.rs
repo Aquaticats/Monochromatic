@@ -37,7 +37,9 @@ use crate::bounded_run::{
     use_route_settings_for_test,
 };
 use crate::cgroup_test_support::{
+    group_of,
     start_in_scope,
+    v2_path_of_cgroup_file,
     wait_until,
 };
 use crate::contain_counterexample_tests::wait_for_file;
@@ -71,20 +73,6 @@ pub(crate) fn answers_within<T: Send + 'static>(
     return receiver.recv_timeout(window).unwrap_or_else(|_| { panic!("{what} did not answer within {window:?} while the lock was held: it waited for the holder"); });
 }
 
-/// The group line of a process;
-/// a process whose group cannot be read stops the test,
-/// because equal failed observations would otherwise
-/// pass for equal groups (certification,
-/// second pass).
-pub(crate) fn group_of(pid: &str) -> String {
-    return fs::read_to_string(format!("/proc/{pid}/cgroup"))
-        .unwrap_or_else(|error| {
-            panic!("the group of {pid} cannot be read: {error}");
-        })
-        .trim()
-        .to_string();
-}
-
 /// The scope a bounded run planned and launched,
 /// read from the run's own trace (`launch scope <name>`);
 /// the trace is the thread's,
@@ -99,18 +87,6 @@ pub(crate) fn launched_scope(trace: &[String]) -> String {
         .collect();
     assert_eq!(launches.len(), 1, "a run launches one scope: {trace:?}");
     return launches[0].trim_start_matches("launch scope ").to_string();
-}
-
-/// The control group path a program reported from `cat /proc/self/cgroup`,
-/// without the `0::` prefix of the file's format.
-pub(crate) fn reported_path(report: &str) -> String {
-    return report
-        .trim()
-        .strip_prefix("0::")
-        .unwrap_or_else(|| {
-            panic!("not a cgroup v2 line: {report:?}");
-        })
-        .to_string();
 }
 
 //region the launch boundary
@@ -315,11 +291,11 @@ fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wr
         "the second launcher was born in another group than the wrapper's"
     );
     // Each program ran in the scope its own run planned and launched, and in neither the wrapper's group nor the other run's scope; all
-    // are compared as control group paths (the file's `0::` prefix removed from every one).
-    let own: String = reported_path(&seen.original);
+    // are compared as the path of their version 2 line (a version 1 line, which this host writes first, is no path).
+    let own: String = v2_path_of_cgroup_file(&seen.original);
     let (first, second) = (
-        reported_path(&seen.first_scope),
-        reported_path(&seen.second_scope),
+        v2_path_of_cgroup_file(&seen.first_scope),
+        v2_path_of_cgroup_file(&seen.second_scope),
     );
     assert!(
         first.ends_with(&seen.first_planned) && second.ends_with(&seen.second_planned),
@@ -403,6 +379,13 @@ fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_t
     let seen: String =
         fs::read_to_string(directory.path().join("seen")).expect("what the helper saw");
     let lines: Vec<&str> = seen.lines().collect();
+    // The helper writes one version 2 line per group, so a file of any other shape means a group was written as more than its version 2 line.
+    assert_eq!(
+        lines.len(),
+        3,
+        "the helper wrote {} lines where it records three groups: {seen:?}",
+        lines.len()
+    );
     let holder_name: String = holder
         .group
         .directory()

@@ -32,6 +32,8 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `the_dataset_names_the_design_fixes.rs`:
+//!   the three dataset names the design fixes.
 //! - `mounted_dataset_instance.rs`:
 //!   one row of the mount table that is a ZFS dataset's mount,
 //!   what a caller reads from it,
@@ -40,8 +42,7 @@
 //!   why a design name found no dataset or several,
 //!   and the words a person reads for each.
 //! - `the_designs_datasets_in_the_mount_table.rs`:
-//!   the three names the design gives,
-//!   and the lookups that find them.
+//!   the lookups that find the three names' datasets in the table.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -49,6 +50,9 @@
 //! const checkout = theOneMountedCheckout(mounts); // { dataset, mountPoint, root }
 //! const container = theDesignsContainerBeside(checkout.dataset);
 //! ```
+
+/// The three dataset names the design fixes.
+pub mod the_dataset_names_the_design_fixes;
 
 /// One ZFS dataset's mount,
 /// as one row of the kernel's table.
