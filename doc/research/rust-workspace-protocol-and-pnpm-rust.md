@@ -698,7 +698,10 @@ and where the bytes of an installed tool come from (use b).
   today `github:Aquaticats/Monochromatic@latest` with `options.tagPrefix` skips releases GitHub flags as `prerelease`
   (`latest_release_with_prefix` in `package/mpm-shadow/cli/src/toolchain/update_github.rs`,
   lines 162 to 164,
-  source reading).
+  source reading;
+  it moved to `package/mpm-shadow/cli/src/toolchain/update_github/tag_names.rs`
+  on 2026-11-27T01:42:20-05:00,
+  commit `c805df7698`).
   `gh release create` in `.github/workflows/cargo-publish.yml` passes no `--prerelease`,
   and each of the twelve newest releases listed on 2026-11-07 has `prerelease: false`,
   so alphas are not skipped today,
