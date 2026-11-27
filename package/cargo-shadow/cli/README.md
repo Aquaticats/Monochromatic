@@ -836,11 +836,12 @@ and an HTTP 429 is retried after its `Retry-After`.
   the stop ends only when the kernel says `populated 0` or the absence of the scope is verified,
   and every failure on
   this path after the program started is "not quiescent".
-  After a last read of the scope's `populated` line shows no member,
-  the run ends the unit it started
+  Once the stop of the containment has shown the scope empty or gone,
+  the run makes one last look at the unit it started
   (`src/control_group_retire.rs`),
   on every path that ends a run,
-  because a scope whose process was already exiting when the manager wrote its id into the scope's
+  and it asks the manager to stop that unit only when the group never held a process:
+  a scope whose process was already exiting when the manager wrote its id into the scope's
   `cgroup.procs` never becomes populated,
   so the kernel sends no empty notification and the unit would stay `active (running)` with no member
   (issue 6578;
@@ -849,6 +850,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   and it is what keeps the ordinary run free:
   a member keeps the unit,
   and the run says so;
+  a member that joins the group after that look is not in it,
+  so a stop this step makes for a stuck scope would kill it with nothing printed,
+  because the contract models no process of the same account that writes itself into another run's scope;
   an absence counts only when `absence_is_verified` holds,
   and a `populated` read that failed is reported;
   and `pids.peak` says whether any process was ever counted in the group.
@@ -857,10 +861,39 @@ and an HTTP 429 is retried after its `Retry-After`.
   so that run asks the manager nothing;
   a group that is gone was collected,
   and asks nothing either.
+  The notification the ordinary run relies on can be lost,
+  and then a scope that has held a process stays loaded with no member and no warning.
+  The three paths that lose it are in the manager this host runs (systemd 262.2,
+  cited by its own `src/core/...` lines):
+  an inotify queue overflow is skipped without a rescan (`src/core/cgroup.c:3234` to `3236`);
+  a watch that could not be added is logged and its failure is ignored by the caller
+  (`src/core/cgroup.c:2038` to `2045`,
+  `(void) unit_watch_cgroup(u)` at `src/core/cgroup.c:2161`);
+  and a re-execution or reload drops the watches,
+  reads `cgroup.events` once when it catches up (`manager_catchup` at `src/core/manager.c:1905`,
+  called at `src/core/manager.c:2128`,
+  reading through `unit_cgroup_catchup` at `src/core/cgroup.c:4020` to `4033`),
+  and adds the watch back only when the unit is realized again
+  (`unit_invalidate_cgroup` at `src/core/cgroup.c:3981` to `3999`,
+  from `src/core/unit-serialize.c:367` to `380`,
+  through `unit_realize_cgroup_now` and `unit_update_cgroup` at `src/core/cgroup.c:2594`).
+  A scope that empties in that gap is never queued,
+  so what this step buys is the ordinary case,
+  never a promise that the manager always ends an empty scope.
   Only a group that never held a process is the leftover this step exists for,
   and only that run asks the manager,
   once:
   `systemctl --user --no-ask-password stop <name>.scope`.
+  `pids.peak` is a non-root group's file and exists only where the group's parent enables the pids controller.
+  It arrived in Linux 6.1:
+  `kernel/cgroup/pids.c` holds `pids_peak_read` and the `peak` file of the pids controller at v6.1,
+  and the same file has no mention of a peak at v6.0.
+  On an older kernel, or a group whose parent does not enable the pids controller,
+  the look cannot tell a group that never held a process from one it cannot see,
+  so every scoped run asks the manager once,
+  and a manager that hangs costs that run up to `RETIRE_BOUND`.
+  A `pids.peak` read that fails because the group's directory went away is not that case:
+  the directory is checked, the group is the manager's to free, and nothing is asked.
   The answer is the manager's exit status,
   and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
   which is a collected unit and not a refusal,
@@ -875,7 +908,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   one per scoped run;
   after it,
   none,
-  and the call's ratio to alpha.11's release binary is the control's own.
+  and the call cannot be told from alpha.11's release binary:
+  its ratio (0.874, 0.518 to 2.115) is inside the control's own spread (0.993, 0.916 to 1.271)
+  in the table of the troubleshooting file.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,

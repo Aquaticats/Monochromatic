@@ -1087,3 +1087,49 @@ fn a_removed_group_reads_as_gone_with_either_error() {
         "a refused read was read as a group that is gone"
     );
 }
+
+/// The bound the release promises a run spends on a manager that never answers, in seconds.
+/// The measurement beside `RETIRE_BOUND` rests on it: five seconds only ends a manager that does not answer,
+/// so a bound that grew past it would spend the run's time on a manager that is not answering.
+const PROMISED_BOUND: Duration = Duration::from_secs(5);
+
+/// The control of the bound the one question keeps:
+/// a manager that never answers costs the bound the promise names,
+/// not one raised to some other value.
+/// The wall clock is what the control reads,
+/// because the constant alone would agree with itself.
+/// The `systemctl` here is a stand-in that never answers and not a real one;
+/// no claim about a real manager rests on it.
+#[test]
+fn the_question_keeps_the_bound_it_promises() {
+    assert!(
+        RETIRE_BOUND <= PROMISED_BOUND,
+        "the question's bound grew to {RETIRE_BOUND:?}, past the {PROMISED_BOUND:?} the release promises"
+    );
+    let directory = crate::test_scratch::scratch();
+    let stand_in: PathBuf = directory.path().join("never-answering-systemctl");
+    fs::write(&stand_in, "#!/bin/sh\nexec sleep 600\n").expect("write the stand-in");
+    fs::set_permissions(&stand_in, fs::Permissions::from_mode(0o755)).expect("make it executable");
+
+    let began: Instant = Instant::now();
+    let reason: String = retire_unit(
+        &stand_in.display().to_string(),
+        "cargo-shadow-test-bound.scope",
+        RETIRE_BOUND,
+    )
+    .expect_err("a manager that never answers is a warning");
+    let elapsed: Duration = began.elapsed();
+
+    assert!(
+        elapsed >= RETIRE_BOUND,
+        "the question answered after {elapsed:?}, before the bound of {RETIRE_BOUND:?} it was given"
+    );
+    assert!(
+        elapsed < RETIRE_BOUND + KILL_REAP_GRACE + Duration::from_secs(1),
+        "a manager that never answers held the run for {elapsed:?}, past the bound of {RETIRE_BOUND:?} and its reap grace of {KILL_REAP_GRACE:?}"
+    );
+    assert!(
+        reason.contains(&format!("did not answer within {RETIRE_BOUND:?}")),
+        "the warning does not name the bound the question was given: {reason}"
+    );
+}

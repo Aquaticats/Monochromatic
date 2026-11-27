@@ -895,8 +895,7 @@ because the launcher is then never killed.
 
 #### What cargo-shadow does now
 
-The run ends the unit it started,
-after one last look at the scope,
+The run makes one last look at the unit it started,
 on every path that ends a run:
 a normal end,
 a bound that passes,
@@ -904,11 +903,15 @@ a refusal after the program started,
 and a launcher that is gone
 (`retire` in `package/cargo-shadow/cli/src/control_group_retire.rs`,
 called from `stop_everything` in `bounded_run_end.rs`).
+The look asks the manager to stop the unit only when the group never held a process;
+a group that held one has already told the manager it emptied,
+and a group that still has a member keeps its unit and the run says why.
 The look is answered from the kernel and it is what keeps the ordinary run free of a program start:
 
 - A `populated 1` line keeps the unit, and the run says so: the member may still write,
   the refusal's report names it,
-  and a manager stop would kill it behind that report.
+  and a manager stop would kill it;
+  a member that joins after the look is killed by such a stop with nothing printed.
 - An absent directory counts only when `absence_is_verified` holds, the same check the stop accepts,
   so that unit was collected and nothing is asked.
   An absence that cannot be verified keeps the unit, and the run says so.
@@ -919,6 +922,23 @@ The look is answered from the kernel and it is what keeps the ordinary run free 
   which is the change the manager watches (`unit_watch_cgroup` at `src/core/cgroup.c:2011` of systemd 262.2)
   and ends the unit on (`scope_notify_cgroup_empty_event` at `src/core/scope.c:566`),
   so that run asks nothing.
+  That notification can be lost,
+  and then a scope that has held a process stays loaded with no member and no warning.
+  The three paths that lose it are in systemd 262.2, the manager this host runs:
+  an inotify queue overflow is skipped without a rescan (`src/core/cgroup.c:3234` to `3236`);
+  a watch that could not be added is logged (`src/core/cgroup.c:2038` to `2045`)
+  and the caller ignores the failure (`(void) unit_watch_cgroup(u)` at `src/core/cgroup.c:2161`);
+  and a re-execution or reload drops the watches,
+  reads `cgroup.events` once when it catches up (`manager_catchup` at `src/core/manager.c:1905`,
+  called at `src/core/manager.c:2128`,
+  reading through `unit_cgroup_catchup` at `src/core/cgroup.c:4020` to `4033`),
+  and adds the watch back only when the unit is realized again
+  (`unit_invalidate_cgroup` at `src/core/cgroup.c:3981` to `3999`,
+  from `src/core/unit-serialize.c:367` to `380`,
+  through `unit_realize_cgroup_now` and `unit_update_cgroup` at `src/core/cgroup.c:2594`),
+  so a scope that empties in that gap is never queued.
+  None of the three has been reproduced here,
+  and what the step buys is the ordinary case, never a promise that the manager always ends an empty scope.
   A group that never held one is the leftover this step exists for,
   and only that run asks:
 
@@ -938,9 +958,12 @@ because the run already proved that no writer is left;
 the unit is housekeeping after the proof,
 not part of it.
 The question keeps one bound (`RETIRE_BOUND`, five seconds),
-and a request the bound kills is given a measured grace (100 ms,
-against a longest measured reap of 282 us)
-to be reaped before the note is built.
+and a request the bound kills is given a measured grace (100 ms) to be reaped before the note is built:
+the wait asks `try_wait` once every `DISCOVERY_POLL` (5 ms),
+so a killed `systemctl` was reaped 5.069852 ms after the kill at the median and 5.079702 ms at the longest over five kills
+in a scope capped at one core on 2026-11-28,
+and 5.079712 ms and 5.145821 ms with the same scope throttled to a `CPUQuota` of 2%,
+which is twenty polls in 100 ms.
 
 The cost, measured 2026-11-27 through builds of this branch and alpha.11's release binary,
 interleaved in the same rounds with a byte-identical copy of alpha.11 as the control,
@@ -957,7 +980,9 @@ after it:            ratio to alpha.11 0.874 (0.518 to 2.115)
 
 That is four stop questions and up to one `LoadState` question per trivial call before, and none after
 (counted through a `systemctl` that logs every call and then runs the real one).
-A waited `systemctl --user stop` of a collected unit cost 3.82 ms median (twelve calls) and a spawned one 1.01 ms,
+A waited `systemctl --user stop` of a collected unit cost 5.4 ms median (twelve calls on 2026-11-28,
+started and waited for with nothing in front of the real `systemctl`; range 4.4 to 11.1 ms)
+and a spawned one 2.1 ms median (range 1.5 to 2.8 ms, timed to the moment the child exists),
 which is why nothing of the sort is left on the ordinary path.
 
 The directory the manager removes on collection would be the most direct fact,
@@ -982,15 +1007,26 @@ The controls `a_recovery_reads_a_loaded_empty_scope_as_gone`,
 `a_scope_that_holds_a_member_keeps_its_unit_and_the_run_says_so`,
 `an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so`,
 `a_populated_read_that_fails_is_reported`,
+`a_group_without_a_pids_peak_file_is_asked_about_once`,
+`a_member_is_read_before_the_peak_and_its_unit_is_kept`,
+`a_group_whose_directory_is_gone_is_not_asked_about`,
+`a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away`,
+`a_removed_group_reads_as_gone_with_either_error`,
 `the_one_question_is_bounded_and_its_killed_program_is_reaped`,
+`the_question_keeps_the_bound_it_promises`,
+`a_killed_program_is_reaped_within_the_grace_at_the_polls_the_code_makes`,
 `a_retire_the_manager_refuses_is_reported_with_the_command_that_ran`
 and one per run-ending path
 (`a_run_that_ends_by_itself_retires_its_scope_unit`,
 `a_run_whose_bound_passes_retires_its_scope_unit`,
 `a_refused_run_retires_its_scope_unit`,
-`a_run_whose_launcher_is_gone_retires_its_scope_unit`)
+`a_run_whose_launcher_is_gone_retires_its_scope_unit`,
+`a_run_whose_stop_is_not_shown_empty_still_asks_for_its_unit`)
 hold this,
 and `an_ordinary_run_asks_the_manager_nothing` holds the cost.
+`a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error`
+reads the warning from the real standard error of a fresh process that makes the run,
+so a change that removed the printing and kept the words would fail there.
 Each was run with its guard taken out and each failed:
 the look answered `EmptiedWithoutAProcess` whatever the kernel said,
 and the reap grace was zero,
@@ -1001,6 +1037,24 @@ which failed `a_scope_that_held_a_process_is_left_to_the_manager`,
 and `the_one_question_is_bounded_and_its_killed_program_is_reaped`.
 The stop itself removed leaves the planted unit `loaded`.
 The controls that keep a live writer still see their writer in the scope and leave its unit alone.
+
+On 2026-11-28 the seven edits a release read of `0.1.5-alpha.13` listed as ones no control would catch
+were each applied once, run, and restored
+(the read argued them from `git grep` and applied none).
+Each turned its control red:
+
+- `Ok(_) | Err(_)` in the `pids.peak` arm to `Ok(_) => EmptiedWithoutAProcess, Err(_) => EmptiedAfterAProcess`:
+  `a_group_without_a_pids_peak_file_is_asked_about_once`.
+- reading `pids.peak` before `populated` and asking on its failure:
+  `a_member_is_read_before_the_peak_and_its_unit_is_kept`.
+- calling the retirement only when the stop's outcome is `Ok`:
+  `a_run_whose_stop_is_not_shown_empty_still_asks_for_its_unit`.
+- removing the `eprintln!` of the warning:
+  `a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error`.
+- raising `RETIRE_BOUND`: `the_question_keeps_the_bound_it_promises`.
+- making `Collected` ask: `a_group_whose_directory_is_gone_is_not_asked_about`.
+- dropping the `NODEV` half of `is_the_group_being_gone`:
+  `a_removed_group_reads_as_gone_with_either_error`.
 
 #### The test that left one, found and closed (2026-11-27)
 
@@ -1018,7 +1072,8 @@ so `[systemd-run] /usr/bin/true` is a launcher whose program was the bare name `
 No ordinary run of the shadow starts `true`:
 the user's command is `cargo`,
 the install step's calls are `cargo update` and `cargo metadata`,
-and the `cargo-shadow-` prefix of a unit name is made only by `ControlGroup::plan`.
+and the `cargo-shadow-` prefix of a scope unit name is made only by `ControlGroup::plan`
+(the lean service and timer units take the same prefix from `lean_service_units.rs`).
 `true` is what the package's own tests start.
 
 The test is
