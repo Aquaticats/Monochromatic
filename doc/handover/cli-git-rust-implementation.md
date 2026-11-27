@@ -103,11 +103,11 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T02:22:48-05:00
+## The state at 2026-11-27T02:50:11-05:00
 
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
-Sixteen rounds merged on the evening of 2026-11-26 and sixty-four more by this time on 2026-11-27.
+Sixteen rounds merged on the evening of 2026-11-26 and sixty-eight more by this time on 2026-11-27.
 
 ### Rounds running
 
@@ -121,16 +121,12 @@ Started through the coordinator's scratch launcher before 2026-11-27T01:55-05:00
 with the brief at `~/temp/agent/<round>-2026-11-2<6 or 7>/prompt.md`
 and the worktree at `.claude/worktrees/<round>`:
 
-- issues 6524 and 6525 (two landing controls that fail only threaded),
-  one round each;
-  issue 6526's merged as `23f2e3aa1b`;
-- issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy");
-- issue 6513 (the linter reads a near-miss file-list marker as no list);
+- issue 6524 (a landing control that fails only threaded);
+  issue 6526's round merged as `23f2e3aa1b` and issue 6525's as `9f6831a761`;
 - three second-wave split rounds for wrapper files no loop holds
   (`split-wrapper-foundation-files-over-the-line-budget-2`,
   `split-wrapper-process-lock-and-push-files-over-the-line-budget-2`,
   `split-wrapper-commit-worktree-and-worktree-copying-files-over-the-line-budget-2`);
-- `split-wrapper-small-folders-files-over-the-line-budget-1`;
 - the scratch-evidence round for the handover,
   audit,
   research and package documents.
@@ -167,6 +163,47 @@ which the launcher removes when the run ends idle with nothing uncommitted:
   `split-monochromatic-lint-markdown-closure-workflow-and-shell-files-over-the-line-budget`,
   `split-mpm-shadow-cli-toolchain-files-over-the-line-budget-second-wave-part-1-of-2` and `-part-2-of-2`,
   and `split-cargo-shadow-cli-lean-files-and-crate-root-over-the-line-budget`.
+- thirty rounds for the issues the rounds' findings became (6529 to 6559),
+  each named `issue-<number>-<what it makes true>`,
+  started in three batch lists (`~/temp/agent/pi-runs/issue-rounds-*-2026-11-27.json`):
+  - eleven for wrapper controls whose issue states a shared-state cause
+    (6530 with 6531,
+    6532,
+    6533,
+    6534,
+    6536,
+    6537,
+    6539,
+    6543,
+    6545),
+    and with them two defects of the shipped code,
+    fixed test-first:
+    issue 6544 (the discarded prune removes a directory that gained a file in the same file system tick as its listing,
+    because an unchanged change time skips the look at its names)
+    and issue 6529 (the word-level merge pass kept lines one side had deleted);
+  - eight for wrapper controls seen failing once or a few times under load
+    (6535,
+    6538,
+    6540,
+    6541,
+    6542,
+    6546,
+    6547,
+    6548),
+    whose briefs say to plant a delay and to stop with a report when a few runs show nothing,
+    never to run the tests again and again;
+  - eleven more:
+    `cargo-shadow`'s 6549 to 6554,
+    the driver's start failures (6556),
+    the IDE's Clippy findings (6558),
+    and three proposals for the owner under `doc/planning/`,
+    which change no code
+    (6555,
+    the 60 s bound on the Git calls before a cargo command;
+    6557,
+    an ignored-state copy owed to a worktree that is gone;
+    6559,
+    pushes the server refuses with GH009).
 
 The loop breaks of `foundation/`,
 `landing/`,
@@ -186,9 +223,23 @@ and the bench's `src/main.rs`),
 on the branch `refactor/flac-profiler-keeps-the-rust-one`,
 which changes both.
 
-One whole container gate runs on `main` at `d9ec2443bd`
-(unit `wrapper-gate-on-main-at-d9ec2443bd.service`,
-log `~/temp/agent/wrapper-whole-container-gate-on-main-at-d9ec2443bd-2026-11-27/keep/gate.log`).
+The whole container gate on `main` at `d9ec2443bd` ended at 2026-11-27T02:37:12-05:00 and refused.
+Its suite passed:
+`12089 tests run: 12089 passed (9 slow), 51 skipped`.
+Its Clippy container was killed for memory while it compiled the wrapper's test build:
+the gate's log says "the suite's and Clippy's containers at 2g",
+`clippy-driver` ended with `signal: 9, SIGKILL`,
+and the kernel log has "Memory cgroup out of memory:
+Killed process (clippy-driver)" with 2,074,084 kB of anonymous memory in the container's scope.
+`doc/planning/git-policy-cli-cachyos-test-containers.md` foresaw it:
+"Clippy reached the bound itself:
+2,048 MiB in the peak file of the run it passed in",
+and "The first gate that fails Clippy on memory is when to move it".
+The same Clippy command runs on the host at that commit with two jobs and no swap
+(unit `wrapper-clippy-on-the-host-at-d9ec2443bd`),
+for this batch's Clippy verdict and a memory peak;
+an issue and a round that gives Clippy a measured bound follow it.
+The gate's log is `~/temp/agent/wrapper-whole-container-gate-on-main-at-d9ec2443bd-2026-11-27/keep/gate.log`.
 
 A scratch-launched round has ended when its latest `run-<n>/summary.json` exists
 while `.claude/worktrees/<round>` still does;
