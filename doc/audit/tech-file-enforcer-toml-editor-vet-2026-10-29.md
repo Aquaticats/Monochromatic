@@ -1167,3 +1167,6 @@ No candidate has been scored.
 - The vet lock directory
   `/var/home/user/temp/agent/technology-vet-locks/var-home-user-Monochromatic-doc-audit-tech-file-enforcer-toml-editor-vet-2026-10-29.md.lock`
   was created at the start and removed at the halt after this report was written.
+   (scratch,
+  deleted on 2026-11-27;
+  not kept).
