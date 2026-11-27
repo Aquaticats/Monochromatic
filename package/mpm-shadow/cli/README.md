@@ -1461,19 +1461,19 @@ toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 from the fi
 The copy it dropped because another install published the version meanwhile:
 
 ```text
-toolchain install: dropped the copy of mpm-shadow 0.2.7-alpha.13 that a killed install left, because another install published that version meanwhile
+toolchain install: dropped the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install left, because another install published that version meanwhile
 ```
 
 The finished copy it left hidden because an older repository tool is never kept:
 
 ```text
-toolchain install: left the finished copy of mpm-shadow 0.2.7-alpha.13 that a killed install left under its hidden name, because 0.2.7-alpha.14 is installed and an older repository tool is never kept
+toolchain install: left the finished copy of mpm-shadow 0.2.7-alpha.13 under the hidden name an earlier install left it at, because 0.2.7-alpha.14 is installed and an older repository tool is never kept
 ```
 
-The copy a killed install had moved aside and this run put back:
+The copy an earlier install had moved aside and this run put back:
 
 ```text
-toolchain install: put back the copy of mpm-shadow 0.2.7-alpha.13 that a killed install had moved aside
+toolchain install: put back the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install had moved aside
 ```
 
 The copy it left where it is,
@@ -1493,14 +1493,31 @@ toolchain install: left the copy of mpm-shadow 0.2.7-alpha.13 that an earlier in
 
 and the hidden directories it removed,
 counted in the singular or the plural,
-with what went with one when a finished copy did:
+left behind by installs whose process the system reports ended,
+with what went with each one that held a finished copy:
 
 ```text
-toolchain install: removed 2 hidden directories that killed installs of mpm-shadow left behind
+toolchain install: removed 2 hidden directories left behind by installs of mpm-shadow that have ended
+```
+
+A removed finished copy is either a second one,
+when the version's own name still holds a finished copy,
+or the one copy the version had here,
+when it does not,
+and only the second is a loss:
+
+```text
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13; 0.2.7-alpha.13 is finished at its name, so nothing was lost with that copy
 ```
 
 ```text
-toolchain install: removed 1 hidden directory that a killed install of mpm-shadow left behind, 1 of which held a finished copy that this run could not publish, so that copy is gone
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a finished copy of 0.2.7-alpha.13 that this run did not publish, because that copy's completion marker does not record the archive this lock names; no finished copy of 0.2.7-alpha.13 is at its name, so that copy is gone
+```
+
+A copy of a version that may not be kept beside a newer one says that rule instead:
+
+```text
+toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a finished copy of 0.2.7-alpha.13 that this run did not publish, because 0.2.7-alpha.14 is installed and an older repository tool is never kept; no finished copy of 0.2.7-alpha.13 is at its name, so that copy is gone
 ```
 
 A recovery never publishes an older version beside a newer installed one:
@@ -2271,7 +2288,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   (`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
   byte-identical copies in each crate,
   and `tests/shadow_identity_copies.rs` is one of the copies,
-  so the test task of any of the four packages fails when the copies differ).
+  so a change to the copy in `cargo-shadow`,
+  `mpm-shadow` or `pnpm-shadow` fails all four suites,
+  and a change to `search-shadow`'s copy alone fails `search-shadow`'s suite and no other).
   The lookup skips a candidate that carries it,
   or a launcher whose record leads to one,
   without starting it,

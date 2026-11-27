@@ -1867,20 +1867,32 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
   (measured on the 0.2.2 x86_64 archive with `objdump -T`),
   so they do not start on Debian 12 or Ubuntu 22.04.
   The crate builds for no other target,
-  and the platform gates do not add one:
-  `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
+  and the sources show it before any build starts:
+  331 of the 2,405 Rust sources under `src/native` that are not test files import `std::os::unix`
+  (`rg --files-with-matches 'std::os::unix' src/native --glob '*.rs' --glob '!*_tests.rs' --glob '!tests.rs'`,
+  counted 2026-11-27),
+  and `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
   (`#[cfg(target_os = "linux")]`),
-  and `worktree/worktree_remove_around.rs`,
+  while `worktree/worktree_remove_around.rs`,
   which carries no gate,
   imports `finish` from it,
   so a build for another target names an item the modules of that target do not provide.
-  Nothing here has compiled the crate for another target:
-  `rustup target list --installed` answers `x86_64-unknown-linux-gnu` on the machine this was written on.
-  The crate does not compile for Windows:
-  `cargo check --target x86_64-pc-windows-gnu --lib` fails with 16 errors in
-  eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
-  so the Windows-specific branches in the sources have never run;
+  `rustup target list --installed` answers `x86_64-unknown-linux-gnu` alone on the machine this was written on,
+  so no run here compiles the crate for another target:
+  `native:clippy:windows` is the one task that type-checks another target,
+  and its own comment says it needs `rustup target add x86_64-pc-windows-gnu` on the host,
+  which this machine does not have,
+  so that task was not run.
+  The crate therefore does not compile for Windows,
+  and the Windows-specific branches in the sources have never run;
   each is marked `UNTESTED ON WINDOWS` in the source.
+  One earlier check stands as the record of that:
+  a `cargo check --target x86_64-pc-windows-gnu --lib` on 2026-10-15 reported 16 errors in eight files
+  (commit `bdb1ce4884`),
+  and nothing says which machine ran it or whether that target was installed there;
+  with the target absent here it cannot be run again,
+  so this bullet rests on the imports counted above and on that one record,
+  and on no other run.
   A Windows port is deferred to a later version (owner decision,
   2026-10-15).
 - Real Git on `PATH` after the wrapper,
@@ -2338,6 +2350,20 @@ Every Git command whose paths lie under that repository link,
 its approved root or the renamed old copy is checked the same way first,
 and a link that is not usable stops it with that message and status 128 before Git prints its own error;
 with the file absent the check costs one failed open.
+A file that is there and cannot be used does not stop the command:
+the wrapper says so on standard error,
+once for that command.
+The entry gate and the startup step each read the file and neither reads the other's answer,
+so the reason that was said is kept for the process (`SAID_WHY` in `repository_link_gate.rs`)
+and said again only when a second reading gives a different reason,
+which is a second fault and reads as one.
+A process of the wrapper is one command,
+so once for a process is once for a command.
+The processes here that answer more than one command,
+the commit service and the clone mount handler's modes,
+never say that sentence:
+`main.rs` chooses each of them before the wrapper's entry runs,
+and nothing of them reads the identity file.
 
 The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
  (so `-C`,
