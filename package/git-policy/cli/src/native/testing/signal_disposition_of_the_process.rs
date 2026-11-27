@@ -11,7 +11,8 @@
 //!  `std` sets `SIGPIPE` to its ignore at the start of every Rust program,
 //!  and a start that cannot run its program leaves it at the default in the process that tried
 //!  (`library/std/src/sys/process/unix/unix.rs:374`;
-//!  `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`, issue 6604).
+//!  `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`,
+//! issue 6604).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -76,14 +77,16 @@ pub(crate) fn the_word_for(the_disposition: &libc::sigaction) -> &'static str {
 
 /// What:
 ///  Puts the ignore a Rust program starts with back for `signal`,
-///  which is the one direction a control may change: towards the state the program began in.
+///  which is the one direction a control may change:
+/// towards the state the program began in.
 /// Why:
 ///  A child that read a call leaving a signal at its default is a process whose next write to a pipe
 ///  nobody reads would end it,
 ///  so the body puts the ignore back before it returns and asserts what it left.
 /// Gotcha:
 ///  Only a child of a control calls this:
-///  the action belongs to the whole process, and a test run holds its controls as threads of one.
+///  the action belongs to the whole process,
+/// and a test run holds its controls as threads of one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
