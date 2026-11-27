@@ -68,6 +68,8 @@
 //!   the bytes of one repository path,
 //!   how its components are joined and compared,
 //!   and the validation every one passes.
+//! - `worktree_copy_stage_prefix.rs`:
+//!   the prefix every private stage container's name begins with.
 //! - `worktree_copy_prune.rs`:
 //!   what a copy from a main checkout leaves out:
 //!   caches,
@@ -327,6 +329,9 @@ pub mod worktree_copy_vanished_entry;
 /// The ignored source paths a linked-worktree copy selects,
 /// and the path validation every selection passes.
 pub mod worktree_copy_selection;
+
+/// The prefix every private stage container's name begins with.
+pub mod worktree_copy_stage_prefix;
 
 /// What a copy from a main checkout leaves out:
 /// caches,

@@ -404,7 +404,6 @@ file-uses src/native/worktree_copying worktree_copy_owed_copy_proofs.rs -> workt
 file-uses src/native/worktree_copying worktree_copy_owed_copy_proofs.rs -> worktree_copy_journal_removal.rs
 file-uses src/native/worktree_copying worktree_copy_owed_copy_proofs.rs -> worktree_copy_stage_binding.rs
 file-uses src/native/worktree_copying worktree_copy_owed_copy_proofs.rs -> worktree_copy_stage_claim_reaping.rs
-file-uses src/native/worktree_copying worktree_copy_prune.rs -> worktree_copy_selection.rs
 file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_journal_removal.rs
 file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_owed_copy.rs
@@ -415,7 +414,6 @@ file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy
 file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_unfilled_record.rs
 file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_unreadable_records.rs
 file-uses src/native/worktree_copying worktree_copy_registry.rs -> worktree_copy_stage_claim.rs
-file-uses src/native/worktree_copying worktree_copy_selection.rs -> worktree_copy_prune.rs
 file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_stage_claim_reaping.rs
