@@ -224,6 +224,19 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     });
 }
 
+/// What:
+///  The two facts one layout question names,
+/// owned so that a job of the blocking pool can take them.
+/// Why:
+///  The reader walks up from the start directory and reads the configuration and the directory entries it finds,
+/// so it
+///  runs as a job of the pool and never on the task that asks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LayoutQuestion = { directory: string; overlay: [string, string][] };
+/// ```
+///
 struct LayoutQuestion {
     /// The directory the reader starts walking up from.
     directory: PathBuf,
