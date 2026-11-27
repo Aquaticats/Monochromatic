@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T16:27:17-05:00
+## The state at 2026-11-27T16:37:15-05:00
 
-`main` was `b2afb5b775`.
+`main` was `e772d8ad66`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 265 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 266 more by this time.
 
 ### Rounds running
 
@@ -242,6 +242,27 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   After their merges come the tip checks,
   one whole gate,
   and `0.6.1-alpha.51`.
+  The round on the two unwired sentences is merged (`e772d8ad66`).
+  Both sentences show the name through `shown_so_it_cannot_rewrite_the_line` and stand in the guard's list;
+  `CommandWord::of` keeps the kernel's bytes and escapes nothing,
+  so a name is escaped once,
+  at the sentence.
+  A sentence that shows a name through a local of another spelling is not seen by the guard:
+  the round planted one,
+  measured two wider scans over the release sources and found each reports the program's own words,
+  and the guard's top doc now says what a reader checks.
+  `SPEC.md` says which lines the rule covers and what a record written as JSON does with a name.
+  No process that serves more than one command reads the identity file
+  (`main.rs` chooses the service and the handler's modes before the entry runs;
+  one run of a serving process said the sentence zero times,
+  with no commit through it,
+  because a fixture has no manager),
+  and the README says the sentence is said once for a command.
+  The README's bullet on other targets says one thing,
+  resting on the sources' imports and on one dated check that cannot be repeated on this machine;
+  a clause that called two dependencies unix-only was false and is gone.
+  The whole `source_guard` module passed 213 of 213 after its last merge of `main`,
+  and its picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
   Of the `0.6.1-alpha.49` behaviour pass,
   all four rounds are merged,
   and the whole gate on `main` at `3aab810dd9` passed
