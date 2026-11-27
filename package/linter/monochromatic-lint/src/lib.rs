@@ -225,6 +225,9 @@ mod layout_step_packages;
 mod layout_step_unlistable_names;
 /// The file list in a folder's top doc.
 mod layout_top_doc;
+/// Which characters print as nothing a reader can see,
+///  so every message spells them.
+mod layout_unseen_characters;
 /// Prose fix boundary that must not create new Markdown block syntax.
 mod markdown_block_start;
 /// Byte-addressed prose break points and abbreviation exclusions.
