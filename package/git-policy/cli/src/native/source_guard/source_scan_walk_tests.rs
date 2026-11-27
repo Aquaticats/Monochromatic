@@ -260,7 +260,8 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
 ///  so a control counts how many times a walk reaches that file.
 /// Why:
 ///  The subject of this file's controls is how many times a walk reaches a file,
-/// and the file's own text is the evidence, never its name.
+///  and the file's own text is the evidence,
+///  never its name.
 const THE_LINE_ONE_FILE_HOLDS: &str = "// the needle: a walk reaches this file once\n";
 
 /// What:
@@ -270,9 +271,10 @@ const THE_LINE_ONE_FILE_HOLDS: &str = "// the needle: a walk reaches this file o
 ///  which is the shape this repository's source folders have
 ///  (`AGENTS.md`,
 ///  rules `LYD` and `LYL`).
-/// `&str` is borrowed text (sibling: `String`,
-/// the owned form) and `PathBuf` is an owned file-system path (sibling: `&Path`,
-/// the borrowed view).
+///  `&str` is borrowed text,
+///  whose owned sibling is `String`,
+///  and `PathBuf` is an owned file-system path,
+///  whose borrowed sibling is `&Path`.
 /// Why:
 ///  A read that descends a link reaches that source file once per chain of links above it,
 ///  and this tree shows it once and through the link,
