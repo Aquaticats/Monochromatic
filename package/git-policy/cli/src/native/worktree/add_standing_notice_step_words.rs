@@ -11,7 +11,8 @@
 //!  This file is part of the module `add_standing_notice.rs`,
 //!  split out because that module was over the line limit:
 //!  the table of a step's words is the largest thing in it,
-//!  and the notice's state, its thread and its line are the rest.
+//!  and the notice's state,
+//! its thread and its line are the rest.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

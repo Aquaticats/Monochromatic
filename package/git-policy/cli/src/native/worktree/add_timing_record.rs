@@ -12,7 +12,8 @@
 //!  This file is one part of the module whose name it carries,
 //!  split because that module was over the line limit:
 //!  `add_timing_steps.rs` holds the recording of one thread and the steps it publishes,
-//!  and `add_timing.rs` holds the clock, the work of other threads and the file the line goes to.
+//!  and `add_timing.rs` holds the clock,
+//! the work of other threads and the file the line goes to.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
