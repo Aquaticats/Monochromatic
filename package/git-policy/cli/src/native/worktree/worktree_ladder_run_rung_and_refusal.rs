@@ -30,8 +30,8 @@ use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::CreatedSubvolume;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeLadder";
+/// Import the tag every line of this folder's ladder work carries.
+use crate::worktree::worktree_ladder_finish_binding::TAG;
 
 /// What:
 ///  Which rung the ladder chose before Git ran,

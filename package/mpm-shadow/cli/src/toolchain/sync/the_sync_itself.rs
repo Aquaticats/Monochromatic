@@ -20,6 +20,12 @@
 
 /// Imports the root that holds the winning copy of a repository-published tool.
 use super::super::across_roots::winning_root;
+/// Imports the hidden siblings a killed install leaves,
+/// and the repair of them.
+use super::super::archive_staging::{
+    Recovered,
+    recover_leftovers,
+};
 /// Imports the checks a repository-published tool's link is settled with,
 /// and its older-lock warnings.
 use super::super::cargo_installs::{
@@ -44,6 +50,8 @@ use super::super::install::install_tool;
 use super::super::install_rust_android::reconcile_rust_parts;
 /// Imports `applies_to_family` from `super::super::layout`.
 use super::super::layout::applies_to_family;
+/// Imports the install directory of one tool version.
+use super::super::layout::tool_install_dir;
 /// Imports the locked tool the sync installs,
 /// and the route that is never replaced by an older version.
 use super::super::model::{
@@ -58,17 +66,48 @@ use super::super::observe::{
 };
 /// Imports `sync_postinstall_links` from `super::super::postinstall_links`.
 use super::super::postinstall_links::sync_postinstall_links;
+/// Imports the program that shows an install of a tool finished.
+use super::super::published_archive::program_that_finishes_the_install;
 /// Imports `write_tool_env` from `super::super::tool_env`.
 use super::super::tool_env::write_tool_env;
+/// Imports the owned path type the version directory is built into.
+use std::path::PathBuf;
 
 /// Imports the order the tools are installed in.
 use super::the_install_order::sync_order;
 /// Imports the report a run answers with,
-/// and the warning for a replaced version.
+/// the warning for a replaced version,
+/// and the sentence for a version a killed install left unfinished.
 use super::what_the_sync_did::{
     SyncReport,
+    recovery_sentence,
     replacement_warning,
 };
+/// What:
+/// Finishes the publish of one tool's version that a killed install left unfinished,
+/// and removes the hidden directories of installers that no longer run.
+/// Why:
+/// The copy a killed install left under a hidden name is complete,
+/// so the version gets its name back without the archive being downloaded again,
+/// which is what an offline machine needs to start that version at all
+/// (`archive_staging`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recoverAKilledInstall(ctx: Context, tool: LockedTool): Recovered
+/// ```
+fn recover_a_killed_install(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<Recovered, ToolchainError> {
+    let version_dir: PathBuf = tool_install_dir(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )?;
+    return recover_leftovers(&version_dir, program_that_finishes_the_install(tool));
+}
+
 /// What:
 /// Syncs the tools of `ctx.tools` (all of them,
 /// or only those whose ids are in `only`),
@@ -101,6 +140,22 @@ pub fn sync_tools(
         }
     }
     for tool in &entries {
+        let recovered: Recovered = if tool.declaration.route == Route::Archive {
+            match recover_a_killed_install(ctx, tool) {
+                Ok(recovered) => recovered,
+                Err(error) => {
+                    report
+                        .failed
+                        .push((tool.declaration.id.clone(), error.message));
+                    continue;
+                }
+            }
+        } else {
+            Recovered::default()
+        };
+        if let Some(sentence) = recovery_sentence(&tool.declaration.id, &tool.version, &recovered) {
+            report.recovered.push(sentence);
+        }
         let observed: Option<String> = observe_tool(ctx, tool);
         // A cargo-binstall install lives in a version directory of its own, so nothing shared is replaced;
         // a repository-published tool is never replaced by an older one (it keeps the newest and warns instead).
@@ -136,6 +191,9 @@ pub fn sync_tools(
             report.reconciled.extend(added);
             match reconciled {
                 Ok(()) if added_anything => report.installed.push(tool.declaration.id.clone()),
+                Ok(()) if recovered.published || recovered.restored => {
+                    report.installed.push(tool.declaration.id.clone());
+                }
                 Ok(()) => report.unchanged.push(tool.declaration.id.clone()),
                 Err(error) => report
                     .failed

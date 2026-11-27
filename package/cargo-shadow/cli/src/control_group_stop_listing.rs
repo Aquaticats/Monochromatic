@@ -8,6 +8,10 @@
 //! so a scope whose own `cgroup.procs` is empty can still hold a live process
 //! (`doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
 //! and a refusal that listed only the scope's own group would name nothing while the kernel said something was left.
+//! The bound is read from a clock this file owns (`ListingClock`),
+//! so a control makes it pass between two reads without a scope of thousands of threads,
+//! and no read below is cut short:
+//! the clock is asked between them and never inside one.
 //! Split out of `control_group_stop.rs`,
 //! which keeps the stop itself,
 //! to keep that file under the code-line limit.
@@ -121,7 +125,8 @@ impl ControlGroup {
     /// with the state of its threads:
     /// or the reason the list could not be read,
     /// or the fact that the scope was gone,
-    /// or the members it read before its own bound passed.
+    /// or the members it read before its own bound passed,
+    /// or the members it read before a group below the scope could not be read.
     /// Why:
     /// A refusal that could not list the members must say so instead of naming none,
     /// because "no member is listed" and "the listing failed" mean different things,
@@ -129,7 +134,7 @@ impl ControlGroup {
     /// so a scope whose own `cgroup.procs` is empty can still hold a live member
     /// (`doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`).
     /// Each member is read through a pidfd,
-    /// so a number the kernel listed cannot name another process by the time its threads are read.
+    /// so a number listed a moment earlier cannot name another process from the moment its descriptor is held.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -142,20 +147,63 @@ impl ControlGroup {
         if crate::failpoints::fires(crate::failpoints::Point::ContainmentScopeGoneAtListing) {
             return Listing::ScopeGone;
         }
-        let deadline: Instant = Instant::now() + LISTING_BOUND;
+        // What:     `let mut clock: ListingClock = ListingClock::starting_now();` is this listing's own clock, which holds
+        //           the point it stops reading at (a control can arm it; see `ListingClock`).
+        // Why:      Every read below asks it between reads, so one bound serves the whole walk and a control reaches it.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const clock = ListingClock.startingNow();
+        // ```
+        let mut clock: ListingClock = ListingClock::starting_now();
         let own: Vec<i32> = match self.members() {
             Ok(found) => found,
-            Err(error) => return Listing::Unreadable(error.to_string()),
+            // What:     `Listing::Unreadable(Vec::new(), error.to_string())` says the read failed before it reached one
+            //           member, so no member is named beside the reason.
+            // Why:      The refusal must not name what was not read.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return { kind: 'unreadable', members: [], reason: String(error) };
+            // ```
+            Err(error) => return Listing::Unreadable(Vec::new(), error.to_string()),
         };
         // `members()` reads a removed group as empty; the directory itself says whether it was removed.
-        if own.is_empty() && fs::metadata(&self.directory).is_err() {
-            return Listing::ScopeGone;
+        if own.is_empty() {
+            match fs::metadata(&self.directory) {
+                Ok(_found) => {}
+                // A scope the manager collected is gone; a directory this process may not examine is not, and the words say
+                // which of the two it was.
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound
+                        || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) =>
+                {
+                    return Listing::ScopeGone;
+                }
+                // What:     `Listing::Unreadable(Vec::new(), format!(...))` is the same answer as above with the
+                //           directory's own error.
+                // Why:      `fs::metadata` failing for any other reason is not a scope the manager collected.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // return { kind: 'unreadable', members: [], reason: `its directory could not be examined (${error})` };
+                // ```
+                Err(error) => {
+                    return Listing::Unreadable(
+                        Vec::new(),
+                        format!(
+                            "{} could not be examined ({error})",
+                            self.directory.display()
+                        ),
+                    );
+                }
+            }
         }
         let mut members: Vec<MemberListing> = Vec::new();
         // The scope's own group first, then every group below it, depth first.
         let mut pending: Vec<(PathBuf, Option<String>)> = vec![(self.directory.clone(), None)];
         while let Some((group, below)) = pending.pop() {
-            if Instant::now() >= deadline {
+            if clock.has_passed() {
                 return Listing::Cut(members);
             }
             let listed: Vec<i32> = if below.is_none() {
@@ -165,20 +213,28 @@ impl ControlGroup {
                     Ok(Some(found)) => found,
                     // A group below the scope that is gone holds nothing.
                     Ok(None) => continue,
-                    Err(reason) => return Listing::Unreadable(reason),
+                    // What:     `Listing::Unreadable(members, reason)` keeps the members this listing already read.
+                    // Why:      A refusal that dropped them would tell a reader nothing was found while a live writer
+                    //           stands in the scope's own group.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // return { kind: 'unreadable', members: members, reason: reason };
+                    // ```
+                    Err(reason) => return Listing::Unreadable(members, reason),
                 }
             };
             // Sorted, so two readings of the same members name them in the same order whatever the file system answers.
             let mut ordered: Vec<i32> = listed;
             ordered.sort_unstable();
             for pid in ordered {
-                if Instant::now() >= deadline {
+                if clock.has_passed() {
                     return Listing::Cut(members);
                 }
                 members.push(MemberListing {
                     pid,
                     below: below.clone(),
-                    standing: standing_of_within(pid, deadline),
+                    standing: standing_of_within(pid, clock.deadline),
                 });
             }
             match sub_groups(&group) {
@@ -191,10 +247,91 @@ impl ControlGroup {
                         pending.push((path, Some(path_below)));
                     }
                 }
-                Err(reason) => return Listing::Unreadable(reason),
+                // The same answer as above: the members read before this group are kept.
+                Err(reason) => return Listing::Unreadable(members, reason),
             }
         }
         return Listing::Read(members);
+    }
+}
+
+/// What:
+/// `struct ListingClock { deadline: Instant }` is the clock one listing reads its own bound from:
+/// the point on the wall clock at which it stops reading.
+/// Why:
+/// The bound belongs to one walk of the scope,
+/// and the walk asks it between reads,
+/// so one value serves the whole walk;
+/// a test build can arm a count instead (`arm_listing_clock_after_checks`),
+/// which is how a control reaches the bound without a scope of thousands of threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ListingClock { deadline: number; hasPassed(): boolean }
+/// ```
+struct ListingClock {
+    /// The point on the wall clock at which the listing stops reading.
+    deadline: Instant,
+    /// How many deadline checks a control lets pass before the clock reads as past the deadline,
+    /// or `None` on an ordinary run.
+    #[cfg(test)]
+    checks_left: Option<usize>,
+}
+
+/// What:
+/// `impl ListingClock` builds one clock and answers whether its bound has passed.
+/// Why:
+/// The walk asks the clock before a group and before each member,
+/// and one member's threads are read up to the same point.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a plain class with a constructor and one method
+/// ```
+impl ListingClock {
+    /// What:
+    /// `fn starting_now() -> ListingClock` is a clock whose bound starts now,
+    /// with the count a control armed taken once.
+    /// Why:
+    /// Taking the arm here means one listing uses a control's clock and a later listing on the same thread does not.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static startingNow(): ListingClock {
+    ///   return new ListingClock(Date.now() + LISTING_BOUND);
+    /// }
+    /// ```
+    fn starting_now() -> ListingClock {
+        return ListingClock {
+            deadline: Instant::now() + LISTING_BOUND,
+            // What: `crate::failpoints::take_listing_clock()` takes the count a control armed, if it armed one.
+            // Why:  The arm reaches this walk and no other.
+            #[cfg(test)]
+            checks_left: crate::failpoints::take_listing_clock(),
+        };
+    }
+
+    /// What:
+    /// `fn has_passed(&mut self) -> bool` says whether the listing has reached its bound.
+    /// Why:
+    /// Every read below is a plain blocking call with no bound of its own,
+    /// so the clock is asked between the reads and never inside one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// hasPassed(): boolean { return Date.now() >= this.deadline }
+    /// ```
+    fn has_passed(&mut self) -> bool {
+        // A control's clock lets a named number of checks pass and then reads as past the deadline for the rest of this walk.
+        #[cfg(test)]
+        if let Some(left) = &mut self.checks_left {
+            if *left == 0 {
+                return true;
+            }
+            *left -= 1;
+            return false;
+        }
+        return Instant::now() >= self.deadline;
     }
 }
 

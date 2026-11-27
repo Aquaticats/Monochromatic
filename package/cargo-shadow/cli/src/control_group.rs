@@ -133,8 +133,12 @@ pub(crate) use crate::control_group_records::{
 #[path = "control_group_retire.rs"]
 pub(crate) mod retire;
 
-/// The reads of `cgroup.events` for the stop of a scope (split out of the control group module).
-pub(crate) use crate::control_group_stop::populated_at;
+/// The reads of `cgroup.events` and `pids.peak` for the stop of a scope and for the end of its run (split out of the control
+/// group module).
+pub(crate) use crate::control_group_stop::{
+    pids_peak_at,
+    populated_at,
+};
 
 /// The scope of one run.
 /// The fields are `pub(crate)` because the stop of a scope lives in `control_group_stop.rs`.

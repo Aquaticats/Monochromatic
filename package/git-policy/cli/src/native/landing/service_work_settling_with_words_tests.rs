@@ -2,7 +2,7 @@
 //! what each verdict leaves behind in the queue.
 
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work::{
     CLAIM_LEASE,
@@ -153,7 +153,7 @@ fn drained(queued: &Queued) {
         &mut replanning,
         SERVICE_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ))
     .expect("the pending drain runs");
 }
@@ -430,7 +430,7 @@ fn drained_once(
         &mut replanning,
         SERVICE_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
-        &HostResources::read(),
+        TheHostOfABatch::TheMachinesOwn,
     ))
     .expect("the pending drain runs");
 }

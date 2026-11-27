@@ -18,7 +18,7 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::HostResources;
+use crate::parallel_budget::TheHostOfABatch;
 use crate::push_retry::{
     PLAN_DIRECTORY,
     PushRetries,
@@ -317,7 +317,7 @@ fn two_worktrees_trash_records_run_beside_each_other() {
         &both,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
-        &A_HOST_THAT_BOUNDS_NO_BATCH,
+        TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH),
     ));
     assert_eq!(settled(&world, DONE), 2, "both trashes were emptied");
     assert_eq!(
@@ -377,7 +377,7 @@ fn one_worktrees_two_trash_records_run_one_after_the_other() {
         &both,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
-        &A_HOST_THAT_BOUNDS_NO_BATCH,
+        TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH),
     ));
     assert_eq!(
         settled(&world, DONE),
@@ -436,7 +436,7 @@ fn two_branches_of_one_repository_are_pushed_at_once() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&both),
         now: &ClaimTime::read(),
-        host: &A_HOST_THAT_BOUNDS_NO_BATCH,
+        host: TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH),
     })
     .waits;
     assert_eq!(settled(&world, DONE), 2, "both branches' pushes ran");
@@ -719,7 +719,7 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
                             &handlers,
                             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
                             crate::service_work::CLAIM_LEASE,
-                            &HostResources::read(),
+                            TheHostOfABatch::TheMachinesOwn,
                         )
                         .await;
                     })
@@ -1280,7 +1280,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
             lane_handlers.as_ref(),
             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
             crate::service_work::CLAIM_LEASE,
-            &A_HOST_THAT_BOUNDS_NO_BATCH,
+            TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH),
         )
         .await;
     };
@@ -1305,7 +1305,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&stand_ins),
         now: &ClaimTime::read(),
-        host: &A_HOST_THAT_BOUNDS_NO_BATCH,
+        host: TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH),
     })
     .waits;
     let waited: Duration = asked.elapsed();
@@ -1351,4 +1351,146 @@ fn claimed(
             })
             .count();
     });
+}
+
+/// What:
+///  The number of batches the world below puts an item in:
+///  one prewarm and one trash,
+///  which are two kinds and so two widths.
+/// Why:
+///  The control asserts that the machine is read once for each of them,
+///  so the number it expects is the work it made and not a figure of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const BATCHES_THIS_WORLD_SIZES = 2; // a prewarm and a trash
+/// ```
+const BATCHES_THIS_WORLD_SIZES: usize = 2;
+
+/// What:
+///  A world holding one Prewarm record for one worktree and one Trash record for another,
+///  with a handler that runs both at once and skips nothing.
+/// Why:
+///  Two kinds with an item each are two width decisions,
+///  which is what tells a reading taken at each batch from one taken before the drain began.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = world('where-the-host-is-read', 2); enqueue(world.work, record(world, WorkKind::Prewarm, 0, 'refs/heads/main', '1')); enqueue(world.work, record(world, WorkKind::Trash, 1, 'refs/cli-git/trash', '2'));
+/// ```
+fn a_world_holding_two_batches(name: &str) -> World {
+    let world: World = world(name, 2);
+    enqueue(
+        world.work.as_path(),
+        &record(
+            &world,
+            WorkKind::Prewarm,
+            0,
+            "refs/heads/main",
+            "1111111111111111111111111111111111111111",
+        ),
+    )
+    .expect("the prewarm");
+    enqueue(
+        world.work.as_path(),
+        &record(
+            &world,
+            WorkKind::Trash,
+            1,
+            "refs/cli-git/trash",
+            "2222222222222222222222222222222222222222",
+        ),
+    )
+    .expect("the trash");
+    return world;
+}
+
+/// What:
+///  Which parts of the process a look of the slow lane moved when it took the machine's own reading.
+///  A look of the slow lane moves counts of the whole process,
+///  so the control that reads them runs its body in a child of its own.
+/// Why:
+///  A round that hands every batch one reading taken before its earlier work ran can size a later batch by room the
+///  host has since lost.
+///  A reading taken where the batch is sized is the room of that moment,
+///  and this is what tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(machineReadsAfterATheMachinesOwnDrain()).toBe(2); expect(machineReadsAfterAStatedDrain()).toBe(0);
+/// ```
+#[test]
+fn the_machine_is_read_where_each_batch_is_sized() {
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_machine_is_read_where_each_batch_is_sized",
+        || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a runtime of this thread");
+            // What: the count of the machine's readings before the first look.
+            // Why:  the count is the whole process's, and this body is the only thing in this process.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const before = machineReadsForAControl();
+            // ```
+            let before: usize = crate::parallel_budget::machine_reads_for_a_control();
+            let machine_read_world: World = a_world_holding_two_batches("where-the-host-is-read");
+            let machine_read: SideBySide = SideBySide::of();
+            runtime.block_on(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+                machine_read_world.common.as_path(),
+                &machine_read,
+                crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+                crate::service_work::CLAIM_LEASE,
+                TheHostOfABatch::TheMachinesOwn,
+            ));
+            // What: how many readings the look took.
+            // Why:  one per batch sized is the claim, and a look that took one for all of them is the defect.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const takenForTheBatches = machineReadsForAControl() - before;
+            // ```
+            let taken_for_the_batches: usize =
+                crate::parallel_budget::machine_reads_for_a_control() - before;
+            assert_eq!(
+                taken_for_the_batches, BATCHES_THIS_WORLD_SIZES,
+                "the machine is read once for each batch the look sized"
+            );
+            // What: the count of the machine's readings before a look whose host the control states.
+            // Why:  a stated host is what a control rests on, so no reading may be taken for it.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const beforeStated = machineReadsForAControl();
+            // ```
+            let before_stated: usize = crate::parallel_budget::machine_reads_for_a_control();
+            let stated_world: World = a_world_holding_two_batches("where-the-stated-host-is-read");
+            let stated: SideBySide = SideBySide::of();
+            runtime.block_on(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+                stated_world.common.as_path(),
+                &stated,
+                crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+                crate::service_work::CLAIM_LEASE,
+                TheHostOfABatch::Stated(A_HOST_THAT_BOUNDS_NO_BATCH),
+            ));
+            // What: how many readings the look over a stated host took.
+            // Why:  it must be none, or a control's answer would depend on what this machine happens to have free.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const takenForAStatedHost = machineReadsForAControl() - beforeStated;
+            // ```
+            let taken_for_a_stated_host: usize =
+                crate::parallel_budget::machine_reads_for_a_control() - before_stated;
+            assert_eq!(
+                taken_for_a_stated_host, 0,
+                "a host a control states is read from nowhere and takes no reading of the machine"
+            );
+            machine_read_world.cleaned();
+            stated_world.cleaned();
+        },
+    );
 }
