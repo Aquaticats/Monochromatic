@@ -71,6 +71,9 @@ pub mod journal_replace_preserve;
 /// split out of `journal.rs`.
 pub mod journal_recover;
 
+/// The recovery of one journal: its roots and the temporaries a killed run left (split out of `journal_recover.rs`).
+pub mod journal_recover_one;
+
 /// Reads of a journal directory:
 /// index,
 /// ready record and listing (split out of the journal recovery module).
