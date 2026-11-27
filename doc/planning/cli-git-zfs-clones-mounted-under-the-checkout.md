@@ -14,7 +14,11 @@ logs, so any misreading of a log line is the writer's, not the probe's.
 ## What was checked and how
 
 - OpenZFS at tag `zfs-2.4.4`, read at `~/temp/agent/rust-crate-for-openzfs-vet-2026-11-18/openzfs-at-zfs-2.4.4`
-  (`git describe --tags --exact-match` answered `zfs-2.4.4`). The module running on this machine is `2.4.4-1`
+  (`git describe --tags --exact-match` answered `zfs-2.4.4`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
+  The module running on this machine is `2.4.4-1`
   (`/sys/module/zfs/version`), so the tag is the right one to read.
 - Linux v6.17 sources fetched whole and read: `fs/namespace.c`, `fs/namei.c`, `fs/open.c`,
   `include/uapi/linux/mount.h`, plus the installed host headers at `/usr/include/linux/{mount,openat2}.h`.
@@ -30,7 +34,10 @@ logs, so any misreading of a log line is the writer's, not the probe's.
   noted but not load bearing.
 - On this machine, read-only only: `zfs list`, `zfs get`, `findmnt`, `stat`, `systemctl --user show`,
   `systemctl --user list-units`. No pool, dataset, snapshot, clone, mount, `zfs`, `zpool` or `sudo` was run here.
-- Probe logs and the scripts, kept in `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`:
+- Probe logs and the scripts, kept in `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here):
   `guest-exact-zfs.log` (the main run, cited by line throughout as `guest-exact-zfs.log:<line>`),
   `guest-exact-zfs-core.log` (the first, narrower run), `guest-packaged-zfs.log` (the 2.2.2 control),
   `exact-zfs-build.log`, `guest-console.log`.

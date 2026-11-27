@@ -7907,7 +7907,10 @@ in order:
     the reformat with the root `rustfmt.toml` (`00b6a940b4`) grew the crate's code lines 1.472 times,
     so the locked linter counts 281 files over 300 on `987635373a`;
     19 of them were over before the reformat, and 262 are over only because of it
-    (`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`).
+    (`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`;
+    scratch,
+    deleted on 2026-11-27;
+    what this record uses from it is stated here).
     The 19 are this round's list:
     13 run in five queued branches (`refactor/git-policy-cli-split-*-files-over-the-line-budget`),
     one commit per file,

@@ -7,7 +7,10 @@ which this round created,
 used and destroyed through `mvm`;
 no domain,
 disk or process of it remains
-(the destroy is logged at 2026-11-24T03:16:31Z in `keep/mvm-destroy.log`).
+(the destroy is logged at 2026-11-24T03:16:31Z in `keep/mvm-destroy.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)).
 **Unapproved and non-final**:
 only the owner declares work complete.
 The round ran no whole container gate,
@@ -46,7 +49,10 @@ the tree that round measured,
 won at 0.73 to 0.81 of Git's own checkout
 (`doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
 "The limit rules as pinned",
-and `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/scratch/keep/`,
+and `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/scratch/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 whose `measure-balanced.ts` this round's instrument is a copy of).
 
 So this round reran those three dirty shapes on Btrfs,
@@ -89,7 +95,10 @@ The host is this machine,
 under other sessions' load as it was found (`NQH`).
 Its one-minute load average was between 17.1 and 202.5 over the measurement window,
 with a median of 31.2,
-read every 30 s into `keep/host-load.log`.
+read every 30 s into `keep/host-load.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The runs never waited for it to fall.
 
 The guest is Ubuntu 24.04 on kernel 6.8.0-147-generic,
@@ -132,7 +141,10 @@ limit to Git's own checkout,
 and the question asks how the clone performs on exactly those trees.
 The measurement copy is not shipped and no file of the worktree changes:
 the constant is edited in the guest's extracted copy of the pushed source,
-and `keep/guest-build.log` prints the edited line.
+and `keep/guest-build.log` prints the edited line
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Every other line of the crate is the merge commit's.
 
 The four arms of every round:
@@ -191,14 +203,21 @@ The Git arm writes no record, so its route is unrecorded by design.
 
 ### Records
 
-In `keep/records/`, beside this round's own folder:
+In `keep/records/`,
+beside this round's own folder
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `measure-btrfs-<shape>-<timestamp>.json`, each counted round's arm, position, wall time, route,
   total, steps and verification, for the five shapes and the two reruns;
 - `log-<shape>.txt`, the harness's own console output for each run,
   including its summary lines and the file system's facts.
 
-The instruments themselves are kept so the round can be repeated:
+The instruments themselves are kept so the round can be repeated
+(scratch,
+deleted on 2026-11-27;
+not kept):
 `keep/measure-btrfs.ts` (the harness),
 `keep/guest-drive.ts` (the guest's steps),
 `keep/pool.ts` and `keep/analyze.ts` (the figures below).
@@ -207,7 +226,10 @@ Elsewhere in the round folder's `keep/`:
 `guest-drive.ts`'s step logs (`guest-prepare.log`, `guest-node.log`, `guest-btrfs.log`,
 `guest-build.log`, `guest-run-<shape>.log`, `mvm-destroy.log`),
 `host-load.log`,
-and `state-so-far.md`.
+and `state-so-far.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## The shapes, ratio by ratio
 
@@ -327,7 +349,10 @@ on Btrfs at 0.55.
 The identical pair's median is 0.94 (0.59 to 1.76).
 The alpha.45 pass measured the same shape on ZFS at 380 to 630 ms through Git's own checkout
 against 34 to 53 ms through the clone of the same tree when it was clean
-(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/clone-rung/keep/review.md`,
+(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/clone-rung/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 M1).
 On Btrfs the declined add is 380 ms against Git's own checkout's 286 ms,
 and the clone is 170 ms.
