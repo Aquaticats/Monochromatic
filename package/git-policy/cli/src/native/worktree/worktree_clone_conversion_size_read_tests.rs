@@ -1371,7 +1371,8 @@ fn a_context_whose_git_holds_the_read(fake: &Path) -> GitContext {
 }
 
 /// A read the add abandons ends its child while the adding process still lives,
-/// and the line its child start left in the repository's record is swept once the child is gone.
+/// the repository's record names that child start while it waited for it,
+/// and the line the child left is swept once the child is gone.
 #[test]
 fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
     // What: the body runs in a child of its own (see the import's file). Why: the repository whose record every Git
@@ -1420,11 +1421,10 @@ fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
                 "the abandon ended the read's child while the adding process still lives"
             );
             let common: PathBuf = repo.join(".git");
-            let record: String = the_records(&common);
-            assert!(
-                record.contains(format!("child {child} ").as_str()),
-                "the child start is named in the repository's record: {record}"
-            );
+            // What: wait, bounded, for the line the read's own thread writes when it starts its Git. Why: the note is
+            //  written on that thread, so a control that read the folder the moment the child ended judged a record the
+            //  read had not reached yet (issue 6535).
+            wait_for_the_record_naming(common.as_path(), child, THE_RECORD_NAMES_THE_CHILD_WITHIN);
             // The sweep is the pass every command that may meet a lock runs; a record it can no longer explain goes.
             crate::lock_holder_record_reads::sweep(common.as_path(), &[]);
             assert!(
@@ -1436,20 +1436,71 @@ fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
     );
 }
 
-/// What:
-///  Every record the repository's holder folder holds,
-///  as one text.
+/// How long the control gives the repository's record to name the child the read started.
 /// Why:
-///  A record names the process and every Git it started;
-///  a control reads them to see the line a child start wrote.
+///  The note is one small append the read's own thread writes before it publishes the child,
+///  so it is already written by the time the control sees the child's ending;
+///  this window is the failure bound behind that,
+///  the same five seconds the other waits of this file give the read's own events,
+///  so a record the release code never wrote fails the control with the sentence below
+///  instead of holding the run until `CHILD_TEST_DEADLINE` ends it.
+const THE_RECORD_NAMES_THE_CHILD_WITHIN: Duration = Duration::from_secs(5);
+
+/// What:
+///  Wait,
+///  bounded,
+///  until the repository's record names `child`,
+///  the process id the read published,
+///  and fail at the bound with what the folder held instead.
+/// Why:
+///  The note of a child start is written by the read's thread after it spawns the child and before it publishes that
+///  child to the add,
+///  so a control that read the folder at once judged a record that was still to come and failed with the folder's
+///  absence rather than with the note it waited for (issue 6535).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const records = (common) => readdirSync(folderOf(common)).map((name) => readFileSync(join(folderOf(common), name), 'utf8')).join('');
+/// function waitForTheRecordNaming(common: string, child: number, within: number): void { const began = Date.now(); for (;;) { const text = recordsThatAreThere(common); if (text.includes(`child ${child} `)) return; if (Date.now() - began >= within) throw new Error(`the record never named child ${child} within ${within} ms: ${text}`); sleep(5); } }
 /// ```
-fn the_records(common: &Path) -> String {
+fn wait_for_the_record_naming(
+    common: &Path,
+    child: i32,
+    within: Duration,
+) {
     let folder: PathBuf = crate::lock_holder_records::folder_of(common);
-    let entries = std::fs::read_dir(folder.as_path()).expect("the holder folder");
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let text: String = the_records_that_are_there(folder.as_path());
+        if text.contains(format!("child {child} ").as_str()) {
+            return;
+        }
+        assert!(
+            began.elapsed() < within,
+            "the repository's record in {} never named the read's child {child} within {within:?}, and held: {text:?}",
+            folder.display()
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// What:
+///  Every record the repository's holder folder holds,
+///  as one text,
+///  and nothing while the folder is not there.
+/// Why:
+///  The folder is made by the first note a command writes,
+///  so a command that has noted nothing yet has no folder to read,
+///  and a reader that took the folder's absence for a failure could not wait for the note it came for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordsThere = (folder) => existsSync(folder) ? readdirSync(folder).map((name) => readFileSync(join(folder, name), 'utf8')).join('') : '';
+/// ```
+fn the_records_that_are_there(folder: &Path) -> String {
+    let entries = match std::fs::read_dir(folder) {
+        Ok(entries) => entries,
+        Err(_no_folder_yet) => return String::new(),
+    };
     let mut text: String = String::new();
     for entry in entries.flatten() {
         text.push_str(

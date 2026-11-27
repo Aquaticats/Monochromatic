@@ -19,6 +19,10 @@
 /// Imports the ordered set of owned text that holds the yanked and the already rejected versions.
 use std::collections::BTreeSet;
 
+/// Imports the request of a set-aside round:
+/// the registry,
+/// the settings and the time it judges by.
+use super::SetAsideRequest;
 /// Imports the refusal a release must replace and the reader that groups a run's new versions by crate name.
 use crate::checks::{
     TrustRefusal,
@@ -34,10 +38,6 @@ use crate::policy::{
     release_age_problems,
     trust_problems,
 };
-/// Imports the request of a set-aside round:
-/// the registry,
-/// the settings and the time it judges by.
-use crate::set_aside::SetAsideRequest;
 /// Imports the version comparison and the prerelease and caret-class readers the choice orders by.
 use crate::version_order::{
     caret_compatible,

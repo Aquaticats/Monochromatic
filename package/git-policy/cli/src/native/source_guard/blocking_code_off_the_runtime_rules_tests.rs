@@ -230,18 +230,22 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the waiting notice writes from a thread of its own until the commit ends; the notice's own task replaces it when the commit path is a task",
     },
     Allowed {
-        file: "foundation/lazy_runtime.rs",
+        file: "foundation/the_build_of_the_process_runtime.rs",
         rule: "thread-start",
         why: "the bounded build of the multi-thread runtime on a helper thread, which the plan's open choice 9 requires so a refused build cannot hang the process",
     },
     Allowed {
+        file: "foundation/the_build_of_the_process_runtime.rs",
+        rule: "blocking-sleep",
+        why: "the fault injector's pause on that same helper thread, which runs before any runtime exists, so `tokio::time::sleep` \
+              cannot end it; the entry goes when the injector does",
+    },
+    Allowed {
         file: "foundation/lazy_runtime.rs",
         rule: "blocking-sleep",
-        why: "two pauses where no worker can be held: the fault injector's pause on that same helper thread, which runs \
-              before any runtime exists, and `await_a_worker_within`, which waits for a build on the service's own start \
-              thread because a task cannot run before that build arrives; `tokio::time::sleep` needs a runtime, so neither \
-              is a wait the runtime can end, and the entry goes when the injector does and when that start is a task that \
-              awaits the build",
+        why: "`await_a_worker_within` waits for a build on the service's own start thread because a task cannot run before that \
+              build arrives; `tokio::time::sleep` needs a runtime, so it is not a wait the runtime can end, and the entry goes \
+              when that start is a task that awaits the build",
     },
     Allowed {
         file: "foundation/log_generations_kept_to_a_bound.rs",

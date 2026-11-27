@@ -18,7 +18,7 @@
 // import { Name } from './module.ts';
 // ```
 /// The constants and the readers of the object reader that the packed check uses.
-use crate::git_objects::{
+use super::{
     MAX_COMMIT_BYTES,
     OBJECT_NAME_BYTES,
     PACK_TYPE_COMMIT,
@@ -28,7 +28,7 @@ use crate::git_objects::{
     pack_offset,
 };
 /// The reads and constants of the object reader that the packed check uses.
-use crate::git_objects::{
+use super::{
     PACK_HEADER_BYTES,
     big_endian,
     index_failure,

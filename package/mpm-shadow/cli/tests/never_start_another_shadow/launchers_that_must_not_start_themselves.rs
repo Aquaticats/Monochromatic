@@ -17,7 +17,6 @@
 //! ```
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -110,9 +109,11 @@ fn a_launcher_that_names_a_launcher_of_a_real_program_still_reaches_the_program(
         root.path().join("launchers").join("inner"),
         root.path().join("real").join("tool"),
     );
-    fs::create_dir_all(real.parent().expect("a parent")).expect("make the folder");
-    fs::write(&real, "#!/bin/sh\nprintf 'REAL %s\\n' \"$*\"\n").expect("write the script");
-    fs::set_permissions(&real, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // The shadow starts this script as the real program, so a child process writes it.
+    crate::through_a_child_process::write_program(
+        real.as_path(),
+        b"#!/bin/sh\nprintf 'REAL %s\\n' \"$*\"\n",
+    );
     make_launcher(&inner, &real);
     make_launcher(&outer, &inner);
 

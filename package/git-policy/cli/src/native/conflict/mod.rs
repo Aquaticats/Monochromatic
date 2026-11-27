@@ -37,14 +37,14 @@
 //! - `discard_audit_pins.rs`:
 //!   whether one audit generation names a saved copy still on disk,
 //!   which keeps it past the bound every log shares.
+//! - `discard_audit_record.rs`:
+//!   everything one audit record states,
+//!   and its line as JSON.
 //! - `discard_audit.rs`:
 //!   the append-only record of every command form that can discard uncommitted state.
 //! - `abort_recheck.rs`:
 //!   the second measurement of an abort or a skip,
 //!   owed immediately before Git starts.
-//! - `discard_audit_record.rs`:
-//!   everything one audit record states,
-//!   and its line as JSON.
 //! - `discarded_prune_limits.rs`:
 //!   the two limits of the folder of saved copies,
 //!   their defaults and the reading of a size such as `256m`.
@@ -71,10 +71,8 @@
 //! - `discarded_prune_problems.rs`:
 //!   what can go wrong in a pass over the folder,
 //!   the words that say it and the listing.
-//! - `conflict_sides.rs`:
-//!   the saved copy of each file a command replaces.
-//! - `discarded_nested_repository.rs`:
-//!   the move of the nested Git repositories a clean would delete beside the audit log.
+//! - `where_discarded_copies_live.rs`:
+//!   the name of the folder of saved copies below a repository's common Git directory.
 //! - `discarded_prune_listing.rs`:
 //!   the folder of saved copies read as it stands:
 //!   every directory named like the wrapper's own,
@@ -84,6 +82,10 @@
 //!   removing one directory a pass chose,
 //!   and the audit line that says what went,
 //!   with the outcome a pass reports.
+//! - `discarded_report.rs`:
+//!   what the folder of saved copies holds,
+//!   and the text the doctor prints for it,
+//!   read without moving anything.
 //! - `discarded_prune.rs`:
 //!   the bound on the folder of saved copies of conflicted files:
 //!   age,
@@ -91,10 +93,10 @@
 //!   audit and doctor report.
 //! - `config_discarded.rs`:
 //!   the `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
-//! - `discarded_report.rs`:
-//!   what the folder of saved copies holds,
-//!   and the text the doctor prints for it,
-//!   read without moving anything.
+//! - `conflict_sides.rs`:
+//!   the saved copy of each file a command replaces.
+//! - `discarded_nested_repository.rs`:
+//!   the move of the nested Git repositories a clean would delete beside the audit log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -177,6 +179,10 @@ pub mod discarded_prune_audit_line;
 /// The two limits of the folder of saved copies,
 /// their defaults and the reading of a size such as `256m`.
 pub mod discarded_prune_limits;
+
+/// The folder of saved copies inside a Git directory,
+/// and where the copy that is kept is put.
+pub mod where_discarded_copies_live;
 
 /// What a pass removes and why.
 pub mod discarded_prune_plan;

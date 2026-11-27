@@ -34,13 +34,15 @@
 //!   which development dependencies each dependent bundles.
 //! - `dependent_version_text.rs`:
 //!   the byte-preserving rewrite of a manifest's top-level version.
+//! - `dependent_version_yaml_lines_scalar.rs`:
+//!   the answers dependent version yaml lines scalar holds:
+//!   the scalar forms,
+//!   and the spacing and indicator tests a line and its scalar both ask.
 //! - `dependent_version_yaml_lines.rs`:
 //!   one line of that YAML:
 //!   its indentation,
 //!   its key,
 //!   and its scalar.
-//! - `dependent_version_yaml_lines_scalar.rs`:
-//!   the answers dependent version yaml lines scalar holds.
 //! - `dependent_version_yaml.rs`:
 //!   the block YAML subset the registry configuration is read with:
 //!   a mapping,
@@ -95,6 +97,10 @@ pub mod dependent_version_publishable;
 /// a mapping,
 /// a sequence and a scalar.
 pub mod dependent_version_yaml;
+
+/// The scalar forms and the spacing and indicator tests a line and its scalar
+/// both ask.
+pub(crate) mod dependent_version_yaml_lines_scalar;
 
 /// One line of that YAML:
 /// its indentation,
