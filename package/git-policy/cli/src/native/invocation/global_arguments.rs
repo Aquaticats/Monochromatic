@@ -520,6 +520,33 @@ pub fn command_tokens(arguments: &[OsString]) -> Option<(&OsString, &[OsString])
     return arguments[layout.prefix_len..].split_first();
 }
 
+/// What:
+///  The words a refusal prints for one token the global reading stopped at.
+/// Why:
+///  `--` is the separator a command's own options use before their operands,
+///  not a global option,
+///  and Git 2.56 answers none before its command word,
+///  where it prints `unknown option: --`
+///  (`/usr/bin/git -- worktree list`,
+/// exit 129).
+///  Every other token here is a global option this build does not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unreadGlobalWords(token: string): string;
+/// ```
+pub fn unread_global_words(token: &OsString) -> String {
+    if token.as_encoded_bytes() == b"--" {
+        return String::from(
+            "`--` is the separator a command's own options use before their operands, not a global option, and Git 2.56 reads none before its command word, where it answers `--` with `unknown option: --`",
+        );
+    }
+    return format!(
+        "`{}` is a global option this wrapper does not read",
+        token.to_string_lossy()
+    );
+}
+
 /// Boundary controls include real Git probes and native non-UTF-8 arguments.
 #[cfg(test)]
 #[path = "global_arguments_tests.rs"]
