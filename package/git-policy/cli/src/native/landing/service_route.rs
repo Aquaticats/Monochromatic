@@ -81,25 +81,97 @@ pub use crate::service_route_what_the_status_answers::{
     service_status,
 };
 
+/// What:
+///  The one path a release build remembers of its own executable,
+///  whose sibling in a build made for tests is no path at all.
+/// Why:
+///  A test process's executable is the test binary,
+///  and offering it to the account's manager is what issue 6586 measured,
+///  so the cell a release fills is not even compiled there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let ownExecutable: string | undefined; // only in a release build
+/// ```
+#[cfg(not(test))]
 static OWN_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
-/// Remembers where the running wrapper is,
-/// once,
-/// so the unit of the service can name it (the service is a mode of the same
+/// What:
+///  Remembers where the running wrapper is,
+///  once,
+///  so the unit of the service can name it (the service is a mode of the same
 ///  executable).
 ///  Identification only:
 /// nothing is started from this path (`doc/planning/cli-git-no-self-invocation.md`);
 /// the path is
 ///  read to name this executable in a unit file that the operating system's manager runs,
 /// as the program of its service mode.
+/// Why:
+///  A command's own path is the program a later restart of its worktree's service runs,
+///  so the route names it once and every later commit of the process reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// once(() => { ownExecutable = process.execPath; });
+/// ```
+#[cfg(not(test))]
 pub fn remember_own_executable(path: &Path) {
     let _first = OWN_EXECUTABLE.set(path.to_path_buf());
 }
 
-/// The wrapper's own path,
-/// when the process remembered it.
+/// What:
+///  Remembers nothing,
+///  so a build made for tests never offers the manager a program of its own.
+/// Why:
+///   The running executable of a test process is the test binary,
+///  which is libtest and not a wrapper:
+///  a route that named it in a unit file had this account's own service manager run libtest
+///  (`error: Unrecognized option: 'journal'`) until that unit's start limit hit,
+///  while the shared program link every worktree's service is started through named that binary
+///  (issue 6586).
+///  A control that wants a route with a program in it hands one to [`choose_route`] itself,
+///  which is where a release's answer comes from too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rememberOwnExecutable(path: string): void { /* a test process offers no program of its own */ }
+/// ```
+#[cfg(test)]
+pub fn remember_own_executable(_path: &Path) {}
+
+/// What:
+///  The wrapper's own path,
+///  when the process remembered it,
+///  which a release build answers after the first command that resolved the real Git.
+/// Why:
+///  The route names the program a restart of a worktree's service runs,
+///  so the release reads the path its own process remembered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rememberedOwnExecutable = () => ownExecutable;
+/// ```
+#[cfg(not(test))]
 pub fn remembered_own_executable() -> Option<&'static Path> {
     return OWN_EXECUTABLE.get().map(PathBuf::as_path);
+}
+
+/// What:
+///  Nothing at all,
+///  because a build made for tests remembered no program to offer the manager.
+/// Why:
+///   A test process's own executable is the test binary,
+///  and a route that offered it had this account's manager run libtest for a fixture's service
+///  and the shared program link pointed at that binary (issue 6586).
+///  A control whose subject is a route with a program in it hands [`choose_route`] one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rememberedOwnExecutable = () => undefined;
+/// ```
+#[cfg(test)]
+pub fn remembered_own_executable() -> Option<&'static Path> {
+    return None;
 }
 
 /// What the route decision reads.
@@ -445,9 +517,11 @@ pub(crate) fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
 }
 
 /// What:
-///  The route to the service of a worktree from this process's environment.
+///  The route to the service of a worktree from this session's own places.
 /// Why:
-///   The commit and the commands that hand a push over after they moved a branch reach the service the same way.
+///   The commit and the commands that hand a push over after they moved a branch reach the service the same way,
+///  and a build made for tests reaches it only where a control handed a runtime directory in
+///  (`foundation/session_runtime_directory_and_bus_address.rs`, issue 6586).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -457,14 +531,25 @@ pub fn route_from_environment(
     real_git: &Path,
     git_dir: &Path,
 ) -> Option<Route> {
-    // The read of this process's environment is the read of the invocation's: `main` hands the entry `std::env::vars_os()` as
-    //  that environment, and nothing in the crate changes the wrapper's own environment, so a command started with another
-    //  `HOME` reads that home here. No service chooses a route (a service start goes to `service_main` before any command's
-    //  route is picked), so this read never answers with a manager's home while serving.
-    let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
+    // What:     the runtime directory and the bus address, read in the one place this crate reads them
+    //           (`foundation/session_runtime_directory_and_bus_address.rs`).
+    // Why:      a build the release ships reads this session's own two facts, and a build made for tests reads
+    //           only what the control that started its body handed in,
+    //           so a test process reaches this account's manager only when a control said it may (issue 6586).
+    //           Nothing in the crate changes the wrapper's own environment, so a command started with another
+    //           `XDG_RUNTIME_DIR` reads that one here, and no service picks a route (a service start goes to
+    //           `service_main` before any command's route is chosen).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); const bus = session.busAddress();
+    // ```
+    let runtime: Option<PathBuf> =
+        crate::session_runtime_directory_and_bus_address::runtime_directory();
     let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
-    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    let bus_address: Option<String> =
+        crate::session_runtime_directory_and_bus_address::bus_address();
     return choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),

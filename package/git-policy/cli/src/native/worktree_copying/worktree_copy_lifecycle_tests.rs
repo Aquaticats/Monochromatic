@@ -5,6 +5,9 @@
 //! the summary line and exit statuses.
 
 use super::*;
+/// The switch a build made for tests takes the route's runtime directory from, which this control hands in.
+#[cfg(target_os = "linux")]
+use crate::session_runtime_directory_and_bus_address::RUNTIME_DIRECTORY_SWITCH;
 use crate::test_support::dead_copy_owner;
 use crate::test_support::{
     fixture,
@@ -440,15 +443,16 @@ fn creation_from(
 /// the record is what makes the trash
 ///  the service's work,
 /// and the trash that still stands is the proof that nothing deleted it here.
-/// The body runs in a child of this test binary that names a runtime directory of the fixture's own and no
-///  session bus,
-/// so the hand-over finds no service and asks none of this account's (issue 6582).
+/// The body runs in a child of this test binary that hands the route a runtime directory of the fixture's own
+///  and no session bus,
+/// which a build made for tests reads from that hand-in alone,
+/// so the hand-over finds no service and asks none of this account's (issues 6582 and 6586).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends() {
-    // What:     a fixture directory the child names as its runtime directory, so the hand-over finds no socket
-    //           and no session bus to provision one through.
-    // Why:      a process's environment is the fact the route reads, and a threaded run shares one process.
+    // What:     a fixture directory the child hands the route as its runtime directory, so the hand-over finds
+    //           no socket and no session bus to provision one through.
+    // Why:      a build made for tests reads that fact from this switch alone, and a threaded run shares one process.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -456,14 +460,15 @@ fn a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends(
     // ```
     let runtime: PathBuf = fixture("lifecycle-trash-hand-over-runtime");
     // What:     the one variable the child is given, as a name and a value of raw operating-system text.
-    // Why:      the runtime directory is where the route looks for the service's socket, so naming the fixture's
-    //           keeps every reach of this body inside the fixture.
+    // Why:      the runtime directory is where the route looks for the service's socket, and a build made for
+    //           tests takes it from this switch alone, so naming the fixture's keeps every reach of this body
+    //           inside the fixture (issue 6586).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const named = [['XDG_RUNTIME_DIR', runtime]];
+    // const named = [[RUNTIME_DIRECTORY_SWITCH, runtime]];
     // ```
-    let named: [(&str, &std::ffi::OsStr); 1] = [("XDG_RUNTIME_DIR", runtime.as_os_str())];
+    let named: [(&str, &std::ffi::OsStr); 1] = [(RUNTIME_DIRECTORY_SWITCH, runtime.as_os_str())];
     // What:     the body, run in a child of this test binary whose environment is `named` and which inherits no
     //           session bus address.
     // Why:      a fixture's own runtime directory does not keep a program off this account's bus, because the

@@ -14,13 +14,13 @@ use crate::fs_beneath::{
     plain_components,
 };
 use crate::fs_beneath_walk_chain::open_directory_beneath;
+/// The switch a build made for tests takes the route's runtime directory from, which this control hands in.
+use crate::session_runtime_directory_and_bus_address::RUNTIME_DIRECTORY_SWITCH;
 use crate::test_support::{
     fixture,
     git_context,
     remove,
 };
-/// The one way a control runs its body in a child of its own,
-/// with an environment of the fixture's naming.
 use crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
 use crate::work_item::{
     PENDING,
@@ -132,21 +132,21 @@ fn creating_invocation() -> Invocation {
 ///  without one would be disk nobody knows about.
 /// A fixture's administrative directory reaches no service at all,
 /// because the child this control
-///  runs its body in names a runtime directory of the fixture's own and no session bus,
+///  runs its body in hands the route a runtime directory of the fixture's own and no session bus,
+/// which a build made for tests reads from that hand-in alone,
 /// so this is the path every
 ///  add takes on a machine whose units are not installed.
 /// That child is what
 ///  keeps the reach inside the fixture:
-/// the route a hand-over finds its service by reads this process's
-///  `XDG_RUNTIME_DIR`,
-/// so a body run beside the other tests of a threaded run names `/run/user/<the account's number>/`
-///  and hands the account's own service manager a unit for this fixture (issue 6582).
+/// a body that handed in nothing would answer the same,
+/// but the world this control describes is a session that names a runtime directory of its own,
+/// and naming it is how the control states that world (issues 6582 and 6586).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_trash_no_service_can_take_is_named_by_a_record_and_left_standing() {
-    // What:     a fixture directory the child names as its runtime directory, so the hand-over finds no socket
-    //           and no session bus to provision one through.
-    // Why:      a process's environment is the fact the route reads, and a threaded run shares one process.
+    // What:     a fixture directory the child hands the route as its runtime directory, so the hand-over finds no
+    //           socket and no session bus to provision one through.
+    // Why:      a build made for tests reads that fact from this switch alone, and a threaded run shares one process.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -154,14 +154,15 @@ fn a_trash_no_service_can_take_is_named_by_a_record_and_left_standing() {
     // ```
     let runtime: PathBuf = fixture("after-lock-record-runtime");
     // What:     the one variable the child is given, as a name and a value of raw operating-system text.
-    // Why:      the runtime directory is where the route looks for the service's socket, so naming the fixture's
-    //           keeps every reach of this body inside the fixture.
+    // Why:      the runtime directory is where the route looks for the service's socket, and a build made for
+    //           tests takes it from this switch alone, so naming the fixture's keeps every reach of this body
+    //           inside the fixture (issue 6586).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const named = [['XDG_RUNTIME_DIR', runtime]];
+    // const named = [[RUNTIME_DIRECTORY_SWITCH, runtime]];
     // ```
-    let named: [(&str, &std::ffi::OsStr); 1] = [("XDG_RUNTIME_DIR", runtime.as_os_str())];
+    let named: [(&str, &std::ffi::OsStr); 1] = [(RUNTIME_DIRECTORY_SWITCH, runtime.as_os_str())];
     // What:     the body, run in a child of this test binary whose environment is `named` and which inherits no
     //           session bus address.
     // Why:      a fixture's own runtime directory does not keep a program off this account's bus, because the

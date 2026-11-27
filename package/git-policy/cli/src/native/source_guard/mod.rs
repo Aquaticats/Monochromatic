@@ -186,6 +186,13 @@ mod no_control_writes_a_fixture_git_in_the_run_tests;
 #[path = "no_release_read_of_a_test_only_switch_tests.rs"]
 mod no_release_read_of_a_test_only_switch_tests;
 
+/// The ban on a release file reading this session's runtime directory or its session-bus address outside the
+/// one place that reads them:
+/// a build made for tests answers those two only from what a control handed in.
+#[cfg(test)]
+#[path = "no_release_read_of_the_session_places_tests.rs"]
+mod no_release_read_of_the_session_places_tests;
+
 /// Every record folder this program fills is read through `plain_file`:
 /// a named pipe at a record's name answers at once instead of holding every wrapped command.
 #[cfg(test)]

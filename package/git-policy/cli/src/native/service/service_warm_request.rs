@@ -58,7 +58,6 @@ use crate::service_client_connect_within_a_bound::connect_within_for;
 use crate::service_instance::instance_of;
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
-use crate::service_route::non_empty_path_variable;
 use crate::service_server::Bind;
 use crate::wait_ceilings::{
     WARM_REQUEST_CONNECT_CEILING,
@@ -236,7 +235,16 @@ pub fn ask_running_service_to_warm(
     git_dir: &Path,
     repository: &Path,
 ) -> bool {
-    let Some(runtime) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+    // What:     the runtime directory this session names, read in the one place this crate reads it.
+    // Why:      a build made for tests answers only a runtime directory a control handed in, so a test process
+    //           asks no service of this account's (issue 6586).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); if (!runtime) return false;
+    // ```
+    let Some(runtime) = crate::session_runtime_directory_and_bus_address::runtime_directory()
+    else {
         return false;
     };
     let instance: String = instance_of(git_dir);
