@@ -123,9 +123,20 @@
 //!   the decision,
 //!   by content and without a Git process,
 //!   whether a tracked file that its index entry's stat data cannot vouch for (a racily clean entry,
+//! - `worktree_clean_content_attribute_file_identity.rs`:
+//!   which file a name holds,
+//!   as its device and inode.
+//! - `worktree_clean_content_attribute_bytes.rs`:
+//!   the bytes of one attributes file,
+//!   up to the room the caller's bound leaves.
+//! - `worktree_clean_content_attribute_reading.rs`:
+//!   the reading of one attributes file,
+//!   at an absolute path or below the root.
+//! - `worktree_clean_content_attribute_configuration.rs`:
+//!   where Git takes the attributes files that apply whatever the path is.
 //! - `worktree_clean_content_attributes.rs`:
-//!   the attribute files a content decision reads,
-//!   and what it charges the caller for them.
+//!   which attribute files apply to one path,
+//!   and what the decision does with the answer.
 //! - `worktree_clean_tree_walk.rs`:
 //!   the walks of tracked files against the index's recorded stat data,
 //!   by metadata or by content.
@@ -641,8 +652,23 @@ pub mod worktree_attributes;
 
 pub mod worktree_clean_content;
 
-/// The attribute files a content decision reads,
-/// and what it charges the caller for them.
+/// Which file a name holds,
+/// as its device and inode.
+pub mod worktree_clean_content_attribute_file_identity;
+
+/// The bytes of one attributes file,
+/// up to the room the caller's bound leaves.
+pub mod worktree_clean_content_attribute_bytes;
+
+/// The reading of one attributes file,
+/// at an absolute path or below the root.
+pub mod worktree_clean_content_attribute_reading;
+
+/// Where Git takes the attributes files that apply whatever the path is.
+pub mod worktree_clean_content_attribute_configuration;
+
+/// Which attribute files apply to one path,
+/// and what the decision does with the answer.
 pub mod worktree_clean_content_attributes;
 
 /// The environment and attribute files a content check reads,
