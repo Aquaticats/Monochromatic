@@ -44,7 +44,8 @@ use std::path::Path;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MountRows {
-    /// The table's ZFS dataset mounts, in mount order.
+    /// The table's ZFS dataset mounts,
+    /// in mount order.
     Rows(Vec<MountedDatasetInstance>),
     /// The table could not be read,
     /// and this is what the reader said.
@@ -122,7 +123,8 @@ pub enum CloneMount {
     AtItsSlot,
     /// No row of the table is a mount of the clone dataset.
     Nowhere,
-    /// The clone dataset is mounted, and not at its slot.
+    /// The clone dataset is mounted,
+    /// and not at its slot.
     Elsewhere {
         /// The clone's instance in words.
         described: String,

@@ -6,7 +6,8 @@
 use super::*;
 use crate::command_test_support::os_arguments;
 
-/// The answer for one `git worktree prune` line, given the words after `worktree`.
+/// The answer for one `git worktree prune` line,
+/// given the words after `worktree`.
 fn removes_nothing(values: &[&str]) -> bool {
     let words: Vec<OsString> = os_arguments(values);
     return a_prune_that_removes_nothing(words.as_slice());

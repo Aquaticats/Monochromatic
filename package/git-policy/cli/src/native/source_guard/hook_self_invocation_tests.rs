@@ -47,7 +47,9 @@
 //! expect(commitPathSources().flatMap(([file, text]) => linesNoEntryExcuses([...linesHoldingOneOf([[file, text]], FORBIDDEN), ...linesCallingOneOf([[file, text]], LINKS)], MAY_HOLD))).toEqual([]);
 //! ```
 
-/// The pins' reader and the comment rule: a line as written, and comments on their own line only.
+/// The pins' reader and the comment rule:
+/// a line as written,
+/// and comments on their own line only.
 use super::{
     HoldingLine,
     MayHold,
@@ -61,10 +63,13 @@ use super::{
     release_sources_under,
 };
 
-/// The executable entry point, whole.
+/// The executable entry point,
+/// whole.
 const MAIN_SOURCE: &str = include_str!("../main.rs");
 
-/// `main.rs`'s code text, whole and in order: comments cut,
+/// `main.rs`'s code text,
+/// whole and in order:
+/// comments cut,
 /// leading and trailing blanks trimmed.
 /// A change to any line here is a change to what `main` may do with the argument vector,
 /// so the pin and the code change in one commit,
@@ -310,13 +315,18 @@ fn files_the_scope_no_longer_reads(sources: &[(String, String)]) -> Vec<String> 
 }
 
 /// What:
-///  The executable is the reviewed handful of statements, whole.
+///  The executable is the reviewed handful of statements,
+/// whole.
 /// Why:
 ///  `main` is where a start becomes a root mode,
 ///  so its code text is pinned line for line:
-///  any line added, removed, reordered, reworded or re-spelled fails here,
+///  any line added,
+/// removed,
+/// reordered,
+/// reworded or re-spelled fails here,
 ///  and the commit that changes it changes this list in the same diff.
-///  A whole-line comment and a blank line are not code, so an explanation
+///  A whole-line comment and a blank line are not code,
+/// so an explanation
 ///  re-pins nothing.
 #[test]
 fn main_is_the_reviewed_handful_of_statements() {

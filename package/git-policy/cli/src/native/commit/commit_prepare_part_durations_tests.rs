@@ -73,7 +73,8 @@ fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
 }
 
 /// A Git step that ran inside a stretch is taken out of it and kept under the
-/// stretch's own name, and a stretch with no step keeps its whole span and says
+/// stretch's own name,
+/// and a stretch with no step keeps its whole span and says
 /// it held no child.
 #[test]
 fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {

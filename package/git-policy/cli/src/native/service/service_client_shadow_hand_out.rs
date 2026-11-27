@@ -65,7 +65,8 @@ use std::time::{
 ///  0.069 ms at the ninetieth percentile,
 ///  0.135 ms at the ninety-ninth and 1.684 ms at the largest of 3,000 round trips
 ///  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
-///  "A. The service hands a drawn tree out"),
+///  "A.
+/// The service hands a drawn tree out"),
 ///  so this is a hundred and fifty times the largest answer seen:
 ///  it covers a stalled listing or a busy service and stays far inside the owner's five seconds,
 ///  and a commit that waits past it takes today's path rather than waiting for an answer that is not coming.
@@ -150,7 +151,8 @@ pub fn ask_for_a_drawn_shadow(
 ///  A connection to the service's socket made within the deadline.
 /// Why:
 ///  A socket whose listener is stopped takes no connection and refuses nothing,
-///  and the ask is bounded from its first byte, not from its first answer.
+///  and the ask is bounded from its first byte,
+/// not from its first answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

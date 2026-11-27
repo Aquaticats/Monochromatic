@@ -1,17 +1,24 @@
 //! What:
-//!  The fill's leave-outs: the trash the clone's own content is set aside in, the
-//!  record of what it holds, and the trash a resumed add finds.
+//!  The fill's leave-outs:
+//! the trash the clone's own content is set aside in,
+//! the
+//!  record of what it holds,
+//! and the trash a resumed add finds.
 //! Why:
 //!  The clone carries files the caller's checkout holds and the new worktree must
-//!  not, and each one goes into the trash rather than being removed, so a kill
+//!  not,
+//! and each one goes into the trash rather than being removed,
+//! so a kill
 //!  after the leave-out leaves a record of what was set aside
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-//!  "The restore", step 5).
+//!  "The restore",
+//! step 5).
 //!  A resumed add finds the trash its own earlier run made and reuses it instead
 //!  of leaving a second one.
 //!  `add_fill.rs` runs the fill in order and would go over the file-size limit
 //!  carrying these,
-//!  and the trash's own words are the wrapper's trash module's, so this file is
+//!  and the trash's own words are the wrapper's trash module's,
+//! so this file is
 //!  the leave-out and its record.
 //!
 //! In TS you'd write (pseudocode):
@@ -39,7 +46,8 @@ use std::path::{
     PathBuf,
 };
 
-/// The trash the leave-out makes for the clone, written so a kill after it
+/// The trash the leave-out makes for the clone,
+/// written so a kill after it
 /// leaves a record of what it set aside.
 pub(super) fn leave_out_the_clone(input: &FillInput<'_>) -> Result<Option<TrashManifest>, String> {
     let pruned: Pruned = prune_snapshot(input.clone_root, input.source)?;
@@ -58,7 +66,8 @@ pub(super) fn leave_out_the_clone(input: &FillInput<'_>) -> Result<Option<TrashM
     return Ok(manifest);
 }
 
-/// The trash an earlier run of this add left, when one stands.
+/// The trash an earlier run of this add left,
+/// when one stands.
 pub(super) fn the_existing_trash(clone_root: &Path) -> Result<Option<TrashManifest>, String> {
     let parent: PathBuf = clone_root.join(TRASH_PARENT);
     let listing: std::fs::ReadDir = match std::fs::read_dir(parent.as_path()) {

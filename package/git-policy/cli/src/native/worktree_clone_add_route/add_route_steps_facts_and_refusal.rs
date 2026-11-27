@@ -35,7 +35,9 @@ use std::path::Path;
 /// What:
 ///  The fixed facts one add's steps share.
 /// Why:
-///  Every step names the same slot, records and device, so one value carries
+///  Every step names the same slot,
+/// records and device,
+/// so one value carries
 ///  them and no step recomputes one.
 pub struct Steps<'a> {
     /// The gate's facts.
@@ -48,11 +50,13 @@ pub struct Steps<'a> {
     pub plan: &'a AddPlan,
     /// The repository's Git context.
     pub context: &'a GitContext,
-    /// The wrapper's record home, open.
+    /// The wrapper's record home,
+    /// open.
     pub home: &'a std::fs::File,
     /// The record home's path.
     pub home_path: &'a Path,
-    /// The pool's device, opened behind the gate.
+    /// The pool's device,
+    /// opened behind the gate.
     pub device: &'a OpenedDevice,
     /// The checkout dataset's GUID.
     pub checkout_guid: DatasetGuid,
@@ -108,7 +112,8 @@ impl StepRefusal {
 /// What:
 ///  Persist one phase of the record and flush it.
 /// Why:
-///  Every write of this record is flushed, because a later command must not have
+///  Every write of this record is flushed,
+/// because a later command must not have
 ///  to rediscover a fact the pool already committed.
 pub fn write_the_record(
     steps: &Steps<'_>,

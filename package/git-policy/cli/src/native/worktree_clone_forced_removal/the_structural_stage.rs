@@ -1,6 +1,8 @@
 //! What:
-//!  The act's structural stage, in both halves:
-//!  the half the caller runs, which enters the holder's namespace through one
+//!  The act's structural stage,
+//! in both halves:
+//!  the half the caller runs,
+//! which enters the holder's namespace through one
 //!  single-threaded child and reads the child's bounded report,
 //!  and the half the child runs there,
 //!  which proves the copy and the checkout's own mount and,

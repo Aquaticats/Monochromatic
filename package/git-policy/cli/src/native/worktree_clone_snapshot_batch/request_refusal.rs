@@ -16,7 +16,8 @@
 //! the second call may meet a set the
 //!  first one already changed
 //! (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-//!  "Removal and recovery", step 3).
+//!  "Removal and recovery",
+//! step 3).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

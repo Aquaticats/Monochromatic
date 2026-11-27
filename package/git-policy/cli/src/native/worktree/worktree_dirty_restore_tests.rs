@@ -649,8 +649,11 @@ fn a_restore_keeps_the_ignored_files_the_new_commit_does_not_ignore() {
 ///  no index under the real name at all,
 ///  a file there that is no index,
 ///  and a real index there whose entries name other blobs.
-///  The control is the same fixture with the private name not given, which is
-///  the build before this change: it refuses on the second arm, so the guard is
+///  The control is the same fixture with the private name not given,
+/// which is
+///  the build before this change:
+/// it refuses on the second arm,
+/// so the guard is
 ///  what the first three arms pass.
 ///
 /// In TS you'd write (pseudocode):
@@ -1315,9 +1318,11 @@ fn a_restore_refuses_a_copy_whose_tracked_file_is_a_directory() {
 ///  write,
 ///  and this is the class of failure the route's preflight cannot rule out by
 ///  reading the source:
-///  the immutable bit, a full disk and a filesystem that stops answering end a
+///  the immutable bit,
+/// a full disk and a filesystem that stops answering end a
 ///  step the same way.
-///  The settle of plan step 14 is its answer, and the route's decline is for the
+///  The settle of plan step 14 is its answer,
+/// and the route's decline is for the
 ///  shapes the proof and the removal refuse from the source's own bytes
 ///  (`add_source_the_restore_cannot_prove.rs`).
 ///

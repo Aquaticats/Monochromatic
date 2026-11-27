@@ -1,10 +1,16 @@
 //! What:
-//!  Everything the add's scan of `<common>/worktrees` reads: the entries of
-//!  that folder, a registration's `gitdir`, one record that may be absent, and
+//!  Everything the add's scan of `<common>/worktrees` reads:
+//! the entries of
+//!  that folder,
+//! a registration's `gitdir`,
+//! one record that may be absent,
+//! and
 //!  the slots whose bindings already stand.
 //! Why:
-//!  The finder decides from these facts and nothing else, so they are read once,
-//!  under the claim, and each entry is read through the one reader the lock's own
+//!  The finder decides from these facts and nothing else,
+//! so they are read once,
+//!  under the claim,
+//! and each entry is read through the one reader the lock's own
 //!  classification uses
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "A resume after a kill between Git's add and the registered write").
@@ -36,7 +42,8 @@ use std::path::{
 /// What:
 ///  Everything the scan reads.
 /// Why:
-///  The slot and its path are the finder's key, and the home answers which
+///  The slot and its path are the finder's key,
+/// and the home answers which
 ///  other slots own a candidate name.
 pub struct ScanInput<'a> {
     /// The repository's common Git directory.
@@ -60,7 +67,8 @@ pub struct ScanInput<'a> {
 /// the path bound plus the pointer's prefix and its newline.
 pub(super) const RECORD_LIMIT: u64 = 8 + 4096 + 2;
 
-/// Read every entry of `<common>/worktrees`, in the listing's order,
+/// Read every entry of `<common>/worktrees`,
+/// in the listing's order,
 /// each through the one entry reader the classification uses.
 pub(super) fn read_the_entries(input: &ScanInput<'_>) -> Result<Vec<EntryFacts>, String> {
     let parent: PathBuf = input.common_dir.join("worktrees");
@@ -133,7 +141,8 @@ pub(super) fn read_optional(
     };
 }
 
-/// Every slot whose binding stands in the home, except this one.
+/// Every slot whose binding stands in the home,
+/// except this one.
 pub(super) fn other_slots_with_bindings(
     home: &Path,
     slot: &str,

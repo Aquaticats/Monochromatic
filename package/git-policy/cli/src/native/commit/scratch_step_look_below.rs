@@ -158,7 +158,8 @@ fn the_state_a_control_states(
 ///  and a control may state its answer
 ///  (`the_controls_window`).
 ///  A look that could not be made is answered as itself and never as a step with nothing held:
-///  the two are different facts, and reading one as the other is how a held step was killed
+///  the two are different facts,
+/// and reading one as the other is how a held step was killed
 ///  (finding 1 of the 2026-11-12 review).
 ///
 /// In TS you'd write (pseudocode):

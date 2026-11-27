@@ -128,10 +128,14 @@ const OUTLASTING_THE_LINES_BOUND_SECONDS: u64 = 5;
 ///  the wait must answer in a quarter of this bound,
 ///  and it must be the whole bound that a wait counting from its call would spend,
 ///  so each side of the comparison is four times away from the other one.
-///  Measured on 2026-11-25 with the bound a second: the wait took 0.65 to 2.46 ms quiet,
-///  and 233 and 238 ms in two of eight runs on this host, spent on its `/proc` read (27 and
-///  50 ms), its two pipe-drain thread creations (114 and 118 ms) and the kill with its reap
-///  (51 and 82 ms), so a fifth of a second left no room for the work it was measuring.
+///  Measured on 2026-11-25 with the bound a second:
+/// the wait took 0.65 to 2.46 ms quiet,
+///  and 233 and 238 ms in two of eight runs on this host,
+/// spent on its `/proc` read (27 and
+///  50 ms),
+/// its two pipe-drain thread creations (114 and 118 ms) and the kill with its reap
+///  (51 and 82 ms),
+/// so a fifth of a second left no room for the work it was measuring.
 const SPENT_BOUND_SECONDS: u64 = 4;
 
 /// How much longer than its bound the command of the control below runs before the wait is

@@ -106,7 +106,8 @@ fn whole_lines_are_handed_over_one_each_and_the_unfinished_line_stays() {
 ///  One line a formatting call hands over in three pieces is said once,
 ///  when its newline arrives.
 /// Why:
-///  `write!` and `writeln!` hand over their words, their values and their newline as separate
+///  `write!` and `writeln!` hand over their words,
+/// their values and their newline as separate
 ///  writes,
 ///  and a reader must see one line rather than three.
 ///

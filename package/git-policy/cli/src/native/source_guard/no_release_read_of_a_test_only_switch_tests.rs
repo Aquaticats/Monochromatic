@@ -87,7 +87,8 @@ fn declared_switch_names(text: &str) -> Vec<String> {
 ///  as line numbers.
 /// Why:
 ///  A read of a switch is the one thing the release must not hold,
-///  and a release file that names a switch at all may do it for an error message, a comment or a declaration,
+///  and a release file that names a switch at all may do it for an error message,
+/// a comment or a declaration,
 ///  which are not reads.
 ///
 /// In TS you'd write (pseudocode):
@@ -167,7 +168,8 @@ fn findings() -> Vec<String> {
 }
 
 /// No release source reads a test-only switch itself.
-/// Every one of them is read through `foundation/test_only_switches.rs`, which a release build does not hold.
+/// Every one of them is read through `foundation/test_only_switches.rs`,
+/// which a release build does not hold.
 #[test]
 fn no_release_source_reads_a_test_only_switch() {
     let found: Vec<String> = findings();

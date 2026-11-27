@@ -78,7 +78,8 @@ fn the_source(repo: &Path) -> SnapshotSource {
         .expect("a checkout with an ordinary change is a source the route reads");
 }
 
-/// A repository of the source's own at `path`, with one committed file inside it.
+/// A repository of the source's own at `path`,
+/// with one committed file inside it.
 fn a_repository_at(path: &Path) {
     std::fs::create_dir_all(path).expect("the repository's directory");
     git(path, &["init", "--quiet"]);
@@ -279,10 +280,13 @@ fn a_clean_checkout_is_asked_nothing() {
 /// Why:
 ///  This is the boundary of the two questions:
 ///  a clean that cannot unlink a path (`warning: failed to remove ...:
-///  Permission denied`, exit 1) is a step failure,
+///  Permission denied`,
+/// exit 1) is a step failure,
 ///  not a refusal of the proof,
 ///  and no read of the source can rule out every such failure (the immutable
-///  bit, a full disk, a filesystem that stops answering).
+///  bit,
+/// a full disk,
+/// a filesystem that stops answering).
 ///  The settle of plan step 14 is that class's answer,
 ///  and the restore's own control shows the clean ending for this fixture
 ///  (`worktree::worktree_dirty_restore::tests::a_restore_ends_at_the_clean_it_cannot_finish`).

@@ -3711,14 +3711,16 @@ with the same force:
 - A subvolume or a mount point below the worktree's root is removed around,
   never destroyed and never handed to Git
   (`src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs`,
-  and the section "A volume the removal did not make: removing around it" for the decision of 2026-11-12).
+  and the section "A volume the removal did not make:
+  removing around it" for the decision of 2026-11-12).
   The destroy cannot take such a tree:
   the kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
   so nothing of the worktree is renamed for the commit service,
   and the removal empties every other entry and keeps each volume with the directories that lead to it.
   An unforced removal whose proof of cleanliness refuses refuses here too,
   with one report that names each volume and gives the reason,
-  and no volume is moved, unmounted or deleted.
+  and no volume is moved,
+  unmounted or deleted.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -4991,7 +4993,8 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
-  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  The person's own `--lock`,
+  `--reason` or `--checkout` is refused after the
   source check,
   so a declined add reaches the ladder with the words Git's own `worktree add`
   takes by itself,
@@ -5489,7 +5492,9 @@ and a command started inside a repository's Git directory reads that directory's
 records,
 which Git still names although the command stands in no worktree.
 Only the ladder's own steps keep the shorter list of globals they serve
-("Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS").
+("Cheap worktree creation and removal on btrfs,
+XFS,
+overlayfs and ZFS").
 A command reached through a shell alias is read by the same reader the guard
 uses,
 so the two rules cannot disagree about what an alias is,
@@ -5639,7 +5644,8 @@ and the `--no-` form of it,
 with the last of them typed deciding.
 The pass reads no pool and writes no record.
 A prune started inside the repository's Git directory (`git -C <repository>/.git worktree prune`)
-is the same pass over that directory: Git names the repository although the command stands in no worktree,
+is the same pass over that directory:
+Git names the repository although the command stands in no worktree,
 and the registrations it would drop are the ones the records name.
 
 The repair report says what a damaged link can and cannot restore,
@@ -6049,7 +6055,8 @@ It is built ahead of the plan's order:
 
 - No management grammar admits it,
   no `git` command reaches it,
-  `doctor`, the mount handler and the boot units do not either,
+  `doctor`,
+  the mount handler and the boot units do not either,
   and the round that switches the removal's command path on adds it to the grammar.
   This release's binary prints the management usage and exits `2` for the word.
 - It takes the slot's removal claim through the repository's own generation claim,
@@ -9955,7 +9962,9 @@ and a password a URL carries is never printed.
 A command ssh does not carry names no next step and keeps the process replacement it has today.
 Four limits stand with it:
 `kill -9` of the typed process number is not one of the four signals the relay carries:
-the wrapper ends at once, prints nothing, and does not end Git through the relay;
+the wrapper ends at once,
+prints nothing,
+and does not end Git through the relay;
 under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
 so no sentence follows;
 a typed LFS push explains a refused key through the upload's own words instead,
@@ -17974,9 +17983,11 @@ each with its reason in the code and here:
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
-  under it one line is pushed or popped, one number is moved and the writer is handed out or given back,
+  under it one line is pushed or popped,
+  one number is moved and the writer is handed out or given back,
   and the write itself runs outside it.
-  A queue of `QUEUED_LINES` (256 in each: measured over the six slowest commits of 2026-11-12 for the service's log,
+  A queue of `QUEUED_LINES` (256 in each:
+  measured over the six slowest commits of 2026-11-12 for the service's log,
   and over this repository's commit timing log and the package's gates on 2026-11-15 for the diagnostics)
   is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:

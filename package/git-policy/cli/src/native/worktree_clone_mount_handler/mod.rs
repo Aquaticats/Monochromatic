@@ -8,7 +8,9 @@
 //!  the checkout record and the nested dataset the route places under it,
 //!  and the refusal both root modes answer a caller that is not root with.
 //! Why:
-//!  The owner answered "One program only, ever", so the release holds one
+//!  The owner answered "One program only,
+//! ever",
+//! so the release holds one
 //!  executable and the root modes are modes of the wrapper
 //!  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
 //!  A root-owned program the ZED event and the boot and shutdown units start
@@ -110,7 +112,10 @@
 //!   the record the mode compares and writes,
 //!   and the write a `--replace` token admits.
 //! - `record_checkout_mode.rs`:
-//!   the checkout's path, dataset, GUID, container and pool,
+//!   the checkout's path,
+//!   dataset,
+//!   GUID,
+//!   container and pool,
 //!   recorded under root control,
 //!   and the GUID a legitimate restore replaces.
 //! - `mount_path_descendant_mode_refusals.rs`:
@@ -176,13 +181,15 @@
 //!   the answer to a clone the checks refused,
 //!   and the receipt an unavailable key alone files.
 //! - `sweep_unmount_under_the_claim.rs`:
-//!   the unmount arm of one clone's turn, once its slot is claimed.
+//!   the unmount arm of one clone's turn,
+//!   once its slot is claimed.
 //! - `sweep_intent_read_again.rs`:
 //!   the clone's identity and intent read again under the claim,
 //!   and whether the intent changed after the request a turn acted on.
 //! - `sweep_slot_first_observation.rs`:
 //!   the slot's first observation:
-//!   its record, its walk and its Git pointer.
+//!   its record,
+//!   its walk and its Git pointer.
 //! - `sweep_one_clone.rs`:
 //!   one clone's whole turn of the sweep.
 //! - `sweep_run.rs`:
@@ -245,7 +252,8 @@ mod sweep_unmount_answers;
 /// and the step words a receipt names.
 pub mod sweep_turn_context_and_outcome;
 
-/// The unmount arm of one clone's turn, once its slot is claimed.
+/// The unmount arm of one clone's turn,
+/// once its slot is claimed.
 pub mod sweep_unmount_under_the_claim;
 
 /// What one clone's turn files.
@@ -260,7 +268,9 @@ pub mod sweep_refused_clone_answers;
 /// The clone's identity and intent read again under the slot's claim.
 pub mod sweep_intent_read_again;
 
-/// The slot's first observation: its record, its walk and its Git pointer.
+/// The slot's first observation:
+/// its record,
+/// its walk and its Git pointer.
 pub mod sweep_slot_first_observation;
 
 /// The default invocation:
@@ -381,7 +391,10 @@ pub mod record_checkout_mode_paths_and_datasets;
 /// and the write a `--replace` token admits.
 pub mod record_checkout_mode_record_comparison;
 
-/// The checkout's path, dataset, GUID, container and pool,
+/// The checkout's path,
+/// dataset,
+/// GUID,
+/// container and pool,
 /// and the GUID a legitimate restore replaces.
 pub mod record_checkout_mode;
 
@@ -438,7 +451,8 @@ pub use handler_mode_arguments::{
     MountPathDescendantRequest,
     RecordCheckoutRequest,
 };
-/// The command line, the two statuses and the refusal a root-mode misuse answers.
+/// The command line,
+/// the two statuses and the refusal a root-mode misuse answers.
 pub use handler_mode_dispatch::{
     EXIT_DONE,
     EXIT_REFUSED,

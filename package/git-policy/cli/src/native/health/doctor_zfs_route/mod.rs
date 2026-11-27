@@ -30,7 +30,8 @@
 //!  "### Doctor").
 //!  Every check takes its facts as a value,
 //!  so the wording and the decision are tested on built facts and a control
-//!  never opens this machine's `/dev/zfs`, store or receipts.
+//!  never opens this machine's `/dev/zfs`,
+//! store or receipts.
 //!  The facts themselves are the wiring run's to gather once from the live
 //!  system,
 //!  as the add route's preflight gathers the same delegation through
@@ -156,7 +157,8 @@
 //!   and the add or removal that stopped part-way.
 //! - `registration_checks.rs`:
 //!   the Git registration one slot's record names,
-//!   complete, pruned or pointing elsewhere.
+//!   complete,
+//!   pruned or pointing elsewhere.
 //! - `managed_lock_checks.rs`:
 //!   the sentence one slot's managed Git lock prints in each state,
 //!   and the missing pointer's sentence beside it.

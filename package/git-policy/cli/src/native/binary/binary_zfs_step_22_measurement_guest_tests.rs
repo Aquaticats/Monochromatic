@@ -13,7 +13,8 @@
 //!  "Step 22:
 //! The measurements that size waits and retention"),
 //!  and each shipped limit must cite a measurement beside its value.
-//!  The arms build a real pool, clone datasets and mounts as root,
+//!  The arms build a real pool,
+//! clone datasets and mounts as root,
 //!  so no control on a person's machine may run them:
 //!  they run only where `CLI_GIT_ZFS_STEP22_GUEST` names a disposable guest,
 //!  on a file-backed pool,
@@ -74,7 +75,8 @@ use std::time::{
     Instant,
 };
 
-/// The variable the guest driver sets, so a host run skips instead of touching a pool.
+/// The variable the guest driver sets,
+/// so a host run skips instead of touching a pool.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_STEP22_GUEST";
 
 /// The pool the driver made.
@@ -86,7 +88,8 @@ const SBIN_VARIABLE: &str = "CLI_GIT_ZFS_STEP22_SBIN";
 /// The checkout root the arm mounts the design's dataset at.
 const ROOT_VARIABLE: &str = "CLI_GIT_ZFS_STEP22_ROOT";
 
-/// The tracked tree the workload is copied from, which the driver pushed.
+/// The tracked tree the workload is copied from,
+/// which the driver pushed.
 const WORKLOAD_VARIABLE: &str = "CLI_GIT_ZFS_STEP22_WORKLOAD";
 
 /// The checkout dataset's leaf name the step 19 design fixes.
@@ -101,16 +104,19 @@ const DESIRED_STATE: &str = "org.monochromatic:git-worktree-clone-mount-desired-
 /// The wrapper program the driver built.
 const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 
-/// The real Git the control arm runs, never the wrapper's link.
+/// The real Git the control arm runs,
+/// never the wrapper's link.
 const REAL_GIT: &str = "/usr/bin/git";
 
 /// How many interleaved rounds each arm runs.
 /// Why:
 ///  An odd count gives each arm a median and leaves neither warmed by the
-///  other at the end, while keeping the guest's whole arm inside its bound.
+///  other at the end,
+/// while keeping the guest's whole arm inside its bound.
 const ROUNDS: usize = 5;
 
-/// How often a poller looks at a dataset, a record or a mount.
+/// How often a poller looks at a dataset,
+/// a record or a mount.
 const POLL: Duration = Duration::from_millis(20);
 
 /// How long one add may take before the arm gives up on it.
@@ -125,14 +131,16 @@ const STOP_WAIT_BOUND: Duration = Duration::from_secs(30);
 /// How many build-like mebibytes the retention arm writes into an ignored folder.
 const BUILD_OUTPUT_MIB: usize = 12;
 
-/// The snapshot-destroy request sizes the budget arm sends, in names.
+/// The snapshot-destroy request sizes the budget arm sends,
+/// in names.
 /// Why:
 ///  The design's budget is bytes of encoded input,
 ///  and one name is the same flag pair at every count,
 ///  so three counts read the same rule at three scales.
 const REQUEST_NAMES: &[usize] = &[64, 512, 2048];
 
-/// The account this arm runs as, whose delegation the route's preflight reads.
+/// The account this arm runs as,
+/// whose delegation the route's preflight reads.
 const ACCOUNT: &str = "0";
 
 /// The binding record's phases in the order the add writes them.
@@ -146,7 +154,8 @@ const PHASES: &[&str] = &[
     "filled",
 ];
 
-/// Whether this run is inside the guest, or a skip line on every other machine.
+/// Whether this run is inside the guest,
+/// or a skip line on every other machine.
 fn guest() -> bool {
     let Ok(name) = std::env::var(GUEST_VARIABLE) else {
         println!(
@@ -161,7 +170,8 @@ fn guest() -> bool {
     return true;
 }
 
-/// A nonce of the designed width, from a short seed that names the arm.
+/// A nonce of the designed width,
+/// from a short seed that names the arm.
 fn nonce(seed: &str) -> String {
     let mut text: String = String::new();
     while text.len() < 32 {
@@ -171,7 +181,10 @@ fn nonce(seed: &str) -> String {
     return text;
 }
 
-/// The fixture the arm drives: the design's layout, a repository, and the
+/// The fixture the arm drives:
+/// the design's layout,
+/// a repository,
+/// and the
 /// wrapper's own link.
 struct Fixture {
     /// The checkout root.
@@ -192,14 +205,16 @@ struct AddRound {
     elapsed: Duration,
     /// The status the command exited with.
     status: Option<i32>,
-    /// Each binding phase's first sighting, in milliseconds from the start.
+    /// Each binding phase's first sighting,
+    /// in milliseconds from the start.
     phases: Vec<(&'static str, u128)>,
     /// What the command printed.
     said: String,
 }
 
 impl Fixture {
-    /// Make the design's layout, the repository and the wrapper's link.
+    /// Make the design's layout,
+    /// the repository and the wrapper's link.
     fn prepare() -> Fixture {
         let root: PathBuf = PathBuf::from(required(ROOT_VARIABLE));
         let pool: String = required(POOL_VARIABLE);
@@ -224,7 +239,8 @@ impl Fixture {
         return fixture;
     }
 
-    /// The workload's own folder inside the guest, which the driver pushed.
+    /// The workload's own folder inside the guest,
+    /// which the driver pushed.
     fn workload(&self) -> PathBuf {
         return PathBuf::from(required(WORKLOAD_VARIABLE));
     }
@@ -239,7 +255,8 @@ impl Fixture {
         return self.common().join("monochromatic-git-policy-cli");
     }
 
-    /// One slot's folder, which the design keeps under the checkout.
+    /// One slot's folder,
+    /// which the design keeps under the checkout.
     fn slot(
         &self,
         name: &str,
@@ -255,18 +272,21 @@ impl Fixture {
         return format!("{}/{}", self.container, name);
     }
 
-    /// The wrapper started as `git`, in a folder of its own.
+    /// The wrapper started as `git`,
+    /// in a folder of its own.
     fn wrapper_git(&self) -> PathBuf {
         return PathBuf::from("/root/step22-bin").join("git");
     }
 
-    /// The home folder each arm runs with, outside the checkout so the source
+    /// The home folder each arm runs with,
+    /// outside the checkout so the source
     /// stays clean.
     fn home_folder(&self) -> PathBuf {
         return PathBuf::from("/root/step22-home");
     }
 
-    /// The session's runtime folder, which the companion reads.
+    /// The session's runtime folder,
+    /// which the companion reads.
     fn runtime_folder(&self) -> PathBuf {
         return PathBuf::from("/root/step22-runtime");
     }
@@ -285,7 +305,8 @@ impl Fixture {
         std::fs::write(self.root.join("README.md"), b"step 22's workload\n").expect("the readme");
     }
 
-    /// A repository with the workload committed, and the trash place ignored.
+    /// A repository with the workload committed,
+    /// and the trash place ignored.
     fn make_the_repository(&self) {
         if self.common().is_dir() {
             return;
@@ -308,7 +329,8 @@ impl Fixture {
         ]);
     }
 
-    /// The folder the route's slots live in, at the mode the design's unit sets.
+    /// The folder the route's slots live in,
+    /// at the mode the design's unit sets.
     fn make_the_worktrees_folder(&self) {
         let parent: PathBuf = self.root.join(".claude").join("worktrees");
         std::fs::create_dir_all(parent.as_path()).expect("the worktrees folder");
@@ -316,7 +338,8 @@ impl Fixture {
             .expect("the folder's mode");
     }
 
-    /// The readiness report the add's preflight requires, written as the boot
+    /// The readiness report the add's preflight requires,
+    /// written as the boot
     /// unit would.
     fn publish_the_readiness(&self) {
         let file: ReadinessFile = ReadinessFile::live();
@@ -338,7 +361,8 @@ impl Fixture {
         file.publish(&record).expect("the readiness report");
     }
 
-    /// The link every arm starts as `git`, outside the checkout.
+    /// The link every arm starts as `git`,
+    /// outside the checkout.
     fn make_the_wrapper_link(&self) {
         let bin: PathBuf = PathBuf::from("/root/step22-bin");
         std::fs::create_dir_all(bin.as_path()).expect("the bin folder");
@@ -354,7 +378,8 @@ impl Fixture {
         std::os::unix::fs::symlink(WRAPPER, link.as_path()).expect("the wrapper's link");
     }
 
-    /// The environment every command runs with, so no host variable reaches it.
+    /// The environment every command runs with,
+    /// so no host variable reaches it.
     fn environment(
         &self,
         program_folder: &Path,
@@ -390,7 +415,8 @@ impl Fixture {
         ];
     }
 
-    /// One real Git command in the checkout, which must succeed.
+    /// One real Git command in the checkout,
+    /// which must succeed.
     fn git(
         &self,
         arguments: &[&str],
@@ -409,7 +435,9 @@ impl Fixture {
         return output;
     }
 
-    /// One `zfs` command as root, with its status, output and error.
+    /// One `zfs` command as root,
+    /// with its status,
+    /// output and error.
     fn zfs(
         &self,
         arguments: &[&str],
@@ -425,7 +453,9 @@ impl Fixture {
         zfs_ok(self.sbin.as_str(), arguments);
     }
 
-    /// One dataset's property, in bytes, where the property is a number.
+    /// One dataset's property,
+    /// in bytes,
+    /// where the property is a number.
     fn bytes(
         &self,
         property: &str,
@@ -436,7 +466,8 @@ impl Fixture {
         return said.trim().parse().unwrap_or(0);
     }
 
-    /// One slot's binding record, or nothing when no phase wrote it.
+    /// One slot's binding record,
+    /// or nothing when no phase wrote it.
     fn record(
         &self,
         name: &str,
@@ -450,7 +481,8 @@ impl Fixture {
         .ok();
     }
 
-    /// The origin snapshot the add recorded, or nothing.
+    /// The origin snapshot the add recorded,
+    /// or nothing.
     fn origin_of(
         &self,
         name: &str,
@@ -462,7 +494,8 @@ impl Fixture {
             .map(String::from);
     }
 
-    /// Run ordinary Git's own `git worktree add`, the control arm.
+    /// Run ordinary Git's own `git worktree add`,
+    /// the control arm.
     fn git_add(
         &self,
         name: &str,
@@ -483,7 +516,9 @@ impl Fixture {
         };
     }
 
-    /// Run the wrapper's own add, which is the ZFS clone route, watching its
+    /// Run the wrapper's own add,
+    /// which is the ZFS clone route,
+    /// watching its
     /// binding record and mounting the clone when it asks.
     fn wrapper_add(
         &self,
@@ -599,7 +634,11 @@ impl Fixture {
         };
     }
 
-    /// Take a slot's clone, mount, folder, registration and record away, so the
+    /// Take a slot's clone,
+    /// mount,
+    /// folder,
+    /// registration and record away,
+    /// so the
     /// next round starts from nothing.
     fn clear(
         &self,
@@ -624,7 +663,8 @@ impl Fixture {
         let _pruned: bool = output.status.success();
     }
 
-    /// One clone of a fresh checkout snapshot, asking to be mounted at a slot
+    /// One clone of a fresh checkout snapshot,
+    /// asking to be mounted at a slot
     /// Git registered.
     fn make_a_clone_asking(
         &self,
@@ -643,8 +683,10 @@ impl Fixture {
         make_the_slot(self.root.as_path(), name);
     }
 
-    /// Take one of the arm's own clones away, with the checkout snapshot it was
-    /// cloned from, without touching a record the arm still reads.
+    /// Take one of the arm's own clones away,
+    /// with the checkout snapshot it was
+    /// cloned from,
+    /// without touching a record the arm still reads.
     fn forget(
         &self,
         name: &str,
@@ -800,7 +842,8 @@ fn make_the_designs_layout(
     return (checkout_dataset, container);
 }
 
-/// The lines one binding record holds, or nothing while no phase wrote it.
+/// The lines one binding record holds,
+/// or nothing while no phase wrote it.
 fn record_lines(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record)
         .map(|text| return text.lines().map(String::from).collect())
@@ -838,7 +881,8 @@ fn mounted_at_path(path: &Path) -> bool {
         .any(|line| return line.split(' ').nth(4) == Some(wanted.as_str()));
 }
 
-/// Take one mount down where it stands, without insisting that it did.
+/// Take one mount down where it stands,
+/// without insisting that it did.
 fn unmount_quiet(folder: &Path) {
     let _unmounted: Output = Command::new("/usr/bin/umount")
         .arg(folder)
@@ -864,14 +908,18 @@ fn command(
 }
 
 /// What:
-///  Copy one folder tree's files and folders, leaving the `uses/` links out.
+///  Copy one folder tree's files and folders,
+/// leaving the `uses/` links out.
 /// Why:
 ///  Every source folder in this crate holds a `uses/` folder of links to the
 ///  folders its code uses,
 ///  and a copy that followed them walked the same subtree again and again:
 ///  the first run's workload read 133,102 files from 3,327,
-///  filled a pool with 758 MiB, and made the route's capture exceed its bound.
-///  A link is not fill work, so it is skipped rather than recreated, and the
+///  filled a pool with 758 MiB,
+/// and made the route's capture exceed its bound.
+///  A link is not fill work,
+/// so it is skipped rather than recreated,
+/// and the
 ///  workload is the tree's own files.
 fn copy_tree(
     from: &Path,
@@ -893,14 +941,16 @@ fn copy_tree(
     }
 }
 
-/// The middle reading of a copy, which is the median of an odd count.
+/// The middle reading of a copy,
+/// which is the median of an odd count.
 fn middle(values: &[u128]) -> u128 {
     let mut sorted: Vec<u128> = values.to_vec();
     sorted.sort_unstable();
     return sorted[sorted.len() / 2];
 }
 
-/// Count the files below one folder, counting a symlink as one entry.
+/// Count the files below one folder,
+/// counting a symlink as one entry.
 fn count_files(root: &Path) -> u64 {
     let mut count: u64 = 0;
     for entry in std::fs::read_dir(root).expect("the folder reads").flatten() {
@@ -914,7 +964,8 @@ fn count_files(root: &Path) -> u64 {
     return count;
 }
 
-/// The bytes the files below one folder hold, where a symlink holds its own short target.
+/// The bytes the files below one folder hold,
+/// where a symlink holds its own short target.
 fn tree_bytes(root: &Path) -> u64 {
     let mut bytes: u64 = 0;
     for entry in std::fs::read_dir(root).expect("the folder reads").flatten() {
@@ -929,7 +980,9 @@ fn tree_bytes(root: &Path) -> u64 {
     return bytes;
 }
 
-/// Print one arm's control, treatment, spread and ratio.
+/// Print one arm's control,
+/// treatment,
+/// spread and ratio.
 fn report_pairs(
     arm: &str,
     controls: &[Duration],
@@ -952,8 +1005,13 @@ fn report_pairs(
 }
 
 /// What:
-///  The add against ordinary Git, interleaved round by round, with the binding
-///  record's phases timed so the Git fill, the snapshot, the clone, the mount
+///  The add against ordinary Git,
+/// interleaved round by round,
+/// with the binding
+///  record's phases timed so the Git fill,
+/// the snapshot,
+/// the clone,
+/// the mount
 ///  wait and the fill's own work are separate.
 /// Why:
 ///  The plan's acceptance text asks for exactly those stages apart under one
@@ -1027,7 +1085,8 @@ fn add_rounds(fixture: &Fixture) {
 
 /// What:
 ///  The discard the route's fill pays and the ordinary Git arm has no stage for:
-///  deleting the copied Git administration, at the bytes and file count the
+///  deleting the copied Git administration,
+/// at the bytes and file count the
 ///  route's own copy holds.
 /// Why:
 ///  The acceptance text asks for the disposal to be reported as a contribution
@@ -1060,8 +1119,10 @@ fn discard_arm(fixture: &Fixture) {
 }
 
 /// What:
-///  The sweep's own cost with one clone and with sixteen, and what a lost event
-///  leaves: a request no waiter and no handler sees stays unmounted until a
+///  The sweep's own cost with one clone and with sixteen,
+/// and what a lost event
+///  leaves:
+/// a request no waiter and no handler sees stays unmounted until a
 ///  trigger fires.
 /// Why:
 ///  The design says a bound on how many sweeps may run in a period needs the
@@ -1116,11 +1177,15 @@ fn sweep_cost_arm(fixture: &Fixture) {
 }
 
 /// What:
-///  One sweep's cost over `count` clones of the checkout's snapshot, each
-///  asking for its mount, and how many it attached.
+///  One sweep's cost over `count` clones of the checkout's snapshot,
+/// each
+///  asking for its mount,
+/// and how many it attached.
 /// Why:
-///  The cost is what the sweep pays per run, and a period a heartbeat uses must
-///  exceed it, so the arm reads it at two sizes.
+///  The cost is what the sweep pays per run,
+/// and a period a heartbeat uses must
+///  exceed it,
+/// so the arm reads it at two sizes.
 fn sweep_over(
     fixture: &Fixture,
     count: usize,
@@ -1170,9 +1235,11 @@ fn sweep_over(
 }
 
 /// What:
-///  The unmount's own wait: how long `umount` takes with no holder (the floor),
+///  The unmount's own wait:
+/// how long `umount` takes with no holder (the floor),
 ///  how long it refuses with a holder (the path a deadline must not paper over),
-///  and how long the holder takes to leave after its signal, which is the
+///  and how long the holder takes to leave after its signal,
+/// which is the
 ///  forced arm's `T_wait`.
 /// Why:
 ///  Step 9's unmount deadline must cover the verified unmount,
@@ -1326,7 +1393,8 @@ fn unmount_arm(fixture: &Fixture) {
 }
 
 /// What:
-///  `T_stop`: how long a transient unit takes to leave its cgroup after its
+///  `T_stop`:
+/// how long a transient unit takes to leave its cgroup after its
 ///  manager is asked to stop it.
 /// Why:
 ///  The forced arm gives a locked unit `T_stop` to leave before it names it,
@@ -1381,9 +1449,13 @@ fn stop_wait_arm() {
 }
 
 /// What:
-///  What expiration, removal and the guard's current scope free:
-///  the checkout dataset's own bytes, what its snapshot pins, what the clone
-///  holds, and what destroying first the clone and then the snapshot gives back.
+///  What expiration,
+/// removal and the guard's current scope free:
+///  the checkout dataset's own bytes,
+/// what its snapshot pins,
+/// what the clone
+///  holds,
+/// and what destroying first the clone and then the snapshot gives back.
 /// Why:
 ///  The design asks what expiration,
 ///  removal and the current guard can free,
@@ -1449,8 +1521,10 @@ fn retention_arm(fixture: &Fixture) {
 }
 
 /// What:
-///  The largest snapshot-destroy request the binding sends, in names and in
-///  bytes of encoded input, at three sizes.
+///  The largest snapshot-destroy request the binding sends,
+/// in names and in
+///  bytes of encoded input,
+/// at three sizes.
 /// Why:
 ///  The design's split needs the largest encoded input one request may carry,
 ///  and this arm reads it as the request's own bytes rather than estimating
@@ -1502,7 +1576,8 @@ fn request_budget_arm(fixture: &Fixture) {
     let _cleaned: (bool, String, String) = fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
 }
 
-/// The arm's whole run, in the order a reader reads the record.
+/// The arm's whole run,
+/// in the order a reader reads the record.
 #[test]
 fn the_step_22_guest_measurements() {
     if !guest() {

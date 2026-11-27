@@ -6,7 +6,8 @@
 //!  S1 to S9,
 //!  and says one function answers with them so no caller invents its own order
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-//!  "The states, the checks and the words",
+//!  "The states,
+//! the checks and the words",
 //!  and "Where the code goes").
 //!  The slot's missing `.git` is a state beside the lock's rather than instead of it,
 //!  so it travels with every answer and is printed as its own line.
@@ -78,7 +79,8 @@ pub enum TheWordsCause {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ManagedLockState {
-    /// S1: the wrapper's verified lock,
+    /// S1:
+    /// the wrapper's verified lock,
     /// whose bytes are the recomposed sentence and Git's newline.
     Managed {
         /// The add's nonce.
@@ -86,7 +88,8 @@ pub enum ManagedLockState {
         /// The registration the lock stands in.
         registration: PathBuf,
     },
-    /// S2: the wrapper's own lock,
+    /// S2:
+    /// the wrapper's own lock,
     /// cut short by a killed write,
     /// still covering the whole nonce.
     CutShort {
@@ -99,12 +102,14 @@ pub enum ManagedLockState {
         /// How many bytes the sentence and Git's newline hold.
         of: u64,
     },
-    /// S3: a lock the wrapper cannot recompose.
+    /// S3:
+    /// a lock the wrapper cannot recompose.
     NotTheAddsWords {
         /// Why it cannot.
         cause: TheWordsCause,
     },
-    /// S4: no lock stands,
+    /// S4:
+    /// no lock stands,
     /// while the record and the registration do.
     NoLock {
         /// The add's nonce.
@@ -112,7 +117,8 @@ pub enum ManagedLockState {
         /// The registration that holds no lock.
         registration: PathBuf,
     },
-    /// S6: no registration stands to hold the lock at all.
+    /// S6:
+    /// no registration stands to hold the lock at all.
     NoRegistration {
         /// The add's nonce.
         nonce: RequestNonce,
@@ -120,12 +126,14 @@ pub enum ManagedLockState {
         /// when it names one.
         recorded: Option<PathBuf>,
     },
-    /// S7: a registration stands that this slot's record does not explain.
+    /// S7:
+    /// a registration stands that this slot's record does not explain.
     NoBindingExplains {
         /// What was found in its place.
         found: String,
     },
-    /// S8: a half-made registration the finder names,
+    /// S8:
+    /// a half-made registration the finder names,
     /// by the binding design's row the entry answers.
     HalfMade {
         /// The add's nonce.
@@ -135,7 +143,8 @@ pub enum ManagedLockState {
         /// The row it answers.
         row: EntryRow,
     },
-    /// S9: a registration that is not this slot's at all,
+    /// S9:
+    /// a registration that is not this slot's at all,
     /// with its lock whatever it is.
     SomebodyElsesWorktree {
         /// The registration that stands there.
@@ -159,17 +168,22 @@ pub enum ManagedLockState {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LockOwnership {
-    /// S1 or S2: the lock the add wrote,
+    /// S1 or S2:
+    /// the lock the add wrote,
     /// whole or cut short.
     TheWrappersManaged,
-    /// S3: words this add did not write,
+    /// S3:
+    /// words this add did not write,
     /// which the wrapper never releases.
     AnOperatorsLock,
-    /// S6 to S9: nothing this slot's record explains.
+    /// S6 to S9:
+    /// nothing this slot's record explains.
     Unexplained,
-    /// S4: the registration stands and holds no lock.
+    /// S4:
+    /// the registration stands and holds no lock.
     NoLockStands,
-    /// S6: no registration stands,
+    /// S6:
+    /// no registration stands,
     /// so there is no lock to find.
     NoRegistrationStands,
 }

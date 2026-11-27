@@ -10,7 +10,8 @@
 //!  inside a block that holds a place in the blocking pool.
 //!  A caller that waited there would hold that thing for as long as the reader does not read,
 //!  and every command waiting for the thing would wait with it
-//!  (`doc/planning/cli-git-no-unbounded-waits.md`, "Writes to the caller's own streams").
+//!  (`doc/planning/cli-git-no-unbounded-waits.md`,
+//! "Writes to the caller's own streams").
 //!  So the line is handed to a queue of bounded length and written on a thread that may wait as long as it likes;
 //!  a line that finds no room is dropped and counted,
 //!  and the next line that gets through says how many were dropped before it,
@@ -37,16 +38,19 @@
 //!  and says once which limit refused it:
 //! a commit at its process limit failed on 2026-11-25 saying nothing at all,
 //!  because its refusal waited in a queue that no thread would ever write (issue 6476).
-//!  That answer is the queue's own (`lines_written_by_a_thread.rs`), because the service's log lines
+//!  That answer is the queue's own (`lines_written_by_a_thread.rs`),
+//! because the service's log lines
 //!  meet the same refusal from the same limit;
-//!  this file asks for it, and names what its lines are for.
+//!  this file asks for it,
+//! and names what its lines are for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! hand(`[warn] ...\n`); // waits for the line to reach the stream, at most WARNING_WRITE_CEILING
 //! ```
 
-/// The bounded queue, its thread and its control hooks,
+/// The bounded queue,
+/// its thread and its control hooks,
 /// which this file gives the diagnostics' words and rules.
 use crate::lines_written_by_a_thread::{
     HandedOver,
@@ -105,7 +109,8 @@ const DROPPED_NOTICE_TAIL: &str = "\n";
 /// which is that no caller waits for the reader,
 ///  and a process that said no line waits for nothing at all.
 ///  It is the same 250 ms the service's own log lines wait at the end of their process
-///  (`service_log_lines_off_the_calling_thread.rs`, `WAIT_BEFORE_AN_EXIT`),
+///  (`service_log_lines_off_the_calling_thread.rs`,
+/// `WAIT_BEFORE_AN_EXIT`),
 ///  measured there on 2026-11-14 over sixty rounds of one refusal:
 /// 3.16 ms at the median with the wait and 3.05 ms without it,
 ///  inside the 2.8 to 3.7 ms spread of either arm alone,
@@ -119,7 +124,8 @@ const DROPPED_NOTICE_TAIL: &str = "\n";
 /// ```
 pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = WARNING_WRITE_CEILING;
 
-/// What a gap in the diagnostics says, built from the count.
+/// What a gap in the diagnostics says,
+/// built from the count.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

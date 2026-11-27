@@ -1606,7 +1606,8 @@ fn a_registration_under_a_path_that_is_not_text_is_read() {
 /// resumes it,
 /// and the worktree's own command resumes it.
 /// Why:
-///  Resuming installs the source's ignored state, which costs minutes for a large checkout;
+///  Resuming installs the source's ignored state,
+/// which costs minutes for a large checkout;
 /// a command in another worktree paid for it silently before this
 /// (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
 #[cfg(unix)]

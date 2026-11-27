@@ -1376,7 +1376,8 @@ const OCCUPIED_CONTROL_KILL: &str = "the planted kill of the occupied control";
 /// a wait claims that kill as soon as this host schedules its thread,
 /// and a kill whose ending is still going on cannot be claimed at all until the ending is over.
 /// Neither is how much wall time has passed.
-/// A kill nothing is occupied with is, once the grace has passed.
+/// A kill nothing is occupied with is,
+/// once the grace has passed.
 /// Its own record is the registry's only one,
 /// because the question it asks covers every record there,
 /// so its body runs in a child process of this test binary.

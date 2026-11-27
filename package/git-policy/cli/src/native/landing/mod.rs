@@ -165,7 +165,8 @@
 //!   on a thread and on the runtime,
 //!   and what answer it stands for.
 //! - `service_land_follow_index_reset_paths.rs`:
-//!   the paths a reset installs, as the bytes `git reset` reads them:
+//!   the paths a reset installs,
+//!   as the bytes `git reset` reads them:
 //!   a pathspec that names one path from the top of the worktree,
 //!   a NUL-separated list of them,
 //!   and the names that differ between two commits.
@@ -260,7 +261,8 @@
 //!   the two Git steps a service preparation starts itself,
 //!   with the face a task of the runtime asks.
 //! - `service_pruned_tree_closures.rs`:
-//!   whether a tree, a tree below it or a blob in any of them is gone from the object store,
+//!   whether a tree,
+//!   a tree below it or a blob in any of them is gone from the object store,
 //!   for every root of a batch,
 //!   and what that walk cost.
 //! - `service_pruned.rs`:
@@ -1101,7 +1103,8 @@ pub mod service_land_follow;
 /// and what answer it stands for.
 pub mod service_land_follow_index_reset_git_questions;
 
-/// The paths a reset installs, as the bytes `git reset` reads them:
+/// The paths a reset installs,
+/// as the bytes `git reset` reads them:
 /// a pathspec that names one path from the top of the worktree,
 /// a NUL-separated list of them,
 /// and the names that differ between two commits.
@@ -1627,7 +1630,8 @@ pub mod service_head;
 /// answered from the object store without starting Git.
 pub mod service_built_checks;
 
-/// Whether a tree, a tree below it or a blob in any of them is gone from the object store,
+/// Whether a tree,
+/// a tree below it or a blob in any of them is gone from the object store,
 /// for every root of a batch,
 /// and what that walk cost.
 pub mod service_pruned_tree_closures;

@@ -311,7 +311,8 @@ pub struct ChildRefusal {
 }
 
 impl std::fmt::Display for ChildRefusal {
-    /// One sentence naming the call, the errno and what it said.
+    /// One sentence naming the call,
+    /// the errno and what it said.
     fn fmt(
         &self,
         formatter: &mut std::fmt::Formatter<'_>,

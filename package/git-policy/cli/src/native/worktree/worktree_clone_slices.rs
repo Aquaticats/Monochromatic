@@ -104,7 +104,8 @@ pub(crate) const A_HOST_THAT_BOUNDS_NO_WORKER: HostResources = HostResources {
 };
 
 /// What:
-///  Whether the slices are refused, which a control may ask for and no shipped add can.
+///  Whether the slices are refused,
+/// which a control may ask for and no shipped add can.
 /// Why:
 ///   The arm's shape is the caller's answer and not the runtime's here,
 /// so a control names why the arm ran rather than reaching into the runtime.

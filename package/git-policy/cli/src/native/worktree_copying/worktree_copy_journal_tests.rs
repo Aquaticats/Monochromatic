@@ -673,8 +673,10 @@ fn a_stage_with_many_subtrees_is_removed_whole() {
 
 /// A journal named by a listing that is gone by the time it is read is skipped,
 /// while one that is there and corrupt is named as a record this release cannot read:
-/// a journal is published whole by one rename, so a file at its name that does not parse is what an interrupted write
-/// leaves, and the command that found it moves it aside.
+/// a journal is published whole by one rename,
+/// so a file at its name that does not parse is what an interrupted write
+/// leaves,
+/// and the command that found it moves it aside.
 #[test]
 fn a_vanished_journal_is_skipped_and_a_corrupt_one_reads_as_unreadable() {
     let root: PathBuf = fixture("journal-vanished");

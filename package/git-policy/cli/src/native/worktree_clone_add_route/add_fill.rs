@@ -1,20 +1,36 @@
 //! What:
-//!  The fill: the frozen proof, the proof's phase marker, the clone's leave-outs,
-//!  the private index, the restore, the pointer's exchange, and the check of the
-//!  result, in the order the design writes them.
+//!  The fill:
+//! the frozen proof,
+//! the proof's phase marker,
+//! the clone's leave-outs,
+//!  the private index,
+//! the restore,
+//! the pointer's exchange,
+//! and the check of the
+//!  result,
+//! in the order the design writes them.
 //! Why:
 //!  The order is the designs' and nothing under a real name is published before
 //!  the finished tree is proven
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-//!  "The restore": steps 2 to 8).
-//!  Step 10's clean source wrote nothing through Git, so the private index was
-//!  the captured index normalized and published. Step 11 adds the restore: the
+//!  "The restore":
+//! steps 2 to 8).
+//!  Step 10's clean source wrote nothing through Git,
+//! so the private index was
+//!  the captured index normalized and published.
+//! Step 11 adds the restore:
+//! the
 //!  private index is the index the btrfs rung's own `restore_dirty` reads and
-//!  writes, so the clone is reset to the commit the caller asked for and the
+//!  writes,
+//! so the clone is reset to the commit the caller asked for and the
 //!  paths Git must write go through Git's own conversion.
-//!  A resume after any kill reads the states those writes leave: the marker says
-//!  the proof passed, an existing trash is the leave-out's own, the private
-//!  name's absence with the real name present says the publication ran, and the
+//!  A resume after any kill reads the states those writes leave:
+//! the marker says
+//!  the proof passed,
+//! an existing trash is the leave-out's own,
+//! the private
+//!  name's absence with the real name present says the publication ran,
+//! and the
 //!  pointer file with the trash's manifest says the exchange happened.
 //!  What the fill reads is `add_fill_input_and_result.rs`'s,
 //!  the restore is `add_fill_restore.rs`'s,
@@ -67,14 +83,16 @@ use std::ffi::OsStr;
 /// What:
 ///  Everything one fill reads.
 /// Why:
-///  The steps behind this file read the same value, so the fill's caller names
+///  The steps behind this file read the same value,
+/// so the fill's caller names
 ///  each fact once.
 pub use super::add_fill_input_and_result::FillInput;
 
 /// What:
 ///  What a filled clone hands back.
 /// Why:
-///  The trash the leave-out made is the disposal's work, and the add hands it
+///  The trash the leave-out made is the disposal's work,
+/// and the add hands it
 ///  over after the fill.
 pub use super::add_fill_input_and_result::Filled;
 
@@ -83,10 +101,15 @@ pub use super::add_fill_input_and_result::Filled;
 pub use super::add_fill_leave_outs::the_trash_of_a_filled_clone;
 
 /// What:
-///  Prove the mounted clone, leave out what must not be carried, publish the
-///  index, exchange the pointer, and check the result.
+///  Prove the mounted clone,
+/// leave out what must not be carried,
+/// publish the
+///  index,
+/// exchange the pointer,
+/// and check the result.
 /// Why:
-///  Each step reads the state a kill at the step before it leaves, so a resume
+///  Each step reads the state a kill at the step before it leaves,
+/// so a resume
 ///  continues instead of repeating a write.
 ///
 /// # Errors

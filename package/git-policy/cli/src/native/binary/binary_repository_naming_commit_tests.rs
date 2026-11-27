@@ -240,20 +240,30 @@ fn landed(
 
 /// The folder a command keeps its account of the processes it started in,
 /// inside a repository's common Git directory
-/// (`lock/lock_holder_records.rs`, `HOLDER_FOLDER`,
+/// (`lock/lock_holder_records.rs`,
+/// `HOLDER_FOLDER`,
 /// and `binary_root_mode_name_tests.rs`'s `LOCK_HOLDERS` spells it the same).
 /// Why a literal:
-///  the constant is `pub(crate)` in the library, which this test target does not see.
+///  the constant is `pub(crate)` in the library,
+/// which this test target does not see.
 const HOLDER_FOLDER: &str = "cli-git-lock-holders";
 
 /// The fields of `git count-objects -v` whose value is how many disk blocks the loose objects and the packs
-/// occupy, in kibibytes.
+/// occupy,
+/// in kibibytes.
 /// Why they are left out of what this file compares:
 ///  the file system this host's fixture roots sit on reports one 512-byte block for a file until the pool's
-///  current transaction group commits, and its real blocks afterwards, so these values move with time alone.
-///  Measured on 2026-11-25: seven 40-to-50-byte files reported `1` block each, and `9` blocks each a moment
-///  later, with no process touching them; the `size` of seven loose objects therefore read `3` before such a
-///  commit and `31` after it, for the same seven objects.
+///  current transaction group commits,
+/// and its real blocks afterwards,
+/// so these values move with time alone.
+///  Measured on 2026-11-25:
+/// seven 40-to-50-byte files reported `1` block each,
+/// and `9` blocks each a moment
+///  later,
+/// with no process touching them;
+/// the `size` of seven loose objects therefore read `3` before such a
+///  commit and `31` after it,
+/// for the same seven objects.
 const BLOCK_COUNTED_FIELDS: &[&str] = &["size:", "size-pack:", "size-garbage:"];
 
 /// What a repository holds,
@@ -261,10 +271,13 @@ const BLOCK_COUNTED_FIELDS: &[&str] = &["size:", "size-pack:", "size-garbage:"];
 /// the object store's own count and the entries of its Git directory.
 /// Why the block-counted fields and the holder folder are left out:
 ///  neither says what the command did to this repository.
-///  The blocks move with the file system's own transaction groups, shown on `BLOCK_COUNTED_FIELDS`,
+///  The blocks move with the file system's own transaction groups,
+/// shown on `BLOCK_COUNTED_FIELDS`,
 ///  and the holder folder is the wrapper's own account of the Gits it started,
 ///  which a later pass removes once every process it names is gone
-///  (`binary_commit_form_refusal_tests.rs`, `everything_under`, says the same of the same folder).
+///  (`binary_commit_form_refusal_tests.rs`,
+/// `everything_under`,
+/// says the same of the same folder).
 fn stores_of(
     fixture: &Fixture,
     repo: &Path,

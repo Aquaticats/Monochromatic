@@ -78,7 +78,8 @@ pub(super) fn creation_time_forbidden(facts: &DelegationFacts) -> Vec<String> {
 
 /// What:
 ///  The forbidden permissions a named set the account can come to hold carries,
-///  each naming the set, the holder and the command that takes the permission
+///  each naming the set,
+/// the holder and the command that takes the permission
 ///  out of the set.
 /// Why:
 ///  A set's member is a grant the account holds through the holder that passes
@@ -106,7 +107,8 @@ pub(super) fn held_set_forbidden(facts: &DelegationFacts) -> Vec<String> {
 /// What:
 ///  The route permissions that stand in a named set rather than in a direct
 ///  grant,
-///  each naming the set, who holds it and the command that takes the
+///  each naming the set,
+/// who holds it and the command that takes the
 ///  permission out of it.
 /// Why:
 ///  The design grants each required permission to the account itself,

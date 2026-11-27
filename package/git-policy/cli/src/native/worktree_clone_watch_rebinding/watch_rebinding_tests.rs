@@ -3,7 +3,8 @@
 //! what a watch on the covered directory really sees,
 //! and the sentence a person reads.
 //!
-//! A mount cannot be made without privilege, so a control stands one in with the
+//! A mount cannot be made without privilege,
+//! so a control stands one in with the
 //! move that has the same shape for a watch:
 //! the watched directory is moved aside and another one takes its path,
 //! which is what a mount over the slot does to the directory object the path
@@ -26,7 +27,8 @@ use std::time::{
 };
 
 /// How long a control waits for one inotify event before it calls the wait a silence.
-///  Short, because the write it waits for follows at once and the wait only has to
+///  Short,
+/// because the write it waits for follows at once and the wait only has to
 /// outlast the kernel's own delivery.
 const PATIENCE: Duration = Duration::from_millis(500);
 
@@ -35,10 +37,12 @@ const PATIENCE: Duration = Duration::from_millis(500);
 const WRITTEN: &str = "written-through-the-slot";
 
 /// What:
-///  An inotify watch on one directory's new entries, closed however the control ends.
+///  An inotify watch on one directory's new entries,
+/// closed however the control ends.
 /// Why:
 ///  The controls need the one answer `landing/service_index_watch.rs` does not give
-///  (whether the event arrived, rather than whether to look again),
+///  (whether the event arrived,
+/// rather than whether to look again),
 ///  and a descriptor held across an assertion that fails must still be closed.
 ///
 /// In TS you'd write (pseudocode):
@@ -90,7 +94,8 @@ impl Probe {
     /// What:
     ///  Whether an event naming the control's file arrives inside `PATIENCE`.
     /// Why:
-    ///  The wait is bounded, and a silence is one answer rather than a failure of
+    ///  The wait is bounded,
+    /// and a silence is one answer rather than a failure of
     ///  this process:
     /// the control that expects a silence proves its watch works by the same call
     /// answering true on the tree the path names now.

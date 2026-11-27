@@ -333,7 +333,8 @@ fn a_home_with_no_record_does_nothing() {
     remove(root.as_path());
 }
 
-/// A mount table no control may read: asking it for one fails the test.
+/// A mount table no control may read:
+/// asking it for one fails the test.
 /// Why:
 ///  A prune in a repository with no record folder has no bound slot to check,
 ///  and a table that fails when read proves the pass never looked.

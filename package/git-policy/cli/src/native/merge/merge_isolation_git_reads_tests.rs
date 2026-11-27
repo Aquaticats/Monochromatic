@@ -4,11 +4,13 @@
 //! which must answer at once.
 //! Why:
 //!  A pull or a merge that reads `FETCH_HEAD` with a call that waits is held for ever by a pipe at that name,
-//!  after `git fetch` has already written it (`crate::plain_file`; issue 6415 for the same shape elsewhere).
+//!  after `git fetch` has already written it (`crate::plain_file`;
+//! issue 6415 for the same shape elsewhere).
 
 /// The rule under test.
 use super::read_fetch_head;
-/// Fixture folders, their removal and a bound on the wait.
+/// Fixture folders,
+/// their removal and a bound on the wait.
 use crate::test_support::{
     finished_within,
     fixture,

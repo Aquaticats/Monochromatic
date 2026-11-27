@@ -101,9 +101,11 @@ fn a_pool_folder_that_is_a_link_is_not_removed_through() {
 /// What:
 ///  A removal sweeps the drawn shadows of the removed worktree and leaves the tree a commit is running in.
 /// Why:
-///  A drawn tree is used where it stands, so the pool's own removal cannot take the folder of drawn ones,
+///  A drawn tree is used where it stands,
+/// so the pool's own removal cannot take the folder of drawn ones,
 ///  and the removal is the named event that collects those nothing renewed.
-///  A tree a live commit holds is fresh: the commit's Git is reading it while the removal runs,
+///  A tree a live commit holds is fresh:
+/// the commit's Git is reading it while the removal runs,
 ///  and it must still be there when the commit finishes.
 #[test]
 fn a_removal_takes_the_drawn_shadows_nothing_renewed_and_leaves_the_one_a_commit_holds() {

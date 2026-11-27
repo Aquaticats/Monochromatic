@@ -1,15 +1,21 @@
 //! What:
-//!  The preparation the exchange needs: the trash's manifest, the entry name the
-//!  copied administration will take, and the identities on both sides of the
+//!  The preparation the exchange needs:
+//! the trash's manifest,
+//! the entry name the
+//!  copied administration will take,
+//! and the identities on both sides of the
 //!  swap.
 //! Why:
 //!  A resume after a kill reuses the entry the manifest names instead of taking
-//!  the next one, and the identities prove each side after the swap
+//!  the next one,
+//! and the identities prove each side after the swap
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-//!  "The restore", step 8).
+//!  "The restore",
+//! step 8).
 //!  `add_exchange.rs` performs the one swap and would go over the file-size
 //!  limit carrying this beside it,
-//!  and `add_exchange_trash.rs` holds the trash's own folder, manifest and reads,
+//!  and `add_exchange_trash.rs` holds the trash's own folder,
+//! manifest and reads,
 //!  so this file is the record written before the swap and nothing else.
 //!
 //! In TS you'd write (pseudocode):
@@ -51,7 +57,8 @@ use std::path::{
 ///  and the identities on both sides.
 /// Why:
 ///  A resume after the manifest is written reuses the entry the manifest names
-///  instead of taking the next one, and the identities prove each side after
+///  instead of taking the next one,
+/// and the identities prove each side after
 ///  the swap.
 ///
 /// In TS you'd write (pseudocode):
@@ -75,11 +82,15 @@ pub struct PreparedExchange {
 }
 
 /// What:
-///  Prepare the trash entry and its manifest, or find that an earlier run did.
+///  Prepare the trash entry and its manifest,
+/// or find that an earlier run did.
 /// Why:
-///  The pointer bytes are written to the trash's next entry, the copied
-///  administration's identity is recorded against that entry, and the manifest
-///  takes the record in one rename before the swap, so a kill after the swap
+///  The pointer bytes are written to the trash's next entry,
+/// the copied
+///  administration's identity is recorded against that entry,
+/// and the manifest
+///  takes the record in one rename before the swap,
+/// so a kill after the swap
 ///  names what the trash holds.
 ///
 /// # Errors
@@ -131,7 +142,8 @@ pub(super) struct EntryFacts {
     pub(super) identity: ObjectId,
 }
 
-/// Read one entry of the root, or nothing when it is absent.
+/// Read one entry of the root,
+/// or nothing when it is absent.
 pub(super) fn read_the_entry(
     root: &std::fs::File,
     name: &OsStr,
@@ -161,7 +173,8 @@ pub(super) fn read_the_entry(
     }));
 }
 
-/// The exchange already happened: the slot holds the pointer and the manifest
+/// The exchange already happened:
+/// the slot holds the pointer and the manifest
 /// names the copied administration at its entry.
 fn already_the_pointer(
     root: &std::fs::File,

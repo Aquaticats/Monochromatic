@@ -309,7 +309,8 @@ pub fn untracked_paths_queries(
 ///  `&[&str]` borrows the selection flags the caller adds.
 /// Why:
 ///   Ignored files and untracked files are asked for the same way,
-///  in the bounded starts, the literal pathspecs and the exact bytes;
+///  in the bounded starts,
+/// the literal pathspecs and the exact bytes;
 ///  only the flag that narrows the answer to ignored ones differs,
 ///  so both readings share this builder rather than repeating it.
 ///

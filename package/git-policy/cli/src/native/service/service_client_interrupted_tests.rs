@@ -160,7 +160,10 @@ static THE_STOP_WORD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// What:
 ///  `fn hold_the_stop_word() -> MutexGuard<'static, ()>` takes the lock that makes one control's use of the stop word its
 ///  own.
-///  `MutexGuard` is the proof the lock is held, released when the value drops (sibling: `()` alone, which would release it
+///  `MutexGuard` is the proof the lock is held,
+/// released when the value drops (sibling:
+/// `()` alone,
+/// which would release it
 ///  at once).
 /// Why:
 ///  `stop_requested_for_test` writes one word of the process and `stop()` reads it,
@@ -193,7 +196,8 @@ const DISPOSITION_CHILD: &str = "CLI_GIT_INTERRUPTED_DISPOSITION_CHILD";
 ///  `fn waking_read_verdict(directory: &Path) -> Vec<String>` makes the measurement in the helper process and answers the
 ///  sentences it failed with.
 /// Why:
-///  The stop's handlers are process-wide, so the measurement runs where no other control of a threaded run can see them,
+///  The stop's handlers are process-wide,
+/// so the measurement runs where no other control of a threaded run can see them,
 ///  and a control that failed says why in one file rather than through a panic whose text a parent never prints.
 ///
 /// In TS you'd write (pseudocode):

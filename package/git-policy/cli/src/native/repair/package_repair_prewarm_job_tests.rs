@@ -234,10 +234,12 @@ fn a_filling_killed_after_it_published_leaves_nothing_of_its_own() {
 /// and the filling cleans it there and publishes it back,
 /// so no build trusts the copy's artifacts and no `cargo clean` ever runs in the add.
 /// Why:
-///   Cargo treats the copied artifacts of the worktree's own crates as fresh, so a build that started before a clean would
+///   Cargo treats the copied artifacts of the worktree's own crates as fresh,
+/// so a build that started before a clean would
 ///  reuse them at the wrong paths;
 /// the add answers within its bound only if the state is out of the way before it returns.
-/// A rename does that in one step, and the clean of that state is the filling's work.
+/// A rename does that in one step,
+/// and the clean of that state is the filling's work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -303,7 +305,8 @@ fn a_staged_state_the_add_moved_aside_is_cleaned_and_published() {
 ///  A build that made the worktree's build directory while the filling ran keeps everything it made,
 /// and the state the add moved aside is given back.
 /// Why:
-///   The filling only ever adds state a build would otherwise compile, and it must never replace what a build made.
+///   The filling only ever adds state a build would otherwise compile,
+/// and it must never replace what a build made.
 /// A staged entry is the one case where the state it would publish is slower to make than the build itself.
 ///
 /// In TS you'd write (pseudocode):
@@ -348,7 +351,8 @@ fn a_build_that_got_there_first_keeps_its_own_and_the_staged_state_is_given_back
 ///  A staging name another writer holds is never renamed over or removed,
 /// and the worktree says so instead of leaving state a build would trust wrongly.
 /// Why:
-///   The names are the job's by convention, and only this job's own marker proves what stands there is its own;
+///   The names are the job's by convention,
+/// and only this job's own marker proves what stands there is its own;
 /// anything else is somebody's work.
 ///
 /// In TS you'd write (pseudocode):
@@ -380,7 +384,8 @@ fn a_staging_name_another_writer_holds_is_never_renamed_over() {
 /// What:
 ///  A worktree whose build directory is not there has nothing to move aside.
 /// Why:
-///   The plan asks this before it says the state is staged, and a worktree that never had one must not be sent to the
+///   The plan asks this before it says the state is staged,
+/// and a worktree that never had one must not be sent to the
 /// service for a clean of nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -422,7 +427,8 @@ fn a_worktree_with_no_build_state_has_nothing_to_move_aside() {
 ///  The repository's exclude file keeps its own lines when a staging name is named in it,
 /// and naming them twice adds nothing.
 /// Why:
-///   The file is the person's, so a write that replaced it would discard what they excluded by hand,
+///   The file is the person's,
+/// so a write that replaced it would discard what they excluded by hand,
 /// and two adds racing to name the same patterns must not lose each other's line.
 ///
 /// In TS you'd write (pseudocode):

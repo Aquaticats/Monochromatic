@@ -42,7 +42,9 @@ const NAMESPACE_SWITCHES: &[&str] = &[
 ///  and this is the same rule for the kernel's namespaces.
 pub(crate) const NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_NO_USER_NAMESPACES";
 
-/// The one request for a child of this test binary, the program that runs it, and the check on its one test.
+/// The one request for a child of this test binary,
+/// the program that runs it,
+/// and the check on its one test.
 use super::child_test_process::{
     CHILD_TEST_DEADLINE,
     ChildTest,

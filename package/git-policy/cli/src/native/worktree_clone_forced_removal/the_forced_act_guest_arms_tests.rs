@@ -1,6 +1,7 @@
 //! What:
 //!  The forced act's guest arm:
-//!  every kernel call the act makes, run by the route's own code in one
+//!  every kernel call the act makes,
+//! run by the route's own code in one
 //!  throwaway guest,
 //!  phase by phase,
 //!  for every kind of holder the earlier arm measured.
@@ -21,9 +22,11 @@
 //!  `umount2` at the copy and at the destination,
 //!  the directory's removal,
 //!  `NS_GET_USERNS` on the holder's namespace,
-//!  and the pinned `SIGTERM`, wait and `SIGKILL` of the signal stage.
+//!  and the pinned `SIGTERM`,
+//! wait and `SIGKILL` of the signal stage.
 //!  The wait and the heartbeat are a harness's provisional values,
-//!  recorded with the run and shipped by nothing: the release's constants have
+//!  recorded with the run and shipped by nothing:
+//! the release's constants have
 //!  no value until step 22 measures them.
 //!  A run on this machine prints one `SKIPPED` line,
 //!  which the recipe reads as a failure when it meant the arm to run.
@@ -639,7 +642,9 @@ fn the_forced_act_guest_arm_tests() {
 }
 
 /// What:
-///  Wait, bounded, until the holder has the namespaces and the session its shape promises.
+///  Wait,
+/// bounded,
+/// until the holder has the namespaces and the session its shape promises.
 /// Why:
 ///  `fork` returns in the parent before the child has run a line,
 ///  so a phase that read the holder's session at once would read the caller's:
@@ -772,11 +777,14 @@ fn phase_path_holder(
 }
 
 /// What:
-///  One holder namespace's copy, its own descriptor and the tables the arm reads.
+///  One holder namespace's copy,
+/// its own descriptor and the tables the arm reads.
 /// Why:
 ///  The act takes the namespace's descriptor and the identity the report names,
-///  and the descriptor must be dropped when the phase's act is over: it is a
-///  reference to that namespace, and a namespace kept alive keeps its mounts and
+///  and the descriptor must be dropped when the phase's act is over:
+/// it is a
+///  reference to that namespace,
+/// and a namespace kept alive keeps its mounts and
 ///  the dataset their superblock holds.
 ///
 /// In TS you'd write (pseudocode):

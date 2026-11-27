@@ -24,7 +24,10 @@ use std::path::Path;
 /// The words that decide which files the module tree compiles for release alone,
 /// so a new binary or test target is covered through the manifest rather than a second list.
 use super::release_sources_in;
-/// The shared scan base: the crate root record, the roots `Cargo.toml` lists, the source root and a fixture writer.
+/// The shared scan base:
+/// the crate root record,
+/// the roots `Cargo.toml` lists,
+/// the source root and a fixture writer.
 use crate::source_scan_tests::{
     CrateRoot,
     real_roots,
@@ -37,7 +40,8 @@ use crate::source_scan_tests::{
 /// and the whole of what this check refuses.
 ///  The first names the text reader and the second the byte reader;
 /// `fs::read(` is the tail of `std::fs::read(` and of a bare `fs::read(`,
-/// and it is not a prefix of the other, so counting both counts each call once.
+/// and it is not a prefix of the other,
+/// so counting both counts each call once.
 const CALLS_THAT_CAN_WAIT: &[&str] = &["fs::read_to_string(", "fs::read("];
 
 /// The one file that may make those calls,
@@ -400,7 +404,8 @@ fn calls_in(text: &str) -> usize {
 
 /// What:
 ///  `fn counts_in(root, roots) -> Result<Vec<(String, usize)>, String>` is every release file that makes a
-///  call that can wait, with how many it makes.
+///  call that can wait,
+/// with how many it makes.
 /// Why:
 ///  Both halves of the check read one measurement,
 ///  so a file it cannot read stops it rather than passing as a file with no calls.

@@ -690,13 +690,18 @@ fn the_service_face_removes_the_copies_as_well() {
 
 /// What:
 ///  A `toolchain.lock.json` that is a named pipe with no writer is refused at once,
-///  so the repair answers instead of holding the add's thread, or a job of the service's pool, for ever.
+///  so the repair answers instead of holding the add's thread,
+/// or a job of the service's pool,
+/// for ever.
 /// Why:
 ///   The repair reads the lock to learn which launcher names an install answers for,
-///   and both faces of it are on a waiting path: the add's own thread, and a job the service awaits with no ceiling.
+///   and both faces of it are on a waiting path:
+/// the add's own thread,
+/// and a job the service awaits with no ceiling.
 ///  The record beside the lock is already read only when it is a plain file for the same reason
 ///  (`a_record_that_is_a_named_pipe_is_left_alone`);
-///  the lock is a tracked file, so a pipe at its name takes unusual local state,
+///  the lock is a tracked file,
+/// so a pipe at its name takes unusual local state,
 ///  and nothing the wrapper reads may wait without end for it.
 ///
 /// In TS you'd write (pseudocode):
@@ -898,10 +903,13 @@ fn dead_process_number() -> u32 {
 ///  A record an install wrote while the removal was looking is put back by the pass after a killed one,
 ///  so the launcher beside it keeps its record and the tool keeps working.
 /// Why:
-///   The removal takes a record aside, reads it, and puts it back or removes it.
+///   The removal takes a record aside,
+/// reads it,
+/// and puts it back or removes it.
 ///   A pass killed between taking and putting back leaves the record under a name of its own,
 ///   and a concurrent `toolchain:update` plus install can have written that record after the classification:
-///   the next pass must read what is there and put it back, never discard it,
+///   the next pass must read what is there and put it back,
+/// never discard it,
 ///   because a launcher with no record beside it does not run its tool and nothing else recreates the record.
 ///
 /// In TS you'd write (pseudocode):
@@ -993,12 +1001,16 @@ fn a_record_a_killed_pass_took_aside_is_put_back_by_the_next_pass() {
 }
 
 /// What:
-///  A record that names this worktree's own lock through a link, or through a path with `..`,
+///  A record that names this worktree's own lock through a link,
+/// or through a path with `..`,
 ///  is never taken for a copy of another checkout and never removed.
 /// Why:
 ///   One file has many spellings:
-///   a link to the worktree, a path through a directory and back, and a bind mount of the same folder all name the same
-///   `toolchain.lock.json`, and only the file's identity tells that from a real copy of another checkout's lock.
+///   a link to the worktree,
+/// a path through a directory and back,
+/// and a bind mount of the same folder all name the same
+///   `toolchain.lock.json`,
+/// and only the file's identity tells that from a real copy of another checkout's lock.
 ///   A pass that compares spellings deletes a record an install wrote for a name the lock declares.
 ///
 /// In TS you'd write (pseudocode):
@@ -1044,10 +1056,13 @@ fn a_record_that_names_this_worktrees_lock_by_another_spelling_is_never_removed(
 ///  and is never discarded.
 /// Why:
 ///   The pass after a kill cannot tell a copy of an earlier layout from the record an install had just written:
-///   both are records, and both were left aside by the killed pass.
+///   both are records,
+/// and both were left aside by the killed pass.
 ///   Putting it back would replace the record that stands at the name by then,
-///   so it is kept where it is, and one line in the worktree's own Git directory says which file it is,
-///   where it lies, and how to put it back.
+///   so it is kept where it is,
+/// and one line in the worktree's own Git directory says which file it is,
+///   where it lies,
+/// and how to put it back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

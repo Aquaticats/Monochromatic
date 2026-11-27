@@ -307,7 +307,8 @@ pub fn staging_binds(
 ///  and propagation belongs to the mount instance,
 ///  so the live row decides.
 ///  The row's source is not judged here:
-///  the kernel prints a bind's source as the filesystem's own source, never as
+///  the kernel prints a bind's source as the filesystem's own source,
+/// never as
 ///  the folder it was bound from,
 ///  so only the path and the optional fields say what the bind is.
 ///

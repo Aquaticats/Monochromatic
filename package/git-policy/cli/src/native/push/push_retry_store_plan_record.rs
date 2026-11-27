@@ -41,7 +41,8 @@ const LONGEST_PATH_BYTES: u64 = 4096;
 /// The most bytes one plan's file may hold.
 /// Why:
 ///   A plan is one JSON object naming a directory and a push item.
-/// The directory goes in twice, as text and as the hex of its bytes,
+/// The directory goes in twice,
+/// as text and as the hex of its bytes,
 /// the worktree once as text,
 /// a backslash or a quote in a name doubles its bytes in the JSON,
 /// and so does the hex,

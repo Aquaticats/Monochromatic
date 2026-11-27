@@ -9,8 +9,10 @@
 //!  line changed,
 //!  so the configuration is held to the reviewed set rather than trusted
 //!  (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
-//!  "The typed half, and the configuration it rests on").
-//!  A reason's prose is free: only the level table and the paths are compared.
+//!  "The typed half,
+//! and the configuration it rests on").
+//!  A reason's prose is free:
+//! only the level table and the paths are compared.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,12 +23,15 @@
 use super::squeezed;
 use std::path::Path;
 
-/// The crate's Clippy level table, squeezed, as the review fixed it.
+/// The crate's Clippy level table,
+/// squeezed,
+/// as the review fixed it.
 /// `disallowed_methods` at `deny` is what makes the two `std::env::args` rows a ban;
 /// at `allow` the same source compiles with no call refused and no pinned line changed.
 const CLIPPY_LEVELS: &str = "complexity={level=\"allow\",priority=-1}disallowed_methods=\"deny\"implicit_return=\"deny\"needless_return=\"allow\"shadow_reuse=\"deny\"shadow_same=\"deny\"shadow_unrelated=\"deny\"";
 
-/// Every disallowed call's path, in the configuration's own order.
+/// Every disallowed call's path,
+/// in the configuration's own order.
 const DISALLOWED_CALLS: &[&str] = &[
     "std::result::Result::unwrap",
     "std::env::temp_dir",

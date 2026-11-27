@@ -520,7 +520,8 @@ fn the_report_of_a_volume_gone_during_the_pass_says_what_that_path_did() {
 ///  the proof of cleanliness could not settle the tree,
 ///  and `--force` is what goes around the volume now.
 /// Why:
-///   The words for a tree whose entries are missing told a person their fresh, clean worktree had been
+///   The words for a tree whose entries are missing told a person their fresh,
+/// clean worktree had been
 ///   half emptied by a pass,
 /// in the state every person meets a moment after a worktree is added.
 #[test]

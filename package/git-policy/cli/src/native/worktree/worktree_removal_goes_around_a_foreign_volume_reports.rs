@@ -312,7 +312,8 @@ pub fn stopped_around_report(
 /// Why:
 ///   The sweep removed a person's worktree without being asked,
 /// so its line has to say that the worktree is gone from
-///  Git's records, what stayed where it stands,
+///  Git's records,
+/// what stayed where it stands,
 ///  and what frees the path:
 /// a person who read only "removed" would try to
 ///  add a worktree at a path that is still taken.

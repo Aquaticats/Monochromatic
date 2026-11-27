@@ -627,12 +627,14 @@ pub mod clone_holder_scan;
 ///  what it may do to each kind of holder and what it refuses,
 ///  the reads it makes before its first act and change,
 ///  and every word it answers with.
-/// Plan step 17 builds it ahead of the removal's cut, so no person's command
+/// Plan step 17 builds it ahead of the removal's cut,
+/// so no person's command
 ///  reaches it and no sentence offers the flag,
 ///  and its waits ship with no value until the owner decides one or step 22's
 ///  measurement sizes them.
 /// It is Linux only,
-/// like the `/proc` reads, the pidfds and the mount calls it would make.
+/// like the `/proc` reads,
+/// the pidfds and the mount calls it would make.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_forced_removal;
 

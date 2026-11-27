@@ -58,7 +58,8 @@ use std::path::{
 ///   a state only a later command can finish,
 ///   and the finish lives in a file of its own
 /// (`worktree_removal_finishes_an_interrupted_destroy.rs`):
-///   every caller names it there, so this module re-exports nothing of it.
+///   every caller names it there,
+/// so this module re-exports nothing of it.
 const TAG: &str = "worktreeRemovalInterruptedDestroy";
 
 /// The folder of the common Git directory that holds one record per destroy the wrapper started,

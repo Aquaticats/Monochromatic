@@ -15,7 +15,8 @@ use crate::worktree_clone_binding_record::lock_words::{
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::ffi::OsString;
 
-/// One add's words: `worktree add -b topic ../topic main`.
+/// One add's words:
+/// `worktree add -b topic ../topic main`.
 fn an_add() -> Vec<OsString> {
     return vec![
         OsString::from("worktree"),

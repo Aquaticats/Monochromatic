@@ -83,8 +83,10 @@ pub struct ManualPushFailure {
     /// What the person can do about it,
     /// which the engine failure's hint is chosen by.
     pub cause: ManualPushCause,
-    /// The sentence naming the next step a refused key needs, printed after Git's own words.
-    /// It is nothing for every failure that is not a refused key, and for every system with no such relay.
+    /// The sentence naming the next step a refused key needs,
+    /// printed after Git's own words.
+    /// It is nothing for every failure that is not a refused key,
+    /// and for every system with no such relay.
     pub sentence: Option<String>,
 }
 

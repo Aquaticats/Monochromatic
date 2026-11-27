@@ -1029,7 +1029,8 @@ fn flow_call_count(
 }
 
 /// Whether a fixture root on `root`'s file system has `flow` make `call`:
-/// every call but the ones a file-system fact decides, which that fact answers.
+/// every call but the ones a file-system fact decides,
+/// which that fact answers.
 fn flow_makes(
     flow: &Flow,
     call: &str,
@@ -1646,7 +1647,8 @@ fn copy_recovered(
 /// `ioctl` carries the `FICLONE` that fills each staged file and the btrfs subvolume creation (measured 2026-11-09);
 /// it stands in this list only where the fixture root's file system shares data blocks between files,
 /// because the copy flow clones there and lets Git check the worktree out everywhere else
-/// (`may_clone` in `fs_kind`, recorded in `copy_flow`).
+/// (`may_clone` in `fs_kind`,
+/// recorded in `copy_flow`).
 /// `openat` counts reads too,
 /// because `strace --inject` names a call and an ordinal over all of them.
 const COPY_KILL_CALLS: &[&str] = &[
@@ -1780,7 +1782,8 @@ fn a_worktree_copy_killed_at_each_chmod_leaves_a_recoverable_repository() {
 /// killed at each `ioctl` the wrapper makes in it.
 ///
 /// The copy flow clones each staged file only where the fixture root's file system shares data blocks between files
-/// (`may_clone`); every other file system has Git check the worktree out instead,
+/// (`may_clone`);
+/// every other file system has Git check the worktree out instead,
 /// so there is no `ioctl` to be killed at and the control says it did not run rather than passing as coverage it has
 /// not.
 /// It fails with the fixture root it found unless the run states that the absence is known
