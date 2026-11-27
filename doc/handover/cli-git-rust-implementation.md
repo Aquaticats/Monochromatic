@@ -331,7 +331,8 @@ and it is put back on the build of 2026-11-22
   alpha.13 holds issue 6585 (`c513ee060c`):
   a start refused with "Text file busy" is explained and not repeated,
   because every writer the tool starts publishes a program by renaming a finished file into place,
-  measured for five of them with no refusal in some 2,400 probe starts;
+  measured for five of them with no refusal in 2,396 probe starts that ran
+  (`doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`);
   and the alpha.12 pass's narrowing of what the splits had made visible (`cc61079f82`).
 - The wrapper,
   `0.6.1-alpha.48`:
