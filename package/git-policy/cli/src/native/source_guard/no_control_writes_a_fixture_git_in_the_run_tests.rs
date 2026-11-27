@@ -31,13 +31,15 @@
 //!  so no other thread forks between its write and its start.
 //!  The split of a source into its controls is `source_guard/process_wide_fact_readers_tests.rs`,
 //!  which this ban shares with the other bans of its shape;
-//!  the ban reads one file,
+//!  each ban reads one file,
 //!  so it says its own text keeps naming the writes it exists for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // every control of invocation/git_version_cache_tests.rs that names copy_git(, std::fs::copy(,
-//! // std::fs::write( or OpenOptions::new() must also name run_the_body_in_a_child_of_its_own(.
+//! // std::fs::write( or OpenOptions::new(), and every control of
+//! // repo_read/git_system_config_tests.rs that names copy_git(,
+//! // must also name run_the_body_in_a_child_of_its_own(.
 //! ```
 
 use super::process_wide_fact_readers_tests::{
@@ -89,17 +91,20 @@ const FIXTURE_WRITES: &[(&str, &str)] = &[
 const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
 
 /// What:
-///  `THE_FILE` is the one test source of this module,
-///  which holds every control this ban is about.
+///  `THE_VERSION_CACHE_FILE` is the test source whose controls keep a fixture Git for the version cache.
+///  `THE_SYSTEM_CONFIG_FILE` is the test source whose controls copy the host Git to learn its system
+///  configuration path.
 /// Why:
-///  The ban reads this file and no other,
+///  Each ban reads one file and no other,
 ///  because a `std::fs::write` in another test source usually writes a file nothing starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_FILE = 'invocation/git_version_cache_tests.rs';
+/// const THE_VERSION_CACHE_FILE = 'invocation/git_version_cache_tests.rs';
+/// const THE_SYSTEM_CONFIG_FILE = 'repo_read/git_system_config_tests.rs';
 /// ```
-const THE_FILE: &str = "invocation/git_version_cache_tests.rs";
+const THE_VERSION_CACHE_FILE: &str = "invocation/git_version_cache_tests.rs";
+const THE_SYSTEM_CONFIG_FILE: &str = "repo_read/git_system_config_tests.rs";
 
 /// What:
 ///  `THE_VERSION_CACHE` is the ban itself:
@@ -124,61 +129,104 @@ const THE_VERSION_CACHE: Requirement = Requirement {
 };
 
 /// What:
-///  The text of `THE_FILE` as this crate's sources hold it.
+///  `THE_SYSTEM_CONFIG` is the same ban for the system configuration controls:
+///  their fixture Git is a copy of the host's Git,
+///  and a copy started after another thread's fork is refused with `ETXTBSY` (issue 6541).
 /// Why:
-///  The ban reads one file,
+///  Those controls name only `copy_git(` for a fixture write;
+///  their other `std::fs::write` calls write a configuration file nothing starts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_SYSTEM_CONFIG = { what: "the fixture Git's write descriptor", named: [['copy_git(', '...']], excusedBy: [IN_A_CHILD_OF_ITS_OWN], required: '...', files: [] };
+/// ```
+const THE_SYSTEM_CONFIG: Requirement = Requirement {
+    what: "the system config fixture Git's write descriptor",
+    named: &[(
+        "copy_git(",
+        "copies the host Git's bytes into the fixture, opening the copy for writing here",
+    )],
+    excused_by: &[IN_A_CHILD_OF_ITS_OWN],
+    required: "start the control's body in a child of its own first (`run_the_body_in_a_child_of_its_own`, \
+               `testing/process_wide_state_child_test_support.rs`, issue 6541)",
+    files: &[],
+};
+
+/// What:
+///  `THE_BANS` is each file this ban reads with the requirement its controls answer.
+/// Why:
+///   One test source has one set of calls that open a fixture Git,
+///  and a scan of every source would take a configuration write for one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_BANS: ReadonlyArray<readonly [string, Requirement]> = [[THE_VERSION_CACHE_FILE, THE_VERSION_CACHE], [THE_SYSTEM_CONFIG_FILE, THE_SYSTEM_CONFIG]];
+/// ```
+const THE_BANS: &[(&str, &Requirement)] = &[
+    (THE_VERSION_CACHE_FILE, &THE_VERSION_CACHE),
+    (THE_SYSTEM_CONFIG_FILE, &THE_SYSTEM_CONFIG),
+];
+
+/// What:
+///  The text of the test source at `path` as this crate's sources hold it.
+/// Why:
+///  Each ban reads one file,
 ///  so a file that cannot be read is a reason this check cannot answer,
 ///  and never a tree it passed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function theFile(): string { return readFileSync(join(sourceRoot(), THE_FILE), 'utf8'); }
+/// function theFile(path: string): string { return readFileSync(join(sourceRoot(), path), 'utf8'); }
 /// ```
-fn the_file() -> String {
-    let path: std::path::PathBuf = source_root().join(THE_FILE);
-    let read: std::io::Result<String> = std::fs::read_to_string(&path);
+fn the_file(path: &str) -> String {
+    let file: std::path::PathBuf = source_root().join(path);
+    let read: std::io::Result<String> = std::fs::read_to_string(&file);
     return read.unwrap_or_else(|error| {
         panic!(
-            "the ban reads {THE_FILE}, and {} cannot be read: {error}",
-            path.display()
+            "the ban reads {path}, and {} cannot be read: {error}",
+            file.display()
         )
     });
 }
 
-/// No control of the version cache writes its fixture Git in the run's own process.
+/// No control of the version cache or of the system config reader writes its fixture Git in the run's own process.
 /// A control that writes one gives its body a process whose other threads fork nothing.
 #[test]
 fn no_control_writes_a_fixture_git_in_the_run_s_own_process() {
-    let text: String = the_file();
-    let findings: Vec<String> = findings_in_text(&THE_VERSION_CACHE, THE_FILE, text.as_str());
-    assert!(
-        findings.is_empty(),
-        "{} is opened for writing in whatever process runs the code that makes it, and `execve` refuses a file open \
-         for writing anywhere, so a fork by another thread of a threaded run holds this control's start off with \
-         `ETXTBSY` until that child execs, and a test run holds its controls as threads of one process: {}:\n{}",
-        THE_VERSION_CACHE.what,
-        THE_VERSION_CACHE.required,
-        findings.join("\n")
-    );
+    for (path, requirement) in THE_BANS {
+        let text: String = the_file(path);
+        let findings: Vec<String> = findings_in_text(requirement, path, text.as_str());
+        assert!(
+            findings.is_empty(),
+            "{} is opened for writing in whatever process runs the code that makes it, and `execve` refuses a file open \
+             for writing anywhere, so a fork by another thread of a threaded run holds this control's start off with \
+             `ETXTBSY` until that child execs, and a test run holds its controls as threads of one process: {}:\n{}",
+            requirement.what,
+            requirement.required,
+            findings.join("\n")
+        );
+    }
 }
 
-/// The file this ban reads still names every write it exists for,
+/// The files this ban reads still name every write it exists for,
 /// so a ban whose subject moved away fails here instead of passing every tree.
 #[test]
 fn the_file_this_ban_reads_still_writes_a_fixture_git() {
-    let text: String = the_file();
-    let mut missing: Vec<String> = Vec::new();
-    for (call, why) in FIXTURE_WRITES {
-        if !text.contains(call) {
-            missing.push(format!("{call}: {why}"));
+    for (path, requirement) in THE_BANS {
+        let text: String = the_file(path);
+        let mut missing: Vec<String> = Vec::new();
+        for (call, why) in requirement.named {
+            if !text.contains(call) {
+                missing.push(format!("{call}: {why}"));
+            }
         }
+        assert!(
+            missing.is_empty(),
+            "{path} no longer names these calls, so this ban guards nothing in it: move the entry to the call that \
+             opens the fixture Git for writing now, or delete it:\n{}",
+            missing.join("\n")
+        );
     }
-    assert!(
-        missing.is_empty(),
-        "{THE_FILE} no longer names these calls, so this ban guards nothing in it: move the entry to the call that \
-         opens the fixture Git for writing now, or delete it:\n{}",
-        missing.join("\n")
-    );
 }
 
 /// The scan finds a control that writes the fixture in the run's own process,
@@ -207,11 +255,14 @@ fn writes_in_a_child_of_its_own() {\n\
 fn plants_the_name_in_a_text() {\n\
     let planted: &str = \"OpenOptions::new()\";\n\
 }\n";
-    assert_eq!(
-        findings_in_text(&THE_VERSION_CACHE, "planted_tests.rs", planted),
-        vec![String::from(
-            "planted_tests.rs:1 (writes_in_the_run_s_own_process)"
-        )],
-        "the planted control that writes the fixture in the run's own process was not the one finding"
-    );
+    let expected: Vec<String> = vec![String::from(
+        "planted_tests.rs:1 (writes_in_the_run_s_own_process)",
+    )];
+    for (path, requirement) in THE_BANS {
+        assert_eq!(
+            findings_in_text(requirement, "planted_tests.rs", planted),
+            expected,
+            "the planted control that writes the fixture in the run's own process was not the one finding for {path}"
+        );
+    }
 }
