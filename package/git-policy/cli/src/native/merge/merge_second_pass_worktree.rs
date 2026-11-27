@@ -26,7 +26,8 @@
 //! and a file whose staging fails,
 //! stays exactly as Git left it.
 //!
-//! The paths the pass watches, and the conflicts the index holds for them,
+//! The paths the pass watches,
+//! and the conflicts the index holds for them,
 //! live in `merge_second_pass_worktree_watch.rs`;
 //! the awaited re-merge of those conflicts lives in `merge_second_pass_worktree_remerge.rs`.
 //!

@@ -159,6 +159,14 @@
 //!   read as its fetch and its merge of `FETCH_HEAD`.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
+//! - `merge_second_pass_verdicts.rs`:
+//!   the limits a file is merged under,
+//!   the reasons a conflicted path is left,
+//!   and what became of each path.
+//! - `merge_second_pass_objects.rs`:
+//!   the blob of a merged file,
+//!   the index record that stages it as resolved,
+//!   and the tree a merge from objects is carried by.
 //! - `merge_second_pass.rs`:
 //!   the conflicted files a merge left,
 //!   which of them the word pass may re-merge,
@@ -239,6 +247,16 @@ pub mod word_merge;
 /// The text a word merge of one region may not write,
 /// which keeps that region in conflict.
 pub mod word_merge_invented_text;
+
+/// The limits a file is merged under,
+/// the reasons a conflicted path is left,
+/// and what became of each path.
+pub mod merge_second_pass_verdicts;
+
+/// The blob of a merged file,
+/// the index record that stages it as resolved,
+/// and the tree a merge from objects is carried by.
+pub mod merge_second_pass_objects;
 
 /// The conflicted files a merge left,
 /// which of them the word pass may re-merge,

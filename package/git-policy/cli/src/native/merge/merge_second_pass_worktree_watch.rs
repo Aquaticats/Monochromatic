@@ -7,7 +7,8 @@
 //!  so the pass reads the index before the command runs and again after it,
 //!  and an index the readers cannot take in process leaves the pass off for that run:
 //!  it never guesses.
-//!  The index is a plain file read to a bound, never a path checked and then opened.
+//!  The index is a plain file read to a bound,
+//!  never a path checked and then opened.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
