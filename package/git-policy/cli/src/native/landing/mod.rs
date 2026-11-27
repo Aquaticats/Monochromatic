@@ -545,10 +545,6 @@
 //! - `service_commit_looking_for_what_landed.rs`:
 //!   the look for the commit a request that was already sent made,
 //!   once its answer was lost.
-//! - `service_commit_after_a_failure.rs`:
-//!   what a commit does when the service answered without landing it:
-//!   the words for content a prune removed,
-//!   and the aftermath of a service that failed or went silent.
 //! - `service_commit_rebuild_ceiling.rs`:
 //!   how long a commit whose branch moved under its build is built again,
 //!   and the line that says so.
@@ -638,11 +634,15 @@
 //! - `service_handoff.rs`:
 //!   the wrapper's side of after-commit work:
 //!   records and the wake.
-//! - `service_commit.rs`:
-//!   the commit command's path through the commit service.
 //! - `service_landed_aftermath.rs`:
 //!   what a landed commit leaves the command to do:
 //!   its result and the work after it.
+//! - `service_commit_after_a_failure.rs`:
+//!   what a commit does when the service answered without landing it:
+//!   the words for content a prune removed,
+//!   and the aftermath of a service that failed or went silent.
+//! - `service_commit.rs`:
+//!   the commit command's path through the commit service.
 //! - `service_work_drain_waves_of_one_kind.rs`:
 //!   the bodies a wave of one kind asks of its handler,
 //!   and the line one answer that is done writes.
