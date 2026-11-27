@@ -92,15 +92,17 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'the native commit names a hooks directory that can exist',
     file: 'src/native/commit/commit_preparation.rs',
-    from: '    arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));',
+    // The push spans three lines since the crate was formatted with the root `rustfmt.toml` (`57bf0918fc`).
+    from: '    arguments.push(OsString::from(format!(\n        "core.hooksPath={NO_HOOKS_DIRECTORY}"\n    )));',
     to: '    arguments.push(OsString::from("core.hooksPath=.git/hooks"));',
     failing: 'commit::commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off',
   },
   {
     name: 'a hook switched off by name is reported',
     file: 'src/native/health/external_hooks.rs',
-    from: 'bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)',
-    to: 'bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(true)',
+    // The `matches!` arms sit on lines of their own since the crate was formatted (`57bf0918fc`).
+    from: '        if matches!(\n            snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()),\n            Lookup::Found(false)\n        ) {',
+    to: '        if matches!(\n            snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()),\n            Lookup::Found(true)\n        ) {',
     failing: 'health::external_hooks::tests::a_hook_switched_off_by_name_is_not_reported',
   },
 
