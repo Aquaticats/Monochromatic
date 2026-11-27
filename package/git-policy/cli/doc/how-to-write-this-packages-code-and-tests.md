@@ -156,6 +156,15 @@ the renewal makes the count of its one task's ending and hands the control a sha
 `ClaimRenewal::endings`),
 so a control reads the endings of the task it made and never a count the whole test process shares
 (issue 6526).
+And a control that asserts how many workers a run's budget allows names the host that budget is derived from,
+as `A_HOST_THAT_BOUNDS_NO_WORKER` in `worktree/worktree_clone_slices.rs` does,
+because `HostResources::read` answers the live machine:
+the threads it reports are the smaller of the affinity mask and the control group's CPU quota,
+so a run in a scope capped below two processors answers one worker,
+and a control that read it asserted on the cap the run happened to carry rather than on its fixture
+(issue 6537;
+the quota's effect on `available_parallelism` is measured in
+`doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
 
 A control that holds a fault point of the service
 (`service_fault_hooks_test_support.rs`)
