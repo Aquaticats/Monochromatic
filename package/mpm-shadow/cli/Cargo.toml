@@ -65,10 +65,11 @@ monochromatic-jsonc-edit = { version = "=0.1.3", path = "../../jsonc-edit/core-r
 # Strict JSON for `toolchain.lock.json` and the plan's decoded values; `preserve_order` keeps key order through
 # a read-modify-write, which the committed lock's diffs depend on.
 serde_json = { workspace = true, features = ["preserve_order"] }
-# The safe wrapper around the two file-system calls the repository's other installers already use: `renameat2` with
-# `RENAME_EXCHANGE` publishes a version in one step, so a kill cannot leave the version's name absent between two
-# renames (issue 6600), and `kill` lets a control's build end an installer at that step. `fs` is the first; `process`
-# is compiled for a control's build alone, and no shipped build calls it.
+# The safe wrapper `package/cargo-shadow/cli` already uses for the same calls. `fs` gives `renameat2` with
+# `RENAME_EXCHANGE`, which publishes a version in one step so a kill cannot leave the version's name absent between two
+# renames (issue 6600). `process` gives the `kill` that ends an installer at that step for a control; the feature is
+# enabled in every build, but the only call to it is compiled out of a build that is not a test, so the release binary
+# holds none (src/toolchain/archive_staging/a_control_plants_these_steps.rs).
 rustix = { workspace = true, features = ["fs", "process"] }
 # SHA-256 of downloaded archives and the lock's digest.
 sha2 = { workspace = true }
