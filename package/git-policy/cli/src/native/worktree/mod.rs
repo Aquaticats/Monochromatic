@@ -533,6 +533,13 @@
 //! - `worktree_snapshot_placeholders.rs`:
 //!   the empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 //!   found below the folders that hold worktrees and removed as empty directories.
+//! - `worktree_snapshot_stubs.rs`:
+//!   the stubs a snapshot holds for what must not be carried:
+//!   the empty directories nested worktrees leave,
+//!   and the worktree's own `.git` pointer.
+//! - `worktree_snapshot_place.rs`:
+//!   the swap of a finished snapshot with the destination,
+//!   and the settling of what the exchange displaced.
 //! - `worktree_snapshot.rs`:
 //!   the snapshot rung's mechanics:
 //!   snapshot to a stage name,
@@ -819,6 +826,17 @@ pub mod worktree_snapshot_source_changed_paths;
 /// and what that needs.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_source;
+
+/// The stubs a snapshot holds for what must not be carried:
+/// the empty directories nested worktrees leave,
+/// and the worktree's own `.git` pointer.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_stubs;
+
+/// The swap of a finished snapshot with the destination,
+/// and the settling of what the exchange displaced.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_place;
 
 /// The snapshot rung's mechanics:
 /// snapshot to a stage name,
