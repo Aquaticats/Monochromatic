@@ -120,7 +120,13 @@ fn a_shadow_nested_to_the_limit_refuses_to_start_another_program() {
     }
 }
 
-/// Every file under `directory`, as paths relative to it, sorted.
+/// What:
+/// Every file under `directory`,
+/// as paths relative to it,
+/// sorted.
+/// Why:
+/// The cleanup test compares the set of files before and after a run that never started,
+/// so it reads the whole set rather than one path.
 fn relative_paths(directory: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<std::path::PathBuf> = vec![directory.to_path_buf()];

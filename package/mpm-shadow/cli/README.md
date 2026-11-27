@@ -1976,23 +1976,24 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   and that the same command works once the write has finished.
   It never names running the program by hand,
   which shows nothing once the write is over.
-  There is no window for a retry to cover:
-  measured 2026-11-27 on this machine,
-  every writer this tool starts or stands in front of puts the program somewhere else first and
-  renames the finished file or directory into place,
-  so the file it holds open for writing is never the path a start resolves
-  (the launcher placement: 9.6 ms on `.program.<pid>.bin`, then a rename;
-  a copy into the hidden staging directory, the shape of both the gunzipped and the plain download:
-  2.9 ms and 3.5 ms in two runs;
-  `tar --extract`: 20.1 ms in the staging directory, then the directory is renamed;
-  `uv tool install --force`, which is how `mpm` itself is installed and upgraded:
-  the entry point is written as `bin/.tmpXXXXXX` and renamed).
-  A start that meets one of those renames instead of a write finds the program absent for 2.6 ms to 3.5 ms
-  (the archive install moves the old version directory aside before renaming the new one in),
-  and that is reported as the missing-program cause,
-  not as this one.
-  A writer that does hold the published file open is outside this tool and keeps it for as long as its
-  own work takes,
+  There is no window for a retry to cover.
+  Measured 2026-11-27 on this machine,
+  every writer this tool starts or stands in front of writes the program somewhere else first
+  and renames the finished file or directory into place,
+  so the file it holds open for writing is never the path a start resolves.
+  The launcher placement held its temporary name `.program.<pid>.bin` open for 9.6 ms
+  and then renamed it.
+  A copy into the hidden staging directory held the staged file open for 2.9 ms and 3.5 ms in two runs,
+  and that copy is the shape of both the gunzipped and the plain download.
+  `tar --extract` held the staged file open for 20.1 ms,
+  and the staging directory was renamed in.
+  `uv tool install --force` writes the entry point as `bin/.tmpXXXXXX` and renames it,
+  and it is how `mpm` itself is installed and upgraded.
+  A start that meets one of those renames instead of a write finds the program absent for 2.6 ms to 3.5 ms,
+  because the archive install moves the old version directory aside before renaming the new one in,
+  and that is reported as the missing-program cause.
+  A writer that does hold the published file open is outside this tool
+  and keeps it for as long as its own work takes,
   which is why the refusal is explained rather than hidden behind a stall.
 - Explains a start that fails for good,
   instead of one bare line:
