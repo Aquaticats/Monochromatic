@@ -10,7 +10,7 @@
 //! ```ts
 //! type LoopGraph = 'folders' | 'entries';
 //! type FolderLoops = Map<Path, Set<[LoopGraph, number]>>;
-//! // loopsOfEachFolder, sharedLoops, ownLoopSearch, usesLeadingIn, routesTo and routeFrom
+//! // loopsOfEachFolder, sharedLoops, ownLoopSearch, usesLeadingIn, distancesTo and routeFrom
 //! ```
 
 /// Import the counters that pin the cost of one search,
