@@ -51,6 +51,9 @@ import {
 
  @param log - the log file's name in the log folder
 
+ @param timeout - milliseconds the command may take, which a guest script's own
+   bound replaces because the guest command *is* that script
+
  @throws Error naming the command and its status
 
  @example
@@ -63,11 +66,13 @@ export async function host({
   command,
   args,
   log,
+  timeout = hostCommandTimeoutMilliseconds,
 }: {
   readonly chosen: GuestRunFolder;
   readonly command: string;
   readonly args: readonly string[];
   readonly log: string;
+  readonly timeout?: number;
 },): Promise<void> {
   await runToLog({
     logDir: chosen.logDir,
@@ -75,7 +80,7 @@ export async function host({
     command,
     args,
     log,
-    timeout: hostCommandTimeoutMilliseconds,
+    timeout,
   },);
 }
 

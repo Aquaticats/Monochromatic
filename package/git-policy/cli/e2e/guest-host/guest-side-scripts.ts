@@ -94,6 +94,9 @@ export async function guest({
       command,
     ],
     log,
+    // The guest command is the script itself, so the script's own bound is this
+    // command's bound: a shorter one would kill a build that is still working.
+    timeout,
   },);
   return readLog({ path: join(
     chosen.logDir,

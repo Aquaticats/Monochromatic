@@ -192,8 +192,11 @@ export function probeScript({
     'set -eu',
     `export PATH=${openZfsPath}`,
     `export LD_LIBRARY_PATH=${openZfsPrefix}/lib`,
-    `H=${handler}`,
-    `R=${raisedDeadlineHandler}`,
+    // Quoted because the handler is one path and then the words that select a
+    // root mode: unquoted, the shell would run the words as a command of their
+    // own, which is what every arm built on this header met until now.
+    `H='${handler}'`,
+    `R='${raisedDeadlineHandler}'`,
     `REC=${record}`,
     `CONF=${configuration}`,
     `SRC='${probeDataset}@ready'`,
