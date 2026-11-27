@@ -156,6 +156,17 @@
 //!   and the removal of stages an interrupted copy left behind.
 //! - `worktree_copy_stage_claim_reaping.rs`:
 //!   the judging of stage claims and the removal of the stages that interrupted copies left behind.
+//! - `worktree_copy_stage_file_copying.rs`:
+//!   creating one file in the stage:
+//!   the private directories it lands in,
+//!   the clone request that copies its bytes when the filesystem can,
+//!   the exclusive creation that fills it,
+//!   and the change time that proves a clone's bytes.
+//! - `worktree_copy_stage_entry_copying.rs`:
+//!   copying one manifest entry into the stage:
+//!   a file's bytes,
+//!   a link's text written for its new place,
+//!   or the answer that the source no longer holds it.
 //! - `worktree_copy_stage_leaf_copying.rs`:
 //!   the copying of a staged snapshot's files and links into the stage,
 //!   one worker per slice of the manifest.
@@ -275,6 +286,21 @@ pub mod worktree_copy_compare;
 /// The private,
 /// validated stage of one source's ignored state beside a destination worktree.
 pub mod worktree_copy_stage;
+
+/// Creating one file in the stage:
+/// the private directories it lands in,
+/// the clone request that copies its bytes when the filesystem can,
+/// the exclusive creation that fills it,
+/// and the change time that proves a clone's bytes.
+#[cfg(unix)]
+pub mod worktree_copy_stage_file_copying;
+
+/// Copying one manifest entry into the stage:
+/// a file's bytes,
+/// a link's text written for its new place,
+/// or the answer that the source no longer holds it.
+#[cfg(unix)]
+pub mod worktree_copy_stage_entry_copying;
 
 /// The copying of a staged snapshot's files and links into the stage,
 /// one worker per slice of the manifest.
@@ -498,6 +524,7 @@ pub mod worktree_removal_of_a_bound_clone;
 /// and the pending check.
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
+
 /// The records of an interrupted copy that cannot be read:
 /// each is moved aside with one line,
 /// what it named is found again from the records beside it where it can be,
