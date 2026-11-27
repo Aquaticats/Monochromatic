@@ -96,6 +96,13 @@
 //!   the read-only comparison of the old tree of a conversion with the installed one.
 //! - `worktree_convert_filled_stages.rs`:
 //!   what a conversion does about a stage container another command is filling below the tree it would swap or delete.
+//! - `worktree_convert_journal_text.rs`:
+//!   the shape of one conversion's journal,
+//!   and the text it is written as.
+//! - `worktree_convert_journal_writes.rs`:
+//!   writing a conversion's journal into a file of its own,
+//!   reading it back,
+//!   and sweeping a temporary file a killed write left.
 //! - `worktree_convert_journal.rs`:
 //!   the journal of a conversion and the retirement of the kernel lock file older releases left.
 //! - `worktree_convert_remove.rs`:
@@ -1071,7 +1078,18 @@ pub mod worktree_convert_unrecorded_stage;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;
 
-/// The journal of a conversion and the retirement of the kernel lock file older releases left.
+/// The shape of one conversion's journal,
+/// and the text it is written as.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_journal_text;
+
+/// Writing a conversion's journal into a file of its own,
+/// reading it back,
+/// and sweeping a temporary file a killed write left.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_journal_writes;
+
+/// The claim a conversion takes and the retirement of the kernel lock file older releases left.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
 
