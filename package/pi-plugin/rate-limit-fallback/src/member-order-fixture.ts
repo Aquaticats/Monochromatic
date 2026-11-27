@@ -40,12 +40,13 @@ function targetOf({
 }
 
 /**
- Writer members in the owner's order of 2026-11-26
- (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order":
- "Qwen, opencode-go, flex (Recommended)").
+ Writer members, the reviewer's list the owner asked for on 2026-11-27
+ (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+ "The writer's members become the reviewer's": "Change writer's list to match the reviewer's list.").
  Spelled out here rather than read from the package's pool table, so a pool change fails a test.
  */
 export const WRITER_TARGETS: readonly [
+  Model<Api>,
   Model<Api>,
   Model<Api>,
   Model<Api>,
@@ -53,6 +54,10 @@ export const WRITER_TARGETS: readonly [
   targetOf({
     provider: 'qwen-token-plan-individual',
     id: 'deepseek-v4.1-flash-1017',
+  },),
+  targetOf({
+    provider: 'synthetic',
+    id: 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017',
   },),
   targetOf({
     provider: 'opencode-go',
@@ -65,7 +70,7 @@ export const WRITER_TARGETS: readonly [
 ];
 
 /**
- Reviewer members in preference order, unchanged by the 2026-11-19 writer decision.
+ Reviewer members in preference order, which the writer's list now matches.
  */
 export const REVIEWER_TARGETS: readonly [
   Model<Api>,
