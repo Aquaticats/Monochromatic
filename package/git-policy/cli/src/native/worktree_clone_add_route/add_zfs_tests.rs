@@ -11,6 +11,14 @@ use super::{
     refuse_any_element,
     the_clones_mountpoint_failure,
 };
+use crate::source_guard::{
+    HoldingLine,
+    MayHold,
+    anchors_the_scope_no_longer_holds,
+    lines_holding_one_of,
+    lines_no_entry_excuses,
+    release_sources_under,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
     CloneObjectFacts,
     DMU_OBJECT_SET_FILESYSTEM,
@@ -211,32 +219,153 @@ fn a_clone_whose_mountpoint_is_not_the_pair_is_reported() {
     assert!(reported.contains("has no `source` key"), "{reported}");
 }
 
+/// What:
+///  `THE_ADD_ZFS_MODULE` names the release sources of the pool route's calls:
+///  the route,
+///  the answers the pool gives while it is made,
+///  and the pool's own inventories.
+/// Why:
+///  The ban below is about the pool route,
+///  and the alpha.48 split moved nine items out of `add_zfs.rs` into `add_zfs_pool_answers.rs` and
+///  `add_zfs_inventories.rs`,
+///  so the scope is stated as a prefix rather than as the one file it used to be
+///  (issue 6599).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_ADD_ZFS_MODULE = ['worktree_clone_add_route/add_zfs'];
+/// ```
+const THE_ADD_ZFS_MODULE: &[&str] = &["worktree_clone_add_route/add_zfs"];
+
+/// What:
+///  `THE_CLONE_REQUEST` is the one call that makes the clone.
+/// Why:
+///  The request is made once and carries no property list,
+///  and the count is what says the request is still the one call it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_CLONE_REQUEST = 'self.device.clone(\'';
+/// ```
+const THE_CLONE_REQUEST: &str = "self.device.clone(";
+
+/// What:
+///  `THE_LIST_IT_CARRIES` is the arguments the one clone request is made with.
+/// Why:
+///  `target, origin, None` is what says the request passes no property list,
+///  which is the delegation the design forbids this account.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_LIST_IT_CARRIES = 'target, origin, None';
+/// ```
+const THE_LIST_IT_CARRIES: &str = "target, origin, None";
+
+/// What:
+///  `THE_PROPERTY_THAT_IS_NOT_SENT` is the one property the request must not build.
+/// Why:
+///  A `mountpoint` property would make the pool choose where the clone goes,
+///  which is the delegation the account does not make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_PROPERTY_THAT_IS_NOT_SENT = ['add_str("mountpoint"'];
+/// ```
+const THE_PROPERTY_THAT_IS_NOT_SENT: &[&str] = &["add_str(\"mountpoint\""];
+
+/// What:
+///  `MAY_HOLD` is empty:
+///  no file of the pool route builds a property list.
+/// Why:
+///  The ban reaches every file the route was split into,
+///  so a file added here fails until a reader decides whether that property answers,
+///  and that decision is what an entry in this list would record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAY_HOLD: MayHold[] = [];
+/// ```
+const MAY_HOLD: &[MayHold] = &[];
+
+/// What:
+///  `SCOPE_ANCHORS` is the text that proves the scope still reaches the request this ban was written for.
+/// Why:
+///  A prefix that reached nothing would pass every tree,
+///  and the clone call is what the property's absence is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SCOPE_ANCHORS = [['self.device.clone(', 'no file of the pool route makes the clone any more']];
+/// ```
+const SCOPE_ANCHORS: &[(&str, &str)] = &[(
+    THE_CLONE_REQUEST,
+    "no release file of the pool route makes the clone any more, so this ban reaches nothing",
+)];
+
 /// The clone request carries no property, which is the delegation the design
-/// forbids this account.
+/// forbids this account,
+/// in every file the split made of the route.
 #[test]
 fn the_clone_request_sends_no_property() {
-    let source: &str = include_str!("add_zfs.rs");
-    let code: Vec<&str> = source
-        .lines()
-        .map(str::trim_start)
-        .filter(|line| return !line.starts_with("//"))
-        .collect();
-    let joined: String = code.join("\n");
-    assert_eq!(
-        joined.matches("self.device.clone(").count(),
-        1,
-        "the clone request is made once: {joined}"
-    );
-    let request: &str = joined
-        .split("self.device.clone(")
-        .nth(1)
-        .expect("the request is there");
+    let sources: Vec<(String, String)> =
+        release_sources_under(THE_ADD_ZFS_MODULE).expect("the crate's release sources");
+    let abandoned: Vec<String> =
+        anchors_the_scope_no_longer_holds(sources.as_slice(), SCOPE_ANCHORS);
     assert!(
-        request.starts_with("target, origin, None"),
+        abandoned.is_empty(),
+        "the scope reached no file holding what this ban is about:\n{}",
+        abandoned.join("\n")
+    );
+    let holding = lines_holding_one_of(sources.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT);
+    let unexplained: Vec<String> = lines_no_entry_excuses(holding.as_slice(), MAY_HOLD);
+    assert!(
+        unexplained.is_empty(),
+        "no `mountpoint` property is written:\n{}",
+        unexplained.join("\n")
+    );
+    let requests: Vec<HoldingLine> = lines_holding_one_of(sources.as_slice(), &[THE_CLONE_REQUEST]);
+    assert_eq!(
+        requests.len(),
+        1,
+        "the clone request is made once, and this scope holds {} of them: {}",
+        requests.len(),
+        requests
+            .iter()
+            .map(|held| return format!("{}:{}", held.file, held.number))
+            .collect::<Vec<String>>()
+            .join(", ")
+    );
+    let request: &str = &requests[0].line[requests[0]
+        .line
+        .find(THE_CLONE_REQUEST)
+        .expect("the line holds the call it was found by")..];
+    assert!(
+        request.starts_with(format!("{THE_CLONE_REQUEST}{THE_LIST_IT_CARRIES}").as_str()),
         "the request passes no property list: {request}"
     );
+}
+
+/// The scan flags a property list a split carried into a receiver,
+/// and reads the one request as no finding.
+#[test]
+fn the_scan_flags_a_property_in_a_receiver_file() {
+    let planted: Vec<(String, String)> = vec![(
+        String::from("worktree_clone_add_route/add_zfs_planted.rs"),
+        String::from(
+            "fn planted(list: &mut NvList) { list.add_str(\"mountpoint\", \"/tank/clones\"); }\n",
+        ),
+    )];
+    let holding = lines_holding_one_of(planted.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT);
     assert!(
-        !joined.contains("add_str(\"mountpoint\""),
-        "no `mountpoint` property is written: {joined}"
+        !lines_no_entry_excuses(holding.as_slice(), MAY_HOLD).is_empty(),
+        "a property list in a file the route's split made is a finding"
+    );
+    let request: Vec<(String, String)> = vec![(
+        String::from("worktree_clone_add_route/add_zfs.rs"),
+        String::from("fn made() { let _clone = self.device.clone(target, origin, None); }\n"),
+    )];
+    assert!(
+        lines_holding_one_of(request.as_slice(), THE_PROPERTY_THAT_IS_NOT_SENT).is_empty(),
+        "the request the route makes is no property list"
     );
 }
