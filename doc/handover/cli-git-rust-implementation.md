@@ -137,6 +137,12 @@ and each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
   (`doc/planning/pi-round-start-failures-and-what-would-stop-them.md`, "Open question for the owner").
 
 Waiting for a place under the 64, in this order:
+four of the six rounds that restate the scratch evidence repository documents cite
+(`restate-the-scratch-evidence-cited-by-<family>`; the two for decision records started at 19:30),
+which go first because the cleanup deletes what they read at 2026-11-27T15:26:37-05:00;
+then the driver's worktree launcher fix (`subagent-driver-worktree-launcher-skips-pnpm-install-after-the-add`,
+issue 6339's `pnpm install` after the add), after which rounds start through that launcher;
+then seven split rounds:
 `split-mpm-shadow-cli-files-over-the-line-budget-part-3-of-3`,
 `split-music-player-desktop-app-files-over-the-line-budget-part-3-of-3`,
 `split-forbidden-strings-core.bench-files-over-the-line-budget`,
@@ -144,7 +150,7 @@ Waiting for a place under the 64, in this order:
 `split-music-player-truepeak-core-files-over-the-line-budget`,
 `split-ide-app-files-over-the-line-budget-part-4-of-4`,
 `split-cargo-shadow-cli-files-over-the-line-budget-part-4-of-4`.
-Their branches are `refactor/<package>-split-files-over-the-line-budget[-part-<n>-of-<m>]`.
+The split rounds' branches are `refactor/<package>-split-files-over-the-line-budget[-part-<n>-of-<m>]`.
 
 Ended and in their merge checks at this time:
 issue 6522 (the service client controls share one manager and stop flag)
