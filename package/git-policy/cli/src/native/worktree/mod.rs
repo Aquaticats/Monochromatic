@@ -358,6 +358,12 @@
 //! - `worktree_removal_only_deletions.rs`:
 //!   whether everything Git reports about a worktree is an entry missing from it,
 //!   which is the state a removal that was killed in the middle leaves.
+//! - `worktree_removal_goes_around_a_foreign_volume_reports.rs`:
+//!   the words a removal that went around a volume prints,
+//!   and the line a later add adds to Git's own refusal.
+//! - `worktree_removal_goes_around_a_foreign_volume_records.rs`:
+//!   the record such a removal leaves,
+//!   and the words a later command shows for it once.
 //! - `worktree_removal_goes_around_a_foreign_volume.rs`:
 //!   the removal that goes around a subvolume or a mount point it did not make,
 //!   and the words it says about what it left.
@@ -719,8 +725,17 @@ pub mod worktree_removal_clears_the_pool;
 /// taken out of a worktree's administrative directory before that worktree is removed.
 pub mod worktree_removal_clears_the_ahead_pool;
 
-/// The removal that goes around a subvolume or a mount point it did not make,
-/// and the words it says about what it left.
+/// The words a removal that went around a volume prints,
+/// and the line a later add adds to Git's own refusal.
+pub mod worktree_removal_goes_around_a_foreign_volume_reports;
+
+/// The record such a removal leaves,
+/// and the words a later command shows for it once.
+pub mod worktree_removal_goes_around_a_foreign_volume_records;
+
+/// The removal that goes around a subvolume or a mount point it did not make:
+/// the look for those volumes,
+/// and the report of a removal that could not finish.
 pub mod worktree_removal_goes_around_a_foreign_volume;
 
 /// The record a removal writes before its pass empties a worktree around a volume,
