@@ -191,29 +191,41 @@ pub(crate) fn recovery_sentence(
 }
 
 /// What:
-/// The sentence the install report prints when a recovery put an older version at its name and the newest-only rule then
-/// removed it.
+/// The sentence the install report prints for one version the newest-only rule removed after a recovery put a copy at a
+/// version's name:
+/// the version,
+/// whether this run is the one that put it there,
+/// and the rule that removed it.
 /// Why:
-/// The same run warns that older repository tools are never kept,
-/// so the removal is a second thing a person should see rather than a silent finish.
+/// The rule removes the version this run recovered as well as a version that was installed before this run,
+/// so one wording for both told a person the older version was the one that came back in this run;
+/// the sentence says what the version was in this run,
+/// which is the one fact a reader cannot see from the run's other lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function olderVersionsRemovedSentence(id: string, versions: string[]): string
+/// export function olderVersionRemovedSentence(id: string, version: string, putThereByThisRun: boolean): string
 /// ```
-pub(crate) fn older_versions_removed_sentence(
+pub(crate) fn older_version_removed_sentence(
     id: &str,
-    versions: &[String],
+    version: &str,
+    put_there_by_this_run: bool,
 ) -> String {
-    if versions.len() == 1 {
-        return format!(
-            "removed the older {id} {} that this run recovered, because a newer one is installed and an older repository tool is never kept",
-            versions[0]
-        );
-    }
+    // What: `if put_there_by_this_run { ... } else { ... }` picks the clause that says what the version was.
+    // Why: a version this run published is one a recovery brought back, and any other version was there before the run
+    //  started.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const was = putThereByThisRun ? 'that this run recovered' : 'that was installed before this run';
+    // ```
+    let was: &str = if put_there_by_this_run {
+        "that this run recovered"
+    } else {
+        "that was installed before this run"
+    };
     return format!(
-        "removed the older {id} versions {}, because a newer one is installed and an older repository tool is never kept",
-        versions.join(", ")
+        "removed the older {id} {version} {was}, because a newer one is installed and an older repository tool is never kept"
     );
 }
 

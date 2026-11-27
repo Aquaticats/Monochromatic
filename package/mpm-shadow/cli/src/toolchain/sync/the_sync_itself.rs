@@ -107,7 +107,7 @@ use super::a_control_holds_the_instant_between_the_two_steps::reached_the_instan
 /// and the sentence for an older version the newest-only rule removed.
 use super::what_the_sync_did::{
     SyncReport,
-    older_versions_removed_sentence,
+    older_version_removed_sentence,
     recovery_sentence,
     replacement_warning,
 };
@@ -203,11 +203,13 @@ fn recover_a_killed_install(
 /// What:
 /// Settles the rule that an older repository-published tool is never kept after a recovery put a copy at a version's name:
 /// every version directory older than the newest finished one is removed,
-/// and the report says so.
+/// the tool's `current` link is moved to that version before anything is removed,
+/// and the report says what went.
 /// Why:
 /// A newer version can land between the recovery's own check and its publish,
 /// and a version directory older than the newest one may already be there;
 /// the removal is the same one an install makes,
+/// in the same order that install keeps,
 /// run at the same point of the run.
 ///
 /// In TS you'd write (pseudocode):
@@ -223,33 +225,26 @@ fn settle_the_newest_only_rule(
     if !is_published_archive(tool) || !recovered.put_a_copy_at_the_version_name() {
         return;
     }
-    match remove_older_archives(
-        &ctx.scope.toolchain_root,
-        &tool.declaration.id,
-        first_bin_of_tool(tool),
-    ) {
-        Ok(removed) if removed.is_empty() => {}
-        Ok(removed) => {
-            // What: `.iter().map(...).collect()` builds the version names out of the directories removed, since the
-            //  report names versions and the removal answers paths (TS: `removed.map((path) => basename(path))`).
-            // Why: the sentence a person reads names the versions, not the directories they sit in.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const versions = removed.map((directory) => basename(directory));
-            // ```
-            let versions: Vec<String> = removed
-                .iter()
-                .map(|directory| return file_name_text(directory))
-                .collect();
-            report.recovered.push(older_versions_removed_sentence(
-                &tool.declaration.id,
-                &versions,
-            ));
-        }
-        Err(error) => report
+    // What: the link is moved to the newest finished version first, which is the order `install_archive` keeps.
+    // Why: every start goes through `current`, so a run that removed an older version before moving the link would leave
+    //  a start in between failing, and a run killed there would leave every start failing until the next `install`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // pointCurrentAtNewestOf(ctx.scope.toolchainRoot, tool);
+    // ```
+    if let Err(error) = point_current_at_newest_of(&ctx.scope.toolchain_root, tool) {
+        // What: the removal below does not run when the link could not be moved.
+        // Why: a version removed under a link that still names it is the state this order exists to prevent.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // report.failed.push([tool.declaration.id, error.message]); return;
+        // ```
+        report
             .failed
-            .push((tool.declaration.id.clone(), error.message)),
+            .push((tool.declaration.id.clone(), error.message));
+        return;
     }
     // What: the one instant between this rule's two steps, which a control stands in and may end a run at.
     // Why: a start made there and a run killed there are the two facts the order of the two steps decides, and neither
@@ -260,6 +255,42 @@ fn settle_the_newest_only_rule(
     // reachedTheInstantBetweenTheTwoSteps(ctx.scope);
     // ```
     reached_the_instant_between_the_two_steps(ctx.scope);
+    match remove_older_archives(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        first_bin_of_tool(tool),
+    ) {
+        Ok(removed) if removed.is_empty() => {}
+        Ok(removed) => {
+            // What: `.iter().map(...)` asks each removed directory for its version name, since the report names versions
+            //  and the removal answers paths (TS: `removed.forEach((directory) => ...)`).
+            // Why: the sentence a person reads names the version, not the directory it sat in.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // for (const directory of removed) { const version = basename(directory); ... }
+            // ```
+            for directory in &removed {
+                let version: String = file_name_text(directory);
+                // What: the sentence says whether this run put that version at its name.
+                // Why: the rule removes a version that was installed before the run as well as the one a recovery
+                //  published, and only the second one is a version this run recovered.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // report.recovered.push(olderVersionRemovedSentence(tool.declaration.id, version, version === tool.version));
+                // ```
+                report.recovered.push(older_version_removed_sentence(
+                    &tool.declaration.id,
+                    &version,
+                    version == tool.version,
+                ));
+            }
+        }
+        Err(error) => report
+            .failed
+            .push((tool.declaration.id.clone(), error.message)),
+    }
 }
 
 /// What:
@@ -354,7 +385,19 @@ pub fn sync_tools(
             // A recovery that failed is a warning here, not a failure: the version's name holds the finished copy the
             // lock asks for, and what went wrong is a hidden sibling this run left or could not remove.
             if let Some(problem) = recovery_problem {
-                report.warnings.push(problem);
+                // What: the recovery's own words, followed by the fact that left them without a consequence.
+                // Why: its last clause says a later run publishes the copy it kept,
+                //  and a version already at its name means a later run publishes nothing from that copy and removes it.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // report.warnings.push(`${problem}; ${id} ${version} is at its name already, so a later run publishes nothing from that copy and removes it`);
+                // ```
+                let at_the_name: &str = observed.as_deref().unwrap_or(tool.version.as_str());
+                report.warnings.push(format!(
+                    "{problem}; {} {at_the_name} is at its name already, so a later run publishes nothing from that copy and removes it",
+                    tool.declaration.id
+                ));
             }
             continue;
         }
@@ -362,7 +405,18 @@ pub fn sync_tools(
             Ok(()) => {
                 report.installed.push(tool.declaration.id.clone());
                 if let Some(problem) = recovery_problem {
-                    report.warnings.push(problem);
+                    // What: the recovery's own words, followed by what this run then did.
+                    // Why: its last clause says the copy at the version's name "is as it was" and that running the command
+                    //  again publishes it, and this run downloaded and installed that version itself instead.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, so a later run publishes nothing from that copy and removes it`);
+                    // ```
+                    report.warnings.push(format!(
+                        "{problem}; the install this run went on to make put {} {} at its name, so a later run publishes nothing from that copy and removes it",
+                        tool.declaration.id, tool.version
+                    ));
                 }
             }
             Err(error) => {

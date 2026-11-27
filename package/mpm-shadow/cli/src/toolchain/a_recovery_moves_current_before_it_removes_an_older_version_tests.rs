@@ -52,6 +52,7 @@ use rustix::io::Errno;
 use super::archive_staging::{
     Owner,
     Plant,
+    RECOVERED_PURPOSE,
     RenameRefused,
     STAGING_PURPOSE,
     clear_the_plant,
@@ -275,7 +276,7 @@ fn write_a_finished_copy(
         .expect("make the folder a release archive unpacks into");
     write_program(
         &into.join(release_folder(version)).join(BIN),
-        format!("#!/bin/sh\necho {}\n", what_the_program_prints(version)).as_bytes(),
+        format!("#!/bin/sh\necho '{}'\n", what_the_program_prints(version)).as_bytes(),
     );
     link_stable_programs(tool, into).expect("the program's own name inside the copy");
     write_complete_marker(into, ID, version, &release_digest(version))
@@ -317,6 +318,71 @@ fn the_killed_installs_finished_copy(
     );
     write_a_finished_copy(rig, version, &hidden);
     return tool_dir;
+}
+
+/// What:
+/// The claim a failed recovery left in the tool's directory,
+/// found by the version and the purpose its name carries.
+/// Why:
+/// The name also carries the pair of the process that made it,
+/// which this file cannot know,
+/// so the claim is found rather than built.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theClaimTheFailedRecoveryLeft(rig: Rig, version: string): string {
+///   return readdirSync(theToolDirectory(rig.scope.toolchainRoot)).find((name) => name.startsWith(`.${version}.recovered.`));
+/// }
+/// ```
+fn the_claim_the_failed_recovery_left(
+    rig: &Rig,
+    version: &str,
+) -> PathBuf {
+    let tool_dir: PathBuf = the_tool_directory(&rig.scope.toolchain_root);
+    let prefix: String = format!(".{version}.recovered.");
+    for entry in fs::read_dir(&tool_dir)
+        .expect("the tool's directory")
+        .flatten()
+    {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with(&prefix) {
+            return entry.path();
+        }
+    }
+    panic!("the failed recovery left no claim in {}", tool_dir.display());
+}
+
+/// What:
+/// Gives that claim the pair of an installer that has ended,
+/// which is what a later run reads once the run that claimed it is gone.
+/// Why:
+/// Two runs of one test are one process,
+/// so the claim a real later run finds dead still names this process;
+/// this stand-in is the only part of the fixture that is not a real state,
+/// and the report's transcripts show the same removal from two real runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function asAfterTheClaimingRunEnded(rig: Rig, version: string): string {
+///   const claim = theClaimTheFailedRecoveryLeft(rig, version);
+///   const ended = hiddenSibling(join(theToolDirectory(rig.scope.toolchainRoot), version), RECOVERED_PURPOSE, anInstallerThatNoLongerRuns());
+///   renameSync(claim, ended);
+///   return ended;
+/// }
+/// ```
+fn as_after_the_claiming_run_ended(
+    rig: &Rig,
+    version: &str,
+) -> PathBuf {
+    let claim: PathBuf = the_claim_the_failed_recovery_left(rig, version);
+    let tool_dir: PathBuf = the_tool_directory(&rig.scope.toolchain_root);
+    let ended: PathBuf = hidden_sibling(
+        &tool_dir.join(version),
+        RECOVERED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::rename(&claim, &ended).expect("give the claim the pair of an installer that ended");
+    return ended;
 }
 
 /// What:
@@ -515,7 +581,7 @@ fn another_install_puts_the_newer_version_in_place(
             .join(release_folder(THE_VERSION_A_KILL_LEFT_FINISHED))
             .join(BIN),
         format!(
-            "#!/bin/sh\necho {}\n",
+            "#!/bin/sh\necho '{}'\n",
             what_the_program_prints(THE_VERSION_A_KILL_LEFT_FINISHED)
         )
         .as_bytes(),
@@ -756,13 +822,20 @@ fn the_sentence_names_the_recovered_version_when_that_version_is_the_older_one()
         ),
         "the newer version the other install made is the one that stays: {report:?}"
     );
-    // The install that follows cannot have the removed version, since this fixture serves no release for it.
+    // What: the run ends warning that its lock pins the version the rule just removed.
+    // Why: a version newer than the locked one counts as satisfying it,
+    //  so the run reports the newer one as what runs and warns about the pin rather than downloading anything.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // assert(report.warnings.some((warning) => warning.includes('is locked at 1.0.0')));
+    // ```
     assert!(
-        report
-            .failed
-            .iter()
-            .any(|(_id, message)| return message.contains("download failed")),
-        "the run then fails to install the version it removed, and says why: {report:?}"
+        report.warnings.iter().any(|warning| {
+            return warning.contains(&format!("is locked at {THE_VERSION_INSTALLED_BEFORE}"))
+                && warning.contains(&format!("but {THE_VERSION_A_KILL_LEFT_FINISHED} runs"));
+        }),
+        "the run ends warning that its lock pins the version the rule removed: {report:?}"
     );
 }
 
@@ -797,7 +870,9 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
     let warning: &String = report
         .warnings
         .iter()
-        .find(|warning| return warning.contains("that copy is as it was"))
+        .find(|warning| {
+            return warning.contains("running the command again publishes it without downloading");
+        })
         .unwrap_or_else(|| panic!("the recovery's own words are not reported: {report:?}"));
     assert!(
         warning.contains(&format!(
@@ -816,13 +891,18 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         ),
         "{report:?}"
     );
-    // What: the run after this one, which is what the sentence promises.
-    // Why: the words above claim a later run publishes nothing from that copy and removes it.
+    // What: the copy the failed recovery kept gets the pair of an installer that has ended, which is what a later run
+    //  reads once this run's process is gone.
+    // Why: both runs here are one process, so the claim carries this process's own pair and a real later run would leave
+    //  it alone; this is a stand-in for the first run having ended, and the run after a killed install is the state the
+    //  transcript in the report shows.
     //
     // In TS you'd write (pseudocode):
     // ```ts
+    // asAfterTheClaimingRunEnded(rig, THE_VERSION_A_KILL_LEFT_FINISHED);
     // const later = syncTools(context_of(rig, scope, lock));
     // ```
+    as_after_the_claiming_run_ended(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
     let later: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
     assert!(later.failed.is_empty(), "{later:?}");
     assert_eq!(
