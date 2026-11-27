@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T08:33:39-05:00
+## The state at 2026-11-27T08:39:47-05:00
 
-`main` was `21d7eba912`.
+`main` was `7114b6bdba`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 174 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 175 more by this time.
 
 ### Rounds running
 
@@ -129,11 +129,16 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   ("What the rounds found");
 - for the wrapper package's lint,
   which was red on `main` with nothing running it,
-  four rounds for issue 6581
-  (`issue-6581-oxlint-clean-guest-scripts-part-<n>-of-3`
-  and `issue-6581-oxlint-clean-fence-measurement-and-service-manager-scripts`,
+  three rounds for the guest scripts of issue 6581
+  (`issue-6581-oxlint-clean-guest-scripts-part-<n>-of-3`,
   each writing `Refs #6581`,
-  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`);
+  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`;
+  the round for the `perf/` and service-manager scripts is merged as `2218beae78`,
+  and `lint:oxlint` then reported 594 errors,
+  all in those guest scripts);
+- `issue-6587-service-manager-proofs-run-git-as-the-owner-of-what-it-writes`
+  and `issue-6588-container-start-sites-ledger-holds-the-replaced-image-script`
+  ("What the rounds found");
 - `issue-6583-gate-suite-container-gets-a-measured-memory-bound`,
   which runs gates of its own;
 - in `cargo-shadow`:
@@ -426,7 +431,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6586,
+  issues 6524 to 6588,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -516,6 +521,26 @@ and the two `truepeak` files wait on their branch.
   the test that would have said so had been dying before it compared anything.
   They are repaired (`64e3eb1a55`),
   and that they still compile and that a campaign notices each is owed to the next `native:mutation:planted` run.
+- This host's AppArmor profile for Git confines a container's `/usr/bin/git` as well,
+  since it attaches by path.
+  The service-manager install proof runs Git as the container's root in a directory its user owns,
+  which needs a capability the profile refuses on purpose,
+  so the proof has not run to its end since 2026-11-13 (issue 6587;
+  `doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
+  A round's session cannot read `/var/log/audit/audit.log`,
+  where these records are and the kernel journal's are not:
+  when a round reports a refusal only one program meets,
+  the coordinator reads that log.
+- `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again:
+  issue 6562's new `bin/native-gate-replaced-image.ts` is not in it,
+  and its unit test is red on `main` (issue 6588).
+- The two fence measurement scripts of 2026-11-21 under `perf/` can no longer measure what they measured:
+  the crate no longer reads their switch,
+  and this host takes another rung
+  (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+  "The harness after 2026-11-27").
+  They are lint-clean and kept;
+  whether they are removed is the owner's.
 - `cargo-shadow`'s tests left processes and units behind.
   At 2026-11-27T07:05-05:00 the host held 25 orphaned shells,
   each polling a release file every 50 ms for up to twelve hours,
