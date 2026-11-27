@@ -56,6 +56,10 @@
 //! - `policy_dependent_version_commit.rs`:
 //!   the commit path's notes,
 //!   real-index listing and corrections.
+//! - `policy_dependent_version_outcomes.rs`:
+//!   what the check answers with:
+//!   its outcomes,
+//!   findings and corrections.
 //! - `policy_dependent_version.rs`:
 //!   the `mono/dependent-version-bump` check over a lifecycle's candidate state.
 //!
@@ -126,6 +130,11 @@ pub mod policy_added_path;
 /// The commit path's notes,
 ///  real-index listing and corrections.
 pub mod policy_dependent_version_commit;
+
+/// What the `mono/dependent-version-bump` check answers with:
+/// its outcomes,
+/// findings and corrections.
+pub mod policy_dependent_version_outcomes;
 
 /// The `mono/dependent-version-bump` check over a lifecycle's candidate state.
 pub mod policy_dependent_version;
