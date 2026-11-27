@@ -58,7 +58,7 @@ use std::{
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type UnlistableFound = { file: Path; written: string; isFolder: boolean; reason: UnlistableName; shape?: string };
+/// type UnlistableFound = { file: Path; written: string; kind: UnlistableKind; reason: UnlistableName; shape?: string };
 /// ```
 #[derive(Clone, Debug)]
 pub(crate) struct UnlistableFound {
@@ -66,12 +66,33 @@ pub(crate) struct UnlistableFound {
     pub(crate) file: PathBuf,
     /// The path of the offending name, written from the package folder.
     pub(crate) written: String,
-    /// Whether the offending name is a folder's rather than the file's own.
-    pub(crate) is_folder: bool,
+    /// Which of the package's names this is, so the sentence says what to rename.
+    pub(crate) kind: UnlistableKind,
     /// Why no list line could hold the name.
     pub(crate) reason: UnlistableName,
     /// The one shape of the arrow words, when that is the reason.
     pub(crate) shape: Option<&'static str>,
+}
+
+/// What:
+///  Which of a package's names a refusal points at.
+/// Why:
+///  The sentence that follows says what to rename,
+///  and a folder, a module file and an entry of a `uses` folder are three different things to go and look at:
+///  a reader told to rename "the file" for an entry of a `uses` folder looks for a module file that is not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnlistableKind = 'folder' | 'file' | 'link-entry';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UnlistableKind {
+    /// A folder of a module path.
+    Folder,
+    /// The module file a path ends in.
+    File,
+    /// An entry of a `uses` folder, which is a link or a name that should be one.
+    LinkEntry,
 }
 
 /// What:
@@ -134,9 +155,13 @@ fn unlistable_path(
         let Some((index, reason)) = unlistable else {
             continue;
         };
-        // What: whether the name to change is a folder's or the file's own.
+        // What: which name to change, which is a folder of the path or the name the path ends in.
         // Why: the sentence that follows says which one to rename.
-        let is_folder: bool = index != last;
+        let kind: UnlistableKind = if index == last {
+            UnlistableKind::File
+        } else {
+            UnlistableKind::Folder
+        };
         // What: the one shape of the arrow words, which only a folder name can have.
         // Why: the arrow case spells a single cause, so the sentence must not list four.
         let shape: Option<&'static str> = match reason {
@@ -148,7 +173,7 @@ fn unlistable_path(
         return Some(UnlistableFound {
             file: path.clone(),
             written: parts[..=index].join("/"),
-            is_folder,
+            kind,
             reason,
             shape,
         });
@@ -186,17 +211,18 @@ pub(crate) fn unlistable_name(
 ///  An entry is no path and never appears on a `uses` line,
 ///  so its key writes its name as the source does:
 ///  a backslash or the arrow words are no reason to refuse it.
-///  The arrow words of a folder above it are refused only when a rule reading a `uses` line is selected,
-///  which is the caller's answer to pass through.
+///  A folder above an entry is one every module file of the package sits inside or under,
+///  and this walk runs only after `unlistable_name` found no such folder unlistable,
+///  so the arrow words of a folder name are asked about here with `false`:
+///  the answer cannot differ, and passing a selection through would only suggest it could.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableLinkName(tree: ModuleTree, base: Path, arrowWordsAreRefused: boolean): UnlistableFound | undefined;
+/// function unlistableLinkName(tree: ModuleTree, base: Path): UnlistableFound | undefined;
 /// ```
 pub(crate) fn unlistable_link_name(
     tree: &ModuleTree,
     base: &Path,
-    arrow_words_are_refused: bool,
 ) -> Option<UnlistableFound> {
     let mut folders: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
     for index in 0..tree.modules.len() {
@@ -213,7 +239,15 @@ pub(crate) fn unlistable_link_name(
         }
     }
     paths.sort();
-    // What: an entry of a `uses` folder is a name and no path, so only the character the reader trims and a line break forbid it.
+    // What: the first name of that folder no list line could hold.
     // Why: its key writes the entry as written, and no `uses` line names an entry.
-    return unlistable_path(paths.as_slice(), base, arrow_words_are_refused);
+    let mut found: Option<UnlistableFound> = unlistable_path(paths.as_slice(), base, false);
+    // What: that name marked as an entry of a `uses` folder, which the last part of such a path always is.
+    // Why: the sentence says what to rename, and this name is a link rather than a module file.
+    if let Some(item) = found.as_mut()
+        && item.kind == UnlistableKind::File
+    {
+        item.kind = UnlistableKind::LinkEntry;
+    }
+    return found;
 }
