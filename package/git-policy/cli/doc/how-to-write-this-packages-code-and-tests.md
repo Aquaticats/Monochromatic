@@ -405,6 +405,41 @@ and a control that hands the writing code no place of its own writes the person'
 `testing/test_support_tests.rs`'s `the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture`
 starts that code and refuses a place outside the fixture root.
 
+## A plan a control plants comes from the removal's writer
+
+A control that needs a removal's destruction plan plants it through
+`testing/the_destruction_plan_a_control_plants.rs`,
+which builds the plan a removal's first write leaves and publishes it with
+`PlanFolder::publish`:
+the writer holds every field the grammar holds,
+and `publish` reads the record back through the grammar's parser before it lands,
+so no control can plant a plan the design refuses.
+That file is included by `#[path]` in both test targets,
+and each crate declares `the_destruction_plans_writer` so the shared file can
+name the writer's items;
+`testing/a_planted_plans_snapshot_line.rs` adds the lines of a later history and
+stays in the library,
+because the binary controls plant a first write and nothing else.
+
+Write a plan's text by hand only where the text is the control's subject:
+a record the reader must refuse.
+Such a control plants the grammatical plan first and then takes out the one field
+or line it is about.
+
+Before 2026-11-27 the controls wrote the three or four fields the add's reader asks
+and nothing else,
+and when that reader began to require `head=` on 2026-11-25 (`fbd0d43d89`) the
+slot-state guest arm planted a plan the reader refused,
+so every assertion after its `pending-add` marker read `cannot be proved`
+(issue 6595).
+`testing/the_destruction_plan_a_control_plants_tests.rs` is the host control that
+would have caught it:
+it plants a plan and asks the add's reader and the grammar's reader what they make
+of it,
+for the first write,
+for each of the five head words,
+and for a history that ends `destroyed`.
+
 ## Own every child, end it on every path
 
 A child a test starts is the test's to end, on success, on failure and on a panic:

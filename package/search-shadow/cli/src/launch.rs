@@ -57,6 +57,8 @@ use std::path::Path;
 /// the builder for starting another program.
 use std::process::Command;
 
+/// Imports the error a refusal becomes for the caller that prints it.
+use crate::refused_start::into_error;
 /// Imports the check of the chosen program and the arrival marker of its start.
 use crate::shadow_identity::{
     StartMode,
@@ -72,7 +74,12 @@ use crate::shadow_identity::{
 /// On success the operating system swaps this process's code for the real tool,
 /// so there is no later line to run.
 /// If we ever get a return value,
-/// the swap failed and the error says why.
+/// either the start check refused the program
+/// (a shadow, or a file the system would not open)
+/// or the swap failed,
+/// and the error says which:
+/// a program that is gone keeps the system's `NotFound`,
+/// and a shadow's sentence travels as an error of the kind `Other`.
 /// Gotcha:
 /// A function whose success path never returns has no TypeScript analogue.
 /// Read the return value as "this is only what went wrong".
@@ -97,7 +104,9 @@ pub fn replace_process(
     // ```
     let vetted: Vetted = match vet(program) {
         Ok(checked) => checked,
-        Err(reason) => return io::Error::other(reason),
+        // What:     `Err(refusal)` is the start check's refusal, handed on as the error this function returns.
+        // Why:      The caller prints one line for both shapes, and a program that is gone keeps the system's `NotFound`.
+        Err(refusal) => return into_error(refusal),
     };
     let mut command: Command = vetted.command();
 

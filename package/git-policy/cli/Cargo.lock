@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.48"
+version = "0.6.1-alpha.49"
 dependencies = [
  "bytes",
  "forbidden-strings",
@@ -1390,7 +1390,7 @@ version = "0.1.3"
 
 [[package]]
 name = "monochromatic-lint"
-version = "0.5.2-alpha.19"
+version = "0.5.2-alpha.20"
 dependencies = [
  "clap",
  "globset",

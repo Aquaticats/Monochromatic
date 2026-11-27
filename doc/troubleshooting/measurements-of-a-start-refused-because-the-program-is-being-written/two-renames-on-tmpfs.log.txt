@@ -1,0 +1,30 @@
+arm two-renames-on-tmpfs: binary <scratch>/bin/a13/mpm-shadow  sha256 087df55ec17f5a0c2b2d74c3e9d07cba0bf2730acc9882a736beb4a53b5b2181  file system tmpfs  server https://127.0.0.1:29543
+delay before entering each rename: 0 ms
+exchange answered EINVAL: False
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 1: install status 0 in 0.06 s
+  the publish is two calls:
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2416902") = 0 <0.000008>
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2416902", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 <0.000007>
+  entries 34 us apart, the first call's own work took 8 us, so the version's name was absent for 26 us
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=45809 polls=55201 absent=0 old=3303 new=51898 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: two-renames-on-tmpfs-publish-1.strace.txt
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 2: install status 0 in 0.06 s
+  the publish is two calls:
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2419387") = 0 <0.000011>
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2419387", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 <0.000009>
+  entries 59 us apart, the first call's own work took 11 us, so the version's name was absent for 48 us
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=45843 polls=54674 absent=0 old=3398 new=51276 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: two-renames-on-tmpfs-publish-2.strace.txt
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 3: install status 0 in 0.06 s
+  the publish is two calls:
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2421819") = 0 <0.000008>
+    rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2421819", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 <0.000007>
+  entries 35 us apart, the first call's own work took 8 us, so the version's name was absent for 27 us
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=45877 polls=54818 absent=0 old=3316 new=51502 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: two-renames-on-tmpfs-publish-3.strace.txt
