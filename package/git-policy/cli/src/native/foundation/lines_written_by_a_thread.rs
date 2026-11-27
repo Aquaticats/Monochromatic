@@ -180,6 +180,10 @@ pub(crate) struct Queue {
     ///  leaves a stream that no wait can bring back,
     ///  and a caller that must know whether its own line reached the person
     ///  asks about that line alone.
+    /// Why only a queue whose callers wait keeps them:
+    ///  nobody reads an answer in a queue whose callers hand a line and go on,
+    ///  and a service that logged for days beside a stream that refused every line
+    ///  would keep one number per line for the life of its process.
     lost: VecDeque<u64>,
     /// Whether the system refused the thread that writes these lines,
     /// so every line is written on the thread that says it.
@@ -546,7 +550,9 @@ fn take_the_stream(queue: &'static Mutex<Queue>) -> Box<dyn Write + Send> {
 /// so exactly one movement of that number is what ends the wait,
 ///  and the wake comes after the stream took the line rather than before.
 ///  A line the stream refused is kept by its number,
-/// because the number alone cannot say whether this line or an earlier one failed.
+/// because the number alone cannot say whether this line or an earlier one failed,
+///  and only a queue whose callers wait for an answer keeps them,
+///  so the list is bounded by the callers a queue can hold at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -569,7 +575,9 @@ fn give_back(
     held.writing = false;
     if stream_is_gone {
         held.stream_is_gone = true;
-        held.lost.push_back(ticket);
+        if held.policy.callers_wait_for_their_line {
+            held.lost.push_back(ticket);
+        }
     }
     drop(held);
     ready.notify_all();
