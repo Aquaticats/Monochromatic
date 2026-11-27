@@ -3,7 +3,8 @@
 //! which push runs,
 //! what its output shows,
 //!  and how a failure is reported without failing the commit,
-//!  decided once in `push_once_awaiting` and reached from a plain thread through `push_once`.
+//!  decided once in `auto_push_awaiting.rs`,
+//! which holds both faces of the push and is where `push_once` runs.
 //! Why:
 //!  Every commit in this repository is backed up (`AGENTS.md` rule APG),
 //!  the service pushes the branch its record names and never reads `HEAD`,
@@ -28,7 +29,6 @@ use crate::auto_push_reconcile::{
 /// the failed attempt it reports and its error type.
 use crate::auto_push_single_flight::{
     PushAttempt,
-    PushGit,
     SingleFlightError,
 };
 /// The verdicts a post-commit gate kept,
@@ -46,7 +46,6 @@ use crate::push_held_back_by_a_blocked_commit::WhereThePushStops;
 /// and the making of a record's words.
 use crate::push_retry_failure::record_words;
 /// The blocked verdicts of the worktree the push is for.
-use crate::work_item_holding::BlockedVerdict;
 /// Owned OS text for Git arguments,
 /// which the controls below build their environments from.
 #[cfg(test)]
@@ -427,89 +426,6 @@ pub(crate) fn held_back_result(
 }
 
 /// What:
-///  Push a landed commit's branch once,
-///  with no coordination with other processes,
-///  from a caller that is not a task of the runtime.
-/// Why:
-///   The push itself is the one body,
-/// `push_once_awaiting`,
-/// because the service's push is a task of the runtime and every step below it starts Git,
-/// which a task cannot do synchronously.
-///  This face enters the process's runtime once and waits there,
-/// as every other synchronous face of the wrapper does,
-/// so a push is planned,
-/// sent,
-/// retried,
-/// reconciled and worded in one place and the two faces cannot answer differently.
-///   The service's push consumer is the only pusher of the repositories it serves and coalesces pending pushes of one
-///  branch into this single call,
-/// so it needs no lock.
-///   `sent_up_to` is the commit the branch named before `blocked` and `undecided` were read,
-/// and it is what a push that no verdict holds back sends:
-/// the branch may move between that reading and this push,
-/// a commit that lands in between has no verdict in the reading,
-/// and sending the branch's reference would publish it before its own gate answers.
-///   Where this process can build no runtime,
-/// or this face is called from inside the runtime,
-/// the refusal is the push's answer and nothing is sent,
-/// which is the state a start of Git refused from there leaves.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const result = pushOnce({ gitPath, cwd }, branchRef, sentUpTo, blocked, undecided);
-/// ```
-pub fn push_once(
-    git: &PushGit,
-    branch_ref: &str,
-    sent_up_to: &str,
-    blocked: &[BlockedVerdict],
-    undecided: &[String],
-    err: &mut (dyn Write + Send),
-) -> Result<AutoPushResult, SingleFlightError> {
-    // What:     `crate::lazy_runtime::run_on_runtime(future)` waits on this thread for `future` to finish on the process's one
-    //           runtime. `push_once_awaiting(...)` is that future: the push's body, whose every step awaits its Git start.
-    //           The writer it carries must travel with the future, which is why this face takes a `Send` writer.
-    // Why:      One body and one set of words, so a push cannot behave differently on the two faces.
-    // Gotcha:   `run_on_runtime` answers `Err` from inside the runtime itself ("asked for from inside itself") and where no
-    //           runtime can be built; it never runs the future there, so a task cannot reach this face.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const answered = runOnRuntime(pushOnceAwaiting({ git, branchRef, sentUpTo, blocked, undecided, err }))
-    // ```
-    let answered = crate::lazy_runtime::run_on_runtime(push_once_awaiting(
-        git, branch_ref, sent_up_to, blocked, undecided, err,
-    ));
-    // What:     `match` splits the two shapes that answer has: the push's own answer, or the runtime's refusal.
-    // Why:      The two are different error types, and a refusal is the failure the callers already report.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return answered.kind === 'refused' ? { kind: 'error', why: answered.reason } : answered.value;
-    // ```
-    return match answered {
-        // What:     `Ok(pushed)` is the push's own answer, handed on unchanged.
-        // Why:      Nothing the body decided changes on the way out.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return pushed;
-        // ```
-        Ok(pushed) => pushed,
-        // What:     `Err(refusal)` puts the runtime's refusal, in its own sentence, where a caller's start failure goes.
-        // Why:      The push did not run, so nothing was sent and nothing is reported as pushed.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return { kind: 'error', why: new Error(String(refusal)) };
-        // ```
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
-            refusal.to_string(),
-        ))),
-    };
-}
-
-/// What:
 ///  The remote-tracking reference a push of this shape updates,
 ///  or nothing when no single reference is its.
 /// Why:
@@ -608,9 +524,6 @@ pub(crate) fn reported(
         shown,
     });
 }
-
-/// The same push as a task of the runtime.
-pub use crate::auto_push_awaiting::push_once_awaiting;
 
 /// Auto-push behavior is controlled in the test module.
 #[cfg(test)]

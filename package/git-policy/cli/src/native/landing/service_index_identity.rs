@@ -47,9 +47,38 @@ use crate::process_identity::{
     is_birth_identity,
     process_birth_identity,
 };
-use crate::service_index_marker::marker_of;
+use crate::service_index_marker::{
+    MARKER_LIMIT,
+    Marked,
+    parse_marker,
+};
+use std::io::Read;
 use std::path::Path;
 use std::sync::OnceLock;
+
+/// The marker of the file at `path`,
+/// when it holds one.
+///
+/// The lock is opened by `open_plain_file`,
+/// which opens without blocking and refuses everything that is not a plain file,
+/// so a named pipe at the
+///  lock's name is answered at once instead of waiting for a writer that may never come
+/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
+pub fn marker_of(path: &Path) -> Option<Marked> {
+    let mut text: String = String::new();
+    crate::plain_file::open_plain_file(path)
+        .ok()?
+        .take(MARKER_LIMIT)
+        .read_to_string(&mut text)
+        .ok()?;
+    return parse_marker(text.as_str());
+}
+
+/// Whether the lock at `lock` is the service's and its holder is gone,
+/// so it may be removed.
+pub fn is_reclaimable(lock: &Path) -> bool {
+    return matches!(marker_of(lock), Some(marked) if holder_is_gone(marked.holder.as_ref()));
+}
 
 /// What separates the parts of the identity in a marker:
 /// the birth identity,

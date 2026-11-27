@@ -52,17 +52,9 @@ use std::path::{
 /// ```
 const DIRECTORY_SUFFIX: u8 = b'/';
 
-/// What:
-///  The private stage prefix the copy reserves;
+/// The private stage prefix the copy reserves;
 /// no selected path may contain a component that starts with it.
-/// Why:
-///   A selected path that is a private stage would copy the copy into itself.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const STAGE_PREFIX = '.cli-git-worktree-copy-';
-/// ```
-pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
+pub use crate::worktree_copy_stage_prefix::STAGE_PREFIX;
 
 /// What:
 /// The bytes of one repository path,

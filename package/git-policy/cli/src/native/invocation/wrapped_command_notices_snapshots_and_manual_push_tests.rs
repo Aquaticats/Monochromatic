@@ -333,7 +333,7 @@ fn a_push_from_a_bare_repository_looks_at_that_repository() {
         cwd: root.clone(),
         ..push
     };
-    let refused: crate::manual_push_range::ManualPushRangeError =
+    let refused: crate::manual_push_update_and_query_limits::ManualPushRangeError =
         crate::manual_push_range_published_tips::tracking_commits(
             &elsewhere,
             &[String::from("origin")],

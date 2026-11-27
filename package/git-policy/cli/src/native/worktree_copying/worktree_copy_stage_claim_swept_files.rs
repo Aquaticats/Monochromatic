@@ -22,7 +22,7 @@ use crate::worktree_copy_error::{
     raw_failure_of,
 };
 use crate::worktree_copy_journal_removal::remove_file_and_say;
-use crate::worktree_copy_stage_claim_reaping::StageVerdicts;
+use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
 use crate::worktree_copy_stage_made_object::MADE_SUFFIX;
 use std::path::{
     Path,

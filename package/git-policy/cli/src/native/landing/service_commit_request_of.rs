@@ -25,6 +25,9 @@ use crate::commit_transaction::{
     CommitInvocation,
     TransactionStop,
 };
+/// The commit the service builds from captured changes,
+/// and the one Git built.
+use crate::service_amend_replayed::request_for_git_built;
 /// The amended commit of an amend whose branch moved.
 use crate::service_amend_replayed::{
     AmendedCommit,
@@ -36,12 +39,7 @@ use crate::service_commit_input_notes_and_embedded_commit::{
     Embedded,
     arguments_after_subcommand,
 };
-/// The commit the service builds from captured changes,
-/// and the one Git built.
-use crate::service_commit_requests_and_landing_report::{
-    request_for_embedded,
-    request_for_git_built,
-};
+use crate::service_commit_requests_and_landing_report::request_for_embedded;
 /// The commit Git builds in the scratch repository.
 use crate::service_native::{
     BuildInput,

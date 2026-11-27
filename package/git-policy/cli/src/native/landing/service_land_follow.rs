@@ -41,12 +41,13 @@ use crate::index_holder_wait::{
     IndexWait,
     wait_for_index_release_within,
 };
-use crate::service_index_lock::IndexLock;
+use crate::service_index_hold::IndexLock;
 pub use crate::service_land_copy::PrivateCopy;
 use crate::service_protocol::{
     Cleanup,
     FailureCode,
 };
+pub use crate::the_names_of_the_index_lock::storage_failure;
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::RefFormat;
 use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
@@ -420,16 +421,6 @@ fn reset_in_process(
     _landing: (&IndexLock, &PrivateCopy),
 ) -> Option<Vec<Vec<u8>>> {
     return None;
-}
-
-/// The failure a storage error stands for.
-pub fn storage_failure(error: &std::io::Error) -> FailureCode {
-    return match error.raw_os_error() {
-        Some(code) if code == 28 || code == 122 => FailureCode::RepositoryFull,
-        Some(code) if code == libc::EROFS => FailureCode::RepositoryReadOnly,
-        Some(code) if code == libc::EACCES => FailureCode::PermissionDenied,
-        _ => FailureCode::Unavailable,
-    };
 }
 
 pub(crate) fn cleanup_done(
