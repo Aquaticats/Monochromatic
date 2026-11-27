@@ -112,36 +112,40 @@ const CATALOG = [
     },
   },),
   it({
-    name: 're-registers its virtual models with the smallest member limits once a session binds',
+    name: 're-registers its virtual models with the head member’s limits once a session binds',
     fn: async function reboundVirtualLimits() {
       const { virtualModels, } = await fixture({
         extension,
         models: [
-          memberWithLimits({ limits: { contextWindow: 40_000, maxTokens: 8_000, }, index: 0, },),
-          memberWithLimits({ limits: { contextWindow: 60_000, maxTokens: 4_000, }, index: 1, },),
+          // The head member's window and output limit are the larger pair, so an advertisement of the
+          // second member's smaller one would fail here.
+          memberWithLimits({ limits: { contextWindow: 60_000, maxTokens: 8_000, }, index: 0, },),
+          memberWithLimits({ limits: { contextWindow: 40_000, maxTokens: 4_000, }, index: 1, },),
         ],
         play({ model, }) { return immediate({ model, },); },
       },);
       // The session binding registers again, so the last registration of each id is the live one.
       const writer = virtualModels.filter(definition => definition.id === 'writer',)
         .at(-1,);
-      expect(writer?.contextWindow,).toBe(40_000,);
-      expect(writer?.maxTokens,).toBe(4_000,);
+      expect(writer?.contextWindow,).toBe(60_000,);
+      expect(writer?.maxTokens,).toBe(8_000,);
     },
   },),
   it({
-    name: 'advertises the smallest limits its registered members report',
-    fn: async function smallestLimits() {
+    name: 'advertises the limits its head registered member reports',
+    fn: async function headMemberLimits() {
       const writerEntry = await writerEntryFor([
-        memberWithLimits({ limits: { contextWindow: 40_000, maxTokens: 8_000, }, index: 0, },),
-        memberWithLimits({ limits: { contextWindow: 60_000, maxTokens: 4_000, }, index: 1, },),
+        memberWithLimits({ limits: { contextWindow: 60_000, maxTokens: 8_000, }, index: 0, },),
+        memberWithLimits({ limits: { contextWindow: 40_000, maxTokens: 4_000, }, index: 1, },),
       ],);
-      expect(writerEntry?.contextWindow,).toBe(40_000,);
-      expect(writerEntry?.maxTokens,).toBe(4_000,);
+      // A smaller pair further along the pool does not pull the advertisement down: that member is
+      // passed over for a request it cannot hold, and Pi compacts on the head's window.
+      expect(writerEntry?.contextWindow,).toBe(60_000,);
+      expect(writerEntry?.maxTokens,).toBe(8_000,);
     },
   },),
   it({
-    name: 'passes over a member that reports no limits',
+    name: 'passes over a head member that reports no limits',
     fn: async function zeroLimitMember() {
       const writerEntry = await writerEntryFor([
         memberWithLimits({ limits: { contextWindow: 0, maxTokens: 0, }, index: 0, },),
