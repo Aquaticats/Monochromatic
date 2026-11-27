@@ -563,7 +563,7 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     assert!(
         made.reused(),
         "the freed time namespace number was not reused by the recovery's namespace in any attempt, so the schedule was not made: {}",
-        made.result
+        made.report()
     );
     let result: &str = &made.result;
     let own: u64 = result
@@ -612,10 +612,45 @@ struct Attempt {
     start: u64,
     /// What the recovery's helper wrote.
     result: String,
+    /// The namespace the planted other session made, when the plant was asked for.
+    foreign: Option<ForeignNamespace>,
 }
 
 /// The methods of an attempt.
 impl Attempt {
+    /// What an attempt says about its schedule:
+    /// the writer's number,
+    /// the number the recovery's namespace got,
+    /// and what the planted other session took.
+    fn report(&self) -> String {
+        let here: Option<&str> = self.result.lines().find_map(|line| {
+            return line.strip_prefix("time namespace here ");
+        });
+        return format!(
+            "the writer's time namespace was {} and the recovery's is {here:?}; the planted other session took {}. {} the result was: {}",
+            self.time_namespace,
+            self.foreign_number(),
+            if self.still_alive {
+                "The launcher outlived the writer's time namespace."
+            } else {
+                "The launcher did not outlive the writer's time namespace."
+            },
+            self.result
+        );
+    }
+
+    /// What the planted other session took, when one was planted.
+    fn foreign_number(&self) -> String {
+        return self.foreign.as_ref().map_or_else(
+            || {
+                return "nothing (no other session was planted)".to_string();
+            },
+            |planted| {
+                return planted.number.clone();
+            },
+        );
+    }
+
     /// Whether the recovery's time namespace received the number of the writer's destroyed one.
     fn reused(&self) -> bool {
         return self
@@ -629,6 +664,94 @@ impl Attempt {
             })
             == Some(self.time_namespace);
     }
+}
+
+/// The variable that makes the test plant the namespace another session makes in the gap:
+/// the window between the writer's time namespace losing its last process and the recovery's namespace being made.
+/// Why it exists:
+/// the schedule's precondition is a number the kernel hands back,
+/// and the run that opened issue 6599 met a run of the whole suite where another session's namespace took it instead.
+/// Set to any value to plant that allocation;
+/// the test passes only because it does not depend on it.
+const PLANT_FOREIGN_NAMESPACE: &str = "CARGO_SHADOW_ROUND_FOURTEEN_PLANT_FOREIGN_NAMESPACE";
+
+/// A time namespace another session made while the writer's time namespace had no process,
+/// held until the attempt ends.
+/// This is a stand-in the test writes itself for the other session the schedule's comment names:
+/// it makes one namespace where a run of the whole suite on this host makes many.
+struct ForeignNamespace {
+    /// What makes the namespace and keeps it alive:
+    /// `nsenter` into the writer's user namespace,
+    /// a new time namespace,
+    /// and a `sleep` in it.
+    holder: Child,
+    /// The number of the namespace it made, as `/proc/<pid>/ns/time` names it.
+    number: String,
+}
+
+/// How the guard cleans up.
+impl Drop for ForeignNamespace {
+    /// What:
+    /// `fn drop(&mut self)` ends the program that holds the namespace,
+    /// and with it the namespace.
+    /// Why:
+    /// a failed assertion must leave neither the holder nor the namespace behind.
+    fn drop(&mut self) {
+        let _ = self.holder.kill();
+        let _ = self.holder.wait();
+    }
+}
+
+/// What:
+/// `fn plant_foreign_namespace(root: &Path, owner: i32) -> ForeignNamespace` makes one time namespace the way another session on
+/// this host does,
+/// in the user namespace that owns the writer's time namespace (a time namespace cannot be made outside a user namespace that owns
+/// it),
+/// and answers once that namespace exists.
+/// Why:
+/// Another session's namespace takes the number a destroyed one frees,
+/// because the kernel hands out the lowest free number to whoever asks next;
+/// this is that ask,
+/// made at the one point where it can break the schedule.
+fn plant_foreign_namespace(
+    root: &Path,
+    owner: i32,
+) -> ForeignNamespace {
+    let number_file: PathBuf = root.join("foreign-namespace");
+    // The program says which namespace it is in before it waits, so the test knows the allocation happened and not only the start.
+    let script: String = format!(
+        "stat -L -c %i /proc/self/ns/time > {file}.part; mv {file}.part {file}; exec sleep 30",
+        file = number_file.display()
+    );
+    let holder: Child = Command::new("nsenter")
+        .arg("--preserve-credentials")
+        .arg(format!("--user=/proc/{owner}/ns/user"))
+        .args([
+            "unshare",
+            "--time",
+            "--boottime",
+            "7200",
+            "--fork",
+            "--",
+            "sh",
+            "-c",
+            &script,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect(
+            "the other session's namespace (it needs nsenter and unshare with permission for a user and time namespace)",
+        );
+    crate::cgroup_test_support::wait_until("the other session's namespace", &|| {
+        return number_file.exists();
+    });
+    let number: String = fs::read_to_string(&number_file)
+        .expect("the other session's namespace number")
+        .trim()
+        .to_string();
+    return ForeignNamespace { holder, number };
 }
 
 /// One attempt:
@@ -693,6 +816,12 @@ fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
     );
     let _ = outer.wait();
     let still_alive: bool = crate::contain_counterexample_tests::is_running(pid);
+    // The planted allocation sits exactly where the schedule is vulnerable: the writer's namespace is gone and the recovery's is not
+    // made yet.
+    let foreign: Option<ForeignNamespace> =
+        std::env::var_os(PLANT_FOREIGN_NAMESPACE).map(|_asked| {
+            return plant_foreign_namespace(root.path(), pid);
+        });
 
     let planned: ControlGroup = ControlGroup::plan(route).expect("a scope name");
     let record: Record = Record::Launcher {
@@ -722,5 +851,6 @@ fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
         time_namespace,
         start,
         result,
+        foreign,
     };
 }
