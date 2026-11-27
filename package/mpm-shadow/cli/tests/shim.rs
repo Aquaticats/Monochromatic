@@ -39,6 +39,11 @@ use std::process::{
 #[path = "written_programs/through_a_child_process.rs"]
 mod through_a_child_process;
 
+/// The holder of a program file a test starts while it is being written,
+/// shared with the crate's other test binaries.
+#[path = "held_programs/through_a_child_process.rs"]
+mod held_programs;
+
 /// What:
 /// `fn fixture_root() -> tempfile::TempDir` declares a helper returning a disposable directory that is
 ///           removed when the returned guard drops.
