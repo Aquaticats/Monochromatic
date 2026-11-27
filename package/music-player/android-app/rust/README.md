@@ -22,7 +22,8 @@ because the Android package is a Gradle build that no parent cargo workspace own
   a worker thread owns the decode source and feeds an AAudio realtime callback
   (`src/engine.rs`,
   `src/engine_worker.rs`,
-  `src/output.rs`).
+  `src/output.rs`),
+  driven by the JNI entries in `src/engine_jni.rs`.
 - The track fingerprint used as the analysis cache key (`src/fingerprint.rs`),
   computed by the shared
   `truepeak-core` crate so the desktop app and this crate agree on the value.
@@ -30,7 +31,8 @@ because the Android package is a Gradle build that no parent cargo workspace own
   one opaque handle held by Kotlin (`src/service.rs`,
   `src/truepeak.rs`,
   `src/peak_cache.rs`),
-  which drives the shared policy resolver of `truepeak-core`.
+  which drives the shared policy resolver of `truepeak-core`;
+  the entries Kotlin calls are in `src/service_jni.rs`.
 - A decode-throughput benchmark exposed to Kotlin (`src/bench.rs`).
 - The JNI glue (`src/lib.rs`,
   `src/jni_call.rs`):

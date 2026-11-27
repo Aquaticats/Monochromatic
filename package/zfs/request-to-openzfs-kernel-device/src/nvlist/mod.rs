@@ -49,8 +49,12 @@
 //!   alignment and version check.
 //! - `value.rs`:
 //!   the decoded list,
-//!   pair and typed value,
-//!   with lookups and builders.
+//!   the pair and the typed value,
+//!   and the lookups that read them.
+//! - `value_data_type.rs`:
+//!   the `data_type_t` number each decoded value is encoded with.
+//! - `list_builders.rs`:
+//!   the pairs a caller appends to a list.
 //! - `stream_cursor.rs`:
 //!   a checked position in a packed list.
 //! - `decode_scalar_value.rs`:
@@ -84,6 +88,8 @@ mod encode_pair;
 mod encode_scalar_value;
 /// Why a packed list or a request is refused.
 mod error;
+/// The pairs a caller appends to a list.
+mod list_builders;
 /// The stream header and the root list writer.
 mod pack;
 /// The checked position in a packed list.
@@ -93,6 +99,8 @@ mod unpack;
 /// The decoded list,
 /// pair and typed value.
 mod value;
+/// The wire type number of each decoded value.
+mod value_data_type;
 
 /// The codec refusal type.
 pub use error::NvError;
