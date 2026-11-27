@@ -265,6 +265,13 @@ mod supervisor_guard;
 #[path = "binary_wrapper_store.rs"]
 mod wrapper_store;
 
+/// The wait one caller makes for a copy another caller is writing:
+/// the stored name it looks for,
+/// the copies in progress it reads,
+/// and the three ways the wait can end.
+#[path = "binary_support_wrapper_store_waiting_for_a_publisher.rs"]
+mod support_wrapper_store_waiting_for_a_publisher;
+
 /// The stored copy's name,
 /// its lock-free publish,
 /// its pruning and the sharing of one wrapper file by fixtures.
