@@ -13,10 +13,13 @@
 //!
 //! - `diagnostics.rs`:
 //!   JSONL event rendering for wrapper-made diagnostics.
+//! - `direct_fix_install_attributes_reading.rs`:
+//!   the calls that read what a file carries outside its bytes:
+//!   the list of names,
+//!   one value,
+//!   and the retry that reads them until the length the kernel reports fits.
 //! - `direct_fix_install_attributes.rs`:
 //!   the extended attributes a replacement carries with it.
-//! - `direct_fix_install_attributes_reading.rs`:
-//!   the answers direct fix install attributes reading holds.
 //! - `direct_fix_install_writes.rs`:
 //!   the swap and the replacement write an install uses.
 //! - `direct_fix_install_journal.rs`:
@@ -225,6 +228,12 @@ pub mod policy_forbidden_strings;
 /// Installing a direct fix's corrections into the worktree,
 ///  all or none.
 pub mod direct_fix_install;
+
+/// The calls that read what a file carries outside its bytes:
+/// the list of names,
+/// one value,
+/// and the retry that reads them until the length the kernel reports fits.
+pub mod direct_fix_install_attributes_reading;
 
 /// The extended attributes a replacement carries with it.
 pub mod direct_fix_install_attributes;
