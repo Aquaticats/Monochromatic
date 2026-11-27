@@ -1,0 +1,24 @@
+arm exchange-on-tmpfs: binary <scratch>/bin/a14/mpm-shadow  sha256 b60ba895f3392bad1cdb0396695a127a6b348a47f166dcffc22f82ad66cbb250  file system tmpfs  server https://127.0.0.1:29543
+delay before entering each rename: 0 ms
+exchange answered EINVAL: False
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 1: install status 0 in 0.07 s
+  the publish is one call: renameat2(AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2396965.33568753", AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", RENAME_EXCHANGE) = 0 <0.000007>
+  that call took 7 us of its own work, and both names existed throughout it
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=45707 polls=55440 absent=0 old=3486 new=51954 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: exchange-on-tmpfs-publish-1.strace.txt
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 2: install status 0 in 0.05 s
+  the publish is one call: renameat2(AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2399214.33569153", AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", RENAME_EXCHANGE) = 0 <0.000011>
+  that call took 11 us of its own work, and both names existed throughout it
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=45741 polls=54692 absent=0 old=3021 new=51671 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: exchange-on-tmpfs-publish-2.strace.txt
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 3: install status 0 in 0.05 s
+  the publish is one call: renameat2(AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2401760.33569555", AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", RENAME_EXCHANGE) = 0 <0.000008>
+  that call took 8 us of its own work, and both names existed throughout it
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=45775 polls=54861 absent=0 old=3218 new=51643 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: exchange-on-tmpfs-publish-3.strace.txt
