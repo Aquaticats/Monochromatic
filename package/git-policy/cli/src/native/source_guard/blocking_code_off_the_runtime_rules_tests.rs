@@ -296,7 +296,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the renewal of a scratch claim on its own thread while the landing proceeds",
     },
     Allowed {
-        file: "landing/service_work.rs",
+        file: "landing/service_work_worktree_upkeep.rs",
         rule: "thread-start",
         why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on; the refusal is \
               `run_on_runtime`'s `Handle::try_current`, which holds on a thread of the blocking pool, so a job there answers that \

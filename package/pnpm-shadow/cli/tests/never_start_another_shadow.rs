@@ -17,177 +17,45 @@
 //! const outcome = await runWithDeadline(spawn(join(first, 'pnpm'), [...]), LOOP_BOUND);
 //! assert(outcome.kind === 'finished');
 //! ```
+/// Includes the bounded-run deadline from its own file in this test's folder.
+#[path = "never_start_another_shadow/bounded_run.rs"]
+mod bounded_run;
+/// Includes the `PATH` fixture builders from their own file in this test's folder.
+#[path = "never_start_another_shadow/fixtures.rs"]
+mod fixtures;
 
+/// Imports the deadline helpers.
+use crate::bounded_run::{
+    finished,
+    run_bounded,
+};
+/// Imports the `PATH` fixture builders and the names they use.
+use crate::fixtures::{
+    ARRIVAL_VARIABLE,
+    OWN_VERSION,
+    SHADOW_EXECUTABLE,
+    SHADOW_FILE,
+    TOOL,
+    birth_of,
+    command_for,
+    copy_of_another_version,
+    copy_program,
+    expected_first_line,
+    link_as_tool,
+    scratch,
+    write_real_script,
+};
+/// Imports the file helpers the tests use to build records and scripts.
 use std::fs;
+/// Imports the executable-mode helper.
 use std::os::unix::fs::PermissionsExt;
+/// Imports the path types.
 use std::path::{
     Path,
     PathBuf,
 };
-use std::process::{
-    Child,
-    Command,
-    Output,
-    Stdio,
-};
-use std::thread::sleep;
-use std::time::{
-    Duration,
-    Instant,
-};
-
-/// The built shadow.
-const SHADOW_EXECUTABLE: &str = env!("CARGO_BIN_EXE_pnpm-shadow");
-
-/// The file name of the shadow program inside each folder of copies.
-const SHADOW_FILE: &str = "pnpm-shadow";
-
-/// The tool the shadow shadows.
-const TOOL: &str = "pnpm";
-
-/// The arguments of a run that the shadow passes straight to the real tool.
-const PASS_THROUGH_ARGUMENTS: &[&str] = &["run", "task"];
-
-/// The name of the environment variable the arrival marker travels in (`src/shadow_identity.rs`).
-const ARRIVAL_VARIABLE: &str = "MONOCHROMATIC_SHADOW_STARTED_BY";
-
-/// The version the built shadow carries,
-/// which the copies below change.
-const OWN_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// How long a run may take before it counts as a loop.
-/// A run that ends takes a few milliseconds;
-/// the loop it replaces never ends.
-/// The bound is far above the first and below the patience of a test run,
-/// and it only matters in the failing case.
-const LOOP_BOUND: Duration = Duration::from_secs(5);
-
-/// How often a run is polled while it has not ended.
-const POLL_INTERVAL: Duration = Duration::from_millis(20);
-
-/// What a bounded run did.
-enum Outcome {
-    /// It ended by itself.
-    Finished(Output),
-    /// It was still running at the bound and was killed.
-    Looped,
-}
-
-/// Runs a prepared command with the deadline `LOOP_BOUND`.
-fn run_bounded(mut command: Command) -> Outcome {
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child: Child = command.spawn().expect("start the shadow");
-    let started: Instant = Instant::now();
-    loop {
-        if child.try_wait().expect("poll the shadow").is_some() {
-            return Outcome::Finished(child.wait_with_output().expect("collect the output"));
-        }
-        if started.elapsed() >= LOOP_BOUND {
-            child.kill().expect("kill the looping shadow");
-            child.wait().expect("reap the looping shadow");
-            return Outcome::Looped;
-        }
-        sleep(POLL_INTERVAL);
-    }
-}
-
-/// The output of a run that must have ended,
-/// or a failure that says it looped.
-fn finished(outcome: Outcome) -> Output {
-    match outcome {
-        Outcome::Finished(output) => return output,
-        Outcome::Looped => panic!(
-            "the run was still going after {LOOP_BOUND:?}: the shadows are starting each other"
-        ),
-    }
-}
-
-/// Copies a program and keeps it executable.
-fn copy_program(
-    source: &Path,
-    target: &Path,
-) {
-    fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::copy(source, target).expect("copy the program");
-    fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
-}
-
-/// A copy of the shadow that names another version:
-/// the version text inside it changes in place,
-/// so the copy is a different file with a different identity text,
-/// as an older release would be.
-fn copy_of_another_version(target: &Path) {
-    let mut bytes: Vec<u8> = fs::read(SHADOW_EXECUTABLE).expect("read the shadow");
-    let needle: &[u8] = OWN_VERSION.as_bytes();
-    let mut other: Vec<u8> = needle.to_vec();
-    let last: usize = other.len() - 1;
-    other[last] = if other[last] == b'9' { b'8' } else { b'9' };
-    let mut index: usize = 0;
-    while index + needle.len() <= bytes.len() {
-        if &bytes[index..index + needle.len()] == needle {
-            bytes[index..index + needle.len()].copy_from_slice(&other);
-            index += needle.len();
-        } else {
-            index += 1;
-        }
-    }
-    fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::write(target, bytes).expect("write the copy");
-    fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
-}
-
-/// A shadow link:
-/// a symlink named after the tool,
-/// to the shadow program of its folder.
-fn link_as_tool(folder: &Path) -> PathBuf {
-    let link: PathBuf = folder.join(TOOL);
-    std::os::unix::fs::symlink(folder.join(SHADOW_FILE), &link).expect("make the shadow link");
-    return link;
-}
-
-/// A script standing in for the real tool:
-/// prints which tool answered and the arrival marker it was started with.
-fn write_real_script(folder: &Path) {
-    fs::create_dir_all(folder).expect("make the folder");
-    fs::write(folder.join(TOOL), format!("#!/bin/sh\nprintf 'REAL {TOOL} %s\\n' \"$*\"\nprintf 'MARKER %s\\n' \"${ARRIVAL_VARIABLE}\"\n")).expect("write the script");
-    fs::set_permissions(folder.join(TOOL), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
-}
-
-/// A scratch folder beside the build output.
-fn scratch() -> tempfile::TempDir {
-    std::fs::create_dir_all(env!("CARGO_TARGET_TMPDIR")).expect("make the scratch root");
-    return tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a scratch directory");
-}
-
-/// The command that starts a shadow link with a bare environment and the given `PATH`.
-fn command_for(
-    link: &Path,
-    path_folders: &[&Path],
-) -> Command {
-    let path_variable: String = path_folders
-        .iter()
-        .map(|folder| {
-            return folder.display().to_string();
-        })
-        .collect::<Vec<String>>()
-        .join(":");
-    let mut command: Command = Command::new(link);
-    command.args(PASS_THROUGH_ARGUMENTS);
-    command.current_dir(env!("CARGO_TARGET_TMPDIR"));
-    command.env_clear();
-    command.env("PATH", path_variable);
-    return command;
-}
-
-/// The two lines the real script prints:
-/// what ran and the marker it saw.
-fn expected_first_line() -> String {
-    return format!("REAL {TOOL} {}", PASS_THROUGH_ARGUMENTS.join(" "));
-}
+/// Imports the child-process builder.
+use std::process::Command;
 
 #[test]
 fn two_copies_of_different_versions_that_each_come_first_for_the_other_end_at_once_and_the_real_tool_is_started_by_the_first_only()
@@ -363,20 +231,6 @@ fn a_script_that_starts_the_other_shadow_stops_on_arrival_with_a_message_and_a_n
 }
 
 /// The start time of a process,
-/// as `/proc/<pid>/stat` field 22 says it.
-fn birth_of(pid: u32) -> String {
-    let text: String = fs::read_to_string(format!("/proc/{pid}/stat")).expect("read the stat file");
-    let after_name: &str = text
-        .rsplit_once(')')
-        .expect("the name ends with a bracket")
-        .1;
-    return after_name
-        .split_whitespace()
-        .nth(19)
-        .expect("field 22")
-        .to_string();
-}
-
 #[test]
 fn an_arrival_marker_left_for_the_direct_parent_stops_the_shadow_and_one_left_for_anyone_else_does_not()
  {
