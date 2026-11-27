@@ -627,15 +627,108 @@ fn a_listing_that_read_no_member_while_the_kernel_said_populated_refuses_the_run
     );
 }
 
+/// What:
+/// `struct GroupOfItsOwn { directory: PathBuf }` is a group below a scope that the control fills with members of its own,
+/// in the order it chooses.
+/// Why:
+/// `a_group_below_the_scope` moves a member in as it makes the group,
+/// so that member always carries the lowest number of the group;
+/// a control that needs the kernel's own order to be something other than ascending
+/// must move the higher number in first,
+/// which needs a group that starts empty.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class GroupOfItsOwn { directory: string }
+/// ```
+struct GroupOfItsOwn {
+    /// The group's directory.
+    directory: PathBuf,
+}
+
+/// What:
+/// `impl GroupOfItsOwn` makes one empty group below a parent and moves members into it one at a time.
+/// Why:
+/// The order control makes two such groups, one below the other,
+/// and moves its members in an order the kernel cannot have produced by itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a class with a static constructor and one method
+/// ```
+impl GroupOfItsOwn {
+    /// What:
+    /// `fn made_below(parent: &Path, name: &str) -> GroupOfItsOwn` makes one empty group of that name below `parent`.
+    /// Why:
+    /// An empty group is the only way to choose which of its members the kernel reads first.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static madeBelow(parent: string, name: string): GroupOfItsOwn  // mkdir(join(parent, name))
+    /// ```
+    fn made_below(
+        parent: &Path,
+        name: &str,
+    ) -> GroupOfItsOwn {
+        // What:     `let directory: PathBuf = parent.join(name)` is the group's directory.
+        // Why:      Writing a member's number into that directory's `cgroup.procs` is the move into the group.
+        let directory: PathBuf = parent.join(name);
+        fs::create_dir(&directory)
+            .unwrap_or_else(|error| panic!("{} cannot be made ({error})", directory.display()));
+        // What:     `GroupOfItsOwn { directory }` builds the guard this group is held by.
+        // Why:      Its `Drop` removes the group, so a control that fails halfway leaves none behind.
+        return GroupOfItsOwn {
+            directory,
+        };
+    }
+
+    /// What:
+    /// `fn holds(&self, member: &MovedMember)` moves one member into this group, now.
+    /// Why:
+    /// The kernel lists a group's members in the order they were moved in,
+    /// so the caller's order of calls is the kernel's own order.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// holds(member: MovedMember): void { movedInto(member, this.directory) }
+    /// ```
+    fn holds(
+        &self,
+        member: &MovedMember,
+    ) {
+        moved_into(member, &self.directory);
+    }
+}
+
+/// What:
+/// `impl Drop for GroupOfItsOwn` removes the group.
+/// Why:
+/// A group left below the scope would keep the scope's directory from being removed,
+/// and the next run of the suite would meet it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [Symbol.dispose](): void { rmdir(this.directory) }
+/// ```
+impl Drop for GroupOfItsOwn {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir(&self.directory);
+    }
+}
+
 /// Release read of `0.1.5-alpha.13`,
 /// Low "The refusal's listing":
 /// the listing names the scope's own group first,
 /// then each group below it with the greatest name first,
 /// and the processes of one group ascending by process number,
 /// which is the order `Listing` states.
-/// The numbers are compared before the order is judged:
-/// the group below the scope whose name is read last holds the member started first,
-/// so a listing in process number order would name these four the other way round.
+/// Three facts are measured here before the order is judged,
+/// so that neither of the two edits this control exists for can pass it:
+/// `beta`'s two members are moved in higher number first,
+/// so the kernel's own order there is not ascending and only the listing's sort can produce "ascending";
+/// `beta` holds a group of its own,
+/// so a walk that reads every group of a level before it goes deeper names `alpha`'s member before `gamma`'s;
+/// and the numbers this host handed out are compared before the order is trusted.
 #[test]
 fn the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greatest_name_first() {
     this_test_needs_a_delegated_scope();
@@ -643,9 +736,21 @@ fn the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greates
     let at_home: MovedMember = MovedMember::started();
     moved_into(&at_home, scope.group.directory());
     let alpha: GroupBelowTheScope = a_group_below_the_scope(&scope.group, "alpha");
-    let beta: GroupBelowTheScope = a_group_below_the_scope(&scope.group, "beta");
-    let second_in_beta: MovedMember = MovedMember::started();
-    moved_into(&second_in_beta, &beta.path);
+    // `beta` starts empty, so its two members can be moved in an order of this control's choosing.
+    let beta_group: GroupOfItsOwn = GroupOfItsOwn::made_below(scope.group.directory(), "beta");
+    // What:     `lower_in_beta` is the member this host numbered first, and it is moved in second.
+    // Why:      The kernel's own order in `beta` is then the other way round from ascending, which is what the listing's sort
+    //           has to undo.
+    let lower_in_beta: MovedMember = MovedMember::started();
+    // What:     `higher_in_beta` is the member this host numbered second, and it is moved in first.
+    // Why:      It stands first in the kernel's own list, so removing the sort renames the pair.
+    let higher_in_beta: MovedMember = MovedMember::started();
+    beta_group.holds(&higher_in_beta);
+    beta_group.holds(&lower_in_beta);
+    // A group of `beta`'s own, so the walk's depth can be told from a walk that reads a whole level first.
+    let gamma_group: GroupOfItsOwn = GroupOfItsOwn::made_below(&beta_group.directory, "gamma");
+    let in_gamma: MovedMember = MovedMember::started();
+    gamma_group.holds(&in_gamma);
     let ended: Reaped = the_direct_child_has_ended(&mut scope);
     arm(Point::ContainmentStopStuck);
 
@@ -661,15 +766,30 @@ fn the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greates
         "the stop never reached the report this control arms, so the refusal has another cause"
     );
     assert!(
-        at_home.pid() < alpha.member.pid()
-            && alpha.member.pid() < beta.member.pid()
-            && beta.member.pid() < second_in_beta.pid(),
-        "this host handed these numbers out in another order than the members were started in, so this control cannot \
-         tell one listing order from the other: {} {} {} {}",
-        at_home.pid(),
-        alpha.member.pid(),
-        beta.member.pid(),
-        second_in_beta.pid()
+        lower_in_beta.pid() < higher_in_beta.pid(),
+        "this host numbered the two members of beta in another order than they were started in, so this control cannot \
+         tell a sorted listing from the kernel's own: {} {}",
+        lower_in_beta.pid(),
+        higher_in_beta.pid()
+    );
+    // What:     `kernel_order` is `beta`'s `cgroup.procs` as the kernel lists it, one number per line, in the order the two
+    //           members were moved in.
+    // Why:      The listing's sort is only what makes the pair ascending if the kernel's own order is not ascending.
+    let kernel_order: Vec<String> = fs::read_to_string(beta_group.directory.join("cgroup.procs"))
+        .expect("the group's cgroup.procs is readable")
+        .lines()
+        .map(|line| {
+            return line.trim().to_string();
+        })
+        .collect();
+    assert_eq!(
+        kernel_order,
+        vec![
+            higher_in_beta.pid().to_string(),
+            lower_in_beta.pid().to_string()
+        ],
+        "the kernel did not list beta's members in the order this control moved them in, so this control cannot show that \
+         the listing sorts them"
     );
     // Each needle is the member's own words, so a number inside another number or inside the scope's path cannot answer for it.
     let at_home_at: usize = refusal
@@ -677,28 +797,33 @@ fn the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greates
         .unwrap_or_else(|| {
             panic!("the refusal does not name the member of the scope's own group: {refusal}")
         });
-    let in_beta_at: usize = refusal
-        .find(&format!("{} in beta (", beta.member.pid()))
-        .unwrap_or_else(|| panic!("the refusal does not name the member in beta: {refusal}"));
-    let second_in_beta_at: usize = refusal
-        .find(&format!("{} in beta (", second_in_beta.pid()))
+    let lower_in_beta_at: usize = refusal
+        .find(&format!("{} in beta (", lower_in_beta.pid()))
+        .unwrap_or_else(|| panic!("the refusal does not name the lower number in beta: {refusal}"));
+    let higher_in_beta_at: usize = refusal
+        .find(&format!("{} in beta (", higher_in_beta.pid()))
         .unwrap_or_else(|| {
-            panic!("the refusal does not name the second member in beta: {refusal}")
+            panic!("the refusal does not name the higher number in beta: {refusal}")
         });
+    let in_gamma_at: usize = refusal
+        .find(&format!("{} in beta/gamma (", in_gamma.pid()))
+        .unwrap_or_else(|| panic!("the refusal does not name the member in beta/gamma: {refusal}"));
     let in_alpha_at: usize = refusal
         .find(&format!("{} in alpha (", alpha.member.pid()))
         .unwrap_or_else(|| panic!("the refusal does not name the member in alpha: {refusal}"));
 
     assert!(
-        at_home_at < in_beta_at
-            && in_beta_at < second_in_beta_at
-            && second_in_beta_at < in_alpha_at,
+        at_home_at < lower_in_beta_at
+            && lower_in_beta_at < higher_in_beta_at
+            && higher_in_beta_at < in_gamma_at
+            && in_gamma_at < in_alpha_at,
         "the refusal does not name the scope's own group first, then the groups below it with the greatest name first, \
-         and one group's members ascending: it names {} at {at_home_at}, {} at {in_beta_at}, {} at {second_in_beta_at}, {} at \
-         {in_alpha_at}: {refusal}",
+         depth first, and one group's members ascending: it names {} at {at_home_at}, {} at {lower_in_beta_at}, {} at \
+         {higher_in_beta_at}, {} at {in_gamma_at}, {} at {in_alpha_at}: {refusal}",
         at_home.pid(),
-        beta.member.pid(),
-        second_in_beta.pid(),
+        lower_in_beta.pid(),
+        higher_in_beta.pid(),
+        in_gamma.pid(),
         alpha.member.pid()
     );
 }

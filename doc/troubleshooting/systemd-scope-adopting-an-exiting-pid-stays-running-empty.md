@@ -1078,6 +1078,61 @@ Each turned its control red:
 - dropping the `NODEV` half of `is_the_group_being_gone`:
   `a_removed_group_reads_as_gone_with_either_error`.
 
+#### A directory that was never made reads as a collected scope
+
+A launcher that exits before the manager has made the scope's group leaves a third state beside
+"populated" and "collected":
+a unit that is loaded while the directory the run would read is not there.
+The look reads `populated_at(group.directory())` and takes `ENOENT` for a group the manager removed
+(`collected_or_unproven` in `package/cargo-shadow/cli/src/control_group_retire.rs`),
+and `absence_is_verified` asks only whether this process still sees the same cgroup namespace and the same
+parent directory.
+Both hold in that state,
+so the look answers `Collected`,
+which asks the manager nothing and prints nothing,
+and whatever the unit was is left loaded.
+
+The read is what a control settles, on 2026-11-27:
+`control_group_retire_scope_not_made_yet_tests` in `package/cargo-shadow/cli/src/`
+starts a real scope with a real member in it,
+reads its own directory first (the warning says the unit keeps its member),
+then points the same look at a path in the same slice that nothing made.
+That look answers no warning,
+logs no `systemctl` call,
+and the unit reads `ActiveState=active` afterwards.
+The control was shown red once:
+with `Ok(()) => Emptiness::Collected` replaced by an `Unproven` answer it failed on
+`a scope whose directory was never made is reported as a unit that may be left loaded`.
+
+The run-level occurrence is not measured here.
+A stand-in `systemd-run` that exits before the manager makes the scope showed it once in a release read of
+`0.1.5-alpha.13` and again in one of `0.1.5-alpha.14`:
+of two scoped runs of one call,
+one asked and warned and one asked nothing and said nothing,
+and both units were left loaded and empty.
+That harness is a stand-in and its transcript is scratch,
+so it says the state is reachable and not how often;
+the directory it read as absent was there when the units were inspected afterwards,
+and that is the window this state lives in.
+
+What a fix needs:
+a fact that tells "the group was never made" from "the manager removed it",
+since the directory's absence is the same answer for both.
+Two exist:
+asking the manager whether the unit is still loaded
+(`systemctl --user show <unit> --property=LoadState --value`),
+which is the second question the alpha.12 release removed because it cost a scoped run a program start
+(see "The cost of the retirement"),
+or a record the run makes of the group it made,
+so that an absent directory afterwards is a group the manager collected
+and an absent directory with no such record is one that was never made.
+The second keeps the ordinary path free of program starts,
+and it needs that record to reach the look,
+which lives in `src/bounded_run_end.rs` and `src/control_group_retire.rs`;
+the first is a change of that step's cost, not of its correctness.
+Until one of them is chosen, the sentence in `README.md` that a group which is gone was collected
+holds for a group the manager removed and not for one that was never made.
+
 #### The test that left one, found and closed (2026-11-27)
 
 The reopen of issue 6578 owed the name of a test:

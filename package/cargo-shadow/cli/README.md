@@ -597,8 +597,11 @@ Every shadow program (`cargo-shadow`,
 `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
 (`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
 byte-identical copies in each crate,
-and `tests/shadow_identity_copies.rs` is one of the copies,
-so the test task of any of the four packages fails when the copies differ).
+and `tests/shadow_identity_copies.rs` is one of the copies;
+every crate's copy of that test compares its own files with `cargo-shadow`'s,
+`mpm-shadow`'s and `pnpm-shadow`'s,
+so a copy that changed alone fails the suite of the crate it was changed in,
+and a change to `search-shadow`'s copies alone fails `search-shadow`'s suite and no other).
 The lookup skips a candidate that carries it,
 or a launcher whose record leads to one,
 without starting it,
@@ -886,8 +889,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   So a scope whose catch-up read saw it populated,
   and that empties before its watch is added again,
   changes its `populated` line with no event queued for it,
-  and this path never ends that unit:
-  what this step buys is the ordinary case,
+  and this path never ends that unit.
+  None of those three paths has been reproduced here:
+  they were read in the manager's own source,
+  at the lines cited,
+  and what this step buys is the ordinary case,
   never a promise that the manager always ends an empty scope.
   Only a group that never held a process is the leftover this step exists for,
   and that run asks the manager,
@@ -931,10 +937,15 @@ and an HTTP 429 is retried after its `Retry-After`.
   after it,
   none,
   and the call cannot be told from alpha.11's release binary:
-  its ratio (0.874,
-  0.518 to 2.115) is inside the control's own spread (0.993,
+  its ratio to alpha.11 (0.874,
+  0.518 to 2.115) and the control's (0.993,
   0.916 to 1.271)
-  in the table of the troubleshooting file.
+  in the table of the troubleshooting file overlap,
+  with neither range inside the other and the arm's own range wider than the byte-identical control's,
+  so the gap between those two medians is smaller than the spread a byte-identical copy of one arm shows against it.
+  That is the resolution of those four arms and six rounds,
+  and what leaves alpha.14 indistinguishable from alpha.11 there;
+  a null result at that resolution is no promise that the two cost the same.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),
   so every argument is encoded for that before it is handed over,
@@ -1205,14 +1216,31 @@ and an HTTP 429 is retried after its `Retry-After`.
   issue 6528;
   `doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
   so a `git` left as a zombie does not fail an install.
-  A later run settles the journal such a refusal kept:
-  the leftover lockfile is kept when its new versions pass the policy
-  (otherwise it is saved as `Cargo.lock.refused` and the snapshot put back),
-  the journal is removed,
-  and that run goes on to its own check
-  (`the_next_run_settles_the_journal_of_a_run_that_could_not_be_settled`,
+  A later run settles the journal such a refusal kept,
+  and only some kinds of run are that later run:
+  a run that resolves dependencies,
+  or `cargo-shadow update`,
+  reads the kept journal before it does anything else,
+  keeps the leftover lockfile when its new versions pass the policy
+  (otherwise it saves it as `Cargo.lock.refused` and puts the snapshot back),
+  removes the journal,
+  and goes on to its own check
+  (`an_ordinary_run_after_a_refusal_settles_the_kept_journal_and_says_what_it_kept`,
+  `an_update_after_a_refusal_settles_the_kept_journal`,
   measured 2026-11-27,
   issue 6528).
+  A command that resolves nothing (`cargo fmt`,
+  `cargo --version`)
+  and a run that is frozen (`--locked`,
+  `--frozen`,
+  or `CI`)
+  never enter that step,
+  so they leave the journal for one of those runs and print nothing about it
+  (`a_pass_through_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_frozen_run_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  measured 2026-11-27).
+  No run reminds the person of a kept journal it leaves:
+  that would be a change of what those runs print, which nobody has decided.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
   Two runs of one process do not wait for each other and share no lock:
