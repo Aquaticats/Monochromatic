@@ -19,12 +19,16 @@
 
 use crate::index_lock_evidence::{
     Verdict,
-    WaitEnd,
-    blocker_words,
     classify_index_lock,
     gather_with,
     holder_way_out,
     host_pid_process,
+};
+/// The sentences a holder look reports the evidence in,
+/// and the two ends a line names.
+use crate::index_lock_evidence_words::{
+    WaitEnd,
+    blocker_words,
     proven_holder_line,
     proven_holder_progress_line,
     unproven_wait_line,

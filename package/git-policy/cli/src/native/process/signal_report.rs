@@ -19,12 +19,59 @@
 //! const [fromProcess, sender] = readReport(info);
 //! ```
 
-/// Whether a sender code says a process sent the signal.
-#[cfg(unix)]
-use crate::signal_relay::is_process_sender;
 /// `c_int` is the C integer type signal numbers and sender codes use.
 #[cfg(unix)]
 use std::ffi::c_int;
+
+/// What:
+///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
+/// Why:
+///   `si_code` values `SI_USER`,
+/// `SI_QUEUE` and (Linux) `SI_TKILL` come from `kill`,
+/// `sigqueue` and `tkill`;
+///  a terminal interrupt carries `SI_KERNEL`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fromProcess = info.si_code === SI_USER || info.si_code === SI_QUEUE;
+/// ```
+#[cfg(all(unix, not(target_os = "macos")))]
+pub fn is_process_sender(code: c_int) -> bool {
+    return PROCESS_SENDER_CODES.contains(&code);
+}
+
+/// What:
+///  Whether a signal counts as sent by a process;
+/// on macOS every signal does.
+/// Why:
+///   The macOS kernel reports `si_code` 0 for `kill`,
+/// for a signal from a forked child and for a Ctrl-C written to a
+///  pseudo-terminal master (measured on Darwin arm64),
+/// so the code cannot tell a terminal sender from a process one.
+///  Relaying all of them is the safe side:
+/// a missed relay orphans the Git child,
+///  while a second `SIGINT`,
+/// `SIGTERM`,
+/// `SIGHUP` or `SIGQUIT` reaching Git is harmless.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fromProcess = (_siCode: number) => true;
+/// ```
+#[cfg(target_os = "macos")]
+pub fn is_process_sender(_code: c_int) -> bool {
+    return true;
+}
+
+/// Sender codes that mean a process sent the signal,
+/// on Linux.
+#[cfg(target_os = "linux")]
+const PROCESS_SENDER_CODES: &[c_int] = &[libc::SI_USER, libc::SI_QUEUE, libc::SI_TKILL];
+
+/// Sender codes that mean a process sent the signal,
+/// on other Unix systems.
+#[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
+const PROCESS_SENDER_CODES: &[c_int] = &[libc::SI_USER, libc::SI_QUEUE];
 
 /// What:
 ///  Whether the kernel attributes this report to a process,
