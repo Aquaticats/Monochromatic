@@ -2149,7 +2149,10 @@ The decisions of 2026-11-19 that rest on a VM measurement each place an item on 
 
 ### Cross-vendor review
 
-The review is `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`.
+The review is `~/temp/agent/zfs-worktree-design-proposal-review-2026-11-18/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 All findings are accepted in the [handover][handover]. This map distinguishes design answers from tests still owed.
 
 - H1: [Dataset and path layout](#dataset-and-path-layout), [Add and Git registration](#add-and-git-registration),
