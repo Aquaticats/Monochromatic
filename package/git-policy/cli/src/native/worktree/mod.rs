@@ -518,6 +518,12 @@
 //! - `worktree_kept_folders.rs`:
 //!   the folder a taken worktree folder is kept in when the name it came from is taken,
 //!   and the cleanup that must leave it alone.
+//! - `worktree_ladder_run_rung_and_refusal.rs`:
+//!   the rung the ladder chose before real Git ran,
+//!   and the log line and abandoned read every refused rung leaves.
+//! - `worktree_ladder_run_choose.rs`:
+//!   the choice of rung for one invocation,
+//!   every check made before real Git runs.
 //! - `worktree_ladder_run.rs`:
 //!   the ladder's choice of rung before real Git runs.
 //! - `worktree_ladder.rs`:
@@ -1073,6 +1079,16 @@ pub mod worktree_ladder_target;
 /// and which number that ceiling is.
 #[cfg(target_os = "linux")]
 pub mod ladder_step_ceilings;
+
+/// The rung the ladder chose before real Git ran,
+/// and the log line and abandoned read every refused rung leaves.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_run_rung_and_refusal;
+
+/// The choice of rung for one invocation,
+/// every check made before real Git runs.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_run_choose;
 
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]
