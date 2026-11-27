@@ -306,10 +306,17 @@
 //! - `worktree_ladder_target.rs`:
 //!   what both filling rungs read from Git's `--no-checkout` result,
 //!   and the one step that applies the tree difference.
+//! - `worktree_clone_conversion_fence_attributes.rs`:
+//!   the attributes a decision reads:
+//!   which attributes file above a tracked path is untracked,
+//!   what Git answers for each tracked path,
+//!   and the half of the fence they decide before anything is copied.
+//! - `worktree_clone_conversion_fence_write.rs`:
+//!   the one Git run that writes the paths the fence leaves to Git.
 //! - `worktree_clone_conversion_fence.rs`:
 //!   the fence over a clone rung's bytes:
 //!   which paths the clones may carry,
-//!   and the one Git run that writes the rest.
+//!   and which paths Git must write.
 //! - `worktree_clone_conversion_fence_measurement_routes.rs`:
 //!   the measurement-only shapes of that fence:
 //!   option C,
@@ -932,11 +939,22 @@ pub mod worktree_clone_conversion_decline;
 #[cfg(target_os = "linux")]
 pub mod worktree_change_a_rung_cannot_serve;
 
+/// The attributes a decision reads:
+/// which attributes file above a tracked path is untracked,
+/// what Git answers for each tracked path,
+/// and the half of the fence they decide before anything is copied.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_fence_attributes;
+
 /// The fence over a clone rung's bytes:
 /// which paths the clones may carry,
-/// and the one Git run that writes the rest.
+/// and which paths Git must write.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_fence;
+
+/// The one Git run that writes the paths the fence leaves to Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_fence_write;
 
 /// The measurement-only shapes of that fence:
 /// option C,
