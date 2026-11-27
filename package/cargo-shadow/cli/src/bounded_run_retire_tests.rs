@@ -54,7 +54,8 @@ use std::path::{
     PathBuf,
 };
 /// What:
-/// `use std::process::{Command, Output, Stdio};` imports the command builder, the collected output of a run,
+/// `use std::process::{Command, Output, Stdio};` imports the command builder,
+/// the collected output of a run,
 /// and the handles that hold a child's two streams open for the parent to read.
 /// Why:
 /// The run under test is a command,
@@ -177,6 +178,20 @@ use crate::control_group::retire::{
 /// import { KILL_REAP_GRACE } from 'crate/control_group_route_child_runs';
 /// ```
 use crate::control_group_route_child_runs::KILL_REAP_GRACE;
+/// `use crate::failpoints::retire_reads::{arm_directory_check_sees_the_gone_group, arm_peak_read_sees_the_gone_group};`
+/// imports the two switches of the last look's reads that its peak route answers with.
+/// Why:
+/// A run's group cannot be removed between the look's two reads from outside,
+/// so the reads are made to answer that state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { armPeakReadSeesTheGoneGroup } from 'crate/failpoints/retire-reads';
+/// ```
+use crate::failpoints::retire_reads::{
+    arm_directory_check_sees_the_gone_group,
+    arm_peak_read_sees_the_gone_group,
+};
 /// What:
 /// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
 /// Why:
@@ -592,7 +607,8 @@ fn silent_stop_systemctl(directory: &Path) -> PathBuf {
 const BOUND_DIRECTORY: &str = "CARGO_SHADOW_RETIRE_BOUND_DIRECTORY";
 
 /// The helper process of the bound control:
-/// it makes one run whose end asks a manager that never answers, and exits once that run ended.
+/// it makes one run whose end asks a manager that never answers,
+/// and exits once that run ended.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of the_question_at_a_run_end_keeps_the_bound_the_promise_names"]
@@ -773,8 +789,8 @@ fn retire_warning_fixture() {
     } else if scenario == "gone-at-the-peak" {
         // The look reads an empty group and then loses the group's directory between its two reads, and the absence it then
         // reads cannot be verified: both windows are too short to hold open from outside.
-        arm(Point::RetirePeakReadSeesTheGoneGroup);
-        arm(Point::RetireDirectoryCheckSeesTheGoneGroup);
+        arm_peak_read_sees_the_gone_group();
+        arm_directory_check_sees_the_gone_group();
         arm(Point::AbsenceUnverifiable);
         output_within(&mut Command::new("true"), None, &bound(RUN_BOUND))
     } else {

@@ -894,7 +894,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   once:
   `systemctl --user --no-ask-password stop <name>.scope`.
   A `pids.peak` read that fails for any other reason than the group's directory going away takes the same question:
-  the file is not there, or it cannot be read or parsed,
+  the file is not there,
+  or it cannot be read or parsed,
   and the safe side of a file this run could not read is one program start.
   The answer is the manager's exit status,
   and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),

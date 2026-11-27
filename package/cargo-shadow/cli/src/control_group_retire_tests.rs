@@ -194,6 +194,25 @@ use crate::control_group_process_identity::parse_stat;
 /// import { KILL_REAP_GRACE } from 'crate/control_group_route_child_runs';
 /// ```
 use crate::control_group_route_child_runs::KILL_REAP_GRACE;
+/// `use crate::failpoints::retire_reads::{...}` imports the three switches of the last look's own reads,
+/// with the question whether each was reached.
+/// Why:
+/// A group cannot be removed between the look's two reads from outside,
+/// and a removed group's control file answers an error no path here answers,
+/// so the reads are made to answer those states.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { armPeakReadSeesTheGoneGroup, firesPeakReadSeesTheGoneGroup } from 'crate/failpoints/retire-reads';
+/// ```
+use crate::failpoints::retire_reads::{
+    arm_directory_check_sees_the_gone_group,
+    arm_peak_read_sees_the_gone_group,
+    arm_populated_read_sees_the_gone_group,
+    fires_directory_check_sees_the_gone_group,
+    fires_peak_read_sees_the_gone_group,
+    fires_populated_read_sees_the_gone_group,
+};
 /// What:
 /// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
 /// Why:
@@ -1090,14 +1109,17 @@ fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
     );
 }
 
-/// The control of the arm that reads a failed `pids.peak` as a collected group, driven through `retire`:
+/// The control of the arm that reads a failed `pids.peak` as a collected group,
+/// driven through `retire`:
 /// a group whose directory went away between the look's two reads keeps its unit and asks nothing,
 /// and a `populated` read that answers the error a removed group's file answers is read the same way.
-/// Neither window can be held open from outside: the manager removes a group the moment its last member leaves,
+/// Neither window can be held open from outside:
+/// the manager removes a group the moment its last member leaves,
 /// and a path that is gone answers `ENOENT` before a file in it is opened,
 /// so a test build answers for the two reads.
-/// The request is the guard: a look that read such a failure as a group that never held a process asks the manager
-/// once, and the log says so.
+/// The request is the guard:
+/// a look that read such a failure as a group that never held a process asks the manager once,
+/// and the log says so.
 #[test]
 fn the_look_reads_a_group_that_goes_away_between_its_reads_as_collected() {
     let route: Route = delegated_route();
@@ -1111,14 +1133,13 @@ fn the_look_reads_a_group_that_goes_away_between_its_reads_as_collected() {
         "populated 0\nfrozen 0\n",
         Some("0"),
     );
-    arm(Point::RetirePeakReadSeesTheGoneGroup);
-    arm(Point::RetireDirectoryCheckSeesTheGoneGroup);
+    arm_peak_read_sees_the_gone_group();
+    arm_directory_check_sees_the_gone_group();
 
     let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
 
-    let reached_peak: bool = !crate::failpoints::fires(Point::RetirePeakReadSeesTheGoneGroup);
-    let reached_check: bool =
-        !crate::failpoints::fires(Point::RetireDirectoryCheckSeesTheGoneGroup);
+    let reached_peak: bool = !fires_peak_read_sees_the_gone_group();
+    let reached_check: bool = !fires_directory_check_sees_the_gone_group();
     assert!(
         reached_peak,
         "the peak read never answered the armed failure, so this control shows nothing about the arm that reads it"
@@ -1141,12 +1162,12 @@ fn the_look_reads_a_group_that_goes_away_between_its_reads_as_collected() {
     let removed = crate::test_scratch::scratch();
     let (removed_systemctl, removed_log) = answering_systemctl(removed.path());
     let removed_group: ControlGroup = an_absent_group(&route, "cargo-shadow-test-removed-file");
-    arm(Point::RetirePopulatedReadSeesTheGoneGroup);
+    arm_populated_read_sees_the_gone_group();
 
     let removed_word: Option<String> = retire(&removed_group, &removed_systemctl, RETIRE_BOUND);
 
     assert!(
-        !crate::failpoints::fires(Point::RetirePopulatedReadSeesTheGoneGroup),
+        !fires_populated_read_sees_the_gone_group(),
         "the `populated` read never answered the armed failure"
     );
     assert_eq!(
@@ -1176,15 +1197,15 @@ fn a_unit_kept_after_an_emptiness_was_read_says_what_the_look_read() {
         "populated 0\nfrozen 0\n",
         Some("0"),
     );
-    arm(Point::RetirePeakReadSeesTheGoneGroup);
-    arm(Point::RetireDirectoryCheckSeesTheGoneGroup);
+    arm_peak_read_sees_the_gone_group();
+    arm_directory_check_sees_the_gone_group();
     arm(Point::AbsenceUnverifiable);
 
     let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
 
     assert!(
-        !crate::failpoints::fires(Point::RetirePeakReadSeesTheGoneGroup)
-            && !crate::failpoints::fires(Point::RetireDirectoryCheckSeesTheGoneGroup)
+        !fires_peak_read_sees_the_gone_group()
+            && !fires_directory_check_sees_the_gone_group()
             && !crate::failpoints::fires(Point::AbsenceUnverifiable),
         "the look did not walk the peak arm and its absence check, so this control shows nothing"
     );

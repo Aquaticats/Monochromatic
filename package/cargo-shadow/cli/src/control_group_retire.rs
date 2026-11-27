@@ -172,7 +172,7 @@ fn the_populated_line(group: &ControlGroup) -> io::Result<bool> {
     // A test makes this read answer the error a control file of a removed group answers, which nothing here produces:
     // a read of a file whose directory is gone answers `ENOENT` before the file is opened.
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::RetirePopulatedReadSeesTheGoneGroup) {
+    if crate::failpoints::retire_reads::fires_populated_read_sees_the_gone_group() {
         return Err(io::Error::from_raw_os_error(
             rustix::io::Errno::NODEV.raw_os_error(),
         ));
@@ -195,7 +195,7 @@ fn the_peak_of(group: &ControlGroup) -> io::Result<u64> {
     // A test makes this read answer the absence of a group the manager removed, which is the window the look's two reads
     // can straddle: nothing outside holds that window open.
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::RetirePeakReadSeesTheGoneGroup) {
+    if crate::failpoints::retire_reads::fires_peak_read_sees_the_gone_group() {
         return Err(io::Error::from_raw_os_error(
             rustix::io::Errno::NOENT.raw_os_error(),
         ));
@@ -232,7 +232,7 @@ fn the_group_s_directory_is_gone(group: &ControlGroup) -> bool {
     // A test makes this check answer the absence of a group the manager removed between the look's two reads: a directory
     // that is there answers no such thing.
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::RetireDirectoryCheckSeesTheGoneGroup) {
+    if crate::failpoints::retire_reads::fires_directory_check_sees_the_gone_group() {
         return true;
     }
     return false;
