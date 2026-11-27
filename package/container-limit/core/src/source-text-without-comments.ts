@@ -3,6 +3,8 @@
 
  Each language the repository writes its container commands in has its own comment syntax, and a `mise.toml` holds an
  inline `node` script inside a `"""` string, whose `//` comments follow JavaScript's syntax rather than TOML's.
+ Rust's comments nest and its literals hold quotes a JavaScript string never does, so a Rust source is blanked by
+ `rust-comments-in-source-text.ts`, which this module hands it to.
  Blanking preserves offsets and line numbers, so a scan of the blanked text reports the file's own lines.
  */
 
@@ -15,6 +17,7 @@ import {
   isQuote,
   lineEnd,
 } from './positions-in-source-text.ts';
+import { blankRustComments, } from './rust-comments-in-source-text.ts';
 
 //region Vocabulary
 
@@ -278,12 +281,14 @@ export function stripSourceComments({
    The file's characters, whose comment characters this scan blanks.
    */
   const characters = text.split('',);
-  if ((language === 'typescript') || (language === 'rust'))
+  if (language === 'typescript')
     blankSlashComments({
       characters,
       from: 0,
       to: characters.length,
     },);
+  else if (language === 'rust')
+    blankRustComments(characters,);
   else if (language === 'toml')
     blankTomlComments(characters,);
   else
