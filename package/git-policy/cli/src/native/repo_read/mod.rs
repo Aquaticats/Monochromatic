@@ -36,6 +36,12 @@
 //!   the merged configuration listing with includes and environment entries.
 //! - `repo_read_config_value_kinds.rs`:
 //!   the table of which configuration keys Git reads at startup and what kind of value each takes.
+//! - `repo_read_config_typed_value_spellings.rs`:
+//!   the spelling of each typed value Git reads silently:
+//!   a boolean,
+//!   a number with its unit letters,
+//!   a color,
+//!   and a ref name or a word from a list.
 //! - `repo_read_config_typed.rs`:
 //!   in-process repository reads:
 //!   proof that every configuration value Git types at startup is one Git accepts silently.
@@ -229,6 +235,13 @@ pub mod repo_read_config_text;
 /// In-process repository reads:
 /// proof that no configuration scope sets `core.bare` or `core.worktree`.
 pub mod repo_read_config_scan;
+
+/// The spelling of each typed value Git reads silently:
+/// a boolean,
+/// a number with its unit letters,
+/// a color,
+/// and a ref name or a word from a list.
+pub mod repo_read_config_typed_value_spellings;
 
 /// In-process repository reads:
 /// proof that every configuration value Git types at startup is one Git accepts silently.
