@@ -327,3 +327,70 @@ beside the module of the file you changed.
 The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's notice stream
 and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
 so the whole container gate on `main` at `132843d9d1` failed in a module that fix never ran.
+
+## A filtered run counts only when it ran the tests you meant
+
+A `cargo test` filter that matches no test prints `ok. 0 passed`,
+which proves nothing.
+A filtered run counts only when its `test result` line names more than zero passed and the tests you meant,
+so filter by the module path libtest prints (`service::service_instance::tests`),
+never by a file name.
+On 2026-11-26 two merge checks named `worktree_landed_after_a_merge::` and `binary::`,
+which match no test in the library target,
+and passed nothing until they were run again with filters that matched.
+
+## Search the open branches before deleting anything as unused
+
+Pieces of later steps are built ahead and live on branches until they merge,
+so a function,
+type or file that nothing on `main` calls may still be called on a branch.
+Before you delete one as unused,
+search every branch on origin for its name
+(`git grep <name> $(git for-each-ref --format='%(refname)' refs/remotes/origin)`).
+`1f5aa01430` (2026-11-25T17:25:36-05:00) deleted `the_account_cache` as uncalled,
+and step 17's branch called it.
+
+## Format with the root `rustfmt.toml` before each commit
+
+The root `rustfmt.toml` sets the layout,
+and this crate was formatted by it in `00b6a940b4` (2026-11-26).
+Run `cargo fmt` in the crate before each commit,
+and end with `cargo fmt --check` printing nothing.
+
+## Run the whole `source_guard` module before you report
+
+A round that changes Rust under `src/native/` also runs the whole `source_guard` module before it reports
+(`cargo test --locked --offline --lib --features test-only-switches source_guard`,
+in a capped scope),
+and names its `test result` line.
+Those tests read the release code for patterns no module test sees,
+such as a thread started off the async runtime.
+On 2026-11-24 a merged branch broke `the_release_code_keeps_blocking_work_off_the_runtime`
+because only its own module's tests had run.
+
+## No test on the host opens `/dev/zfs`
+
+This machine's home is on a ZFS pool,
+and a test that opens `/dev/zfs` on the host acts on that pool.
+Before you run a module on the host,
+grep it for `OpenedDevice::open(`,
+`ZfsDevice::open(`,
+`LiveGate`,
+`GatePaths::live`,
+`before_requests(` and `preflight_the_add(`:
+a test that reaches one of them opens the device.
+Such arms run in a guest of the round's own,
+on a file-backed pool,
+and the host run's `--skip guest --skip _arm_tests` keeps the named ones out.
+
+## A round runs no whole container gate
+
+A branch merges into `main` when its round has ended and its report is read:
+no whole container gate and no review is a condition of the merge
+(`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`),
+and one whole gate runs on `main` for each batch of merges.
+So a round runs the modules it touched,
+its guest arms where its brief asks for them,
+and the controls its brief asks for,
+red and green,
+and says in its report which checks ran and which did not.
