@@ -915,6 +915,137 @@ pub(crate) fn remove_patiently(
 }
 
 /// What:
+///  What stands at a path,
+///  as a report names it,
+///  and nothing when nothing does.
+/// Why:
+///   A name's kind is what tells a reader whether a writer made a folder or a record,
+///  and a path that went while the report read it must not stop the rest of the report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatItIs(path: string): 'directory' | 'link' | 'file' | undefined
+/// ```
+fn what_it_is(path: &Path) -> Option<&'static str> {
+    let found: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
+    if found.is_symlink() {
+        return Some("link");
+    }
+    if found.is_dir() {
+        return Some("directory");
+    }
+    return Some("file");
+}
+
+/// What:
+///  Every name still under `root`,
+///  each with what it is,
+///  bounded by `REPORTED_ENTRIES` so a report stays one line.
+/// Why:
+///   A person reading a failure needs the name,
+///  the kind and where it was,
+///  and a report that named only the top folder would still leave a fixture of nine thousand entries unread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatTheFixtureStillHolds(root: string): string // 'a (file), b (directory), and 3 more'
+/// ```
+pub(crate) fn what_the_fixture_still_holds(root: &Path) -> String {
+    let mut held: Vec<String> = Vec::new();
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            // A path the removal was given that is not a folder, or one it may not list, is itself what is left.
+            if let Some(kind) = what_it_is(directory.as_path()) {
+                held.push(format!("{} ({kind})", directory.display()));
+            }
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            let kind: &str =
+                what_it_is(path.as_path()).unwrap_or("an entry that went while it was read");
+            held.push(format!(
+                "{} ({kind})",
+                path.strip_prefix(root).unwrap_or(path.as_path()).display()
+            ));
+            if kind == "directory" {
+                stack.push(path);
+            }
+        }
+    }
+    held.sort();
+    let more: usize = held.len().saturating_sub(REPORTED_ENTRIES);
+    held.truncate(REPORTED_ENTRIES);
+    let mut report: String = held.join(", ");
+    if more > 0 {
+        report.push_str(format!(", and {more} more").as_str());
+    }
+    if report.is_empty() {
+        return String::from("nothing: it held no name by the time it was read");
+    }
+    return report;
+}
+
+/// What:
+///  The words a removal that gave up fails beside the error:
+///  the fixture's path and every name it still holds,
+///  each with what it is.
+/// Why:
+///   The name that was left is what says which writer put it there,
+///  and issue 6568's failure said only that a directory was not empty,
+///  so the writer took a round of measurement to find.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusedRemovalReport(root: string): string // 'the fixture at /x still holds a (file), b (directory)'
+/// ```
+pub(crate) fn refused_removal_report(root: &Path) -> String {
+    return format!(
+        "the fixture at {} still holds {}",
+        root.display(),
+        what_the_fixture_still_holds(root)
+    );
+}
+
+/// `std::fs::remove_dir_all`,
+/// as the attempt a patient removal repeats.
+fn remove_the_tree(root: &Path) -> std::io::Result<()> {
+    return std::fs::remove_dir_all(root);
+}
+
+/// What:
+///  Remove a fixture tree,
+///  waiting within `REMOVAL_TRIES` pauses of `REMOVAL_PAUSE` while it is still gaining entries,
+///  and naming every name it still holds when the tries run out.
+/// Why:
+///   The work a landing starts beside its loop writes into the fixture after the landing has answered
+///  (the shadow pool's fill,
+///  a shadow drawn ahead,
+///  the markers made ahead),
+///  and a removal that walked the tree while one of them wrote it failed with "directory not empty"
+///  beside no entry and no writer (issue 6568;
+///  the draw the landing starts wrote into the fixture's `.git` within 5 ms of the landing's answer).
+///  Both test targets remove their fixtures through this one call,
+///  so both wait and both say what was left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeTheFixture(root: string): void // removePatiently, then throw naming what the fixture still holds
+/// ```
+pub(crate) fn remove_the_fixture(root: &Path) {
+    restore_owner_access(root);
+    let removed: std::io::Result<()> =
+        remove_patiently(root, &remove_the_tree, REMOVAL_TRIES, REMOVAL_PAUSE);
+    if let Err(error) = removed {
+        panic!(
+            "remove only the fixture: {error}; {}",
+            refused_removal_report(root)
+        );
+    }
+}
+
+/// What:
 ///  Remove a fixture tree unless the person asked to keep it,
 ///  giving back the owner's permission on every directory of it first.
 /// Why:
@@ -951,12 +1082,6 @@ pub(crate) fn settle_fixture(
     // ```ts
     // try { removePatiently(root, removeDirAll, REMOVAL_TRIES, REMOVAL_PAUSE); } catch {}
     // ```
-    let _removed: std::io::Result<()> = remove_patiently(
-        root,
-        &|directory| {
-            return std::fs::remove_dir_all(directory);
-        },
-        REMOVAL_TRIES,
-        REMOVAL_PAUSE,
-    );
+    let _removed: std::io::Result<()> =
+        remove_patiently(root, &remove_the_tree, REMOVAL_TRIES, REMOVAL_PAUSE);
 }

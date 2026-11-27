@@ -45,13 +45,12 @@ use std::process::Command;
 /// ```
 pub(crate) use crate::fixture_support_shared_by_both_test_targets::{
     FIXTURE_ROOT_VARIABLE,
-    REMOVAL_PAUSE,
-    REMOVAL_TRIES,
     fixture_root,
     forbid_core_dumps,
     made_fixture_folder,
     missing_fixture_root_report,
     remove_patiently,
+    remove_the_fixture,
     run_fixture_root,
     settle_fixture,
     system_temporary_directories,
@@ -209,17 +208,11 @@ pub fn fixture_in(
     };
 }
 
-/// Remove only the fixture directory a control created.
+/// Remove only the fixture directory a control created,
+/// waiting within a bound while it still gains entries,
+/// and saying what it still held when the wait ran out.
 pub fn remove(fixture: &Fixture) {
-    remove_patiently(
-        &fixture.root,
-        &|root| {
-            return std::fs::remove_dir_all(root);
-        },
-        REMOVAL_TRIES,
-        REMOVAL_PAUSE,
-    )
-    .expect("remove only the fixture");
+    remove_the_fixture(&fixture.root);
 }
 
 /// The one writer of executable fixture files,
