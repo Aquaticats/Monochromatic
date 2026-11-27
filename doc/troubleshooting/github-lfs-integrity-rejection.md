@@ -146,6 +146,71 @@ No upstream message was sent.
 The filing artifact is an explicit nothing-to-add record for
 [issue 4787](https://github.com/git-lfs/git-lfs/issues/4787).
 
+## Three refusals of 2026-11-26, and the shape the commit service recorded
+
+Written 2026-11-27T03:46:57-05:00 from the commit service's own journal,
+for [issue 6559](https://github.com/Aquaticats/Monochromatic/issues/6559),
+which asked for these three sightings.
+
+Three pushes were refused on 2026-11-26 in one minute,
+from three worktrees,
+for commits made at 2026-11-26T19:44:15-05:00:
+
+- `f4e8d2fb9b`,
+  round `split-wrapper-start-probe-files-over-the-line-budget-1`;
+- `95f72f6d3b`,
+  round `split-wrapper-worktree-files-over-the-line-budget-4`;
+- `bbc1d4d626`,
+  round `split-wrapper-foundation-files-over-the-line-budget-1`.
+
+Each round reported
+`remote: error: GH009: Git LFS object integrity could not be checked`
+and a plain `git push` that landed the commit at once.
+
+The commit service's journal holds all three at 2026-11-26T19:44:26-05:00,
+with no `remote:` line at all,
+and the refusal reading as a bare `(failed)`:
+
+```text
+# the commit service's journal for one of the three, 2026-11-26T19:44:26-05:00, as the push printed it
+To https://github.com/Aquaticats/Monochromatic
+ ! [remote rejected] f4e8d2fb9b22b0aebf1db770c7ae8c1bb9a01772 -> refactor/git-policy-cli-split-wrapper-start-probe-files-over-the-line-budget-1 (failed)
+error: failed to push some refs to 'https://github.com/Aquaticats/Monochromatic'
+```
+
+That shape carries no `hook declined` in the reason,
+so the service read it as a refusal whose reason it does not know,
+and planned the first retry of each of the three:
+`push will be tried again ... next_try=2 in_seconds=10`.
+These three were therefore not stopped by the service,
+and the `GH009` words the rounds quoted are not in these records,
+which hold no `GH009` line at all.
+
+The same boot's journal holds thirteen refusals of the other shape,
+in which GitHub's own line arrives:
+
+```text
+# the commit service's journal, 2026-11-27T01:26:26-05:00, one of the thirteen
+remote: error: GH009: Git LFS object integrity could not be checked. Please contact GitHub support.
+remote: pre-receive hook declined
+ ! [remote rejected] 0bd15253d5db8d2dfc3a522868582cec24c5abb4 -> main (pre-receive hook declined)
+error: failed to push some refs to 'https://github.com/Aquaticats/Monochromatic'
+```
+
+All thirteen were stopped and none was retried.
+All thirteen commits are on GitHub now,
+eleven of them carried by a later landed push of the same branch,
+0.1 to 39.7 minutes after the refusal.
+None of the thirteen pushed a path under any of the eight patterns `.gitattributes` marks for Git LFS,
+so no refused push referenced a Git LFS object.
+
+Neither shape's cause is established,
+and this record does not claim they are one condition of GitHub's or two.
+What the wrapper does with each,
+and what it could do instead,
+is measured and proposed in
+[the GH009 proposal](../planning/cli-git-push-refused-by-the-server-with-gh009.md).
+
 ## Separate protected-branch rejection on 2026-10-15
 
 A later automatic push of `6973251c8342005567353fad9e1c7b3cb4ebdb51`
