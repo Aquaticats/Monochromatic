@@ -304,9 +304,6 @@
 //! - `worktree_removal_leaves_a_subvolume_for_the_service.rs`:
 //!   the subvolumes this program leaves for the commit service to delete,
 //!   moved out of a tree that is being removed with one rename and a record.
-//! - `worktree_removal_clears_the_ahead_pool.rs`:
-//!   the snapshots this program made ahead of an add,
-//!   taken out of a worktree's administrative directory before that worktree is removed.
 //! - `worktree_removal_snapshot_promotion.rs`:
 //!   what a removal snapshot kept,
 //!   promoted to the notices every worktree shows.
@@ -318,9 +315,6 @@
 //!   the processes that took the snapshot and the checkout.
 //! - `worktree_removal_rescue.rs`:
 //!   what becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
-//! - `worktree_removal_finishes_an_interrupted_destroy.rs`:
-//!   the finish of a removal a command killed once its destroy happened,
-//!   and the words for what a person still has to do.
 //! - `worktree_remove_request_and_last_look.rs`:
 //!   what one removal is asked to do,
 //!   and one question its caller answers while it runs.
@@ -349,13 +343,8 @@
 //! - `worktree_removal_takes_its_pending_deletions.rs`:
 //!   the subvolumes this program left inside a worktree for its commit service to delete,
 //!   moved out of that tree before its removal hands anything to the kernel or to Git.
-//! - `worktree_remove.rs`:
-//!   the removal of a clean subvolume worktree by one ioctl,
-//!   and the plan of the `git worktree remove` it serves.
 //! - `worktree_remove_plan.rs`:
 //!   the plan of a `git worktree remove` that names one directory and no option.
-//! - `worktree_remove_reports.rs`:
-//!   the three reports a removal can end with.
 //! - `worktree_trash_manifest.rs`:
 //!   what a snapshot's leave-out made and moved,
 //!   with identities,
@@ -510,20 +499,9 @@
 //! - `worktree_removal_goes_around_a_foreign_volume_records.rs`:
 //!   the record such a removal leaves,
 //!   and the words a later command shows for it once.
-//! - `worktree_removal_goes_around_a_foreign_volume.rs`:
-//!   the removal that goes around a subvolume or a mount point it did not make,
-//!   and the words it says about what it left.
 //! - `worktree_removal_second_look.rs`:
 //!   the proof that a removal may go,
 //!   made again immediately before the destruction.
-//! - `worktree_landed_removal_last_look.rs`:
-//!   what a removal deletes beside the files Git keeps,
-//!   and the sweep's last look that asks it again inside the removal.
-//! - `worktree_remove_around.rs`:
-//!   the half of a removal that goes around a volume it did not make:
-//!   the record a killed pass leaves,
-//!   the continuation that record proves,
-//!   and the pass.
 //! - `worktree_remove_hand_over_records_beside_the_registration.rs`:
 //!   the records a removal writes beside a worktree's registration,
 //!   which say which worktree a record was written for.
@@ -544,9 +522,6 @@
 //!   the hand-over of a worktree's subvolume to the commit service,
 //!   the removal the service makes around a volume that is not its own,
 //!   and the names every caller already uses.
-//! - `worktree_remove_hand_over_service_removal.rs`:
-//!   the service's own removal of a whole worktree with Git,
-//!   and the choice of which destroy a record asks for.
 //! - `worktree_landed_removal_records.rs`:
 //!   what one landed sweep is asked with and answers with:
 //!   where it looks,
@@ -557,24 +532,6 @@
 //! - `worktree_landed_removal_landed_branches.rs`:
 //!   which branches the merge that just ran landed,
 //!   and which of them hold a commit of their own.
-//! - `worktree_landed_removal_one_candidate.rs`:
-//!   one candidate of a landed sweep:
-//!   the conditions it must meet,
-//!   the fast destroy or the hand over to the commit service,
-//!   and what the attempt came to.
-//! - `worktree_landed_removal.rs`:
-//!   the removal of every wrapper-made worktree whose branch a merge landed,
-//!   which the commit service performs:
-//!   the candidates this merge landed and the walk over them.
-//! - `worktree_landed_sweep_notice.rs`:
-//!   the words one landed sweep prints.
-//! - `worktree_landed_after_a_merge.rs`:
-//!   the commit and the branch one merge stood between,
-//!   and the sweep of the worktrees whose branches it landed.
-//! - `worktree_removal_leavings_a_command_queues_again.rs`:
-//!   the look every command makes at those records:
-//!   the delete of a leaving no queue record owes is queued again,
-//!   and a place this program may not act on is named for the person.
 //! - `worktree_slow_route_words.rs`:
 //!   the words one slow-route sentence is made of:
 //!   the value a person reads,
@@ -602,6 +559,49 @@
 //! - `worktree_snapshot_ahead.rs`:
 //!   the snapshots the wrapper makes ahead of an add,
 //!   and the add's claim of one instead of a snapshot of its own.
+//! - `worktree_removal_clears_the_ahead_pool.rs`:
+//!   the snapshots this program made ahead of an add,
+//!   taken out of a worktree's administrative directory before that worktree is removed.
+//! - `worktree_removal_finishes_an_interrupted_destroy.rs`:
+//!   the finish of a removal a command killed once its destroy happened,
+//!   and the words for what a person still has to do.
+//! - `worktree_remove_reports.rs`:
+//!   the three reports a removal can end with.
+//! - `worktree_removal_goes_around_a_foreign_volume.rs`:
+//!   the removal that goes around a subvolume or a mount point it did not make,
+//!   and the words it says about what it left.
+//! - `worktree_remove_around.rs`:
+//!   the half of a removal that goes around a volume it did not make:
+//!   the record a killed pass leaves,
+//!   the continuation that record proves,
+//!   and the pass.
+//! - `worktree_remove.rs`:
+//!   the removal of a clean subvolume worktree by one ioctl,
+//!   and the plan of the `git worktree remove` it serves.
+//! - `worktree_landed_removal_last_look.rs`:
+//!   what a removal deletes beside the files Git keeps,
+//!   and the sweep's last look that asks it again inside the removal.
+//! - `worktree_remove_hand_over_service_removal.rs`:
+//!   the service's own removal of a whole worktree with Git,
+//!   and the choice of which destroy a record asks for.
+//! - `worktree_landed_removal_one_candidate.rs`:
+//!   one candidate of a landed sweep:
+//!   the conditions it must meet,
+//!   the fast destroy or the hand over to the commit service,
+//!   and what the attempt came to.
+//! - `worktree_landed_removal.rs`:
+//!   the removal of every wrapper-made worktree whose branch a merge landed,
+//!   which the commit service performs:
+//!   the candidates this merge landed and the walk over them.
+//! - `worktree_landed_sweep_notice.rs`:
+//!   the words one landed sweep prints.
+//! - `worktree_landed_after_a_merge.rs`:
+//!   the commit and the branch one merge stood between,
+//!   and the sweep of the worktrees whose branches it landed.
+//! - `worktree_removal_leavings_a_command_queues_again.rs`:
+//!   the look every command makes at those records:
+//!   the delete of a leaving no queue record owes is queued again,
+//!   and a place this program may not act on is named for the person.
 //! - `worktree_snapshot_ahead_claim_facts.rs`:
 //!   the plain facts one add's claim of a snapshot ahead is written from,
 //!   none of which reads the pool or the commit service:
