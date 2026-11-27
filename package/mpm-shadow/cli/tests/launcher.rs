@@ -31,6 +31,16 @@ use mpm_shadow::toolchain::lock::{
 };
 use mpm_shadow::toolchain::scope::ScopeKind;
 
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
+
+use through_a_child_process::{
+    copy_program,
+    write_program,
+};
+
 /// The tool the fixtures install.
 const TOOL_ID: &str = "cargo:monochromatic-demo-tool";
 
@@ -77,8 +87,8 @@ impl Tree {
         let crate_dir = tree.crate_dir();
         let bin = crate_dir.join(used).join("bin");
         fs::create_dir_all(&bin).expect("make the bin directory");
-        fs::write(bin.join("tool"), REAL_PROGRAM).expect("write the real program");
-        fs::set_permissions(bin.join("tool"), fs::Permissions::from_mode(0o755)).expect("chmod");
+        // The test starts this program, so a child process writes it (issue 6527).
+        write_program(&bin.join("tool"), REAL_PROGRAM.as_bytes());
         symlink(used, crate_dir.join("current")).expect("link current");
         fs::write(
             tree.lock_file(),
@@ -87,7 +97,11 @@ impl Tree {
         .expect("write the lock");
         fs::create_dir_all(tree.launcher().parent().expect("a parent"))
             .expect("make the launcher directory");
-        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), tree.launcher()).expect("copy the binary");
+        // The test starts the launcher, so a child process copies the binary.
+        copy_program(
+            Path::new(env!("CARGO_BIN_EXE_mpm-shadow")),
+            &tree.launcher(),
+        );
         let record = LaunchRecord {
             tool_id: TOOL_ID.to_string(),
             lock_file: tree.lock_file(),
@@ -247,13 +261,11 @@ fn home_where_the_repository_is_gone(tree: &Tree) -> PathBuf {
     )
     .expect("write the identity");
     let check = home.join(".local/share/monochromatic-dev/repository-link/repository-link-check");
-    fs::create_dir_all(check.parent().expect("a parent")).expect("make the install folder");
-    fs::write(
+    // The check is a program this test starts, so a child process writes it.
+    write_program(
         &check,
-        "#!/bin/sh\necho 'the 860 drive is not mounted yet' >&2\nexit 75\n",
-    )
-    .expect("write the check");
-    fs::set_permissions(&check, fs::Permissions::from_mode(0o755)).expect("chmod");
+        b"#!/bin/sh\necho 'the 860 drive is not mounted yet' >&2\nexit 75\n",
+    );
     return home;
 }
 
@@ -447,15 +459,16 @@ fn archive_tree(
     let tool_dir = directory.path().join("root").join("demo-release");
     let folder = tool_dir.join(used).join("release-folder");
     fs::create_dir_all(&folder).expect("make the folder");
-    fs::write(folder.join("tool"), REAL_PROGRAM).expect("write the real program");
-    fs::set_permissions(folder.join("tool"), fs::Permissions::from_mode(0o755)).expect("chmod");
+    // The test starts this program, so a child process writes it.
+    write_program(&folder.join("tool"), REAL_PROGRAM.as_bytes());
     symlink(used, tool_dir.join("current")).expect("link current");
     let lock_file = directory.path().join("toolchain.lock.json");
     fs::write(&lock_file, format!("{{\"schemaVersion\":1,\"tools\":{{\"demo-release\":{{\"version\":\"{locked}\",\"route\":\"archive\"}}}}}}"))
         .expect("write the lock");
     let launcher = directory.path().join("launchers").join("tool");
     fs::create_dir_all(launcher.parent().expect("a parent")).expect("make the launcher directory");
-    fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &launcher).expect("copy the binary");
+    // The test starts the launcher, so a child process copies the binary.
+    copy_program(Path::new(env!("CARGO_BIN_EXE_mpm-shadow")), &launcher);
     let record = LaunchRecord {
         tool_id: "demo-release".to_string(),
         lock_file,
@@ -565,7 +578,8 @@ impl MovedArchive {
         .expect("write the lock");
         fs::create_dir_all(moved.launcher.parent().expect("a parent"))
             .expect("make the launcher directory");
-        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &moved.launcher).expect("copy the binary");
+        // The test starts the launcher, so a child process copies the binary.
+        copy_program(Path::new(env!("CARGO_BIN_EXE_mpm-shadow")), &moved.launcher);
         let record = LaunchRecord {
             tool_id: "demo-release".to_string(),
             lock_file: moved.lock_file.clone(),
@@ -601,8 +615,8 @@ impl MovedArchive {
             .join(version)
             .join(format!("demo-release-{version}-linux"));
         fs::create_dir_all(&folder).expect("make the folder");
-        fs::write(folder.join("tool"), REAL_PROGRAM).expect("write the real program");
-        fs::set_permissions(folder.join("tool"), fs::Permissions::from_mode(0o755)).expect("chmod");
+        // The test starts this program, so a child process writes it.
+        write_program(&folder.join("tool"), REAL_PROGRAM.as_bytes());
         let link = self.tool_dir.join("current");
         let _ = fs::remove_file(&link);
         symlink(version, &link).expect("link current");

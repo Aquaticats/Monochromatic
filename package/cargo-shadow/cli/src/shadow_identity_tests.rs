@@ -8,10 +8,17 @@
 //! `/usr/bin/true` and `/usr/bin/echo` are the compiled programs that are not shadows.
 
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
+};
+use std::process::{
+    Child,
+    ChildStdin,
+    Command,
+    Stdio,
 };
 
 use crate::shadow_identity::{
@@ -42,14 +49,51 @@ fn test_program() -> PathBuf {
     return std::env::current_exe().expect("the test program's own path");
 }
 
+/// Writes a program in a folder,
+/// executable.
+/// The writing belongs to a child `tee` process:
+/// a descriptor this process held on the program would be inherited by a child another
+/// thread forked while it was open,
+/// and `execve` refuses a file open for writing anywhere (`ETXTBSY`,
+/// issue 6527).
+fn write_a_program(
+    path: &Path,
+    content: &[u8],
+) {
+    let mut writer: Child = Command::new("tee")
+        .arg(path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .spawn()
+        .expect("start the program writer");
+    let mut input: ChildStdin = writer.stdin.take().expect("the program writer's input");
+    input.write_all(content).expect("write the program");
+    drop(input);
+    assert!(
+        writer.wait().expect("the program writer's exit").success(),
+        "the program writer failed for {}",
+        path.display()
+    );
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("make it executable");
+}
+
 /// A copy of a program in a folder,
 /// executable.
+/// The copy is made by a child `cp` process for the reason `write_a_program` gives.
 fn copy_program(
     source: &Path,
     target: &Path,
 ) -> PathBuf {
     fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::copy(source, target).expect("copy the program");
+    let copied: bool = Command::new("cp")
+        .arg("--reflink=never")
+        .arg("--")
+        .arg(source)
+        .arg(target)
+        .status()
+        .expect("start the program copy")
+        .success();
+    assert!(copied, "the program copy failed for {}", target.display());
     fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
     return target.to_path_buf();
 }
@@ -375,8 +419,7 @@ fn a_compiled_program_is_started_through_the_file_that_was_checked_even_when_its
 fn a_script_is_started_by_its_path() {
     let folder = scratch();
     let script: PathBuf = folder.path().join("script");
-    fs::write(&script, "#!/bin/sh\nprintf 'script ran\\n'\n").expect("write the script");
-    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    write_a_program(&script, b"#!/bin/sh\nprintf 'script ran\\n'\n");
 
     let output = vet(&script)
         .expect("a script is accepted")
