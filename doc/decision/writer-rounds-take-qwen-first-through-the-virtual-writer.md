@@ -142,3 +142,14 @@ and the launcher's line for a run on a selection names its members and says it h
 A member a caller closes with `PI_RUNS_POOL_LIMITS` adds no room to any count and does not by itself stop such a run:
 the provider's refusal at that member is what moves the request on.
 (round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
+
+## The pool gate counts no virtual run (owner, 2026-11-26)
+
+Asked at about 19:10 -05:00 how the driver's pool gate counts a run on the virtual writer
+(no count, once against the members' combined room, or a slot in every member as before),
+the owner answered "No count (Recommended)":
+the gate counts only runs pinned to one pool,
+and a run on the virtual writer or the virtual reviewer holds no slot in any member,
+because the router moves a refused request on by itself.
+The driver round that was building the combined-room count was told so through its inbox the same minute,
+since that count was the coordinator's design and not the owner's.
