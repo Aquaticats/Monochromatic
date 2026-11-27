@@ -278,7 +278,8 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
   a merge record that cannot be read says which file to remove,
   each batch of the service's work reads the room it has when it starts
-  (its width is decided once, so every wave of that batch runs on the room of its start),
+  (its width is decided once,
+  so every wave of that batch runs on the room of its start),
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
