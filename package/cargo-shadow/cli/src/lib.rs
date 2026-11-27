@@ -267,10 +267,6 @@ pub mod install_error;
 /// Replaces refused new versions with the newest older release that passes.
 pub mod set_aside;
 
-/// The choice of an older release for a refused version:
-/// the release-age and trust checks it must pass (split out of the set-aside module).
-pub mod set_aside_older_release_choice;
-
 /// The shadow's install step:
 /// fingerprint fast path,
 /// then the install over one workspace.
