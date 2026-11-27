@@ -73,7 +73,7 @@ and successfully returned `startupWired` from its Bash command.
   measurements,
   a probe of Claude Code's native `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` cap
   and the ranked options are in `doc/planning/claude-code-bash-caller-timeout-cap.md`,
-  recorded 2026-11-27T12:25:00-05:00;
+  first committed 2026-11-27T12:19:19-05:00;
   the owner's choice is pending.
 
 ## Next step
