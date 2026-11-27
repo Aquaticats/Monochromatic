@@ -506,8 +506,7 @@
         "rust-lldb",
         "rustc",
         "rustdoc",
-        "rustfmt",
-        "rustup"
+        "rustfmt"
       ],
       "env": {
         "RUSTUP_TOOLCHAIN": "nightly-2026-11-16"
@@ -1682,5 +1681,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:820bcb46f276497ed461d3df309baf4e25a2ffe07b03668fee1bff86be4d0b79"
+  "digest": "sha256:ae1c59fc50aaecb2b78a00a723c741b6c070aa78320b71a57798408d39cafaf2"
 }
