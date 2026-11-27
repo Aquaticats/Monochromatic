@@ -5,8 +5,11 @@
 //! Why:
 //! They share one setup (repository root,
 //! real cargo under the pinned toolchain,
-//! crates.io registry) and one way of printing
-//! a report and turning findings into an exit code.
+//! crates.io registry) and one way of turning findings into an exit code.
+//! What those commands print was split into `command_report_printing.rs`
+//! to keep each file under the code-line limit;
+//! the printing is re-exported here,
+//! so every caller keeps the path it had.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,17 +17,6 @@
 //! export async function main(args: string[]): Promise<void>
 //! ```
 
-/// What:
-/// `use std::io::Write;` imports `Write` from the standard library so this file can name it unqualified.
-/// Why:
-/// `Write` is used by `print_install_report`,
-/// `print_update_report`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Write } from 'std/io';
-/// ```
-use std::io::Write;
 // Imports `std::path::PathBuf`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
 // Why:      `run_command` finds the repository root as a path and joins `rust-catalog.toml` onto it; the owned type lets it keep the root while building more paths.
@@ -141,22 +133,19 @@ use crate::crates::locked_crate_dirs;
 /// ```
 use crate::http::UreqFetcher;
 /// What:
-/// `use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration};` imports `InstallReport`,
-/// `InstallRequest`,
+/// `use crate::install::{InstallRequest, install_rust_lockfiles, is_continuous_integration};` imports `InstallRequest`,
 /// `install_rust_lockfiles`,
 /// `is_continuous_integration` from another module of this crate so this file can name them unqualified.
 /// Why:
-/// `InstallReport` is used by `print_install_report`;
 /// `InstallRequest` is used by `run_command`;
 /// `install_rust_lockfiles` is used by `run_command`;
 /// `is_continuous_integration` is used by `run_command`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration } from 'crate/install';
+/// import { InstallRequest, install_rust_lockfiles, is_continuous_integration } from 'crate/install';
 /// ```
 use crate::install::{
-    InstallReport,
     InstallRequest,
     install_rust_lockfiles,
     is_continuous_integration,
@@ -212,23 +201,20 @@ use crate::tighten::FileEnforcer;
 /// ```
 use crate::toolchain::cargo_toolchain;
 /// What:
-/// `use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};` imports `UpdateKind`,
-/// `UpdateReport`,
+/// `use crate::update::{UpdateKind, UpdateRequest, update_rust_lockfiles};` imports `UpdateKind`,
 /// `UpdateRequest`,
 /// `update_rust_lockfiles` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `UpdateKind` is used by `run_command`;
-/// `UpdateReport` is used by `print_update_report`;
 /// `UpdateRequest` is used by `run_command`;
 /// `update_rust_lockfiles` is used by `run_command`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles } from 'crate/update';
+/// import { UpdateKind, UpdateRequest, update_rust_lockfiles } from 'crate/update';
 /// ```
 use crate::update::{
     UpdateKind,
-    UpdateReport,
     UpdateRequest,
     update_rust_lockfiles,
 };
@@ -243,153 +229,14 @@ use crate::update::{
 /// ```
 use crate::workspace::find_catalog_root;
 
-/// Prints findings under a heading,
-/// with the pointer to the settings.
-pub fn print_findings(
-    heading: &str,
-    problems: &[String],
-) {
-    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-    // Why:      The findings go to standard error under a heading that names the refused step, one bullet per finding.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // `..${x}..`   // template literal
-    // console.error(text);   // eprintln!
-    // [a, b]            // vec![a, b]
-    // ```
-    eprintln!("{heading}: {} finding(s).", problems.len());
-    for problem in problems {
-        // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("- {problem}");
-    }
-    // Macro `eprintln!`: builds or prints text (or a list) from a template.
-    eprintln!("Settings live in rust-catalog.toml; see doc/decision/rust-dependency-catalog.md.");
-}
-
-/// Prints an install report.
-pub fn print_install_report(
-    report: &InstallReport,
-    dry_run: bool,
-    sink: &mut dyn Write,
-) {
-    // Macro `writeln!`: builds or prints text (or a list) from a template.
-    // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-    // Why:      The report goes to a writer the caller supplies; a failed write to it is not a reason to fail a finished install, so the results are dropped.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // void expr;   // or try { expr } catch {}
-    // ```
-    let _ = writeln!(
-        sink,
-        "{} lockfiles, {} did not satisfy their manifests{}",
-        report.crate_dirs.len(),
-        report.stale.len(),
-        if report.stale.is_empty() { "." } else { ":" }
-    );
-    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-    // Why:      The report is only printed, so its fields are walked by reference.
-    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
-    // ```
-    for crate_dir in &report.stale {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "  {crate_dir}");
-    }
-    if !report.added.is_empty() {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(
-            sink,
-            "{} versions no lockfile held before:",
-            report.added.len()
-        );
-    }
-    // Borrow `&report.added`: lends the value without copying or giving it away.
-    for added in &report.added {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "  {} {}", added.name, added.version);
-    }
-    // Borrow `&report.warnings`: lends the value without copying or giving it away.
-    for warning in &report.warnings {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Warning: {warning}");
-    }
-    if dry_run {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Dry run: every Cargo.lock was restored.");
-    } else if report.written {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(
-            sink,
-            "Every Cargo.lock satisfies its manifests. Review the diff."
-        );
-    }
-}
-
-/// Prints an update report.
-pub fn print_update_report(
-    report: &UpdateReport,
-    dry_run: bool,
-    sink: &mut dyn Write,
-) {
-    // Macro `writeln!`: builds or prints text (or a list) from a template.
-    // `let _ =`: discards the result on purpose.
-    let _ = writeln!(
-        sink,
-        "{} lockfiles, {} newly locked versions:",
-        report.crate_dirs.len(),
-        report.added.len()
-    );
-    // Borrow `&report.added`: lends the value without copying or giving it away.
-    for added in &report.added {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "  {} {}", added.name, added.version);
-    }
-    // Borrow `&report.fell_back`: lends the value without copying or giving it away.
-    for crate_dir in &report.fell_back {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(
-            sink,
-            "Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false, or crates exempt through minimumReleaseAgeExclude); crates that are not exempt are checked against it afterwards."
-        );
-    }
-    // Borrow `&report.warnings`: lends the value without copying or giving it away.
-    for warning in &report.warnings {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Warning: {warning}");
-    }
-    // Borrow `&report.pruned`: lends the value without copying or giving it away.
-    for selector in &report.pruned {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Pruned {selector} from rust-catalog.toml.");
-    }
-    if dry_run {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Dry run: every Cargo.lock was restored.");
-    } else if report.written {
-        // Macro `writeln!`: builds or prints text (or a list) from a template.
-        // `let _ =`: discards the result on purpose.
-        let _ = writeln!(
-            sink,
-            "Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`, then `cargo-shadow install`."
-        );
-    }
-}
+/// Re-exports the printing of a command's findings and reports,
+/// which lives in its own file (split out of this module),
+/// so every caller keeps the path it had.
+pub use crate::command_report_printing::{
+    print_findings,
+    print_install_report,
+    print_update_report,
+};
 
 /// Milliseconds since 1970 now.
 fn now_millis() -> i64 {
