@@ -333,6 +333,10 @@ impl Component {
 // `grep '^file:bin/' manifest-<name> | sed 's/^file:bin\///' | sort`;
 // they are the files that toolchain holds, so a later rustup that moves a program needs this
 // table read again.
+// The table holds only components that come with the host;
+// a standard library built for another target is a component of its own
+// (`rust-std-<triple>`), which `rustup target add` installs and which puts no program in `bin`,
+// so the row's `rustTargets` are handled where the listing is built and not here.
 //
 // In TS you'd write (pseudocode):
 // ```ts
@@ -432,9 +436,10 @@ const THE_MINIMAL_PROFILES_COMPONENTS: [&str; 3] = ["rustc", "cargo", "rust-std"
 // Gotcha:
 // The lines are a real capture, taken on 2026-11-27T17:35:46-05:00 into
 // `/home/user/temp/agent/issue-6630-the-rust-rows-bins-are-the-programs-its-declared-components-install-scratch/keep/rustup-queries-2026-11-27.txt`
-// (rustup 1.29.3),
-// and that toolchain holds the profile, the row's four components and `rustfmt`,
-// which is why ten lines are here.
+// (rustup 1.29.3).
+// That toolchain holds a profile's three components, the row's four declared ones,
+// `rustfmt` (which that machine had added by hand), and the two Android standard libraries
+// the row's `rustTargets` install, which is the ten lines here.
 //
 // In TS you'd write (pseudocode):
 // ```ts
@@ -925,9 +930,86 @@ fn rig_holding_the_programs_of(component_names: &[String]) -> Rig {
 }
 
 // What:
+// `fn the_targets_the_row_declares(row: &LockedTool) -> Vec<String>` is the row's `rustTargets`
+// list, or an empty list when the row declares none.
+// Why:
+// `rustup target add <triple>` installs the component `rust-std-<triple>`,
+// so a machine that follows the row holds one standard library per declared target.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theTargetsTheRowDeclares(row: LockedTool): string[]
+// ```
+fn the_targets_the_row_declares(row: &LockedTool) -> Vec<String> {
+    // What:
+    // `.clone()` copies the declaration's target list out of the lock entry,
+    // and `.unwrap_or_default()` substitutes an empty list when the row holds none.
+    // Why:
+    // A row with no `rustTargets` has to answer "no targets" rather than fail.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return [...(row.declaration.options.rustTargets ?? [])];
+    // ```
+    return row
+        .declaration
+        .options
+        .rust_targets
+        .clone()
+        .unwrap_or_default();
+}
+
+// What:
+// `fn the_component_listing_of(held: &[String], row: &LockedTool) -> Vec<String>` is the text
+// `rustup component list --installed --toolchain <channel>` prints for a toolchain of those
+// components and of the row's declared targets, one line per component, sorted.
+// Why:
+// This is the answer the controls below give the reconciler,
+// and one builder means the capture check reads the same lines the install is given.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theComponentListingOf(held: string[], row: LockedTool): string[]
+// ```
+fn the_component_listing_of(
+    held: &[String],
+    row: &LockedTool,
+) -> Vec<String> {
+    // What:
+    // `let mut lines: Vec<String> = Vec::new()` is the listing being collected.
+    // Why:
+    // The number of components a machine holds is only known at run time.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const lines: string[] = [];
+    // ```
+    let mut lines: Vec<String> = Vec::new();
+    for name in held {
+        lines.push(component_named(name).listed_as());
+    }
+    for target in the_targets_the_row_declares(row) {
+        // What:
+        // `format!("rust-std-{target}")` builds the component name a declared target installs.
+        // Why:
+        // The standard library of a non-host target is its own component,
+        // and rustup lists it under exactly this name.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // lines.push(`rust-std-${target}`);
+        // ```
+        lines.push(format!("rust-std-{target}"));
+    }
+    lines.sort();
+    return lines;
+}
+
+// What:
 // `fn answer_the_listings_of_the_installed_toolchain(rig: &Rig, held: &[String])` makes the fake
-// runner answer what a real rustup answers about a toolchain holding those components:
-// the channel's compiler, the host and declared targets, and those components as installed.
+// runner answer what a real rustup answers about a toolchain holding those components and the
+// row's targets:
+// the channel's compiler, the targets, and the components as installed.
 // Why:
 // With those answers the install finds the toolchain already at its version
 // and goes on to ask whether the row's components are all there,
@@ -944,17 +1026,17 @@ fn answer_the_listings_of_the_installed_toolchain(
     let row: LockedTool = the_repository_rust_row();
     // What:
     // the text `rustup component list --installed` prints for those components:
-    // one line each, in the spelling `Component::listed_as` derives, ending with a newline.
+    // one line each from `the_component_listing_of`, joined with newlines and ended by one.
     // Why:
     // The reconciler reads that text line by line, and a real listing ends each line.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const listing = held.map((name) => componentNamed(name).listedAs()).join('\n') + '\n';
+    // const listing = theComponentListingOf(held, row).join('\n') + '\n';
     // ```
     let mut listing: String = String::new();
-    for name in held {
-        listing.push_str(&component_named(name).listed_as());
+    for line in the_component_listing_of(held, &row) {
+        listing.push_str(&line);
         listing.push('\n');
     }
     // What:
@@ -1009,36 +1091,51 @@ fn answer_the_listings_of_the_installed_toolchain(
 }
 
 // What:
-// `#[test] fn the_component_names_the_stand_in_lists_are_the_ones_this_machines_rustup_printed()`
-// compares the listing spelling this file derives with the real capture.
+// `#[test] fn the_component_listing_the_stand_in_answers_is_the_one_this_machines_rustup_printed()`
+// compares the listing this file builds for a toolchain of the repository's row with the real
+// capture, in both directions.
 // Why:
-// The two controls below answer `rustup component list --installed` with that derivation,
-// and a spelling no rustup prints would test the reconciler against a shape that never occurs.
+// The two controls below answer `rustup component list --installed` with that listing.
+// A spelling no rustup prints would test the reconciler against a shape that never occurs,
+// and a component the capture holds that this file cannot build would leave the stand-in short of
+// a part the machine has, which is the same kind of gap as the missing `rustfmt` component.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// test('the component names the stand-in lists are the ones this machines rustup printed', () => { ... });
+// test('the component listing the stand-in answers is the one this machines rustup printed', () => { ... });
 // ```
 #[test]
-fn the_component_names_the_stand_in_lists_are_the_ones_this_machines_rustup_printed() {
-    for component in &THE_COMPONENTS {
-        // What:
-        // `component.listed_as()` is the line this file's stand-in would print for it,
-        // and `.as_str()` borrows that `String` so the capture's own `&str` entries can be searched.
-        // Why:
-        // A component listing that is not among the captured lines is a spelling rustup does not
-        // print.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const listed = component.listedAs();
-        // ```
-        let listed: String = component.listed_as();
-        assert!(
-            THE_COMPONENT_LISTING_THIS_MACHINES_RUSTUP_PRINTS.contains(&listed.as_str()),
-            "the stand-in lists {listed}, which the capture of this machine's `rustup component list --installed` does not hold"
-        );
+fn the_component_listing_the_stand_in_answers_is_the_one_this_machines_rustup_printed() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    // What:
+    // the lines this file's stand-in would print, sorted.
+    // Why:
+    // They are the subject of the comparison.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const derived = theComponentListingOf(held, row);
+    // ```
+    let derived: Vec<String> = the_component_listing_of(&held, &row);
+    // What:
+    // the captured lines as owned strings, sorted the same way.
+    // Why:
+    // The capture is an array of `&str`, and both sides are compared in one order.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const captured = [...theComponentListingThisMachinesRustupPrints].sort();
+    // ```
+    let mut captured: Vec<String> = Vec::new();
+    for line in THE_COMPONENT_LISTING_THIS_MACHINES_RUSTUP_PRINTS {
+        captured.push(line.to_string());
     }
+    captured.sort();
+    assert_eq!(
+        derived, captured,
+        "the stand-in's listing is what this machine's `rustup component list --installed` printed for a toolchain of this row; a difference means the row gained a part (read the listing again and record it) or lost one"
+    );
 }
 
 // What:
