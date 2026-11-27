@@ -122,8 +122,8 @@ export function poolMembers(id: string,): readonly Member[] {
  Pi compacts on a threshold taken from the selected model's window, so a zero window makes it compact
  on any non-empty context. These values are Pi's own fallback for a model that declares no window
  (`@earendil-works/pi-coding-agent` dist/core/provider-composer.js, `modelFromJson`), which keeps the
- pool no larger than a member built the same way; `poolModels` then advertises the smallest
- registered member's limits instead.
+ pool no larger than a member built the same way; `poolModels` then advertises the head member's
+ limits instead.
  */
 const PROVISIONAL_LIMITS: PoolLimits = {
   contextWindow: 128_000,
@@ -133,8 +133,9 @@ const PROVISIONAL_LIMITS: PoolLimits = {
 /**
  Limits one member reports, or zeroes for a member that is not registered.
 
- A zero is passed over rather than pulling the pool to zero: the pool must advertise a usable window,
- and a member that then rejects a context has its error returned like any other.
+ A member reporting no usable pair is passed over for the next member in the order, so the pool
+ always advertises a window Pi can compact against; a request a member's own window cannot hold is
+ passed over at that member alone (`src/member-admission.ts`).
  */
 export type PoolLimits = Readonly<{
   contextWindow: number;
@@ -158,84 +159,51 @@ export type MemberLimitsReader = (
 ) => PoolLimits;
 
 /**
- Smaller of two limits, treating zero as "not reported".
+ Limits one pool advertises: those of the head member a session registers.
 
- @param current - smallest value accepted so far
+ The head is the first member of the pool's order that the session registry resolves with a usable
+ pair of limits, and that is the first member a request is asked of: dispatch skips an unregistered
+ member the same way (`src/dispatch-request.ts`), so a member that reports no limits cannot stand for
+ the pool either.
 
- @param reported - value one member reported
-
- @returns the smaller positive value, or zero when neither reported one
- */
-function smallerPositive({
-  current,
-  reported,
-}: {
-  readonly current: number;
-  readonly reported: number;
-},): number {
-  if (reported <= 0)
-    return current;
-  return current <= 0 ? reported : Math.min(
-    current,
-    reported,
-  );
-}
-
-/**
- Smallest limits every registered member of one pool can honour.
+ A member further along that reports a smaller window no longer pulls the pool down, which is the
+ owner's decision of 2026-11-27 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+ "Skip a member too small for the request, and advertise the head's window"): the router passes over
+ that member only for a request its own window cannot hold, and Pi compacts on the head's window
+ instead of on the smallest member's.
 
  @param members - ordered members of the pool
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 
- @returns limits Pi may use for that pool, with Pi's own fallback when no member reports any
+ @returns head member's limits, or Pi's own fallback when no member reports a usable pair
 
  @example
  ```ts
- advertisedLimits({ members: POOL_DEFINITIONS[0].members });
+ headMemberLimits({ members: POOL_DEFINITIONS[0].members });
  ```
  */
-export function advertisedLimits({
+export function headMemberLimits({
   members,
   readMemberLimits,
 }: {
   readonly members: readonly Member[];
   readonly readMemberLimits?: MemberLimitsReader;
 },): PoolLimits {
-  /**
-   Smallest limits accepted so far, zero meaning none reported yet.
-   */
-  const smallest = members.reduce(
-    function foldLimits(
-      accepted: PoolLimits,
-      member: Member,
-    ): PoolLimits {
-      /**
-       Limits that member reported, zeroed when it is not registered.
-       */
-      const reported = readMemberLimits === undefined
-        ? NO_LIMITS
-        : readMemberLimits(
-          member.provider,
-          member.id,
-        );
-      return {
-        contextWindow: smallerPositive({
-          current: accepted.contextWindow,
-          reported: reported.contextWindow,
-        },),
-        maxTokens: smallerPositive({
-          current: accepted.maxTokens,
-          reported: reported.maxTokens,
-        },),
-      };
-    },
-    NO_LIMITS,
-  );
-  return {
-    contextWindow: smallest.contextWindow === 0 ? PROVISIONAL_LIMITS.contextWindow : smallest.contextWindow,
-    maxTokens: smallest.maxTokens === 0 ? PROVISIONAL_LIMITS.maxTokens : smallest.maxTokens,
-  };
+  for (const member of members) {
+    /**
+     Limits that member reported, zeroed when it is not registered.
+     */
+    const reported = readMemberLimits === undefined
+      ? NO_LIMITS
+      : readMemberLimits(
+        member.provider,
+        member.id,
+      );
+    if ((reported.contextWindow > 0) && (reported.maxTokens > 0))
+      return reported;
+  }
+  return PROVISIONAL_LIMITS;
 }
 
 /**
@@ -260,9 +228,9 @@ export function poolEntryFor({
   readonly readMemberLimits?: MemberLimitsReader;
 },): Model<typeof ROUTING_API> {
   /**
-   Limits every member of this pool can honour.
+   Limits the pool advertises: its head registered member's.
    */
-  const limits = advertisedLimits({
+  const limits = headMemberLimits({
     members: pool.members,
     ...(readMemberLimits === undefined ? {} : { readMemberLimits, }),
   },);
@@ -288,9 +256,10 @@ export function poolEntryFor({
 /**
  Catalog Pi sees for the pool provider.
 
- Text is the shared modality. The limits are the smallest of the pool's registered members', so a
- compaction Pi decides here fits every member, and a re-registration after the session binds reads
- them afresh.
+ Text is the shared modality. The limits are the head registered member's, so Pi compacts on the
+ window of the member every request is asked of first; a member further along whose own window is
+ smaller is passed over for a request it cannot hold rather than lowering what the pool advertises.
+ A re-registration after the session binds reads them afresh.
 
  @param readMemberLimits - registry reader, or undefined before a session binds
 

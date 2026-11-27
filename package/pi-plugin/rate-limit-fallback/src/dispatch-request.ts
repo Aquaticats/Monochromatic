@@ -28,7 +28,9 @@ import {
   type Member,
 } from './model-pools.ts';
 import { policyStopMessage, } from './policy-stop-message.ts';
+import type { PoolObservations, } from './pool-observations.ts';
 import { NO_TRANSPORT_CODE, } from './provider-wire-text.ts';
+import { estimateRequestTokens, } from './request-size.ts';
 import {
   PoolDispatchError,
   type RoutingSession,
@@ -58,6 +60,11 @@ const l = tagged({ tag: 'rate-limit-fallback', },);
 /**
  Start each request at the head of its pool, and hand off a 429, a transient provider failure (503 or
  Cloudflare 520 to 526), or a policy stop that arrived before output.
+
+ A member whose own reported window cannot hold this request is passed over before anything is sent
+ to it, for this request alone: the next member that can hold it is asked instead. The pool's
+ advertised window is its head member's, so a later member's smaller window no longer decides when Pi
+ compacts; it decides only which requests that member is asked.
 
  @param session - source of the live model catalog and previous quota evidence
 
@@ -105,30 +112,22 @@ export async function* dispatchRequest({
   if (members.length === 0)
     throw new PoolDispatchError(`Unknown rate-limit-fallback model: ${id}`,);
   /**
+   Estimated input tokens this request carries, read once: every attempt of one logical request sends
+   the same transcript, and a retry after Pi compacts the turn is a new request with its own size.
+   */
+  const requestTokens = estimateRequestTokens(context,);
+  /**
    Cancellation that applies to every attempt of this logical request.
    */
   const { signal, } = options ?? {};
   /**
-   Observations to report if the pool cannot answer.
+   Observations to report if the pool cannot answer, one kind per way a request can fail to settle.
    */
-  const unavailable: {
-    /**
-     Attributed policy stop the pool set aside, kept apart from later refusals so a rate limit cannot
-     replace it.
-     */
-    policyStop?: Extract<AssistantMessageEvent, { type: 'error'; }>;
-    /**
-     Last refusal the pool set aside, a 429 or a transient provider failure, as it arrived.
-     */
-    lastRefusal?: Extract<AssistantMessageEvent, { type: 'error'; }>;
-    /**
-     Named reasons that registered members were not admitted.
-     */
-    admissionStops: string[];
-  } = { admissionStops: [], };
+  const unavailable: PoolObservations = { admissionStops: [], };
   /**
    Members this request passes over because their last request could not be delivered, kept so the
-   pool can ask them anyway when no other member was tried.
+   pool can ask them anyway when no other member was tried. A member whose own window cannot hold
+   this request is not one of them: asking it could only end in its own rejection.
    */
   const deferred: Member[] = [];
   /**
@@ -195,6 +194,8 @@ export async function* dispatchRequest({
       id,
       label,
       askHeld,
+      memberWindow: physical.contextWindow,
+      requestTokens,
     },);
     if (admission.deferMember) {
       deferred.push(member,);
