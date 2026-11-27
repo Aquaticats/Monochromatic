@@ -257,6 +257,9 @@ pub mod shadow_step;
 /// The shadow's answer to `cargo update` and `cargo generate-lockfile`.
 pub mod shadow_update;
 
+/// Running one update of either kind, and the stand-in lockfile a full update writes (split out of the shadow update module).
+pub mod shadow_update_run;
+
 /// The rule that a shadow never starts a shadow:
 /// the identity every shadow carries,
 /// the check of a candidate,
