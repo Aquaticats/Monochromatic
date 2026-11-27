@@ -362,12 +362,19 @@ and the linter's `layout_folder_links.rs`,
 
 ### What the rounds found
 
-- Threaded-only test failures,
-  the 60-second bound in `cargo-shadow` that ends builds under load,
-  the driver's start timeouts under load
-  and a wrapper notice that repeats for a removed worktree
-  are being filed as issues by one agent,
-  after a search for each.
+- What the rounds reported as failing or misbehaving is on GitHub now:
+  issues 6530 to 6559,
+  filed on 2026-11-27 after a search for each,
+  beside 6524 to 6529.
+  Each has a round (the list under "Rounds running").
+  Issue 6560,
+  which a round filed for the defect of issue 6543,
+  is closed as its duplicate.
+- Issue 6561 is filed and has no round yet:
+  the hung-write controls leave their socket folder `~/temp/agent/hw-<pid>-<name>` behind when one panics
+  (34 were there on 2026-11-27).
+  Its round starts when issue 6524's has merged,
+  because both change `landing/service_land_hung_write_tests.rs`.
 - The Slint round (`f1957916b0`,
   the owner's "Finish the move (Recommended)",
   `doc/decision/rust-dependency-catalog.md`) left three points open:
