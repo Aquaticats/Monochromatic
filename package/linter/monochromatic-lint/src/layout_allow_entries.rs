@@ -288,6 +288,10 @@ fn entry_of(
 ///  the arrow the line holds is the one word a name in front of it cannot be mistaken for,
 ///  and the rule prints a key in exactly this shape,
 ///  so what a run prints is what the next run reads.
+///  The four-word shape is read only when the line spells it with one space between each pair of words,
+///  and every other line is read from the two sides of its arrow with no space taken off either side:
+///  a folder name may start with a space,
+///  and the space a line sets its words off with must never be read as part of a name or the other way round.
 ///  A name that holds the arrow itself is refused before any check,
 ///  because the line would not say which folder the one used is.
 ///
@@ -300,7 +304,12 @@ fn use_ends(
     text: &str,
 ) -> Result<(&str, &str), String> {
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
-    if words.len() == 4 && words[2] == ARROW {
+    // What: whether the line spells the four-word shape with one space between each pair of words.
+    // Why: only that spelling leaves the two names in doubt neither at their start nor at their end.
+    let spelled_as_printed: bool = words.len() == 4
+        && words[2] == ARROW
+        && text == format!("{FOLDER_USE_WORD} {} {ARROW} {}", words[1], words[3]).as_str();
+    if spelled_as_printed {
         return Ok((words[1], words[3]));
     }
     // What: the two sides of the arrow, when the line holds exactly one of them.
@@ -315,14 +324,19 @@ fn use_ends(
             "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`, and no folder name holds `{SET_OFF_ARROW}`."
         ));
     }
-    let Some(from) = from_side.strip_prefix(FOLDER_USE_WORD) else {
+    let Some(after_the_word) = from_side.strip_prefix(FOLDER_USE_WORD) else {
         return Err(format!(
             "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));
     };
-    let from: &str = from.trim();
-    let to: &str = to.trim();
-    if from.is_empty() || to.is_empty() {
+    // What: the one space the first word is set off with, and the name that follows it exactly.
+    // Why: a folder name may start with a space, so only the one separator may be read away.
+    let Some(from) = after_the_word.strip_prefix(' ') else {
+        return Err(format!(
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
+        ));
+    };
+    if from.trim().is_empty() || to.trim().is_empty() {
         return Err(format!(
             "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));

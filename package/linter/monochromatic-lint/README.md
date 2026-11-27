@@ -1281,6 +1281,10 @@ and a line that reads as none of them fails the run:
   and a round writes one line for each use it leaves alone.
   A folder name may hold a space,
   so the line is read from the two sides of the arrow it holds: the folder before the arrow, and the folder after it.
+  The four-word spelling is read only when the line sets its words off with one space each,
+  and any other line is read from its arrow with no space taken off either side,
+  because a folder name may start with a space,
+  and the space a line sets its words off with must never be read as part of a name or the other way round.
   A line holds one arrow only, because no folder name holds the words it is set off with.
   A line stays alive while its two folders still make that use and still sit in one loop together,
   in the folders' own graph or in the graph of the entries:
@@ -1737,6 +1741,9 @@ and every other line stays as it is.
   where alpha.16 could not read such a line at all.
   No alpha.16 list can hold one, because alpha.16 refused those lines,
   so no line of a list written then changes meaning.
+  The four-word spelling of a `uses` line is read only when the line sets its words off with one space each,
+  and a line written with any other spacing names a folder that holds that space,
+  so such a line tolerates nothing and is reported.
 - A `uses` or `file-uses` line may name a folder outside the package,
   written by the walk from the package folder,
   where alpha.16 refused the line although its own keys printed it.

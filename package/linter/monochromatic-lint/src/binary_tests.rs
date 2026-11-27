@@ -3982,6 +3982,51 @@ fn layout_an_extern_block_abi_string_holding_a_tab_is_keyed_with_one_space() {
     );
 }
 
+/// A folder whose name starts with a space still records a loop its group's own file closes:
+///  the key the rule prints puts that one space after the word `uses`, and the reader reads the space back as part of the name.
+#[cfg(unix)]
+#[test]
+fn layout_the_printed_keys_hold_a_loop_through_a_folder_whose_name_starts_with_a_space() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write(
+        "src/lib.rs",
+        "#[path = \"../ a/mod.rs\"]\nmod a;\nmod g;\nmod x;\n",
+    );
+    fixture.write("src/g/mod.rs", "pub mod c0;\npub mod own;\n");
+    fixture.write("src/g/c0/mod.rs", "pub struct G;\n");
+    fixture.write("src/g/own.rs", "use crate::x::X;\n");
+    fixture.write("src/x/mod.rs", "pub mod f;\n");
+    fixture.write(
+        "src/x/f.rs",
+        "use crate::a::A;\nuse crate::g::c0::G;\npub struct X;\n",
+    );
+    fixture.write(" a/mod.rs", "pub mod f;\n");
+    fixture.write(" a/f.rs", "use crate::g::c0::G;\npub struct A;\n");
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "folder.txt");
+    for key in [
+        "uses  a -> src/g/c0",
+        "uses src/x ->  a",
+        "uses src/x -> src/g/c0",
+    ] {
+        assert!(
+            keys.iter().any(|printed| return printed == key),
+            "{key} missing in {keys:?}"
+        );
+    }
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
 /// The allow-list keys one `--debug` run printed, in the order it printed them.
 fn printed_keys(text: &str) -> Vec<String> {
     let mut keys: Vec<String> = Vec::<String>::new();
