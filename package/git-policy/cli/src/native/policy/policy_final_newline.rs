@@ -22,6 +22,9 @@
 
 /// Import the candidate's mode.
 use crate::candidate_object::CandidateMode;
+/// Import the request a lifecycle makes for candidates,
+///  which says which state the bytes a finding names came from.
+use crate::candidate_prediction::CandidateRequest;
 /// Import the candidate's change kinds.
 use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
@@ -29,6 +32,9 @@ use crate::candidate_version::{
     Candidate,
     CandidateVersion,
 };
+/// Import the fact the hint of this code says out loud:
+///  what a commit does with the bytes a finding names.
+use crate::event_hints::CommitCorrection;
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the lifecycle's candidates and the correction a fix applies.
@@ -195,18 +201,23 @@ fn is_checked(candidate: &Candidate) -> bool {
 ///       as text,
 ///  replacing bytes that are not UTF-8,
 ///  and keeps such bytes exactly.
+///  `commit_correction` is what a commit that takes the bytes does with them.
 /// Why:
 ///   The finding names the file the person must change,
-///  and says whether this
-///       lifecycle proposed the correction.
+///  says whether this
+///       lifecycle proposed the correction,
+///  and says what a commit that takes the file does,
+///  which is what the
+///       hint at an `add` and at a direct check tells the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const finding = { code: 'noncanonical-final-newline', message, path: candidate.path, patch };
+/// const finding = { code: 'noncanonical-final-newline', message, path: candidate.path, patch, commitCorrection };
 /// ```
 fn finding(
     candidate: &Candidate,
     fix_available: bool,
+    commit_correction: CommitCorrection,
 ) -> PolicyFinding {
     return PolicyFinding {
         code: FINAL_NEWLINE_CODE,
@@ -214,6 +225,41 @@ fn finding(
         path: Some(EventPath::from_git_bytes(candidate.path.as_slice())),
         location: None,
         fix_available,
+        commit_correction: Some(commit_correction),
+    };
+}
+
+/// What:
+///  What a commit that takes the bytes `lifecycle` offered does with them.
+/// Why:
+///   An `add` and a direct check read the worktree bytes a commit would take,
+///  so that commit
+///       corrects them before it records them;
+///  a commit's own index,
+///  a landed commit and a pushed tree are states in which a
+///       commit records exactly the bytes it was given,
+///  so nothing corrects them.
+///  A lifecycle that
+///       offers no candidates makes no finding,
+///  so its answer is never printed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commitCorrection = lifecycle.kind === 'add' || lifecycle.kind === 'direct' ? 'corrects' : 'records';
+/// ```
+fn commit_correction(lifecycle: &LifecycleContent) -> CommitCorrection {
+    // `let ... else` runs the fallback for a lifecycle that offers no candidates.
+    let LifecycleContent::Requested(request) = lifecycle else {
+        return CommitCorrection::Records;
+    };
+    return match request {
+        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => CommitCorrection::Corrects,
+        CandidateRequest::Staged(_)
+        | CandidateRequest::StagedAtBase {
+            ..
+        }
+        | CandidateRequest::Pushed(_)
+        | CandidateRequest::Landed(_) => CommitCorrection::Records,
     };
 }
 
@@ -277,6 +323,15 @@ pub fn check_final_newline<F: RepositoryFacts>(
         Err(outcome) => return outcome,
     };
     let mut findings: Vec<PolicyFinding> = Vec::new();
+    // What: one answer for every finding of this pass, because they all read the same state.
+    // Why:  the request decides what a commit does with these bytes, and it is the lifecycle's, not a
+    //       candidate's.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const correction = commitCorrection(lifecycle);
+    // ```
+    let correction: CommitCorrection = commit_correction(lifecycle);
     for (candidate, bytes, normalized) in pending {
         if unset.contains(&candidate.path) {
             continue;
@@ -291,7 +346,7 @@ pub fn check_final_newline<F: RepositoryFacts>(
                 after: Rc::from(normalized),
             });
         }
-        findings.push(finding(candidate, corrects));
+        findings.push(finding(candidate, corrects, correction));
     }
     return PolicyOutcome::Findings(findings);
 }
@@ -306,3 +361,8 @@ mod tests;
 #[cfg(test)]
 #[path = "policy_final_newline_attribute_tests.rs"]
 mod attribute_tests;
+
+/// Controls for the hint each lifecycle's finding gives stay out of the release executable.
+#[cfg(test)]
+#[path = "policy_final_newline_hint_of_each_lifecycle_tests.rs"]
+mod hint_of_each_lifecycle_tests;

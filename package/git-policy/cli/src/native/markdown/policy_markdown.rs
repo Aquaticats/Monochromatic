@@ -406,6 +406,7 @@ fn violation(
         path: Some(path.clone()),
         location: None,
         fix_available: false,
+        commit_correction: None,
     };
 }
 
@@ -449,6 +450,7 @@ fn candidate_findings(
             path: Some(path.clone()),
             location: None,
             fix_available: corrects,
+            commit_correction: None,
         });
         if corrects {
             content.propose(Correction {

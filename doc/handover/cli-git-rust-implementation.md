@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:35:16-05:00
+## The state at 2026-11-27T18:11:08-05:00
 
-`main` was `21c91bc9fd`.
+`main` was `50e4b07543`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 276 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 283 more by this time.
 
 ### Rounds running
 
@@ -163,13 +163,28 @@ and it keeps no margin.
 Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
 A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
 issue 6631,
-whose round,
-`issue-6631-the-watch-control-that-delivers-a-message-to-a-later-turn-holds-in-a-whole-run`,
-started 2026-11-27T17:31:49-05:00.
-That round is the first started on the rebuilt copy:
-its session selects the virtual writer and Qwen's member answers it.
-The window a new run records is in its `summary.json` when it ends,
-which the coordinator reads for the first such run.
+whose round is merged (`ae937863bc`) and whose issue is closed.
+One timed whole run showed the case's bound,
+three polls,
+left 177 ms of room while its own process was held up for as long as 94 ms by its sibling cases.
+With one named step made a poll slower,
+the case ended on its wall clock,
+which is the failure the issue quotes.
+The cases of that file that end on an event now take their bound from the looks they need,
+each look counted with the longest wait a look can be handed,
+so no loaded host decides them;
+the cost is that a watch that never reaches its event is reported after as long as 181.8 s.
+The watch itself is unchanged.
+The cases that assert the wall clock keep their bounds,
+and one of them still fails if a timer fires about 285 ms late.
+The suite's 228 lines passed after the merge of `main`.
+Three things of that round wait for the owner in `doc/handover/questions-for-the-owner.md`.
+The rounds started at that minute are the first on the rebuilt copy.
+The first of them to end,
+the round of issue 6630,
+recorded a context window of 1,000,000 tokens in its `summary.json`,
+with no retry and no rate-limit error,
+which closes the check of the owner's change at a real run.
 The owner also wrote,
 of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
 "nw-large is advisor,
@@ -208,9 +223,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The branch added controls and no release code.
   That hint tells a person to edit a file the next commit corrects,
   which is issue 6627;
-  its round,
-  `issue-6627-the-final-newline-hint-at-git-add-says-what-the-next-commit-does`,
-  started 2026-11-27T17:04:25-05:00.
+  its round is merged (`0f69dbfe93`) and the issue is closed.
+  At an `add` and at a direct check the hint now says a commit that takes the file corrects the ending,
+  and names the `fix` command for correcting it now;
+  the sentence that says to edit the file stays for a commit whose selection is read-only,
+  a landed commit and a manual push,
+  where nothing corrects the bytes.
+  The round measured both steps on fixtures,
+  and found no `add` at which nothing corrects the file,
+  which the brief had asked a control for.
+  The push of that merge was refused by GitHub with `GH009` and cleared by one push by hand,
+  as `doc/troubleshooting/github-lfs-integrity-rejection.md` records with the others.
   Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
   issue 6620 (`bc24b2e688`),
   issue 6619 (`1ef6287246`),
@@ -622,22 +645,48 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   with nothing to build until a red run's output is kept whole.
   The commit's `Closes` line closed issue 6623 at the merge;
   a comment on that commit says `Refs` is the accurate word.
-  `0.1.5-alpha.16` waits again,
-  by the coordinator's choice with the veto open,
-  for the round of issue 6629.
-  The failure that wait prevents is measured:
-  where no user manager can be reached,
-  every call now makes five asks and takes 883.1 ms at the median,
-  against 43.2 ms and one ask for `0.1.5-alpha.15`
-  (12.90 to 29.68 times as long per round,
-  median 20.55,
-  nine interleaved rounds beside byte-identical copies),
-  and the repository's workflows install the locked binary
-  (`.github/actions/repo-tools-setup/action.yml`),
-  so releasing and locking it would put that wait into every such call.
-  That round,
-  `issue-6629-a-call-with-no-user-manager-to-reach-asks-once-and-a-reexec-is-still-ridden-through`,
-  started 2026-11-27T17:04:25-05:00.
+  That span cost a call 883.1 ms at the median where no user manager can be reached,
+  against 43.2 ms for `0.1.5-alpha.15`,
+  so `0.1.5-alpha.16` waited for the round of issue 6629,
+  which is merged (`aa7b4eb927`).
+  The discovery now reads in its own process whether anything on the host could carry an ask:
+  the runtime directory and the bus address,
+  the manager's own socket and directory,
+  and the bus socket.
+  Where nothing could,
+  the first failed ask is the answer.
+  It matches no words of another program.
+  Measured again with the same harness,
+  in both ways of having no manager:
+  one ask per call in all 72 calls,
+  and the branch's call at 1.01 to 1.28 times the released binary's per round with neither variable set
+  (median 1.11),
+  and at 0.87 to 1.05 times with a runtime directory that holds nothing
+  (median 1.00),
+  while byte-identical copies moved as much.
+  The control that reexecutes a container's own manager passed three times with the change,
+  and failed there with the asking again taken out.
+  Sampled across real reexecs,
+  the manager's socket was absent for 0.17 ms and for 0.28 ms in one run and never in another,
+  and the manager's directory was there in every sample,
+  which is why a reexec does not read as no manager.
+  One residue:
+  a host whose manager died and left its socket file or its directory behind is still asked five times.
+  Its commit's `Closes` line closed issue 6629 at the merge,
+  and the coordinator reopened the issue for that residue.
+  The release run of `0.1.5-alpha.16` was started by 2026-11-27T17:51:43-05:00
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079151776>);
+  its release commit is `4338272860`,
+  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
+  and `main` is fast-forwarded to it.
+  It is published,
+  locked (`49ca48000e`) and installed here,
+  where `.cache/toolchain-bin/cargo-shadow --version` says `0.1.5-alpha.16`,
+  and the session's `git` link is back.
+  Its Claude Sonnet second pass started 2026-11-27T17:56:42-05:00,
+  with its review at `~/temp/agent/cargo-shadow-alpha-16-release-review-2026-11-27/keep/review.md`;
+  it runs both released binaries,
+  and what needs a manager disturbed or absent runs in containers.
   Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
   saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
   Issue 6619's round is merged (`1ef6287246`).
@@ -816,9 +865,18 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which no component the plan declares installs:
   issue 6630,
   with the pick in `doc/handover/questions-for-the-owner.md`,
-  and its round,
-  `issue-6630-the-rust-rows-bins-are-the-programs-its-declared-components-install`,
-  started 2026-11-27T17:31:49-05:00.
+  and its round is merged (`b7414d5939`).
+  The row declares the `rustfmt` component,
+  the only one that installs those two programs,
+  as the installed toolchain's own component manifests show.
+  A control builds a toolchain from exactly what the row declares and the profile installs,
+  and names no unresolved bin;
+  it named the two before the change.
+  Two more hold that an install asks the manager for a declared component the toolchain lacks,
+  and for nothing where the toolchain holds them all.
+  The lock followed through the offline rewrite,
+  with the row's components and the digest as its whole diff.
+  Its whole test task passed 910 of 910 on its merged tree.
   The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
   saying what issue 6626's merge changed and which files that round has.
   Its Claude Sonnet read returned,
@@ -850,8 +908,45 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and priced it:
   keeping a second copy whose program differs means reading both programs on every recovery,
   and still cannot tell a program cut short from one rebuilt at the same size.
-  The other round of the read and the round of issue 6630 got a note at 2026-11-27T17:35-05:00 on what it reworded.
-  `0.2.7-alpha.17` follows the merges of the two that still run.
+  The second,
+  on the move of `current`,
+  is merged (`d46572181c`).
+  A test can now make that move fail,
+  through a seam compiled out of a shipped build,
+  and two controls hold that nothing is removed when the link cannot be moved;
+  both fail with the `return` after the failed move taken out.
+  A control holds a hidden name whose boot and namespace both differ as ended,
+  and fails with the two comparisons swapped.
+  The warning after a failed listing no longer speaks of a copy,
+  because none was read.
+  Two behaviours stay as they are,
+  each held by a control and said in the README,
+  and each waits for the owner:
+  a move of `current` that fails once ends the run 1 and leaves the older version until `prune --toolchain`,
+  and a recovery that puts an unfinished copy back points `current` at the newest finished version.
+  Its whole test task passed 906 of 906 on its merged tree.
+  Every round of the package has merged,
+  and `0.2.7-alpha.17` is released
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079725275>,
+  release commit `04d5150e0b`),
+  locked (`50e4b07543`) and installed here:
+  the install named no unresolved bin,
+  and the session's `git` link is back.
+  What backs the claim that an install adds a declared component a toolchain lacks:
+  the round's controls,
+  whose manager is a stand-in.
+  This machine's toolchain already holds `rustfmt`,
+  so its install is the arm that asks for nothing.
+  No workflow that runs on a push installs the Rust row
+  (the release workflows install a toolchain with `rustup` themselves,
+  and `music-player-release.yml` alone runs the toolchain install);
+  the drift gate in `advisory-core.yml` passed on the merge and after it.
+  The real arm,
+  a toolchain at the `minimal` profile with no `rustfmt` in a container,
+  is point 3 of the release's Claude Sonnet second pass,
+  which started 2026-11-27T18:05:48-05:00,
+  with its review at `~/temp/agent/mpm-shadow-alpha-17-release-review-2026-11-27/keep/review.md`.
+  A failure of that arm comes before every other finding of the package.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -1063,9 +1158,10 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-One read runs as a background agent of the coordinating session,
+Three reads run as background agents of the coordinating session:
 of the linter's `0.5.2-alpha.22`,
-at the path this section gives beside that release.
+of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17`,
+each at the path this section gives beside its release.
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's
@@ -2475,6 +2571,12 @@ and the two `truepeak` files wait on their branch.
   Clippy and whole test task run there:
   on 2026-11-27 three `mpm-shadow` rounds merged with no textual conflict,
   and the merged tree did not compile.
+  After a merge,
+  origin holds the tip before the next step:
+  when the commit service's push of `main` is refused with `GH009`,
+  it does not try again,
+  and one `git push origin main` clears it
+  (`doc/troubleshooting/github-lfs-integrity-rejection.md`).
   A release commit of the linter counts as such a change for the wrapper:
   it writes the new version into `Cargo.toml` and `Cargo.lock` of `package/git-policy/cli` and of its fuzz sidecar,
   so a wrapper branch that took `main` in before it is checked again with it.
@@ -2501,13 +2603,29 @@ and the two `truepeak` files wait on their branch.
   `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
-- When a tool's fix rounds have merged and `main` equals `origin/main`:
-  release `cargo-shadow` `0.1.5-alpha.16` once the round of issue 6629 has merged,
-  and `mpm-shadow` `0.2.7-alpha.17` once its rounds have,
-  lock each on a branch worktree,
-  install,
-  put the session's `git` link back,
-  and run a Claude Sonnet pass on each.
+- Read the second passes of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17` whole when they return,
+  and route their findings.
+- The `forbidden-strings` workflow has failed or been cancelled on every push to `main`
+  since run 44656950451 of 2026-11-20T01:54:13Z,
+  which is issue 6632.
+  The workflow hands the scanner every changed entry as a file,
+  and each of the 139 tracked links under `uses/` folders points at a folder,
+  so each prints `read error: Is a directory`;
+  run 46079689494 scanned 8149 entries and printed those 139 lines and no other finding.
+  The round
+  `issue-6632-the-forbidden-strings-workflow-ends-green-on-a-push-whose-changed-entries-hold-links-to-folders`
+  started 2026-11-27T18:09:51-05:00.
+  It cures the workflow's list,
+  under the rule that nothing the step inspects today stops being inspected,
+  and builds nothing in the scanner,
+  whose release is asked of the owner first.
+  After its merge,
+  read the first push run on `main`:
+  the issue closes when that run is green.
+- A merge of a branch whose worktree still stands makes the wrapper hand that worktree's removal to the commit service,
+  and says so in a notice;
+  check that the folder,
+  the local branch and origin's branch are gone afterwards.
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).

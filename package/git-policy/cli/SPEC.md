@@ -24202,6 +24202,14 @@ Every finding code of a policy whose message has no alternative of its own,
 and every engine failure code,
 has a hint,
 and the test suite fails when one is added without it.
+A finding's hint says what corrects the bytes it names where the finding is made.
+The `final-newline` finding of an `add` and of a direct check says a commit that takes the file corrects the ending
+while this repository's settings keep `final-newline` on,
+and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+The same finding of a commit whose selection is read-only,
+of a landed commit and of a pushed tree says to edit the file,
+because nothing corrects bytes a commit records as they are.
+A finding of a patch-capable commit or of a direct fix says the correction is that lifecycle's own.
 Plain stderr notices that report a divergence from real Git's behavior end with a hint in the same voice.
 A reader that ignores unknown fields is unaffected.
 
@@ -26016,6 +26024,16 @@ read-only commit selection and other pre-forward commands,
 including `git add`,
 warn and continue without offering an inapplicable patch.
 An explicit error override makes those findings blocking.
+The hint of a finding here says what corrects the file where the finding is made.
+An `add` and a direct check read worktree bytes a commit takes,
+so their hint names that commit's correction,
+which happens while the settings keep `final-newline` on,
+and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+A commit whose selection is read-only (`-p`,
+`-i`,
+`--include`),
+a landed commit and a pushed tree name bytes nothing corrects,
+and their hint tells the person to edit the file and stage it again.
 Direct fix affects selected worktree bytes only.
 Every real index entry remains exact during direct fix.
 

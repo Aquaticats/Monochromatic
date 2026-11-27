@@ -168,6 +168,7 @@ pub(crate) fn policy_finding(finding: &DependentFinding) -> PolicyFinding {
         path: finding.path.as_deref().map(EventPath::from_git_bytes),
         location: None,
         fix_available: finding.patch.is_some(),
+        commit_correction: None,
     };
 }
 

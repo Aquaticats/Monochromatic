@@ -1959,15 +1959,26 @@ Linux 7.3.5 and 6.8,
 systemd 262 and 255),
 not the second after one,
 where no ask failed and the ten of that run did.
-What that span costs where no manager answers at all:
-about 0.88 s and five asks for one `cargo-shadow install --dry-run`,
-against about 0.04 s and one ask for `0.1.5-alpha.15`,
-measured in a container with no user manager,
-nine rounds of both binaries beside byte-identical copies of each,
-12.9 to 29.7 times as long (median 20.6),
-and every call took the weaker path and exited 0.
 Where a manager answers,
-the asking again costs nothing unless an ask fails.
+the asking again costs nothing unless an ask fails,
+and that span is spent there and nowhere else.
+Where no user manager can be reached at all,
+the question is asked once:
+the discovery reads in its own process that nothing on this host could carry an ask
+(`src/control_group_route_manager_reach.rs`),
+and the first failed ask is that host's whole answer.
+Measured 2026-11-27 in a container with no user manager,
+in both ways of having none,
+nine rounds of this branch's binary beside `0.1.5-alpha.15` and a byte-identical copy of each:
+every call made one ask,
+and this branch's call no longer than the released binary's by more than the rounds themselves vary,
+**1.01 to 1.28 times it per round where neither variable is set (median 1.11)**
+and **0.87 to 1.05 times it where the runtime directory holds no socket (median 1.00)**,
+with a byte-identical copy of each moving by as much (0.83 to 1.43 and 0.87 to 1.15),
+about 40 ms a call for both binaries where the round before this one measured about 43 ms,
+and every call took the weaker path and exited 0.
+Before this change the same harness measured 12.9 to 29.7 times as long (median 20.6),
+which is what five asks cost a call there.
 The task keeps the whole output of a failing run in `target/test-runs` under this package,
 which `.gitignore` excludes,
 and its last lines name the file.

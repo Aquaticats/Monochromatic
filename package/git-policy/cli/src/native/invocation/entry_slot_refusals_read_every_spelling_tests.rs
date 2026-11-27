@@ -2322,6 +2322,7 @@ fn the_root_rules_words(
                     path: None,
                     location: None,
                     fix_available: false,
+                    commit_correction: None,
                 }),
                 PolicyEvent::WarnUnsafe {
                     trigger: Trigger::PreForward,

@@ -72,6 +72,7 @@ fn finding(severity: Severity) -> PolicyEvent {
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
 }
 

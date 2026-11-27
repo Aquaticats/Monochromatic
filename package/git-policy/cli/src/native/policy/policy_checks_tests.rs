@@ -112,6 +112,7 @@ fn one(
         path: None,
         location: None,
         fix_available: false,
+        commit_correction: None,
     }]);
 }
 

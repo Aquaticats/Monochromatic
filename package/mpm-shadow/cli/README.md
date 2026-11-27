@@ -252,6 +252,12 @@ or a Java major line such as `21`).
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  Every program a row lists that no component it declares and no profile installs is not in
+  the toolchain at all,
+  so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
+  that name in the cargo bin directory;
+  `src/toolchain/the_rust_rows_own_toolchain_holds_every_bin_it_declares_tests.rs`
+  is the control of that against a toolchain holding exactly what this repository's row declares.
 - The example's `rust` row above shortens that list to one bin:
   this repository's own row lists the programs the toolchain holds
   (`cargo`,
@@ -265,6 +271,28 @@ or a Java major line such as `21`).
   `rustdoc`
   and `rustfmt`),
   and none of them is `rustup`.
+  Which component puts each of them there follows from the same names the plan uses:
+  `cargo` comes from the `cargo` component,
+  `rustc`,
+  `rustdoc`,
+  `rust-gdb`,
+  `rust-gdbgui` and `rust-lldb` from `rustc`,
+  `cargo-clippy` and `clippy-driver` from `clippy`,
+  and `cargo-fmt` and `rustfmt` from `rustfmt`.
+  The `cargo` and `rustc` components are not in `rustComponents`:
+  they are what rustup's profile installs before any declared component,
+  which on a machine set to the `minimal` profile
+  (the setting this repository's measurements were taken under)
+  is `rustc`,
+  `cargo` and `rust-std`,
+  so six of those ten programs arrive that way
+  and no formatter does;
+  this repository's own tasks run both
+  (`cargo fmt`,
+  and `format:processors` in `package/linter/monochromatic-lint/mise.toml` runs a bare `rustfmt`),
+  which is why the row declares `rustfmt` (issue 6630).
+  The row's `rust-src`,
+  `llvm-tools` and `rustc-dev` components put no program in the toolchain's `bin` directory.
 - An unknown field or origin is an error naming its path.
   `version` and `artifacts` are not plan fields:
   only `update` writes them.
