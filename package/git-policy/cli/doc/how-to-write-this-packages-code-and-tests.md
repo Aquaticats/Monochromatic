@@ -525,6 +525,34 @@ and that clock advances once per 1 ms tick,
 so the write left the stamp exactly as it was and the final check rightly passed in 6 runs of 6).
 `stamped_pair` gives its source a modification time `RECENT_CHANGE_NANOS` before now for that reason,
 and the measurement is in `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`.
+The controls of this crate whose assertion needs two file times to differ,
+and what each rests on
+(2026-11-27,
+issue 6593):
+
+- `worktree_copying::worktree_copy_compare::tests::a_source_written_after_the_stamp_fails_the_final_check`
+  rests on `settle_the_modification_time`,
+  which gives the fixture's source the modification time `RECENT_CHANGE_NANOS` before now.
+- Every control that pins the clock with `clock_reads`
+  (the `settled_clock` fixture of `index::index_reset_worktree_stat::tests`,
+  `index::index_reset_file::tests`'s attributes control,
+  the three at `worktree_copying::worktree_copy_stage::tests`,
+  and the ones in `worktree::worktree_clean_content_attributes::tests`)
+  rests on the instant it hands the code,
+  never on the clock moving.
+- `worktree::worktree_snapshot_index_step::tests::the_index_a_source_with_changes_installs_keeps_the_fields_that_prove_an_edit`
+  and the controls of `worktree::worktree_dirty_restore::tests` that hide an edit
+  rest on `hide_an_edit`'s two stated nanosecond parts of the modification time
+  (`HIDDEN_EDIT_RECORDED_NANOS`
+  and `HIDDEN_EDIT_EDITED_NANOS`),
+  which is what issue 6593 changed.
+- `lock::index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds`
+  is the one left that rests on the file system's own clock:
+  it changes a file's permissions up to fifty times and asserts that one change time has a nonzero
+  millisecond part,
+  which the clock's offset decides and nothing of the control does.
+  It is unchanged,
+  and issue 6593 names it.
 
 ## Write less code
 
